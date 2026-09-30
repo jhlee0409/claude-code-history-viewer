@@ -5,7 +5,6 @@
  * Implements per-CLI argument configuration with live preview and safety validation.
  */
 
-import * as React from "react";
 import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -30,7 +29,6 @@ import { useAppStore } from "@/store/useAppStore";
 import {
   supportsResumeCommand,
   getProviderLabel,
-  PROVIDER_IDS,
   DEFAULT_PROVIDER_ID,
 } from "@/utils/providers";
 import {
@@ -213,7 +211,7 @@ export function SessionResumeSection({
         toast.success(
           t("settings.sessionResume.saved", "Resume arguments saved")
         );
-      } catch (err) {
+      } catch {
         toast.error(
           t("settings.sessionResume.saveFailed", "Failed to save settings")
         );

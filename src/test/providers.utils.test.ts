@@ -240,6 +240,14 @@ describe("providers utils", () => {
     ).toBe("copilot --dangerously-skip-permissions --resume=abc-123");
 
     expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("forge conversation resume --dangerously-skip-permissions abc-123");
+
+    expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, ["--model", "custom"])
+    ).toBe("forge conversation resume --model custom abc-123");
+
+    expect(
       getResumeCommand("kimi", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
     ).toBe("kimi --dangerously-skip-permissions -r abc-123");
 

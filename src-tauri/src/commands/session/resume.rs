@@ -166,14 +166,36 @@ pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
         if trimmed.chars().any(|c| {
             matches!(
                 c,
-                ';' | '&' | '|' | '$' | '`' | '<' | '>' | '\\' | '!' | '"' | '\'' | '(' | ')' | '\n' | '\r' | '\t' | ' '
+                ';' | '&'
+                    | '|'
+                    | '$'
+                    | '`'
+                    | '<'
+                    | '>'
+                    | '\\'
+                    | '!'
+                    | '"'
+                    | '\''
+                    | '('
+                    | ')'
+                    | '\n'
+                    | '\r'
+                    | '\t'
+                    | ' '
             )
         }) {
-            return Err(format!("CLI argument contains prohibited shell metacharacters: '{trimmed}'"));
+            return Err(format!(
+                "CLI argument contains prohibited shell metacharacters: '{trimmed}'"
+            ));
         }
         // Validate charset: alphanumeric, '-', '_', '.', '=', '/', ':', ',', '+'
-        if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '=' | '/' | ':' | ',' | '+')) {
-            return Err(format!("CLI argument contains invalid characters: '{trimmed}'"));
+        if !trimmed.chars().all(|c| {
+            c.is_ascii_alphanumeric()
+                || matches!(c, '-' | '_' | '.' | '=' | '/' | ':' | ',' | '+')
+        }) {
+            return Err(format!(
+                "CLI argument contains invalid characters: '{trimmed}'"
+            ));
         }
         validated.push(trimmed.to_string());
     }
@@ -181,7 +203,10 @@ pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
 }
 
 /// Builds the final terminal resume command by inserting extra arguments into the base command.
-pub fn build_terminal_command(base_command: &str, extra_args: &[String]) -> Result<String, String> {
+pub fn build_terminal_command(
+    base_command: &str,
+    extra_args: &[String],
+) -> Result<String, String> {
     if extra_args.is_empty() {
         return Ok(base_command.to_string());
     }
@@ -193,7 +218,7 @@ pub fn build_terminal_command(base_command: &str, extra_args: &[String]) -> Resu
     } else if let Some(id) = base_command.strip_prefix("copilot --resume=") {
         Ok(format!("copilot {args_str} --resume={id}"))
     } else if let Some(id) = base_command.strip_prefix("forge conversation resume ") {
-        Ok(format!("forge conversation {args_str} resume {id}"))
+        Ok(format!("forge conversation resume {args_str} {id}"))
     } else if let Some(id) = base_command.strip_prefix("kimi -r ") {
         Ok(format!("kimi {args_str} -r {id}"))
     } else if let Some(id) = base_command.strip_prefix("kimi -S ") {
@@ -425,6 +450,10 @@ mod tests {
         assert_eq!(
             build_terminal_command("copilot --resume=abc-123", &args).unwrap(),
             "copilot --dangerously-skip-permissions --resume=abc-123"
+        );
+        assert_eq!(
+            build_terminal_command("forge conversation resume abc-123", &args).unwrap(),
+            "forge conversation resume --dangerously-skip-permissions abc-123"
         );
         assert_eq!(
             build_terminal_command("kimi -S session_abc", &args).unwrap(),

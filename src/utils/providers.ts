@@ -445,7 +445,7 @@ export function getResumeCommand(
           : null;
       break;
     case "forgecode":
-      resume = `forge conversation ${extraPrefix}resume ${sessionId}`;
+      resume = `forge conversation resume ${extraPrefix}${sessionId}`;
       break;
     case "kimi":
       // One provider id, two stores: kimi-code (`~/.kimi-code`) resumes with

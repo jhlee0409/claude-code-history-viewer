@@ -171,7 +171,7 @@ export function useSessionBatchActions() {
               undefined,
               session.entrypoint
             ),
-            extraArgs: tokens.length > 0 ? tokens : undefined,
+            ...(tokens.length > 0 ? { extraArgs: tokens } : {}),
           };
         })
         .filter(
