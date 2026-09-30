@@ -1476,16 +1476,14 @@ fn convert_codex_item(
             ))
         }
         "reasoning" => {
-            let thinking_text = item
-                .get("summary")
-                .and_then(|s| s.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.get("text").and_then(|t| t.as_str()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                })
-                .unwrap_or_default();
+            // Prefer the summary; some backends (e.g. DeepSeek via Codex, #597)
+            // leave it empty and store the text as `content[].reasoning_text`.
+            let mut thinking_text = join_reasoning_texts(item.get("summary"), |_| true);
+            if thinking_text.is_empty() {
+                thinking_text = join_reasoning_texts(item.get("content"), |v| {
+                    v.get("type").and_then(Value::as_str) == Some("reasoning_text")
+                });
+            }
 
             if thinking_text.is_empty() {
                 return None;
@@ -1508,6 +1506,19 @@ fn convert_codex_item(
         }
         _ => None,
     }
+}
+
+/// Joins the `text` of matching entries in a reasoning `summary`/`content` array.
+fn join_reasoning_texts(arr: Option<&Value>, keep: impl Fn(&Value) -> bool) -> String {
+    arr.and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter(|v| keep(v))
+                .filter_map(|v| v.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
 }
 
 fn convert_codex_event(
@@ -2138,6 +2149,49 @@ mod tests {
                 .and_then(Value::as_str),
             Some("data:image/png;base64,abc")
         );
+    }
+
+    fn reasoning_thinking_text(item: &Value) -> Option<String> {
+        let mut counter = 0u64;
+        let msg = convert_codex_item(
+            item,
+            "session-1",
+            None,
+            "2026-09-21T10:34:53Z",
+            &mut counter,
+        )?;
+        assert_eq!(msg.message_type, "assistant");
+        let arr = msg.content.as_ref().and_then(Value::as_array)?;
+        assert_eq!(arr[0].get("type").and_then(Value::as_str), Some("thinking"));
+        arr[0]
+            .get("thinking")
+            .and_then(Value::as_str)
+            .map(String::from)
+    }
+
+    #[test]
+    fn convert_reasoning_item_falls_back_to_content_reasoning_text() {
+        // DeepSeek via Codex leaves `summary` empty and stores the text in
+        // `content[]` as `reasoning_text` entries (#597).
+        let text = reasoning_thinking_text(&json!({
+            "type": "reasoning",
+            "summary": [],
+            "content": [{ "type": "reasoning_text", "text": "Let me generate it." }],
+            "encrypted_content": "opaque"
+        }));
+
+        assert_eq!(text.as_deref(), Some("Let me generate it."));
+    }
+
+    #[test]
+    fn convert_reasoning_item_prefers_summary_over_content() {
+        let text = reasoning_thinking_text(&json!({
+            "type": "reasoning",
+            "summary": [{ "type": "summary_text", "text": "Summary" }],
+            "content": [{ "type": "reasoning_text", "text": "Raw" }]
+        }));
+
+        assert_eq!(text.as_deref(), Some("Summary"));
     }
 
     #[test]
