@@ -18,12 +18,14 @@ function isExternalUrl(href: string): boolean {
 /**
  * Returns true when following the link keeps the app loaded: in-page
  * fragments, and blob/data URLs used for programmatic downloads.
+ *
+ * A blob/data URL without `download` would replace the app page (e.g. a
+ * `data:text/html` document), so both conditions are required.
  */
 function isSafeInAppLink(anchor: HTMLAnchorElement, href: string): boolean {
   return (
     href.startsWith("#") ||
-    anchor.hasAttribute("download") ||
-    /^(?:blob|data):/i.test(href)
+    (anchor.hasAttribute("download") && /^(?:blob|data):/i.test(href))
   );
 }
 
