@@ -273,7 +273,7 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
 /// Collect the Claude configuration directories the user has registered, plus
 /// `CLAUDE_CONFIG_DIR`. These are the same sources `scan_all_projects` reads, so
 /// any directory whose sessions the app displays is represented here.
-fn configured_claude_dirs() -> Vec<String> {
+pub(super) fn configured_claude_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
 
     if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {
@@ -360,7 +360,7 @@ fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
 /// Remove the extended-length prefix that Windows may add to canonical paths.
 /// Keep this cross-platform so the representation rule can be unit-tested on
 /// Unix hosts as well.
-fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
+pub(super) fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
     let raw = path.to_string_lossy();
     if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
         return PathBuf::from(format!(r"\\{rest}"));
@@ -382,7 +382,7 @@ fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
 /// one happens to come last. The lint only fires when compiling for Windows,
 /// which is why CI does not see it.
 #[allow(clippy::needless_return)]
-fn normalize_path_for_comparison(path: &Path) -> PathBuf {
+pub(super) fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     let stripped = strip_windows_extended_prefix(path);
 
     #[cfg(windows)]

@@ -461,6 +461,20 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
     }
 }
 
+/// Whether a project path is read as Claude history (the fallback for any
+/// path no other provider claims).
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_claude_project_path(project_path: &str) -> bool {
+    detect_project_provider(project_path) == StatsProvider::Claude
+}
+
+/// Whether a session path is read as Claude history (the fallback for any
+/// path no other provider claims).
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_claude_session_path(session_path: &str) -> bool {
+    detect_session_provider(session_path) == StatsProvider::Claude
+}
+
 /// Detect the provider encoded in a session path.
 fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("aider://") || session_path.ends_with(".aider.chat.history.md") {

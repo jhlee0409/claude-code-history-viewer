@@ -132,7 +132,7 @@ pub struct ExportResult {
 // ---------------------------------------------------------------------------
 
 /// Returns the archives base directory path: `~/.claude-history-viewer/archives/`
-fn get_archives_dir() -> Result<PathBuf, String> {
+pub(crate) fn get_archives_dir() -> Result<PathBuf, String> {
     let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("archives"))
 }
