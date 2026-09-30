@@ -181,7 +181,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 /// Infallible: an unreadable project directory is skipped rather than failing
 /// the scan. The command's `Result` is the IPC contract and stays; the
 /// `#[tauri::command]` attribute was hiding this from clippy.
-fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> {
+pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
     let projects_path = PathBuf::from(&claude_path).join("projects");

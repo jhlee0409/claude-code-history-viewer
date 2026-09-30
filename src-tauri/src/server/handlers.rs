@@ -46,6 +46,110 @@ fn require_claude_bases(
         .try_for_each(|c| require_claude_base(&c.path))
 }
 
+// ─── Known-project guard ──────────────────────────────────────────────────────
+
+/// The one message returned for any project directory the history does not
+/// record, whether it exists or not.
+const UNKNOWN_PROJECT_DIR: &str = "Project directory is not a known project";
+
+/// How long a scanned list of known project directories is reused.
+const KNOWN_PROJECTS_TTL: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Whether the endpoint writes into the project directory.
+#[derive(Clone, Copy, PartialEq)]
+enum ProjectAccess {
+    Read,
+    Write,
+}
+
+struct KnownProjects {
+    roots: Vec<PathBuf>,
+    scanned_at: std::time::Instant,
+    dirs: Vec<PathBuf>,
+}
+
+static KNOWN_PROJECTS: std::sync::Mutex<Option<KnownProjects>> = std::sync::Mutex::new(None);
+
+/// Resolve symlinks when the path exists, then normalise for comparison.
+fn comparable_path(path: &std::path::Path) -> PathBuf {
+    let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    commands::session::normalize_path_for_comparison(&resolved)
+}
+
+/// Whether `candidate` (already comparable) is the working directory of a
+/// Claude project in one of the configured Claude directories — the same
+/// `actual_path` values `scan_projects` hands the frontend.
+///
+/// Ceiling: a refresh is one `scan_projects` per Claude directory, the same
+/// cost as the already-exposed `/scan_projects` endpoint. The list is reused
+/// for `KNOWN_PROJECTS_TTL`, and a miss rescans so a project that just
+/// appeared is accepted. If that ever shows up in profiles, throttle the
+/// refresh-on-miss or reuse the frontend's own scan result.
+fn is_known_project_dir(candidate: &std::path::Path) -> bool {
+    let roots = commands::session::allowed_claude_roots();
+    let mut cache = KNOWN_PROJECTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(cached) = cache.as_ref() {
+        if cached.roots == roots
+            && cached.scanned_at.elapsed() < KNOWN_PROJECTS_TTL
+            && cached.dirs.iter().any(|d| d == candidate)
+        {
+            return true;
+        }
+    }
+    let dirs: Vec<PathBuf> = roots
+        .iter()
+        .flat_map(|root| {
+            commands::project::scan_projects_blocking(root.to_string_lossy().into_owned())
+        })
+        .map(|project| comparable_path(std::path::Path::new(&project.actual_path)))
+        .collect();
+    let known = dirs.iter().any(|d| d == candidate);
+    *cache = Some(KnownProjects {
+        roots,
+        scanned_at: std::time::Instant::now(),
+        dirs,
+    });
+    known
+}
+
+/// Caller-supplied project directories (a repository working directory, not a
+/// history path) must be one the history records. Symlinks are resolved first,
+/// so a link to anywhere else is judged by its target. A recorded project whose
+/// directory is gone can still be read (there is nothing there), but not
+/// written, which would recreate it.
+async fn require_known_project_dir(path: &str, access: ProjectAccess) -> Result<(), String> {
+    let requested = std::path::Path::new(path).to_path_buf();
+    let allowed = tauri::async_runtime::spawn_blocking(move || {
+        let lexically_plain = requested.is_absolute()
+            && !requested
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir));
+        let present = requested.is_dir();
+        lexically_plain
+            && (present || access == ProjectAccess::Read)
+            && is_known_project_dir(&comparable_path(&requested))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?;
+    if allowed {
+        Ok(())
+    } else {
+        Err(UNKNOWN_PROJECT_DIR.to_string())
+    }
+}
+
+/// Settings scopes / MCP sources that read or write inside the project
+/// directory. The others (`user`, `managed`, `user_*`) ignore `projectPath`,
+/// which the frontend sends along regardless.
+fn uses_project_dir(scope_or_source: &str) -> bool {
+    matches!(
+        scope_or_source,
+        "project" | "local" | "project_mcp" | "local_claude_json"
+    )
+}
+
 // ─── Error type ───────────────────────────────────────────────────────────────
 
 /// Unified error response for API endpoints.
@@ -540,6 +644,7 @@ handler_json!(
 );
 
 handler_json!(get_git_log, GitLogParams, |p: GitLogParams| async move {
+    require_known_project_dir(&p.actual_path, ProjectAccess::Read).await?;
     commands::project::get_git_log(p.actual_path, p.limit).await
 });
 
@@ -912,6 +1017,9 @@ handler_json!(
     get_settings_by_scope,
     SettingsScopeParams,
     |p: SettingsScopeParams| async move {
+        if let (true, Some(path)) = (uses_project_dir(&p.scope), &p.project_path) {
+            require_known_project_dir(path, ProjectAccess::Read).await?;
+        }
         commands::claude_settings::get_settings_by_scope(p.scope, p.project_path).await
     }
 );
@@ -920,6 +1028,9 @@ handler_json!(
     save_settings,
     SaveSettingsParams,
     |p: SaveSettingsParams| async move {
+        if let (true, Some(path)) = (uses_project_dir(&p.scope), &p.project_path) {
+            require_known_project_dir(path, ProjectAccess::Write).await?;
+        }
         commands::claude_settings::save_settings(p.scope, p.content, p.project_path).await
     }
 );
@@ -928,6 +1039,9 @@ handler_json!(
     get_all_settings,
     OptionalProjectPath,
     |p: OptionalProjectPath| async move {
+        if let Some(path) = &p.project_path {
+            require_known_project_dir(path, ProjectAccess::Read).await?;
+        }
         commands::claude_settings::get_all_settings(p.project_path).await
     }
 );
@@ -936,6 +1050,9 @@ handler_json!(
     get_all_mcp_servers,
     OptionalProjectPath,
     |p: OptionalProjectPath| async move {
+        if let Some(path) = &p.project_path {
+            require_known_project_dir(path, ProjectAccess::Read).await?;
+        }
         commands::claude_settings::get_all_mcp_servers(p.project_path).await
     }
 );
@@ -944,6 +1061,9 @@ handler_json!(
     save_mcp_servers,
     SaveMcpServersParams,
     |p: SaveMcpServersParams| async move {
+        if let (true, Some(path)) = (uses_project_dir(&p.source), &p.project_path) {
+            require_known_project_dir(path, ProjectAccess::Write).await?;
+        }
         commands::claude_settings::save_mcp_servers(p.source, p.servers, p.project_path).await
     }
 );
@@ -952,6 +1072,9 @@ handler_json!(
     get_claude_json_config,
     OptionalProjectPath,
     |p: OptionalProjectPath| async move {
+        if let Some(path) = &p.project_path {
+            require_known_project_dir(path, ProjectAccess::Read).await?;
+        }
         commands::claude_settings::get_claude_json_config(p.project_path).await
     }
 );
@@ -1727,5 +1850,281 @@ mod tests {
         .await;
 
         assert!(res.is_ok(), "in-root project was rejected");
+    }
+
+    // ─── Known project directories ───────────────────────────────────────
+
+    /// A project directory on disk plus a Claude session that records it as
+    /// its `cwd`, which makes it a known project.
+    fn known_project(home: &crate::test_utils::SandboxHome) -> (tempfile::TempDir, String) {
+        let repo = tempfile::tempdir().unwrap();
+        let cwd = repo.path().canonicalize().unwrap();
+        let history = home.path().join(".claude").join("projects").join("-repo");
+        std::fs::create_dir_all(&history).unwrap();
+        std::fs::write(
+            history.join("s1.jsonl"),
+            serde_json::json!({
+                "type": "user",
+                "uuid": "u1",
+                "sessionId": "s1",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "cwd": cwd.to_string_lossy(),
+                "message": { "role": "user", "content": "hi" }
+            })
+            .to_string()
+                + "\n",
+        )
+        .unwrap();
+        (repo, cwd.to_string_lossy().to_string())
+    }
+
+    fn rejected_as_unknown<T>(res: Result<T, ApiError>) {
+        let Err(ApiError(message)) = res else {
+            panic!("unknown project directory was accepted");
+        };
+        assert_eq!(message, UNKNOWN_PROJECT_DIR);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn save_settings_rejects_unknown_project_dir_without_writing() {
+        let home = crate::test_utils::SandboxHome::new();
+        let _known = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+
+        for scope in ["project", "local"] {
+            let res = save_settings(Json(SaveSettingsParams {
+                scope: scope.to_string(),
+                content: "{}".to_string(),
+                project_path: Some(unknown.path().to_string_lossy().to_string()),
+            }))
+            .await;
+            rejected_as_unknown(res);
+        }
+        assert!(!unknown.path().join(".claude").exists(), "file was written");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn save_mcp_servers_rejects_unknown_project_dir_without_writing() {
+        let home = crate::test_utils::SandboxHome::new();
+        let _known = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+
+        for source in ["project_mcp", "local_claude_json"] {
+            let res = save_mcp_servers(Json(SaveMcpServersParams {
+                source: source.to_string(),
+                servers: "{}".to_string(),
+                project_path: Some(unknown.path().to_string_lossy().to_string()),
+            }))
+            .await;
+            rejected_as_unknown(res);
+        }
+        assert!(
+            !unknown.path().join(".mcp.json").exists(),
+            "file was written"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "unknown project was recorded in ~/.claude.json"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn settings_readers_reject_unknown_project_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let _known = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+        let path = unknown.path().to_string_lossy().to_string();
+
+        rejected_as_unknown(
+            get_settings_by_scope(Json(SettingsScopeParams {
+                scope: "local".to_string(),
+                project_path: Some(path.clone()),
+            }))
+            .await,
+        );
+        let body = || {
+            Json(OptionalProjectPath {
+                project_path: Some(path.clone()),
+            })
+        };
+        rejected_as_unknown(get_all_settings(body()).await);
+        rejected_as_unknown(get_all_mcp_servers(body()).await);
+        rejected_as_unknown(get_claude_json_config(body()).await);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn save_settings_writes_to_known_project_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_repo, cwd) = known_project(&home);
+
+        let res = save_settings(Json(SaveSettingsParams {
+            scope: "local".to_string(),
+            content: "{}".to_string(),
+            project_path: Some(cwd.clone()),
+        }))
+        .await;
+
+        assert!(
+            res.is_ok(),
+            "known project rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+        assert!(std::path::Path::new(&cwd)
+            .join(".claude")
+            .join("settings.local.json")
+            .exists());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn user_scope_settings_ignore_project_path() {
+        let home = crate::test_utils::SandboxHome::new();
+        let unknown = tempfile::tempdir().unwrap();
+
+        let res = save_settings(Json(SaveSettingsParams {
+            scope: "user".to_string(),
+            content: "{}".to_string(),
+            project_path: Some(unknown.path().to_string_lossy().to_string()),
+        }))
+        .await;
+        assert!(
+            res.is_ok(),
+            "user scope rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+
+        let res = save_mcp_servers(Json(SaveMcpServersParams {
+            source: "user_claude_json".to_string(),
+            servers: "{}".to_string(),
+            project_path: Some(unknown.path().to_string_lossy().to_string()),
+        }))
+        .await;
+        assert!(
+            res.is_ok(),
+            "user MCP source rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+        assert!(home.path().join(".claude").join("settings.json").exists());
+        assert!(!unknown.path().join(".claude").exists());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn git_log_rejects_unknown_project_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let _known = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+
+        rejected_as_unknown(
+            get_git_log(Json(GitLogParams {
+                actual_path: unknown.path().to_string_lossy().to_string(),
+                limit: 1,
+            }))
+            .await,
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn git_log_runs_in_known_project_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_repo, cwd) = known_project(&home);
+
+        let res = get_git_log(Json(GitLogParams {
+            actual_path: cwd,
+            limit: 1,
+        }))
+        .await;
+        assert!(
+            res.is_ok(),
+            "known project rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn symlink_to_known_project_dir_is_accepted() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_repo, cwd) = known_project(&home);
+        // The link's own path is not a known project; only its target is.
+        let links = tempfile::tempdir().unwrap();
+        let link = links.path().join("repo-link");
+        std::os::unix::fs::symlink(&cwd, &link).unwrap();
+
+        let res = save_settings(Json(SaveSettingsParams {
+            scope: "local".to_string(),
+            content: "{}".to_string(),
+            project_path: Some(link.to_string_lossy().to_string()),
+        }))
+        .await;
+
+        assert!(
+            res.is_ok(),
+            "link to a known project rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+        assert!(std::path::Path::new(&cwd)
+            .join(".claude")
+            .join("settings.local.json")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn symlink_to_unknown_dir_is_rejected() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (repo, _cwd) = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+        // A link inside the known project that points somewhere else.
+        let link = repo.path().join("elsewhere");
+        std::os::unix::fs::symlink(unknown.path(), &link).unwrap();
+
+        rejected_as_unknown(
+            save_settings(Json(SaveSettingsParams {
+                scope: "local".to_string(),
+                content: "{}".to_string(),
+                project_path: Some(link.to_string_lossy().to_string()),
+            }))
+            .await,
+        );
+        assert!(!unknown.path().join(".claude").exists(), "file was written");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn known_project_whose_dir_is_gone_reads_but_does_not_write() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (repo, cwd) = known_project(&home);
+        drop(repo);
+
+        let res = get_all_settings(Json(OptionalProjectPath {
+            project_path: Some(cwd.clone()),
+        }))
+        .await;
+        assert!(
+            res.is_ok(),
+            "read of a recorded project rejected: {:?}",
+            res.err().map(|e| e.0)
+        );
+
+        rejected_as_unknown(
+            save_settings(Json(SaveSettingsParams {
+                scope: "local".to_string(),
+                content: "{}".to_string(),
+                project_path: Some(cwd.clone()),
+            }))
+            .await,
+        );
+        assert!(
+            !std::path::Path::new(&cwd).exists(),
+            "deleted project dir was recreated"
+        );
     }
 }

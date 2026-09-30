@@ -382,7 +382,7 @@ pub(super) fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
 /// one happens to come last. The lint only fires when compiling for Windows,
 /// which is why CI does not see it.
 #[allow(clippy::needless_return)]
-pub(super) fn normalize_path_for_comparison(path: &Path) -> PathBuf {
+pub(crate) fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     let stripped = strip_windows_extended_prefix(path);
 
     #[cfg(windows)]
@@ -394,7 +394,7 @@ pub(super) fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     stripped
 }
 
-fn allowed_claude_roots() -> Vec<PathBuf> {
+pub(crate) fn allowed_claude_roots() -> Vec<PathBuf> {
     resolve_claude_roots(&configured_claude_dirs())
 }
 
