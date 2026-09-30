@@ -339,6 +339,16 @@ pub struct ProviderSessionsParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderSessionByPathParams {
+    pub provider: String,
+    pub project_path: String,
+    pub file_path: String,
+    #[serde(default)]
+    pub exclude_sidechain: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderSessionsPageParams {
     pub provider: String,
     pub project_path: String,
@@ -920,6 +930,20 @@ handler_json!(
             p.exclude_sidechain,
             p.offset,
             p.limit,
+        )
+        .await
+    }
+);
+
+handler_json!(
+    load_provider_session_by_path,
+    ProviderSessionByPathParams,
+    |p: ProviderSessionByPathParams| async move {
+        commands::multi_provider::load_provider_session_by_path(
+            p.provider,
+            p.project_path,
+            p.file_path,
+            p.exclude_sidechain,
         )
         .await
     }

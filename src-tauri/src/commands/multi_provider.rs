@@ -470,6 +470,41 @@ pub async fn load_provider_sessions_page(
     })
 }
 
+/// Look up the selected session by file path, for a list that only reloaded
+/// its first page.
+///
+/// `Ok(None)` means the session is gone. Only Claude has a single-file path
+/// (and a metadata cache); other providers return an error, which the frontend
+/// treats as "unknown" and falls back to its previous behavior.
+#[tauri::command]
+pub async fn load_provider_session_by_path(
+    provider: String,
+    project_path: String,
+    file_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<ClaudeSession>, String> {
+    if provider != "claude" {
+        return Err(format!(
+            "Single-session lookup is not supported for provider: {provider}"
+        ));
+    }
+    let session = tauri::async_runtime::spawn_blocking(move || {
+        crate::commands::session::find_project_session_by_path(
+            &project_path,
+            &file_path,
+            exclude_sidechain,
+        )
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+    Ok(session.map(|mut session| {
+        if session.provider.is_none() {
+            session.provider = Some("claude".to_string());
+        }
+        session
+    }))
+}
+
 /// Default / maximum page size for `load_provider_messages_paginated`.
 const DEFAULT_MESSAGE_PAGE_SIZE: usize = 200;
 const MAX_MESSAGE_PAGE_LIMIT: usize = 500;
@@ -1282,6 +1317,19 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn load_provider_session_by_path_rejects_providers_without_a_lookup() {
+        let result = load_provider_session_by_path(
+            "codex".to_string(),
+            "/tmp".to_string(),
+            "/tmp/a.jsonl".to_string(),
+            None,
+        )
+        .await;
+
+        assert!(result.unwrap_err().contains("not supported"));
+    }
 
     #[test]
     fn select_wsl_search_providers_separates_native_and_wsl_sources() {

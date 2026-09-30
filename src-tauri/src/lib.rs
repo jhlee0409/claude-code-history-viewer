@@ -54,8 +54,8 @@ use crate::commands::{
     },
     multi_provider::{
         detect_providers, get_provider_message_offset, load_provider_messages,
-        load_provider_messages_paginated, load_provider_sessions, load_provider_sessions_page,
-        scan_all_projects, search_all_providers,
+        load_provider_messages_paginated, load_provider_session_by_path, load_provider_sessions,
+        load_provider_sessions_page, scan_all_projects, search_all_providers,
     },
     project::{
         detect_claude_config_dir, get_claude_folder_path, get_git_log, scan_projects,
@@ -257,6 +257,7 @@ fn run_tauri() {
             scan_all_projects,
             load_provider_sessions,
             load_provider_sessions_page,
+            load_provider_session_by_path,
             load_provider_messages,
             load_provider_messages_paginated,
             get_provider_message_offset,

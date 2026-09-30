@@ -1387,6 +1387,89 @@ fn load_project_sessions_page_blocking(
     })
 }
 
+/// Look up one Claude session by its file path, without scanning the project.
+///
+/// The session list only reloads its first page, so a selected session further
+/// down needs another way to tell "still there" from "deleted". This reads the
+/// one file: the metadata cache entry when it is still fresh, otherwise a parse
+/// of that file alone. The cache is only read, never written.
+///
+/// `Ok(None)` means the file is gone or has no displayable messages. The
+/// continuation-chain hiding the list applies needs a project scan, so it is
+/// not applied here; the sidechain filter adjusts `message_count` only.
+pub fn find_project_session_by_path(
+    project_path: &str,
+    file_path: &str,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<ClaudeSession>, String> {
+    let project_path = project_path.trim();
+    if project_path.is_empty() {
+        return Err("project_path is required".to_string());
+    }
+    let project_root = Path::new(project_path);
+    if !project_root.is_absolute() {
+        return Err("project_path must be an absolute path".to_string());
+    }
+    let path = PathBuf::from(file_path);
+    if !path.is_absolute() || path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("file_path must be an absolute .jsonl path".to_string());
+    }
+    let canonical_project_root = project_root
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+
+    // A missing file is the one expected failure: the session was deleted.
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // Still confine the answer to the project: "not found" must not
+            // become an existence oracle for arbitrary paths.
+            let parent_ok = path
+                .parent()
+                .and_then(|parent| parent.canonicalize().ok())
+                .is_some_and(|parent| parent.starts_with(&canonical_project_root));
+            return if parent_ok {
+                Ok(None)
+            } else {
+                Err("file_path is outside the project".to_string())
+            };
+        }
+        Err(error) => return Err(format!("Failed to read session file: {error}")),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err("Session file cannot be a symlink".to_string());
+    }
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve file_path: {error}"))?;
+    if !canonical_path.starts_with(&canonical_project_root) {
+        return Err("file_path is outside the project".to_string());
+    }
+
+    // Same cache key form as the page loader (the caller's path, not the
+    // canonical one).
+    let path_str = path.to_string_lossy().to_string();
+    let (current_mtime, current_size, _) = metadata_sort_snapshot(&path);
+    let cached = load_cache(project_path)
+        .entries
+        .remove(&path_str)
+        .filter(|c| Some(c.modified_time) == current_mtime && c.file_size == current_size);
+    let (session, sidechain_count) = match cached {
+        Some(cached) => (cached.session, cached.sidechain_count),
+        None => match extract_session_metadata_from_file(&path) {
+            Some(result) => (Some(result.session), result.sidechain_count),
+            None => (None, 0),
+        },
+    };
+
+    Ok(session.map(|mut session| {
+        if exclude_sidechain.unwrap_or(false) {
+            session.message_count = session.message_count.saturating_sub(sidechain_count);
+        }
+        session
+    }))
+}
+
 /// Load every session in a project.
 ///
 /// Same shape as the paginated variant above and the same reasoning: the work
@@ -3471,6 +3554,110 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn test_find_project_session_by_path_returns_the_session() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_jsonl_file(
+            &temp_dir,
+            "other.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-o", "session-other", "Other")
+            ),
+        );
+        let target = create_test_jsonl_file(
+            &temp_dir,
+            "target.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-t", "session-target", "Hi")
+            ),
+        );
+
+        let session = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &target.to_string_lossy(),
+            None,
+        )
+        .unwrap()
+        .expect("session should be found");
+
+        assert_eq!(session.actual_session_id, "session-target");
+        assert_eq!(session.file_path, target.to_string_lossy());
+        assert_eq!(session.message_count, 1);
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_reports_a_deleted_file_as_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let gone = temp_dir.path().join("gone.jsonl");
+
+        let result = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &gone.to_string_lossy(),
+            None,
+        );
+
+        assert!(
+            matches!(result, Ok(None)),
+            "expected Ok(None), got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_rejects_paths_outside_the_project() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let project = temp_dir.path().to_string_lossy().to_string();
+
+        assert!(find_project_session_by_path(&project, &outside.to_string_lossy(), None).is_err());
+        assert!(find_project_session_by_path(&project, "relative/a.jsonl", None).is_err());
+        assert!(
+            find_project_session_by_path("relative", &outside.to_string_lossy(), None).is_err()
+        );
+        let traversal = temp_dir.path().join("..").join(
+            outside
+                .strip_prefix(outside_dir.path().parent().unwrap())
+                .unwrap(),
+        );
+        assert!(
+            find_project_session_by_path(&project, &traversal.to_string_lossy(), None).is_err()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_find_project_session_by_path_rejects_a_symlink_escape() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let link = temp_dir.path().join("linked.jsonl");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+
+        let result = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &link.to_string_lossy(),
+            None,
+        );
+
+        assert!(result.is_err());
+    }
+
     #[tokio::test]
     async fn test_load_project_sessions_page_ignores_symlinked_jsonl_outside_project() {
         let temp_dir = TempDir::new().unwrap();

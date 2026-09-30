@@ -50,6 +50,7 @@ type TestStore = ProjectSlice & {
   excludeSidechain: boolean;
   analytics: { currentView: "messages" | "analytics" | "tokenStats" | "recentEdits" | "board" | "archive" };
   messages: unknown[];
+  parentSessionStack: ClaudeSession[];
   activeProviders: ProviderInfo["id"][];
   detectProviders: ReturnType<typeof vi.fn>;
   setActiveProviders: ReturnType<typeof vi.fn>;
@@ -117,6 +118,7 @@ const createTestStore = () =>
     excludeSidechain: true,
     analytics: { currentView: "messages" },
     messages: [],
+    parentSessionStack: [],
     activeProviders: ["claude"],
     detectProviders: vi.fn().mockResolvedValue(true),
     setActiveProviders: vi.fn().mockImplementation((ids: ProviderInfo["id"][]) => {
@@ -661,6 +663,120 @@ describe("projectSlice scanProjects", () => {
     expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedSession);
     expect(selectedAtSelectSession).toHaveLength(1);
     expect(selectedAtSelectSession[0]?.file_path).toBe(selectedSession.file_path);
+  });
+
+  describe("selected session beyond the first page", () => {
+    // The list reloads only page 1. A session the user paged to is looked up
+    // on its own instead of being mistaken for a deleted one.
+    const project = createMockProject("current", "claude");
+    const firstPageSession = createMockSession("session-1", project);
+    const pagedSession = createMockSession("session-2", project);
+    const refreshedPagedSession = { ...pagedSession, message_count: 7 };
+    const firstPage = {
+      sessions: [firstPageSession],
+      total: 2,
+      offset: 0,
+      limit: 250,
+      nextOffset: 1,
+      hasMore: true,
+    };
+
+    const setup = (lookup: () => Promise<unknown>) => {
+      const store = createTestStore();
+      store.setState({
+        claudePath: "/root/.claude",
+        providers: [
+          {
+            id: "claude",
+            display_name: "Claude Code",
+            base_path: "/root/.claude",
+            is_available: true,
+          },
+        ],
+        selectedProject: project,
+        selectedSession: pagedSession,
+        sessions: [firstPageSession, pagedSession],
+        sessionsOffset: 2,
+        hasMoreSessions: false,
+        activeProviders: ["claude"],
+      });
+      vi.mocked(api).mockImplementation((command, args) => {
+        if (command === "scan_projects") {
+          return Promise.resolve([project]);
+        }
+        if (command === "load_provider_sessions_page") {
+          const offset = (args as { offset: number }).offset;
+          return Promise.resolve(
+            offset === 0
+              ? firstPage
+              : { sessions: [refreshedPagedSession], total: 2, offset: 1, limit: 250, nextOffset: 2, hasMore: false }
+          );
+        }
+        if (command === "load_provider_session_by_path") {
+          return lookup();
+        }
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      });
+      return store;
+    };
+
+    it("keeps it selected and listed once when it still exists", async () => {
+      const store = setup(() => Promise.resolve(refreshedPagedSession));
+
+      await store.getState().refreshAllConversations();
+
+      expect(api).toHaveBeenCalledWith("load_provider_session_by_path", {
+        provider: "claude",
+        projectPath: project.path,
+        filePath: pagedSession.file_path,
+        excludeSidechain: true,
+      });
+      expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedPagedSession);
+      expect(store.getState().selectedSession).toEqual(refreshedPagedSession);
+      expect(store.getState().sessions).toEqual([firstPageSession, refreshedPagedSession]);
+      // Pagination still continues from page 1.
+      expect(store.getState().sessionsOffset).toBe(1);
+      expect(store.getState().hasMoreSessions).toBe(true);
+    });
+
+    it("does not list it twice when its page is loaded later", async () => {
+      const store = setup(() => Promise.resolve(refreshedPagedSession));
+
+      await store.getState().refreshAllConversations();
+      await store.getState().loadMoreSessions();
+
+      expect(store.getState().selectedSession).toEqual(refreshedPagedSession);
+      expect(store.getState().sessions).toEqual([firstPageSession, refreshedPagedSession]);
+      expect(store.getState().hasMoreSessions).toBe(false);
+    });
+
+    it("leaves a subagent view alone instead of listing the subagent", async () => {
+      // A subagent view selects the subagent's own file (under
+      // `<session>/subagents/`), which is never a list row. Looking it up
+      // would append it to the sidebar.
+      const subagent = {
+        ...pagedSession,
+        session_id: `${project.path}/session-2/subagents/agent-a.jsonl`,
+        file_path: `${project.path}/session-2/subagents/agent-a.jsonl`,
+      };
+      const store = setup(() => Promise.resolve(subagent));
+      store.setState({ selectedSession: subagent, parentSessionStack: [pagedSession] });
+
+      await store.getState().reloadProjectSessions(project);
+
+      expect(api).not.toHaveBeenCalledWith("load_provider_session_by_path", expect.anything());
+      expect(store.getState().sessions).toEqual([firstPageSession]);
+      expect(store.getState().selectedSession).toBe(subagent);
+    });
+
+    it("clears it when its file is gone", async () => {
+      const store = setup(() => Promise.resolve(null));
+
+      await store.getState().refreshAllConversations();
+
+      expect(store.getState().selectedSession).toBeNull();
+      expect(store.getState().sessions).toEqual([firstPageSession]);
+    });
   });
 
   it("clears stale selection when the selected project no longer exists", async () => {
