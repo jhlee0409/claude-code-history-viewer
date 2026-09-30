@@ -54,14 +54,14 @@
 //! (`opencode://` …) and carry no `(size, mtime)` identity.
 
 use super::{
-    dedup_usage_key, extract_token_usage, extract_token_usage_from_global_entry, full_usage_growth,
-    merge_model_context_usage, parse_global_stats_entry_simd, parse_raw_log_entry_simd,
-    parse_timestamp_utc, should_include_stats_entry, token_usage_has_token_fields,
-    track_skill_and_subagent_usage, track_skill_and_subagent_usage_from_global_entry,
-    track_tool_usage, track_tool_usage_from_global_entry, usage_context_tokens, usage_growth,
-    ModelContextUsageMap, ModelUsageAggregate, ProjectSessionFileStats, SeenUsage,
-    SessionComparisonStats, SessionFileStats, SessionTokenAccum, StatsMode, StatsProvider,
-    UsageGrowth, UNKNOWN_MODEL_NAME,
+    capture_session_title, dedup_usage_key, extract_token_usage,
+    extract_token_usage_from_global_entry, full_usage_growth, merge_model_context_usage,
+    parse_global_stats_entry_simd, parse_raw_log_entry_simd, parse_timestamp_utc,
+    should_include_stats_entry, token_usage_has_token_fields, track_skill_and_subagent_usage,
+    track_skill_and_subagent_usage_from_global_entry, track_tool_usage,
+    track_tool_usage_from_global_entry, usage_context_tokens, usage_growth, ModelContextUsageMap,
+    ModelUsageAggregate, ProjectSessionFileStats, SeenUsage, SessionComparisonStats,
+    SessionFileStats, SessionTokenAccum, StatsMode, StatsProvider, UsageGrowth, UNKNOWN_MODEL_NAME,
 };
 #[cfg(test)]
 use crate::models::SessionTokenStats;
@@ -138,7 +138,7 @@ pub(super) struct FileAggregate {
     /// Rows whose timestamp does not parse; included only when no date filter
     /// is active (mirrors `is_within_date_limits(None, ..)`).
     undated: DayBucket,
-    /// Last summary-row text in file order (filter-independent).
+    /// Session title (filter-independent): last `ai-title`, else last summary row.
     summary: Option<String>,
     /// A deduped usage key was first seen in one bucket and repeated in
     /// another; filtered composition would misattribute its tokens.
@@ -572,19 +572,17 @@ pub(super) fn build_message_file_aggregate(
     let mut first_cost_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
     let mut day_timestamps: HashMap<String, Vec<DateTime<Utc>>> = HashMap::new();
     let mut row_seq = 0u64;
+    let mut ai_title: Option<String> = None;
+    let mut summary: Option<String> = None;
 
     for (start, end) in find_line_ranges(&mmap) {
         let mut line_bytes = mmap[start..end].to_vec();
         let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) else {
             continue;
         };
-        // Summary text is captured before ClaudeMessage::try_from rejects
+        // Title text is captured before ClaudeMessage::try_from consumes
         // the row, mirroring scan_session_token_stats (filter-independent).
-        if log_entry.message_type == "summary" {
-            if let Some(summary) = &log_entry.summary {
-                aggregate.summary = Some(summary.clone());
-            }
-        }
+        capture_session_title(&log_entry, &mut ai_title, &mut summary);
         let Ok(message) = ClaudeMessage::try_from(log_entry) else {
             continue;
         };
@@ -659,6 +657,7 @@ pub(super) fn build_message_file_aggregate(
     }
 
     finalize_runs(&mut aggregate, day_timestamps);
+    aggregate.summary = ai_title.or(summary);
     Some(aggregate)
 }
 
@@ -1562,6 +1561,51 @@ mod tests {
         let scanned_token = scan_session_token_stats(&file, mode, None, None).expect("token scan");
         assert_eq!(scanned_token.total_output_tokens, 95 + 7);
         assert_token_stats_eq(&composed_token, &scanned_token);
+    }
+
+    /// Session title in stats (#601): the last Claude Code `ai-title` record
+    /// outranks a legacy `summary` row, in both the cold scan and the cache.
+    fn assert_stats_summary(lines: &[String], expected: &str) {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let file = temp_dir.path().join("demo-project").join("s1.jsonl");
+        fs::create_dir_all(file.parent().unwrap()).expect("project dir");
+        write_session(&file, lines);
+        let mode = StatsMode::BillingTotal;
+
+        let scanned = scan_session_token_stats(&file, mode, None, None).expect("scan");
+        assert_eq!(scanned.summary.as_deref(), Some(expected), "cold scan");
+
+        let aggregate = build_message_file_aggregate(&file, mode).expect("aggregate");
+        assert_eq!(
+            aggregate.summary.as_deref(),
+            Some(expected),
+            "cached aggregate"
+        );
+    }
+
+    #[test]
+    fn test_stats_summary_prefers_ai_title_over_legacy_summary() {
+        assert_stats_summary(
+            &[
+                r#"{"type":"summary","summary":"Legacy summary","leafUuid":"u1"}"#.to_string(),
+                asst_line("u1", "m1", "2025-03-01T10:00:00Z", 10, 1, ""),
+                r#"{"type":"ai-title","aiTitle":"Fix login bug","sessionId":"s1"}"#.to_string(),
+            ],
+            "Fix login bug",
+        );
+    }
+
+    #[test]
+    fn test_stats_summary_last_ai_title_wins() {
+        assert_stats_summary(
+            &[
+                r#"{"type":"ai-title","aiTitle":"First title","sessionId":"s1"}"#.to_string(),
+                asst_line("u1", "m1", "2025-03-01T10:00:00Z", 10, 1, ""),
+                r#"{"type":"ai-title","aiTitle":"Second title","sessionId":"s1"}"#.to_string(),
+                r#"{"type":"summary","summary":"Legacy summary","leafUuid":"u1"}"#.to_string(),
+            ],
+            "Second title",
+        );
     }
 
     #[test]

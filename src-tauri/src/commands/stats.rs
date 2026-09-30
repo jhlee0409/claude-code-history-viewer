@@ -1,3 +1,4 @@
+use crate::commands::session::try_extract_ai_title;
 #[cfg(test)]
 use crate::models::MessageContent;
 use crate::models::{
@@ -763,6 +764,29 @@ fn cursor_virtual_paths_match(left: &str, right: &str) -> bool {
 /// Parse a raw log entry with simd-json.
 fn parse_raw_log_entry_simd(line: &mut [u8]) -> Option<RawLogEntry> {
     simd_json::serde::from_slice(line).ok()
+}
+
+/// Track session-title rows for stats: the last Claude Code `ai-title` and the
+/// last legacy `summary`. Callers resolve the title as `ai_title.or(summary)`,
+/// matching the session list (#601). Custom renames are not applied here.
+fn capture_session_title(
+    log_entry: &RawLogEntry,
+    ai_title: &mut Option<String>,
+    summary: &mut Option<String>,
+) {
+    match log_entry.message_type.as_str() {
+        "ai-title" => {
+            if let Some(title) = try_extract_ai_title(log_entry.ai_title.as_deref()) {
+                *ai_title = Some(title);
+            }
+        }
+        "summary" => {
+            if let Some(s) = &log_entry.summary {
+                *summary = Some(s.clone());
+            }
+        }
+        _ => {}
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -4440,6 +4464,7 @@ fn scan_session_token_accum(
 
     let mut session_id: Option<String> = None;
     let mut summary: Option<String> = None;
+    let mut ai_title: Option<String> = None;
     let mut accum = SessionTokenAccum::default();
 
     // Use SIMD-accelerated line detection
@@ -4454,12 +4479,8 @@ fn scan_session_token_accum(
         let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) else {
             continue;
         };
-        // Capture summary text before consuming log_entry into ClaudeMessage.
-        if log_entry.message_type == "summary" {
-            if let Some(s) = &log_entry.summary {
-                summary = Some(s.clone());
-            }
-        }
+        // Capture title text before consuming log_entry into ClaudeMessage.
+        capture_session_title(&log_entry, &mut ai_title, &mut summary);
         let Ok(message) = ClaudeMessage::try_from(log_entry) else {
             continue;
         };
@@ -4543,7 +4564,7 @@ fn scan_session_token_accum(
     if accum.message_count == 0 {
         return None;
     }
-    accum.summary = summary;
+    accum.summary = ai_title.or(summary);
     Some(accum)
 }
 
@@ -5881,6 +5902,7 @@ mod tests {
             message_type: "user".to_string(),
             summary: None,
             leaf_uuid: None,
+            ai_title: None,
             message: Some(MessageContent {
                 role: "user".to_string(),
                 content: json!("Hello, Claude!"),
@@ -5936,6 +5958,7 @@ mod tests {
             message_type: "assistant".to_string(),
             summary: None,
             leaf_uuid: None,
+            ai_title: None,
             message: Some(MessageContent {
                 role: "assistant".to_string(),
                 content: json!([{"type": "text", "text": "Hello!"}]),
@@ -6004,6 +6027,7 @@ mod tests {
             message_type: "summary".to_string(),
             summary: Some("This is a summary".to_string()),
             leaf_uuid: Some("leaf-123".to_string()),
+            ai_title: None,
             message: None,
             tool_use: None,
             tool_use_result: None,
@@ -6047,6 +6071,7 @@ mod tests {
             message_type: "user".to_string(),
             summary: None,
             leaf_uuid: None,
+            ai_title: None,
             message: Some(MessageContent {
                 role: "user".to_string(),
                 content: json!("Hello"),
@@ -6097,6 +6122,7 @@ mod tests {
             message_type: "user".to_string(),
             summary: None,
             leaf_uuid: None,
+            ai_title: None,
             message: Some(MessageContent {
                 role: "user".to_string(),
                 content: json!("Hello"),
@@ -8446,6 +8472,7 @@ mod tests {
             message_type: "assistant".to_string(),
             summary: None,
             leaf_uuid: None,
+            ai_title: None,
             message: Some(MessageContent {
                 role: "assistant".to_string(),
                 content: json!([{"type": "text", "text": "ok"}]),

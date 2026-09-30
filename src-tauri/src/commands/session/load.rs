@@ -764,7 +764,7 @@ fn try_extract_custom_title(message_type: &str, custom_title: Option<&str>) -> O
 }
 
 /// Extract Claude Code's auto-generated session title from an `ai-title` record.
-fn try_extract_ai_title(ai_title: Option<&str>) -> Option<String> {
+pub(crate) fn try_extract_ai_title(ai_title: Option<&str>) -> Option<String> {
     let title = ai_title?.trim();
     (!title.is_empty()).then(|| title.to_string())
 }
