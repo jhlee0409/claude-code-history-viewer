@@ -117,3 +117,7 @@
 - Gemini 3.7 Flash, 3.6 Flash, and 3.5 Flash support additional service tiers: **Batch** (50% discount), **Flex**, and **Priority** (higher rates for faster processing).
 - Gemini 3.5 Flash-Lite and 3.1 Flash-Lite support Standard tier only.
 - All 2.5 models support Standard, Batch, Flex, and Priority tiers.
+
+## 2026-10-01 update (pricing watch #596)
+
+- **Added `gemini-3.8-flash`** (https://ai.google.dev/gemini-api/docs/pricing): "$0.75 through December 31, 2026. $1.50 starting January 1, 2027." / output "$3.75 … $7.50" / cache "$0.075 … $0.15"; no long-context tier. Same shape and promotional note as `gemini-3.7-flash`. Priority ($1.35 / $6.75 / $0.135) not stored.

@@ -116,8 +116,10 @@ const SOURCE_COST_ONLY_PROVIDER_IDS = new Set([
   "opencode",
 ]);
 
+// A bracketed suffix is a client-side context marker (Claude Code reports
+// `claude-opus-5-5[1m]`), not part of the billed model id.
 const normalizeModelName = (modelName: string): string =>
-  modelName.trim().toLowerCase().replace(/^models\//, "");
+  modelName.trim().toLowerCase().replace(/^models\//, "").replace(/\[[^\]]*\]$/, "");
 
 const matchesModelKey = (normalizedModelName: string, key: string): boolean => {
   // Gate on the final provider/model path segment so `openai/gpt-4.1-*` and

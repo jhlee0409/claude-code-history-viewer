@@ -429,3 +429,18 @@ describe("provider pricing boundaries", () => {
     expect(oneHour).toBeCloseTo(16.2);
   });
 });
+
+describe("Claude Opus 5.5 pricing", () => {
+  // 1M input + 1M output + 1M cache read at $4 / $20 / $0.20.
+  it("prices claude-opus-5-5 at its own rate, not Opus 5's", () => {
+    expect(
+      calculateModelPrice("claude-opus-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(24.2);
+  });
+
+  it("ignores a bracketed context suffix such as [1m]", () => {
+    expect(
+      calculateModelPrice("claude-opus-5-5[1m]", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(24.2);
+  });
+});

@@ -77,3 +77,16 @@ Not modelled (no cached-input rate, not coding-agent models): gpt-5.5-pro, gpt-5
 - Data-residency endpoints add a 10% uplift for models released on/after 2026-03-05 — not modelled (no signal in session logs).
 - Batch and Flex tiers are 50% of Standard — not modelled (not used by coding agents).
 - Retired models keep their last published rate so historical sessions remain priced; `deprecatedAt` marks the shutdown date.
+
+## 2026-10-01 update (pricing watch #596)
+
+Targeted check against https://developers.openai.com/api/docs/pricing and the model pages — not a full re-audit.
+
+- **`gpt-5.6-sol`: unchanged.** Pricing page ("Cyber models"): `| gpt-5.6-sol | $4.00 | $0.40 | $5.00 | $20.00 | $8.00 | $0.80 | $10.00 | $30.00` and "GPT-5.6 Sol's promotional pricing is available at least through November 21, 2026." The feed's $2/$10 is the Batch row. Fast tier 8 / 0.8 / 10 / 40 re-confirmed; the fast long-context tier was not re-read, so `verifiedAt` stays 2026-09-02.
+- **Added `gpt-6-sol`**: 2 / 0.2 / 2.5 / 10, fast 4 / 0.4 / 5 / 20. Long-context and fast long-context rates are derived from the model page ("Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output"; "Fast mode is priced at 2x the applicable rates"); they are not on the pricing table.
+- **Added `gpt-6.1-sol`**: `$2.00 / $0.10 / $2.50 / $10.00 / long $4.00 / $0.20 / $5.00 / $15.00`; fast `$4.00 / $0.20 / $5.00 / $20.00 / long $8.00 / $0.40 / $10.00 / $30.00`.
+- **Added `gpt-6-luna`**: `$0.10 / $0.01 / $0.125 / $0.50 / long $0.20 / $0.02 / $0.25 / $0.75`; fast `$0.20 / $0.02 / $0.25 / $1.00 / long $0.40 / $0.04 / $0.50 / $1.50`.
+- **Added `gpt-6-astra`**: `$10 / $1 / $12.50 / $50 / long $20 / $2 / $25 / $75`; fast `$20 / $2 / $25 / $100 / long $40 / $4 / $50 / $150`. The Ultrafast row (`$60 / $6 / $75 / $300`) is not stored: `calculations.ts` only maps `priority` → `fast`.
+- **Not added: `gpt-6-*-pro`.** The model pages return 404, they are not on the pricing page, and the deprecations page treats "pro" as a reasoning mode (`gpt-5.6-sol (reasoning.mode: pro)`), not a model id.
+- `gpt-5-codex` ($1.25 / $0.125 / $10), `gpt-5.3-codex` ($1.75 / $0.175 / $14), `codex-mini-latest` ($1.50 / $0.375 / $6) and the `gpt-daybreak-*` aliases re-confirmed.
+- For a later audit: dated snapshots `gpt-5-2025-08-07`, `gpt-5-mini-2025-08-07`, `gpt-5-nano-2025-08-07`, `o3-2025-04-16` and others retire on 2026-12-11; the table only has the undated aliases, which are not announced as retiring.

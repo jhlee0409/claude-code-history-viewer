@@ -116,3 +116,14 @@ Anthropic offers Claude through partner platforms with independent pricing:
 - **Claude Platform on AWS**: Same CCU billing as Bedrock; rates same as Claude API.
 
 This document covers Claude API (first-party) pricing only.
+
+## 2026-10-01 update (pricing watch #596)
+
+Targeted check against https://platform.claude.com/docs/en/about-claude/pricing, the models overview and https://platform.claude.com/docs/en/about-claude/model-deprecations — not a full re-audit of every entry.
+
+- **Added `claude-opus-5-5`**: `| Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok | $20 / MTok |` (input, 5m write, 1h write, cache hit, output). "Cache hits and refreshes on Claude Opus 5.5 are priced at 0.05x the base input price." Fast mode `| Claude Opus 5.5 | $8 / MTok | $40 / MTok |`; fast cache rates derived with the published multipliers (10 / 16 / 0.40). No long-context tier ("Claude 4.6 and later models … include the full 1M token context window at standard pricing"). Before this key existed, `claude-opus-5-5` matched `claude-opus-5` by prefix and was billed at $5/$25 with $0.50 cache reads.
+- **Added `claude-sonnet-5-5`**: `| Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok | $10 / MTok |` (same price as Sonnet 5; needed as an exact key for `replacedBy`).
+- **`claude-sonnet-4-5` retirement**: "On September 30, 2026, Anthropic notified developers using Claude Sonnet 4.5 of its upcoming retirement" — `| November 30, 2026 | claude-sonnet-4-5-20250929 | claude-sonnet-5-5 |`. Recorded `deprecatedAt: 2026-11-30`, `replacedBy: claude-sonnet-5-5`. Rates unchanged (3 / 15 / 0.30 / 3.75 / 6). LiteLLM's >200K tier is still not on the official page, and Sonnet 4.5's window is 200k.
+- **`claude-mythos-preview`**: `| claude-mythos-preview | Deprecated | June 9, 2026 | To be announced |` — 2026-06-09 is the deprecation date, not a shutdown, so no `deprecatedAt`.
+- **`claude-opus-4`**: still $15/$75.
+- Model ids with a bracketed client suffix (`claude-opus-5-5[1m]`) now drop the suffix before lookup.
