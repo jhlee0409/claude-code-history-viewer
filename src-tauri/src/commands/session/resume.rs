@@ -160,7 +160,9 @@ pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
             continue;
         }
         if trimmed.len() > 128 {
-            return Err(format!("CLI argument is too long (maximum 128 chars): '{trimmed}'"));
+            return Err(format!(
+                "CLI argument is too long (maximum 128 chars): '{trimmed}'"
+            ));
         }
         // Reject shell metacharacters, control characters, and quotes
         if trimmed.chars().any(|c| {
@@ -190,8 +192,7 @@ pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
         }
         // Validate charset: alphanumeric, '-', '_', '.', '=', '/', ':', ',', '+'
         if !trimmed.chars().all(|c| {
-            c.is_ascii_alphanumeric()
-                || matches!(c, '-' | '_' | '.' | '=' | '/' | ':' | ',' | '+')
+            c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '=' | '/' | ':' | ',' | '+')
         }) {
             return Err(format!(
                 "CLI argument contains invalid characters: '{trimmed}'"
@@ -203,10 +204,7 @@ pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
 }
 
 /// Builds the final terminal resume command by inserting extra arguments into the base command.
-pub fn build_terminal_command(
-    base_command: &str,
-    extra_args: &[String],
-) -> Result<String, String> {
+pub fn build_terminal_command(base_command: &str, extra_args: &[String]) -> Result<String, String> {
     if extra_args.is_empty() {
         return Ok(base_command.to_string());
     }
@@ -218,7 +216,7 @@ pub fn build_terminal_command(
     } else if let Some(id) = base_command.strip_prefix("copilot --resume=") {
         Ok(format!("copilot {args_str} --resume={id}"))
     } else if let Some(id) = base_command.strip_prefix("forge conversation resume ") {
-        Ok(format!("forge conversation resume {args_str} {id}"))
+        Ok(format!("forge {args_str} conversation resume {id}"))
     } else if let Some(id) = base_command.strip_prefix("kimi -r ") {
         Ok(format!("kimi {args_str} -r {id}"))
     } else if let Some(id) = base_command.strip_prefix("kimi -S ") {
@@ -453,7 +451,7 @@ mod tests {
         );
         assert_eq!(
             build_terminal_command("forge conversation resume abc-123", &args).unwrap(),
-            "forge conversation resume --dangerously-skip-permissions abc-123"
+            "forge --dangerously-skip-permissions conversation resume abc-123"
         );
         assert_eq!(
             build_terminal_command("kimi -S session_abc", &args).unwrap(),
