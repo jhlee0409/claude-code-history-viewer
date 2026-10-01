@@ -49,6 +49,17 @@ describe("getMessageKind", () => {
       }))).toBe("agent-update");
     });
 
+    it("keeps a notification with the client's injected preamble as an agent update", () => {
+      // Claude Code prepends this header to background-task events, so text
+      // around a notification does not mean the user typed it.
+      const text = [
+        "[SYSTEM NOTIFICATION - NOT USER INPUT]",
+        "This is an automated background-task event, NOT a message from the user.",
+        TASK_NOTIFICATION,
+      ].join("\n");
+      expect(getMessageKind(makeMessage({ content: [{ type: "text", text }] }))).toBe("agent-update");
+    });
+
     it("treats a slash command and its local output as a command", () => {
       expect(getMessageKind(makeMessage({
         content: "<command-message>plab-wrap-session</command-message>\n<command-name>/plab-wrap-session</command-name>",
@@ -115,6 +126,28 @@ describe("getMessageKind", () => {
         content: [],
         toolUseResult: { stdout: "ok" },
       }))).toBe("tool");
+    });
+
+    it("treats a tool-result record with client-appended text as a tool row", () => {
+      // ToolSearch appends "Tool loaded." to its result. The backend moves the
+      // tool_result block into its call, leaving the text and the record's
+      // toolUseResult behind.
+      const info = classifyMessage(makeMessage({
+        content: [{ type: "text", text: "Tool loaded." }],
+        toolUseResult: { matches: ["WebFetch"], query: "select:WebFetch" },
+      }));
+      expect(info).toEqual({ kind: "tool", text: null });
+    });
+
+    it("keeps a fork's directive beside an unmerged tool_result as a prompt", () => {
+      // A fork's task arrives with the parent's tool_result but no
+      // toolUseResult. It is the fork's prompt, like a regular subagent's task.
+      expect(getMessageKind(makeMessage({
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_parent", content: "Agent started" },
+          { type: "text", text: "<fork-boilerplate>\nYou are a worker fork.\n</fork-boilerplate>\n\nYour directive: audit the parser." },
+        ],
+      }))).toBe("prompt");
     });
 
     it("treats an image-only message as a prompt", () => {

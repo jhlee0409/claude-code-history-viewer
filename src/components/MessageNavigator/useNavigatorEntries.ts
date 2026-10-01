@@ -3,7 +3,12 @@ import type { ClaudeMessage } from "../../types";
 import type { NavigatorEntryData } from "./types";
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { isEmptyMessage } from "../MessageViewer/helpers/messageHelpers";
-import { classifyMessage, type MessageKindInfo } from "../MessageViewer/helpers/messageKinds";
+import {
+  classifyMessage,
+  isFailedTaskStatus,
+  parseTaskNotifications,
+  type MessageKindInfo,
+} from "../MessageViewer/helpers/messageKinds";
 
 /** Types to filter out as noise in the navigator */
 const NOISE_TYPES = new Set(["progress", "queue-operation", "file-history-snapshot"]);
@@ -47,6 +52,13 @@ function previewText(info: MessageKindInfo, toolName: string | undefined): strin
   return toolName ?? "";
 }
 
+/** A failed notification anywhere in the block outranks the first one's status. */
+function entryStatus(info: MessageKindInfo): string | undefined {
+  if (info.kind !== "agent-update" || !info.text) return undefined;
+  const statuses = parseTaskNotifications(info.text).map((notification) => notification.status);
+  return statuses.find(isFailedTaskStatus) ?? statuses[0];
+}
+
 export function useNavigatorEntries(messages: ClaudeMessage[]): NavigatorEntryData[] {
   return useMemo(() => {
     if (!messages || messages.length === 0) return [];
@@ -78,7 +90,7 @@ export function useNavigatorEntries(messages: ClaudeMessage[]): NavigatorEntryDa
         role,
         kind: info.kind,
         preview,
-        status: info.notification?.status,
+        status: entryStatus(info),
         timestamp: message.timestamp || "",
         hasToolUse: toolUse !== null,
         turnIndex,
