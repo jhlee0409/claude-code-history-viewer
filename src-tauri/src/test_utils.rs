@@ -395,10 +395,9 @@ pub fn encode_path_claude_style(path: &std::path::Path) -> String {
 /// else produces that shape, so a fixture that canonicalises and then compares
 /// against a value built any other way will not match there (#541).
 pub fn strip_verbatim_prefix(path: &std::path::Path) -> String {
-    let raw = path.to_string_lossy();
-    raw.strip_prefix(r"\\?\UNC\")
-        .map(|rest| format!(r"\\{rest}"))
-        .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string())
+    crate::utils::strip_windows_extended_prefix(path)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// A temporary home directory, exported to the process for the lifetime of the

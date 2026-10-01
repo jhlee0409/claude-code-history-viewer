@@ -8,6 +8,8 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::utils::strip_windows_extended_prefix;
+
 /// All settings scopes in a single structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllSettings {
@@ -250,7 +252,7 @@ fn write_project_settings_file(
 /// a trailing separator, symlinks resolved, as Claude Code records it.
 fn claude_json_project_key(project_path: &str) -> Result<String, String> {
     let validated = validate_project_path(project_path)?;
-    Ok(strip_windows_prefix(&validated)
+    Ok(strip_windows_extended_prefix(&validated)
         .to_string_lossy()
         .into_owned())
 }
@@ -734,7 +736,7 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     // Canonicalize home to resolve symlinks (e.g. macOS /var → /private/var)
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
-    let home = strip_windows_prefix(&home);
+    let home = strip_windows_extended_prefix(&home);
     let mut allowed_dirs = vec![home.join(".claude-history-viewer").join("exports")];
     for (api_dir, fallback_name) in [
         (known_folder(dirs::download_dir), "Downloads"),
@@ -742,8 +744,9 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
         (known_folder(dirs::desktop_dir), "Desktop"),
     ] {
         let resolved = api_dir.unwrap_or_else(|| home.join(fallback_name));
-        let resolved =
-            strip_windows_prefix(&resolved.canonicalize().unwrap_or_else(|_| resolved.clone()));
+        let resolved = strip_windows_extended_prefix(
+            &resolved.canonicalize().unwrap_or_else(|_| resolved.clone()),
+        );
         allowed_dirs.push(resolved);
     }
 
@@ -760,24 +763,12 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
 
     // Strip \\?\ prefix on Windows for consistent comparison
     // (canonicalize() returns \\?\C:\... but home_dir() returns C:\...)
-    let canonical = strip_windows_prefix(&canonical);
+    let canonical = strip_windows_extended_prefix(&canonical);
 
     if allowed_dirs.iter().any(|d| canonical.starts_with(d)) {
         Ok(())
     } else {
         Err("Path not in allowed directories".to_string())
-    }
-}
-
-/// Strip the `\\?\` extended-length path prefix that Windows `canonicalize()` adds.
-///
-/// On non-Windows platforms this is a no-op (the prefix never appears).
-fn strip_windows_prefix(path: &Path) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(stripped) = s.strip_prefix(r"\\?\") {
-        PathBuf::from(stripped)
-    } else {
-        path.to_path_buf()
     }
 }
 
@@ -1307,30 +1298,6 @@ mod tests {
 
     #[cfg(feature = "webui-server")]
     #[test]
-    fn test_strip_windows_prefix_with_prefix() {
-        let path = Path::new(r"\\?\C:\Users\test");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from(r"C:\Users\test"));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
-    fn test_strip_windows_prefix_without_prefix() {
-        let path = Path::new("/normal/unix/path");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from("/normal/unix/path"));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
-    fn test_strip_windows_prefix_empty() {
-        let path = Path::new("");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from(""));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
     fn test_is_safe_path_downloads_accepted() {
         let temp = setup_test_env();
         let downloads = temp.path().join("Downloads");
@@ -1443,7 +1410,7 @@ mod tests {
         let temp = setup_test_env();
         let project = temp.path().join("repo");
         fs::create_dir_all(&project).unwrap();
-        let canonical = strip_windows_prefix(&project.canonicalize().unwrap())
+        let canonical = strip_windows_extended_prefix(&project.canonicalize().unwrap())
             .to_string_lossy()
             .to_string();
         let with_trailing_separator = format!("{canonical}{}", std::path::MAIN_SEPARATOR);
