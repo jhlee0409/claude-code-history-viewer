@@ -294,4 +294,64 @@ describe("MessageNavigator accessibility", () => {
     const icon = screen.getByRole("option").querySelector("svg");
     expect(icon).toHaveClass("text-destructive");
   });
+
+  it("marks an agent update failed when a later notification in it failed", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "mixed-update",
+            type: "user",
+            content: [
+              "<task-notification><task-id>bg-5</task-id><status>completed</status><summary>Batch A finished</summary></task-notification>",
+              "<task-notification><task-id>bg-6</task-id><status>failed</status><summary>Batch B failed</summary></task-notification>",
+            ].join("\n"),
+            timestamp: "2026-02-27T10:06:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    // The preview keeps the first notification's summary.
+    expect(screen.getByText("Batch A finished")).toBeInTheDocument();
+    const icon = screen.getByRole("option").querySelector("svg");
+    expect(icon).toHaveClass("text-destructive");
+  });
+
+  it("hides a tool result's client-appended text when the user-only filter is on", () => {
+    storeState.userOnlyFilter = true;
+
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "prompt",
+            type: "user",
+            content: "Scrub for pii",
+            timestamp: "2026-02-27T10:00:00Z",
+          } as never,
+          {
+            uuid: "tool-loaded",
+            type: "user",
+            content: [{ type: "text", text: "Tool loaded." }],
+            toolUseResult: { matches: ["WebFetch"], query: "select:WebFetch" },
+            timestamp: "2026-02-27T10:01:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.queryByText("Tool loaded.")).not.toBeInTheDocument();
+  });
 });
