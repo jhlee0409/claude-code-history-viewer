@@ -30,6 +30,8 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
+import { SessionResumeSection } from "./sections/SessionResumeSection";
+import { consumeRequestedSettingsSection } from "./settingsNavigation";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -90,10 +92,6 @@ export const useSettingsManager = () => {
   return context;
 };
 
-// ============================================================================
-// Main Component
-// ============================================================================
-
 export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   projectPath: initialProjectPath,
   className,
@@ -114,6 +112,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
   const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
+  const [isSessionResumeExpanded, setIsSessionResumeExpanded] = React.useState(false);
   const [isWslExpanded, setIsWslExpanded] = React.useState(false);
 
   // Pending changes state (shared across components for dirty tracking)
@@ -199,6 +198,35 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   React.useEffect(() => {
     setPendingSettings(null);
   }, [activeScope]);
+
+  // Listen for open-settings-section events to expand and scroll to target card
+  React.useEffect(() => {
+    const handleTarget = (sectionId: string) => {
+      if (sectionId === "session-resume") {
+        setIsSessionResumeExpanded(true);
+        setTimeout(() => {
+          document
+            .getElementById("session-resume-settings")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      }
+    };
+
+    // Consume any pending navigation target requested before mount
+    const pending = consumeRequestedSettingsSection();
+    if (pending) {
+      handleTarget(pending);
+    }
+
+    const handleOpenSection = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      handleTarget(customEvent.detail);
+    };
+    window.addEventListener("open-settings-section", handleOpenSection);
+    return () => {
+      window.removeEventListener("open-settings-section", handleOpenSection);
+    };
+  }, []);
 
   // Context value
   const contextValue: SettingsManagerContextValue = React.useMemo(
@@ -317,6 +345,15 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+                readOnly={serverReadOnly}
+              />
+            </Card>
+
+            {/* Session Resume Arguments — app-level setting, independent of Claude Code scope */}
+            <Card className="shrink-0" id="session-resume-settings">
+              <SessionResumeSection
+                isExpanded={isSessionResumeExpanded}
+                onToggle={(open) => setIsSessionResumeExpanded(open)}
                 readOnly={serverReadOnly}
               />
             </Card>

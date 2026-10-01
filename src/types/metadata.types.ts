@@ -61,6 +61,8 @@ export interface UserSettings {
   worktreeGroupingUserSet?: boolean;
   /** Project tree grouping mode: none, worktree, or directory */
   groupingMode?: GroupingMode;
+  /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
+  resumeCliArgs?: Record<string, string>;
 }
 
 /** Root structure for all user metadata */

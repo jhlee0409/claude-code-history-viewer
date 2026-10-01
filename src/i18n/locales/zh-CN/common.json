@@ -104,6 +104,7 @@
   "common.provider.zcode": "Z Code",
   "common.provider.zed": "Zed",
   "common.refresh": "刷新",
+  "common.reset": "Reset",
   "common.remove": "移除",
   "common.restartApp": "重启应用",
   "common.retry": "重试",

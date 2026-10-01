@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { SessionCopyMenu } from "./SessionCopyMenu";
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (_key: string, fallback?: string) => fallback ?? "",
-  }),
-}));
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (k: string, fallback?: string) => fallback ?? k,
+    }),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {

@@ -536,5 +536,19 @@
   "settingsManager.errors.mcpSaveFailed": "MCP サーバーの更新に失敗しました: {{detail}}",
   "settingsManager.errors.folderSelectFailed": "フォルダー選択ダイアログを開けませんでした: {{detail}}",
   "settingsManager.errors.directoryScanFailed": "プロジェクトの再スキャンに失敗しました: {{detail}}",
-  "settingsManager.errors.wslToggleFailed": "WSL 設定の更新に失敗しました: {{detail}}"
+  "settingsManager.errors.wslToggleFailed": "WSL 設定の更新に失敗しました: {{detail}}",
+  "settings.sessionResume.title": "セッション再開引数",
+  "settings.sessionResume.description": "ターミナルでセッションを再開する際に渡される追加のCLI引数を設定します。",
+  "settings.sessionResume.placeholder": "例: --dangerously-skip-permissions",
+  "settings.sessionResume.livePreview": "コマンドプレビュー:",
+  "settings.sessionResume.errorInvalid": "無効なCLI引数です",
+  "settings.sessionResume.errorMetacharacters": "シェルメタ文字(; & | $ ` < > \\ ! \" ' ( ) など)およびトークン内の空白は許可されていません。",
+  "settings.sessionResume.errorMaxTokens": "追加引数は最大32個まで指定できます。",
+  "settings.sessionResume.errorTokenTooLong": "引数が128文字を超えています: \"{{param}}...\"",
+  "settings.sessionResume.errorInvalidCharacters": "引数に無効な文字が含まれています: \"{{param}}\"",
+  "settings.sessionResume.warningDangerous": "フラグにより権限チェックが無効化されるか、危険モードで実行されます。",
+  "settings.sessionResume.noProviders": "このマシンでサポートされているCLIエージェントランタイムが検出されませんでした。",
+  "settings.sessionResume.saved": "再開引数を保存しました",
+  "settings.sessionResume.saveFailed": "設定の保存に失敗しました",
+  "settings.sessionResume.resetSuccess": "デフォルトの引数にリセットしました"
 }

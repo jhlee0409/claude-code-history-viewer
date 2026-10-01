@@ -14,6 +14,7 @@ import {
   supportsResumeCommandForSession,
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
+import { parseResumeArgs } from "@/utils/resumeArgs";
 import type { ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
 
@@ -30,6 +31,7 @@ export function useSessionEditing(session: ClaudeSession) {
   const ignoreBlurRef = useRef<boolean>(false);
 
   const providerId = session.provider ?? "claude";
+  const userMetadata = useAppStore((state) => state.userMetadata);
   const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
   const selectedProject = useAppStore((state) => state.selectedProject);
   const loadedSessions = useAppStore((state) => state.sessions);
@@ -212,13 +214,16 @@ export function useSessionEditing(session: ClaudeSession) {
 
   const handleCopyResumeCommand = useCallback(
     (e: React.MouseEvent) => {
+      const rawArgs = userMetadata?.settings?.resumeCliArgs?.[providerId] ?? "";
+      const { tokens } = parseResumeArgs(rawArgs);
       const resumeCommand = projectPathUnavailable
         ? null
         : getResumeCommand(
             providerId,
             session.actual_session_id,
             projectCwd,
-            session.entrypoint
+            session.entrypoint,
+            tokens.length > 0 ? tokens.join(" ") : undefined
           );
       if (!resumeCommand) {
         e.stopPropagation();
@@ -253,6 +258,7 @@ export function useSessionEditing(session: ClaudeSession) {
       session.actual_session_id,
       session.entrypoint,
       t,
+      userMetadata?.settings?.resumeCliArgs,
     ]
   );
 
