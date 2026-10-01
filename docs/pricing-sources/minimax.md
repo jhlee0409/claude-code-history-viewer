@@ -82,3 +82,7 @@
 5. **Long-Context:** The M3 tier boundary is 512K input tokens (≤512k vs >512k), not 512,001 as currently coded in contextTiers minContextTokens. The official docs use "512k" as the threshold, which typically means "512,000" but MiniMax's implementation detail on the exact boundary (512k or 512,001) was not explicitly confirmed in the pricing documentation.
 
 6. **Token Counting:** Official docs state: "the token-to-character ratio varies slightly depending on the usage scenario, subject to actual consumption" and "Token to English word ratio (estimate): approximately 750 English words consume 1000 tokens".
+
+## 2026-10-01 update (pricing watch #596)
+
+- **`minimax-m2.5`: unchanged.** https://platform.minimax.io/docs/guides/pricing-paygo, "Legacy Models": `| MiniMax-M2.5 | $0.3 / M tokens | $1.2 / M tokens | $0.03 / M tokens | $0.375 / M tokens |`. OpenRouter's $0.27/$1.08 is a flat 10% below the official rate. `minimax-m2.5-highspeed` (0.6 / 2.4 / 0.03 / 0.375) re-confirmed.
