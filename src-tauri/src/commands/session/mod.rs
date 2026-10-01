@@ -99,7 +99,7 @@ pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), St
 
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
-    let home = rename::strip_windows_extended_prefix(&home);
+    let home = crate::utils::strip_windows_extended_prefix(&home);
 
     let mut allowed: Vec<PathBuf> = vec![
         home.join(".claude").join("projects"),

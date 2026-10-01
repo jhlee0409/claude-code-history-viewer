@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
 
-use crate::utils::is_safe_storage_id;
+use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 
 lazy_static! {
     /// Regex for validating JSONL filename pattern (alphanumeric, underscore, hyphen only)
@@ -355,20 +355,6 @@ fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
     if !roots.contains(&path) {
         roots.push(path);
     }
-}
-
-/// Remove the extended-length prefix that Windows may add to canonical paths.
-/// Keep this cross-platform so the representation rule can be unit-tested on
-/// Unix hosts as well.
-pub(super) fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
-    let raw = path.to_string_lossy();
-    if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
-        return PathBuf::from(format!(r"\\{rest}"));
-    }
-    if let Some(rest) = raw.strip_prefix(r"\\?\") {
-        return PathBuf::from(rest);
-    }
-    path.to_path_buf()
 }
 
 /// Normalize only the representation used for the allowlist boundary check.
