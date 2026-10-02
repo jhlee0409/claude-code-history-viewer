@@ -70,7 +70,7 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 
 AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
 
-**Thirty-one assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+**Thirty-two assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, and Hermes Agent sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
 
 | Provider | Data Location | What You Get |
 |----------|--------------|--------------|
@@ -103,6 +103,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | Per-session JSONL transcripts (tool calls, thinking, token usage) |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai's GLM coding agent — session/message/part SQLite store (titles, tool calls, thinking, token usage) |
+| **Hermes Agent** | `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows) + `profiles/<name>/` | Nous Research's agent — CLI, desktop and gateway sessions from its SQLite store (tool calls, reasoning, session token usage and cost) |
 | **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
 
@@ -130,7 +131,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **31 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code — filter by provider, compare across tools |
+| **Multi-Provider Support** | Unified viewer for **32 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, and Hermes Agent — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
@@ -428,7 +429,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all 31 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
+2. It automatically scans for conversation data from all 32 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board

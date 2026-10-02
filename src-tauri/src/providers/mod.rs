@@ -25,6 +25,7 @@ pub mod forgecode;
 pub mod gemini;
 pub mod goose;
 pub mod grok;
+pub mod hermes;
 /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store surfaced through
 /// its own provider id; the pre-migration Cline-family store stays with
 /// `cline`.
@@ -79,6 +80,9 @@ pub enum ProviderId {
     Goose,
     /// xAI Grok CLI (`~/.grok/sessions`).
     Grok,
+    /// Nous Research Hermes Agent (`state.db` in `$HERMES_HOME`, else
+    /// `%LOCALAPPDATA%\hermes` / `~/.hermes`, plus `profiles/<name>/`).
+    Hermes,
     /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store (`kilo.db`).
     /// The pre-migration Cline-family store is still surfaced by `Cline`.
     Kilo,
@@ -127,6 +131,7 @@ impl ProviderId {
             Self::Gemini => "gemini",
             Self::Goose => "goose",
             Self::Grok => "grok",
+            Self::Hermes => "hermes",
             Self::Kilo => "kilo",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
@@ -163,6 +168,7 @@ impl ProviderId {
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
             "grok" => Some(Self::Grok),
+            "hermes" => Some(Self::Hermes),
             "kilo" => Some(Self::Kilo),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
@@ -200,6 +206,7 @@ impl ProviderId {
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
+            Self::Hermes => "Hermes Agent",
             Self::Kilo => "Kilo Code",
             Self::Kimi => "Kimi",
             Self::ForgeCode => "ForgeCode",
@@ -252,6 +259,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = grok::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = hermes::detect() {
         providers.push(info);
     }
     if let Some(info) = kilo::detect() {
