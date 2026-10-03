@@ -386,7 +386,7 @@ mod ime_environment_tests {
         let updates =
             linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
 
-        assert!(updates.is_empty());
+        assert_eq!(updates, Vec::<(&str, &str)>::new());
     }
 
     #[test]
@@ -400,7 +400,7 @@ mod ime_environment_tests {
     fn linux_ime_environment_does_nothing_without_ibus_signal() {
         let updates = linux_ime_environment_updates(None, None, None);
 
-        assert!(updates.is_empty());
+        assert_eq!(updates, Vec::<(&str, &str)>::new());
     }
 }
 

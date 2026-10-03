@@ -40,7 +40,7 @@ mod integration_tests {
                 "  Project: name={:?}, session_count={}, message_count={}, provider={:?}, last_modified={:?}",
                 p.name, p.session_count, p.message_count, p.provider, p.last_modified
             );
-            assert!(!p.name.is_empty());
+            assert_ne!(p.name, "");
             assert_eq!(p.provider.as_deref(), Some("antigravity"));
         }
     }

@@ -1344,9 +1344,9 @@ mod tests {
             select_wsl_search_providers(&active_providers, None),
             vec!["claude"]
         );
-        assert!(
-            select_wsl_search_providers(&active_providers, Some(&["codex".to_string()]),)
-                .is_empty()
+        assert_eq!(
+            select_wsl_search_providers(&active_providers, Some(&["codex".to_string()])),
+            Vec::<String>::new()
         );
     }
 

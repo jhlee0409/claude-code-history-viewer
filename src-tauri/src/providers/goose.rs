@@ -614,7 +614,7 @@ mod tests {
         assert_eq!(normalize_ts("2026-06-21T10:00:00Z"), "2026-06-21T10:00:00Z");
         assert_eq!(normalize_ts(""), "");
         // epoch seconds -> iso (non-empty)
-        assert!(!epoch_to_iso(1750500000).is_empty());
+        assert_ne!(epoch_to_iso(1750500000), "");
         assert_eq!(epoch_to_iso(0), "");
     }
 

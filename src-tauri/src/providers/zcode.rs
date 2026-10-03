@@ -978,7 +978,10 @@ mod tests {
             .unwrap();
         // b and c now point at each other; neither is reachable from a, and the
         // query must still return.
-        assert!(descendant_subagent_ids(&conn, "a").unwrap().is_empty());
+        assert_eq!(
+            descendant_subagent_ids(&conn, "a").unwrap(),
+            Vec::<String>::new()
+        );
         // The session itself is on the cycle but must never be its own
         // descendant, or its messages would be counted twice.
         assert_eq!(
