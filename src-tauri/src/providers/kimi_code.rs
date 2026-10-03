@@ -1854,7 +1854,7 @@ mod tests {
             load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
 
         let interrupted = messages.last().expect("interrupted tool message");
-        assert!(!interrupted.timestamp.is_empty());
+        assert_ne!(interrupted.timestamp, "");
         assert!(interrupted.timestamp.starts_with("2026-08"));
     }
 

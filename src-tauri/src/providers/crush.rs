@@ -643,8 +643,8 @@ mod tests {
 
     #[test]
     fn epoch_handles_seconds_and_ms() {
-        assert!(!epoch_to_iso(1_750_000_000).is_empty());
-        assert!(!epoch_to_iso(1_750_000_000_000).is_empty());
+        assert_ne!(epoch_to_iso(1_750_000_000), "");
+        assert_ne!(epoch_to_iso(1_750_000_000_000), "");
         assert_eq!(epoch_to_iso(0), "");
     }
 }

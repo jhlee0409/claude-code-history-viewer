@@ -1077,7 +1077,7 @@ mod tests {
         let ext_dir = tmp.path().join("globalStorage").join("kilocode.kilo-code");
         fs::create_dir_all(&ext_dir).unwrap();
         // Neither a disk index nor a state.vscdb → empty, no panic.
-        assert!(load_task_history(&ext_dir).is_empty());
+        assert_eq!(load_task_history(&ext_dir), Vec::<serde_json::Value>::new());
     }
 
     #[test]

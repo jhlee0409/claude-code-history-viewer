@@ -3887,7 +3887,7 @@ mod tests {
         let messages = result.unwrap();
         assert_eq!(messages.len(), 1);
         // Should have a generated UUID
-        assert!(!messages[0].uuid.is_empty());
+        assert_ne!(messages[0].uuid, "");
         assert!(messages[0].uuid.contains("-line-"));
     }
 

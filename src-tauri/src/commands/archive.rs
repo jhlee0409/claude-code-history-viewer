@@ -2048,7 +2048,7 @@ mod tests {
         unix_fs::symlink(&external_subagents, project_subagents.join("agent_run")).unwrap();
 
         let files = find_subagent_files(&session_path);
-        assert!(files.is_empty());
+        assert_eq!(files, Vec::<std::path::PathBuf>::new());
     }
 
     #[tokio::test]

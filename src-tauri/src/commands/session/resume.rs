@@ -308,6 +308,6 @@ mod tests {
 
     #[test]
     fn terminal_invocations_is_nonempty() {
-        assert!(!terminal_invocations("kimi -r abc", None).is_empty());
+        assert_ne!(terminal_invocations("kimi -r abc", None), Vec::new());
     }
 }
