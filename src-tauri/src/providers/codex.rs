@@ -3464,7 +3464,7 @@ mod tests {
 
         assert_eq!(info.cwd.as_deref(), Some("/tmp/proj"));
         assert!(info.message_count > 0);
-        assert!(!info.last_modified.is_empty());
+        assert_ne!(info.last_modified, "");
     }
 
     #[test]

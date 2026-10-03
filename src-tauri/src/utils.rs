@@ -809,7 +809,7 @@ mod tests {
 
     #[test]
     fn test_par_map_bounded_handles_empty_and_single() {
-        assert!(par_map_bounded(Vec::<u8>::new(), |i| i).is_empty());
+        assert_eq!(par_map_bounded(Vec::<u8>::new(), |i| i), Vec::<u8>::new());
         assert_eq!(par_map_bounded(vec![7u8], |i| i + 1), vec![8]);
     }
 
@@ -836,7 +836,7 @@ mod tests {
     fn test_find_line_ranges_empty() {
         let data = b"";
         let ranges = find_line_ranges(data);
-        assert!(ranges.is_empty());
+        assert_eq!(ranges, Vec::<(usize, usize)>::new());
     }
 
     #[test]
@@ -872,7 +872,7 @@ mod tests {
     fn test_find_line_ranges_only_newlines() {
         let data = b"\n\n\n";
         let ranges = find_line_ranges(data);
-        assert!(ranges.is_empty());
+        assert_eq!(ranges, Vec::<(usize, usize)>::new());
     }
 
     #[test]

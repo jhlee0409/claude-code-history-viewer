@@ -1106,7 +1106,7 @@ mod tests {
         let data = r#"{"sessionId":"s5","projectHash":"h5","kind":"main"}"#;
         let (meta, msgs) = parse_gemini_session(data).expect("metadata-only should parse");
         assert_eq!(meta.get("sessionId").and_then(Value::as_str), Some("s5"));
-        assert!(msgs.is_empty());
+        assert_eq!(msgs, Vec::<serde_json::Value>::new());
     }
 
     #[test]
