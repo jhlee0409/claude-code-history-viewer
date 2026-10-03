@@ -54,6 +54,7 @@ enum StatsProvider {
     Gemini,
     Cursor,
     Zcode,
+    Hermes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +116,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Gemini => "gemini",
         StatsProvider::Cursor => "cursor",
         StatsProvider::Zcode => "zcode",
+        StatsProvider::Hermes => "hermes",
     }
 }
 
@@ -324,6 +326,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Gemini,
         StatsProvider::Cursor,
         StatsProvider::Zcode,
+        StatsProvider::Hermes,
     ]
     .into_iter()
     .collect()
@@ -354,6 +357,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "pearai" => Some(StatsProvider::PearAI),
             "qwen" => Some(StatsProvider::Qwen),
             "zcode" => Some(StatsProvider::Zcode),
+            "hermes" => Some(StatsProvider::Hermes),
             "trae" => Some(StatsProvider::Trae),
             "vibe" => Some(StatsProvider::Vibe),
             "zed" => Some(StatsProvider::Zed),
@@ -421,6 +425,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Zed
     } else if project_path.starts_with("zcode://") {
         StatsProvider::Zcode
+    } else if project_path.starts_with("hermes://") {
+        StatsProvider::Hermes
     } else if project_path.starts_with("codex://") {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
@@ -524,6 +530,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("zcode://") {
         return StatsProvider::Zcode;
+    }
+    if session_path.starts_with("hermes://") {
+        return StatsProvider::Hermes;
     }
     if path_under_root(session_path, providers::cursor_agent::get_base_path()) {
         return StatsProvider::CursorAgent;
@@ -1569,6 +1578,7 @@ fn scan_stats_projects(
         StatsProvider::PearAI => providers::pearai::scan_projects(),
         StatsProvider::Qwen => providers::qwen::scan_projects(),
         StatsProvider::Zcode => providers::zcode::scan_projects(),
+        StatsProvider::Hermes => providers::hermes::scan_projects(),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
         StatsProvider::Zed => providers::zed::scan_projects(),
@@ -1610,6 +1620,7 @@ fn load_stats_sessions(
         StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
         StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
         StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
+        StatsProvider::Hermes => providers::hermes::load_sessions(project_path, false),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
         StatsProvider::Zed => providers::zed::load_sessions(project_path, false),
@@ -1650,6 +1661,7 @@ fn load_stats_messages(
         StatsProvider::Qwen => providers::qwen::load_messages(session_path),
         // Rolls subagent runs into their parent as sidechain usage (#577).
         StatsProvider::Zcode => providers::zcode::load_messages_with_subagents(session_path),
+        StatsProvider::Hermes => providers::hermes::load_messages(session_path),
         StatsProvider::Trae => providers::trae::load_messages(session_path),
         StatsProvider::Vibe => providers::vibe::load_messages(session_path),
         StatsProvider::Zed => providers::zed::load_messages(session_path),
@@ -3149,6 +3161,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         | StatsProvider::Kiro
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, project_path),
+        StatsProvider::Hermes => providers::hermes::project_name(project_path),
     }
 }
 
@@ -3326,6 +3339,7 @@ fn resolve_provider_project_name_from_session(
         | StatsProvider::Kiro
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, session_path),
+        StatsProvider::Hermes => providers::hermes::project_name_for_session(session_path),
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -5487,6 +5501,7 @@ pub async fn get_global_stats_summary(
         StatsProvider::Vibe,
         StatsProvider::Zed,
         StatsProvider::Zcode,
+        StatsProvider::Hermes,
     ] {
         if providers_to_include.contains(&provider) {
             let (provider_stats, provider_projects) =
@@ -6608,7 +6623,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 31);
+        assert_eq!(supported.len(), 32);
     }
 
     #[test]
@@ -9194,6 +9209,15 @@ mod tests {
             detect_session_provider("zcode:///home/jack/proj#sess-1"),
             StatsProvider::Zcode
         );
+        // Hermes Agent pseudo-paths route by scheme too.
+        assert_eq!(
+            detect_session_provider("hermes://default::dir:/home/jack/proj#20260101_s1"),
+            StatsProvider::Hermes
+        );
+        assert_eq!(
+            detect_project_provider("hermes://profile.coder::source:telegram"),
+            StatsProvider::Hermes
+        );
         // Claude files still route to Claude.
         assert_eq!(
             detect_session_provider(&format!("{home}/.claude/projects/-u/s.jsonl")),
@@ -9217,6 +9241,24 @@ mod tests {
                 "zcode:///home/jack/proj"
             ),
             "proj"
+        );
+    }
+
+    #[test]
+    fn hermes_project_names_come_from_the_pseudo_path() {
+        assert_eq!(
+            resolve_provider_project_name_from_session(
+                StatsProvider::Hermes,
+                "hermes://default::dir:/home/jack/proj#20260101_s1"
+            ),
+            "proj"
+        );
+        assert_eq!(
+            resolve_provider_project_name(
+                StatsProvider::Hermes,
+                "hermes://profile.coder::source:telegram"
+            ),
+            "Hermes (telegram) (coder)"
         );
     }
 

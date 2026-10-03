@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-30T09:37:28.884Z
- * 총 키 개수: 1967
+ * 생성 시간: 2026-09-30T13:43:57.325Z
+ * 총 키 개수: 1968
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (203개)
+ * common namespace의 번역 키 (204개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -139,6 +139,7 @@ export type CommonKeys =
   | 'common.provider.gemini'
   | 'common.provider.goose'
   | 'common.provider.grok'
+  | 'common.provider.hermes'
   | 'common.provider.kilo'
   | 'common.provider.kimi'
   | 'common.provider.kiro'
@@ -2480,6 +2481,7 @@ export type TranslationKey =
   | 'common.provider.gemini'
   | 'common.provider.goose'
   | 'common.provider.grok'
+  | 'common.provider.hermes'
   | 'common.provider.kilo'
   | 'common.provider.kimi'
   | 'common.provider.kiro'

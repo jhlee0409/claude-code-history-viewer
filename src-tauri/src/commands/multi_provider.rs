@@ -87,6 +87,7 @@ pub async fn scan_all_projects(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "hermes".to_string(),
             "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
@@ -177,6 +178,7 @@ pub async fn scan_all_projects(
         ("gemini", providers::gemini::scan_projects),
         ("goose", providers::goose::scan_projects),
         ("grok", providers::grok::scan_projects),
+        ("hermes", providers::hermes::scan_projects),
         ("kilo", providers::kilo::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
@@ -375,6 +377,7 @@ pub async fn load_provider_sessions(
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "goose" => providers::goose::load_sessions(&project_path, exclude),
         "grok" => providers::grok::load_sessions(&project_path, exclude),
+        "hermes" => providers::hermes::load_sessions(&project_path, exclude),
         "kilo" => providers::kilo::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
@@ -525,6 +528,7 @@ fn load_non_claude_messages(
         "gemini" => providers::gemini::load_messages(session_path),
         "goose" => providers::goose::load_messages(session_path),
         "grok" => providers::grok::load_messages(session_path),
+        "hermes" => providers::hermes::load_messages(session_path),
         "kilo" => providers::kilo::load_messages(session_path),
         "kimi" => providers::kimi::load_messages(session_path),
         "forgecode" => providers::forgecode::load_messages(session_path),
@@ -703,6 +707,7 @@ pub async fn search_all_providers(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "hermes".to_string(),
             "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
@@ -930,6 +935,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("oh-my-pi search failed: {e}");
+            }
+        }
+    }
+
+    // Hermes Agent
+    if providers_to_search.iter().any(|p| p == "hermes") {
+        match providers::hermes::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Hermes Agent search failed: {e}");
             }
         }
     }

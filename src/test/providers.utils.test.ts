@@ -63,6 +63,7 @@ describe("providers utils", () => {
       "gemini",
       "goose",
       "grok",
+      "hermes",
       "kilo",
       "kimi",
       "kiro",

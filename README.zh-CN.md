@@ -70,7 +70,7 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 
 AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
 
-**三十一个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 会话之间无缝切换 — 比较令牌用量、跨提供商搜索、在一个界面中分析你的工作流。
+**三十二个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code 和 Hermes Agent 会话之间无缝切换 — 比较令牌用量、跨提供商搜索、在一个界面中分析你的工作流。
 
 | 提供商 | 数据位置 | 获取内容 |
 |----------|--------------|--------------|
@@ -103,6 +103,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | 每会话 JSONL 记录（工具调用、思维过程、Token 用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 线程 — SQLite + Zstd 压缩 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 编程智能体 — session/message/part 三表 SQLite 存储（标题、工具调用、思考过程、Token 用量） |
+| **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（默认 `~/.hermes`，Windows 为 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能体 — SQLite 存储中的 CLI、桌面与网关会话（工具调用、推理过程、会话 Token 用量与费用） |
 | **OpenHands** | `~/.openhands/sessions/` | 经典事件存储对话 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 按工作区的聊天记录（icube 存储；实验性，逆向工程） |
 
@@ -130,7 +131,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商支持** | 统一查看 **31 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 按提供商筛选、跨工具比较 |
+| **多提供商支持** | 统一查看 **32 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code 和 Hermes Agent — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
@@ -428,7 +429,7 @@ GET /health
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描全部 31 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
+2. 自动扫描全部 32 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
