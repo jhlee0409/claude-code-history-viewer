@@ -434,6 +434,9 @@ export function getResumeCommand(
       resume = `claude ${extraPrefix}--resume ${sessionId}`;
       break;
     case "codex":
+      // Extras go before `resume`, so they must be top-level Codex flags
+      // (e.g. approval/sandbox options); `resume`-only flags like `--last`
+      // are rejected there.
       resume = `codex ${extraPrefix}resume ${sessionId}`;
       break;
     case "copilot":

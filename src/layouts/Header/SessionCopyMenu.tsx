@@ -16,7 +16,7 @@ import { parseResumeArgs } from "@/utils/resumeArgs";
 import { isProjectPathUnavailable } from "@/utils/pathUtils";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
-import { requestSettingsSection } from "@/components/SettingsManager/settingsNavigation";
+import { openSettingsSection } from "@/components/SettingsManager/settingsNavigation";
 
 interface SessionCopyMenuProps {
   project: ClaudeProject | null;
@@ -126,13 +126,8 @@ export const SessionCopyMenu = ({
             {hasCustomArgs && (
               <DropdownMenuItem
                 onSelect={() => {
-                  requestSettingsSection("session-resume");
+                  openSettingsSection("session-resume");
                   switchToSettings();
-                  window.dispatchEvent(
-                    new CustomEvent("open-settings-section", {
-                      detail: "session-resume",
-                    })
-                  );
                 }}
                 className="text-2xs text-muted-foreground hover:text-foreground"
               >

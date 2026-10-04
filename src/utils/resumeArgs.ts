@@ -7,6 +7,9 @@ const PROHIBITED_SHELL_CHARS_REGEX = /[;&|$`<>\\!"'()\r\n\t]/;
 /** Valid token characters: alphanumeric, dashes, underscores, dots, equals, slashes, colons, commas, pluses. */
 const VALID_TOKEN_REGEX = /^[a-zA-Z0-9_\-./:=,+]+$/;
 
+/** Stable empty map, so hook dependencies don't change on every render. */
+export const NO_RESUME_ARGS: Readonly<Record<string, string>> = Object.freeze({});
+
 export type ResumeArgsErrorCode =
   | "metacharacters"
   | "maxTokens"
