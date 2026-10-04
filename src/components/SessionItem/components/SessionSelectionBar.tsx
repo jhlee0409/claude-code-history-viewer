@@ -17,7 +17,7 @@ import {
   supportsResumeCommandForSession,
   supportsSessionDeletion,
 } from "@/utils/providers";
-import { hasDangerousFlag } from "@/utils/resumeArgs";
+import { hasDangerousFlag, NO_RESUME_ARGS } from "@/utils/resumeArgs";
 import type { ClaudeSession } from "@/types";
 import { useSessionBatchActions } from "../hooks/useSessionBatchActions";
 import { SessionMultiDeleteDialog } from "./SessionMultiDeleteDialog";
@@ -178,7 +178,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   );
 
   const userMetadata = useAppStore((state) => state.userMetadata);
-  const resumeCliArgs = userMetadata?.settings?.resumeCliArgs ?? {};
+  const resumeCliArgs = userMetadata?.settings?.resumeCliArgs ?? NO_RESUME_ARGS;
 
   const dangerousCount = useMemo(
     () =>

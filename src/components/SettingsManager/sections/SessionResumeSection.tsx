@@ -35,6 +35,7 @@ import {
   parseResumeArgs,
   buildLivePreviewResumeCommand,
   getStoredResumeCliArgs,
+  NO_RESUME_ARGS,
 } from "@/utils/resumeArgs";
 import type { ProviderId } from "@/types";
 
@@ -89,7 +90,7 @@ export function SessionResumeSection({
     return [DEFAULT_PROVIDER_ID];
   }, [providers, activeProviders]);
 
-  const storedArgsMap = userMetadata?.settings?.resumeCliArgs ?? {};
+  const storedArgsMap = userMetadata?.settings?.resumeCliArgs ?? NO_RESUME_ARGS;
 
   const kimiEntrypoint = useMemo(() => {
     const kimiSession = sessions.find(

@@ -1,26 +1,29 @@
 /**
  * Settings Navigation Helpers
  *
- * Provides module-level requested section state to support navigation
- * to specific settings sections before or during component mount.
- * Extracted from UnifiedSettingsManager to satisfy react-refresh/only-export-components.
+ * Opens a specific settings section whether or not the settings manager is
+ * mounted yet: a mounted manager hears the event, and one that mounts later
+ * consumes the pending request. Kept outside UnifiedSettingsManager to satisfy
+ * react-refresh/only-export-components.
  */
 
-// Module-level target section request for navigation before mount
+export const OPEN_SETTINGS_SECTION_EVENT = "open-settings-section";
+
 let pendingSettingsSectionRequest: string | null = null;
 
 /**
- * Requests navigation to a specific settings section upon component mount.
- * Sets a module-level target section identifier consumed by UnifiedSettingsManager.
- *
- * @param sectionId - The identifier of the settings section to navigate to (e.g. "sessionResume")
+ * Asks the settings manager to open a section (e.g. "session-resume").
+ * Callers still switch the app to the settings view themselves.
  */
-export function requestSettingsSection(sectionId: string) {
+export function openSettingsSection(sectionId: string) {
   pendingSettingsSectionRequest = sectionId;
+  window.dispatchEvent(
+    new CustomEvent(OPEN_SETTINGS_SECTION_EVENT, { detail: sectionId })
+  );
 }
 
 /**
- * Consumes and clears the pending requested settings section.
+ * Consumes and clears the pending section request.
  *
  * @returns The requested section identifier if set, or null otherwise.
  */

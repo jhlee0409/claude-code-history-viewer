@@ -31,7 +31,10 @@ import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
 import { SessionResumeSection } from "./sections/SessionResumeSection";
-import { consumeRequestedSettingsSection } from "./settingsNavigation";
+import {
+  OPEN_SETTINGS_SECTION_EVENT,
+  consumeRequestedSettingsSection,
+} from "./settingsNavigation";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -218,13 +221,15 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
       handleTarget(pending);
     }
 
+    // Consume the request here too, so it doesn't reopen the section on a
+    // later, unrelated mount.
     const handleOpenSection = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      handleTarget(customEvent.detail);
+      consumeRequestedSettingsSection();
+      handleTarget((e as CustomEvent<string>).detail);
     };
-    window.addEventListener("open-settings-section", handleOpenSection);
+    window.addEventListener(OPEN_SETTINGS_SECTION_EVENT, handleOpenSection);
     return () => {
-      window.removeEventListener("open-settings-section", handleOpenSection);
+      window.removeEventListener(OPEN_SETTINGS_SECTION_EVENT, handleOpenSection);
     };
   }, []);
 

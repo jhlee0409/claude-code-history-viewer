@@ -90,7 +90,7 @@ export interface UserSettings {
   /** Providers explicitly discovered by the user and allowed to scan on startup */
   discoveredProviderIds?: ProviderId[];
   /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
-  resumeCliArgs?: Partial<Record<ProviderId, string>> | Record<string, string>;
+  resumeCliArgs?: Record<string, string>;
 }
 
 // ============================================================================
