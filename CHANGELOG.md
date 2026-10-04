@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-10-04
+
+### Added
+- **Custom arguments for session resume, per CLI.** Settings → Session Resume lets you add extra flags for each assistant's resume command (for example `--dangerously-skip-permissions` for Claude Code). They apply to both "Copy resume command" and "Open in terminal", with a live preview and inline validation. Dangerous flags are highlighted, and resuming several sessions with one asks for confirmation. (#509, #595, #628)
+
+### Fixed
+- **Claude Opus 5.5 cost was overstated.** Opus 5.5 sessions were priced at Opus 5 rates; they now use Opus 5.5's own $4 / $20 (cache reads $0.20), including model ids with a `[1m]` suffix. (#625)
+- Pricing added for GPT-6 Sol, GPT-6.1 Sol, GPT-6 Luna, GPT-6 Astra, Gemini 3.8 Flash, Grok 4.7 and Claude Sonnet 5.5. Claude Sonnet 4.5 shows its announced retirement on 2026-11-30. (#625)
+- The Messages panel marks a row as failed when any of its task notifications failed, not only the first, and ToolSearch's "Tool loaded." note no longer shows as a typed prompt. (#626)
+- Windows: file-watch events use plain paths, so the open session refreshes when its file changes; settings and export paths on network shares (UNC) are matched correctly. (#604, #624)
+
+### Internal
+- Tests updated for Rust 1.99's `clippy::assert_is_empty` lint. (#627)
+
 ## [1.30.0] - 2026-10-01
 
 ### Security
