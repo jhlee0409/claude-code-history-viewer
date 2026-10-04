@@ -145,6 +145,13 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
 
+### New in v1.31.0
+
+| Feature | Description |
+|---------|-------------|
+| **Custom resume arguments** | Settings → **Session Resume Arguments** adds extra flags per CLI, used by **Copy Resume Command** and when resuming sessions in a terminal, with a live preview; dangerous flags are highlighted |
+| **Correct Claude Opus 5.5 cost** | Opus 5.5 sessions are priced at Opus 5.5's own rates (they were billed at Opus 5's); pricing added for GPT-6, Gemini 3.8 Flash and Grok 4.7 |
+
 ### New in v1.30.0
 
 | Feature | Description |
