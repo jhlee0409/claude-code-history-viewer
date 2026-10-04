@@ -23,6 +23,7 @@ import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
+import { usePromptJump } from "./hooks/usePromptJump";
 import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
@@ -154,6 +155,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     targetMessageUuid,
     shouldHighlightTarget,
     clearTargetMessage,
+    navigateToMessage,
     messageFilter,
     // SubAgent navigation
     subagentSessions,
@@ -403,6 +405,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // height, so the height estimate must not collapse them to 0 (issue #334).
     isInSubagent: parentSessionStack.length > 0,
     scrollMargin: virtualScrollMargin,
+  });
+
+  // Alt+ArrowUp / Alt+ArrowDown jump between turn starts in the loaded rows.
+  usePromptJump({
+    flattenedMessages,
+    virtualizer,
+    getScrollElement,
+    targetMessageUuid,
+    navigateToMessage,
   });
 
   // Set of selected message UUIDs for O(1) lookup

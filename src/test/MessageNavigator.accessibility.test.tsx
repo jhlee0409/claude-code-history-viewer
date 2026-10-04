@@ -323,6 +323,26 @@ describe("MessageNavigator accessibility", () => {
     expect(icon).toHaveClass("text-destructive");
   });
 
+  it("names the prompt-jump shortcut in the person button's tooltip", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          { uuid: "prompt", type: "user", content: "Scrub for pii", timestamp: "2026-02-27T10:00:00Z" } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const personButton = screen.getByRole("button", { name: "navigator.userOnly" });
+    expect(personButton.getAttribute("title")).toContain("navigator.promptJumpHint");
+    expect(document.getElementById("message-navigator-keyboard-help")?.textContent)
+      .toContain("navigator.promptJumpHint");
+  });
+
   it("hides a tool result's client-appended text when the user-only filter is on", () => {
     storeState.userOnlyFilter = true;
 

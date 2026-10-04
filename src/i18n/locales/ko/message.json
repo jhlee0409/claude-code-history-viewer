@@ -87,6 +87,7 @@
   "navigator.kind.system": "시스템",
   "navigator.kind.summary": "요약",
   "navigator.userOnly": "내 프롬프트만 표시",
+  "navigator.promptJumpHint": "{{keys}}: 이전 또는 다음 프롬프트로 이동합니다.",
   "navigator.showParallelTasks": "병렬 작업 표시",
   "navigator.noMessages": "이 세션에 메시지가 없습니다",
   "navigator.close": "네비게이터 닫기",

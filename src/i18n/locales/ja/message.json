@@ -87,6 +87,7 @@
   "navigator.kind.system": "システム",
   "navigator.kind.summary": "要約",
   "navigator.userOnly": "自分のプロンプトのみ表示",
+  "navigator.promptJumpHint": "{{keys}}で前または次のプロンプトへ移動します。",
   "navigator.showParallelTasks": "並列タスクを表示",
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",

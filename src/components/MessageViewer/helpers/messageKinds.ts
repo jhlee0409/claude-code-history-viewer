@@ -214,3 +214,13 @@ export function classifyMessage(message: ClaudeMessage): MessageKindInfo {
 export function getMessageKind(message: ClaudeMessage): MessageKind {
   return classifyMessage(message).kind;
 }
+
+/**
+ * True when the row begins a turn: text the user typed, or a slash-command
+ * invocation. A local command's output is a command row too, but it follows
+ * its invocation instead of starting a turn of its own.
+ */
+export function startsUserTurn(info: MessageKindInfo): boolean {
+  if (info.kind === "prompt") return true;
+  return info.kind === "command" && info.text != null && info.text.includes("<command-name>");
+}

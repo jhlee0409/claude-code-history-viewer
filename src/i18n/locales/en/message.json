@@ -87,6 +87,7 @@
   "navigator.kind.system": "System",
   "navigator.kind.summary": "Summary",
   "navigator.userOnly": "Show my prompts only",
+  "navigator.promptJumpHint": "{{keys}} jumps to the previous or next prompt.",
   "navigator.showParallelTasks": "Show Parallel Tasks",
   "navigator.noMessages": "No messages in this session",
   "navigator.close": "Close navigator",
