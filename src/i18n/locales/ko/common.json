@@ -104,6 +104,7 @@
   "common.provider.zcode": "Z Code",
   "common.provider.zed": "Zed",
   "common.refresh": "새로고침",
+  "common.reset": "초기화",
   "common.remove": "제거",
   "common.restartApp": "앱 다시 시작",
   "common.retry": "다시 시도",

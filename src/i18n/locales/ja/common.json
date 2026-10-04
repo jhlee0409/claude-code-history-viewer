@@ -104,6 +104,7 @@
   "common.provider.zcode": "Z Code",
   "common.provider.zed": "Zed",
   "common.refresh": "更新",
+  "common.reset": "リセット",
   "common.remove": "削除",
   "common.restartApp": "アプリを再起動",
   "common.retry": "再試行",

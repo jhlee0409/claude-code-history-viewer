@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, TerminalSquare as SquareTerminal } from "lucide-react";
+import { AlertTriangle, Loader2, TerminalSquare as SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -22,10 +22,19 @@ interface SessionMultiResumeDialogProps {
   names: string[];
   isResuming: boolean;
   onConfirm: () => void | Promise<void>;
+  /** Whether any session has dangerous flags (e.g. permission checks disabled) configured. */
+  hasDangerousFlags?: boolean;
+  /** Number of sessions that have dangerous flags configured. */
+  dangerousCount?: number;
 }
 
 const MAX_PREVIEW = 5;
 
+/**
+ * Confirmation dialog for resuming multiple agent sessions in batch.
+ * Summarizes the sessions to be resumed, skipped sessions, and warns
+ * if dangerous CLI flags are configured.
+ */
 export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> = ({
   open,
   onOpenChange,
@@ -34,6 +43,8 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
   names,
   isResuming,
   onConfirm,
+  hasDangerousFlags = false,
+  dangerousCount,
 }) => {
   const { t } = useTranslation();
   const previewNames = names.slice(0, MAX_PREVIEW);
@@ -100,6 +111,25 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
                 "{{count}} selected session(s) can't be resumed and will be skipped.",
             })}
           </p>
+        )}
+
+        {hasDangerousFlags && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-semibold">
+                  {t("session.selection.resumeDangerousTitle", "Permission checks disabled")}
+                </p>
+                <p className="mt-0.5 text-amber-700 dark:text-amber-300">
+                  {t("session.selection.resumeDangerousWarning", {
+                    count: dangerousCount ?? count,
+                    defaultValue: "This will start {{count}} agents with permission checks disabled. Continue?",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         <DialogFooter>

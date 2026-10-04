@@ -536,5 +536,19 @@
   "settingsManager.errors.mcpSaveFailed": "MCP 서버를 업데이트하지 못했습니다: {{detail}}",
   "settingsManager.errors.folderSelectFailed": "폴더 선택 창을 열지 못했습니다: {{detail}}",
   "settingsManager.errors.directoryScanFailed": "프로젝트를 다시 스캔하지 못했습니다: {{detail}}",
-  "settingsManager.errors.wslToggleFailed": "WSL 설정을 업데이트하지 못했습니다: {{detail}}"
+  "settingsManager.errors.wslToggleFailed": "WSL 설정을 업데이트하지 못했습니다: {{detail}}",
+  "settings.sessionResume.title": "세션 재개 인수",
+  "settings.sessionResume.description": "터미널에서 세션을 재개할 때 전달되는 추가 CLI 인수를 설정합니다.",
+  "settings.sessionResume.placeholder": "예: --dangerously-skip-permissions",
+  "settings.sessionResume.livePreview": "명령 미리보기:",
+  "settings.sessionResume.errorInvalid": "잘못된 CLI 인수입니다",
+  "settings.sessionResume.errorMetacharacters": "셸 메타문자(; & | $ ` < > \\ ! \" ' ( ) 등) 및 토큰 내부 공백은 허용되지 않습니다.",
+  "settings.sessionResume.errorMaxTokens": "추가 인수는 최대 32개까지 허용됩니다.",
+  "settings.sessionResume.errorTokenTooLong": "인수가 128자를 초과합니다: \"{{param}}...\"",
+  "settings.sessionResume.errorInvalidCharacters": "인수에 잘못된 문자가 포함되어 있습니다: \"{{param}}\"",
+  "settings.sessionResume.warningDangerous": "플래그가 권한 확인을 비활성화하거나 위험 모드로 실행합니다.",
+  "settings.sessionResume.noProviders": "이 머신에서 지원되는 CLI 에이전트 런타임을 감지하지 못했습니다.",
+  "settings.sessionResume.saved": "재개 인수가 저장되었습니다",
+  "settings.sessionResume.saveFailed": "설정 저장에 실패했습니다",
+  "settings.sessionResume.resetSuccess": "기본 인수로 재설정되었습니다"
 }

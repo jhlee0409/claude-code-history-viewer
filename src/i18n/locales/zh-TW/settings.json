@@ -536,5 +536,19 @@
   "settingsManager.errors.mcpSaveFailed": "更新 MCP 伺服器失敗：{{detail}}",
   "settingsManager.errors.folderSelectFailed": "無法開啟資料夾選擇器：{{detail}}",
   "settingsManager.errors.directoryScanFailed": "重新掃描專案失敗：{{detail}}",
-  "settingsManager.errors.wslToggleFailed": "更新 WSL 設定失敗：{{detail}}"
+  "settingsManager.errors.wslToggleFailed": "更新 WSL 設定失敗：{{detail}}",
+  "settings.sessionResume.title": "工作階段恢復參數",
+  "settings.sessionResume.description": "設定在終端機中恢復工作階段時傳遞的額外 CLI 參數。",
+  "settings.sessionResume.placeholder": "例如: --dangerously-skip-permissions",
+  "settings.sessionResume.livePreview": "指令預覽:",
+  "settings.sessionResume.errorInvalid": "無效的 CLI 參數",
+  "settings.sessionResume.errorMetacharacters": "不允許使用 shell 萬用字元（; & | $ ` < > \\ ! \" ' ( ) 等）以及權杖內部空格。",
+  "settings.sessionResume.errorMaxTokens": "最多允許 32 個額外參數。",
+  "settings.sessionResume.errorTokenTooLong": "參數超過 128 個字元: \"{{param}}...\"",
+  "settings.sessionResume.errorInvalidCharacters": "參數包含無效字元: \"{{param}}\"",
+  "settings.sessionResume.warningDangerous": "旗標會停用權限檢查或以危險模式執行。",
+  "settings.sessionResume.noProviders": "在此裝置上未偵測到支援的 CLI Agent 執行階段。",
+  "settings.sessionResume.saved": "恢復參數已儲存",
+  "settings.sessionResume.saveFailed": "儲存設定失敗",
+  "settings.sessionResume.resetSuccess": "已重設為預設參數"
 }

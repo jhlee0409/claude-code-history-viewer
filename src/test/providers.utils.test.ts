@@ -215,6 +215,45 @@ describe("providers utils", () => {
     expect(getResumeCommand("claude", "abc-123", cwd)).toBe(
       String.raw`powershell.exe -NoProfile -Command "Set-Location -LiteralPath 'E:\work\My Project'; claude --resume abc-123"`,
     );
+    expect(
+      getResumeCommand("claude", "abc-123", cwd, undefined, "--dangerously-skip-permissions")
+    ).toBe(
+      String.raw`powershell.exe -NoProfile -Command "Set-Location -LiteralPath 'E:\work\My Project'; claude --dangerously-skip-permissions --resume abc-123"`,
+    );
+  });
+
+  it("getResumeCommand includes extra arguments in proper position across providers", () => {
+    expect(
+      getResumeCommand("claude", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("claude --dangerously-skip-permissions --resume abc-123");
+
+    expect(
+      getResumeCommand("claude", "abc-123", undefined, undefined, ["--model", "sonnet"])
+    ).toBe("claude --model sonnet --resume abc-123");
+
+    expect(
+      getResumeCommand("codex", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("codex --dangerously-skip-permissions resume abc-123");
+
+    expect(
+      getResumeCommand("copilot", "abc-123", undefined, "copilot-cli", "--dangerously-skip-permissions")
+    ).toBe("copilot --dangerously-skip-permissions --resume=abc-123");
+
+    expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("forge --dangerously-skip-permissions conversation resume abc-123");
+
+    expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, ["--model", "custom"])
+    ).toBe("forge --model custom conversation resume abc-123");
+
+    expect(
+      getResumeCommand("kimi", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("kimi --dangerously-skip-permissions -r abc-123");
+
+    expect(
+      getResumeCommand("vibe", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("vibe --dangerously-skip-permissions --resume abc-123");
   });
 
   afterEach(() => {

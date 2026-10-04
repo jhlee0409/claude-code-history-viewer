@@ -147,12 +147,102 @@ pub fn terminal_invocations(command: &str, cwd: Option<&str>) -> Vec<TerminalInv
     }
 }
 
+/// Validate caller-supplied extra CLI arguments (split into tokens).
+/// Rejects shell metacharacters, control characters, quotes, and overly long arguments.
+pub fn validate_extra_args(args: &[String]) -> Result<Vec<String>, String> {
+    if args.len() > 32 {
+        return Err("Too many extra CLI arguments (maximum 32)".to_string());
+    }
+    let mut validated = Vec::with_capacity(args.len());
+    for arg in args {
+        let trimmed = arg.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.len() > 128 {
+            return Err(format!(
+                "CLI argument is too long (maximum 128 chars): '{trimmed}'"
+            ));
+        }
+        // Reject shell metacharacters, control characters, and quotes
+        if trimmed.chars().any(|c| {
+            matches!(
+                c,
+                ';' | '&'
+                    | '|'
+                    | '$'
+                    | '`'
+                    | '<'
+                    | '>'
+                    | '\\'
+                    | '!'
+                    | '"'
+                    | '\''
+                    | '('
+                    | ')'
+                    | '\n'
+                    | '\r'
+                    | '\t'
+                    | ' '
+            )
+        }) {
+            return Err(format!(
+                "CLI argument contains prohibited shell metacharacters: '{trimmed}'"
+            ));
+        }
+        // Validate charset: alphanumeric, '-', '_', '.', '=', '/', ':', ',', '+'
+        if !trimmed.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '=' | '/' | ':' | ',' | '+')
+        }) {
+            return Err(format!(
+                "CLI argument contains invalid characters: '{trimmed}'"
+            ));
+        }
+        validated.push(trimmed.to_string());
+    }
+    Ok(validated)
+}
+
+/// Builds the final terminal resume command by inserting extra arguments into the base command.
+pub fn build_terminal_command(base_command: &str, extra_args: &[String]) -> Result<String, String> {
+    if extra_args.is_empty() {
+        return Ok(base_command.to_string());
+    }
+    let args_str = extra_args.join(" ");
+    if let Some(id) = base_command.strip_prefix("claude --resume ") {
+        Ok(format!("claude {args_str} --resume {id}"))
+    } else if let Some(id) = base_command.strip_prefix("codex resume ") {
+        Ok(format!("codex {args_str} resume {id}"))
+    } else if let Some(id) = base_command.strip_prefix("copilot --resume=") {
+        Ok(format!("copilot {args_str} --resume={id}"))
+    } else if let Some(id) = base_command.strip_prefix("forge conversation resume ") {
+        Ok(format!("forge {args_str} conversation resume {id}"))
+    } else if let Some(id) = base_command.strip_prefix("kimi -r ") {
+        Ok(format!("kimi {args_str} -r {id}"))
+    } else if let Some(id) = base_command.strip_prefix("kimi -S ") {
+        Ok(format!("kimi {args_str} -S {id}"))
+    } else if let Some(id) = base_command.strip_prefix("vibe --resume ") {
+        Ok(format!("vibe {args_str} --resume {id}"))
+    } else {
+        Err("Not a recognized resume command".to_string())
+    }
+}
+
 #[tauri::command]
-pub async fn open_resume_in_terminal(command: String, cwd: Option<String>) -> Result<(), String> {
+pub async fn open_resume_in_terminal(
+    command: String,
+    cwd: Option<String>,
+    extra_args: Option<Vec<String>>,
+) -> Result<(), String> {
     validate_resume_command(&command)?;
     let cwd = validate_cwd(cwd)?;
+    let validated_extra = match extra_args {
+        Some(ref args) => validate_extra_args(args)?,
+        None => Vec::new(),
+    };
+    let effective_command = build_terminal_command(&command, &validated_extra)?;
 
-    let invocations = terminal_invocations(&command, cwd.as_deref());
+    let invocations = terminal_invocations(&effective_command, cwd.as_deref());
     let mut last_error: Option<String> = None;
 
     for invocation in invocations {
@@ -309,5 +399,67 @@ mod tests {
     #[test]
     fn terminal_invocations_is_nonempty() {
         assert_ne!(terminal_invocations("kimi -r abc", None), Vec::new());
+    }
+
+    #[test]
+    fn validate_extra_args_accepts_valid_flags() {
+        let args = vec![
+            "--dangerously-skip-permissions".to_string(),
+            "--model".to_string(),
+            "claude-3-5-sonnet".to_string(),
+            "--timeout=30".to_string(),
+        ];
+        let res = validate_extra_args(&args);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), args);
+    }
+
+    #[test]
+    fn validate_extra_args_rejects_metacharacters() {
+        for bad in [
+            "arg; rm -rf /",
+            "arg && echo evil",
+            "arg | evil",
+            "`id`",
+            "$(whoami)",
+            "arg>file",
+            "arg<file",
+            "arg'foo",
+            "arg\"bar",
+            "arg\nfoo",
+            "arg with spaces",
+        ] {
+            let res = validate_extra_args(&[bad.to_string()]);
+            assert!(res.is_err(), "Expected rejection for: {bad}");
+        }
+    }
+
+    #[test]
+    fn build_terminal_command_places_extra_args_correctly() {
+        let args = vec!["--dangerously-skip-permissions".to_string()];
+        assert_eq!(
+            build_terminal_command("claude --resume abc-123", &args).unwrap(),
+            "claude --dangerously-skip-permissions --resume abc-123"
+        );
+        assert_eq!(
+            build_terminal_command("codex resume abc-123", &args).unwrap(),
+            "codex --dangerously-skip-permissions resume abc-123"
+        );
+        assert_eq!(
+            build_terminal_command("copilot --resume=abc-123", &args).unwrap(),
+            "copilot --dangerously-skip-permissions --resume=abc-123"
+        );
+        assert_eq!(
+            build_terminal_command("forge conversation resume abc-123", &args).unwrap(),
+            "forge --dangerously-skip-permissions conversation resume abc-123"
+        );
+        assert_eq!(
+            build_terminal_command("kimi -S session_abc", &args).unwrap(),
+            "kimi --dangerously-skip-permissions -S session_abc"
+        );
+        assert_eq!(
+            build_terminal_command("vibe --resume abc", &args).unwrap(),
+            "vibe --dangerously-skip-permissions --resume abc"
+        );
     }
 }
