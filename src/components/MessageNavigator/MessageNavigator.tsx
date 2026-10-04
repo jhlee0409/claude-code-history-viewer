@@ -152,7 +152,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   }, [entries, virtualizer]);
 
   const handleEntryKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (entries.length === 0) return;
+    // Alt+Arrow belongs to the message list's prompt jump (usePromptJump).
+    if (entries.length === 0 || event.altKey) return;
 
     switch (event.key) {
       case "ArrowDown":
