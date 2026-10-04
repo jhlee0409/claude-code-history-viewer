@@ -118,8 +118,13 @@ function getTextBlocks(message: ClaudeMessage): string[] {
   return texts;
 }
 
+/** True when the record carries the client's own tool-result payload. */
+function hasToolUseResult(message: ClaudeMessage): boolean {
+  return "toolUseResult" in message && message.toolUseResult != null;
+}
+
 function hasToolResult(message: ClaudeMessage): boolean {
-  if ("toolUseResult" in message && message.toolUseResult != null) return true;
+  if (hasToolUseResult(message)) return true;
   if (!Array.isArray(message.content)) return false;
   return (message.content as unknown[]).some(
     (block) => block !== null
@@ -157,6 +162,13 @@ function classifyUserText(text: string): UserBlockKind {
 const USER_BLOCK_PRECEDENCE: UserBlockKind[] = ["prompt", "agent-update", "command", "context"];
 
 function classifyUserMessage(message: ClaudeMessage): MessageKindInfo {
+  // Only the client writes a tool-result record, so text on one was appended
+  // by the client (ToolSearch adds "Tool loaded."), not typed. This keys on
+  // `toolUseResult` rather than a tool_result block: the backend moves the
+  // block into its call, and a fork's task directive sits beside an unmerged
+  // block without the field.
+  if (hasToolUseResult(message)) return { kind: "tool", text: null };
+
   const blocks = getTextBlocks(message)
     .filter((text) => text.trim().length > 0)
     .map((text) => ({ text, kind: classifyUserText(text) }));
