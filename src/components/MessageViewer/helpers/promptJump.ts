@@ -1,6 +1,6 @@
 import { isMacOS } from "../../../utils/platform";
 import type { FlattenedMessage } from "../types";
-import { classifyMessage, startsUserTurn } from "./messageKinds";
+import { classifyMessage, isTurnStart } from "./messageKinds";
 
 export type TurnJumpDirection = "previous" | "next";
 
@@ -15,7 +15,7 @@ function isTurnStartRow(item: FlattenedMessage | undefined): boolean {
   if (item.isGroupMember || item.isProgressGroupMember || item.isTaskOperationGroupMember) {
     return false;
   }
-  return startsUserTurn(classifyMessage(item.message));
+  return isTurnStart(classifyMessage(item.message));
 }
 
 /**

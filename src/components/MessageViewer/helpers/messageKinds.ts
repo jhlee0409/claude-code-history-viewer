@@ -220,7 +220,7 @@ export function getMessageKind(message: ClaudeMessage): MessageKind {
  * invocation. A local command's output is a command row too, but it follows
  * its invocation instead of starting a turn of its own.
  */
-export function startsUserTurn(info: MessageKindInfo): boolean {
+export function isTurnStart(info: MessageKindInfo): boolean {
   if (info.kind === "prompt") return true;
   return info.kind === "command" && info.text != null && info.text.includes("<command-name>");
 }

@@ -6,7 +6,7 @@ import {
   isTaskNotification,
   parseTaskNotification,
   parseTaskNotifications,
-  startsUserTurn,
+  isTurnStart,
 } from "./messageKinds";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
@@ -183,9 +183,9 @@ describe("getMessageKind", () => {
   });
 });
 
-describe("startsUserTurn", () => {
+describe("isTurnStart", () => {
   const startsTurn = (overrides: Record<string, unknown>) =>
-    startsUserTurn(classifyMessage(makeMessage(overrides)));
+    isTurnStart(classifyMessage(makeMessage(overrides)));
 
   it("starts a turn at a typed prompt or a slash-command invocation", () => {
     expect(startsTurn({ content: "Scrub for pii" })).toBe(true);
