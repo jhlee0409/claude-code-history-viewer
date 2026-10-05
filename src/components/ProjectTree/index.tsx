@@ -35,7 +35,7 @@ import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
   getNextTreeItemIndex,
-  type TreeNavigationKey,
+  getTreeNavigationKey,
 } from "./treeKeyboard";
 import {
   DEFAULT_PROVIDER_ID,
@@ -704,20 +704,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       return;
     }
 
-    if (
-      event.key !== "ArrowDown" &&
-      event.key !== "ArrowUp" &&
-      event.key !== "Home" &&
-      event.key !== "End"
-    ) {
+    const navigationKey = getTreeNavigationKey(event);
+    if (!navigationKey) {
       return;
     }
 
-    const nextIndex = getNextTreeItemIndex(
-      currentIndex,
-      treeItems.length,
-      event.key as TreeNavigationKey
-    );
+    const nextIndex = getNextTreeItemIndex(currentIndex, treeItems.length, navigationKey);
     if (nextIndex === currentIndex || nextIndex < 0) {
       return;
     }

@@ -5,6 +5,17 @@ export interface TreeItemAnnouncementLabels {
   selected: string;
 }
 
+/**
+ * The tree navigation key for a keydown, or null. Alt+Arrow is left to the
+ * message list's prompt jump (usePromptJump).
+ */
+export function getTreeNavigationKey(event: { key: string; altKey: boolean }): TreeNavigationKey | null {
+  if (event.altKey) return null;
+  return event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End"
+    ? event.key
+    : null;
+}
+
 export function getNextTreeItemIndex(
   currentIndex: number,
   itemCount: number,
