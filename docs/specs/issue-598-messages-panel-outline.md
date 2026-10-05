@@ -5,9 +5,9 @@
 > Issue: #598 (Messages panel proposal), Part 2
 > Scope: `src/components/MessageNavigator/`, plus small, targeted additions to
 > `MessageViewer.tsx` (a visibility-tracking effect), `navigatorSlice.ts`, `messageKinds.ts`
-> (a `countToolUseBlocks` helper), `useNavigatorEntries.ts`, and the five `message.json` locale
-> files. No change to how
-> `MessageViewer.tsx` renders the transcript itself.
+> (a `countToolUseBlocks` helper), and the five `message.json` locale files. `useNavigatorEntries.ts`
+> was removed; its logic folded into `MessageNavigator.tsx` (see "As built," below). No change to
+> how `MessageViewer.tsx` renders the transcript itself.
 > Visual reference: [public mockup, Option A](https://jprisant.github.io/claude-code-history-viewer/)
 > (navigator page; not virtualized, for illustration only)
 
@@ -84,8 +84,9 @@ fixes for the project tree and dialogs) merged. All line numbers below are from 
   `<tool-use-id>` tag exists in real transcripts (`messageKinds.test.ts:24`) but is not extracted;
   only `task-id`, `status`, `summary`, `result` are read (`readTag`, `messageKinds.ts:66-69`).
 - `isFailedTaskStatus` treats `failed`, `error`, `killed`, `stopped` as not-succeeded
-  (`messageKinds.ts:77-79`). `useNavigatorEntries.ts`'s `entryStatus` (lines 56-60) already picks
-  "any failed status in this row's batch outranks, else the first status." This spec's task-row
+  (`messageKinds.ts:77-79`). `useNavigatorEntries.ts`'s `entryStatus` already picked "any failed
+  status in this row's batch outranks, else the first status." (`entryStatus` now lives in
+  `classifiedRows.ts`, where this build's fold-in moved it.) This spec's task-row
   rule (Design, below) keeps "failed outranks" across a whole task's lifetime, not one row's
   batch, and uses the most recent non-failed status instead of the first, for that reason.
 - **Similar name, different rule.** `messageCategories.ts:34-40` defines a private, unexported
@@ -123,8 +124,8 @@ fixes for the project tree and dialogs) merged. All line numbers below are from 
   code needs no special case for it. `userOnlyFilter` and `showParallelTasksInNavigator` both live
   in `filterSlice.ts:90-156`, not in `navigatorSlice.ts`, and `MessageNavigator.tsx` already reads
   both directly from `useAppStore()`.
-- `NavigatorEntryData` has no "is this a turn start" field; `useNavigatorEntries.ts` never calls
-  `isTurnStart`.
+- `NavigatorEntryData` has no "is this a turn start" field; `useNavigatorEntries.ts` never called
+  `isTurnStart` (that hook no longer exists; see "As built," below).
 - **Keyboard ownership of Alt+Arrow.** The prompt jump listens on `window`
   (`usePromptJump.ts:93`) and ignores any event already `defaultPrevented`
   (`usePromptJump.ts:79`). A panel handler that calls `preventDefault` on Alt+Arrow therefore
@@ -194,12 +195,15 @@ never re-classifies a row it has already classified.
 
 ### A shared, filtered, classified row list
 
-`useNavigatorEntries.ts` already filters out `NOISE_TYPES` and empty messages, then classifies
-each row. The new grouping code needs that same filtering plus the raw `ClaudeMessage` (for
-`toolUseResult`, full `content`, `timestamp`), not the already-summarized `NavigatorEntryData`.
-Extract a shared step, `getFilteredClassifiedMessages(messages): Array<{ message: ClaudeMessage;
-info: MessageKindInfo }>`, used by both `useNavigatorEntries.ts` and the new outline grouping, so
-the noise-filter rule cannot drift between two call sites.
+`useNavigatorEntries.ts` filtered out `NOISE_TYPES` and empty messages, then classified each row,
+before this build folded the hook into `MessageNavigator.tsx` (see "As built," below). The new
+grouping code needs that same filtering plus the raw `ClaudeMessage` (for `toolUseResult`, full
+`content`, `timestamp`), not only the already-summarized `NavigatorEntryData`. Extract a shared
+step, `getFilteredClassifiedMessages(messages: ClaudeMessage[]): ClassifiedRow[]`, in a new file
+`classifiedRows.ts`, where `ClassifiedRow = { message: ClaudeMessage; info: MessageKindInfo;
+entry: NavigatorEntryData }`. `MessageNavigator.tsx` calls it once and feeds the result to both
+the flat list and the new outline grouping, so the noise-filter rule cannot drift between the two
+views.
 
 Both consumers receive `MessageNavigator.tsx`'s `navigatorMessages`: `messages` already passed
 through `filterMessagesByCategory(messages, "parallel-task", showParallelTasksInNavigator)`. The
@@ -208,25 +212,31 @@ rows before grouping runs, so "agent updates" and "agents started" drop automati
 
 ### Grouping algorithm: `groupTurns`
 
-A new pure function, `groupTurns(filteredRows: Array<{ message: ClaudeMessage; info:
-MessageKindInfo }>): TurnGroup[]`, in a new file `src/components/MessageNavigator/outline/groupTurns.ts`.
-Pure so its unit tests need no React. `filteredRows` is the shared step's own output (above), so
-`groupTurns` needs no separate raw-message argument.
+A new pure function, `groupTurns(rows: ClassifiedRow[]): TurnGroup[]`, in a new file
+`src/components/MessageNavigator/outline/groupTurns.ts`. Pure so its unit tests need no React.
+`rows` is the shared step's own output (above), so `groupTurns` needs no separate raw-message
+argument.
 
-1. Walk `filteredRows` in order. Record the index of every row where `isTurnStart(info)` is
-   true, using that row's own `info` field. These are turn-start boundaries.
+1. Walk `rows` in order. Record the index of every row where `isTurnStart(info)` is true, using
+   that row's own `info` field. These are turn-start boundaries.
 2. Before the first boundary (or if there is no boundary at all), rows form the **leading group**,
    with `turnStartUuid: null`.
 3. Each boundary starts a turn running up to the next boundary (exclusive). A turn's own prompt or
-   command row is both its header and its first child.
+   command row becomes its header; the turn's `children` exclude that row, since the header
+   already stands for it.
 4. For each turn, compute the four counts (below) and build the list of open-turn child rows
-   (below) from that turn's slice of `filteredRows`.
-5. Return `TurnGroup[]`: `{ turnStartUuid: string | null; turnNumber: number | null; headerText:
-   string; counts: TurnCounts; children: OutlineChildRow[] }`. `turnNumber` is 1-based, counting
-   only real turn starts in the loaded window, and is `null` for the leading group.
+   (below) from that turn's slice of `rows`.
+5. Return `TurnGroup[]`: `{ key: string; turnStartUuid: string | null; turnNumber: number | null;
+   header: NavigatorEntryData | null; firstUuid: string; counts: TurnCounts; children:
+   OutlineChildRow[]; uuids: string[] }`. `header` is the turn-start row's own entry, `null` for
+   the leading group. `firstUuid` is the group's first row, used as a fallback target when there
+   is no `turnStartUuid` to navigate to (see "Pinned turn header," below). `uuids` lists every row
+   in the group, header included. `turnNumber` is 1-based, counting only real turn starts in the
+   loaded window, and is `null` for the leading group.
 
-`useOutlineTurns.ts` wraps `groupTurns` in `useMemo`, keyed on the filtered row list, matching
-`useNavigatorEntries.ts`'s own memoization.
+`useOutlineTurns.ts` wraps `groupTurns` in `useMemo`, keyed on the filtered row list, matching the
+filtered-row memoization that now lives in `MessageNavigator.tsx` (the `classifiedRows` `useMemo`,
+where `useNavigatorEntries.ts`'s own memoization moved).
 
 ### Per-turn counts
 
@@ -236,9 +246,12 @@ Computed over a turn's slice of classified rows:
 - **Tool calls**: sum, over every assistant row in the turn (kind `"reply"` or `"tool"`), of that
   message's `tool_use` block count. A new helper, `countToolUseBlocks(message): number`,
   generalizes the existing `hasToolUse` boolean check in `messageKinds.ts` (line 136) to a count:
-  1 if `message.toolUse` is set directly, else the number of `content` blocks with
-  `type === "tool_use"`, else 0. Counting by row kind alone would miss a `"reply"` row's own tool
-  calls (Verified constraints), so this count sums across both kinds, not `"tool"` rows only.
+  the number of `content` blocks with `type === "tool_use"`, when any exist; otherwise 1 if
+  `message.toolUse` is set, else 0. `content` is checked first, and `toolUse` is only a fallback,
+  because the backend (`load.rs`) backfills `toolUse` from just the first `tool_use` block, so a
+  set `toolUse` does not mean there was only one call. Counting by row kind alone would miss a
+  `"reply"` row's own tool calls (Verified constraints), so this count sums across both kinds, not
+  `"tool"` rows only.
 - **Agent updates**: count of rows with `kind === "agent-update"`.
 - **Agents started**: size of the set of defined `taskId` values across every
   `parseTaskNotifications(info.text)` call on the turn's agent-update rows. This counts distinct
@@ -262,9 +275,9 @@ individually.
    - **Update count**: the number of notification blocks in the group, not the number of rows,
      since one row can hold several blocks.
    - **Status color**: any block with `isFailedTaskStatus` true outranks, regardless of position.
-     Otherwise, the most recent status by turn order wins. This diverges from
-     `useNavigatorEntries.ts`'s `entryStatus`, which falls back to the first status in one row's
-     batch. A task's status progresses over its lifetime, so the latest reading is the useful one.
+     Otherwise, the most recent status by turn order wins. This diverges from `classifiedRows.ts`'s
+     `entryStatus`, which falls back to the first status in one row's batch. A task's status
+     progresses over its lifetime, so the latest reading is the useful one.
    - **Activation**: navigates to the row holding the task's last notification block, not its
      first.
 5. A task row does not say whether its task is a background command or a Task-tool agent: the two
@@ -304,9 +317,11 @@ positioned at the top of the navigator's scroll container, showing that turn's h
 the first visible row is already a turn header, no overlay renders.
 
 Clicking or tapping the overlay calls `navigateToMessage` with the turn's `turnStartUuid`, so the
-main transcript scrolls to that turn's prompt. It does not toggle the turn, and it does not
-scroll the outline. The turn's own header row stays the one control that opens and closes the
-turn. In the narrow-screen sheet, the same overlay is the touch target for this action.
+main transcript scrolls to that turn's prompt. The leading group has no `turnStartUuid`, since it
+has no prompt of its own; its overlay instead navigates to `firstUuid`, the group's own first row.
+Clicking the overlay does not toggle the turn, and it does not scroll the outline. The turn's own
+header row stays the one control that opens and closes the turn. In the narrow-screen sheet, the
+same overlay is the touch target for this action.
 
 This needs its own component test: `src/test/MessageNavigator.accessibility.test.tsx` mocks
 `useVirtualizer` with a stub returning every row, with no real scroll position to test against.
@@ -322,6 +337,12 @@ Add `visibleMessageUuid: string | null` and `setVisibleMessageUuid` to `navigato
 persisted. In `MessageViewer.tsx`, lift the `row.start + row.size > scrollTop` find already
 written for `handleLoadEarlier` into its own effect, run on virtual-item or scroll changes and
 throttled to a few updates per second, that calls `setVisibleMessageUuid`.
+
+The lookup skips a row that peeks in by less than 16 pixels at the top edge, falling back to the
+plain `row.start + row.size > scrollTop` rule only when nothing else is in view
+(`src/components/MessageViewer/helpers/visibleMessage.ts`). Without that tolerance, a
+fractional-height row barely crossing the top edge could claim the highlight that belonged to the
+turn above it.
 
 Gate the effect on outline mode only (`navigatorViewMode === "outline"`), not on
 `isNavigatorOpen`. That flag describes the desktop panel and never the narrow-screen sheet
@@ -370,6 +391,11 @@ the filter is cleared. See Decisions, below, for the alternative this spec did n
   must describe its current effect, and one button must not silently do two different things. The
   `title` keeps its second line, the prompt-jump hint, in both modes. `aria-pressed` still
   reflects the shared `userOnlyFilter` boolean.
+- **The label and the action follow the view actually rendered, not the mode flag.** A non-empty
+  free-text filter falls back to the flat list even while `navigatorViewMode === "outline"` (see
+  "Free-text filter in outline mode"). While that fallback is in effect, the person button reverts
+  to "Show my prompts only" and filters rows the normal way; "Close all turns" only shows, and only
+  fires, while the outline is the view actually on screen.
 
 ## State
 
@@ -381,9 +407,21 @@ visibleMessageUuid: string | null       // default null, not persisted
 ```
 
 Open/closed turn state is local component state in `MessageNavigator.tsx`
-(`useState<Set<string>>`), not persisted. It resets on session change. Its initial value opens the
-turn containing `targetMessageUuid`, if any, and leaves the rest closed. This matches the existing
-pattern: `filterText` and `focusedIndex` are also local, unpersisted state in the same file.
+(`useState<Set<string>>`), not persisted. A session change resets it to empty.
+
+An effect opens turns on the reader's behalf, tracked by an `openedForRef` marker of the last
+session and target it already acted on, so it runs at most once per session-and-target pair:
+
+- On a session's first load, the target's turn opens, even when the target is itself a turn
+  header.
+- After that first load, only a target that is a turn's child opens its turn. A header target is
+  already visible once its turn exists in the outline, so opening it again would expand every
+  turn the reader jumps through, and it would stop a header click from ever closing its own turn.
+- A target whose messages have not loaded yet - no turn in the current `turns` list contains it -
+  is left alone; the effect tries again on the render where that turn appears.
+
+This matches the existing pattern: `filterText` and `focusedIndex` are also local, unpersisted
+state in the same file.
 
 ## i18n
 
@@ -391,23 +429,34 @@ New keys go into `src/i18n/locales/*/message.json` for all five languages (en, k
 zh-TW) with real translations, as PR #629 did for `navigator.promptJumpHint`. Then run
 `pnpm run generate:i18n-types` and `pnpm run i18n:validate`. English text:
 
+There is no `navigator.viewMode.list` key. The list/outline switch is one toggle button, not a
+pair of labeled options, so it needs only the outline-side name plus a shared hint:
+
 ```
-navigator.viewMode.list              "List"
-navigator.viewMode.outline           "Outline"
-navigator.viewMode.toggle            "Switch between list and outline view"
-navigator.outline.turnLabel          "Prompt {{n}} of {{total}}"
-navigator.outline.turnLabelLoaded    "Prompt {{n}} of {{total}} loaded"
-navigator.outline.beforeFirstPrompt  "Before your first prompt"
-navigator.outline.earlierNotLoaded   "Earlier messages have not loaded yet"
-navigator.outline.replies            "{{count}} replies"
-navigator.outline.toolCalls          "{{count}} tool calls"
-navigator.outline.agentsStarted      "{{count}} agents started"
-navigator.outline.agentUpdates       "{{count}} agent updates"
-navigator.outline.taskUpdates        "{{count}} updates"
-navigator.outline.taskUnnamed        "Task {{id}}"
-navigator.outline.jumpToTurn         "Jump to this turn's prompt"
-navigator.outline.closeAllTurns      "Close all turns"
+navigator.viewMode.outline              "Outline view"
+navigator.viewMode.toggle               "Switch between list and outline view"
+navigator.outline.turnLabel             "Prompt {{n}} of {{total}}"
+navigator.outline.turnLabelLoaded       "Prompt {{n}} of {{total}} loaded"
+navigator.outline.beforeFirstPrompt     "Before your first prompt"
+navigator.outline.earlierNotLoaded      "Earlier messages have not loaded yet"
+navigator.outline.replies_one           "{{count}} reply"
+navigator.outline.replies_other         "{{count}} replies"
+navigator.outline.toolCalls_one         "{{count}} tool call"
+navigator.outline.toolCalls_other       "{{count}} tool calls"
+navigator.outline.agentsStarted_one     "{{count}} agent started"
+navigator.outline.agentsStarted_other   "{{count}} agents started"
+navigator.outline.agentUpdates_one      "{{count}} agent update"
+navigator.outline.agentUpdates_other    "{{count}} agent updates"
+navigator.outline.taskUpdates_one       "{{count}} update"
+navigator.outline.taskUpdates_other     "{{count}} updates"
+navigator.outline.taskUnnamed           "Task {{id}}"
+navigator.outline.jumpToTurn            "Jump to this turn's prompt"
+navigator.outline.closeAllTurns         "Close all turns"
 ```
+
+The count keys use i18next's plural suffixes (`_one`/`_other`) rather than one interpolated
+string, since English, Korean, Japanese, and the two Chinese locales do not all pluralize the
+same way.
 
 Reused unchanged: `navigator.kind.*` for row icons inside an open turn, `navigator.userOnly`,
 `navigator.promptJumpHint`, `navigator.showParallelTasks`, `navigator.filter`,
@@ -420,12 +469,16 @@ List mode keeps its current roles exactly as they are today: `role="option"` on 
 (`MessageNavigator.tsx:336`). `src/test/MessageNavigator.accessibility.test.tsx` stays green
 unchanged.
 
-Outline mode uses tree semantics:
+Outline mode uses tree semantics, flattened rather than nested:
 
 - The scroll container gets `role="tree"`.
-- Each turn header gets `role="treeitem"`, `aria-expanded`, and `aria-level="1"`.
-- An open turn's children render inside a `role="group"` wrapper; each child row itself gets
-  `role="treeitem"` and `aria-level="2"` (`aria-level` belongs on the treeitem, not the group).
+- Each turn header gets `role="treeitem"`, `aria-level="1"`, `aria-expanded`, `aria-posinset`, and
+  `aria-setsize`.
+- An open turn's children render as sibling `role="treeitem"` rows with `aria-level="2"`,
+  `aria-posinset`, and `aria-setsize`. There is no `role="group"` wrapper: the virtualizer
+  (`@tanstack/react-virtual`) positions every row absolutely, the same way list mode and
+  `MessageViewer.tsx` already do, so DOM nesting under a group element is not possible
+  (`NavigatorOutline.tsx`, `OutlineTurnHeader.tsx`).
 - Roving focus uses the same single-`tabindex="0"` mechanism `MessageNavigator.tsx` already has,
   over a flattened list of visible rows: headers, plus the children of open turns only.
 - ArrowDown and ArrowUp move through that same flattened list, unchanged from today.
@@ -434,6 +487,17 @@ Outline mode uses tree semantics:
 - Enter or Space on a header does both: calls `navigateToMessage` for that turn's starting row,
   and toggles it open or closed, matching the mockup's click behavior exactly.
 - Enter or Space on a child row navigates only, matching today's flat-list behavior.
+- Each arrow-key handler acts on the row named by the key event's own `data-index` attribute, not
+  on a possibly stale `focusedIndex` state value: a navigation can move the focus index to a new
+  target while DOM focus itself stays on the row the reader just clicked
+  (`outline/NavigatorOutline.tsx`, `handleRowKeyDown`).
+- After the visible rows change - a turn opens or closes, or "Close all turns" fires - focus
+  follows the same row by its key if that row still exists; otherwise it falls back to that row's
+  parent turn header; otherwise the index clamps to the new row count
+  (`outline/rovingFocus.ts`, `resolveFocusAfterRowsChange`).
+- A custom `rangeExtractor` keeps the row holding `tabIndex="0"` mounted even after it scrolls out
+  of the virtualizer's own rendered range, so Tab can still reach the tree
+  (`outline/rovingFocus.ts`, `includeIndex`).
 - Every outline key handler returns early when `event.altKey` is set, before any
   `preventDefault`, exactly as `handleEntryKeyDown` does today (Verified constraints). This
   covers ArrowLeft and ArrowRight too. Alt+ArrowUp and Alt+ArrowDown belong to the prompt jump,
@@ -447,7 +511,7 @@ Outline mode uses tree semantics:
 | # | Step | Depends on |
 |---|---|---|
 | 1 | Import `isTurnStart` from `messageKinds.ts` (on `develop` since PR #629) | - |
-| 2 | Extract `getFilteredClassifiedMessages`; `useNavigatorEntries.ts` calls it, tests updated | 1 |
+| 2 | Extract `getFilteredClassifiedMessages` into `classifiedRows.ts`; `MessageNavigator.tsx` calls it directly (`useNavigatorEntries.ts` removed and folded in), tests updated | 1 |
 | 3 | `countToolUseBlocks` helper plus tests | - |
 | 4 | `groupTurns` pure function plus types plus tests (red first) | 1, 2, 3 |
 | 5 | `useOutlineTurns` hook | 4 |
@@ -466,13 +530,17 @@ Outline mode uses tree semantics:
 Steps 1 through 7 need no turn-rendering work. Tests come first for steps 3 and 4, the two pieces
 with no React involved.
 
-**Tests, named**: `groupTurns.test.ts` (boundaries, leading group, counts, task grouping, status
-precedence), `countToolUseBlocks.test.ts` (including a `"reply"` row that also carries a
-`tool_use` block), `navigatorSlice.test.ts` (new fields), a new `MessageNavigator.outline.test.tsx`
-(mode switch, open/close, pinned header click, highlight, a highlight test for a
-`visibleMessageUuid` the outline does not render, the person button's outline-mode name, and
-Alt+Arrow passing through from an outline row without `preventDefault`), and additions to
-`src/test/MessageNavigator.accessibility.test.tsx` for tree roles and roving focus.
+**Tests, named**: `outline/groupTurns.test.ts` (boundaries, leading group, counts, task grouping,
+status precedence); new `countToolUseBlocks` cases added to the existing `messageKinds.test.ts`
+(including a `"reply"` row that also carries a `tool_use` block, there is no separate
+`countToolUseBlocks.test.ts` file); `navigatorSlice.test.ts` (new fields); `classifiedRows.test.ts`,
+`outline/flattenOutline.test.ts`, `outline/pinnedTurn.test.ts`, `outline/turnOfMessage.test.ts`,
+`outline/useOutlineTurns.test.ts`, `outline/rovingFocus.test.ts`, and `visibleMessage.test.ts`; and
+a new `src/test/MessageNavigator.outline.test.tsx` (mode switch, open/close, pinned header click,
+highlight, a highlight test for a `visibleMessageUuid` the outline does not render, the person
+button's outline-mode name, tree roles, roving focus, Left/Right/Enter/Space, and Alt+Arrow passing
+through from an outline row without `preventDefault`). `src/test/MessageNavigator.accessibility.test.tsx`
+was left unchanged; it gained no new cases (see "As built," below).
 
 ## Acceptance
 
@@ -509,8 +577,9 @@ Alt+Arrow passing through from an outline row without `preventDefault`), and add
 14. In the WebUI at 390 px wide, the outline appears in the narrow-screen sheet, turns open and
     close by tap, and a tap on the pinned header scrolls the transcript to the prompt. The PR lists
     which of these were exercised and what was not tested on a narrow screen.
-15. `src/test/MessageNavigator.accessibility.test.tsx` passes unchanged. New tests cover tree
-    roles, roving focus, and Left/Right/Enter/Space in outline mode.
+15. `src/test/MessageNavigator.accessibility.test.tsx` passes unchanged, with no new cases added
+    to it. New tests covering tree roles, roving focus, and Left/Right/Enter/Space in outline mode
+    live in `src/test/MessageNavigator.outline.test.tsx` instead.
 16. Gates: `pnpm exec tsc --build .`, `pnpm exec vitest run`, `pnpm lint`,
     `pnpm run i18n:validate`.
 
@@ -568,6 +637,50 @@ The author confirmed each of these on 2026-10-05.
   stays open, exactly as list mode does today. The 390 px check records whether that is usable;
   this spec does not change it.
 
+## As built (deviations from the draft)
+
+PR #632 shipped this spec in commits 573d5b62, 1c332759, and 4cbc8fac. Each line below names
+what changed from this draft and why.
+
+- **The tree is flat, not nested.** There is no `role="group"` wrapper around a turn's children.
+  The virtualizer positions every row absolutely, so DOM nesting was never possible; `aria-level`,
+  `aria-posinset`, and `aria-setsize` on each `role="treeitem"` carry the hierarchy instead.
+- **`useNavigatorEntries.ts` was deleted.** Its filtering, classifying, and memoizing logic folded
+  into `MessageNavigator.tsx` and a new `classifiedRows.ts`, since the outline and the flat list
+  needed to share one pass over the messages, not two hooks each doing their own.
+- **The row types grew fields the draft did not sketch.** `ClassifiedRow` carries `entry`
+  alongside `message` and `info`. `TurnGroup` carries `key`, `header` (not a `headerText` string),
+  `firstUuid`, and `uuids`. The pinned header needs `firstUuid` as a fallback target when there is
+  no `turnStartUuid`, and opening the target's turn needs `uuids` to find which turn holds a
+  message (`findTurnKeyForUuid` in `outline/flattenOutline.ts`).
+- **`countToolUseBlocks` checks `content` before `toolUse`, not the reverse.** The backend
+  (`load.rs`) backfills `toolUse` from only the first `tool_use` block, so counting `toolUse`
+  first would have undercounted any message with more than one call.
+- **The pinned overlay needs a fallback target for the leading group.** The leading group has no
+  `turnStartUuid`, so its pinned overlay navigates to `firstUuid` instead. The leading group's own
+  header row only opens and closes the group, like every other header row.
+- **The panel header's count switches meaning in outline mode.** It shows the number of turns
+  (`realTurnsCount`) instead of the number of visible rows, so the count still means "how much is
+  here" once rows collapse into turns. The draft did not specify this display.
+- **The person button's label and action follow the rendered view, not the mode flag.** A
+  non-empty filter falls back to the flat list even while outline mode is selected, and the button
+  follows that fallback, not `navigatorViewMode` alone.
+- **The in-view highlight needed a 16-pixel top-edge tolerance.** Without it, a fractional-height
+  row barely crossing the scroll edge stole the highlight from the turn above it. The browser check
+  found this; the fix is in commit 4cbc8fac.
+- **Opening a turn for the current target needed stateful rules, not a one-time initial value.**
+  A session's first load opens the target's turn even if the target is a header; after that, only
+  a child target opens its turn, so a header click can still close its own turn; a target not yet
+  loaded waits for a later render.
+- **Roving focus needed three hardening rules not in the draft.** Arrow keys act on the row named
+  by the event's own `data-index`, not a possibly-stale focus index; focus follows its row by key
+  after rows change, falling back to the parent header; a custom `rangeExtractor` keeps the
+  focused row mounted so Tab can still reach it. The browser check found the first; an adversarial
+  review found the other two.
+- **Test coverage landed differently than planned.** `src/test/MessageNavigator.accessibility.test.tsx`
+  was never touched; every new accessibility, roving-focus, and mode-switch test lives in
+  `src/test/MessageNavigator.outline.test.tsx` plus colocated unit tests next to each new module.
+
 ## Open questions
 
 1. Should task rows eventually unify the Task-tool and background-command launch paths, to make
@@ -575,3 +688,6 @@ The author confirmed each of these on 2026-10-05.
    `agentTaskHelpers.ts` at minimum.
 2. Follow-up: should the free-text filter get outline-aware matching (decision 1's rejected
    alternative) once the simpler fallback ships and usage shows whether it is missed?
+3. The outline does not scroll itself to keep the in-view (highlighted) turn header visible when
+   the main transcript scrolls, and list mode does not do this either. Should either view gain
+   that behavior?
