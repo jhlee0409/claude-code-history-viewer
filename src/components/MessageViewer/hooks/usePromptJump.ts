@@ -34,11 +34,18 @@ function directionForKey(key: string): TurnJumpDirection | null {
   return null;
 }
 
-/** Alt+Arrow moves by word or line in text fields, so leave those alone. */
-function isEditableTarget(target: EventTarget | null): boolean {
+/**
+ * Leave the keys alone in text fields (Alt+Arrow moves by word or line there)
+ * and inside dialogs, where the message list is behind the modal.
+ */
+function isIgnoredTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
-  return target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null;
+  return (
+    target.closest(
+      "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog'], [role='alertdialog']",
+    ) !== null
+  );
 }
 
 export function usePromptJump({
@@ -72,7 +79,7 @@ export function usePromptJump({
       if (event.defaultPrevented) return;
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const direction = directionForKey(event.key);
-      if (!direction || isEditableTarget(event.target)) return;
+      if (!direction || isIgnoredTarget(event.target)) return;
 
       const index = findTurnStartIndex(flattenedMessages, referenceIndex(), direction);
       const item = index === null ? undefined : flattenedMessages[index];

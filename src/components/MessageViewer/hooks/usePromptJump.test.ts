@@ -98,6 +98,18 @@ describe("usePromptJump", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("ignores the keys while focus is inside a dialog", () => {
+    const { navigateToMessage } = setup(250);
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const button = document.createElement("button");
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    const event = press("ArrowDown", { altKey: true }, button);
+    expect(navigateToMessage).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("ignores other modifier combinations", () => {
     const { navigateToMessage } = setup(250);
     press("ArrowDown", { altKey: true, ctrlKey: true });
