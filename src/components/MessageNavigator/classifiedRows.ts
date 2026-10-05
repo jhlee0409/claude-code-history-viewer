@@ -67,9 +67,9 @@ export interface ClassifiedRow {
 
 /**
  * Filters out noise types and empty messages, classifies each surviving row,
- * and builds its `NavigatorEntryData`, in one pass. Shared by
- * `useNavigatorEntries` (the flat list) and the outline's `groupTurns`, so
- * the noise-filter rule cannot drift between the two call sites.
+ * and builds its `NavigatorEntryData`, in one pass. `MessageNavigator` feeds
+ * one result to both the flat list and the outline's `groupTurns`, so the
+ * noise-filter rule cannot drift between the two views.
  */
 export function getFilteredClassifiedMessages(messages: ClaudeMessage[]): ClassifiedRow[] {
   if (!messages || messages.length === 0) return [];
