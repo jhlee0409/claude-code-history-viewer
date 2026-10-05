@@ -144,20 +144,21 @@ function hasToolUse(message: ClaudeMessage): boolean {
 }
 
 /**
- * How many `tool_use` blocks a message carries: 1 if `message.toolUse` is set
- * directly (a processed assistant message never carries more than one),
- * else the number of `content` blocks with `type === "tool_use"`, else 0.
- * Generalizes `hasToolUse` to a count, since one assistant message can carry
- * more than one `tool_use` block (Verified constraints).
+ * How many `tool_use` blocks a message carries. `content` is counted first:
+ * when the raw record has no top-level `toolUse`, the backend (load.rs) fills
+ * it from the FIRST content block only, so a set `toolUse` does not mean one
+ * call. `toolUse` counts as one call only when there is no content array.
  */
 export function countToolUseBlocks(message: ClaudeMessage): number {
-  if ("toolUse" in message && message.toolUse) return 1;
-  if (!Array.isArray(message.content)) return 0;
-  return (message.content as unknown[]).filter(
-    (block) => block !== null
-      && typeof block === "object"
-      && (block as { type?: unknown }).type === "tool_use",
-  ).length;
+  if (Array.isArray(message.content)) {
+    const blocks = (message.content as unknown[]).filter(
+      (block) => block !== null
+        && typeof block === "object"
+        && (block as { type?: unknown }).type === "tool_use",
+    ).length;
+    if (blocks > 0) return blocks;
+  }
+  return "toolUse" in message && message.toolUse ? 1 : 0;
 }
 
 type UserBlockKind = "prompt" | "command" | "agent-update" | "context";

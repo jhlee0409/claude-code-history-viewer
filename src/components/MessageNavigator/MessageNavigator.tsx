@@ -23,6 +23,9 @@ const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
 const BASE_ENTRY_HEIGHT = 34; // py-2 (16px) + header row (~16px) + mb-0.5 (2px)
 const PREVIEW_LINE_HEIGHT = 20; // Approximate height of one text line with line-height
 
+/** List mode never reads the message-to-turn map, so it skips building one. */
+const EMPTY_TURN_MAP: ReadonlyMap<string, string | null> = new Map();
+
 interface MessageNavigatorProps {
   messages: ClaudeMessage[];
   width?: number;
@@ -122,24 +125,45 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const isOutlineRendered = isOutline && filterText.trim().length === 0;
 
   // Open/closed turn keys: local, unpersisted state so the person button can
-  // clear it (State). Reset ONLY on session change - never on `turns`
-  // itself, since opening/closing a turn or a pagination prepend must not
-  // silently re-collapse everything.
-  const [openKeys, setOpenKeys] = useState<Set<string>>(() => {
-    const key = findTurnKeyForUuid(turns, targetMessageUuid ?? null);
-    return key ? new Set([key]) : new Set();
-  });
+  // clear it (State). A session change closes every turn; opening a turn
+  // never closes another, so pagination prepends keep what the user opened.
+  const sessionId = selectedSession?.session_id;
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
+  // The session and target the open-turn effect last acted on.
+  const openedForRef = useRef<{ sessionId: string | undefined; target: string | null } | null>(null);
   useEffect(() => {
-    const key = findTurnKeyForUuid(turns, targetMessageUuid ?? null);
-    setOpenKeys(key ? new Set([key]) : new Set());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSession?.session_id]);
+    setOpenKeys(new Set());
+    openedForRef.current = null;
+  }, [sessionId]);
+  useEffect(() => {
+    // Messages load after the session is selected, so wait for turns.
+    if (turns.length === 0) return;
+    const target = targetMessageUuid ?? null;
+    const handled = openedForRef.current;
+    const isFirstLoad = handled === null || handled.sessionId !== sessionId;
+    if (!isFirstLoad && handled.target === target) return;
+    const key = findTurnKeyForUuid(turns, target);
+    // A target on a page that has not loaded yet: try again when it arrives.
+    if (target !== null && key === null) return;
+    openedForRef.current = { sessionId, target };
+    if (key === null) return;
+    // First load opens the target's turn (State). After that, only a target
+    // hidden inside a closed turn opens it; a header target (the prompt jump
+    // lands on these) is already visible, and opening it would expand every
+    // turn the reader jumps through.
+    const targetIsHeader = turns.some((turn) => turn.turnStartUuid === target);
+    if (!isFirstLoad && targetIsHeader) return;
+    setOpenKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }, [turns, targetMessageUuid, sessionId]);
 
   // The turn containing the message currently visible in the main
   // transcript, for the outline's active-header highlight (Design,
   // "Highlighting the turn in view"). Built from the RAW `messages` prop,
   // not `navigatorMessages`, so a hidden/noise row still resolves.
-  const turnOfMessage = useMemo(() => buildTurnOfMessage(messages, turns), [messages, turns]);
+  const turnOfMessage = useMemo(
+    () => (isOutline ? buildTurnOfMessage(messages, turns) : EMPTY_TURN_MAP),
+    [isOutline, messages, turns],
+  );
   const activeTurnKey =
     visibleMessageUuid != null ? turnOfMessage.get(visibleMessageUuid) ?? null : null;
 

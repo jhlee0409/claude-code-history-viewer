@@ -256,12 +256,27 @@ describe("parseTaskNotification", () => {
 });
 
 describe("countToolUseBlocks", () => {
-  it("counts 1 when toolUse is set directly, regardless of content", () => {
+  it("counts content blocks even when the backend backfilled toolUse from the first one", () => {
+    // load.rs sets `toolUse` from the FIRST tool_use block when the raw record
+    // has none, so `toolUse` being set says nothing about how many calls there are.
     expect(countToolUseBlocks(makeMessage({
       type: "assistant",
       role: "assistant",
       toolUse: { id: "toolu_1", name: "Bash", input: {} },
-      content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: {} }],
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+        { type: "tool_use", id: "toolu_3", name: "Grep", input: {} },
+      ],
+    }))).toBe(3);
+  });
+
+  it("counts 1 for a toolUse set directly on a message without a content array", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: "",
     }))).toBe(1);
   });
 

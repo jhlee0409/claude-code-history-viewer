@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { NavigatorEntry } from "../NavigatorEntry";
 import { flattenOutlineRows } from "./flattenOutline";
@@ -7,6 +7,7 @@ import { findPinnedTurnKey } from "./pinnedTurn";
 import { OutlineTaskRow } from "./OutlineTaskRow";
 import { OutlineTurnHeader } from "./OutlineTurnHeader";
 import { PinnedTurnHeader } from "./PinnedTurnHeader";
+import { includeIndex, resolveFocusAfterRowsChange } from "./rovingFocus";
 import type { TurnGroup } from "./types";
 
 interface NavigatorOutlineProps {
@@ -52,8 +53,13 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
   const lastTargetRef = useRef<string | null>(null);
 
   const rows = useMemo(() => flattenOutlineRows(turns, openKeys), [turns, openKeys]);
+  // The rows the current focus index refers to, so a row-list change can
+  // re-find the focused row by key instead of keeping a stale index.
+  const previousRowsRef = useRef(rows);
 
   useEffect(() => {
+    const previousRows = previousRowsRef.current;
+    previousRowsRef.current = rows;
     if (rows.length === 0) {
       setFocusedIndex(0);
       return;
@@ -67,7 +73,7 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
       }
     }
     lastTargetRef.current = targetMessageUuid;
-    setFocusedIndex((prev) => Math.max(0, Math.min(prev, rows.length - 1)));
+    setFocusedIndex((prev) => resolveFocusAfterRowsChange(previousRows, rows, prev));
   }, [rows, targetMessageUuid]);
 
   const estimateSize = useCallback(
@@ -99,6 +105,8 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
     estimateSize,
     overscan: 5,
     getItemKey: (index) => rows[index]?.key ?? index,
+    // Keep the row holding tabIndex=0 rendered after it scrolls away.
+    rangeExtractor: (range) => includeIndex(defaultRangeExtractor(range), focusedIndex, range.count),
   });
 
   const setTurnOpen = useCallback(
@@ -157,17 +165,22 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
       // (Verified constraints, "Keyboard ownership of Alt+Arrow").
       if (event.altKey) return;
       if (rows.length === 0) return;
-      const row = rows[focusedIndex];
+      // Act on the row that received the key. The focus index can already
+      // point elsewhere: a navigation moves it to the new target while DOM
+      // focus stays on this row.
+      const indexAttribute = event.currentTarget.getAttribute("data-index");
+      const index = indexAttribute === null ? focusedIndex : Number(indexAttribute);
+      const row = rows[index];
       if (!row) return;
 
       switch (event.key) {
         case "ArrowDown":
           event.preventDefault();
-          focusRowAt(focusedIndex + 1);
+          focusRowAt(index + 1);
           break;
         case "ArrowUp":
           event.preventDefault();
-          focusRowAt(focusedIndex - 1);
+          focusRowAt(index - 1);
           break;
         case "Home":
           event.preventDefault();
@@ -183,9 +196,9 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
             if (!row.isOpen) {
               setTurnOpen(row.key, true);
             } else {
-              const next = rows[focusedIndex + 1];
+              const next = rows[index + 1];
               if (next && next.type === "child" && next.turnKey === row.key) {
-                focusRowAt(focusedIndex + 1);
+                focusRowAt(index + 1);
               }
             }
           }
