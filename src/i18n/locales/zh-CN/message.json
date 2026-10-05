@@ -87,6 +87,7 @@
   "navigator.kind.system": "系统",
   "navigator.kind.summary": "摘要",
   "navigator.userOnly": "仅显示我的提示",
+  "navigator.promptJumpHint": "按 {{keys}} 跳转到上一个或下一个提示。",
   "navigator.showParallelTasks": "显示并行任务",
   "navigator.noMessages": "此会话没有消息",
   "navigator.close": "关闭导航器",

@@ -6,6 +6,7 @@ import {
   isTaskNotification,
   parseTaskNotification,
   parseTaskNotifications,
+  isTurnStart,
 } from "./messageKinds";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
@@ -179,6 +180,35 @@ describe("getMessageKind", () => {
       const summary = classifyMessage(makeMessage({ type: "summary", summary: "Session summary" }));
       expect(summary).toEqual({ kind: "summary", text: "Session summary" });
     });
+  });
+});
+
+describe("isTurnStart", () => {
+  const startsTurn = (overrides: Record<string, unknown>) =>
+    isTurnStart(classifyMessage(makeMessage(overrides)));
+
+  it("starts a turn at a typed prompt or a slash-command invocation", () => {
+    expect(startsTurn({ content: "Scrub for pii" })).toBe(true);
+    expect(startsTurn({
+      content: "<command-message>wrap</command-message>\n<command-name>/wrap</command-name>",
+    })).toBe(true);
+  });
+
+  it("does not start a turn at a local command's output", () => {
+    // The output follows its invocation; counting both would stop twice.
+    expect(startsTurn({
+      content: "<local-command-stdout>Total cost: $0.42</local-command-stdout>",
+    })).toBe(false);
+  });
+
+  it("does not start a turn at rows the user did not type", () => {
+    expect(startsTurn({ content: TASK_NOTIFICATION })).toBe(false);
+    expect(startsTurn({ content: "<system-reminder>Today is Friday.</system-reminder>" })).toBe(false);
+    expect(startsTurn({
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Done." }],
+    })).toBe(false);
   });
 });
 

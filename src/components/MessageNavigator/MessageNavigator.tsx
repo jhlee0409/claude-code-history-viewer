@@ -9,6 +9,7 @@ import {
   filterMessagesByCategory,
   getMessageUuidsByCategory,
 } from "../MessageViewer/helpers";
+import { getPromptJumpKeysLabel } from "../MessageViewer/helpers/promptJump";
 import { getKindLabelKey } from "./kindLabels";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
@@ -39,6 +40,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 }) => {
   const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
+  // The shortcut acts on the message list, so the panel only describes it.
+  const promptJumpHint = t("navigator.promptJumpHint", { keys: getPromptJumpKeysLabel() });
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef(new Map<string, HTMLButtonElement>());
   const [filterText, setFilterText] = useState("");
@@ -149,7 +152,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   }, [entries, virtualizer]);
 
   const handleEntryKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (entries.length === 0) return;
+    // Alt+Arrow belongs to the message list's prompt jump (usePromptJump).
+    if (entries.length === 0 || event.altKey) return;
 
     switch (event.key) {
       case "ArrowDown":
@@ -266,7 +270,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           )}
           aria-label={t("navigator.userOnly")}
           aria-pressed={userOnlyFilter}
-          title={t("navigator.userOnly")}
+          title={`${t("navigator.userOnly")}\n${promptJumpHint}`}
         >
           <User className="w-3.5 h-3.5" />
         </button>
@@ -380,7 +384,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         {t(
           "navigator.a11y.keyboardHelp",
           "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter or Space to open the focused message."
-        )}
+        )}{" "}
+        {promptJumpHint}
       </p>
     </aside>
   );
