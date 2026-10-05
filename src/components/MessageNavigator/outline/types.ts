@@ -28,6 +28,8 @@ export interface OutlineTaskChild {
   status: string | undefined;
   /** uuid of the row holding the task's LAST block. */
   navigateUuid: string;
+  /** uuids of every row holding one of the task's blocks, in order. */
+  uuids: string[];
   /** timestamp of that last row. */
   timestamp: string;
 }

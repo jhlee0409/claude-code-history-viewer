@@ -263,13 +263,15 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 
   // In outline mode the person button closes every open turn as a one-time
   // action instead of filtering rows (Design, "Person button... in outline
-  // mode"); turning it off again never reopens anything.
+  // mode"); it never reopens anything. It closes on every click, not only
+  // when the shared boolean turns on, so "Close all turns" always does what
+  // its name says even if list mode left the boolean on.
   const handlePersonButtonClick = useCallback(() => {
-    if (isOutlineRendered && !userOnlyFilter) {
+    if (isOutlineRendered) {
       setOpenKeys(new Set());
     }
     toggleUserOnlyFilter();
-  }, [isOutlineRendered, userOnlyFilter, toggleUserOnlyFilter]);
+  }, [isOutlineRendered, toggleUserOnlyFilter]);
 
   // Get virtual items
   const virtualItems = virtualizer.getVirtualItems();

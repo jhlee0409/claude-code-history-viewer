@@ -578,6 +578,50 @@ describe("MessageNavigator outline mode", () => {
       expect(headers()[1]).toHaveAttribute("tabindex", "-1");
     });
 
+    it("closes every open turn even when the shared prompts-only filter is already on", () => {
+      storeState.userOnlyFilter = true;
+      renderNavigator(twoTurns());
+      fireEvent.keyDown(headers()[0]!, { key: "ArrowRight" });
+      expect(getChildItems()).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "navigator.outline.closeAllTurns" }));
+
+      expect(toggleUserOnlyFilterMock).toHaveBeenCalledOnce();
+      expect(getChildItems()).toHaveLength(0);
+    });
+
+    it("moves the roving focus to the target once its closed turn opens", () => {
+      const messages = twoTurns();
+      const { rerender } = renderNavigator(messages);
+
+      storeState.targetMessageUuid = "r1";
+      rerenderWith(rerender, messages);
+
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
+      expect(getChildItem(0)).toHaveAttribute("tabindex", "0");
+    });
+
+    it("moves the roving focus to a task row when the target is any of its updates", () => {
+      const messages = [
+        makeMessage({ uuid: "p1", content: "Launch an agent" }),
+        makeMessage({
+          uuid: "a1",
+          content: "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A starting</summary></task-notification>",
+        }),
+        makeMessage({
+          uuid: "a2",
+          content: "<task-notification><task-id>task-a</task-id><status>completed</status><summary>Task A done</summary></task-notification>",
+        }),
+      ];
+      const { rerender } = renderNavigator(messages);
+
+      storeState.targetMessageUuid = "a1";
+      rerenderWith(rerender, messages);
+
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
+      expect(getChildItem(0)).toHaveAttribute("tabindex", "0");
+    });
+
     it("opens the target's turn once the session's messages arrive", () => {
       storeState.targetMessageUuid = "r2";
       const { rerender } = renderNavigator([]);

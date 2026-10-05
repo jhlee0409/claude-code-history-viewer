@@ -381,10 +381,12 @@ the filter is cleared. See Decisions, below, for the alternative this spec did n
 - **Lightning (parallel tasks)**: unchanged. It filters `messages` before grouping even sees them
   (Verified constraints), so no outline-specific code is needed.
 - **Person button (prompts + commands only)**: in outline mode every turn header is already a
-  prompt or a command by construction, so row-level filtering has nothing to remove. Turning the
-  toggle on instead closes every currently open turn, a one-time action, not a standing filter.
-  Turning it off does not reopen anything. Each turn still opens with a click. The toggle's
-  boolean state (`userOnlyFilter`) is shared with list mode; only its effect differs by mode.
+  prompt or a command by construction, so row-level filtering has nothing to remove. Each click
+  instead closes every currently open turn, a one-time action, not a standing filter. It closes
+  turns whether the click turns the toggle on or off, so a toggle that list mode left on still
+  closes turns on the first click. Nothing ever reopens. Each turn still opens with a click. The
+  toggle's boolean state (`userOnlyFilter`) is shared with list mode; only its effect differs by
+  mode.
 - **The person button says what it does in each mode.** In outline mode, the button's `title` and
   `aria-label` both read `navigator.outline.closeAllTurns` ("Close all turns") instead of
   `navigator.userOnly` ("Show my prompts only"). The button is icon-only, so its accessible name
@@ -677,6 +679,14 @@ what changed from this draft and why.
   after rows change, falling back to the parent header; a custom `rangeExtractor` keeps the
   focused row mounted so Tab can still reach it. The browser check found the first; an adversarial
   review found the other two.
+- **"Close all turns" closes on every click, not only when the toggle turns on.** The draft
+  copied the mockup, which cleared open turns only on the off-to-on transition. If list mode had
+  left the shared toggle on, the first click in outline mode turned it off and closed nothing,
+  although the button's name promised it would. A review bot on PR #632 found this.
+- **Roving focus waits for a target whose turn is still closed.** When the target sits in a
+  closed turn, focus moves to it on the render where the turn opens, and a task row counts as
+  holding every update it merged (`rowHoldsUuid` in `outline/flattenOutline.ts`). A review bot on
+  PR #632 found the task-row case.
 - **Test coverage landed differently than planned.** `src/test/MessageNavigator.accessibility.test.tsx`
   was never touched; every new accessibility, roving-focus, and mode-switch test lives in
   `src/test/MessageNavigator.outline.test.tsx` plus colocated unit tests next to each new module.
