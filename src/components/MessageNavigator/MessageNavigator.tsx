@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
+import { Indent, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -10,9 +10,13 @@ import {
   getMessageUuidsByCategory,
 } from "../MessageViewer/helpers";
 import { getPromptJumpKeysLabel } from "../MessageViewer/helpers/promptJump";
+import { getFilteredClassifiedMessages } from "./classifiedRows";
 import { getKindLabelKey } from "./kindLabels";
 import { NavigatorEntry } from "./NavigatorEntry";
-import { useNavigatorEntries } from "./useNavigatorEntries";
+import { findTurnKeyForUuid } from "./outline/flattenOutline";
+import { NavigatorOutline } from "./outline/NavigatorOutline";
+import { buildTurnOfMessage } from "./outline/turnOfMessage";
+import { useOutlineTurns } from "./outline/useOutlineTurns";
 
 // Height estimation constants for virtual scrolling
 const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
@@ -54,7 +58,15 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     toggleUserOnlyFilter,
     showParallelTasksInNavigator,
     toggleShowParallelTasksInNavigator,
+    navigatorViewMode,
+    toggleNavigatorViewMode,
+    visibleMessageUuid,
+    selectedSession,
   } = useAppStore();
+  // Selectors (not the destructure above) so a store mock missing these
+  // fields - like the accessibility test's - still renders list mode
+  // instead of throwing.
+  const pagination = useAppStore((s) => s.pagination);
   const hasParallelTasks = useMemo(
     () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
     [messages],
@@ -69,7 +81,20 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     ),
     [messages, showParallelTasksInNavigator],
   );
-  const allEntries = useNavigatorEntries(navigatorMessages);
+
+  // One shared, filtered, classified row list feeds both the flat list's
+  // entries and the outline's turns, so the noise-filter rule cannot drift
+  // between the two (Design, "A shared, filtered, classified row list").
+  const classifiedRows = useMemo(
+    () => getFilteredClassifiedMessages(navigatorMessages),
+    [navigatorMessages],
+  );
+  const allEntries = useMemo(() => classifiedRows.map((row) => row.entry), [classifiedRows]);
+  const turns = useOutlineTurns(classifiedRows);
+  const realTurnsCount = useMemo(
+    () => turns.filter((turn) => turn.turnStartUuid !== null).length,
+    [turns],
+  );
 
   // Apply local filter (kind label + text), matching what each row displays
   const entries = useMemo(() => {
@@ -89,6 +114,34 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     }
     return filtered;
   }, [allEntries, filterText, userOnlyFilter, t]);
+
+  // Outline mode, and whether it is actually RENDERED right now: a
+  // non-empty filter falls back to the flat list even in outline mode
+  // (Design, "Free-text filter in outline mode").
+  const isOutline = navigatorViewMode === "outline";
+  const isOutlineRendered = isOutline && filterText.trim().length === 0;
+
+  // Open/closed turn keys: local, unpersisted state so the person button can
+  // clear it (State). Reset ONLY on session change - never on `turns`
+  // itself, since opening/closing a turn or a pagination prepend must not
+  // silently re-collapse everything.
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => {
+    const key = findTurnKeyForUuid(turns, targetMessageUuid ?? null);
+    return key ? new Set([key]) : new Set();
+  });
+  useEffect(() => {
+    const key = findTurnKeyForUuid(turns, targetMessageUuid ?? null);
+    setOpenKeys(key ? new Set([key]) : new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSession?.session_id]);
+
+  // The turn containing the message currently visible in the main
+  // transcript, for the outline's active-header highlight (Design,
+  // "Highlighting the turn in view"). Built from the RAW `messages` prop,
+  // not `navigatorMessages`, so a hidden/noise row still resolves.
+  const turnOfMessage = useMemo(() => buildTurnOfMessage(messages, turns), [messages, turns]);
+  const activeTurnKey =
+    visibleMessageUuid != null ? turnOfMessage.get(visibleMessageUuid) ?? null : null;
 
   // Height estimation function for @tanstack/react-virtual
   const estimateSize = useCallback((index: number) => {
@@ -184,6 +237,16 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     }
   }, [entries, focusEntryAt, focusedIndex, navigateToMessage]);
 
+  // In outline mode the person button closes every open turn as a one-time
+  // action instead of filtering rows (Design, "Person button... in outline
+  // mode"); turning it off again never reopens anything.
+  const handlePersonButtonClick = useCallback(() => {
+    if (isOutlineRendered && !userOnlyFilter) {
+      setOpenKeys(new Set());
+    }
+    toggleUserOnlyFilter();
+  }, [isOutlineRendered, userOnlyFilter, toggleUserOnlyFilter]);
+
   // Get virtual items
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -258,19 +321,33 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           {t("navigator.title")}
         </span>
         <span className="text-2xs text-muted-foreground tabular-nums">
-          {entries.length}
+          {isOutlineRendered ? realTurnsCount : entries.length}
         </span>
         <button
-          onClick={toggleUserOnlyFilter}
+          onClick={toggleNavigatorViewMode}
+          className={cn(
+            "p-0.5 rounded transition-colors",
+            isOutline
+              ? "bg-accent/20 text-accent"
+              : "hover:bg-accent/10 text-muted-foreground hover:text-foreground"
+          )}
+          aria-label={t("navigator.viewMode.outline")}
+          aria-pressed={isOutline}
+          title={t("navigator.viewMode.toggle")}
+        >
+          <Indent className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handlePersonButtonClick}
           className={cn(
             "p-0.5 rounded transition-colors",
             userOnlyFilter
               ? "bg-blue-500/20 text-blue-500"
               : "hover:bg-accent/10 text-muted-foreground hover:text-foreground"
           )}
-          aria-label={t("navigator.userOnly")}
+          aria-label={isOutlineRendered ? t("navigator.outline.closeAllTurns") : t("navigator.userOnly")}
           aria-pressed={userOnlyFilter}
-          title={`${t("navigator.userOnly")}\n${promptJumpHint}`}
+          title={`${isOutlineRendered ? t("navigator.outline.closeAllTurns") : t("navigator.userOnly")}\n${promptJumpHint}`}
         >
           <User className="w-3.5 h-3.5" />
         </button>
@@ -324,7 +401,19 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       </div>
 
       {/* Entry list with virtual scrolling */}
-      {entries.length === 0 ? (
+      {isOutlineRendered ? (
+        <NavigatorOutline
+          turns={turns}
+          openKeys={openKeys}
+          setOpenKeys={setOpenKeys}
+          activeTurnKey={activeTurnKey}
+          targetMessageUuid={targetMessageUuid ?? null}
+          hasMore={pagination?.hasMore ?? false}
+          totalTurns={realTurnsCount}
+          navigateToMessage={navigateToMessage}
+          keyboardHelpId={keyboardHelpId}
+        />
+      ) : entries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <p className="text-xs text-muted-foreground text-center">
             {filterText ? t("messageViewer.noSearchResults") : t("navigator.noMessages")}
