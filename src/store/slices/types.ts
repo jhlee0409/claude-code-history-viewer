@@ -193,6 +193,8 @@ export interface AppStoreState {
 
   // Navigator state
   isNavigatorOpen: boolean;
+  navigatorViewMode: import('./navigatorSlice').NavigatorViewMode;
+  visibleMessageUuid: string | null;
 
   // Recent Edits panel state
   recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
@@ -404,6 +406,9 @@ export interface AppStoreActions {
   // Navigator actions
   toggleNavigator: () => void;
   setNavigatorOpen: (open: boolean) => void;
+  setNavigatorViewMode: (mode: import('./navigatorSlice').NavigatorViewMode) => void;
+  toggleNavigatorViewMode: () => void;
+  setVisibleMessageUuid: (uuid: string | null) => void;
 
   // Recent Edits panel actions
   setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
