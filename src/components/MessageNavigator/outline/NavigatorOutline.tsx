@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { NavigatorEntry } from "../NavigatorEntry";
-import { flattenOutlineRows } from "./flattenOutline";
+import { flattenOutlineRows, rowHoldsUuid } from "./flattenOutline";
 import { findPinnedTurnKey } from "./pinnedTurn";
 import { OutlineTaskRow } from "./OutlineTaskRow";
 import { OutlineTurnHeader } from "./OutlineTurnHeader";
@@ -65,14 +65,17 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
       return;
     }
     if (targetMessageUuid && targetMessageUuid !== lastTargetRef.current) {
-      const index = rows.findIndex((row) => row.key === targetMessageUuid);
+      const index = rows.findIndex((row) => rowHoldsUuid(row, targetMessageUuid));
       if (index >= 0) {
         lastTargetRef.current = targetMessageUuid;
         setFocusedIndex(index);
         return;
       }
+      // Not rendered yet (its turn is still closed): leave the target
+      // pending, so focus moves to it on the render where its row appears.
+    } else {
+      lastTargetRef.current = targetMessageUuid;
     }
-    lastTargetRef.current = targetMessageUuid;
     setFocusedIndex((prev) => resolveFocusAfterRowsChange(previousRows, rows, prev));
   }, [rows, targetMessageUuid]);
 

@@ -71,6 +71,7 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
           updateCount: 1,
           status: block.status,
           navigateUuid: row.entry.uuid,
+          uuids: [row.entry.uuid],
           timestamp: row.entry.timestamp,
         };
         indexByMergeKey.set(mergeKey, children.length);
@@ -92,6 +93,7 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
         }
       }
       existing.navigateUuid = row.entry.uuid;
+      if (!existing.uuids.includes(row.entry.uuid)) existing.uuids.push(row.entry.uuid);
       existing.timestamp = row.entry.timestamp;
     });
   }

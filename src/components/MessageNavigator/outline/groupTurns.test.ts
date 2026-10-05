@@ -208,6 +208,7 @@ describe("groupTurns", () => {
     expect(task.updateCount).toBe(2);
     expect(task.label).toBe("Task A halfway");
     expect(task.navigateUuid).toBe("a2");
+    expect(task.uuids).toEqual(["a1", "a2"]);
     expect(task.timestamp).toBe("2026-09-26T06:29:32.477Z");
   });
 
