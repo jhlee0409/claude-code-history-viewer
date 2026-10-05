@@ -525,4 +525,83 @@ describe("MessageNavigator outline mode", () => {
     // Clicking the overlay never toggles the turn: it is still open.
     expect(screen.getAllByRole("treeitem")).toHaveLength(3);
   });
+
+  describe("focus and open turns across navigation", () => {
+    const twoTurns = () => [
+      makeMessage({ uuid: "p1", content: "First prompt" }),
+      makeMessage({ uuid: "r1", type: "assistant", role: "assistant", content: [{ type: "text", text: "Reply one" }] }),
+      makeMessage({ uuid: "p2", content: "Second prompt" }),
+      makeMessage({ uuid: "r2", type: "assistant", role: "assistant", content: [{ type: "text", text: "Reply two" }] }),
+    ];
+
+    const rerenderWith = (rerender: (ui: React.ReactElement) => void, messages: ClaudeMessage[]) =>
+      rerender(
+        <MessageNavigator
+          messages={messages}
+          width={280}
+          isResizing={false}
+          onResizeStart={vi.fn()}
+          isCollapsed={false}
+          onToggleCollapse={vi.fn()}
+        />,
+      );
+
+    const headers = () =>
+      screen.getAllByRole("treeitem").filter((el) => el.getAttribute("aria-level") === "1");
+
+    it("applies a key to the row that received it, even after the target moved", () => {
+      const messages = twoTurns();
+      const { rerender } = renderNavigator(messages);
+      const first = headers()[0]!;
+      fireEvent.keyDown(first, { key: "ArrowRight" });
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
+
+      // The prompt jump (or a click in the main list) moves the target to the
+      // second prompt while DOM focus stays on the first header.
+      storeState.targetMessageUuid = "p2";
+      rerenderWith(rerender, messages);
+
+      fireEvent.keyDown(headers()[0]!, { key: "ArrowLeft" });
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("moves the roving focus to the parent header when 'Close all turns' removes the focused row", () => {
+      renderNavigator(twoTurns());
+      fireEvent.keyDown(headers()[0]!, { key: "ArrowRight" });
+      fireEvent.focus(getChildItem(0));
+      expect(getChildItem(0)).toHaveAttribute("tabindex", "0");
+
+      fireEvent.click(screen.getByRole("button", { name: "navigator.outline.closeAllTurns" }));
+
+      expect(getChildItems()).toHaveLength(0);
+      expect(headers()[0]).toHaveAttribute("tabindex", "0");
+      expect(headers()[1]).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("opens the target's turn once the session's messages arrive", () => {
+      storeState.targetMessageUuid = "r2";
+      const { rerender } = renderNavigator([]);
+      rerenderWith(rerender, twoTurns());
+
+      expect(headers()[1]).toHaveAttribute("aria-expanded", "true");
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("opens a closed turn when the target moves into it, but not when the target is a header", () => {
+      const messages = twoTurns();
+      const { rerender } = renderNavigator(messages);
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "false");
+
+      storeState.targetMessageUuid = "r1";
+      rerenderWith(rerender, messages);
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
+
+      // A prompt jump targets the header itself, which is already visible.
+      storeState.targetMessageUuid = "p2";
+      rerenderWith(rerender, messages);
+      expect(headers()[1]).toHaveAttribute("aria-expanded", "false");
+      // Turns the user opened stay open.
+      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
+    });
+  });
 });

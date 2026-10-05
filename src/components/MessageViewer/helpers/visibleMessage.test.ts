@@ -33,6 +33,27 @@ describe("findFirstVisibleMessageUuid", () => {
     expect(findFirstVisibleMessageUuid(rows, flattened, 100)).toBe("m3");
   });
 
+  it("skips a row that only peeks in at the top edge", () => {
+    // Navigation aligns its target with the top edge; the row above it can
+    // still end a fraction of a pixel below scrollTop. Measured in the WebUI:
+    // the previous turn's last row ended at the edge and won the highlight.
+    const flattened = [messageRow("previous"), messageRow("target")];
+    const rows = [virtualItem(0, 0, 100.5), virtualItem(1, 100.5, 180)];
+
+    expect(findFirstVisibleMessageUuid(rows, flattened, 100)).toBe("target");
+    // 10 px of the previous row still showing is under the tolerance too.
+    expect(findFirstVisibleMessageUuid(rows, flattened, 90.5)).toBe("target");
+    // 30 px showing is a row the reader can see.
+    expect(findFirstVisibleMessageUuid(rows, flattened, 70)).toBe("previous");
+  });
+
+  it("falls back to a peeking row when nothing else is in view", () => {
+    const flattened = [messageRow("last")];
+    const rows = [virtualItem(0, 0, 110)];
+
+    expect(findFirstVisibleMessageUuid(rows, flattened, 100)).toBe("last");
+  });
+
   it("returns null when scrollTop is past every row", () => {
     const flattened = [messageRow("m1")];
     const rows = [virtualItem(0, 0, 50)];
