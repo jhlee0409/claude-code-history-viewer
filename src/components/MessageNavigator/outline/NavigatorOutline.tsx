@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { NavigatorEntry } from "../NavigatorEntry";
 import { flattenOutlineRows, rowHoldsUuid } from "./flattenOutline";
 import { findPinnedTurnKey } from "./pinnedTurn";
+import { OutlineActivityRow } from "./OutlineActivityRow";
 import { OutlineTaskRow } from "./OutlineTaskRow";
 import { OutlineTurnHeader } from "./OutlineTurnHeader";
 import { PinnedTurnHeader } from "./PinnedTurnHeader";
@@ -97,7 +98,8 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
         }
         return height;
       }
-      return row.child.type === "task" ? 56 : 60;
+      if (row.child.type === "task" || row.child.type === "activity") return 56;
+      return 60;
     },
     [rows],
   );
@@ -293,6 +295,9 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
               virtualizer.measureElement(element);
             };
             const isFocused = virtualItem.index === focusedIndex;
+            // A task or activity row stands for several messages, so it is
+            // the active row when the target is any one of them.
+            const isActive = targetMessageUuid !== null && rowHoldsUuid(row, targetMessageUuid);
 
             if (row.type === "turn") {
               return (
@@ -322,8 +327,29 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
                 <OutlineTaskRow
                   key={row.key}
                   task={task}
+                  isActive={isActive}
                   isFocused={isFocused}
                   onActivate={() => navigateToMessage(task.navigateUuid)}
+                  onFocus={() => setFocusedIndex(virtualItem.index)}
+                  onKeyDown={handleRowKeyDown}
+                  registerRef={registerRef}
+                  style={commonStyle}
+                  dataIndex={virtualItem.index}
+                  ariaPosInSet={row.posInSet}
+                  ariaSetSize={row.setSize}
+                />
+              );
+            }
+
+            if (row.child.type === "activity") {
+              const activity = row.child;
+              return (
+                <OutlineActivityRow
+                  key={row.key}
+                  activity={activity}
+                  isActive={isActive}
+                  isFocused={isFocused}
+                  onActivate={() => navigateToMessage(activity.navigateUuid)}
                   onFocus={() => setFocusedIndex(virtualItem.index)}
                   onKeyDown={handleRowKeyDown}
                   registerRef={registerRef}

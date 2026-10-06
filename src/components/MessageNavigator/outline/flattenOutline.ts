@@ -45,11 +45,16 @@ export function flattenOutlineRows(turns: TurnGroup[], openKeys: ReadonlySet<str
 
 /**
  * Whether `row` stands for the message `uuid`. A header or message row is
- * keyed by its own uuid; a task row stands for every update it merged.
+ * keyed by its own uuid; a task or activity row stands for every row it
+ * collapsed.
  */
 export function rowHoldsUuid(row: OutlineRow, uuid: string): boolean {
   if (row.key === uuid) return true;
-  return row.type === "child" && row.child.type === "task" && row.child.uuids.includes(uuid);
+  if (row.type !== "child") return false;
+  return (
+    (row.child.type === "task" || row.child.type === "activity") &&
+    row.child.uuids.includes(uuid)
+  );
 }
 
 /** Finds the key of the turn containing `uuid`, via each turn's own `uuids` list. */

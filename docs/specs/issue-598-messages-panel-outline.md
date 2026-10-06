@@ -42,7 +42,8 @@ where this spec says a mode needs a different reading of a shared control.
 1. An opt-in outline view groups the panel's rows by the turn each row belongs to.
 2. A closed turn shows its starting prompt (or slash command) and four counts: replies, tool
    calls, agents started, and agent updates.
-3. An open turn shows one row per agent task instead of one row per task-notification message.
+3. An open turn shows one activity row for its collapsed replies and tool calls, one row per
+   agent task, and its own row for a summary. No row repeats per message.
 4. The active turn's header stays visible while the reader scrolls through a long open turn.
 5. The outline shows a turn containing the message currently in view in the main transcript.
 6. The outline tells the reader when earlier messages have not loaded yet.
@@ -60,6 +61,8 @@ where this spec says a mode needs a different reading of a shared control.
   proposal.
 - Distinguishing a background-command-sourced task from a Task-tool agent task in the outline.
   See Verified constraints: the two origins are not unified in today's code.
+- A task row naming which prompt started it, the mockup's "started in prompt N." This stays out
+  for the activity row too, added 2026-10-05: neither row names a source prompt.
 - A "Load earlier" action inside the outline. The main transcript already autoloads near its top;
   this spec only adds a notice.
 - Re-deriving per-turn counts when the free-text filter is active. See Design: a non-empty filter
@@ -282,6 +285,38 @@ individually.
      first.
 5. A task row does not say whether its task is a background command or a Task-tool agent: the two
    origins are not unified in today's code (Verified constraints).
+
+### Activity summary row
+
+Added 2026-10-05, after comparing the shipped build against the approved mockup (see "As built,"
+below). An open turn collapses every child row of kind reply, tool, context, system, or a
+non-turn-start command into one activity row. `agent-update` rows still become task rows, above.
+A row of kind summary still keeps its own row; see the note at the end of this section.
+
+The activity row sits at the position where the first collapsed row appeared in turn order. A
+later collapsed row merges into the same activity row; it never moves the row's position and
+never creates a second one. A turn with no collapsible rows gets no activity row at all.
+
+The activity row's preview and navigation target come from the first collapsed row of kind reply.
+When the turn collapsed no reply row, they come from the first collapsed row of any kind instead.
+Its subtitle reads "Claude · N replies · M tool calls." It reuses the existing count labels
+(`navigator.outline.replies`, `navigator.outline.toolCalls`) and the existing `messageViewer.claude`
+label. A zero-count part is omitted, not shown as zero. When the source row's preview is empty, the
+activity row shows that row's kind label instead, the same fallback `NavigatorEntry` uses for an
+empty message row, so a turn with no reply never shows a misleading "Reply."
+
+An activity row or a task row stands for several messages. Either one shows the active styling
+(`aria-selected`, `aria-current`, and the accent left border) when the navigation target is any
+message it holds, as decided by `rowHoldsUuid` in `outline/flattenOutline.ts`. A message row
+shows the same styling when it is the target itself.
+
+Every level-2 row shares one left inset and one left rail: the activity row, each task row, and
+each message row. An open turn therefore reads as nested, matching the mockup.
+
+**Naming note.** A compaction recap's own text classifies as kind context (`messageKinds.ts`), not
+kind summary, so this build folds a compaction recap into the activity row. A kind-summary row in
+today's code model is a raw `type: "summary"` transcript record, a different thing from a
+compaction recap. See Open questions.
 
 ### Leading group and the "not loaded" notice
 
@@ -690,6 +725,15 @@ what changed from this draft and why.
 - **Test coverage landed differently than planned.** `src/test/MessageNavigator.accessibility.test.tsx`
   was never touched; every new accessibility, roving-focus, and mode-switch test lives in
   `src/test/MessageNavigator.outline.test.tsx` plus colocated unit tests next to each new module.
+- **An open turn also collapses replies, tool calls, and other message rows into one activity
+  row.** This followed from comparing the shipped build against the approved mockup, Option A, on
+  2026-10-05. The first cut showed one row per message instead; the user chose to match the
+  mockup. See Design, "Activity summary row."
+- **Task and activity rows show the active state.** Folding replies into the activity row removed
+  the active styling a targeted reply had shown as its own message row, and task rows had never
+  shown it. Both row kinds now show it whenever they hold the target. The same adversarial review
+  found that an activity row with no reply and an empty preview read "Reply"; it now shows its
+  source row's kind label.
 
 ## Open questions
 
@@ -701,3 +745,7 @@ what changed from this draft and why.
 3. The outline does not scroll itself to keep the in-view (highlighted) turn header visible when
    the main transcript scrolls, and list mode does not do this either. Should either view gain
    that behavior?
+4. The brief for the activity summary row called a kind-summary row a "compaction recap." A
+   compaction recap classifies as kind context today, and this build folds kind context into the
+   activity row instead. Should a future change rename kind summary, or special-case a compaction
+   recap's own text prefix so it survives as its own row under either name?

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
 import { getFilteredClassifiedMessages } from "../classifiedRows";
 import { groupTurns } from "./groupTurns";
-import { LEADING_TURN_KEY, type OutlineTaskChild } from "./types";
+import { LEADING_TURN_KEY, type OutlineActivityChild, type OutlineTaskChild } from "./types";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
   uuid: "message",
@@ -40,7 +40,9 @@ describe("groupTurns", () => {
     expect(groups[0].header).toBeNull();
     expect(groups[0].firstUuid).toBe("u1");
     expect(groups[0].uuids).toEqual(["u1", "u2"]);
-    expect(groups[0].children.map((c) => c.key)).toEqual(["u1", "u2"]);
+    // u1 (command, local output) and u2 (reply) are both collapsible kinds,
+    // so they fold into one activity child (Design, "Activity summary row").
+    expect(groups[0].children.map((c) => c.key)).toEqual([`${LEADING_TURN_KEY}::activity`]);
   });
 
   it("omits the leading group when the first row is already a turn start", () => {
@@ -89,7 +91,9 @@ describe("groupTurns", () => {
 
     expect(groups).toHaveLength(1);
     expect(groups[0].key).toBe("cmd1");
-    expect(groups[0].children.map((c) => c.key)).toEqual(["out1"]);
+    // out1's local-command output is a collapsible kind ("command"), so it
+    // folds into the turn's activity child rather than staying its own row.
+    expect(groups[0].children.map((c) => c.key)).toEqual(["cmd1::activity"]);
   });
 
   it("excludes the turn-start row from children; the header represents it", () => {
@@ -105,7 +109,9 @@ describe("groupTurns", () => {
 
     expect(groups[0].header?.uuid).toBe("p1");
     expect(groups[0].children).toHaveLength(1);
-    expect(groups[0].children[0].key).toBe("r1");
+    // r1 (a reply) folds into the turn's activity child, keyed off the turn,
+    // not the row's own uuid (Design, "Activity summary row").
+    expect(groups[0].children[0].key).toBe("p1::activity");
     expect(groups[0].uuids).toEqual(["p1", "r1"]);
   });
 
@@ -351,5 +357,147 @@ describe("groupTurns", () => {
     ]));
 
     expect(groups[0].uuids).toEqual(["p1", "a1"]);
+  });
+
+  describe("activity summary row", () => {
+    it("collapses reply, tool, context, system, and local-command-output rows into one activity child", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+        makeMessage({
+          uuid: "r1",
+          type: "assistant",
+          role: "assistant",
+          content: [
+            { type: "text", text: "Scrubbing now." },
+            { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+          ],
+        }),
+        makeMessage({
+          uuid: "r2",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_2", name: "Write", input: {} }],
+        }),
+        makeMessage({ uuid: "cmd-out", content: "<local-command-stdout>ok</local-command-stdout>" }),
+        makeMessage({ uuid: "ctx1", content: "<system-reminder>be careful</system-reminder>" }),
+        makeMessage({ uuid: "sys1", type: "system", content: "A system note" }),
+      ]));
+
+      expect(groups).toHaveLength(1);
+      const children = groups[0].children;
+      expect(children).toHaveLength(1);
+      const activity = children[0] as OutlineActivityChild;
+      expect(activity.type).toBe("activity");
+      expect(activity.key).toBe("p1::activity");
+      // Every collapsed row's uuid is listed, in order, header excluded.
+      expect(activity.uuids).toEqual(["r1", "r2", "cmd-out", "ctx1", "sys1"]);
+      // Matches TurnCounts' own replies/toolCalls, since every reply/tool row
+      // in the turn folds into this single activity child.
+      expect(activity.replies).toBe(groups[0].counts.replies);
+      expect(activity.toolCalls).toBe(groups[0].counts.toolCalls);
+      expect(activity.replies).toBe(1);
+      expect(activity.toolCalls).toBe(2);
+    });
+
+    it("prefers the first reply row's preview, uuid, and timestamp when a reply is among the collapsed rows", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+        makeMessage({
+          uuid: "r2",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_2", name: "Write", input: {} }],
+        }),
+        makeMessage({
+          uuid: "r1",
+          type: "assistant",
+          role: "assistant",
+          timestamp: "2026-09-26T07:00:00.000Z",
+          content: [{ type: "text", text: "Scrubbing now." }],
+        }),
+      ]));
+
+      const activity = groups[0].children[0] as OutlineActivityChild;
+      expect(activity.navigateUuid).toBe("r1");
+      expect(activity.preview).toBe("Scrubbing now.");
+      expect(activity.timestamp).toBe("2026-09-26T07:00:00.000Z");
+    });
+
+    it("falls back to the first collapsed row's preview and uuid when no reply is among them", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Run a command" }),
+        makeMessage({ uuid: "cmd-out", content: "<local-command-stdout>build ok</local-command-stdout>" }),
+        makeMessage({
+          uuid: "r2",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_1", name: "Write", input: {} }],
+        }),
+      ]));
+
+      const activity = groups[0].children[0] as OutlineActivityChild;
+      expect(activity.navigateUuid).toBe("cmd-out");
+      expect(activity.preview).toBe("build ok");
+    });
+
+    it("creates no activity row when a turn has only agent-update rows", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Launch an agent" }),
+        makeMessage({
+          uuid: "a1",
+          content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
+        }),
+      ]));
+
+      expect(groups[0].children.every((c) => c.type !== "activity")).toBe(true);
+    });
+
+    it("keeps a summary-kind row as its own message child, not folded into the activity row", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+        makeMessage({
+          uuid: "r1",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "text", text: "Scrubbing now." }],
+        }),
+        makeMessage({ uuid: "s1", type: "summary", summary: "Recap text", content: "Recap text" }),
+      ]));
+
+      const children = groups[0].children;
+      expect(children).toHaveLength(2);
+      expect(children[0]).toMatchObject({ type: "activity", key: "p1::activity" });
+      expect(children[1]).toMatchObject({ type: "message", key: "s1" });
+    });
+
+    it("places the activity row at the position of the first collapsed row, interleaved with a task row", () => {
+      const groups = groupTurns(rows([
+        makeMessage({ uuid: "p1", content: "Launch an agent and reply" }),
+        makeMessage({
+          uuid: "r1",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "text", text: "Starting." }],
+        }),
+        makeMessage({
+          uuid: "a1",
+          content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
+        }),
+        makeMessage({
+          uuid: "r2",
+          type: "assistant",
+          role: "assistant",
+          content: [{ type: "text", text: "Still going." }],
+        }),
+      ]));
+
+      const children = groups[0].children;
+      expect(children.map((c) => c.type)).toEqual(["activity", "task"]);
+      const activity = children[0] as OutlineActivityChild;
+      // Later collapsed rows (r2) merge into the existing activity child
+      // instead of moving its position or creating a second one.
+      expect(activity.uuids).toEqual(["r1", "r2"]);
+      expect(activity.replies).toBe(2);
+    });
   });
 });

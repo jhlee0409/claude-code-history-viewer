@@ -200,6 +200,182 @@ describe("MessageNavigator outline mode", () => {
     expect(screen.getAllByRole("treeitem")).toHaveLength(2);
   });
 
+  it("collapses replies, tool calls, and local command output into one activity row with a Claude subtitle, omitting a zero part", () => {
+    storeState.targetMessageUuid = "p1"; // auto-opens the turn
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "text", text: "Scrubbing now." }],
+      }),
+      makeMessage({
+        uuid: "r2",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: {} }],
+      }),
+      makeMessage({ uuid: "cmd-out", content: "<local-command-stdout>done</local-command-stdout>" }),
+    ]);
+
+    // One activity row, not three separate rows.
+    const children = getChildItems();
+    expect(children).toHaveLength(1);
+    expect(screen.getByText("Scrubbing now.")).toBeInTheDocument();
+    // replies=1, toolCalls=1: both parts present, joined with "·".
+    expect(
+      screen.getByText("messageViewer.claude · navigator.outline.replies:1 · navigator.outline.toolCalls:1"),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the tool-calls part of the activity subtitle when there were no tool calls", () => {
+    storeState.targetMessageUuid = "p1";
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Say hi" }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "text", text: "Hello." }],
+      }),
+    ]);
+
+    expect(
+      screen.getByText("messageViewer.claude · navigator.outline.replies:1"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/navigator\.outline\.toolCalls/)).not.toBeInTheDocument();
+  });
+
+  it("navigates to the first reply's uuid when the activity row is activated, even when a tool-only row came first", () => {
+    storeState.targetMessageUuid = "p1";
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+      makeMessage({
+        uuid: "tool-only",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: {} }],
+      }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "text", text: "Scrubbing now." }],
+      }),
+    ]);
+
+    fireEvent.click(getChildItem());
+
+    expect(navigateToMessageMock).toHaveBeenCalledWith("r1");
+  });
+
+  it("moves the roving focus to the activity row when the target is a collapsed tool-only row", () => {
+    const messages = [
+      makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: {} }],
+      }),
+    ];
+    const { rerender } = renderNavigator(messages);
+
+    storeState.targetMessageUuid = "r1";
+    rerender(
+      <MessageNavigator
+        messages={messages}
+        width={280}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />,
+    );
+
+    expect(getHeaderItem()).toHaveAttribute("aria-expanded", "true");
+    expect(getChildItem()).toHaveAttribute("tabindex", "0");
+  });
+
+  it("marks the activity row selected when the target is one of its collapsed rows, as a message row would be", () => {
+    storeState.targetMessageUuid = "r2";
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "text", text: "Scrubbing now." }],
+      }),
+      makeMessage({
+        uuid: "r2",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: {} }],
+      }),
+    ]);
+
+    const activity = getChildItem();
+    expect(activity).toHaveAttribute("aria-selected", "true");
+    expect(activity).toHaveAttribute("aria-current", "true");
+    expect(activity.className).toContain("border-l-accent");
+  });
+
+  it("leaves the activity row unselected when the target is outside it", () => {
+    storeState.targetMessageUuid = "p1";
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Scrub for pii" }),
+      makeMessage({
+        uuid: "r1",
+        type: "assistant",
+        role: "assistant",
+        content: [{ type: "text", text: "Scrubbing now." }],
+      }),
+    ]);
+
+    const activity = getChildItem();
+    expect(activity).toHaveAttribute("aria-selected", "false");
+    expect(activity).not.toHaveAttribute("aria-current");
+    expect(activity.className).not.toContain("border-l-accent");
+  });
+
+  it("marks a task row selected when the target is one of its notification rows", () => {
+    storeState.targetMessageUuid = "a1";
+
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Launch an agent" }),
+      makeMessage({
+        uuid: "a1",
+        content: "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A running</summary></task-notification>",
+      }),
+    ]);
+
+    const task = getChildItem();
+    expect(task).toHaveAttribute("aria-selected", "true");
+    expect(task.className).toContain("border-l-accent");
+  });
+
+  it("labels an activity row with its source row's kind, not 'Reply', when no reply exists and that row has no preview", () => {
+    storeState.targetMessageUuid = "p1";
+
+    // A system record with a subtype but no content survives the empty filter
+    // and classifies as "system" with an empty preview.
+    renderNavigator([
+      makeMessage({ uuid: "p1", content: "Run the build" }),
+      makeMessage({ uuid: "sys1", type: "system", role: "system", subtype: "informational", content: "" }),
+    ]);
+
+    const activity = getChildItem();
+    expect(activity).toHaveTextContent("navigator.kind.system");
+    expect(activity).not.toHaveTextContent("navigator.kind.reply");
+  });
+
   it("shows one task row per task id, with the update count read from a batched notification", () => {
     storeState.targetMessageUuid = "p1"; // auto-opens the turn containing it
 
@@ -220,11 +396,17 @@ describe("MessageNavigator outline mode", () => {
 
     const taskRows = getChildItems();
     expect(taskRows).toHaveLength(2);
-    // task-a's row merges its batch's two blocks into one row, updateCount 2.
+    // task-a's row merges its batch's two blocks into one row, updateCount 2,
+    // and its subtitle appends the task's current status (its last block's,
+    // "completed"), reusing the taskNotification.status.* keys.
     expect(screen.getByText("Task A done")).toBeInTheDocument();
-    expect(screen.getByText("navigator.outline.taskUpdates:2")).toBeInTheDocument();
+    expect(
+      screen.getByText("navigator.outline.taskUpdates:2 · taskNotification.status.completed"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Task B running")).toBeInTheDocument();
-    expect(screen.getByText("navigator.outline.taskUpdates:1")).toBeInTheDocument();
+    expect(
+      screen.getByText("navigator.outline.taskUpdates:1 · taskNotification.status.running"),
+    ).toBeInTheDocument();
   });
 
   it("shows a task failed (destructive) even when a later update for it is non-failed", () => {
@@ -495,9 +677,10 @@ describe("MessageNavigator outline mode", () => {
     expect(screen.queryByRole("button", { name: "navigator.outline.jumpToTurn" })).not.toBeInTheDocument();
 
     // Header size: 34 base + 36 (has a preview) + 22 (replies=2 is a
-    // non-zero count) = 92, occupying [0, 92). Each "message" child is 60
-    // tall: r1 occupies [92, 152). scrollTop=100 lands inside r1's range and
-    // past the header's end, so r1 becomes the first visible row.
+    // non-zero count) = 92, occupying [0, 92). r1 and r2 (both replies) fold
+    // into one 56-tall activity child occupying [92, 148). scrollTop=100
+    // lands inside that range and past the header's end, so the activity
+    // child becomes the first visible row.
     const tree = screen.getByRole("tree");
     tree.scrollTop = 100;
 
@@ -522,8 +705,9 @@ describe("MessageNavigator outline mode", () => {
     fireEvent.click(pinned);
 
     expect(navigateToMessageMock).toHaveBeenCalledWith("p1");
-    // Clicking the overlay never toggles the turn: it is still open.
-    expect(screen.getAllByRole("treeitem")).toHaveLength(3);
+    // Clicking the overlay never toggles the turn: it is still open. Only
+    // one child row (the activity row collapsing r1 and r2) plus the header.
+    expect(screen.getAllByRole("treeitem")).toHaveLength(2);
   });
 
   describe("focus and open turns across navigation", () => {

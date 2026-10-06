@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
 import { getFilteredClassifiedMessages } from "../classifiedRows";
 import { groupTurns } from "./groupTurns";
-import { findTurnKeyForUuid, flattenOutlineRows } from "./flattenOutline";
+import { findTurnKeyForUuid, flattenOutlineRows, rowHoldsUuid } from "./flattenOutline";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
   uuid: "message",
@@ -48,7 +48,8 @@ describe("flattenOutlineRows", () => {
     const turns = buildTurns(sampleMessages);
     const flat = flattenOutlineRows(turns, new Set(["p1"]));
 
-    expect(flat.map((row) => row.key)).toEqual(["p1", "r1", "p2"]);
+    // r1 (a reply) folds into p1's activity child, keyed off the turn.
+    expect(flat.map((row) => row.key)).toEqual(["p1", "p1::activity", "p2"]);
     expect(flat[0]).toMatchObject({ type: "turn", isOpen: true });
     expect(flat[1]).toMatchObject({ type: "child", turnKey: "p1", posInSet: 1, setSize: 1 });
     expect(flat[2]).toMatchObject({ type: "turn", isOpen: false });
@@ -58,7 +59,12 @@ describe("flattenOutlineRows", () => {
     const turns = buildTurns(sampleMessages);
     const flat = flattenOutlineRows(turns, new Set(["p1", "p2"]));
 
-    expect(flat.map((row) => row.key)).toEqual(["p1", "r1", "p2", "r2"]);
+    expect(flat.map((row) => row.key)).toEqual([
+      "p1",
+      "p1::activity",
+      "p2",
+      "p2::activity",
+    ]);
   });
 
   it("returns an empty array for no turns", () => {
@@ -79,5 +85,28 @@ describe("findTurnKeyForUuid", () => {
     const turns = buildTurns(sampleMessages);
     expect(findTurnKeyForUuid(turns, "does-not-exist")).toBeNull();
     expect(findTurnKeyForUuid(turns, null)).toBeNull();
+  });
+});
+
+describe("rowHoldsUuid", () => {
+  it("is true for an activity row when the uuid is one of its collapsed rows", () => {
+    const turns = buildTurns(sampleMessages);
+    const flat = flattenOutlineRows(turns, new Set(["p1"]));
+    const activityRow = flat.find((row) => row.key === "p1::activity");
+    if (!activityRow) throw new Error("expected an activity row");
+
+    // r1 is the single reply collapsed into p1's activity child.
+    expect(rowHoldsUuid(activityRow, "r1")).toBe(true);
+    expect(rowHoldsUuid(activityRow, "does-not-exist")).toBe(false);
+  });
+
+  it("is true for a header row only for its own uuid", () => {
+    const turns = buildTurns(sampleMessages);
+    const flat = flattenOutlineRows(turns, new Set());
+    const header = flat.find((row) => row.key === "p1");
+    if (!header) throw new Error("expected a header row");
+
+    expect(rowHoldsUuid(header, "p1")).toBe(true);
+    expect(rowHoldsUuid(header, "r1")).toBe(false);
   });
 });
