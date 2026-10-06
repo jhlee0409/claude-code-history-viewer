@@ -96,6 +96,10 @@ vi.mock("../layouts/Header/SettingDropdown/FilterMenuGroup", () => ({
   FilterMenuGroup: () => <div data-testid="filter-group" />,
 }));
 
+vi.mock("../layouts/Header/SettingDropdown/ViewMenuGroup", () => ({
+  ViewMenuGroup: () => <div data-testid="view-group" />,
+}));
+
 vi.mock("../layouts/Header/SettingDropdown/FontMenuGroup", () => ({
   FontMenuGroup: () => <div data-testid="font-group" />,
 }));
