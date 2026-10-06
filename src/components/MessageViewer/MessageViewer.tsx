@@ -1286,8 +1286,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         </OverlayScrollbarsComponent>
 
-        {/* Floating scroll buttons — bottom-right of message area */}
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
+        {/* Floating scroll buttons — bottom-right of message area, kept left
+            of the minimap strip when it is shown. */}
+        <div
+          data-testid="message-scroll-buttons"
+          className="absolute bottom-4 right-4 flex flex-col gap-2 z-30"
+          style={isMinimapVisible ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
+        >
           {/* Scroll to top */}
           {showScrollToTop && (
             <button

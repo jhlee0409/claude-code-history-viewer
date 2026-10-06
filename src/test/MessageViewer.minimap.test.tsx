@@ -311,6 +311,20 @@ describe("MessageViewer minimap mount gate", () => {
     expect((wrapper as HTMLElement).style.paddingRight).toBe(`${MINIMAP_WIDTH_PX}px`);
   });
 
+  it("moves the floating scroll buttons left of the strip while it is shown", () => {
+    const { getByTestId } = renderViewer();
+
+    // 16px is the buttons' own right-4 inset, kept beside the strip.
+    expect(getByTestId("message-scroll-buttons").style.right).toBe(`${MINIMAP_WIDTH_PX + 16}px`);
+  });
+
+  it("leaves the floating scroll buttons at their own inset when the strip is off", () => {
+    (storeState as { isMinimapOpen: boolean }).isMinimapOpen = false;
+    const { getByTestId } = renderViewer();
+
+    expect(getByTestId("message-scroll-buttons").style.right).toBe("");
+  });
+
   it("does not mount or pad when the switch is off", () => {
     (storeState as { isMinimapOpen: boolean }).isMinimapOpen = false;
     const { container, queryByTestId } = renderViewer();

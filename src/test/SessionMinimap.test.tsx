@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import type { Virtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { SessionMinimap } from "@/components/MessageViewer/components/SessionMinimap";
-import { minimapScale, scrollTopForStripY, viewportBox } from "@/components/MessageViewer/helpers/minimapLayout";
+import {
+  MINIMAP_BAR_PAD_PX,
+  MINIMAP_TICK_GUTTER_PX,
+  minimapScale,
+  scrollTopForStripY,
+  viewportBox,
+} from "@/components/MessageViewer/helpers/minimapLayout";
 import type { FlattenedMessage, FlattenedMessageItem } from "@/components/MessageViewer/types";
 import type { ClaudeMessage } from "@/types";
 
@@ -49,7 +55,7 @@ const SAMPLE_MEASUREMENTS = [
 ];
 const SAMPLE_TOTAL_SIZE = 300;
 
-const STRIP_WIDTH = 14;
+const STRIP_WIDTH = 48;
 const STRIP_HEIGHT = 200;
 
 /** A fake scroll element: the shape `getScrollElement()` resolves to, plus a way to fire "scroll". */
@@ -134,11 +140,17 @@ function stubComputedStyle() {
 
 function installCanvasContextMock() {
   const ctx = {
-    fillRect: vi.fn(),
+    fillRect: vi.fn((x: number, y: number, w: number, h: number) => {
+      paints.push({ x, y, w, h, alpha: ctx.globalAlpha });
+    }),
     clearRect: vi.fn(),
     setTransform: vi.fn(),
     fillStyle: "",
+    globalAlpha: 1,
   };
+  // Each fillRect with the globalAlpha in force when it ran.
+  const paints: { x: number; y: number; w: number; h: number; alpha: number }[] = [];
+  Object.assign(ctx, { paints });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     ctx as unknown as CanvasRenderingContext2D,
   );
@@ -202,6 +214,81 @@ describe("SessionMinimap", () => {
 
     expect(ctx.fillRect).toHaveBeenCalled();
     expect(ctx.setTransform).toHaveBeenCalled();
+  });
+
+  it("paints every bar from the left pad and leaves the right tick gutter empty", () => {
+    const rafQueue = installControllableRAF();
+    stubComputedStyle();
+    const ctx = installCanvasContextMock() as ReturnType<typeof installCanvasContextMock> & {
+      paints: { x: number; w: number }[];
+    };
+    const scrollEl = makeScrollElement({ scrollHeight: SAMPLE_TOTAL_SIZE });
+
+    render(
+      <SessionMinimap
+        virtualizer={makeVirtualizer()}
+        flattenedMessages={SAMPLE_FLATTENED}
+        virtualRows={[] as VirtualItem[]}
+        totalSize={SAMPLE_TOTAL_SIZE}
+        getScrollElement={() => scrollEl as unknown as HTMLElement}
+      />,
+    );
+    rafQueue.flush();
+
+    expect(ctx.paints.length).toBeGreaterThan(0);
+    for (const paint of ctx.paints) {
+      expect(paint.x).toBe(MINIMAP_BAR_PAD_PX);
+      expect(paint.x + paint.w).toBeLessThanOrEqual(STRIP_WIDTH - MINIMAP_TICK_GUTTER_PX);
+    }
+  });
+
+  it("paints the prompt at full strength and dims the reply and tool rows", () => {
+    const rafQueue = installControllableRAF();
+    stubComputedStyle();
+    const ctx = installCanvasContextMock() as ReturnType<typeof installCanvasContextMock> & {
+      paints: { y: number; alpha: number }[];
+    };
+    const scrollEl = makeScrollElement({ scrollHeight: SAMPLE_TOTAL_SIZE });
+
+    render(
+      <SessionMinimap
+        virtualizer={makeVirtualizer()}
+        flattenedMessages={SAMPLE_FLATTENED}
+        virtualRows={[] as VirtualItem[]}
+        totalSize={SAMPLE_TOTAL_SIZE}
+        getScrollElement={() => scrollEl as unknown as HTMLElement}
+      />,
+    );
+    rafQueue.flush();
+
+    // The three sample rows each cover a third of the 200px strip: prompt, reply, tool.
+    const alphaAt = (y: number) => ctx.paints.find((paint) => paint.y === y)?.alpha;
+    expect(alphaAt(10)).toBe(1);
+    expect(alphaAt(100)).toBeLessThan(1);
+    expect(alphaAt(180)).toBeLessThan(alphaAt(100) ?? 1);
+    // Leaves the context as it found it for anything drawn afterwards.
+    expect(ctx.globalAlpha).toBe(1);
+  });
+
+  it("gives the strip a background and left border, and the viewport box top and bottom edges", () => {
+    installControllableRAF();
+    stubComputedStyle();
+    installCanvasContextMock();
+    const scrollEl = makeScrollElement();
+
+    const { getByTestId } = render(
+      <SessionMinimap
+        virtualizer={makeVirtualizer()}
+        flattenedMessages={SAMPLE_FLATTENED}
+        virtualRows={[] as VirtualItem[]}
+        totalSize={SAMPLE_TOTAL_SIZE}
+        getScrollElement={() => scrollEl as unknown as HTMLElement}
+      />,
+    );
+
+    expect(getByTestId("session-minimap").className).toMatch(/\bborder-l\b/);
+    expect(getByTestId("session-minimap").className).toMatch(/\bbg-/);
+    expect(getByTestId("session-minimap-viewport").className).toMatch(/\bborder-y\b/);
   });
 
   it("is aria-hidden at the root, with no tabbable descendant", () => {

@@ -19,8 +19,9 @@ import { cn } from "@/lib/utils";
 import type { FlattenedMessage } from "../types";
 import { classifyMessage, isFailedTaskStatus, type MessageKind } from "../helpers/messageKinds";
 import {
+  alphaForKind,
   bucketMinimapRows,
-  barWidthForKind,
+  minimapBarRect,
   minimapScale,
   scrollTopForStripY,
   viewportBox,
@@ -29,7 +30,7 @@ import {
 import { kindColorSource, minimapFailedColor } from "../helpers/kindColorSource";
 
 /** The strip's fixed CSS width (Decision 8). The mount site pads the list by the same amount. */
-export const MINIMAP_WIDTH_PX = 14;
+export const MINIMAP_WIDTH_PX = 64;
 
 interface SessionMinimapProps {
   virtualizer: Virtualizer<HTMLElement, Element>;
@@ -139,11 +140,13 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         const color = colorFor(paint.kind, paint.kind === "agent-update" && paint.failed);
         if (!color) continue;
 
-        const width = barWidthForKind(paint.kind) * cssWidth;
+        // Left-aligned at the pad, the right gutter left free (Design §3).
+        const { x, width } = minimapBarRect(paint.kind, cssWidth);
         ctx.fillStyle = color;
-        // Left-padded: the bar hugs the strip's right edge (Design §3).
-        ctx.fillRect(cssWidth - width, y, width, 1);
+        ctx.globalAlpha = alphaForKind(paint.kind);
+        ctx.fillRect(x, y, width, 1);
       }
+      ctx.globalAlpha = 1;
     }, [virtualizer, rows, getContentHeight, getListOffset]);
 
     // The pending frame calls the newest `draw`, so rows that arrive while a
@@ -304,7 +307,9 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         ref={stripRef}
         aria-hidden="true"
         data-testid="session-minimap"
-        className={cn("absolute top-0 right-0 h-full cursor-pointer select-none")}
+        className={cn(
+          "absolute top-0 right-0 h-full cursor-pointer select-none border-l border-border bg-muted/40",
+        )}
         style={{ width: MINIMAP_WIDTH_PX }}
         onClick={handleClick}
         onPointerDown={handlePointerDown}
@@ -316,7 +321,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
         <div
           data-testid="session-minimap-viewport"
-          className="pointer-events-none absolute left-0 right-0 bg-foreground/15"
+          className="pointer-events-none absolute left-0 right-0 border-y border-foreground/30 bg-foreground/[0.12]"
           style={{ top: viewport.top, height: viewport.height }}
         />
       </div>

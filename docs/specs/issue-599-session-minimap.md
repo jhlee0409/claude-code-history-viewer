@@ -186,8 +186,10 @@ The strip mounts as a second sibling inside the wrapper that already holds `Floa
 (`MessageViewer.tsx:1075-1082`), taking all its inputs as props. The mount site decides
 visibility with one hook, `useMinimapVisible()` (the switch, Capture Mode, and the `md`
 breakpoint together), so mounting and padding can never disagree. The wrapper adds right padding
-equal to the strip's width (14px) so the list's content never sits under it. The width is fixed;
-it does not scale with window width. The padding also moves OverlayScrollbars' host, so its
+equal to the strip's width (64px, the prototype's Blocks width) so the list's content never sits
+under it. The width is fixed; it does not scale with window width. The floating scroll-to-top and
+scroll-to-bottom buttons sit at the same wrapper's right edge, so they move left by the strip's
+width while it is shown. The padding also moves OverlayScrollbars' host, so its
 auto-hiding scrollbar shows at the list's own right edge, just left of the strip, with no
 restyling (verified in the browser; see Risks).
 
@@ -205,8 +207,13 @@ measurement, `y0 = floor(start * scale)`,
 `y1 = ceil((start + size) * scale)`, forcing `y1 >= y0 + 2` for `prompt` rows so a one-line
 prompt never disappears; walk a `winner: Paint | null` array sized to the strip's pixel height,
 keeping the existing winner unless a new row's priority is higher (§4); paint each winning pixel
-row, left-padded, at a width proportional to that kind's visual weight, mirroring the prototype's
-`PAINT` table (paint priority and widths).
+row as a bar that starts 5px from the strip's left edge and is `max(3, barW * weight)` wide.
+`barW` is the strip width less 5px on each side and a 7px right gutter kept free for PR 2's
+search ticks. The weights are the prototype's `PAINT` widths (prompt 1, summary 0.9, agent update
+0.8, reply and command 0.7, tool 0.5, context and system 0.4). The prototype paints replies and
+tool calls in dim colors, so the painter lowers `globalAlpha` for them: reply 0.55, tool 0.3,
+context and system 0.25. Prompts, commands, agent updates, and summaries paint at full strength.
+The strip has its own background (`bg-muted/40`) and a 1px left border, as the prototype's does.
 
 Canvas backing size is `round(cssSize * devicePixelRatio)`, with
 `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` before drawing, as the prototype's `draw()` does.
@@ -319,7 +326,9 @@ spec keeps the seam open; it does not design that mode.
 ### 6. Viewport box and interaction
 
 An absolutely positioned `<div>` over the canvas, not drawn on it, so a CSS transition on `top`
-needs no redraw: `top = scrollTop * scale`, `height = max(6, clientHeight * scale)`, read on
+needs no redraw. Like the prototype's `.vp`, it has a 12 percent foreground fill and 1px top and
+bottom edges at 30 percent; without the edges it is nearly invisible in the light theme.
+Position: `top = scrollTop * scale`, `height = max(6, clientHeight * scale)`, read on
 every `scroll` event, as the prototype's `updateViewport()` does. **Click** centers the list on
 the clicked point, `scrollTop = clickY / scale - clientHeight / 2`, as the prototype's
 `scrubTo()` does. **Drag**: `pointerdown` calls `setPointerCapture`, then every `pointermove`
@@ -557,8 +566,11 @@ considered, so a reviewer can tell what was weighed.
    `oklch()` support once per theme change and fall back to a hand-kept sRGB table. Rejected
    because the whole theme already depends on `oklch()`, so the gap is theme-wide; the PR notes
    carry one optional line for the maintainer instead (Design §5).
-8. **The strip has a fixed width.** *Alternative:* scale it slightly with window width. Rejected
-   as unneeded for a strip about 14px wide.
+8. **The strip is 64px wide, fixed.** That is the prototype's Blocks width, which the maintainer
+   was shown on #599. *Alternatives:* 14px (the first build), 32px, or 48px. The first build used
+   14px with no source for it; at that width the prototype's pad and gutter leave no room for
+   bars. The user chose 64px from rendered 32, 48, and 64px options on 2026-10-06. Scaling with
+   window width was also rejected, as unneeded.
 
 ## Risks
 
@@ -587,6 +599,26 @@ considered, so a reviewer can tell what was weighed.
   already be broken there too, since the theme is `oklch()` throughout. By decision 7 the PR
   builds no fallback and flags the gap to the maintainer instead. Not measured against a real
   old-macOS build.
+
+## Revision after the screenshot review (2026-10-06)
+
+Screenshots of the first build, taken from a fictional demo session, were compared with the
+prototype the maintainer saw on #599. The build departed from it in five ways, and all five are
+fixed in one commit:
+
+1. Bars hugged the strip's right edge. The prototype draws them from a left pad, and §3 already
+   said to mirror it. They now start 5px from the left and leave a 7px right gutter.
+2. The viewport box had a fill but no edges, so it was nearly invisible in the light theme. It
+   now has the prototype's top and bottom edges (§6).
+3. The strip had no background or border, so it read as a colored border on the list. It now
+   has both (§3).
+4. Replies painted as brightly as agent updates. They now paint at reduced strength, as do tool
+   calls and injected rows, so prompts, agent updates, and failures stand out (§3).
+5. The strip was 14px wide, with no source for that number. It is now 64px (Decision 8).
+
+The wider strip also exposed an older overlap. The floating scroll buttons sit 16px from the
+wrapper's right edge, so any strip wider than 16px sat under them. They now move left by the
+strip's width while it is shown (§2).
 
 ## Open questions
 

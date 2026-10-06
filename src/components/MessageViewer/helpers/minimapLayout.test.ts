@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  alphaForKind,
   bucketMinimapRows,
+  minimapBarRect,
+  MINIMAP_BAR_PAD_PX,
+  MINIMAP_TICK_GUTTER_PX,
   minimapScale,
   priorityForKind,
   scrollTopForStripY,
@@ -158,6 +162,59 @@ describe("priorityForKind (Design §4 table)", () => {
     expect(priorityForKind("reply")).toBeGreaterThan(priorityForKind("tool"));
     expect(priorityForKind("tool")).toBeGreaterThan(priorityForKind("context"));
     expect(priorityForKind("context")).toBeGreaterThan(priorityForKind("system"));
+  });
+});
+
+const ALL_KINDS: MessageKind[] = [
+  "prompt", "command", "agent-update", "summary", "reply", "tool", "context", "system",
+];
+
+describe("minimapBarRect (the prototype's bar geometry)", () => {
+  // The prototype draws every bar from a 5px left pad and keeps a 7px gutter
+  // on the right for PR 2's search ticks: barW = W - pad * 2 - gutter.
+  const fullBar = (width: number) => width - MINIMAP_BAR_PAD_PX * 2 - MINIMAP_TICK_GUTTER_PX;
+
+  it("starts every bar at the left pad, not at the right edge", () => {
+    for (const kind of ALL_KINDS) {
+      expect(minimapBarRect(kind, 48).x).toBe(MINIMAP_BAR_PAD_PX);
+    }
+  });
+
+  it("gives a prompt the full bar width and scales other kinds by the prototype's weights", () => {
+    expect(minimapBarRect("prompt", 48).width).toBe(fullBar(48));
+    expect(minimapBarRect("reply", 48).width).toBeCloseTo(fullBar(48) * 0.7);
+    expect(minimapBarRect("tool", 48).width).toBeCloseTo(fullBar(48) * 0.5);
+    expect(minimapBarRect("agent-update", 64).width).toBeCloseTo(fullBar(64) * 0.8);
+  });
+
+  it("never paints into the right gutter reserved for search ticks", () => {
+    for (const width of [32, 48, 64]) {
+      for (const kind of ALL_KINDS) {
+        const rect = minimapBarRect(kind, width);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(width - MINIMAP_TICK_GUTTER_PX);
+      }
+    }
+  });
+
+  it("keeps every bar at least 3px wide, as the prototype does", () => {
+    for (const kind of ALL_KINDS) {
+      expect(minimapBarRect(kind, 24).width).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe("alphaForKind (the prototype's visual weight)", () => {
+  it("paints prompts, commands, agent updates, and summaries at full strength", () => {
+    for (const kind of ["prompt", "command", "agent-update", "summary"] as MessageKind[]) {
+      expect(alphaForKind(kind)).toBe(1);
+    }
+  });
+
+  it("dims replies, and dims tool calls and injected rows further, so they recede", () => {
+    expect(alphaForKind("reply")).toBeLessThan(1);
+    expect(alphaForKind("tool")).toBeLessThan(alphaForKind("reply"));
+    expect(alphaForKind("context")).toBeLessThanOrEqual(alphaForKind("tool"));
+    expect(alphaForKind("system")).toBeLessThanOrEqual(alphaForKind("tool"));
   });
 });
 

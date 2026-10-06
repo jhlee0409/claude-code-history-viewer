@@ -25,24 +25,67 @@ export function priorityForKind(kind: MessageKind): number {
 }
 
 /**
- * Bar width per kind as a fraction of the strip width (Design §3, "a width
- * proportional to that kind's visual weight"), prompt widest. The painter
- * multiplies this by the strip's CSS width to get a pixel width.
+ * Bar width per kind as a fraction of the full bar (Design §3, "a width
+ * proportional to that kind's visual weight"). These are the prototype's
+ * `PAINT` weights, mapped onto the real kinds: prompt widest, tool calls and
+ * injected rows narrowest.
  */
 export const MINIMAP_KIND_BAR_WIDTH: Record<MessageKind, number> = {
   prompt: 1,
-  command: 0.85,
-  "agent-update": 0.7,
-  summary: 0.55,
-  reply: 0.55,
-  tool: 0.4,
-  context: 0.3,
-  system: 0.3,
+  command: 0.7,
+  "agent-update": 0.8,
+  summary: 0.9,
+  reply: 0.7,
+  tool: 0.5,
+  context: 0.4,
+  system: 0.4,
 };
 
-/** Bar width fraction for a kind, per Design §3. */
-export function barWidthForKind(kind: MessageKind): number {
-  return MINIMAP_KIND_BAR_WIDTH[kind];
+/**
+ * Paint strength per kind (Design §3). The prototype paints replies and tool
+ * calls in dim colors so prompts and agent updates stand out; the painter
+ * gets the same effect from the theme's own tokens by lowering
+ * `globalAlpha` over the strip's background.
+ */
+export const MINIMAP_KIND_ALPHA: Record<MessageKind, number> = {
+  prompt: 1,
+  command: 1,
+  "agent-update": 1,
+  summary: 1,
+  reply: 0.55,
+  tool: 0.3,
+  context: 0.25,
+  system: 0.25,
+};
+
+/** Paint strength for a kind, per Design §3. */
+export function alphaForKind(kind: MessageKind): number {
+  return MINIMAP_KIND_ALPHA[kind];
+}
+
+/** Every bar starts this far from the strip's left edge, as in the prototype. */
+export const MINIMAP_BAR_PAD_PX = 5;
+
+/** Kept empty on the strip's right for PR 2's search ticks (prototype: a 5px ruler plus 2px). */
+export const MINIMAP_TICK_GUTTER_PX = 7;
+
+/** The prototype never paints a bar narrower than this. */
+const MIN_BAR_WIDTH_PX = 3;
+
+/**
+ * Where one pixel row's bar goes, per the prototype's `draw()`: left-aligned
+ * at the pad, `max(3, barW * weight)` wide, where `barW` is the strip width
+ * less the pad on both sides and the tick gutter.
+ */
+export function minimapBarRect(kind: MessageKind, stripWidth: number): { x: number; width: number } {
+  const fullBar = Math.max(
+    MIN_BAR_WIDTH_PX,
+    stripWidth - MINIMAP_BAR_PAD_PX * 2 - MINIMAP_TICK_GUTTER_PX,
+  );
+  return {
+    x: MINIMAP_BAR_PAD_PX,
+    width: Math.max(MIN_BAR_WIDTH_PX, fullBar * MINIMAP_KIND_BAR_WIDTH[kind]),
+  };
 }
 
 /**
