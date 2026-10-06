@@ -194,6 +194,9 @@ export interface AppStoreState {
   // Navigator state
   isNavigatorOpen: boolean;
 
+  // Minimap state
+  isMinimapOpen: boolean;
+
   // Recent Edits panel state
   recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
   recentEditsDensityPage: import('./recentEditsPanelSlice').RecentEditsDensity;
@@ -404,6 +407,10 @@ export interface AppStoreActions {
   // Navigator actions
   toggleNavigator: () => void;
   setNavigatorOpen: (open: boolean) => void;
+
+  // Minimap actions
+  toggleMinimap: () => void;
+  setMinimapOpen: (open: boolean) => void;
 
   // Recent Edits panel actions
   setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
