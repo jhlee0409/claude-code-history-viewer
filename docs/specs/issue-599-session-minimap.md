@@ -183,17 +183,25 @@ without jsdom's canvas gap.
 ### 2. Mount point
 
 The strip mounts as a second sibling inside the wrapper that already holds `FloatingDateOverlay`
-(`MessageViewer.tsx:1075-1082`), taking its inputs as props except for `isMinimapOpen`. The
-wrapper adds right padding equal to the strip's width (about 14px) so the list's content never
-sits under it. The width is fixed; it does not scale with window width. OverlayScrollbars' own scrollbar auto-hides on its own track at the right edge;
-the strip sits to its left, inside the padded gap. Whether this needs restyling of the
-OverlayScrollbars track is unverified; see Open questions.
+(`MessageViewer.tsx:1075-1082`), taking all its inputs as props. The mount site decides
+visibility with one hook, `useMinimapVisible()` (the switch, Capture Mode, and the `md`
+breakpoint together), so mounting and padding can never disagree. The wrapper adds right padding
+equal to the strip's width (14px) so the list's content never sits under it. The width is fixed;
+it does not scale with window width. The padding also moves OverlayScrollbars' host, so its
+auto-hiding scrollbar shows at the list's own right edge, just left of the strip, with no
+restyling (verified in the browser; see Risks).
 
 ### 3. Drawing
 
 A single `<canvas>`, not one DOM node per row, since a long session holds thousands of rows,
-most thinner than one pixel. Per redraw: read `measurementsCache` and `getTotalSize()`; compute
-`scale = stripHeightPx / totalSize`; for each measurement, `y0 = floor(start * scale)`,
+most thinner than one pixel. Per redraw: read `measurementsCache` (after `getTotalSize()`, which
+refreshes it); compute `scale = stripHeightPx / contentHeight`, where `contentHeight` is the scroll
+element's `scrollHeight`. Measurements start after the list header (the virtualizer's
+`scrollMargin`), but `getTotalSize()` leaves that margin out, so only the scroll content's own
+height puts the blocks, the viewport box, and clicks on one scale. Each `start` is also shifted by
+the list's measured offset below `scrollMargin`, for anything else rendered above the list inside
+the scroll container (the dev-only debug panel, the "no search results" notice). For each
+measurement, `y0 = floor(start * scale)`,
 `y1 = ceil((start + size) * scale)`, forcing `y1 >= y0 + 2` for `prompt` rows so a one-line
 prompt never disappears; walk a `winner: Paint | null` array sized to the strip's pixel height,
 keeping the existing winner unless a new row's priority is higher (§4); paint each winning pixel
@@ -469,8 +477,8 @@ day for review. Judgment by analogy, not a measurement.
 
 1. With `isMinimapOpen` true, not in Capture Mode, viewport at or above `md`, a canvas strip
    renders beside the list with no overlap with its content or the OverlayScrollbars track.
-2. The strip's total block height equals its own height, scaled from `getTotalSize()`, regardless
-   of session length.
+2. The strip's total block height equals its own height, scaled from the scroll content's height
+   (`scrollHeight`), regardless of session length.
 3. A row classified `prompt` is visible as at least a 2px block even when the average row is
    under 1px tall.
 4. When two rows share an output pixel, the one with the higher Design §4 priority wins.
@@ -558,12 +566,17 @@ considered, so a reviewer can tell what was weighed.
   moves the per-kind style table out of `NavigatorEntry.tsx` into a new
   `MessageNavigator/kindStyles.ts`, and it adds lines to `MessageViewer.tsx` and
   `messageKinds.ts`. Whichever PR merges second rebases; the overlap is small and mechanical.
-- OverlayScrollbars' auto-hiding track might need restyling to leave clean room for the strip.
-  Unverified; an earlier feasibility estimate flagged the same open question.
-- Blocks shift slightly as estimated row heights become measured heights while scrolling.
-  Expected small (**inferred**, not measured), since `heightEstimation.ts`'s estimates are tuned
-  per row type. `measurementsCache` read every animation frame is likewise assumed cheap for a
-  few thousand rows, not measured; see Performance budget.
+- OverlayScrollbars' track: resolved in the browser check. The list's padding moves the
+  scrollbar host's right edge to the strip's left edge, so the scrollbar shows inside the list
+  area, just left of the strip, with no overlap and no restyling.
+- **Row-height estimates can be far off until rows are measured** (measured, not inferred as the
+  draft assumed). On one long session, rendering an unvisited region shrank the loaded window
+  from 17,406 px to 13,764 px. The strip writes the right `scrollTop` for a click (verified to the
+  pixel), but the virtualizer then re-anchors as rows measure, and the strip re-lays itself out:
+  a click at 30 percent settled with the box at 11 percent in a fresh window, and at 24 percent
+  in a mostly measured one. Better estimates in `heightEstimation.ts` would shrink this; that is
+  outside this PR. `measurementsCache` read every animation frame is assumed cheap for a few
+  thousand rows, not measured; see Performance budget.
 - A mocked 2D canvas context is new test infrastructure. If it proves brittle against this
   repo's pinned Vitest/jsdom versions, more drawing logic may need to move into the pure layout
   helper to keep coverage meaningful.
@@ -577,10 +590,10 @@ considered, so a reviewer can tell what was weighed.
 
 ## Open questions
 
-1. Does OverlayScrollbars' auto-hiding scrollbar leave clean room for the strip without
-   restyling, or does its track need to hide while the strip is open?
-2. For the maintainer: is Cmd/Ctrl+Shift+F an acceptable shortcut, or is Cmd/Ctrl+Shift+X or
+1. For the maintainer: is Cmd/Ctrl+Shift+F an acceptable shortcut, or is Cmd/Ctrl+Shift+X or
    another one preferred? Firefox's own support page could not be fetched to confirm either
    letter is free there; a maintainer with a Firefox install can check this in under a minute.
 
-Resolved on 2026-10-05: the strip's width is fixed (decision 8).
+Resolved on 2026-10-05: the strip's width is fixed (decision 8). The OverlayScrollbars track
+needs no restyling; the browser check showed the scrollbar inside the list area, left of the
+strip (Risks).
