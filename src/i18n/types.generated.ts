@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-04T22:16:15.784Z
- * 총 키 개수: 1987
+ * 생성 시간: 2026-10-05T21:50:57.819Z
+ * 총 키 개수: 2006
  * Namespace 수: 11
  */
 
@@ -1390,7 +1390,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (106개)
+ * message namespace의 번역 키 (125개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1495,11 +1495,30 @@ export type MessageKeys =
   | 'navigator.kind.tool'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.outline.agentUpdates_one'
+  | 'navigator.outline.agentUpdates_other'
+  | 'navigator.outline.agentsStarted_one'
+  | 'navigator.outline.agentsStarted_other'
+  | 'navigator.outline.beforeFirstPrompt'
+  | 'navigator.outline.closeAllTurns'
+  | 'navigator.outline.earlierNotLoaded'
+  | 'navigator.outline.jumpToTurn'
+  | 'navigator.outline.replies_one'
+  | 'navigator.outline.replies_other'
+  | 'navigator.outline.taskUnnamed'
+  | 'navigator.outline.taskUpdates_one'
+  | 'navigator.outline.taskUpdates_other'
+  | 'navigator.outline.toolCalls_one'
+  | 'navigator.outline.toolCalls_other'
+  | 'navigator.outline.turnLabel'
+  | 'navigator.outline.turnLabelLoaded'
   | 'navigator.promptJumpHint'
   | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
-  | 'navigator.userOnly';
+  | 'navigator.userOnly'
+  | 'navigator.viewMode.outline'
+  | 'navigator.viewMode.toggle';
 
 /**
  * renderers namespace의 번역 키 (393개)
@@ -2883,11 +2902,30 @@ export type TranslationKey =
   | 'navigator.kind.tool'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.outline.agentUpdates_one'
+  | 'navigator.outline.agentUpdates_other'
+  | 'navigator.outline.agentsStarted_one'
+  | 'navigator.outline.agentsStarted_other'
+  | 'navigator.outline.beforeFirstPrompt'
+  | 'navigator.outline.closeAllTurns'
+  | 'navigator.outline.earlierNotLoaded'
+  | 'navigator.outline.jumpToTurn'
+  | 'navigator.outline.replies_one'
+  | 'navigator.outline.replies_other'
+  | 'navigator.outline.taskUnnamed'
+  | 'navigator.outline.taskUpdates_one'
+  | 'navigator.outline.taskUpdates_other'
+  | 'navigator.outline.toolCalls_one'
+  | 'navigator.outline.toolCalls_other'
+  | 'navigator.outline.turnLabel'
+  | 'navigator.outline.turnLabelLoaded'
   | 'navigator.promptJumpHint'
   | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'
+  | 'navigator.viewMode.outline'
+  | 'navigator.viewMode.toggle'
   | 'progressRenderer.status.completed'
   | 'progressRenderer.status.error'
   | 'progressRenderer.status.running'

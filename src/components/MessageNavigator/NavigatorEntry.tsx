@@ -1,19 +1,11 @@
 import React, { useCallback } from "react";
-import {
-  BookOpen,
-  Bot,
-  Info,
-  ScrollText,
-  SquareSlash,
-  User,
-  Wrench,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
+import { Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { isFailedTaskStatus, type MessageKind } from "../MessageViewer/helpers/messageKinds";
+import { isFailedTaskStatus } from "../MessageViewer/helpers/messageKinds";
 import { getKindLabelKey } from "./kindLabels";
+import { KIND_STYLES } from "./kindStyles";
+import { OUTLINE_CHILD_INDENT_CLASS } from "./outline/childRowStyles";
 import type { NavigatorEntryData } from "./types";
 
 interface NavigatorEntryProps {
@@ -25,26 +17,14 @@ interface NavigatorEntryProps {
   onNavigate: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
   registerRef: (element: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
+  /** Tree semantics for the outline; list mode omits these and keeps today's "option" role. */
+  itemRole?: "option" | "treeitem";
+  ariaLevel?: number;
+  ariaPosInSet?: number;
+  ariaSetSize?: number;
+  /** The outline's virtualizer reads this via `measureElement`'s `indexFromElement`; list mode omits it (no dynamic remeasurement there). */
+  dataIndex?: number;
 }
-
-interface KindStyle {
-  icon: LucideIcon;
-  /** Icon color */
-  iconClass: string;
-  /** Preview text weight; typed prompts read strongest, injected rows weakest */
-  textClass: string;
-}
-
-const KIND_STYLES: Record<MessageKind, KindStyle> = {
-  prompt: { icon: User, iconClass: "text-info", textClass: "text-foreground font-medium" },
-  command: { icon: SquareSlash, iconClass: "text-info", textClass: "text-foreground/80 font-mono" },
-  "agent-update": { icon: Zap, iconClass: "text-tool-task", textClass: "text-foreground/80" },
-  context: { icon: BookOpen, iconClass: "text-muted-foreground", textClass: "text-muted-foreground italic" },
-  reply: { icon: Bot, iconClass: "text-warning", textClass: "text-foreground/80" },
-  tool: { icon: Wrench, iconClass: "text-muted-foreground", textClass: "text-muted-foreground" },
-  system: { icon: Info, iconClass: "text-muted-foreground", textClass: "text-muted-foreground" },
-  summary: { icon: ScrollText, iconClass: "text-tool-mcp", textClass: "text-foreground/80" },
-};
 
 export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   entry,
@@ -55,6 +35,11 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   onNavigate,
   registerRef,
   style,
+  itemRole = "option",
+  ariaLevel,
+  ariaPosInSet,
+  ariaSetSize,
+  dataIndex,
 }) => {
   const { t } = useTranslation();
   const handleClick = useCallback(() => onClick(entry.uuid), [onClick, entry.uuid]);
@@ -63,6 +48,10 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   const KindIcon = kindStyle.icon;
   const kindLabel = t(getKindLabelKey(entry.kind));
   const isFailed = isFailedTaskStatus(entry.status);
+  // Only the outline's level-2 children get the shared rail (Design,
+  // "Indent every child under a rail"); list mode's "option" rows are
+  // unaffected (spec acceptance 15: the accessibility test stays unchanged).
+  const isOutlineChild = itemRole === "treeitem" && ariaLevel === 2;
 
   const formattedTime = entry.timestamp
     ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -72,9 +61,11 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
     <button
       type="button"
       ref={registerRef}
+      data-index={dataIndex}
       tabIndex={isFocused ? 0 : -1}
       className={cn(
-        "w-full text-left px-3 py-2 cursor-pointer border-l-2 transition-colors outline-none",
+        "w-full text-left py-2 cursor-pointer border-l-2 transition-colors outline-none",
+        isOutlineChild ? OUTLINE_CHILD_INDENT_CLASS : "px-3",
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
         "hover:bg-accent/10",
         isActive
@@ -85,9 +76,12 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       onClick={handleClick}
       onFocus={onFocus}
       onKeyDown={onNavigate}
-      role="option"
+      role={itemRole}
       aria-selected={isActive}
       aria-current={isActive ? "true" : undefined}
+      aria-level={ariaLevel}
+      aria-posinset={ariaPosInSet}
+      aria-setsize={ariaSetSize}
       aria-label={t("navigator.a11y.entryLabel", {
         role: kindLabel,
         turnIndex: entry.turnIndex,

@@ -24,6 +24,7 @@ import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
 import { usePromptJump } from "./hooks/usePromptJump";
+import { useVisibleMessageTracking } from "./hooks/useVisibleMessageTracking";
 import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
@@ -184,6 +185,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const loadMoreMessages = useAppStore((s) => s.loadMoreMessages);
   const ensureMessageLoaded = useAppStore((s) => s.ensureMessageLoaded);
   const fetchFullSessionMessages = useAppStore((s) => s.fetchFullSessionMessages);
+  // Selectors, not a destructured useAppStore() call, so existing test
+  // mocks that don't stub these two fields keep working unaffected.
+  const navigatorViewMode = useAppStore((s) => s.navigatorViewMode);
+  const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
 
   // Export must cover the COMPLETE session even when only a window is
   // loaded — fetch the full message list and apply the same display filter.
@@ -414,6 +419,19 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollElement,
     targetMessageUuid,
     navigateToMessage,
+  });
+
+  // Reports the first visible message row to the Messages panel's outline
+  // mode, which highlights the turn containing it (Design, "Highlighting
+  // the turn in view"). Gated on outline mode, not `isNavigatorOpen` (that
+  // flag never describes the narrow-screen sheet).
+  useVisibleMessageTracking({
+    enabled: navigatorViewMode === "outline",
+    scrollElementReady,
+    virtualizer,
+    flattenedMessages,
+    getScrollElement,
+    setVisibleMessageUuid,
   });
 
   // Set of selected message UUIDs for O(1) lookup
