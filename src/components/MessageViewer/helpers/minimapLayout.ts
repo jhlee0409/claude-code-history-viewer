@@ -80,10 +80,12 @@ export interface BucketMinimapRowsArgs {
   measurements: readonly MinimapMeasurement[];
   /** Same index alignment as `measurements`. */
   rows: readonly MinimapRow[];
-  /** `virtualizer.getTotalSize()`. */
+  /** The height the strip maps onto: the scroll content's height. */
   totalSize: number;
   /** The strip's height in CSS pixels; also the length of the returned array. */
   stripHeight: number;
+  /** Added to every `start`, for content rendered above the list that the measurements leave out. */
+  offset?: number;
   /** Injectable so an alternate color source (Design §5) can reorder without touching this function. */
   priorityForKind?: (kind: MessageKind) => number;
 }
@@ -98,7 +100,14 @@ export interface BucketMinimapRowsArgs {
  * pixel a real row could use.
  */
 export function bucketMinimapRows(args: BucketMinimapRowsArgs): (MinimapPaint | null)[] {
-  const { measurements, rows, totalSize, stripHeight, priorityForKind: priorityFn = priorityForKind } = args;
+  const {
+    measurements,
+    rows,
+    totalSize,
+    stripHeight,
+    offset = 0,
+    priorityForKind: priorityFn = priorityForKind,
+  } = args;
 
   const height = Math.max(0, Math.floor(stripHeight));
   const winners: (MinimapPaint | null)[] = new Array(height).fill(null);
@@ -118,12 +127,15 @@ export function bucketMinimapRows(args: BucketMinimapRowsArgs): (MinimapPaint | 
 
     const priority = priorityFn(kind);
 
-    let y0 = Math.floor(measurement.start * scale);
-    let y1 = Math.ceil((measurement.start + measurement.size) * scale);
+    const start = measurement.start + offset;
+    let y0 = Math.floor(start * scale);
+    let y1 = Math.ceil((start + measurement.size) * scale);
     if (kind === "prompt") y1 = Math.max(y1, y0 + 2);
 
-    y0 = Math.max(0, y0);
     y1 = Math.min(height, y1);
+    // At the strip's end the minimum grows upward instead of being clipped.
+    if (kind === "prompt") y0 = Math.min(y0, y1 - 2);
+    y0 = Math.max(0, y0);
 
     for (let y = y0; y < y1; y++) {
       const existingPriority = winnerPriority[y] ?? -Infinity;

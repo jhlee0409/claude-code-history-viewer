@@ -79,6 +79,31 @@ describe("bucketMinimapRows", () => {
     expect(promptPixels).toBeGreaterThanOrEqual(2);
   });
 
+  it("keeps the prompt 2px minimum on the strip's last pixel row", () => {
+    // The last row's natural span is the final pixel; the minimum must grow
+    // upward, since growing downward would be clipped by the strip's end.
+    const measurements = Array.from({ length: 1000 }, (_, i) => measurement(i, 1));
+    const rows: MinimapRow[] = measurements.map((_, i) => kindRow(i === 999 ? "prompt" : null));
+    const winners = bucketMinimapRows({ measurements, rows, totalSize: 1000, stripHeight: 100 });
+    expect(winners.filter((w) => w?.kind === "prompt")).toHaveLength(2);
+    expect(winners[99]?.kind).toBe("prompt");
+  });
+
+  it("shifts every row down by `offset`, for content rendered above the list", () => {
+    const measurements = [measurement(0, 10)];
+    const winners = bucketMinimapRows({
+      measurements,
+      rows: [kindRow("reply")],
+      totalSize: 100,
+      stripHeight: 100,
+      offset: 50,
+    });
+    expect(winners[49]).toBeNull();
+    expect(winners[50]?.kind).toBe("reply");
+    expect(winners[59]?.kind).toBe("reply");
+    expect(winners[60]).toBeNull();
+  });
+
   it("paints nothing for null rows (date dividers, hidden placeholders)", () => {
     const measurements = [measurement(0, 10)];
     const rows: MinimapRow[] = [{ kind: null, failed: false }];

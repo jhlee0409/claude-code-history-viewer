@@ -72,6 +72,20 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
       return (virtualizer.options?.scrollMargin ?? 0) + virtualizer.getTotalSize();
     }, [getScrollElement, virtualizer]);
 
+    // How far below `scrollMargin` the list really starts. The measurements
+    // assume the list begins right after the header, but anything else
+    // rendered above it inside the scroll container (the dev-only debug
+    // panel, the "no search results" notice) pushes it further down. Read
+    // from the list element itself, the parent of any rendered row.
+    const getListOffset = useCallback(() => {
+      const scrollEl = getScrollElement();
+      const list = scrollEl?.querySelector<HTMLElement>("[data-index]")?.parentElement;
+      if (!scrollEl || !list) return 0;
+      const listTop =
+        list.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+      return listTop - (virtualizer.options?.scrollMargin ?? 0);
+    }, [getScrollElement, virtualizer]);
+
     const draw = useCallback(() => {
       const strip = stripRef.current;
       const canvas = canvasRef.current;
@@ -104,6 +118,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         rows,
         totalSize: getContentHeight(),
         stripHeight: cssHeight,
+        offset: getListOffset(),
       });
 
       // Colors are read fresh on every draw (Decision 4), but only once per
@@ -129,7 +144,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         // Left-padded: the bar hugs the strip's right edge (Design §3).
         ctx.fillRect(cssWidth - width, y, width, 1);
       }
-    }, [virtualizer, rows, getContentHeight]);
+    }, [virtualizer, rows, getContentHeight, getListOffset]);
 
     // The pending frame calls the newest `draw`, so rows that arrive while a
     // frame is already pending are the ones it paints.

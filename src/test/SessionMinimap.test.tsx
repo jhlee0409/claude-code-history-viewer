@@ -53,12 +53,22 @@ const STRIP_WIDTH = 14;
 const STRIP_HEIGHT = 200;
 
 /** A fake scroll element: the shape `getScrollElement()` resolves to, plus a way to fire "scroll". */
-function makeScrollElement(overrides: { scrollTop?: number; clientHeight?: number; scrollHeight?: number } = {}) {
+function makeScrollElement(
+  overrides: { scrollTop?: number; clientHeight?: number; scrollHeight?: number; listTop?: number } = {},
+) {
   const listeners = new Set<EventListener>();
+  // A rendered row whose parent is the virtual list, `listTop` px below the
+  // scroll content's top; omitted, no row is rendered.
+  const row =
+    overrides.listTop === undefined
+      ? null
+      : { parentElement: { getBoundingClientRect: () => ({ top: overrides.listTop }) } };
   const el = {
     scrollTop: overrides.scrollTop ?? 0,
     clientHeight: overrides.clientHeight ?? 400,
     scrollHeight: overrides.scrollHeight ?? 4000,
+    getBoundingClientRect: () => ({ top: 0 }),
+    querySelector: vi.fn(() => row),
     addEventListener: vi.fn((type: string, cb: EventListener) => {
       if (type === "scroll") listeners.add(cb);
     }),
@@ -370,6 +380,30 @@ describe("SessionMinimap", () => {
     const viewport = getByTestId("session-minimap-viewport");
     const bottom = parseFloat(viewport.style.top) + parseFloat(viewport.style.height);
     expect(bottom).toBeCloseTo(STRIP_HEIGHT, 5);
+  });
+
+  it("shifts the blocks down when content above the list is not in the scroll margin", () => {
+    // A dev-only debug panel (or a "no results" notice) sits above the list
+    // inside the scroll container; the measurements still start at 0.
+    const rafQueue = installControllableRAF();
+    stubComputedStyle();
+    const ctx = installCanvasContextMock();
+    const scrollEl = makeScrollElement({ scrollTop: 0, clientHeight: 400, scrollHeight: 400, listTop: 100 });
+
+    render(
+      <SessionMinimap
+        virtualizer={makeVirtualizer()}
+        flattenedMessages={SAMPLE_FLATTENED}
+        virtualRows={[] as VirtualItem[]}
+        totalSize={SAMPLE_TOTAL_SIZE}
+        getScrollElement={() => scrollEl as unknown as HTMLElement}
+      />,
+    );
+    rafQueue.flush();
+
+    // 100 px above the list on a 400 px content mapped to 200 px: rows start at y=50.
+    const ys = ctx.fillRect.mock.calls.map((call) => call[1] as number);
+    expect(Math.min(...ys)).toBe(50);
   });
 
   it("paints the newest rows even when a frame was already pending", () => {
