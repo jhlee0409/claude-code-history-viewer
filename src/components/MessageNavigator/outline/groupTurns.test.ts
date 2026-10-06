@@ -212,6 +212,26 @@ describe("groupTurns", () => {
     expect(task.timestamp).toBe("2026-09-26T06:29:32.477Z");
   });
 
+  it("lists each row once in a task's uuids, even when one row holds several of its blocks", () => {
+    const groups = groupTurns(rows([
+      makeMessage({ uuid: "p1", content: "Launch an agent" }),
+      makeMessage({
+        uuid: "a1",
+        content:
+          "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
+      }),
+      makeMessage({
+        uuid: "a2",
+        content: "<task-notification><task-id>task-a</task-id><status>completed</status></task-notification>",
+      }),
+    ]));
+
+    const task = groups[0].children[0] as OutlineTaskChild;
+    expect(task.updateCount).toBe(3);
+    expect(task.uuids).toEqual(["a1", "a2"]);
+  });
+
   it("keeps a task's status failed even when a later block reports a different non-failed status", () => {
     const groups = groupTurns(rows([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),

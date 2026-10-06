@@ -46,6 +46,9 @@ function computeCounts(turnRows: ClassifiedRow[]): TurnCounts {
 function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChildRow[] {
   const children: OutlineChildRow[] = [];
   const indexByMergeKey = new Map<string, number>();
+  // Each task row's uuids as a set, so collecting them stays linear when one
+  // task posts many updates.
+  const uuidSetByIndex = new Map<number, Set<string>>();
 
   for (const row of childRows) {
     if (row.info.kind !== "agent-update") {
@@ -75,6 +78,7 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
           timestamp: row.entry.timestamp,
         };
         indexByMergeKey.set(mergeKey, children.length);
+        uuidSetByIndex.set(children.length, new Set(task.uuids));
         children.push(task);
         return;
       }
@@ -93,7 +97,11 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
         }
       }
       existing.navigateUuid = row.entry.uuid;
-      if (!existing.uuids.includes(row.entry.uuid)) existing.uuids.push(row.entry.uuid);
+      const seen = uuidSetByIndex.get(existingIndex);
+      if (seen && !seen.has(row.entry.uuid)) {
+        seen.add(row.entry.uuid);
+        existing.uuids.push(row.entry.uuid);
+      }
       existing.timestamp = row.entry.timestamp;
     });
   }
