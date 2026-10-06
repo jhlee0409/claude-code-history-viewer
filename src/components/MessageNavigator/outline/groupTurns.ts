@@ -5,14 +5,31 @@ import {
   isFailedTaskStatus,
   isTurnStart,
   parseTaskNotifications,
+  type MessageKind,
 } from "../../MessageViewer/helpers/messageKinds";
 import {
   LEADING_TURN_KEY,
+  type OutlineActivityChild,
   type OutlineChildRow,
   type OutlineTaskChild,
   type TurnCounts,
   type TurnGroup,
 } from "./types";
+
+/**
+ * Kinds folded into one activity child per turn (Design, "Activity summary
+ * row"): every reply and tool call, plus injected context, system rows, and
+ * a non-turn-start command row (local command output). `agent-update` keeps
+ * becoming task rows, and `summary` (compaction recaps) stays its own
+ * message child.
+ */
+const COLLAPSIBLE_ACTIVITY_KINDS: ReadonlySet<MessageKind> = new Set([
+  "reply",
+  "tool",
+  "context",
+  "system",
+  "command",
+]);
 
 function computeCounts(turnRows: ClassifiedRow[]): TurnCounts {
   let replies = 0;
@@ -39,9 +56,10 @@ function computeCounts(turnRows: ClassifiedRow[]): TurnCounts {
 
 /**
  * Replaces every agent-update row in `childRows` with one row per distinct
- * task id among its `<task-notification>` blocks. A block with no task id
- * never merges with another block, since there is no stable id to merge it
- * by (Design, "One row per agent task").
+ * task id among its `<task-notification>` blocks, and every collapsible row
+ * (Design, "Activity summary row") with one shared activity child. A block
+ * with no task id never merges with another block, since there is no stable
+ * id to merge it by (Design, "One row per agent task").
  */
 function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChildRow[] {
   const children: OutlineChildRow[] = [];
@@ -50,12 +68,51 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
   // task posts many updates.
   const uuidSetByIndex = new Map<number, Set<string>>();
 
+  // The turn's single activity child, created the first time a collapsible
+  // row appears so it sits at that row's position in `children` (Design:
+  // "the activity row sits where the first collapsed row appeared").
+  let activityChild: OutlineActivityChild | null = null;
+  // A Set, not an array scan, so collecting uuids stays linear (Build: "Use
+  // a Set for uuid collection").
+  const activityUuids = new Set<string>();
+  let firstReplyRow: ClassifiedRow | null = null;
+  let firstCollapsedRow: ClassifiedRow | null = null;
+
   for (const row of childRows) {
-    if (row.info.kind !== "agent-update") {
+    if (row.info.kind === "summary") {
       children.push({ type: "message", key: row.entry.uuid, entry: row.entry });
       continue;
     }
 
+    if (COLLAPSIBLE_ACTIVITY_KINDS.has(row.info.kind)) {
+      if (!activityChild) {
+        activityChild = {
+          type: "activity",
+          key: `${turnKey}::activity`,
+          preview: "",
+          previewKind: row.info.kind,
+          replies: 0,
+          toolCalls: 0,
+          navigateUuid: "",
+          uuids: [],
+          timestamp: "",
+        };
+        children.push(activityChild);
+      }
+      activityUuids.add(row.entry.uuid);
+      if (!firstCollapsedRow) firstCollapsedRow = row;
+
+      if (row.info.kind === "reply") {
+        activityChild.replies += 1;
+        activityChild.toolCalls += countToolUseBlocks(row.message);
+        if (!firstReplyRow) firstReplyRow = row;
+      } else if (row.info.kind === "tool") {
+        activityChild.toolCalls += countToolUseBlocks(row.message);
+      }
+      continue;
+    }
+
+    // row.info.kind is "agent-update" here; everything else is handled above.
     const blocks = parseTaskNotifications(row.info.text ?? "");
     blocks.forEach((block, blockIndex) => {
       const hasTaskId = block.taskId !== undefined;
@@ -104,6 +161,20 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
       }
       existing.timestamp = row.entry.timestamp;
     });
+  }
+
+  if (activityChild) {
+    // The first REPLY row wins; otherwise the first collapsed row of any
+    // kind (Design: "preview of the first REPLY row, else of the first
+    // collapsed row").
+    const navigateRow = firstReplyRow ?? firstCollapsedRow;
+    if (navigateRow) {
+      activityChild.preview = navigateRow.entry.preview;
+      activityChild.previewKind = navigateRow.info.kind;
+      activityChild.navigateUuid = navigateRow.entry.uuid;
+      activityChild.timestamp = navigateRow.entry.timestamp;
+    }
+    activityChild.uuids = Array.from(activityUuids);
   }
 
   return children;

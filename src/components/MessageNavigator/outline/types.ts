@@ -1,3 +1,4 @@
+import type { MessageKind } from "../../MessageViewer/helpers/messageKinds";
 import type { NavigatorEntryData } from "../types";
 
 /** Counts shown on a closed turn's header: a zero count is omitted by the UI, not shown as zero. */
@@ -34,7 +35,33 @@ export interface OutlineTaskChild {
   timestamp: string;
 }
 
-export type OutlineChildRow = OutlineMessageChild | OutlineTaskChild;
+/**
+ * Every `reply`, `tool`, `context`, `system`, and non-turn-start `command`
+ * row in an open turn, collapsed into one row (Design, "Activity summary
+ * row"). `agent-update` rows still become task rows, and `summary`-kind
+ * rows (compaction recaps) still stay their own `OutlineMessageChild`.
+ */
+export interface OutlineActivityChild {
+  type: "activity";
+  /** `${turnKey}::activity` */
+  key: string;
+  /** Preview of the first collapsed REPLY row; else of the first collapsed row. */
+  preview: string;
+  /** Kind of the row `preview` came from; its label stands in for an empty preview, as in `NavigatorEntry`. */
+  previewKind: MessageKind;
+  /** Count of collapsed rows with kind "reply". */
+  replies: number;
+  /** Sum of countToolUseBlocks over every collapsed "reply" or "tool" row, same rule as TurnCounts. */
+  toolCalls: number;
+  /** uuid of the first collapsed REPLY row; else of the first collapsed row. */
+  navigateUuid: string;
+  /** uuid of every collapsed row, in order. */
+  uuids: string[];
+  /** timestamp of the navigateUuid row. */
+  timestamp: string;
+}
+
+export type OutlineChildRow = OutlineMessageChild | OutlineTaskChild | OutlineActivityChild;
 
 export interface TurnGroup {
   /** turnStartUuid, or LEADING_TURN_KEY for the leading group. */

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { isFailedTaskStatus } from "../MessageViewer/helpers/messageKinds";
 import { getKindLabelKey } from "./kindLabels";
 import { KIND_STYLES } from "./kindStyles";
+import { OUTLINE_CHILD_INDENT_CLASS } from "./outline/childRowStyles";
 import type { NavigatorEntryData } from "./types";
 
 interface NavigatorEntryProps {
@@ -47,6 +48,10 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   const KindIcon = kindStyle.icon;
   const kindLabel = t(getKindLabelKey(entry.kind));
   const isFailed = isFailedTaskStatus(entry.status);
+  // Only the outline's level-2 children get the shared rail (Design,
+  // "Indent every child under a rail"); list mode's "option" rows are
+  // unaffected (spec acceptance 15: the accessibility test stays unchanged).
+  const isOutlineChild = itemRole === "treeitem" && ariaLevel === 2;
 
   const formattedTime = entry.timestamp
     ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -59,7 +64,8 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       data-index={dataIndex}
       tabIndex={isFocused ? 0 : -1}
       className={cn(
-        "w-full text-left px-3 py-2 cursor-pointer border-l-2 transition-colors outline-none",
+        "w-full text-left py-2 cursor-pointer border-l-2 transition-colors outline-none",
+        isOutlineChild ? OUTLINE_CHILD_INDENT_CLASS : "px-3",
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
         "hover:bg-accent/10",
         isActive
