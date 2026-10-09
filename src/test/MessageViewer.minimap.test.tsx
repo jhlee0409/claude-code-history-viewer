@@ -77,6 +77,8 @@ function resetStoreState() {
     loadMoreMessages: vi.fn(),
     ensureMessageLoaded: vi.fn(),
     fetchFullSessionMessages: vi.fn().mockResolvedValue([]),
+    // Unused until the turn outline (#632) lands; its MessageViewer calls this on mount.
+    setVisibleMessageUuid: vi.fn(),
   });
 }
 
