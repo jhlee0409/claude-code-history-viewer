@@ -193,13 +193,18 @@ const SAMPLE_VIRTUALIZER = {
   getOffsetForIndex: vi.fn(() => [0, "start"] as const),
 };
 
+// Read at render time, so a test can empty the list (as when every message is
+// filtered out); `beforeEach` restores the one sample row.
+let flattenedForRender: typeof SAMPLE_FLATTENED = SAMPLE_FLATTENED;
+
 vi.mock("@/components/MessageViewer/hooks/useMessageVirtualization", () => ({
   useMessageVirtualization: () => ({
     virtualizer: SAMPLE_VIRTUALIZER,
-    flattenedMessages: SAMPLE_FLATTENED,
+    flattenedMessages: flattenedForRender,
     uuidToIndexMap: new Map([["m1", 0]]),
-    virtualRows: [{ key: "0", index: 0, start: 0, end: 50, size: 50, lane: 0 }],
-    totalSize: 50,
+    virtualRows:
+      flattenedForRender.length > 0 ? [{ key: "0", index: 0, start: 0, end: 50, size: 50, lane: 0 }] : [],
+    totalSize: flattenedForRender.length > 0 ? 50 : 0,
     getScrollIndex: vi.fn(() => 0),
     rowTranslateOffset: 0,
   }),
@@ -296,6 +301,7 @@ function setMdUp(isMdUp: boolean) {
 beforeEach(() => {
   resetStoreState();
   setMdUp(true);
+  flattenedForRender = SAMPLE_FLATTENED;
 });
 
 afterEach(() => {
@@ -352,5 +358,15 @@ describe("MessageViewer minimap mount gate", () => {
     expect(queryByTestId("session-minimap")).toBeNull();
     const wrapper = getMinimapWrapper(container);
     expect((wrapper as HTMLElement).style.paddingRight).toBe("");
+  });
+
+  it("does not pad or move the scroll buttons when there are no rows to show, even when the switch is on", () => {
+    flattenedForRender = [];
+    const { container, queryByTestId, getByTestId } = renderViewer();
+
+    expect(queryByTestId("session-minimap")).toBeNull();
+    const wrapper = getMinimapWrapper(container);
+    expect((wrapper as HTMLElement).style.paddingRight).toBe("");
+    expect(getByTestId("message-scroll-buttons").style.right).toBe("");
   });
 });

@@ -185,7 +185,9 @@ without jsdom's canvas gap.
 The strip mounts as a second sibling inside the wrapper that already holds `FloatingDateOverlay`
 (`MessageViewer.tsx:1075-1082`), taking all its inputs as props. The mount site decides
 visibility with one hook, `useMinimapVisible()` (the switch, Capture Mode, and the `md`
-breakpoint together), so mounting and padding can never disagree. The wrapper adds right padding
+breakpoint together). It combines that with the list's own render guard (rows to show and a ready
+scroll element) into one condition, `showMinimapStrip`, which the strip, the padding, and the
+scroll buttons' offset all read, so mounting and padding can never disagree. The wrapper adds right padding
 equal to the strip's width (64px, the prototype's Blocks width) so the list's content never sits
 under it. The width is fixed; it does not scale with window width. The floating scroll-to-top and
 scroll-to-bottom buttons sit at the same wrapper's right edge, so they move left by the strip's

@@ -823,6 +823,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
+  // One condition for the strip, the wrapper's padding, and the scroll buttons'
+  // offset: the list's own render guard plus the visibility gate (switch /
+  // Capture Mode / md breakpoint), so no gutter is reserved for an unmounted strip.
+  const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
+
   return (
     <div className="relative flex-1 h-full flex flex-col">
       {/* Search Toolbar - Editorial aesthetic */}
@@ -1081,7 +1086,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
       <div
         className="relative flex-1 min-h-0"
-        style={isMinimapVisible ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
+        style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
       >
         {/* Floating date overlay — outside scroll container to stay fixed */}
         {flattenedMessages.length > 0 && scrollElementReady && (
@@ -1091,9 +1096,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           />
         )}
 
-        {/* Session minimap strip — same render guard as FloatingDateOverlay,
-            plus the visibility gate (switch / Capture Mode / md breakpoint). */}
-        {flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible && (
+        {/* Session minimap strip — see `showMinimapStrip`. */}
+        {showMinimapStrip && (
           <SessionMinimap
             virtualizer={virtualizer}
             flattenedMessages={flattenedMessages}
@@ -1291,7 +1295,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         <div
           data-testid="message-scroll-buttons"
           className="absolute bottom-4 right-4 flex flex-col gap-2 z-30"
-          style={isMinimapVisible ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
+          style={showMinimapStrip ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
         >
           {/* Scroll to top */}
           {showScrollToTop && (
