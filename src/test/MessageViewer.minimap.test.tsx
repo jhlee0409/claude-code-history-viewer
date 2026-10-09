@@ -342,22 +342,24 @@ describe("MessageViewer minimap mount gate", () => {
     expect((wrapper as HTMLElement).style.paddingRight).toBe("");
   });
 
-  it("does not mount or pad in Capture Mode, even when the switch is on", () => {
+  it("does not mount, pad, or move the scroll buttons in Capture Mode, even when the switch is on", () => {
     (storeState as { isCaptureMode: boolean }).isCaptureMode = true;
-    const { container, queryByTestId } = renderViewer();
+    const { container, queryByTestId, getByTestId } = renderViewer();
 
     expect(queryByTestId("session-minimap")).toBeNull();
     const wrapper = getMinimapWrapper(container);
     expect((wrapper as HTMLElement).style.paddingRight).toBe("");
+    expect(getByTestId("message-scroll-buttons").style.right).toBe("");
   });
 
-  it("does not mount or pad below the md breakpoint, even when the switch is on", () => {
+  it("does not mount, pad, or move the scroll buttons below the md breakpoint, even when the switch is on", () => {
     setMdUp(false);
-    const { container, queryByTestId } = renderViewer();
+    const { container, queryByTestId, getByTestId } = renderViewer();
 
     expect(queryByTestId("session-minimap")).toBeNull();
     const wrapper = getMinimapWrapper(container);
     expect((wrapper as HTMLElement).style.paddingRight).toBe("");
+    expect(getByTestId("message-scroll-buttons").style.right).toBe("");
   });
 
   it("does not pad or move the scroll buttons when there are no rows to show, even when the switch is on", () => {
