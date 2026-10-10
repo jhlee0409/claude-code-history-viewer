@@ -18,6 +18,7 @@ import { DesktopOnly } from "@/contexts/platform";
 import { ThemeMenuGroup } from "./ThemeMenuGroup";
 import { LanguageMenuGroup } from "./LanguageMenuGroup";
 import { FilterMenuGroup } from "./FilterMenuGroup";
+import { ViewMenuGroup } from "./ViewMenuGroup";
 import { FontMenuGroup } from "./FontMenuGroup";
 import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
 
@@ -93,6 +94,9 @@ export const SettingDropdown = ({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />
+
+          <DropdownMenuSeparator />
+          <ViewMenuGroup />
 
           <DropdownMenuSeparator />
           <FontMenuGroup />
