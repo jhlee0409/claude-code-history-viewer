@@ -1070,6 +1070,22 @@ fn authorise_restore_target(
         }
     }
 
+    // Reject a symlinked target or a symlinked immediate parent. The history
+    // authorises a path by name; a link at that name would send the read (or
+    // the write's temp file) somewhere the history never named. Same policy
+    // `validate_session_file_in_project` applies to session files. Bounded to
+    // the parent because the target lives in an arbitrary workspace with no
+    // project root to stop at, and ancestors such as macOS `/var` are links in
+    // ordinary use. An absent path is fine: restore creates it.
+    let is_symlink = |p: &Path| {
+        fs::symlink_metadata(p)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+    };
+    if is_symlink(path) || path.parent().is_some_and(is_symlink) {
+        return Err("Invalid file path: symlinks are not allowed".to_string());
+    }
+
     // Authorisation. Scoped to the session when the caller names one, so the
     // common case reads one JSONL rather than walking the project. The scan
     // costs what a panel refresh costs, and restores are rare and
@@ -1079,6 +1095,10 @@ fn authorise_restore_target(
     }
     Ok(())
 }
+
+/// Largest file the restore preview reads; beyond this a text diff is not
+/// useful in a dialog, and the whole file would cross IPC/HTTP in one response.
+const MAX_RESTORE_PREVIEW_BYTES: u64 = 5 * 1024 * 1024;
 
 /// Read the current contents of a restore target for the restore preview.
 ///
@@ -1091,13 +1111,39 @@ pub async fn read_restore_target(
     project_path: String,
     session_file_path: Option<String>,
 ) -> Result<Option<String>, String> {
+    use std::io::Read;
+
     tauri::async_runtime::spawn_blocking(move || {
         authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
-        match fs::read_to_string(&file_path) {
-            Ok(content) => Ok(Some(content)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(format!("Failed to read file: {e}")),
+        let not_found = |e: &std::io::Error| e.kind() == std::io::ErrorKind::NotFound;
+
+        // Checked before opening: opening a FIFO would block the thread.
+        let metadata = match fs::symlink_metadata(&file_path) {
+            Ok(m) => m,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        if !metadata.file_type().is_file() {
+            return Err("Not a regular file".to_string());
         }
+        if metadata.len() > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+
+        let file = match fs::File::open(&file_path) {
+            Ok(f) => f,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        // Bounded again here in case the file grew after the check above.
+        let mut content = String::new();
+        file.take(MAX_RESTORE_PREVIEW_BYTES + 1)
+            .read_to_string(&mut content)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if content.len() as u64 > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+        Ok(Some(content))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -1465,6 +1511,108 @@ mod tests {
             .await
             .expect_err("null bytes must be refused");
         assert!(null.contains("null bytes"), "{null}");
+    }
+
+    /// Read and restore must give the same verdict on a path; returns the
+    /// shared error.
+    async fn refused_alike(file: &Path, project: &Path) -> String {
+        let file = file.to_string_lossy().to_string();
+        let project = project.to_string_lossy().to_string();
+        let read_err = read_restore_target(file.clone(), project.clone(), None)
+            .await
+            .expect_err("read must refuse");
+        let restore_err = restore_file(file, "overwritten".to_string(), project, None)
+            .await
+            .expect_err("restore must refuse");
+        assert_eq!(read_err, restore_err);
+        read_err
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_that_is_a_symlink_is_refused_by_read_and_restore() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        // `alpha.txt` is a recorded target; it is now a link.
+        let target = root.join("alpha.txt");
+        std::os::unix::fs::symlink(&outside, &target).unwrap();
+
+        let message = refused_alike(&target, root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside contents");
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_under_a_symlinked_parent_is_refused() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let elsewhere = TempDir::new().unwrap();
+        fs::write(elsewhere.path().join("x.txt"), "outside contents").unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), root.join("linked")).unwrap();
+        let target = root.join("linked").join("x.txt");
+        create_test_jsonl_file(
+            &dir,
+            "session.jsonl",
+            &write_record("u1", "s1", "2026-08-21T10:00:00Z", &root, &target),
+        );
+
+        let message = refused_alike(&target, &root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(
+            fs::read_to_string(elsewhere.path().join("x.txt")).unwrap(),
+            "outside contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_an_oversized_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        let too_big = usize::try_from(MAX_RESTORE_PREVIEW_BYTES).unwrap() + 1;
+        fs::write(&target, "a".repeat(too_big)).unwrap();
+
+        let result = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await;
+        // Not `expect_err`: on failure it would print megabytes of content.
+        let Err(err) = result else {
+            panic!("an oversized file must not be read into the preview");
+        };
+
+        assert!(err.contains("too large"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_a_non_regular_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        // A directory where the recorded file used to be.
+        let target = root.join("alpha.txt");
+        fs::create_dir(&target).unwrap();
+
+        let err = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect_err("a non-regular file must not be read");
+
+        assert!(err.contains("regular file"), "{err}");
     }
 
     #[tokio::test]
