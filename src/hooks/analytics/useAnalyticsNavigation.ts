@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
+import { supportsRecentEdits } from "../../utils/providers";
 import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
 
 /**
@@ -169,6 +170,12 @@ export function useAnalyticsNavigation() {
 
     setAnalyticsCurrentView("recentEdits");
     clearAnalyticsErrors();
+
+    // The view explains the gap itself; asking the backend would only error
+    // (WebUI) or read the wrong provider's files (desktop) (#643).
+    if (!supportsRecentEdits(project.provider)) {
+      return;
+    }
 
     // Read the cache at call time rather than from the render closure.
     // `refreshAnalytics` clears it and then calls this in the same tick, so a

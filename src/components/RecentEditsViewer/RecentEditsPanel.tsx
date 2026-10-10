@@ -20,6 +20,7 @@ import {
   selectRecentEditsGrouping,
   type RecentEditsDockRequest,
 } from "@/store/slices/recentEditsPanelSlice";
+import { getProviderLabel, supportsRecentEdits } from "@/utils/providers";
 import { FileEditItem } from "./FileEditItem";
 import { FileEditRowCompact } from "./FileEditRowCompact";
 import {
@@ -71,15 +72,20 @@ export const RecentEditsPanel: React.FC = () => {
     rather than one its host prevents.
   */
   const hasProject = Boolean(selectedProject);
+  // Checked against the live selection: the dock may still hold rows from the
+  // previous project, and those must not be shown under this one (#643).
+  const isUnavailable =
+    selectedProject != null && !supportsRecentEdits(selectedProject.provider);
 
-  const request: RecentEditsDockRequest | null = selectedProject
-    ? {
-        projectPath: selectedProject.path,
-        scope: effectiveScope,
-        grouping,
-        sessionFilePath: selectedSession?.file_path,
-      }
-    : null;
+  const request: RecentEditsDockRequest | null =
+    selectedProject && !isUnavailable
+      ? {
+          projectPath: selectedProject.path,
+          scope: effectiveScope,
+          grouping,
+          sessionFilePath: selectedSession?.file_path,
+        }
+      : null;
 
   // Keyed on the request identity rather than the object, so the effect reruns
   // exactly when the question being asked changes.
@@ -179,6 +185,18 @@ export const RecentEditsPanel: React.FC = () => {
                 "recentEdits.noProjectSelected",
                 "Select a project to see its edits"
               )}
+            </p>
+          </div>
+        ) : isUnavailable ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+            <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
+            <p className="px-4 text-center text-px11">
+              {t("recentEdits.unavailableForProvider", {
+                provider: getProviderLabel(
+                  (key, fallback) => t(key, fallback),
+                  selectedProject?.provider
+                ),
+              })}
             </p>
           </div>
         ) : error ? (
