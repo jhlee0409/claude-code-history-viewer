@@ -145,6 +145,14 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
 
+### New in v1.32.0
+
+| Feature | Description |
+|---------|-------------|
+| **Jump between prompts** | **Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS) moves the message list to the previous or next prompt you typed, with or without the Messages panel open |
+| **Session minimap** | Optional strip beside the message list that shows the whole session by row kind; click or drag to move. Settings menu → **Show session minimap** |
+| **Restore preview fixed** | Recent Edits' restore confirmation shows what will change (now in the WebUI too) and refuses symlinked targets |
+
 ### New in v1.31.0
 
 | Feature | Description |
