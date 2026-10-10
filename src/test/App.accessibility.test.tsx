@@ -60,6 +60,7 @@ const { useAppStoreMock } = vi.hoisted(() => {
     updateUserSettings: vi.fn(),
     getGroupedProjects: vi.fn(() => ({ groups: [], ungrouped: [] })),
     getDirectoryGroupedProjects: vi.fn(() => ({ groups: [] })),
+    getTimeGroupedProjects: vi.fn(() => ({ groups: [] })),
     getEffectiveGroupingMode: vi.fn(() => "none"),
     hideProject: vi.fn(),
     unhideProject: vi.fn(),

@@ -17,6 +17,7 @@
   "project.globalStatsDescription": "모든 프로젝트 개요",
   "project.groupingDirectory": "디렉토리별",
   "project.groupingNone": "목록",
+  "project.groupingTime": "시간별",
   "project.groupingWorktree": "워크트리별",
   "project.hiddenPatterns": "숨김 패턴",
   "project.copyPath": "경로 복사",

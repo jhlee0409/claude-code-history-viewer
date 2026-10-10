@@ -71,6 +71,7 @@ function App() {
     updateUserSettings,
     getGroupedProjects,
     getDirectoryGroupedProjects,
+    getTimeGroupedProjects,
     getEffectiveGroupingMode,
     hideProject,
     unhideProject,
@@ -373,6 +374,7 @@ function App() {
   const { groups: worktreeGroups, ungrouped: ungroupedProjects } =
     getGroupedProjects();
   const { groups: directoryGroups } = getDirectoryGroupedProjects();
+  const { groups: timeGroups } = getTimeGroupedProjects();
 
   const handleGroupingModeChange = useCallback(
     (newMode: GroupingMode) => {
@@ -563,6 +565,7 @@ function App() {
       groupingMode={groupingMode}
       worktreeGroups={worktreeGroups}
       directoryGroups={directoryGroups}
+      timeGroups={timeGroups}
       ungroupedProjects={ungroupedProjects}
       handleProjectSelect={handleProjectSelect}
       loadMoreSessions={loadMoreSessions}

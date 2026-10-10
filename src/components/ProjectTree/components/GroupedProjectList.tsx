@@ -1,9 +1,14 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { AlertCircle, FolderTree, GitBranch, Timer } from "lucide-react";
+import { AlertCircle, Clock, FolderTree, GitBranch, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
-import type { WorktreeGroup, DirectoryGroup } from "../../../utils/worktreeUtils";
+import {
+  TIME_BUCKET_LABEL_KEYS,
+  type WorktreeGroup,
+  type DirectoryGroup,
+  type TimeGroup,
+} from "../../../utils/worktreeUtils";
 import type { GroupingStrategy } from "../types";
 import { ProjectItem } from "./ProjectItem";
 import { SessionList } from "./SessionList";
@@ -14,6 +19,7 @@ interface GroupedProjectListProps {
   groupingMode: GroupingStrategy;
   projects: ClaudeProject[];
   directoryGroups: DirectoryGroup[];
+  timeGroups?: TimeGroup[];
   worktreeGroups: WorktreeGroup[];
   ungroupedProjects?: ClaudeProject[];
   showProviderBadge?: boolean;
@@ -40,6 +46,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   groupingMode,
   projects,
   directoryGroups,
+  timeGroups = [],
   worktreeGroups,
   ungroupedProjects,
   showProviderBadge = true,
@@ -233,7 +240,51 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     );
   }
 
-  // Strategy 2: Worktree Grouping
+  // Strategy 2: Time (Session Recency) Grouping
+  if (groupingMode === "time") {
+    const allTimeProjects = timeGroups.flatMap((group) => group.projects);
+    const { temporary: temporaryProjects, unavailable: unavailableProjects } =
+      partition(allTimeProjects);
+    const availableTimeGroups = timeGroups
+      .map((group) => ({
+        ...group,
+        projects: partition(group.projects).main,
+      }))
+      .filter((group) => group.projects.length > 0);
+
+    return (
+      <>
+        {availableTimeGroups.map((group) => {
+          const groupKey = `time:${group.bucket}`;
+          const isGroupExpanded = expandedProjects.has(groupKey);
+
+          return (
+            <div key={group.bucket} className="space-y-0.5" role="none">
+              <GroupHeader
+                groupKey={groupKey}
+                label={t(TIME_BUCKET_LABEL_KEYS[group.bucket])}
+                icon={<span title={t("project.groupingTime", "Group by time")}><Clock className="w-3.5 h-3.5" /></span>}
+                count={group.projects.length}
+                isExpanded={isGroupExpanded}
+                ariaLevel={1}
+                onToggle={() => toggleGroup(groupKey, group.projects)}
+                variant="time"
+              />
+              {isGroupExpanded && (
+                <div role="group" className="ml-4 pl-3 border-l-2 border-violet-500/20 space-y-0.5">
+                  {group.projects.map((project) => renderProjectWithSessions(project, "default", 2))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {renderBucketGroup("temporary", temporaryProjects)}
+        {renderBucketGroup("unavailable", unavailableProjects)}
+      </>
+    );
+  }
+
+  // Strategy 3: Worktree Grouping
   if (groupingMode === "worktree") {
     const groupedPaths = new Set(
       worktreeGroups.flatMap((group) => [group.parent.path, ...group.children.map((child) => child.path)])
@@ -281,7 +332,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     );
   }
 
-  // Strategy 3: No Grouping (Flat List)
+  // Strategy 4: No Grouping (Flat List)
   const { main: availableProjects, temporary: temporaryProjects, unavailable: unavailableProjects } =
     partition(projects);
 

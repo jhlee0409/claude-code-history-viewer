@@ -298,3 +298,101 @@ export function groupProjectsByDirectory(
 
   return { groups, ungrouped: [] };
 }
+
+// ============================================================================
+// Time-based Grouping (Session Recency)
+// ============================================================================
+
+/**
+ * Recency bucket a project falls into, based on its latest session time.
+ */
+export type TimeBucket = "today" | "yesterday" | "last7Days" | "earlier";
+
+/**
+ * Represents a recency bucket containing projects.
+ */
+export interface TimeGroup {
+  bucket: TimeBucket;
+  projects: ClaudeProject[];
+}
+
+/**
+ * Result of time-based grouping.
+ */
+export interface TimeGroupingResult {
+  groups: TimeGroup[];
+  /** Projects that couldn't be grouped (unused; kept for shape parity). */
+  ungrouped: ClaudeProject[];
+}
+
+/** i18n keys for each bucket label, resolved with `t()` at render time. */
+export const TIME_BUCKET_LABEL_KEYS: Record<TimeBucket, string> = {
+  today: "time.today",
+  yesterday: "time.yesterday",
+  last7Days: "time.last7Days",
+  earlier: "time.earlier",
+};
+
+/** Bucket render order, most recent first. */
+const TIME_BUCKET_ORDER: TimeBucket[] = ["today", "yesterday", "last7Days", "earlier"];
+
+const startOfDay = (date: Date): number =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+/**
+ * Buckets a project by its `last_modified` (latest session time).
+ * Calendar-day based (DST-safe); missing/unparseable timestamps and future
+ * timestamps (clock skew) both fall back gracefully.
+ */
+function bucketFor(lastModified: string, now: Date): TimeBucket {
+  const date = new Date(lastModified);
+  if (Number.isNaN(date.getTime())) {
+    return "earlier";
+  }
+
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+  if (dayDiff <= 0) return "today";
+  if (dayDiff === 1) return "yesterday";
+  if (dayDiff <= 6) return "last7Days";
+  return "earlier";
+}
+
+/**
+ * Groups projects into recency buckets by their most recent session time.
+ * Empty buckets are omitted; projects within a bucket are newest-first.
+ *
+ * @example
+ * now = 2026-03-15
+ *   2026-03-15T09:00 -> today
+ *   2026-03-14T22:00 -> yesterday
+ *   2026-03-10T10:00 -> last7Days
+ *   2026-02-01T10:00 -> earlier
+ */
+export function groupProjectsByTime(
+  projects: ClaudeProject[],
+  now: Date = new Date()
+): TimeGroupingResult {
+  const buckets = new Map<TimeBucket, ClaudeProject[]>();
+
+  for (const project of projects) {
+    const bucket = bucketFor(project.last_modified, now);
+    if (!buckets.has(bucket)) {
+      buckets.set(bucket, []);
+    }
+    buckets.get(bucket)!.push(project);
+  }
+
+  const groups: TimeGroup[] = TIME_BUCKET_ORDER.filter((bucket) =>
+    buckets.has(bucket)
+  ).map((bucket) => ({
+    bucket,
+    projects: buckets.get(bucket)!.sort(
+      (a, b) =>
+        new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime() ||
+        a.name.localeCompare(b.name)
+    ),
+  }));
+
+  return { groups, ungrouped: [] };
+}

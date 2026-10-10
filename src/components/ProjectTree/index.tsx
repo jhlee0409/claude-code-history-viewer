@@ -8,6 +8,7 @@ import {
   List,
   FolderTree,
   GitBranch,
+  Clock,
   PanelLeftClose,
   PanelLeft,
   RotateCcw,
@@ -79,6 +80,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   groupingMode = "none",
   worktreeGroups = [],
   directoryGroups = [],
+  timeGroups = [],
   ungroupedProjects,
   onGroupingModeChange,
   onHideProject,
@@ -371,6 +373,22 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       .filter((group) => group.projects.length > 0);
   }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter, matchesSearch, normalizedSearchTerm]);
 
+  const filteredTimeGroups = useMemo(() => {
+    const filterFn = (p: (typeof projects)[number]) =>
+      matchesProviderFilter(p) && matchesSearch(p);
+
+    if (isAllProvidersSelected && !normalizedSearchTerm) {
+      return timeGroups;
+    }
+
+    return timeGroups
+      .map((group) => ({
+        ...group,
+        projects: group.projects.filter(filterFn),
+      }))
+      .filter((group) => group.projects.length > 0);
+  }, [timeGroups, isAllProvidersSelected, matchesProviderFilter, matchesSearch, normalizedSearchTerm]);
+
   const { filteredWorktreeGroups, filteredUngroupedProjects } = useMemo(() => {
     const baseUngrouped = ungroupedProjects ?? projects;
     const filterFn = (p: (typeof projects)[number]) =>
@@ -461,7 +479,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           const next = new Set<string>();
           // Preserve group-level expansions (dir:, group: prefixed keys)
           for (const key of prev) {
-            if (key.startsWith("dir:") || key.startsWith("group:")) {
+            if (key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:")) {
               next.add(key);
             }
           }
@@ -503,8 +521,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       return group ? `group:${group.parent.path}` : undefined;
     }
 
+    if (groupingMode === "time") {
+      const group = timeGroups.find((candidate) =>
+        candidate.projects.some((project) => project.path === selectedProject.path)
+      );
+      return group ? `time:${group.bucket}` : undefined;
+    }
+
     return undefined;
-  }, [directoryGroups, groupingMode, selectedProject, worktreeGroups]);
+  }, [directoryGroups, groupingMode, selectedProject, timeGroups, worktreeGroups]);
 
   // Global search and deep-link flows select projects through the store rather
   // than through handleProjectClick, so the tree's local expansion state would
@@ -530,7 +555,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       let changed = false;
       const next = new Set<string>();
       for (const key of prev) {
-        if (key.startsWith("dir:") || key.startsWith("group:")) {
+        if (key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:")) {
           next.add(key);
           continue;
         }
@@ -894,6 +919,20 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   >
                     <GitBranch className="w-3 h-3" />
                   </button>
+                  {/* Time (Session Recency) Grouping */}
+                  <button
+                    onClick={() => onGroupingModeChange("time")}
+                    className={cn(
+                      "p-1 rounded transition-all duration-200",
+                      groupingMode === "time"
+                        ? "bg-violet-500/20 text-violet-500"
+                        : "text-muted-foreground hover:text-violet-500 hover:bg-violet-500/10"
+                    )}
+                    title={t("project.groupingTime", "Group by time")}
+                    aria-label={t("project.groupingTime", "Group by time")}
+                  >
+                    <Clock className="w-3 h-3" />
+                  </button>
                 </div>
               )}
               <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
@@ -1129,6 +1168,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 groupingMode={groupingMode}
                 projects={filteredProjects}
                 directoryGroups={filteredDirectoryGroups}
+                timeGroups={filteredTimeGroups}
                 worktreeGroups={filteredWorktreeGroups}
                 ungroupedProjects={filteredUngroupedProjects}
                 showProviderBadge={showProviderBadge}

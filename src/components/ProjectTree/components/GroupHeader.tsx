@@ -31,6 +31,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       badge: "bg-success/15 text-success",
       expandIcon: "text-success",
     },
+    time: {
+      text: "text-violet-500",
+      bg: "bg-violet-500/20",
+      border: "border-l-violet-500/50",
+      badge: "bg-violet-500/15 text-violet-500",
+      expandIcon: "text-violet-500",
+    },
     unavailable: {
       text: "text-warning",
       bg: "bg-warning/20",

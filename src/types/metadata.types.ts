@@ -40,7 +40,7 @@ export interface ProjectMetadata {
 }
 
 /** Grouping mode for project tree display */
-export type GroupingMode = "none" | "worktree" | "directory";
+export type GroupingMode = "none" | "worktree" | "directory" | "time";
 
 /** Session sort order */
 export type SessionSortOrder = "newest" | "oldest";
@@ -59,7 +59,7 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
-  /** Project tree grouping mode: none, worktree, or directory */
+  /** Project tree grouping mode: none, worktree, directory, or time */
   groupingMode?: GroupingMode;
   /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
   resumeCliArgs?: Record<string, string>;

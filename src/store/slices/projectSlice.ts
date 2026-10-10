@@ -15,8 +15,10 @@ import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
   groupProjectsByDirectory,
+  groupProjectsByTime,
   type WorktreeGroupingResult,
   type DirectoryGroupingResult,
+  type TimeGroupingResult,
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
 import {
@@ -68,6 +70,7 @@ export interface ProjectSliceActions {
   setSessions: (sessions: ClaudeSession[]) => void;
   getGroupedProjects: () => WorktreeGroupingResult;
   getDirectoryGroupedProjects: () => DirectoryGroupingResult;
+  getTimeGroupedProjects: () => TimeGroupingResult;
   getEffectiveGroupingMode: () => GroupingMode;
 }
 
@@ -970,6 +973,15 @@ export const createProjectSlice: StateCreator<
     const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
 
     return groupProjectsByDirectory(visibleProjects);
+  },
+
+  getTimeGroupedProjects: () => {
+    const { projects, isProjectHidden } = get();
+
+    // Filter out hidden projects first (use actual_path for pattern matching)
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
+
+    return groupProjectsByTime(visibleProjects);
   },
 
   getEffectiveGroupingMode: (): GroupingMode => {

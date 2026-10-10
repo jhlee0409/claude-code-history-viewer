@@ -17,6 +17,7 @@
   "project.globalStatsDescription": "所有项目概览",
   "project.groupingDirectory": "按目录",
   "project.groupingNone": "列表",
+  "project.groupingTime": "按时间",
   "project.groupingWorktree": "按工作树",
   "project.hiddenPatterns": "隐藏模式",
   "project.copyPath": "复制路径",
