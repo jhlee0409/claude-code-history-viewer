@@ -1514,7 +1514,8 @@ mod tests {
     }
 
     /// Read and restore must give the same verdict on a path; returns the
-    /// shared error.
+    /// shared error. Unix-gated with its only callers, the symlink tests.
+    #[cfg(unix)]
     async fn refused_alike(file: &Path, project: &Path) -> String {
         let file = file.to_string_lossy().to_string();
         let project = project.to_string_lossy().to_string();
