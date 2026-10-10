@@ -1189,8 +1189,8 @@ pub async fn restore_file(
     // This ensures the target file is never in a partial state
     let temp_path = path.with_extension("tmp.restore");
 
-    // Write to temporary file
-    fs::write(&temp_path, &content).map_err(|e| format!("Failed to write temporary file: {e}"))?;
+    // Write to a freshly created temporary file, never through a leftover link
+    crate::commands::fs_utils::write_fresh_temp_file(&temp_path, content.as_bytes())?;
 
     // Cross-platform atomic rename
     crate::commands::fs_utils::atomic_rename(&temp_path, path)?;
@@ -2295,6 +2295,28 @@ mod tests {
         .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("path traversal"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_restore_file_does_not_write_through_a_linked_temp_file() {
+        let (temp_dir, file_path) = project_recording_edit_to("linked_temp.txt");
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "original").unwrap();
+        std::os::unix::fs::symlink(&outside, file_path.with_extension("tmp.restore")).unwrap();
+
+        restore_file(
+            file_path.to_string_lossy().to_string(),
+            "restored content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("restore must succeed");
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), "restored content");
     }
 
     #[tokio::test]

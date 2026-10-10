@@ -200,16 +200,7 @@ fn write_settings_file(path: &Path, content: &str) -> Result<(), String> {
     // a link to somewhere else, is removed rather than written through. The
     // rename then replaces a linked target instead of following it.
     let temp_path = path.with_extension("json.tmp");
-    let _ = fs::remove_file(&temp_path);
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp_path)
-        .map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(content.as_bytes())
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
-    file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
+    super::fs_utils::write_fresh_temp_file(&temp_path, content.as_bytes())?;
 
     super::fs_utils::atomic_rename(&temp_path, path)?;
 
