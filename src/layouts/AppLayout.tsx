@@ -52,7 +52,7 @@ import {
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import type { SearchState, SearchFilterType } from "@/store/slices/types";
-import type { WorktreeGroup, DirectoryGroup } from "@/utils/worktreeUtils";
+import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "@/utils/worktreeUtils";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
 
 export interface AppLayoutProps {
@@ -122,6 +122,7 @@ export interface AppLayoutProps {
   groupingMode: GroupingMode;
   worktreeGroups: WorktreeGroup[];
   directoryGroups: DirectoryGroup[];
+  timeGroups: TimeGroup[];
   ungroupedProjects: ClaudeProject[];
 
   // Callbacks
@@ -208,6 +209,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     groupingMode,
     worktreeGroups,
     directoryGroups,
+    timeGroups,
     ungroupedProjects,
     handleProjectSelect,
     loadMoreSessions,
@@ -521,6 +523,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 groupingMode={groupingMode}
                 worktreeGroups={worktreeGroups}
                 directoryGroups={directoryGroups}
+                timeGroups={timeGroups}
                 ungroupedProjects={ungroupedProjects}
                 onGroupingModeChange={handleGroupingModeChange}
                 onHideProject={hideProject}
@@ -560,6 +563,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 groupingMode={groupingMode}
                 worktreeGroups={worktreeGroups}
                 directoryGroups={directoryGroups}
+                timeGroups={timeGroups}
                 ungroupedProjects={ungroupedProjects}
                 onGroupingModeChange={handleGroupingModeChange}
                 onHideProject={hideProject}

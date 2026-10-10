@@ -43,7 +43,7 @@ export interface ProjectMetadata {
 }
 
 /** Grouping mode for project tree display */
-export type GroupingMode = "none" | "worktree" | "directory";
+export type GroupingMode = "none" | "worktree" | "directory" | "time";
 
 // ============================================================================
 // User Settings
@@ -81,7 +81,7 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
-  /** Project tree grouping mode: none, worktree, or directory */
+  /** Project tree grouping mode: none, worktree, directory, or time */
   groupingMode?: GroupingMode;
   /** Additional Claude configuration directories to scan */
   customClaudePaths?: CustomClaudePath[];

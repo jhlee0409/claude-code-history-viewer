@@ -17,6 +17,7 @@
   "project.globalStatsDescription": "All projects overview",
   "project.groupingDirectory": "Group by directory",
   "project.groupingNone": "Flat list",
+  "project.groupingTime": "Group by time",
   "project.groupingWorktree": "Group by worktree",
   "project.hiddenPatterns": "Hidden patterns",
   "project.copyPath": "Copy path",

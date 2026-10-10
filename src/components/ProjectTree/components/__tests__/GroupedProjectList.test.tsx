@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ClaudeProject } from "../../../../types";
-import type { DirectoryGroup, WorktreeGroup } from "../../../../utils/worktreeUtils";
+import type { DirectoryGroup, WorktreeGroup, TimeGroup } from "../../../../utils/worktreeUtils";
 import { GroupedProjectList } from "../GroupedProjectList";
 
 vi.mock("react-i18next", () => ({
@@ -58,11 +58,12 @@ function createProject(path: string, name: string): ClaudeProject {
 
 describe("GroupedProjectList", () => {
   function renderList(options: {
-    groupingMode: "none" | "directory" | "worktree";
+    groupingMode: "none" | "directory" | "worktree" | "time";
     project: ClaudeProject;
     handleProjectClick: ReturnType<typeof vi.fn>;
     projects?: ClaudeProject[];
     directoryGroups?: DirectoryGroup[];
+    timeGroups?: TimeGroup[];
     worktreeGroups?: WorktreeGroup[];
     expandedProjects?: Set<string>;
   }) {
@@ -71,6 +72,7 @@ describe("GroupedProjectList", () => {
         groupingMode={options.groupingMode}
         projects={options.projects ?? [options.project]}
         directoryGroups={options.directoryGroups ?? []}
+        timeGroups={options.timeGroups ?? []}
         worktreeGroups={options.worktreeGroups ?? []}
         sessions={[]}
         selectedProject={null}
@@ -148,6 +150,53 @@ describe("GroupedProjectList", () => {
     fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
 
     expect(handleProjectClick).toHaveBeenCalledTimes(1);
+    expect(handleProjectClick).toHaveBeenCalledWith(project);
+  });
+
+  it("renders a recency bucket that expands to reveal its projects in time mode", () => {
+    const project = createProject("/work/project-a", "project-a");
+    const handleProjectClick = vi.fn();
+    const timeGroup: TimeGroup = { bucket: "today", projects: [project] };
+
+    // Collapsed bucket: header present, projects hidden.
+    const { unmount } = render(
+      <GroupedProjectList
+        groupingMode="time"
+        projects={[]}
+        directoryGroups={[]}
+        timeGroups={[timeGroup]}
+        worktreeGroups={[]}
+        sessions={[]}
+        selectedProject={null}
+        selectedSession={null}
+        isLoading={false}
+        expandedProjects={new Set<string>()}
+        setExpandedProjects={vi.fn()}
+        isProjectExpanded={() => false}
+        handleProjectClick={handleProjectClick}
+        handleContextMenu={vi.fn()}
+        onSessionSelect={vi.fn()}
+        formatTimeAgo={(date) => date}
+      />
+    );
+
+    expect(document.querySelector('[data-tree-key="time:today"]')).not.toBeNull();
+    expect(screen.queryByTestId(`project-item-${project.path}`)).toBeNull();
+
+    unmount();
+
+    // Expanded bucket: project row rendered and its toggle routes through the handler.
+    renderList({
+      groupingMode: "time",
+      project,
+      handleProjectClick,
+      projects: [],
+      timeGroups: [timeGroup],
+      expandedProjects: new Set<string>([`time:${timeGroup.bucket}`]),
+    });
+
+    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
+
     expect(handleProjectClick).toHaveBeenCalledWith(project);
   });
 

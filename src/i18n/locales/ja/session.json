@@ -17,6 +17,7 @@
   "project.globalStatsDescription": "すべてのプロジェクトの概要",
   "project.groupingDirectory": "ディレクトリ別",
   "project.groupingNone": "リスト",
+  "project.groupingTime": "時間別",
   "project.groupingWorktree": "ワークツリー別",
   "project.hiddenPatterns": "非表示パターン",
   "project.copyPath": "パスをコピー",

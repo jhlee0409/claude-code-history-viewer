@@ -1,7 +1,7 @@
 // src/components/ProjectTree/types.ts
 import type { ClaudeProject, ClaudeSession } from "../../types";
 import type { GroupingMode } from "../../types/metadata.types";
-import type { WorktreeGroup, DirectoryGroup } from "../../utils/worktreeUtils";
+import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "../../utils/worktreeUtils";
 import type { Boundary } from "../../utils/contextMenu";
 
 export interface ContextMenuState {
@@ -38,6 +38,7 @@ export interface ProjectTreeProps {
   groupingMode?: GroupingMode;
   worktreeGroups?: WorktreeGroup[];
   directoryGroups?: DirectoryGroup[];
+  timeGroups?: TimeGroup[];
   ungroupedProjects?: ClaudeProject[];
   onGroupingModeChange?: (mode: GroupingMode) => void;
   // Project visibility props
@@ -52,7 +53,7 @@ export interface ProjectTreeProps {
   onClose?: () => void;
 }
 
-export type GroupingStrategy = "none" | "directory" | "worktree";
+export type GroupingStrategy = "none" | "directory" | "worktree" | "time";
 
 export interface ProjectItemProps {
   project: ClaudeProject;
@@ -99,5 +100,5 @@ export interface GroupHeaderProps {
   isExpanded: boolean;
   ariaLevel?: number;
   onToggle: () => void;
-  variant: "directory" | "worktree" | "unavailable" | "temporary";
+  variant: "directory" | "worktree" | "time" | "unavailable" | "temporary";
 }

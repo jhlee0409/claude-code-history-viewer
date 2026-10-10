@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-04T22:16:15.784Z
- * 총 키 개수: 1987
+ * 생성 시간: 2026-10-10T05:27:53.803Z
+ * 총 키 개수: 1990
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (204개)
+ * common namespace의 번역 키 (206개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -238,9 +238,11 @@ export type CommonKeys =
   | 'status.webMode'
   | 'time.day'
   | 'time.days'
+  | 'time.earlier'
   | 'time.end'
   | 'time.hour'
   | 'time.hours'
+  | 'time.last7Days'
   | 'time.lessThanMinute'
   | 'time.minute'
   | 'time.minutes'
@@ -444,7 +446,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (263개)
+ * session namespace의 번역 키 (264개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -470,6 +472,7 @@ export type SessionKeys =
   | 'project.globalStatsDescription'
   | 'project.groupingDirectory'
   | 'project.groupingNone'
+  | 'project.groupingTime'
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
@@ -2921,6 +2924,7 @@ export type TranslationKey =
   | 'project.globalStatsDescription'
   | 'project.groupingDirectory'
   | 'project.groupingNone'
+  | 'project.groupingTime'
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
@@ -3930,9 +3934,11 @@ export type TranslationKey =
   | 'thinkingRenderer.title'
   | 'time.day'
   | 'time.days'
+  | 'time.earlier'
   | 'time.end'
   | 'time.hour'
   | 'time.hours'
+  | 'time.last7Days'
   | 'time.lessThanMinute'
   | 'time.minute'
   | 'time.minutes'
