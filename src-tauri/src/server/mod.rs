@@ -95,6 +95,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_unified_presets",
     "/load_user_metadata",
     "/open_github_issues",
+    "/read_restore_target",
     "/read_text_file",
     "/scan_all_projects",
     "/scan_projects",
@@ -223,6 +224,7 @@ pub fn build_router(
         .route("/search_messages", post(h::search_messages))
         .route("/get_recent_edits", post(h::get_recent_edits))
         .route("/restore_file", post(h::restore_file))
+        .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
@@ -862,6 +864,103 @@ mod tests {
             !restore_gate_probe_path().exists(),
             "the refusal must happen before anything reaches the disk"
         );
+    }
+
+    /// POST `body` to `/api/read_restore_target` on a fresh router.
+    async fn post_read_restore_target(body: serde_json::Value) -> (StatusCode, String) {
+        let app = build_router(state_with(false, None), "127.0.0.1", 3729, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/read_restore_target")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    /// #640. The restore preview reads a project file the export allowlist
+    /// does not cover, authorised by the same recorded-edit history restore
+    /// uses.
+    #[tokio::test]
+    #[serial]
+    async fn test_read_restore_target_reads_a_recorded_project_file() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-work-app");
+        std::fs::create_dir_all(&project).unwrap();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let target = workspace.path().join("main.rs");
+        std::fs::write(&target, "fn main() {}\n").unwrap();
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": workspace.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": target.to_string_lossy(),
+                "content": "fn main() {}\n",
+            }
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{record}\n")).unwrap();
+
+        let (status, body) = post_read_restore_target(serde_json::json!({
+            "filePath": target.to_string_lossy(),
+            "projectPath": project.to_string_lossy(),
+        }))
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            serde_json::from_str::<Option<String>>(&body).unwrap(),
+            Some("fn main() {}\n".to_string())
+        );
+    }
+
+    /// The handler runs the same project guard `restore_file` does: a project
+    /// outside every history root is refused before any read.
+    #[tokio::test]
+    #[serial]
+    async fn test_read_restore_target_refuses_a_project_outside_history_roots() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let project = tempfile::tempdir().expect("project dir");
+        let probe = project.path().join("secret.txt");
+        std::fs::write(&probe, "do not leak").unwrap();
+        // The project does record an edit to the probe, so the command's own
+        // authorisation would admit it: only the handler's guard can refuse.
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": project.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": probe.to_string_lossy(),
+                "content": "do not leak",
+            }
+        });
+        std::fs::write(project.path().join("s1.jsonl"), format!("{record}\n")).unwrap();
+
+        let (status, body) = post_read_restore_target(serde_json::json!({
+            "filePath": probe.to_string_lossy(),
+            "projectPath": project.path().to_string_lossy(),
+        }))
+        .await;
+
+        assert_ne!(status, StatusCode::OK, "{body}");
+        assert!(!body.contains("do not leak"), "{body}");
     }
 
     /// An `AppState` differing only in the two inputs the gate reads.

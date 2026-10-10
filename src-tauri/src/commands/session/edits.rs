@@ -1040,6 +1040,69 @@ pub(crate) fn is_recorded_edit_target(
         .any(|edit| file_identity(&edit.file_path) == wanted))
 }
 
+/// The one gate in front of a restore target, shared by the write
+/// ([`restore_file`]) and the preview read ([`read_restore_target`]) so the two
+/// cannot drift apart: a path the preview may read is exactly a path restore
+/// may write.
+///
+/// Blocking: the authorisation scans session logs, so callers run it on a
+/// blocking thread.
+fn authorise_restore_target(
+    file_path: &str,
+    project_path: &str,
+    session_file_path: Option<&str>,
+) -> Result<(), String> {
+    // Security validation: reject paths with null bytes
+    if file_path.contains('\0') {
+        return Err("Invalid file path: contains null bytes".to_string());
+    }
+
+    // Security validation: reject relative paths (must be absolute)
+    let path = Path::new(file_path);
+    if !path.is_absolute() {
+        return Err("Invalid file path: must be an absolute path".to_string());
+    }
+
+    // Security validation: reject paths with parent traversal segments
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Invalid file path: path traversal not allowed".to_string());
+        }
+    }
+
+    // Authorisation. Scoped to the session when the caller names one, so the
+    // common case reads one JSONL rather than walking the project. The scan
+    // costs what a panel refresh costs, and restores are rare and
+    // user-initiated.
+    if !is_recorded_edit_target(project_path, session_file_path, file_path)? {
+        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
+    }
+    Ok(())
+}
+
+/// Read the current contents of a restore target for the restore preview.
+///
+/// Authorised exactly like [`restore_file`], not through the generic
+/// `read_text_file` allowlist, which deliberately excludes project directories
+/// (#640). `Ok(None)` means the target is absent, so restoring would create it.
+#[tauri::command]
+pub async fn read_restore_target(
+    file_path: String,
+    project_path: String,
+    session_file_path: Option<String>,
+) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
+        match fs::read_to_string(&file_path) {
+            Ok(content) => Ok(Some(content)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(format!("Failed to read file: {e}")),
+        }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Restore a file by writing content to the specified path
 ///
 /// Uses atomic write pattern: writes to a temporary file first, then renames.
@@ -1060,41 +1123,16 @@ pub async fn restore_file(
     use std::fs;
     use std::path::Path;
 
-    // Security validation: reject paths with null bytes
-    if file_path.contains('\0') {
-        return Err("Invalid file path: contains null bytes".to_string());
-    }
-
-    // Security validation: reject relative paths (must be absolute)
-    let path = Path::new(&file_path);
-    if !path.is_absolute() {
-        return Err("Invalid file path: must be an absolute path".to_string());
-    }
-
-    // Security validation: reject paths with parent traversal segments
-    for component in path.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err("Invalid file path: path traversal not allowed".to_string());
-        }
-    }
-
-    // Authorisation. Runs before `create_dir_all` below, which is itself a
-    // write: an unauthorised path must not leave directories behind.
-    //
-    // Scoped to the session when the caller names one, so the common case
-    // reads one JSONL rather than walking the project. The scan costs what a
-    // panel refresh costs, and restores are rare and user-initiated.
-    let authorised = tauri::async_runtime::spawn_blocking({
-        let project_path = project_path.clone();
+    // Runs before `create_dir_all` below, which is itself a write: an
+    // unauthorised path must not leave directories behind.
+    tauri::async_runtime::spawn_blocking({
         let file_path = file_path.clone();
-        move || is_recorded_edit_target(&project_path, session_file_path.as_deref(), &file_path)
+        move || authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
-    if !authorised {
-        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
-    }
+    let path = Path::new(&file_path);
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -1341,6 +1379,92 @@ mod tests {
         .expect("a recorded edit target must be restorable");
 
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "restored");
+    }
+
+    // ------------------------------------------------------------------
+    // #640: the restore preview reads through restore's own authorisation
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn read_restore_target_reads_a_recorded_edit_target() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        fs::write(&target, "on disk now").unwrap();
+
+        let current = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("a recorded edit target must be readable for the preview");
+
+        assert_eq!(current.as_deref(), Some("on disk now"));
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_reports_a_missing_recorded_file_as_none() {
+        // The fixture records `beta.txt` but never writes it: restoring would
+        // create it, which the preview shows as "creating", not "unreadable".
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+
+        let current = read_restore_target(
+            root.join("beta.txt").to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("an absent recorded target is not an error");
+
+        assert_eq!(current, None);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_what_restore_refuses() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+        let neighbour = root.join("never-edited.txt");
+        fs::write(&neighbour, "not yours").unwrap();
+        let neighbour = neighbour.to_string_lossy().to_string();
+
+        let read_err = read_restore_target(neighbour.clone(), project.clone(), None)
+            .await
+            .expect_err("a path the project never edited must not be readable");
+        let restore_err = restore_file(neighbour, "x".to_string(), project, None)
+            .await
+            .expect_err("restore refuses it too");
+
+        // One gate for both directions, so the refusals cannot drift apart.
+        assert_eq!(read_err, restore_err);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_rejects_relative_and_traversal_paths() {
+        let relative = read_restore_target(
+            "relative/path/file.txt".to_string(),
+            "/tmp".to_string(),
+            None,
+        )
+        .await
+        .expect_err("relative path must be refused");
+        assert!(relative.contains("absolute path"), "{relative}");
+
+        let traversal = read_restore_target(
+            crate::test_utils::abs("tmp/../etc/passwd"),
+            crate::test_utils::abs("tmp"),
+            None,
+        )
+        .await
+        .expect_err("traversal must be refused");
+        assert!(traversal.contains("path traversal"), "{traversal}");
+
+        let null = read_restore_target("/tmp/a\0b".to_string(), "/tmp".to_string(), None)
+            .await
+            .expect_err("null bytes must be refused");
+        assert!(null.contains("null bytes"), "{null}");
     }
 
     #[tokio::test]

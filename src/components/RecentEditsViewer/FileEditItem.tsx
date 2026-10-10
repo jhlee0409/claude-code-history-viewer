@@ -442,6 +442,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                 filePath={edit.file_path}
                 restoreContent={edit.content_after_change}
                 existsOnDisk={edit.exists_on_disk}
+                restoreScope={restoreScope}
               />
             </div>
 
