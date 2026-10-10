@@ -15,7 +15,8 @@
 1. **Weekly watch.** `.github/workflows/pricing-watch.yml` runs `node scripts/check-model-pricing.mjs`, which compares the table with the LiteLLM and OpenRouter price feeds and upserts the "📊 Model pricing watch" issue when rates drift, a shutdown date is near, or a provider lists a model we do not price. Run it locally the same way; `--fail-on-diff` makes it exit 1.
 2. **Verify on the official page.** The feeds are corroboration only — they round, apply their own discounts (OpenRouter), or lag (LiteLLM still lists a Claude Sonnet 4.5 long-context tier the official page does not have). Open the provider page linked above and read the number there.
 3. **Edit the JSON by hand** in a reviewed PR: update the rate, set `verifiedAt` to today, keep `source` pointing at the page you read, and add a `note` when the value needs context (promotional price, alias, rate not on the main table). Bump `auditedAt` only after re-checking every entry.
-4. **Append to the provider file** what changed and why, so the next audit can see the history.
+4. **Record confirmed feed artifacts.** When the official page shows a feed value is wrong (a Batch row, a reseller discount, a stale tier), add it to [`known-feed-differences.json`](known-feed-differences.json) with the feed value, the reason and the date. The watch then lists it under "Known feed differences" instead of counting it, until the feed reports a different value.
+5. **Append to the provider file** what changed and why, so the next audit can see the history.
 
 ## Rules the table follows
 

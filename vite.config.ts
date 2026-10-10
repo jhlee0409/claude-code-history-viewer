@@ -181,10 +181,12 @@ export default defineConfig(async () => {
         "src/**/*.test.ts",
         "src/**/*.test.tsx",
         "src-tauri/tests/**/*.test.ts",
+        "scripts/**/*.test.mjs",
       ],
       environmentMatchGlobs: [
         // Node environment for file system tests
         ["src-tauri/tests/**", "node"],
+        ["scripts/**", "node"],
       ],
     },
 
