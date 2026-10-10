@@ -99,3 +99,36 @@ describe("RecentEditsPanel with no project selected", () => {
     expect(screen.getByText("recentEdits.noEdits")).toBeTruthy();
   });
 });
+
+describe("RecentEditsPanel for a provider without recent edits (#643)", () => {
+  beforeEach(() => {
+    loadRecentEditsDock.mockReset();
+  });
+
+  it("does not request edits and says they are unavailable", () => {
+    state = baseState({
+      selectedProject: {
+        path: "/Users/x/.omp/agent/sessions/-Users-x-proj",
+        actual_path: "/Users/x/proj",
+        provider: "ompi",
+      },
+      // Rows left over from the previously selected (Claude) project.
+      recentEditsDock: {
+        files: [],
+        requestKey: "k",
+        hasMore: false,
+        request: {
+          projectPath: "/storage/project",
+          scope: "project" as const,
+          grouping: "file" as const,
+        },
+      },
+    });
+
+    render(<RecentEditsPanel />);
+
+    expect(loadRecentEditsDock).not.toHaveBeenCalled();
+    expect(screen.getByText("recentEdits.unavailableForProvider")).toBeTruthy();
+    expect(screen.queryByText("recentEdits.noEdits")).toBeNull();
+  });
+});

@@ -23,6 +23,7 @@ import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
 import { RecentEditsViewToggle } from "./RecentEditsViewToggle";
+import { getProviderLabel, supportsRecentEdits } from "@/utils/providers";
 
 export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   recentEdits,
@@ -101,6 +102,24 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const isLoadingMore = pagination?.isLoadingMore ?? false;
   const totalUniqueFiles = pagination?.uniqueFilesCount ?? recentEdits?.unique_files_count ?? 0;
   const remainingCount = totalUniqueFiles - (recentEdits?.files?.length ?? 0);
+
+  // Before the cached rows are consulted: they may belong to the previously
+  // selected project, and nothing was fetched for this one (#643).
+  if (selectedProject && !supportsRecentEdits(selectedProject.provider)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+        <p className={`${layout.bodyText} text-muted-foreground`}>
+          {t("recentEdits.unavailableForProvider", {
+            provider: getProviderLabel(
+              (key, fallback) => t(key, fallback),
+              selectedProject.provider
+            ),
+          })}
+        </p>
+      </div>
+    );
+  }
 
   // Loading/Error/Empty states
   if (isLoading || error || !recentEdits || recentEdits.files.length === 0) {

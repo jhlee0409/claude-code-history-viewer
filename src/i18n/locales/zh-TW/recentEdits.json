@@ -60,6 +60,7 @@
   "recentEdits.timeNowShort": "剛剛",
   "recentEdits.timestamp": "時間戳記",
   "recentEdits.title": "最近編輯",
+  "recentEdits.unavailableForProvider": "{{provider}} 工作階段不支援最近編輯",
   "recentEdits.undockToPage": "切換為整頁顯示",
   "recentEdits.viewAdded": "新增",
   "recentEdits.viewAsPage": "頁面",
