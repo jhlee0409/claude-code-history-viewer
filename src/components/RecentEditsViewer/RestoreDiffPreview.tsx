@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { api } from "@/services/api";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
 export interface RestoreDiffPreviewProps {
   filePath: string;
@@ -154,11 +155,15 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
         the diff reads in the direction the action moves the file.
       */}
       <div className="max-h-64 overflow-auto rounded border border-border">
-        <EnhancedDiffViewer
-          oldText={state.current}
-          newText={restoreContent}
-          filePath={filePath}
-        />
+        {/* The confirmation renders outside the expanded row's provider, and
+            AdvancedTextDiff throws without one. */}
+        <ExpandKeyProvider value={`restore-preview:${filePath}`}>
+          <EnhancedDiffViewer
+            oldText={state.current}
+            newText={restoreContent}
+            filePath={filePath}
+          />
+        </ExpandKeyProvider>
       </div>
     </div>
   );
