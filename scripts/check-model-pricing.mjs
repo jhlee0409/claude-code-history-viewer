@@ -20,9 +20,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { splitKnownDifferences } from "./pricing-known-differences.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PRICING_PATH = path.join(ROOT, "src/data/model-pricing.json");
+const KNOWN_DIFFERENCES_PATH = path.join(ROOT, "docs/pricing-sources/known-feed-differences.json");
 const LITELLM_URL =
   "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/models";
@@ -195,7 +197,7 @@ function main(pricing, litellmIndex, openrouterIndex) {
 }
 
 function render(pricing, result) {
-  const { mismatches, unmatched, deprecations, newModels } = result;
+  const { mismatches, unmatched, deprecations, newModels, acknowledged } = result;
   const lines = [];
   lines.push(`# Model pricing watch`, ``);
   lines.push(`Table audited **${pricing.auditedAt}** · ${Object.keys(pricing.models).length} entries · checked ${new Date().toISOString().slice(0, 10)}`, ``);
@@ -222,6 +224,17 @@ function render(pricing, result) {
   } else lines.push(`None.`);
   lines.push(``);
 
+  lines.push(`## Known feed differences (${acknowledged.length}, not counted)`, ``);
+  if (acknowledged.length) {
+    lines.push(`Already checked on the official page (\`docs/pricing-sources/known-feed-differences.json\`); listed again only if the feed value changes.`, ``);
+    lines.push(`| model | field | feed | feed id | verified | why |`, `|---|---|---|---|---|---|`);
+    for (const a of acknowledged) {
+      const feedValue = a.field === "deprecation" ? a.theirs : fmt(a.theirs);
+      lines.push(`| ${a.key} | ${a.field} | ${feedValue} | ${a.source} | ${a.verifiedAt} | ${a.reason} |`);
+    }
+  } else lines.push(`None.`);
+  lines.push(``);
+
   lines.push(`## Entries absent from both feeds (${unmatched.length})`, ``);
   lines.push(unmatched.length ? unmatched.map((k) => `- ${k}`).join("\n") : `None.`);
   lines.push(``);
@@ -230,7 +243,8 @@ function render(pricing, result) {
 
 const pricing = JSON.parse(await readFile(PRICING_PATH, "utf8"));
 const [litellmFeed, openrouterFeed] = await Promise.all([fetchJson(LITELLM_URL), fetchJson(OPENROUTER_URL)]);
-const result = main(pricing, indexLiteLLM(litellmFeed), indexOpenRouter(openrouterFeed));
+const known = JSON.parse(await readFile(KNOWN_DIFFERENCES_PATH, "utf8")).entries;
+const result = splitKnownDifferences(main(pricing, indexLiteLLM(litellmFeed), indexOpenRouter(openrouterFeed)), known);
 const report = render(pricing, result);
 
 if (outPath) await writeFile(outPath, report);
