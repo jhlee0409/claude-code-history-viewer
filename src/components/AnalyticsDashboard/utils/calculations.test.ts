@@ -393,6 +393,7 @@ describe("provider pricing boundaries", () => {
       "gpt-image-1",
       "sora-2",
       "grok-imagine-video",
+      "gemini-nano-banana-2.1",
     ]) {
       expect(
         calculateModelPrice(
@@ -442,5 +443,25 @@ describe("Claude Opus 5.5 pricing", () => {
     expect(
       calculateModelPrice("claude-opus-5-5[1m]", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
     ).toBeCloseTo(24.2);
+  });
+});
+
+describe("Claude 5.5 pricing updates (2026-10-10)", () => {
+  // 1M input + 1M output + 1M cache read.
+  it("prices Sonnet 5.5 cache reads at 0.05x input", () => {
+    expect(
+      calculateModelPrice("claude-sonnet-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(12.1);
+  });
+
+  it("prices Haiku 5.5 by prompt length", () => {
+    expect(
+      calculateModelPrice("claude-haiku-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(0.61);
+    expect(
+      calculateModelPrice("claude-haiku-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens, {
+        contextTokens: 100_001,
+      })
+    ).toBeCloseTo(3.05);
   });
 });
