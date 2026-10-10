@@ -14,6 +14,12 @@ export interface RestoreDiffPreviewProps {
    * from "unreadable" when the read fails.
    */
   existsOnDisk?: boolean;
+  /**
+   * The project (and session) whose recorded edits authorise restoring this
+   * file. The read goes through the same gate as the write, so without it the
+   * file is not read at all (#640).
+   */
+  restoreScope?: { projectPath: string; sessionFilePath?: string };
 }
 
 type State =
@@ -37,17 +43,35 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
   filePath,
   restoreContent,
   existsOnDisk,
+  restoreScope,
 }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
+  // Read as strings so the effect tracks the scope's values: callers pass a
+  // fresh object every render.
+  const projectPath = restoreScope?.projectPath;
+  const sessionFilePath = restoreScope?.sessionFilePath;
 
   useEffect(() => {
     let cancelled = false;
 
     const read = async () => {
       try {
-        const current = await api<string>("read_text_file", { path: filePath });
+        // Not `read_text_file`: its WebUI allowlist refuses project files.
+        // Authorised like `restore_file`, so it needs the same scope.
+        if (!projectPath) {
+          throw new Error("Cannot read the restore target without the originating project");
+        }
+        const current = await api<string | null>("read_restore_target", {
+          filePath,
+          projectPath,
+          sessionFilePath,
+        });
         if (cancelled) return;
+        if (current == null) {
+          setState({ kind: "creating" });
+          return;
+        }
         setState(
           current === restoreContent
             ? { kind: "identical" }
@@ -73,7 +97,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [filePath, restoreContent, existsOnDisk]);
+  }, [filePath, restoreContent, existsOnDisk, projectPath, sessionFilePath]);
 
   if (state.kind === "loading") {
     return (
