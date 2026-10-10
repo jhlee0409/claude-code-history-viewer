@@ -1070,6 +1070,17 @@ fn authorise_restore_target(
         }
     }
 
+    // Authorisation. Scoped to the session when the caller names one, so the
+    // common case reads one JSONL rather than walking the project. The scan
+    // costs what a panel refresh costs, and restores are rare and
+    // user-initiated.
+    if !is_recorded_edit_target(project_path, session_file_path, file_path)? {
+        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
+    }
+
+    // Checked after authorisation so the result for a path the history never
+    // named stays the same whether or not a link sits there.
+    //
     // Reject a symlinked target or a symlinked immediate parent. The history
     // authorises a path by name; a link at that name would send the read (or
     // the write's temp file) somewhere the history never named. Same policy
@@ -1084,14 +1095,6 @@ fn authorise_restore_target(
     };
     if is_symlink(path) || path.parent().is_some_and(is_symlink) {
         return Err("Invalid file path: symlinks are not allowed".to_string());
-    }
-
-    // Authorisation. Scoped to the session when the caller names one, so the
-    // common case reads one JSONL rather than walking the project. The scan
-    // costs what a panel refresh costs, and restores are rare and
-    // user-initiated.
-    if !is_recorded_edit_target(project_path, session_file_path, file_path)? {
-        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
     }
     Ok(())
 }
@@ -1549,6 +1552,31 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unrecorded_path_gets_the_same_refusal_whether_or_not_it_is_a_symlink() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        let plain = root.join("never-recorded.txt");
+        fs::write(&plain, "plain").unwrap();
+        let link = root.join("never-recorded-link.txt");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        let project = root.to_string_lossy().to_string();
+
+        let plain_err =
+            read_restore_target(plain.to_string_lossy().to_string(), project.clone(), None)
+                .await
+                .expect_err("unrecorded path must be refused");
+        let link_err = read_restore_target(link.to_string_lossy().to_string(), project, None)
+            .await
+            .expect_err("unrecorded link must be refused");
+
+        assert_eq!(plain_err, link_err);
     }
 
     #[cfg(unix)]
