@@ -71,6 +71,11 @@ export function useFileEditActions(
   );
 
   const { onRestored } = options;
+  // Read as strings so `confirmRestore` tracks the scope's values: callers
+  // pass a fresh object every render, and a stale scope would write the file
+  // against a project that no longer owns the row.
+  const restoreProjectPath = options.restoreScope?.projectPath;
+  const restoreSessionFilePath = options.restoreScope?.sessionFilePath;
   const filePath = edit.file_path;
   const content = edit.content_after_change;
 
@@ -120,14 +125,14 @@ export function useFileEditActions(
       // The project is what authorises the write, so a row without one cannot
       // restore. Guarded here rather than only in the UI so the call is never
       // made without it.
-      if (!options.restoreScope) {
+      if (!restoreProjectPath) {
         throw new Error("Cannot restore without the originating project");
       }
       await api("restore_file", {
         filePath,
         content,
-        projectPath: options.restoreScope.projectPath,
-        sessionFilePath: options.restoreScope.sessionFilePath,
+        projectPath: restoreProjectPath,
+        sessionFilePath: restoreSessionFilePath,
       });
       setRestoreStatus("success");
       // The row's `exists_on_disk` was resolved when the page was fetched, so
@@ -148,7 +153,7 @@ export function useFileEditActions(
         setRestoreError(null);
       }, ERROR_MS);
     }
-  }, [filePath, content, onRestored]);
+  }, [filePath, content, onRestored, restoreProjectPath, restoreSessionFilePath]);
 
   return {
     copied,

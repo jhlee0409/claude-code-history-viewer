@@ -60,6 +60,7 @@
   "recentEdits.timeNowShort": "さっき",
   "recentEdits.timestamp": "タイムスタンプ",
   "recentEdits.title": "最近の編集",
+  "recentEdits.unavailableForProvider": "{{provider}} のセッションでは最近の編集を利用できません",
   "recentEdits.undockToPage": "全画面表示に戻す",
   "recentEdits.viewAdded": "追加",
   "recentEdits.viewAsPage": "ページ",

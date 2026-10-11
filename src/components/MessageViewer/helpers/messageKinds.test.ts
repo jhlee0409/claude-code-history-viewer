@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
 import {
   classifyMessage,
+  countToolUseBlocks,
   getMessageKind,
   isTaskNotification,
   parseTaskNotification,
@@ -251,5 +252,71 @@ describe("parseTaskNotification", () => {
       status: undefined,
       summary: undefined,
     });
+  });
+});
+
+describe("countToolUseBlocks", () => {
+  it("counts content blocks even when the backend backfilled toolUse from the first one", () => {
+    // load.rs sets `toolUse` from the FIRST tool_use block when the raw record
+    // has none, so `toolUse` being set says nothing about how many calls there are.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+        { type: "tool_use", id: "toolu_3", name: "Grep", input: {} },
+      ],
+    }))).toBe(3);
+  });
+
+  it("counts 1 for a toolUse set directly on a message without a content array", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: "",
+    }))).toBe(1);
+  });
+
+  it("counts every tool_use block in a tool-only assistant message", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("counts tool_use blocks on a reply row that also carries text", () => {
+    // A row of kind "reply" can still carry tool_use blocks (Verified
+    // constraints); the outline's tool-calls count depends on this.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "text", text: "Scrubbing first, then the LICENSE." },
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("returns 0 for a message with no tool_use blocks", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Done." }],
+    }))).toBe(0);
+    expect(countToolUseBlocks(makeMessage({ content: "Scrub for pii" }))).toBe(0);
+  });
+
+  it("returns 0 when content is not an array and toolUse is unset", () => {
+    expect(countToolUseBlocks(makeMessage({
+      content: { stdout: "ok" } as unknown as string,
+    }))).toBe(0);
   });
 });

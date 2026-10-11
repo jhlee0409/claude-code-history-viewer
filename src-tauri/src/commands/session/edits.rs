@@ -1040,6 +1040,118 @@ pub(crate) fn is_recorded_edit_target(
         .any(|edit| file_identity(&edit.file_path) == wanted))
 }
 
+/// The one gate in front of a restore target, shared by the write
+/// ([`restore_file`]) and the preview read ([`read_restore_target`]) so the two
+/// cannot drift apart: a path the preview may read is exactly a path restore
+/// may write.
+///
+/// Blocking: the authorisation scans session logs, so callers run it on a
+/// blocking thread.
+fn authorise_restore_target(
+    file_path: &str,
+    project_path: &str,
+    session_file_path: Option<&str>,
+) -> Result<(), String> {
+    // Security validation: reject paths with null bytes
+    if file_path.contains('\0') {
+        return Err("Invalid file path: contains null bytes".to_string());
+    }
+
+    // Security validation: reject relative paths (must be absolute)
+    let path = Path::new(file_path);
+    if !path.is_absolute() {
+        return Err("Invalid file path: must be an absolute path".to_string());
+    }
+
+    // Security validation: reject paths with parent traversal segments
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Invalid file path: path traversal not allowed".to_string());
+        }
+    }
+
+    // Authorisation. Scoped to the session when the caller names one, so the
+    // common case reads one JSONL rather than walking the project. The scan
+    // costs what a panel refresh costs, and restores are rare and
+    // user-initiated.
+    if !is_recorded_edit_target(project_path, session_file_path, file_path)? {
+        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
+    }
+
+    // Checked after authorisation so the result for a path the history never
+    // named stays the same whether or not a link sits there.
+    //
+    // Reject a symlinked target or a symlinked immediate parent. The history
+    // authorises a path by name; a link at that name would send the read (or
+    // the write's temp file) somewhere the history never named. Same policy
+    // `validate_session_file_in_project` applies to session files. Bounded to
+    // the parent because the target lives in an arbitrary workspace with no
+    // project root to stop at, and ancestors such as macOS `/var` are links in
+    // ordinary use. An absent path is fine: restore creates it.
+    let is_symlink = |p: &Path| {
+        fs::symlink_metadata(p)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+    };
+    if is_symlink(path) || path.parent().is_some_and(is_symlink) {
+        return Err("Invalid file path: symlinks are not allowed".to_string());
+    }
+    Ok(())
+}
+
+/// Largest file the restore preview reads; beyond this a text diff is not
+/// useful in a dialog, and the whole file would cross IPC/HTTP in one response.
+const MAX_RESTORE_PREVIEW_BYTES: u64 = 5 * 1024 * 1024;
+
+/// Read the current contents of a restore target for the restore preview.
+///
+/// Authorised exactly like [`restore_file`], not through the generic
+/// `read_text_file` allowlist, which deliberately excludes project directories
+/// (#640). `Ok(None)` means the target is absent, so restoring would create it.
+#[tauri::command]
+pub async fn read_restore_target(
+    file_path: String,
+    project_path: String,
+    session_file_path: Option<String>,
+) -> Result<Option<String>, String> {
+    use std::io::Read;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
+        let not_found = |e: &std::io::Error| e.kind() == std::io::ErrorKind::NotFound;
+
+        // Checked before opening: opening a FIFO would block the thread.
+        let metadata = match fs::symlink_metadata(&file_path) {
+            Ok(m) => m,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        if !metadata.file_type().is_file() {
+            return Err("Not a regular file".to_string());
+        }
+        if metadata.len() > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+
+        let file = match fs::File::open(&file_path) {
+            Ok(f) => f,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        // Bounded again here in case the file grew after the check above.
+        let mut content = String::new();
+        file.take(MAX_RESTORE_PREVIEW_BYTES + 1)
+            .read_to_string(&mut content)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if content.len() as u64 > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+        Ok(Some(content))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Restore a file by writing content to the specified path
 ///
 /// Uses atomic write pattern: writes to a temporary file first, then renames.
@@ -1060,41 +1172,16 @@ pub async fn restore_file(
     use std::fs;
     use std::path::Path;
 
-    // Security validation: reject paths with null bytes
-    if file_path.contains('\0') {
-        return Err("Invalid file path: contains null bytes".to_string());
-    }
-
-    // Security validation: reject relative paths (must be absolute)
-    let path = Path::new(&file_path);
-    if !path.is_absolute() {
-        return Err("Invalid file path: must be an absolute path".to_string());
-    }
-
-    // Security validation: reject paths with parent traversal segments
-    for component in path.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err("Invalid file path: path traversal not allowed".to_string());
-        }
-    }
-
-    // Authorisation. Runs before `create_dir_all` below, which is itself a
-    // write: an unauthorised path must not leave directories behind.
-    //
-    // Scoped to the session when the caller names one, so the common case
-    // reads one JSONL rather than walking the project. The scan costs what a
-    // panel refresh costs, and restores are rare and user-initiated.
-    let authorised = tauri::async_runtime::spawn_blocking({
-        let project_path = project_path.clone();
+    // Runs before `create_dir_all` below, which is itself a write: an
+    // unauthorised path must not leave directories behind.
+    tauri::async_runtime::spawn_blocking({
         let file_path = file_path.clone();
-        move || is_recorded_edit_target(&project_path, session_file_path.as_deref(), &file_path)
+        move || authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
-    if !authorised {
-        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
-    }
+    let path = Path::new(&file_path);
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -1105,8 +1192,8 @@ pub async fn restore_file(
     // This ensures the target file is never in a partial state
     let temp_path = path.with_extension("tmp.restore");
 
-    // Write to temporary file
-    fs::write(&temp_path, &content).map_err(|e| format!("Failed to write temporary file: {e}"))?;
+    // Write to a freshly created temporary file, never through a leftover link
+    crate::commands::fs_utils::write_fresh_temp_file(&temp_path, content.as_bytes())?;
 
     // Cross-platform atomic rename
     crate::commands::fs_utils::atomic_rename(&temp_path, path)?;
@@ -1341,6 +1428,220 @@ mod tests {
         .expect("a recorded edit target must be restorable");
 
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "restored");
+    }
+
+    // ------------------------------------------------------------------
+    // #640: the restore preview reads through restore's own authorisation
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn read_restore_target_reads_a_recorded_edit_target() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        fs::write(&target, "on disk now").unwrap();
+
+        let current = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("a recorded edit target must be readable for the preview");
+
+        assert_eq!(current.as_deref(), Some("on disk now"));
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_reports_a_missing_recorded_file_as_none() {
+        // The fixture records `beta.txt` but never writes it: restoring would
+        // create it, which the preview shows as "creating", not "unreadable".
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+
+        let current = read_restore_target(
+            root.join("beta.txt").to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("an absent recorded target is not an error");
+
+        assert_eq!(current, None);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_what_restore_refuses() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+        let neighbour = root.join("never-edited.txt");
+        fs::write(&neighbour, "not yours").unwrap();
+        let neighbour = neighbour.to_string_lossy().to_string();
+
+        let read_err = read_restore_target(neighbour.clone(), project.clone(), None)
+            .await
+            .expect_err("a path the project never edited must not be readable");
+        let restore_err = restore_file(neighbour, "x".to_string(), project, None)
+            .await
+            .expect_err("restore refuses it too");
+
+        // One gate for both directions, so the refusals cannot drift apart.
+        assert_eq!(read_err, restore_err);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_rejects_relative_and_traversal_paths() {
+        let relative = read_restore_target(
+            "relative/path/file.txt".to_string(),
+            "/tmp".to_string(),
+            None,
+        )
+        .await
+        .expect_err("relative path must be refused");
+        assert!(relative.contains("absolute path"), "{relative}");
+
+        let traversal = read_restore_target(
+            crate::test_utils::abs("tmp/../etc/passwd"),
+            crate::test_utils::abs("tmp"),
+            None,
+        )
+        .await
+        .expect_err("traversal must be refused");
+        assert!(traversal.contains("path traversal"), "{traversal}");
+
+        let null = read_restore_target("/tmp/a\0b".to_string(), "/tmp".to_string(), None)
+            .await
+            .expect_err("null bytes must be refused");
+        assert!(null.contains("null bytes"), "{null}");
+    }
+
+    /// Read and restore must give the same verdict on a path; returns the
+    /// shared error. Unix-gated with its only callers, the symlink tests.
+    #[cfg(unix)]
+    async fn refused_alike(file: &Path, project: &Path) -> String {
+        let file = file.to_string_lossy().to_string();
+        let project = project.to_string_lossy().to_string();
+        let read_err = read_restore_target(file.clone(), project.clone(), None)
+            .await
+            .expect_err("read must refuse");
+        let restore_err = restore_file(file, "overwritten".to_string(), project, None)
+            .await
+            .expect_err("restore must refuse");
+        assert_eq!(read_err, restore_err);
+        read_err
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_that_is_a_symlink_is_refused_by_read_and_restore() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        // `alpha.txt` is a recorded target; it is now a link.
+        let target = root.join("alpha.txt");
+        std::os::unix::fs::symlink(&outside, &target).unwrap();
+
+        let message = refused_alike(&target, root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside contents");
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unrecorded_path_gets_the_same_refusal_whether_or_not_it_is_a_symlink() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        let plain = root.join("never-recorded.txt");
+        fs::write(&plain, "plain").unwrap();
+        let link = root.join("never-recorded-link.txt");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        let project = root.to_string_lossy().to_string();
+
+        let plain_err =
+            read_restore_target(plain.to_string_lossy().to_string(), project.clone(), None)
+                .await
+                .expect_err("unrecorded path must be refused");
+        let link_err = read_restore_target(link.to_string_lossy().to_string(), project, None)
+            .await
+            .expect_err("unrecorded link must be refused");
+
+        assert_eq!(plain_err, link_err);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_under_a_symlinked_parent_is_refused() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let elsewhere = TempDir::new().unwrap();
+        fs::write(elsewhere.path().join("x.txt"), "outside contents").unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), root.join("linked")).unwrap();
+        let target = root.join("linked").join("x.txt");
+        create_test_jsonl_file(
+            &dir,
+            "session.jsonl",
+            &write_record("u1", "s1", "2026-08-21T10:00:00Z", &root, &target),
+        );
+
+        let message = refused_alike(&target, &root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(
+            fs::read_to_string(elsewhere.path().join("x.txt")).unwrap(),
+            "outside contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_an_oversized_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        let too_big = usize::try_from(MAX_RESTORE_PREVIEW_BYTES).unwrap() + 1;
+        fs::write(&target, "a".repeat(too_big)).unwrap();
+
+        let result = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await;
+        // Not `expect_err`: on failure it would print megabytes of content.
+        let Err(err) = result else {
+            panic!("an oversized file must not be read into the preview");
+        };
+
+        assert!(err.contains("too large"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_a_non_regular_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        // A directory where the recorded file used to be.
+        let target = root.join("alpha.txt");
+        fs::create_dir(&target).unwrap();
+
+        let err = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect_err("a non-regular file must not be read");
+
+        assert!(err.contains("regular file"), "{err}");
     }
 
     #[tokio::test]
@@ -2022,6 +2323,28 @@ mod tests {
         .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("path traversal"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_restore_file_does_not_write_through_a_linked_temp_file() {
+        let (temp_dir, file_path) = project_recording_edit_to("linked_temp.txt");
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "original").unwrap();
+        std::os::unix::fs::symlink(&outside, file_path.with_extension("tmp.restore")).unwrap();
+
+        restore_file(
+            file_path.to_string_lossy().to_string(),
+            "restored content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("restore must succeed");
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), "restored content");
     }
 
     #[tokio::test]

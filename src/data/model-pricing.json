@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-10-01",
+  "auditedAt": "2026-10-10",
   "models": {
     "claude-fable-5-1": {
       "provider": "anthropic",
@@ -169,10 +169,11 @@
     "claude-sonnet-5-5": {
       "provider": "anthropic",
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "verifiedAt": "2026-10-01",
+      "verifiedAt": "2026-10-10",
+      "note": "Cache reads are 0.05x base input ($0.10) since 2026-10-07; were $0.20 before.",
       "input": 2,
       "output": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5,
       "cacheWriteOneHour": 4
     },
@@ -219,6 +220,27 @@
       "cacheRead": 0.3,
       "cacheWrite": 3.75,
       "cacheWriteOneHour": 6
+    },
+    "claude-haiku-5-5": {
+      "provider": "anthropic",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "verifiedAt": "2026-10-10",
+      "note": "Priced by prompt length: prompts over 100,000 tokens (input + cache reads + cache writes) bill the higher row. No fast mode.",
+      "input": 0.1,
+      "output": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125,
+      "cacheWriteOneHour": 0.2,
+      "contextTiers": [
+        {
+          "input": 0.5,
+          "output": 2.5,
+          "cacheRead": 0.05,
+          "cacheWrite": 0.625,
+          "cacheWriteOneHour": 1,
+          "minContextTokens": 100001
+        }
+      ]
     },
     "claude-haiku-4-5": {
       "provider": "anthropic",

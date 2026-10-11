@@ -16,6 +16,7 @@ import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
 import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
+import { SessionMinimap, MINIMAP_WIDTH_PX } from "./components/SessionMinimap";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
@@ -24,6 +25,7 @@ import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
 import { usePromptJump } from "./hooks/usePromptJump";
+import { useVisibleMessageTracking } from "./hooks/useVisibleMessageTracking";
 import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
@@ -34,6 +36,7 @@ import {
   applyMessageDisplayFilter,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
+import { useMinimapVisible } from "../../hooks/useMinimapVisible";
 import { useExpandRegistry } from "../../store/expandRegistryStore";
 import { useExport } from "../../hooks/useExport";
 import {
@@ -167,6 +170,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     setActiveSessionNearBottom,
   } = useAppStore();
 
+  // Session minimap: combines the settings switch, Capture Mode, and the md
+  // breakpoint into one gate (see useMinimapVisible). Drives both whether the
+  // strip mounts and whether the list gets right-padded for it.
+  const isMinimapVisible = useMinimapVisible();
+
   const isInSubagent = parentSessionStack.length > 0;
   const hasParallelTasks = useMemo(
     () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
@@ -184,6 +192,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const loadMoreMessages = useAppStore((s) => s.loadMoreMessages);
   const ensureMessageLoaded = useAppStore((s) => s.ensureMessageLoaded);
   const fetchFullSessionMessages = useAppStore((s) => s.fetchFullSessionMessages);
+  // Selectors, not a destructured useAppStore() call, so existing test
+  // mocks that don't stub these two fields keep working unaffected.
+  const navigatorViewMode = useAppStore((s) => s.navigatorViewMode);
+  const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
 
   // Export must cover the COMPLETE session even when only a window is
   // loaded — fetch the full message list and apply the same display filter.
@@ -414,6 +426,19 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollElement,
     targetMessageUuid,
     navigateToMessage,
+  });
+
+  // Reports the first visible message row to the Messages panel's outline
+  // mode, which highlights the turn containing it (Design, "Highlighting
+  // the turn in view"). Gated on outline mode, not `isNavigatorOpen` (that
+  // flag never describes the narrow-screen sheet).
+  useVisibleMessageTracking({
+    enabled: navigatorViewMode === "outline",
+    scrollElementReady,
+    virtualizer,
+    flattenedMessages,
+    getScrollElement,
+    setVisibleMessageUuid,
   });
 
   // Set of selected message UUIDs for O(1) lookup
@@ -816,6 +841,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
+  // One condition for the strip, the wrapper's padding, and the scroll buttons'
+  // offset: the list's own render guard plus the visibility gate (switch /
+  // Capture Mode / md breakpoint), so no gutter is reserved for an unmounted strip.
+  const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
+
   return (
     <div className="relative flex-1 h-full flex flex-col">
       {/* Search Toolbar - Editorial aesthetic */}
@@ -1072,12 +1102,26 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
-      <div className="relative flex-1 min-h-0">
+      <div
+        className="relative flex-1 min-h-0"
+        style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
+      >
         {/* Floating date overlay — outside scroll container to stay fixed */}
         {flattenedMessages.length > 0 && scrollElementReady && (
           <FloatingDateOverlay
             virtualRows={virtualRows}
             flattenedMessages={flattenedMessages}
+          />
+        )}
+
+        {/* Session minimap strip — see `showMinimapStrip`. */}
+        {showMinimapStrip && (
+          <SessionMinimap
+            virtualizer={virtualizer}
+            flattenedMessages={flattenedMessages}
+            virtualRows={virtualRows}
+            totalSize={totalSize}
+            getScrollElement={getScrollElement}
           />
         )}
 
@@ -1264,8 +1308,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         </OverlayScrollbarsComponent>
 
-        {/* Floating scroll buttons — bottom-right of message area */}
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
+        {/* Floating scroll buttons — bottom-right of message area, kept left
+            of the minimap strip when it is shown. */}
+        <div
+          data-testid="message-scroll-buttons"
+          className="absolute bottom-4 right-4 flex flex-col gap-2 z-30"
+          style={showMinimapStrip ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
+        >
           {/* Scroll to top */}
           {showScrollToTop && (
             <button

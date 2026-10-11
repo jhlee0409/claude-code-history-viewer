@@ -60,6 +60,7 @@
   "recentEdits.timeNowShort": "방금",
   "recentEdits.timestamp": "타임스탬프",
   "recentEdits.title": "최근 편집",
+  "recentEdits.unavailableForProvider": "{{provider}} 세션에서는 최근 편집을 사용할 수 없습니다",
   "recentEdits.undockToPage": "전체 페이지로 전환",
   "recentEdits.viewAdded": "추가",
   "recentEdits.viewAsPage": "페이지",

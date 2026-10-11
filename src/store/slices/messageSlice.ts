@@ -33,7 +33,7 @@ import {
   getNextOffset,
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
-import { supportsConversationBreakdown } from "../../utils/providers";
+import { supportsConversationBreakdown, supportsSubagents } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 import {
@@ -981,6 +981,12 @@ export const createMessageSlice: StateCreator<
     sessionPath: string,
     sourceMessages: ClaudeMessage[],
   ) => {
+    // Other providers keep no subagent files the backend can read; asking
+    // errors in the WebUI on every session open (#643). `selectSession` has
+    // already cleared the previous session's subagents.
+    if (!supportsSubagents(get().selectedSession?.provider)) {
+      return;
+    }
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,

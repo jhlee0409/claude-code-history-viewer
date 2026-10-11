@@ -1062,3 +1062,32 @@ describe("recent-edits list and cursor are written together", () => {
     expect(pagination.uniqueFilesCount).toBe(1);
   });
 });
+
+describe("switchToRecentEdits provider gating (#643)", () => {
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  it("opens the view without requesting edits for an oh-my-pi project", async () => {
+    useAppStore.setState({
+      selectedProject: {
+        ...project("omp"),
+        path: "/Users/x/.omp/agent/sessions/-Users-x-omp",
+        provider: "ompi",
+      },
+    });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    expect(fetchRecentEdits).not.toHaveBeenCalled();
+    const analytics = useAppStore.getState().analytics;
+    expect(analytics.currentView).toBe("recentEdits");
+    expect(analytics.isLoadingRecentEdits).toBe(false);
+    expect(analytics.recentEditsError).toBeNull();
+  });
+});

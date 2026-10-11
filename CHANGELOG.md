@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-11
+
+### Added
+- **Jump between prompts with Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS). Moves the message list to the previous or next prompt you typed (slash commands included), with or without the Messages panel open. Ignored in text fields and dialogs, and it also works with focus in the project tree. (#629, #630)
+- **Session minimap** (opt-in): a strip beside the message list that shows the whole loaded session as colored blocks by row kind, with a box for the visible part; click or drag to move. Turn it on in the settings menu → View → Show session minimap, or with ⌘/Ctrl+Shift+F. (#599, #634)
+
+### Fixed
+- **Restore preview in Recent Edits**: the confirmation now shows what restoring will change in the WebUI too (it read project files through a generic endpoint the WebUI refuses), and opening it no longer crashes when the file differs. (#640, #641, #642)
+- **Restore safety**: restore and its preview refuse a symlinked target or parent directory, the preview skips files over 5 MiB and non-regular files, and the restore's temporary file is always created fresh. (#641)
+- Restoring from Recent Edits uses the row's current project scope instead of a stale one. (#633)
+- **Pricing**: Claude Sonnet 5.5 cache reads are $0.10 per million tokens (lowered by Anthropic on 2026-10-07); Claude Haiku 5.5 is priced, including its higher rate for prompts over 100,000 tokens; Gemini Nano Banana image generation is no longer priced as text. Aggregate stats now apply the long-context rates of GPT-6 Sol / 6.1 Sol / 6 Luna / 6 Astra and Grok 4.7. (#639)
+
+### Internal
+- The weekly pricing watch lists feed values already verified as feed artifacts separately instead of re-flagging them. (#638)
+- Serena project config moved to the Serena 1.7 schema, with the Rust language server enabled. (#636)
+
 ## [1.31.0] - 2026-10-04
 
 ### Added

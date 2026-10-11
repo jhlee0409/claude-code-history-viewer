@@ -347,6 +347,16 @@ pub struct RestoreFileParams {
     pub session_file_path: Option<String>,
 }
 
+/// The restore preview's read: [`RestoreFileParams`] minus the content.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadRestoreTargetParams {
+    pub file_path: String,
+    pub project_path: String,
+    #[serde(default)]
+    pub session_file_path: Option<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IdParam {
@@ -800,6 +810,20 @@ handler_json!(
         // The edit history that authorises the write must itself be history.
         require_edits_project(&p.project_path, p.session_file_path.as_deref())?;
         commands::session::restore_file(p.file_path, p.content, p.project_path, p.session_file_path)
+            .await
+    }
+);
+
+// The restore preview's read of the current file (#640). Gated exactly like
+// `restore_file` above - same project guard here, same recorded-edit
+// authorisation in the command - rather than through `read_text_file`, whose
+// export allowlist deliberately excludes project directories.
+handler_json!(
+    read_restore_target,
+    ReadRestoreTargetParams,
+    |p: ReadRestoreTargetParams| async move {
+        require_edits_project(&p.project_path, p.session_file_path.as_deref())?;
+        commands::session::read_restore_target(p.file_path, p.project_path, p.session_file_path)
             .await
     }
 );

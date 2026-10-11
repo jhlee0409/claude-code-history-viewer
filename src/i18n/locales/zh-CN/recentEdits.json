@@ -60,6 +60,7 @@
   "recentEdits.timeNowShort": "刚刚",
   "recentEdits.timestamp": "时间戳",
   "recentEdits.title": "最近编辑",
+  "recentEdits.unavailableForProvider": "{{provider}} 会话不支持最近编辑",
   "recentEdits.undockToPage": "切换为整页显示",
   "recentEdits.viewAdded": "新增",
   "recentEdits.viewAsPage": "页面",

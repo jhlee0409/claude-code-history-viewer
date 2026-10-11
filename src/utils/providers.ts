@@ -503,6 +503,37 @@ export function supportsArchiveCreation(provider?: ProviderId | string): boolean
   return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsArchiveCreation;
 }
 
+// Keep in sync with `detect_project_provider` in
+// src-tauri/src/commands/session/edits.rs. Any other provider would fall back
+// to the Claude reader there, and the WebUI rejects its paths outright (#643).
+const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
+  "claude",
+  "codex",
+  "forgecode",
+  "kilo",
+  "opencode",
+];
+
+// Keep in sync with `get_session_subagents` in
+// src-tauri/src/commands/session/load.rs: Claude `<session>/subagents/` files
+// plus the OpenCode / Kilo provider ids (#560, #643).
+const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo"];
+
+// Unlike the helpers above, a missing provider counts as Claude: the backend
+// leaves `provider` unset on Claude projects and sessions.
+const isAllowedProvider = (
+  allowed: readonly ProviderId[],
+  provider?: ProviderId | string
+): boolean => allowed.includes((provider ?? DEFAULT_PROVIDER_ID) as ProviderId);
+
+export function supportsRecentEdits(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(RECENT_EDITS_PROVIDER_IDS, provider);
+}
+
+export function supportsSubagents(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(SUBAGENT_PROVIDER_IDS, provider);
+}
+
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",

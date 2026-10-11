@@ -561,6 +561,32 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
 
 });
 
+describe("messageSlice.loadSubagents — provider gating (#643)", () => {
+  beforeEach(() => {
+    mockApi.mockReset();
+    mockToastWarning.mockReset();
+  });
+
+  it("does not ask the backend for subagents of a provider without them", async () => {
+    const store = createTestStore();
+    const session = makeSession({
+      file_path: "/Users/x/.omp/agent/sessions/-Users-x-proj/s1.jsonl",
+      provider: "ompi",
+    });
+    store.setState({ selectedSession: session });
+    mockApi.mockResolvedValue([]);
+
+    await store.getState().loadSubagents(session.file_path, []);
+
+    expect(mockApi).not.toHaveBeenCalledWith(
+      "get_session_subagents",
+      expect.anything(),
+    );
+    expect(store.getState().subagentSessions).toEqual([]);
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+});
+
 describe("messageSlice — navigate guards & error branches", () => {
   beforeEach(() => {
     mockApi.mockReset();

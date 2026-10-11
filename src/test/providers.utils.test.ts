@@ -12,7 +12,9 @@ import {
   normalizeProviderIds,
   supportsConversationBreakdown,
   supportsNativeRename,
+  supportsRecentEdits,
   supportsSessionDeletion,
+  supportsSubagents,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -295,5 +297,31 @@ describe("providers utils", () => {
     expect(coverage.coveredTokens).toBe(0);
     expect(coverage.coveragePercent).toBe(0);
     expect(coverage.hasLimitedProviders).toBe(false);
+  });
+
+  // Mirrors `detect_project_provider` in src-tauri/src/commands/session/edits.rs (#643).
+  it("allows recent edits only for providers the backend reads", () => {
+    for (const id of ["claude", "codex", "forgecode", "kilo", "opencode"]) {
+      expect(supportsRecentEdits(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "qwen", "kimi", "zcode", "copilot"]) {
+      expect(supportsRecentEdits(id)).toBe(false);
+    }
+    // Claude projects come back from the backend with no provider stamped.
+    expect(supportsRecentEdits(undefined)).toBe(true);
+    // An unknown id is not silently treated as Claude.
+    expect(supportsRecentEdits("not-a-provider")).toBe(false);
+  });
+
+  // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
+  it("allows subagent lookups only for providers the backend reads", () => {
+    for (const id of ["claude", "opencode", "kilo"]) {
+      expect(supportsSubagents(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode", "zcode"]) {
+      expect(supportsSubagents(id)).toBe(false);
+    }
+    expect(supportsSubagents(undefined)).toBe(true);
+    expect(supportsSubagents("not-a-provider")).toBe(false);
   });
 });

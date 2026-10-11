@@ -1089,6 +1089,10 @@ fn context_tier_min_tokens(model_name: &str, context_tokens: u64) -> u64 {
         "gpt-5.6-luna",
         "gpt-5.5",
         "gpt-5.4",
+        "gpt-6-sol",
+        "gpt-6.1-sol",
+        "gpt-6-luna",
+        "gpt-6-astra",
     ]
     .into_iter()
     .any(matches_model)
@@ -1098,7 +1102,12 @@ fn context_tier_min_tokens(model_name: &str, context_tokens: u64) -> u64 {
         Some(200_001)
     } else if matches_model("minimax-m3") {
         Some(512_001)
+    } else if matches_model("claude-haiku-5-5") {
+        // Billed by prompt length: over 100,000 tokens, cache reads and
+        // writes included.
+        Some(100_001)
     } else if [
+        "grok-4.7",
         "grok-4.6",
         "grok-4.5",
         "grok-4.5-build",
@@ -9237,6 +9246,16 @@ mod tests {
             272_001
         );
         assert_eq!(context_tier_min_tokens("gpt-5.6-terra", 272_000), 0);
+        assert_eq!(
+            context_tier_min_tokens("claude-haiku-5-5", 100_001),
+            100_001
+        );
+        assert_eq!(context_tier_min_tokens("claude-haiku-5-5", 100_000), 0);
+        assert_eq!(context_tier_min_tokens("gpt-6-sol", 272_001), 272_001);
+        assert_eq!(context_tier_min_tokens("gpt-6.1-sol", 272_001), 272_001);
+        assert_eq!(context_tier_min_tokens("gpt-6-luna", 272_001), 272_001);
+        assert_eq!(context_tier_min_tokens("gpt-6-astra", 272_001), 272_001);
+        assert_eq!(context_tier_min_tokens("grok-4.7", 200_001), 200_001);
 
         let model_key = model_usage_key("gpt-5.6-terra", Some("priority"));
         let mut model_usage = HashMap::new();

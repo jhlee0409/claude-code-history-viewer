@@ -121,3 +121,7 @@
 ## 2026-10-01 update (pricing watch #596)
 
 - **Added `gemini-3.8-flash`** (https://ai.google.dev/gemini-api/docs/pricing): "$0.75 through December 31, 2026. $1.50 starting January 1, 2027." / output "$3.75 … $7.50" / cache "$0.075 … $0.15"; no long-context tier. Same shape and promotional note as `gemini-3.7-flash`. Priority ($1.35 / $6.75 / $0.135) not stored.
+
+## 2026-10-10 update (pricing watch)
+
+- **`gemini-nano-banana-2.1` excluded, not priced.** https://ai.google.dev/gemini-api/docs/pricing: "An update to Nano Banana 2 (Gemini 3.1 Flash Image), built for high-efficiency image generation…"; input "$1.50 (text/image/video)", output "$7.50 (text and thinking)" / "$30.00 (images)". Image output tokens can't be told apart from text output in token-only usage, so the id is added to `TOKEN_UNSUPPORTED_MODEL_PATTERNS` (`/^gemini-nano-banana(?:-|$)/`); the existing `-image` pattern did not catch it. OpenRouter's $1.5/$7.5 is the text rate only. The watch keeps listing it under new models until its 45-day window closes (~2026-11-20).

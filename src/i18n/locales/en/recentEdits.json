@@ -60,6 +60,7 @@
   "recentEdits.timeNowShort": "now",
   "recentEdits.timestamp": "Timestamp",
   "recentEdits.title": "Recent Edits",
+  "recentEdits.unavailableForProvider": "Recent edits aren't available for {{provider}} sessions",
   "recentEdits.undockToPage": "Undock to full page",
   "recentEdits.viewAdded": "Added",
   "recentEdits.viewAsPage": "Page",
