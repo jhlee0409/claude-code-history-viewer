@@ -542,11 +542,14 @@ describe("MessageNavigator outline mode", () => {
 
     const personButton = screen.getByRole("button", { name: "navigator.outline.closeAllTurns" });
     expect(personButton.getAttribute("title")).toContain("navigator.outline.closeAllTurns");
+    // A one-time action, not a toggle: no pressed state in outline mode.
+    expect(personButton).not.toHaveAttribute("aria-pressed");
     expect(screen.getAllByRole("treeitem")).toHaveLength(2);
 
     fireEvent.click(personButton);
 
-    expect(toggleUserOnlyFilterMock).toHaveBeenCalledOnce();
+    // Outline mode never reads the prompts-only filter, so it is left alone.
+    expect(toggleUserOnlyFilterMock).not.toHaveBeenCalled();
     expect(screen.getAllByRole("treeitem")).toHaveLength(1);
     expect(getHeaderItem()).toHaveAttribute("aria-expanded", "false");
   });
@@ -762,15 +765,19 @@ describe("MessageNavigator outline mode", () => {
       expect(headers()[1]).toHaveAttribute("tabindex", "-1");
     });
 
-    it("closes every open turn even when the shared prompts-only filter is already on", () => {
+    it("closes every open turn without showing or changing a prompts-only filter left on by list mode", () => {
       storeState.userOnlyFilter = true;
       renderNavigator(twoTurns());
       fireEvent.keyDown(headers()[0]!, { key: "ArrowRight" });
       expect(getChildItems()).toHaveLength(1);
 
-      fireEvent.click(screen.getByRole("button", { name: "navigator.outline.closeAllTurns" }));
+      const personButton = screen.getByRole("button", { name: "navigator.outline.closeAllTurns" });
+      expect(personButton).not.toHaveAttribute("aria-pressed");
+      expect(personButton.className).not.toContain("bg-blue-500/20");
 
-      expect(toggleUserOnlyFilterMock).toHaveBeenCalledOnce();
+      fireEvent.click(personButton);
+
+      expect(toggleUserOnlyFilterMock).not.toHaveBeenCalled();
       expect(getChildItems()).toHaveLength(0);
     });
 

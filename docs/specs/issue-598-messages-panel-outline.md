@@ -417,17 +417,19 @@ the filter is cleared. See Decisions, below, for the alternative this spec did n
   (Verified constraints), so no outline-specific code is needed.
 - **Person button (prompts + commands only)**: in outline mode every turn header is already a
   prompt or a command by construction, so row-level filtering has nothing to remove. Each click
-  instead closes every currently open turn, a one-time action, not a standing filter. It closes
-  turns whether the click turns the toggle on or off, so a toggle that list mode left on still
-  closes turns on the first click. Nothing ever reopens. Each turn still opens with a click. The
-  toggle's boolean state (`userOnlyFilter`) is shared with list mode; only its effect differs by
-  mode.
+  instead closes every currently open turn, a one-time action, not a standing filter. Nothing ever
+  reopens. Each turn still opens with a click. In outline mode the click does not touch
+  `userOnlyFilter`, because outline mode never reads it. Toggling it there would leave a pressed
+  state the user cannot see and then surprise them with a prompts-only list back in list mode
+  (maintainer review on #632). A filter that list mode left on stays on, unseen, until the user
+  is back in list mode.
 - **The person button says what it does in each mode.** In outline mode, the button's `title` and
   `aria-label` both read `navigator.outline.closeAllTurns` ("Close all turns") instead of
   `navigator.userOnly` ("Show my prompts only"). The button is icon-only, so its accessible name
   must describe its current effect, and one button must not silently do two different things. The
-  `title` keeps its second line, the prompt-jump hint, in both modes. `aria-pressed` still
-  reflects the shared `userOnlyFilter` boolean.
+  `title` keeps its second line, the prompt-jump hint, in both modes. In outline mode the button
+  has no `aria-pressed` and no active styling, because "Close all turns" is an action, not a
+  toggle. In list mode both still reflect `userOnlyFilter`.
 - **The label and the action follow the view actually rendered, not the mode flag.** A non-empty
   free-text filter falls back to the flat list even while `navigatorViewMode === "outline"` (see
   "Free-text filter in outline mode"). While that fallback is in effect, the person button reverts
@@ -604,9 +606,10 @@ was left unchanged; it gained no new cases (see "As built," below).
    yet." When false, it reads "Before your first prompt."
 10. The lightning toggle removes parallel-task rows from the outline's counts and task rows, with
     no outline-specific code path, verified on a session with parallel tasks.
-11. In outline mode, the person button closes every open turn and filters no rows. Its tooltip and
-    accessible name read "Close all turns", and the tooltip keeps the prompt-jump hint line. In
-    list mode both read "Show my prompts only", as today.
+11. In outline mode, the person button closes every open turn and filters no rows. It leaves the
+    prompts-only filter unchanged and shows no pressed state. Its tooltip and accessible name read
+    "Close all turns", and the tooltip keeps the prompt-jump hint line. In list mode both read
+    "Show my prompts only", and the button toggles and shows the filter, as today.
 12. A non-empty free-text filter shows the flat list in both view modes; clearing it restores the
     outline.
 13. With focus on any outline row, Alt+ArrowUp and Alt+ArrowDown still jump between prompts in the
@@ -627,11 +630,13 @@ The author confirmed each of these on 2026-10-05.
 1. **A non-empty free-text filter falls back to the flat list.** *Alternative:* hide non-matching
    turns and force-open matching ones. Rejected for v1: "does a turn match if any child matches"
    needs its own design pass, and the fallback ships something correct today.
-2. **The person button closes open turns as a one-time action, shares its boolean with list mode,
-   and says "Close all turns" in outline mode.** *Alternatives:* hide the button in outline mode,
-   or give outline mode its own boolean. Rejected: the header has one button, and the mockup's own
-   code only clears open turns when the toggle turns on. The mode-specific tooltip and accessible
-   name keep one button from silently doing two different things.
+2. **The person button closes open turns as a one-time action and says "Close all turns" in
+   outline mode, without touching list mode's prompts-only filter.** *Alternatives:* hide the
+   button in outline mode, or give outline mode its own boolean. Rejected: the header has one
+   button, and outline mode needs no standing state. The mode-specific tooltip and accessible name
+   keep one button from silently doing two different things. An earlier build also toggled the
+   shared `userOnlyFilter` from outline mode; the maintainer's review on #632 asked to drop that,
+   because the toggled state was invisible there and surprised the user back in list mode.
 3. **"Agents started" counts distinct task IDs in agent-update rows, not actual launches, and task
    rows do not label a task "Agent" or "Command."** *Alternative:* count the tool calls that
    launched agents, via `groupAgentTasks`. Rejected: that function only models the Task-tool path
@@ -663,9 +668,10 @@ The author confirmed each of these on 2026-10-05.
 - `groupTurns` adds a second place that reasons about turn boundaries, beside the prompt jump's
   own use of `isTurnStart` for Alt+ArrowUp/ArrowDown. A future change to what counts as a turn
   start must stay correct in both places.
-- The shared `userOnlyFilter` boolean now has two different effects depending on view mode. The
-  mode-specific tooltip tells the user; a future reader of `filterSlice.ts` will not see it from
-  the slice, because it lives in `MessageNavigator.tsx`.
+- The person button does different things by view mode: in list mode it toggles
+  `userOnlyFilter`, and in outline mode it only closes turns. The mode-specific tooltip tells the
+  user; a future reader of `filterSlice.ts` will not see the outline-mode behavior from the slice,
+  because it lives in `MessageNavigator.tsx`.
 - `src/test/MessageNavigator.accessibility.test.tsx`'s `useVirtualizer` mock returns items with only
   `index` and `start`; it has no `size` field. The pinned header and the `visibleMessageUuid`
   effect both key off `row.start + row.size`. This mock gives that shape no coverage until build
@@ -734,6 +740,12 @@ what changed from this draft and why.
   shown it. Both row kinds now show it whenever they hold the target. The same adversarial review
   found that an activity row with no reply and an empty preview read "Reply"; it now shows its
   source row's kind label.
+- **"Close all turns" no longer toggles the prompts-only filter.** Through commit 8 the outline-mode
+  click also toggled the shared `userOnlyFilter`, which outline mode never reads. The button then
+  showed a pressed state for something invisible, and list mode reopened as a prompts-only list.
+  The maintainer's review on PR #632 asked to drop the toggle, `aria-pressed`, and the active
+  styling in outline mode. The earlier bullet's every-click fix still holds: each click closes
+  every open turn.
 
 ## Open questions
 

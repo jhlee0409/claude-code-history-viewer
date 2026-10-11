@@ -263,15 +263,17 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 
   // In outline mode the person button closes every open turn as a one-time
   // action instead of filtering rows (Design, "Person button... in outline
-  // mode"); it never reopens anything. It closes on every click, not only
-  // when the shared boolean turns on, so "Close all turns" always does what
-  // its name says even if list mode left the boolean on.
+  // mode"); it never reopens anything. It leaves the prompts-only filter
+  // alone, because outline mode never reads it: toggling it here would show
+  // a pressed state the user cannot see and surprise them back in list mode.
   const handlePersonButtonClick = useCallback(() => {
     if (isOutlineRendered) {
       setOpenKeys(new Set());
+      return;
     }
     toggleUserOnlyFilter();
   }, [isOutlineRendered, toggleUserOnlyFilter]);
+  const isPersonFilterShown = !isOutlineRendered && userOnlyFilter;
 
   // Get virtual items
   const virtualItems = virtualizer.getVirtualItems();
@@ -367,12 +369,12 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           onClick={handlePersonButtonClick}
           className={cn(
             "p-0.5 rounded transition-colors",
-            userOnlyFilter
+            isPersonFilterShown
               ? "bg-blue-500/20 text-blue-500"
               : "hover:bg-accent/10 text-muted-foreground hover:text-foreground"
           )}
           aria-label={isOutlineRendered ? t("navigator.outline.closeAllTurns") : t("navigator.userOnly")}
-          aria-pressed={userOnlyFilter}
+          aria-pressed={isOutlineRendered ? undefined : userOnlyFilter}
           title={`${isOutlineRendered ? t("navigator.outline.closeAllTurns") : t("navigator.userOnly")}\n${promptJumpHint}`}
         >
           <User className="w-3.5 h-3.5" />
