@@ -8,7 +8,7 @@ use lru::LruCache;
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
@@ -73,10 +73,6 @@ struct CachedQuerySearch {
     files: HashMap<PathBuf, FileMatches>,
 }
 
-/// Serve-time state of one walked file: its captured signature (if the file
-/// could be stat'ed) and its matches, filled from cache or by scanning.
-type FileSlot = (Option<FileSignature>, Option<Arc<Vec<ClaudeMessage>>>);
-
 /// Drop one file's cached matches from every cached query.
 ///
 /// Needed for the session-rename commands, which REWRITE a session file via
@@ -127,6 +123,43 @@ fn build_matcher(query: &str) -> AhoCorasick {
         .expect("single-pattern AhoCorasick build should never fail")
 }
 
+/// Whether raw-line prefiltering is sound for `query`.
+///
+/// A parsed JSON string is made of bytes copied verbatim from the raw line
+/// plus characters produced by escapes. The two-character escapes only ever
+/// produce `"`, `\`, `/` or control characters, so a query free of those
+/// characters can only match a parsed string if it also matches the raw
+/// bytes — provided no `\uXXXX` escape produces something else (see
+/// [`unicode_escapes_only_produce_controls`]).
+fn raw_prefilter_is_sound(query: &str) -> bool {
+    !query
+        .bytes()
+        .any(|b| b == b'"' || b == b'\\' || b == b'/' || b < 0x20)
+}
+
+/// True when every `\u` in the raw line is followed by `00[01]X`, i.e. every
+/// `\uXXXX` escape decodes to a control character (`< U+0020`), which a
+/// prefilter-eligible query never contains. Searching for the byte pair `\u`
+/// over-approximates the real escapes (`\\u...` is a literal backslash), which
+/// only makes the check more conservative. Common case: ANSI colour codes in
+/// command output, stored as `\u001b`.
+fn unicode_escapes_only_produce_controls(raw: &[u8]) -> bool {
+    memchr::memmem::find_iter(raw, b"\\u").all(|pos| {
+        matches!(
+            raw.get(pos + 2..pos + 6),
+            Some([b'0', b'0', b'0' | b'1', last]) if last.is_ascii_hexdigit()
+        )
+    })
+}
+
+/// Cheap pre-parse check: `false` only when the line provably cannot match.
+/// False positives (a key name, an unsearched field) fall through to the
+/// exact check after parsing.
+#[inline]
+fn raw_line_may_match(raw: &[u8], matcher: &AhoCorasick) -> bool {
+    matcher.is_match(raw) || !unicode_escapes_only_produce_controls(raw)
+}
+
 /// Extract project name from file path
 /// Path format: ~/.claude/projects/[project-name]/[session-file].jsonl
 fn extract_project_name(file_path: &PathBuf) -> Option<String> {
@@ -141,8 +174,14 @@ fn extract_project_name(file_path: &PathBuf) -> Option<String> {
 ///
 /// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
 /// Accepts a pre-built `AhoCorasick` matcher to avoid rebuilding per file.
+/// With `prefilter_raw_lines` (only pass `raw_prefilter_is_sound(query)`),
+/// lines that provably cannot match are skipped before the costly parse.
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
+fn search_in_file(
+    file_path: &PathBuf,
+    matcher: &AhoCorasick,
+    prefilter_raw_lines: bool,
+) -> Vec<ClaudeMessage> {
     let project_name = extract_project_name(file_path);
 
     let file = match fs::File::open(file_path) {
@@ -167,9 +206,14 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
     let mut parse_buffer = Vec::with_capacity(PARSE_BUFFER_INITIAL_CAPACITY);
 
     for (line_num, (start, end)) in line_ranges.iter().enumerate() {
+        let raw_line = &mmap[*start..*end];
+        if prefilter_raw_lines && !raw_line_may_match(raw_line, matcher) {
+            continue;
+        }
+
         // Reuse buffer instead of allocating new Vec each iteration
         parse_buffer.clear();
-        parse_buffer.extend_from_slice(&mmap[*start..*end]);
+        parse_buffer.extend_from_slice(raw_line);
 
         let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut parse_buffer) {
             Ok(entry) => entry,
@@ -180,7 +224,8 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
             continue;
         }
 
-        let message_content = match &log_entry.message {
+        // Owned, so a match moves its fields instead of cloning them.
+        let message_content = match log_entry.message {
             Some(mc) => mc,
             None => continue,
         };
@@ -226,18 +271,18 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
                 .timestamp
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: log_entry.message_type,
-            content: Some(message_content.content.clone()),
+            content: Some(message_content.content),
             project_name: project_name.clone(),
             tool_use: log_entry.tool_use,
             tool_use_result: log_entry.tool_use_result,
             is_sidechain: log_entry.is_sidechain,
-            usage: message_content.usage.clone(),
-            role: Some(message_content.role.clone()),
-            model: message_content.model.clone(),
-            stop_reason: message_content.stop_reason.clone(),
+            usage: message_content.usage,
+            role: Some(message_content.role),
+            model: message_content.model,
+            stop_reason: message_content.stop_reason,
             cost_usd: log_entry.cost_usd,
             duration_ms: log_entry.duration_ms,
-            message_id: message_content.id.clone(),
+            message_id: message_content.id,
             ..Default::default()
         };
         results.push(claude_message);
@@ -322,6 +367,16 @@ pub(crate) fn validate_search_filters(filters: &serde_json::Value) -> Result<(),
         return Ok(());
     };
 
+    match obj.get("sessionIds") {
+        None | Some(serde_json::Value::Null) => {}
+        Some(serde_json::Value::Array(ids)) if ids.iter().all(serde_json::Value::is_string) => {}
+        Some(other) => {
+            return Err(format!(
+                "Invalid sessionIds filter: expected an array of strings, got {other}"
+            ));
+        }
+    }
+
     let Some(date_range) = obj.get("dateRange").and_then(serde_json::Value::as_array) else {
         return Ok(());
     };
@@ -356,88 +411,256 @@ pub(crate) fn validate_search_filters(filters: &serde_json::Value) -> Result<(),
     Ok(())
 }
 
-fn matches_filters(message: &ClaudeMessage, filters: &serde_json::Value) -> bool {
-    let Some(obj) = filters.as_object() else {
-        return true;
-    };
+/// String members of a filter array (`projects`, `sessionIds`), or `None`
+/// when the key is absent or selects nothing — an empty selection means
+/// "no restriction", not "match nothing".
+fn selected_strings<'a>(
+    obj: &'a serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<HashSet<&'a str>> {
+    let selected: HashSet<&str> = obj
+        .get(key)?
+        .as_array()?
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    (!selected.is_empty()).then_some(selected)
+}
 
-    if let Some(message_type) = obj.get("messageType").and_then(serde_json::Value::as_str) {
-        if message_type != "all" && message.message_type != message_type {
-            return false;
+/// The `dateRange` filter: absent (or not a two-item array, which validation
+/// rejects), a parsed range, or a two-item range that does not parse — which
+/// rejects every message.
+#[derive(Clone, Copy)]
+enum DateRangeFilter {
+    Any,
+    Within(DateTime<Utc>, DateTime<Utc>),
+    RejectAll,
+}
+
+/// Search filters parsed once per request instead of once per message.
+struct SearchFilters<'a> {
+    message_type: Option<&'a str>,
+    projects: Option<HashSet<&'a str>>,
+    session_ids: Option<HashSet<&'a str>>,
+    has_tool_calls: Option<bool>,
+    has_errors: Option<bool>,
+    has_file_changes: Option<bool>,
+    date_range: DateRangeFilter,
+}
+
+impl<'a> SearchFilters<'a> {
+    fn parse(filters: &'a serde_json::Value) -> Self {
+        let Some(obj) = filters.as_object() else {
+            return Self {
+                message_type: None,
+                projects: None,
+                session_ids: None,
+                has_tool_calls: None,
+                has_errors: None,
+                has_file_changes: None,
+                date_range: DateRangeFilter::Any,
+            };
+        };
+        let flag = |key: &str| obj.get(key).and_then(serde_json::Value::as_bool);
+
+        Self {
+            message_type: obj
+                .get("messageType")
+                .and_then(serde_json::Value::as_str)
+                .filter(|message_type| *message_type != "all"),
+            projects: selected_strings(obj, "projects"),
+            session_ids: selected_strings(obj, "sessionIds"),
+            has_tool_calls: flag("hasToolCalls"),
+            has_errors: flag("hasErrors"),
+            has_file_changes: flag("hasFileChanges"),
+            date_range: obj
+                .get("dateRange")
+                .and_then(serde_json::Value::as_array)
+                .filter(|range| range.len() == 2)
+                .map_or(DateRangeFilter::Any, |range| {
+                    match (parse_filter_date(&range[0]), parse_filter_date(&range[1])) {
+                        (Some(start_at), Some(end_at)) => DateRangeFilter::Within(start_at, end_at),
+                        _ => DateRangeFilter::RejectAll,
+                    }
+                }),
         }
     }
 
-    if let Some(projects) = obj.get("projects").and_then(serde_json::Value::as_array) {
-        let selected: Vec<&str> = projects
-            .iter()
-            .filter_map(serde_json::Value::as_str)
-            .collect();
-        if !selected.is_empty() {
+    fn matches(&self, message: &ClaudeMessage) -> bool {
+        if let Some(message_type) = self.message_type {
+            if message.message_type != message_type {
+                return false;
+            }
+        }
+
+        if let Some(projects) = &self.projects {
             let Some(project_name) = message.project_name.as_deref() else {
                 return false;
             };
-            if !selected.contains(&project_name) {
+            if !projects.contains(project_name) {
                 return false;
             }
         }
-    }
 
-    if let Some(has_tool_calls_filter) =
-        obj.get("hasToolCalls").and_then(serde_json::Value::as_bool)
-    {
-        let has_calls = has_tool_calls(message);
-        if has_calls != has_tool_calls_filter {
-            return false;
-        }
-    }
-
-    if let Some(has_errors_filter) = obj.get("hasErrors").and_then(serde_json::Value::as_bool) {
-        let has_message_error = has_errors(message);
-        if has_message_error != has_errors_filter {
-            return false;
-        }
-    }
-
-    if let Some(has_file_changes_filter) = obj
-        .get("hasFileChanges")
-        .and_then(serde_json::Value::as_bool)
-    {
-        let has_message_file_changes = has_file_changes(message);
-        if has_message_file_changes != has_file_changes_filter {
-            return false;
-        }
-    }
-
-    if let Some(date_range) = obj.get("dateRange").and_then(serde_json::Value::as_array) {
-        if date_range.len() == 2 {
-            let start = parse_filter_date(&date_range[0]);
-            let end = parse_filter_date(&date_range[1]);
-            match (start, end) {
-                (Some(start_at), Some(end_at)) => {
-                    let message_ts = DateTime::parse_from_rfc3339(&message.timestamp)
-                        .ok()
-                        .map(|dt| dt.with_timezone(&Utc));
-                    match message_ts {
-                        Some(ts) if ts >= start_at && ts <= end_at => {}
-                        _ => return false,
-                    }
-                }
-                (None, _) | (_, None) => return false,
+        if let Some(session_ids) = &self.session_ids {
+            if !session_ids.contains(message.session_id.as_str()) {
+                return false;
             }
         }
-    }
 
-    true
+        if let Some(has_tool_calls_filter) = self.has_tool_calls {
+            if has_tool_calls(message) != has_tool_calls_filter {
+                return false;
+            }
+        }
+
+        if let Some(has_errors_filter) = self.has_errors {
+            if has_errors(message) != has_errors_filter {
+                return false;
+            }
+        }
+
+        if let Some(has_file_changes_filter) = self.has_file_changes {
+            if has_file_changes(message) != has_file_changes_filter {
+                return false;
+            }
+        }
+
+        match self.date_range {
+            DateRangeFilter::Any => {}
+            DateRangeFilter::Within(start_at, end_at) => {
+                let message_ts = DateTime::parse_from_rfc3339(&message.timestamp)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc));
+                match message_ts {
+                    Some(ts) if ts >= start_at && ts <= end_at => {}
+                    _ => return false,
+                }
+            }
+            DateRangeFilter::RejectAll => return false,
+        }
+
+        true
+    }
 }
 
 pub fn apply_search_filters(
     messages: Vec<ClaudeMessage>,
     filters: &serde_json::Value,
 ) -> Vec<ClaudeMessage> {
+    let filters = SearchFilters::parse(filters);
     messages
         .into_iter()
-        .filter(|message| matches_filters(message, filters))
+        .filter(|message| filters.matches(message))
         .collect()
+}
+
+/// Which part of `<claude_path>/projects` a search walks.
+enum WalkScope {
+    /// Every project directory (no `projects` filter).
+    All,
+    /// Only these project directories, in the same order the full walk would
+    /// visit them.
+    Projects(Vec<PathBuf>),
+}
+
+/// A `projects` filter entry usable as a single directory name: anything
+/// that could escape `projects/` (separators, `.`, `..`) is ignored.
+fn is_valid_project_dir_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\'])
+}
+
+/// Resolve the walk scope from the `projects` filter.
+///
+/// Every message's `project_name` is its file's parent directory name, so a
+/// file outside `projects/<selected>/` could only pass the filter if it sat
+/// in a nested directory that happens to share a selected project's name.
+/// Selected names come from the top-level project list, so walking just
+/// those directories yields the same results; nested files that are walked
+/// (e.g. `<session>/subagents/*.jsonl`, project name "subagents") are still
+/// dropped by the serve-time filter exactly as before.
+///
+/// Project directories are taken from `read_dir` order (the order `WalkDir`
+/// itself uses), so the scoped file list is an in-order subsequence of the
+/// full walk. Symlinked entries are skipped because the full walk does not
+/// follow them either.
+fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> WalkScope {
+    let Some(selected) = filters
+        .as_object()
+        .and_then(|obj| selected_strings(obj, "projects"))
+    else {
+        return WalkScope::All;
+    };
+    let selected: HashSet<&str> = selected
+        .into_iter()
+        .filter(|name| is_valid_project_dir_name(name))
+        .collect();
+
+    let roots = fs::read_dir(projects_path)
+        .map(|entries| {
+            entries
+                .filter_map(std::result::Result::ok)
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_str()
+                        .is_some_and(|name| selected.contains(name))
+                })
+                .map(|entry| entry.path())
+                .collect()
+        })
+        .unwrap_or_default();
+    WalkScope::Projects(roots)
+}
+
+/// Session files under each walk root, in `WalkDir` order.
+fn collect_session_files(roots: &[PathBuf]) -> Vec<PathBuf> {
+    roots
+        .iter()
+        .flat_map(|root| WalkDir::new(root).into_iter())
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .map(|e| e.path().to_path_buf())
+        .collect()
+}
+
+/// Store this walk's per-file matches for `key`.
+///
+/// An unscoped walk saw every file, so it replaces the entry (dropping
+/// deleted files). A scoped walk only saw its project directories: it
+/// replaces just the entries under those roots, keeping every other
+/// project's cached matches for the next search.
+fn store_walk_matches(key: u64, scope: &WalkScope, walked: HashMap<PathBuf, FileMatches>) {
+    let Ok(mut cache) = SEARCH_CACHE.lock() else {
+        return;
+    };
+    let roots = match scope {
+        WalkScope::Projects(roots) => roots,
+        WalkScope::All => {
+            cache.put(key, CachedQuerySearch { files: walked });
+            return;
+        }
+    };
+    let Some(entry) = cache.get_mut(&key) else {
+        cache.put(key, CachedQuerySearch { files: walked });
+        return;
+    };
+
+    let in_scope = |path: &Path| roots.iter().any(|root| path.starts_with(root));
+    let kept_matches: usize = entry
+        .files
+        .iter()
+        .filter(|(path, _)| !in_scope(path))
+        .map(|(_, file)| file.matches.len())
+        .sum();
+    let walked_matches: usize = walked.values().map(|file| file.matches.len()).sum();
+    if kept_matches + walked_matches > MAX_CACHED_MATCHES_PER_QUERY {
+        // Keep the bound; stale entries are harmless (signature-checked).
+        return;
+    }
+    entry.files.retain(|path, _| !in_scope(path));
+    entry.files.extend(walked);
 }
 
 /// Search messages across a Claude storage directory.
@@ -479,41 +702,38 @@ fn search_messages_blocking(
         return Ok(vec![]);
     }
 
-    let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
+    let scope = resolve_walk_scope(&projects_path, &filters);
+    let file_paths = match &scope {
+        WalkScope::All => collect_session_files(std::slice::from_ref(&projects_path)),
+        WalkScope::Projects(roots) => collect_session_files(roots),
+    };
+    let signatures: Vec<Option<FileSignature>> = file_paths
+        .iter()
+        .map(|path| FileSignature::of(path))
         .collect();
-
-    let key = cache_key(&claude_path, &query);
-    let cached_files: HashMap<PathBuf, FileMatches> = SEARCH_CACHE
-        .lock()
-        .ok()
-        .and_then(|mut cache| cache.get(&key).map(|entry| entry.files.clone()))
-        .unwrap_or_default();
 
     // Per-file resolution: reuse cached matches when the file's (size, mtime)
     // signature is unchanged; anything else (changed, new, or unstat-able)
-    // is re-scanned. Files missing from the current walk drop out because the
-    // stored map is rebuilt from `file_paths` below.
-    let mut per_file: Vec<FileSlot> = file_paths
-        .iter()
-        .map(|path| {
-            let signature = FileSignature::of(path);
-            let cached = signature.and_then(|sig| {
-                cached_files
-                    .get(path)
-                    .and_then(|entry| (entry.signature == sig).then(|| Arc::clone(&entry.matches)))
-            });
-            (signature, cached)
-        })
-        .collect();
+    // is re-scanned. Signatures are captured before taking the lock so no
+    // filesystem I/O happens while other searches wait on it.
+    let key = cache_key(&claude_path, &query);
+    let mut per_file: Vec<Option<Arc<Vec<ClaudeMessage>>>> = {
+        let mut cache = SEARCH_CACHE.lock().ok();
+        let cached_files = cache.as_mut().and_then(|cache| cache.get(&key));
+        file_paths
+            .iter()
+            .zip(&signatures)
+            .map(|(path, signature)| {
+                let entry = cached_files?.files.get(path)?;
+                (Some(entry.signature) == *signature).then(|| Arc::clone(&entry.matches))
+            })
+            .collect()
+    };
 
     let scan_indices: Vec<usize> = per_file
         .iter()
         .enumerate()
-        .filter(|(_, (_, cached))| cached.is_none())
+        .filter(|(_, cached)| cached.is_none())
         .map(|(idx, _)| idx)
         .collect();
 
@@ -526,43 +746,55 @@ fn search_messages_blocking(
     );
 
     let matcher = build_matcher(&query);
+    let prefilter_raw_lines = raw_prefilter_is_sound(&query);
 
     let scanned: Vec<(usize, Arc<Vec<ClaudeMessage>>)> = scan_indices
         .into_par_iter()
         .map(|idx| {
             #[cfg(test)]
             note_scan(&file_paths[idx]);
-            (idx, Arc::new(search_in_file(&file_paths[idx], &matcher)))
+            let matches = search_in_file(&file_paths[idx], &matcher, prefilter_raw_lines);
+            (idx, Arc::new(matches))
         })
         .collect();
     for (idx, matches) in scanned {
-        per_file[idx].1 = Some(matches);
+        per_file[idx] = Some(matches);
     }
 
-    // Merge in walk order — identical concatenation order to a cold scan, so
-    // the selection below sees the same input either way.
-    let raw: Vec<ClaudeMessage> = per_file
+    // Filter while flattening in walk order, borrowing from the shared match
+    // sets: only the final page is cloned out. Ties on timestamp break by
+    // walk order, so the selection is deterministic and a scoped walk (an
+    // in-order subsequence of the full walk) selects the same messages.
+    let search_filters = SearchFilters::parse(&filters);
+    let mut selected: Vec<(usize, &ClaudeMessage)> = per_file
         .iter()
-        .filter_map(|(_, matches)| matches.as_deref())
-        .flat_map(|matches| matches.iter().cloned())
+        .flatten()
+        .flat_map(|matches| matches.iter())
+        .filter(|message| search_filters.matches(message))
+        .enumerate()
+        .collect();
+    let newest_first = |a: &(usize, &ClaudeMessage), b: &(usize, &ClaudeMessage)| {
+        b.1.timestamp.cmp(&a.1.timestamp).then(a.0.cmp(&b.0))
+    };
+    if selected.len() > max_results {
+        selected.select_nth_unstable_by(max_results, newest_first);
+        selected.truncate(max_results);
+    }
+    selected.sort_unstable_by(newest_first);
+    let results: Vec<ClaudeMessage> = selected
+        .into_iter()
+        .map(|(_, message)| message.clone())
         .collect();
 
-    let total_matches = raw.len();
-    let mut filtered = apply_search_filters(raw, &filters);
-
-    if filtered.len() > max_results {
-        filtered.select_nth_unstable_by(max_results, |a, b| b.timestamp.cmp(&a.timestamp));
-        filtered.truncate(max_results);
-    }
-    filtered.sort_unstable_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-    // Store the rebuilt per-file map; files whose signature could not be
-    // captured are computed without caching (re-scanned next call).
+    // Store the per-file map; files whose signature could not be captured are
+    // computed without caching (re-scanned next call).
+    let total_matches: usize = per_file.iter().flatten().map(|matches| matches.len()).sum();
     if total_matches <= MAX_CACHED_MATCHES_PER_QUERY {
-        let files: HashMap<PathBuf, FileMatches> = file_paths
+        let walked: HashMap<PathBuf, FileMatches> = file_paths
             .into_iter()
+            .zip(signatures)
             .zip(per_file)
-            .filter_map(|(path, (signature, matches))| {
+            .filter_map(|((path, signature), matches)| {
                 Some((
                     path,
                     FileMatches {
@@ -572,9 +804,7 @@ fn search_messages_blocking(
                 ))
             })
             .collect();
-        if let Ok(mut cache) = SEARCH_CACHE.lock() {
-            cache.put(key, CachedQuerySearch { files });
-        }
+        store_walk_matches(key, &scope, walked);
     }
 
     #[cfg(debug_assertions)]
@@ -582,13 +812,13 @@ fn search_messages_blocking(
         let elapsed = start_time.elapsed();
         eprintln!(
             "📊 search_messages performance: {} results (limit: {}), {}ms elapsed",
-            filtered.len(),
+            results.len(),
             max_results,
             elapsed.as_millis()
         );
     }
 
-    Ok(filtered)
+    Ok(results)
 }
 
 /// Number of `search_in_file` scans recorded for `path`. Test-only cache-hit
@@ -1075,5 +1305,501 @@ mod tests {
         );
         assert_eq!(test_scan_count(&file_a), 1, "untouched file a stays cached");
         assert_eq!(test_scan_count(&file_c), 1);
+    }
+
+    // ---- Raw-line prefilter equivalence ----
+
+    /// Scan `lines` (one JSONL file) with and without the raw-line
+    /// prefilter; the prefilter is only enabled when sound for `query`,
+    /// exactly as `search_messages_blocking` does.
+    fn scan_with_and_without_prefilter(
+        lines: &[String],
+        query: &str,
+    ) -> (Vec<ClaudeMessage>, Vec<ClaudeMessage>) {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session.jsonl");
+        std::fs::write(&file_path, lines.join("\n")).unwrap();
+        let matcher = build_matcher(query);
+        let prefiltered = search_in_file(&file_path, &matcher, raw_prefilter_is_sound(query));
+        let unfiltered = search_in_file(&file_path, &matcher, false);
+        (prefiltered, unfiltered)
+    }
+
+    /// A user line whose `message.content` is the already-JSON-encoded
+    /// string body `encoded` (written verbatim between the quotes).
+    fn raw_user_line(uuid: &str, encoded: &str) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"s","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{encoded}"}}}}"#
+        )
+    }
+
+    fn assert_prefilter_equivalent(lines: &[String], query: &str, expected_uuids: &[&str]) {
+        let (prefiltered, unfiltered) = scan_with_and_without_prefilter(lines, query);
+        assert_eq!(
+            serde_json::to_value(&prefiltered).unwrap(),
+            serde_json::to_value(&unfiltered).unwrap(),
+            "prefiltered scan must equal the unfiltered scan for {query:?}"
+        );
+        assert_eq!(uuids(&prefiltered), expected_uuids, "query {query:?}");
+    }
+
+    #[test]
+    fn test_raw_prefilter_disabled_for_characters_json_may_escape() {
+        assert!(raw_prefilter_is_sound("plain text 테스트 🦀"));
+        for query in [
+            "say \"hi\"",
+            r"C:\Users",
+            "a/b",
+            "line1\nline2",
+            "tab\there",
+        ] {
+            assert!(!raw_prefilter_is_sound(query), "{query:?}");
+        }
+    }
+
+    #[test]
+    fn test_raw_prefilter_matches_escaped_quotes_backslashes_slashes_and_newlines() {
+        let lines = vec![
+            raw_user_line("quote", r#"she said \"hi\" twice"#),
+            raw_user_line("backslash", r"path C:\\Users\\dev"),
+            raw_user_line("slash-escaped", r"open a\/b now"),
+            raw_user_line("slash-literal", "open a/b now"),
+            raw_user_line("newline", r"line1\nline2"),
+            raw_user_line("unrelated", "nothing here"),
+        ];
+        assert_prefilter_equivalent(&lines, "said \"hi\"", &["quote"]);
+        assert_prefilter_equivalent(&lines, r"C:\Users", &["backslash"]);
+        assert_prefilter_equivalent(&lines, "a/b", &["slash-escaped", "slash-literal"]);
+        assert_prefilter_equivalent(&lines, "line1\nline2", &["newline"]);
+    }
+
+    #[test]
+    fn test_raw_prefilter_matches_non_ascii_stored_literally_and_escaped() {
+        let lines = vec![
+            raw_user_line("korean-literal", "테스트 통과"),
+            raw_user_line("korean-escaped", r"\uD14C\uC2A4\uD2B8 \uD1B5\uACFC"),
+            raw_user_line("emoji-literal", "rust 🦀 crab"),
+            raw_user_line("emoji-escaped", r"rust \ud83e\udd80 crab"),
+            raw_user_line("ascii-escaped", r"\u0041BC def"),
+            raw_user_line("unrelated", "nothing here"),
+        ];
+        assert_prefilter_equivalent(&lines, "테스트", &["korean-escaped", "korean-literal"]);
+        assert_prefilter_equivalent(&lines, "🦀", &["emoji-escaped", "emoji-literal"]);
+        assert_prefilter_equivalent(&lines, "abc", &["ascii-escaped"]);
+    }
+
+    #[test]
+    fn test_raw_prefilter_is_case_insensitive_and_skips_control_escapes() {
+        let lines = vec![
+            raw_user_line("upper", "HELLO World"),
+            raw_user_line("ansi", r"\u001b[32mok\u001B[0m 128 tests passed"),
+            raw_user_line("ansi-other", r"\u001b[33mwarning\u001b[0m"),
+        ];
+        assert_prefilter_equivalent(&lines, "hello world", &["upper"]);
+        assert_prefilter_equivalent(&lines, "Tests Passed", &["ansi"]);
+
+        // Control-only `\u` escapes cannot form a prefilter-eligible query,
+        // so such lines are still skipped without parsing.
+        assert!(unicode_escapes_only_produce_controls(
+            br"a \u001b[0m \u001F b"
+        ));
+        assert!(!unicode_escapes_only_produce_controls(br"\u0041"));
+        assert!(!unicode_escapes_only_produce_controls(br"\ud83e\udd80"));
+        assert!(!unicode_escapes_only_produce_controls(br"truncated \u00"));
+    }
+
+    #[test]
+    fn test_raw_prefilter_searches_tool_payloads_like_unfiltered_scan() {
+        let lines = vec![
+            create_tool_result_message("tool", "s", "visible", r"Zmarker\u0031 out"),
+            create_sample_assistant_message("assistant", "s", "has zmarker1 too"),
+            r#"{"uuid":"summary","type":"summary","summary":"zmarker1 in summary"}"#.to_string(),
+            r#"{"uuid":"key-only","type":"user","message":{"role":"user","content":"x"},"toolUse":{"zmarker1":1}}"#.to_string(),
+        ];
+        assert_prefilter_equivalent(&lines, "zmarker1", &["assistant", "tool"]);
+    }
+
+    /// Characters chosen to exercise every escape class: plain ASCII (both
+    /// cases), escapable punctuation, control characters, multi-byte BMP
+    /// and astral (surrogate pair) characters.
+    const PROP_ALPHABET: &[char] = &[
+        'a', 'b', 'A', 'B', ' ', '"', '\\', '/', '\n', '\t', '\u{1b}', '가', 'é', '🦀',
+    ];
+
+    /// JSON-encode `chars` choosing, per character, between a literal byte
+    /// sequence (when legal), a short escape and a `\uXXXX` escape.
+    fn encode_json_string(chars: &[(usize, u8)]) -> String {
+        let mut out = String::new();
+        for &(index, style) in chars {
+            let c = PROP_ALPHABET[index % PROP_ALPHABET.len()];
+            let short = match c {
+                '"' => Some("\\\""),
+                '\\' => Some("\\\\"),
+                '/' => Some("\\/"),
+                '\n' => Some("\\n"),
+                '\t' => Some("\\t"),
+                _ => None,
+            };
+            let literal_ok = c != '"' && c != '\\' && c >= ' ';
+            match (style % 3, short) {
+                (0, _) if literal_ok => out.push(c),
+                (0 | 1, Some(short)) => out.push_str(short),
+                _ => {
+                    let mut units = [0u16; 2];
+                    for unit in c.encode_utf16(&mut units) {
+                        if style % 2 == 0 {
+                            out.push_str(&format!("\\u{unit:04x}"));
+                        } else {
+                            out.push_str(&format!("\\u{unit:04X}"));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn prop_raw_prefilter_never_changes_scan_results(
+            entries in proptest::collection::vec(
+                (
+                    0usize..3,
+                    proptest::collection::vec((0usize..64, 0u8..6), 0..12),
+                    proptest::collection::vec((0usize..64, 0u8..6), 0..12),
+                ),
+                1..8,
+            ),
+            query in proptest::collection::vec(0usize..64, 1..4),
+        ) {
+            let lines: Vec<String> = entries
+                .iter()
+                .enumerate()
+                .map(|(i, (kind, content, stdout))| {
+                    let message_type = ["user", "assistant", "summary"][*kind];
+                    format!(
+                        r#"{{"uuid":"u{i}","sessionId":"s","timestamp":"2025-06-26T10:00:00Z","type":"{message_type}","message":{{"role":"{message_type}","content":[{{"type":"text","text":"{}"}}]}},"toolUseResult":{{"stdout":"{}"}}}}"#,
+                        encode_json_string(content),
+                        encode_json_string(stdout),
+                    )
+                })
+                .collect();
+            let query: String = query
+                .iter()
+                .map(|index| PROP_ALPHABET[index % PROP_ALPHABET.len()])
+                .collect();
+
+            let (prefiltered, unfiltered) = scan_with_and_without_prefilter(&lines, &query);
+            proptest::prop_assert_eq!(
+                serde_json::to_value(&prefiltered).unwrap(),
+                serde_json::to_value(&unfiltered).unwrap()
+            );
+        }
+    }
+
+    // ---- Project-scoped walk ----
+
+    fn write_session(dir: &Path, file_name: &str, lines: &[String]) -> PathBuf {
+        std::fs::create_dir_all(dir).unwrap();
+        let path = dir.join(file_name);
+        std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+        path
+    }
+
+    fn user_line_at(uuid: &str, session_id: &str, minute: u32, content: &str) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:{minute:02}:00Z","type":"user","message":{{"role":"user","content":"{content}"}}}}"#
+        )
+    }
+
+    /// Three projects (alpha, beta, gamma), alpha with a nested subagent
+    /// file, every message matching `marker` at a distinct timestamp.
+    /// Returns the temp dir and every session file by name.
+    fn three_project_fixture(marker: &str) -> (TempDir, HashMap<&'static str, PathBuf>) {
+        let temp_dir = TempDir::new().unwrap();
+        let projects = temp_dir.path().join("projects");
+        let line = |uuid: &str, session: &str, minute: u32| {
+            user_line_at(uuid, session, minute, &format!("{marker} {uuid}"))
+        };
+        let mut files = HashMap::new();
+        files.insert(
+            "alpha-1",
+            write_session(
+                &projects.join("alpha"),
+                "a1.jsonl",
+                &[line("a1-1", "a1", 1), line("a1-2", "a1", 2)],
+            ),
+        );
+        files.insert(
+            "alpha-2",
+            write_session(
+                &projects.join("alpha"),
+                "a2.jsonl",
+                &[line("a2-1", "a2", 3)],
+            ),
+        );
+        files.insert(
+            "alpha-subagent",
+            write_session(
+                &projects.join("alpha").join("a1").join("subagents"),
+                "agent-x.jsonl",
+                &[line("sub-1", "a1", 4)],
+            ),
+        );
+        files.insert(
+            "beta-1",
+            write_session(
+                &projects.join("beta"),
+                "b1.jsonl",
+                &[line("b1-1", "b1", 5), line("b1-2", "b1", 6)],
+            ),
+        );
+        files.insert(
+            "gamma-1",
+            write_session(
+                &projects.join("gamma"),
+                "g1.jsonl",
+                &[line("g1-1", "g1", 7)],
+            ),
+        );
+        (temp_dir, files)
+    }
+
+    async fn run_filtered(
+        temp_dir: &TempDir,
+        query: &str,
+        filters: serde_json::Value,
+        limit: Option<usize>,
+    ) -> Vec<ClaudeMessage> {
+        search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            query.to_string(),
+            filters,
+            limit,
+        )
+        .await
+        .expect("search must succeed")
+    }
+
+    /// Reference for a `projects` filter: the unscoped (full-walk) result,
+    /// filtered and limited afterwards — the pre-scoping behavior.
+    async fn unscoped_reference(
+        temp_dir: &TempDir,
+        query: &str,
+        projects: &[&str],
+        limit: usize,
+    ) -> serde_json::Value {
+        let all = run_filtered(temp_dir, query, serde_json::json!({}), Some(usize::MAX)).await;
+        let mut kept: Vec<ClaudeMessage> = all
+            .into_iter()
+            .filter(|m| {
+                m.project_name
+                    .as_deref()
+                    .is_some_and(|name| projects.contains(&name))
+            })
+            .collect();
+        kept.truncate(limit);
+        serde_json::to_value(kept).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_scoped_walk_matches_unscoped_filtering() {
+        let (temp_dir, _files) = three_project_fixture("scopeProbe1");
+
+        for (projects, limit) in [
+            (vec!["alpha"], 100),
+            (vec!["alpha", "gamma"], 100),
+            (vec!["beta", "alpha"], 2),
+        ] {
+            let scoped = run_filtered(
+                &temp_dir,
+                "scopeProbe1",
+                serde_json::json!({ "projects": projects }),
+                Some(limit),
+            )
+            .await;
+            let reference = unscoped_reference(&temp_dir, "scopeProbe1", &projects, limit).await;
+            assert_eq!(
+                serde_json::to_value(&scoped).unwrap(),
+                reference,
+                "scoped walk must equal unscoped filtering for {projects:?} (limit {limit})"
+            );
+        }
+
+        // Subagent files are walked under their project but keep project name
+        // "subagents", so the project filter still drops them.
+        let alpha = run_filtered(
+            &temp_dir,
+            "scopeProbe1",
+            serde_json::json!({ "projects": ["alpha"] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&alpha), ["a1-1", "a1-2", "a2-1"]);
+    }
+
+    #[tokio::test]
+    async fn test_scoped_walk_ignores_invalid_duplicate_and_missing_names() {
+        let (temp_dir, _files) = three_project_fixture("scopeProbe2");
+
+        let messy = run_filtered(
+            &temp_dir,
+            "scopeProbe2",
+            serde_json::json!({ "projects": ["alpha", "alpha", "", ".", "..", "../beta", "beta/x", "missing"] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&messy), ["a1-1", "a1-2", "a2-1"]);
+
+        let only_invalid = run_filtered(
+            &temp_dir,
+            "scopeProbe2",
+            serde_json::json!({ "projects": ["../beta", "missing"] }),
+            None,
+        )
+        .await;
+        assert!(
+            only_invalid.is_empty(),
+            "invalid names must never escape projects/"
+        );
+
+        // An empty selection is no restriction at all.
+        let empty = run_filtered(
+            &temp_dir,
+            "scopeProbe2",
+            serde_json::json!({ "projects": [] }),
+            None,
+        )
+        .await;
+        assert_eq!(empty.len(), 7);
+    }
+
+    #[tokio::test]
+    async fn test_scoped_search_keeps_other_projects_cached() {
+        let (temp_dir, files) = three_project_fixture("scopeCache3");
+        let scoped = |name: &str| serde_json::json!({ "projects": [name] });
+
+        // Scoped searches populate the per-query entry project by project.
+        run_filtered(&temp_dir, "scopeCache3", scoped("alpha"), None).await;
+        run_filtered(&temp_dir, "scopeCache3", scoped("beta"), None).await;
+        assert_eq!(test_scan_count(&files["alpha-1"]), 1);
+        assert_eq!(test_scan_count(&files["beta-1"]), 1);
+        assert_eq!(
+            test_scan_count(&files["gamma-1"]),
+            0,
+            "gamma is never walked"
+        );
+
+        // A scoped search must not evict the other project's cached matches.
+        run_filtered(&temp_dir, "scopeCache3", scoped("alpha"), None).await;
+        assert_eq!(test_scan_count(&files["alpha-1"]), 1, "alpha stays cached");
+
+        // The unscoped search reuses both projects and scans only gamma.
+        let all = run_search(&temp_dir, "scopeCache3").await;
+        assert_eq!(all.len(), 7);
+        for name in ["alpha-1", "alpha-2", "alpha-subagent", "beta-1", "gamma-1"] {
+            assert_eq!(test_scan_count(&files[name]), 1, "{name} scanned once");
+        }
+
+        // A scoped search after an unscoped one is served from cache too.
+        run_filtered(&temp_dir, "scopeCache3", scoped("beta"), None).await;
+        assert_eq!(test_scan_count(&files["beta-1"]), 1);
+    }
+
+    #[tokio::test]
+    async fn test_scoped_search_prunes_deleted_files_in_scope_only() {
+        let (temp_dir, files) = three_project_fixture("scopePrune4");
+        run_search(&temp_dir, "scopePrune4").await;
+
+        std::fs::remove_file(&files["alpha-2"]).unwrap();
+        let alpha = run_filtered(
+            &temp_dir,
+            "scopePrune4",
+            serde_json::json!({ "projects": ["alpha"] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&alpha), ["a1-1", "a1-2"], "deleted file drops out");
+
+        let all = run_search(&temp_dir, "scopePrune4").await;
+        assert_eq!(
+            uuids(&all),
+            ["a1-1", "a1-2", "b1-1", "b1-2", "g1-1", "sub-1"]
+        );
+        assert_eq!(test_scan_count(&files["beta-1"]), 1, "beta stays cached");
+
+        // Warm result equals a cold scan.
+        clear_search_cache_for_test();
+        let cold = run_search(&temp_dir, "scopePrune4").await;
+        assert_eq!(
+            serde_json::to_value(&all).unwrap(),
+            serde_json::to_value(&cold).unwrap()
+        );
+    }
+
+    // ---- sessionIds filter ----
+
+    #[tokio::test]
+    async fn test_session_ids_filter_applies_before_limit() {
+        let (temp_dir, _files) = three_project_fixture("sessionProbe5");
+
+        // Newer sessions exist, yet with limit 1 the newest a1 match must
+        // still be returned: the filter runs before the limit.
+        let a1 = run_filtered(
+            &temp_dir,
+            "sessionProbe5",
+            serde_json::json!({ "sessionIds": ["a1"] }),
+            Some(1),
+        )
+        .await;
+        assert_eq!(
+            uuids(&a1),
+            ["sub-1"],
+            "subagent lines carry the parent sessionId"
+        );
+
+        let several = run_filtered(
+            &temp_dir,
+            "sessionProbe5",
+            serde_json::json!({ "sessionIds": ["a2", "g1", "unknown"] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&several), ["a2-1", "g1-1"]);
+
+        let combined = run_filtered(
+            &temp_dir,
+            "sessionProbe5",
+            serde_json::json!({ "sessionIds": ["a1", "b1"], "projects": ["alpha"] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&combined), ["a1-1", "a1-2"]);
+
+        let empty = run_filtered(
+            &temp_dir,
+            "sessionProbe5",
+            serde_json::json!({ "sessionIds": [] }),
+            None,
+        )
+        .await;
+        assert_eq!(empty.len(), 7, "an empty selection is no restriction");
+    }
+
+    #[test]
+    fn test_validate_session_ids_filter() {
+        assert!(validate_search_filters(&serde_json::json!({ "sessionIds": ["a", "b"] })).is_ok());
+        assert!(validate_search_filters(&serde_json::json!({ "sessionIds": [] })).is_ok());
+        assert!(validate_search_filters(&serde_json::json!({ "sessionIds": null })).is_ok());
+        for invalid in [
+            serde_json::json!({ "sessionIds": "a" }),
+            serde_json::json!({ "sessionIds": ["a", 1] }),
+            serde_json::json!({ "sessionIds": {} }),
+        ] {
+            let error = validate_search_filters(&invalid).unwrap_err();
+            assert!(error.contains("Invalid sessionIds filter"), "{error}");
+        }
     }
 }
