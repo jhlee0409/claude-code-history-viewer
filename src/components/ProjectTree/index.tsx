@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Search,
   X,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -32,6 +33,8 @@ import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
 import type { ProviderId, ClaudeSession } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
+import { useSessionNameIndex } from "../../hooks/useSessionNameIndex";
+import { computeSidebarMatches, normalizeSidebarQuery } from "../../utils/sidebarFilter";
 import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
@@ -114,7 +117,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     closeContextMenu,
   } = useProjectTreeState(groupingMode);
 
-  const [searchTerm, setSearchTerm] = useState("");
+  // The filter lives in the store so the session list can narrow the open
+  // project's sessions to the ones that matched.
+  const searchTerm = useAppStore((state) => state.sidebarFilterQuery);
+  const setSearchTerm = useAppStore((state) => state.setSidebarFilterQuery);
+  const filterScope = useAppStore((state) => state.sidebarFilterScope);
+  const setFilterScope = useAppStore((state) => state.setSidebarFilterScope);
+  const setSidebarFilterResult = useAppStore((state) => state.setSidebarFilterResult);
+  const customSessionNames = useAppStore((state) => state.userMetadata.sessions);
   const [areProviderFiltersOpen, setAreProviderFiltersOpen] = useState(
     loadProviderFiltersOpenState
   );
@@ -338,19 +348,69 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   // interruptible low-priority render (no per-keystroke jank).
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const normalizedSearchTerm = useMemo(
-    () => deferredSearchTerm.trim().toLowerCase(),
+    () => normalizeSidebarQuery(deferredSearchTerm),
     [deferredSearchTerm]
   );
 
-  const matchesSearch = useCallback(
-    (project: (typeof projects)[number]) => {
-      if (!normalizedSearchTerm) return true;
-      const name = (project.name ?? "").toLowerCase();
-      const path = (project.actual_path ?? project.path ?? "").toLowerCase();
-      return name.includes(normalizedSearchTerm) || path.includes(normalizedSearchTerm);
-    },
-    [normalizedSearchTerm]
+  const providerFilteredProjects = useMemo(
+    () => projects.filter(matchesProviderFilter),
+    [projects, matchesProviderFilter]
   );
+
+  // Session names live in each project's session list, so matching them means
+  // loading those lists. Only done while a query is typed with session
+  // matching on.
+  const sessionNameIndex = useSessionNameIndex(
+    providerFilteredProjects,
+    filterScope.matchSessions && normalizedSearchTerm.length > 0
+  );
+
+  const sidebarMatches = useMemo(
+    () =>
+      computeSidebarMatches(
+        providerFilteredProjects,
+        normalizedSearchTerm,
+        filterScope,
+        sessionNameIndex.sessionsByProject,
+        customSessionNames
+      ),
+    [providerFilteredProjects, normalizedSearchTerm, filterScope, sessionNameIndex.sessionsByProject, customSessionNames]
+  );
+
+  useEffect(() => {
+    setSidebarFilterResult(
+      normalizedSearchTerm
+        ? {
+            projectPaths: [...sidebarMatches.projectPaths],
+            sessionMatchesByProject: Object.fromEntries(sidebarMatches.sessionMatchesByProject),
+          }
+        : null
+    );
+  }, [normalizedSearchTerm, setSidebarFilterResult, sidebarMatches]);
+
+  useEffect(() => () => setSidebarFilterResult(null), [setSidebarFilterResult]);
+
+  const matchesSearch = useCallback(
+    (project: (typeof projects)[number]) => sidebarMatches.projectPaths.has(project.path),
+    [sidebarMatches]
+  );
+
+  const searchPlaceholder = filterScope.matchProjects && filterScope.matchSessions
+    ? t("project.filter.placeholder.both", "Filter projects and sessions...")
+    : filterScope.matchProjects
+      ? t("project.filter.placeholder.projects", "Filter by project name...")
+      : t("project.filter.placeholder.sessions", "Filter by session name...");
+
+  const filterTargets = [
+    {
+      key: "matchProjects" as const,
+      label: t("project.filter.target.projects", "Project names"),
+    },
+    {
+      key: "matchSessions" as const,
+      label: t("project.filter.target.sessions", "Session names"),
+    },
+  ];
 
   const filteredProjects = useMemo(
     () => projects.filter((p) => matchesProviderFilter(p) && matchesSearch(p)),
@@ -1058,14 +1118,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" aria-hidden="true" focusable="false" />
             <label htmlFor={searchInputId} className="sr-only">
-              {t("project.searchPlaceholder", "Search projects...")}
+              {searchPlaceholder}
             </label>
             <input
               id={searchInputId}
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t("project.searchPlaceholder", "Search projects...")}
+              placeholder={searchPlaceholder}
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
             />
             {searchTerm && (
@@ -1077,6 +1137,54 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               >
                 <X className="w-3 h-3" />
               </button>
+            )}
+          </div>
+          <div
+            role="group"
+            aria-label={t("project.filter.matchLabel", "Match")}
+            className="mt-1.5 flex items-center gap-1 min-w-0"
+          >
+            <span className="text-2xs text-muted-foreground/70 shrink-0">
+              {t("project.filter.matchLabel", "Match")}
+            </span>
+            {filterTargets.map(({ key, label }) => {
+              const isOn = filterScope[key];
+              // The last active target can't be turned off: with neither on,
+              // nothing could match.
+              const isLastOn = isOn && Object.values(filterScope).filter(Boolean).length === 1;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={isOn}
+                  disabled={isLastOn}
+                  onClick={() => setFilterScope({ ...filterScope, [key]: !isOn })}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded text-2xs font-medium border transition-colors shrink-0",
+                    isOn
+                      ? "bg-accent/15 text-accent border-accent/30"
+                      : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent",
+                    isLastOn && "cursor-default"
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {sessionNameIndex.isIndexing && (
+              <span
+                className="ml-auto flex items-center gap-1 text-2xs text-muted-foreground/70 truncate"
+                role="status"
+              >
+                <Loader2 className="w-3 h-3 animate-spin shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {t("project.filter.indexing", {
+                    defaultValue: "Scanning sessions {{loaded}}/{{total}}",
+                    loaded: sessionNameIndex.loadedCount,
+                    total: sessionNameIndex.totalCount,
+                  })}
+                </span>
+              </span>
             )}
           </div>
         </div>
@@ -1104,7 +1212,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
                 <Folder className="w-8 h-8 text-muted-foreground/40" />
               </div>
-              <p className="text-sm text-muted-foreground">{t("project.notFound")}</p>
+              <p className="text-sm text-muted-foreground">
+                {sessionNameIndex.isIndexing
+                  ? t("project.filter.searchingSessions", "Searching session names...")
+                  : t("project.notFound")}
+              </p>
             </div>
           ) : (
             <div
