@@ -2,10 +2,11 @@ import type { MessageKind } from "./messageKinds";
 import { priorityForKind, type MinimapColorSource } from "./minimapLayout";
 
 /**
- * Kind -> CSS custom property. Values taken from the Messages panel's
- * current icon colors, `NavigatorEntry.tsx`'s `KIND_STYLES.iconClass` (not
- * imported here: another open PR moves that file). `prompt` and `command`
- * both resolve to `text-info`, `context`/`tool`/`system` to
+ * Kind -> CSS custom property. Values mirror the Messages panel's icon
+ * colors, `KIND_STYLES.iconClass` in `MessageNavigator/kindStyles.ts`. Those
+ * are Tailwind classes, and the canvas needs the custom property behind
+ * each, so they are mirrored here rather than imported. `prompt` and
+ * `command` both resolve to `text-info`, `context`/`tool`/`system` to
  * `text-muted-foreground`; `agent-update`, `reply`, and `summary` each keep
  * their own token (Design §5).
  */

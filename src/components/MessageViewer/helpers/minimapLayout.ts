@@ -66,7 +66,7 @@ export function alphaForKind(kind: MessageKind): number {
 /** Every bar starts this far from the strip's left edge, as in the prototype. */
 export const MINIMAP_BAR_PAD_PX = 5;
 
-/** Kept empty on the strip's right for PR 2's search ticks (prototype: a 5px ruler plus 2px). */
+/** Kept free of bars on the strip's right, where the search ticks paint (prototype: a 5px ruler plus 2px). */
 export const MINIMAP_TICK_GUTTER_PX = 7;
 
 /** The prototype never paints a bar narrower than this. */
