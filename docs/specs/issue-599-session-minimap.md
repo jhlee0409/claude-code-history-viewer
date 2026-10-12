@@ -682,7 +682,8 @@ no band, the map's top is 0 and every PR 1 number is unchanged.
   conflict on a very short strip.
 - It is a DOM `div` over the canvas, not canvas paint, so a test can read its height. It is
   hatched with `--muted-foreground` at reduced opacity and has a bottom border.
-- It shows the unloaded count, formatted for the reader's locale, when it is at least 14px tall.
+- It shows the unloaded count, with the runtime's default number grouping, when it is at least
+  14px tall.
 - A click calls `handleLoadEarlier`, passed down as a prop, which loads one older page. A press
   on the band never starts a drag. While a page loads, the band pulses and ignores clicks.
 
@@ -815,11 +816,15 @@ Red first, per this repo's test discipline.
 
 ### Risks (PR 2)
 
-- **Dragging near the top may fight the list's auto-load (inferred, not observed).** A drag
-  that brings the list within 300px of its top triggers `handleLoadEarlier`. The three-pass
-  restore then writes `scrollTop` while the pointer still drives it. This already exists in
-  PR 1. The browser check will look for it, and a fix would suppress auto-load while the strip
-  is being dragged.
+- **Dragging to the top loads older pages, one per approach (observed 2026-10-12).** A drag
+  that brings the list within 300px of its top triggers the list's auto-load, as scrolling
+  there does. The anchor restore then keeps the same rows on screen: in the browser check, the
+  drag wrote `scrollTop` 0, and 40 ms later the restore wrote 21,062, the same rows' new
+  offset. The viewport box moves down the strip as the map rescales, and the next pointer move
+  at the top loads the next page. The list never oscillated, and the drag stopped loading once
+  every page was in. This behavior predates PR 2 (PR 1 has the same auto-load); suppressing
+  auto-load during a drag, so the band is the only load control on the strip, is a possible
+  follow-up and is not in this PR.
 - **The band moves the map while a page loads.** When a page arrives, the band shrinks and the
   map grows, so every block shifts down. That is correct, but it is visible motion under a
   stationary pointer. The tooltip recomputes on the next pointer move.
