@@ -490,6 +490,13 @@ pub struct DeleteSessionParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MoveSessionParams {
+    pub session_path: String,
+    pub target_project_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
     pub file_path: String,
     pub new_title: String,
@@ -880,6 +887,16 @@ handler_json!(
             require_history_path(&p.file_path)?;
         }
         commands::session::delete_session(p.file_path).await
+    }
+);
+
+handler_json!(
+    move_session_to_project,
+    MoveSessionParams,
+    |p: MoveSessionParams| async move {
+        require_history_path(&p.session_path)?;
+        require_history_path(&p.target_project_path)?;
+        commands::session::move_session_to_project(p.session_path, p.target_project_path).await
     }
 );
 

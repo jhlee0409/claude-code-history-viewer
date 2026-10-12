@@ -7,7 +7,11 @@ import {
 } from "@/hooks/useSessionMetadata";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
-import { isAbsolutePath } from "@/utils/pathUtils";
+import {
+  getProjectDisplayName,
+  isAbsolutePath,
+  splitPathParts,
+} from "@/utils/pathUtils";
 import {
   getResumeCommand,
   supportsNativeRename as providerSupportsNativeRename,
@@ -15,8 +19,26 @@ import {
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
 import { parseResumeArgs } from "@/utils/resumeArgs";
-import type { ClaudeSession } from "@/types";
+import type { ClaudeProject, ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
+
+/** Parent folder of a path, compared part-wise so `/` and `\` both work. */
+function parentKey(path: string): string {
+  return splitPathParts(path).slice(0, -1).join("/");
+}
+
+/** Maps the backend's move error codes to a user-facing message key. */
+function moveErrorKey(message: string) {
+  if (message.startsWith("SESSION_ACTIVE")) return "session.move.errorActive" as const;
+  if (message.startsWith("SESSION_RECENTLY_MODIFIED")) return "session.move.errorRecent" as const;
+  if (message.startsWith("TARGET_EXISTS")) return "session.move.errorExists" as const;
+  return null;
+}
+
+interface MoveSessionResult {
+  new_file_path: string;
+  target_project_path: string;
+}
 
 export function useSessionEditing(session: ClaudeSession) {
   const { t } = useTranslation();
@@ -26,6 +48,8 @@ export function useSessionEditing(session: ClaudeSession) {
   const [isNativeRenameOpen, setIsNativeRenameOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [isMovingSession, setIsMovingSession] = useState(false);
   const [localSummary, setLocalSummary] = useState(session.summary);
   const inputRef = useRef<HTMLInputElement>(null);
   const ignoreBlurRef = useRef<boolean>(false);
@@ -41,6 +65,13 @@ export function useSessionEditing(session: ClaudeSession) {
   const supportsSessionDeletion =
     !isServerReadOnly && providerSupportsSessionDeletion(providerId);
   const supportsRevealInFinder = isAbsolutePath(session.file_path);
+  // Moving relocates `<projects>/<project>/<id>.jsonl`, which only Claude Code
+  // sessions have; the backend re-validates the layout.
+  const supportsSessionMove =
+    !isServerReadOnly &&
+    providerId === "claude" &&
+    supportsRevealInFinder &&
+    session.file_path.endsWith(".jsonl");
   const isArchivedCodexSession =
     providerId === "codex" &&
     /(?:^|[\\/])archived_sessions(?:[\\/]|$)/.test(session.file_path);
@@ -346,6 +377,95 @@ export function useSessionEditing(session: ClaudeSession) {
     [isDeletingSession]
   );
 
+  // Other Claude projects in the same `projects/` folder as this session.
+  const moveTargets = useMemo(() => {
+    if (!supportsSessionMove) return [];
+    const sourceProjectDir = parentKey(session.file_path);
+    const projectsDir = parentKey(sourceProjectDir);
+    return projects.filter(
+      (project) =>
+        (project.provider ?? "claude") === "claude" &&
+        parentKey(project.path) === projectsDir &&
+        splitPathParts(project.path).join("/") !== sourceProjectDir
+    );
+  }, [projects, session.file_path, supportsSessionMove]);
+
+  const handleMoveSession = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsContextMenuOpen(false);
+    setIsMoveDialogOpen(true);
+  }, []);
+
+  const handleConfirmMoveSession = useCallback(
+    async (target: ClaudeProject) => {
+      if (!supportsSessionMove) {
+        setIsMoveDialogOpen(false);
+        return;
+      }
+
+      setIsMovingSession(true);
+      try {
+        const result = await api<MoveSessionResult>("move_session_to_project", {
+          sessionPath: session.file_path,
+          targetProjectPath: target.path,
+        });
+        setIsMoveDialogOpen(false);
+        toast.success(
+          t("session.move.success", { project: getProjectDisplayName(target) })
+        );
+
+        const store = useAppStore.getState();
+        // Session ids are file paths, so carry app-only metadata (custom
+        // name, notes, …) over to the new path.
+        const existingMeta = store.userMetadata.sessions[session.session_id];
+        if (existingMeta) {
+          await store.updateSessionMetadata(result.new_file_path, existingMeta);
+        }
+
+        if (store.selectedSession?.file_path === session.file_path) {
+          // Follow the open session into its new project. If it is not on the
+          // first page there, selectProject has already cleared the selection.
+          await store.selectProject(target);
+          const moved = useAppStore
+            .getState()
+            .sessions.find((s) => s.file_path === result.new_file_path);
+          if (moved) {
+            await useAppStore.getState().selectSession(moved);
+          }
+        } else {
+          store.setSessions(
+            store.sessions.filter((s) => s.session_id !== session.session_id)
+          );
+        }
+        // Refresh the sidebar's per-project session counts.
+        void useAppStore.getState().scanProjects();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("[session move] failed", {
+          sessionId: session.session_id,
+          error,
+        });
+        const key = moveErrorKey(message);
+        if (key) {
+          toast.error(t(key));
+        } else {
+          toast.error(t("session.move.error"), { description: message });
+        }
+      } finally {
+        setIsMovingSession(false);
+      }
+    },
+    [session.file_path, session.session_id, supportsSessionMove, t]
+  );
+
+  const handleMoveDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (isMovingSession) return;
+      setIsMoveDialogOpen(open);
+    },
+    [isMovingSession]
+  );
+
   const handleNativeRenameClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -393,6 +513,9 @@ export function useSessionEditing(session: ClaudeSession) {
     isNativeRenameOpen,
     isDeleteDialogOpen,
     isDeletingSession,
+    isMoveDialogOpen,
+    isMovingSession,
+    moveTargets,
     localSummary,
     displayName,
     hasCustomName,
@@ -403,6 +526,7 @@ export function useSessionEditing(session: ClaudeSession) {
     supportsResumeCommand,
     supportsSessionDeletion,
     supportsRevealInFinder,
+    supportsSessionMove,
     isArchivedCodexSession,
     isServerReadOnly,
     deleteDialogTitle,
@@ -427,6 +551,9 @@ export function useSessionEditing(session: ClaudeSession) {
     handleRevealInFinder,
     handleDeleteSession,
     handleConfirmDeleteSession,
+    setIsMoveDialogOpen: handleMoveDialogOpenChange,
+    handleMoveSession,
+    handleConfirmMoveSession,
     handleNativeRenameClick,
     handleNativeRenameSuccess,
   };
