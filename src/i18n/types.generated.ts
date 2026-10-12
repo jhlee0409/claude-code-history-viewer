@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-11T21:25:11.595Z
- * 총 키 개수: 2013
+ * 생성 시간: 2026-10-12T22:02:49.120Z
+ * 총 키 개수: 2018
  * Namespace 수: 11
  */
 
@@ -1396,7 +1396,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (125개)
+ * message namespace의 번역 키 (130개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1463,6 +1463,11 @@ export type MessageKeys =
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
   | 'messageViewer.messagesShort'
+  | 'messageViewer.minimap.matchesNotLoaded_one'
+  | 'messageViewer.minimap.matchesNotLoaded_other'
+  | 'messageViewer.minimap.notLoadedBody_one'
+  | 'messageViewer.minimap.notLoadedBody_other'
+  | 'messageViewer.minimap.notLoadedTitle'
   | 'messageViewer.noMessages'
   | 'messageViewer.noMessagesDescription'
   | 'messageViewer.noSearchResults'
@@ -2874,6 +2879,11 @@ export type TranslationKey =
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
   | 'messageViewer.messagesShort'
+  | 'messageViewer.minimap.matchesNotLoaded_one'
+  | 'messageViewer.minimap.matchesNotLoaded_other'
+  | 'messageViewer.minimap.notLoadedBody_one'
+  | 'messageViewer.minimap.notLoadedBody_other'
+  | 'messageViewer.minimap.notLoadedTitle'
   | 'messageViewer.noMessages'
   | 'messageViewer.noMessagesDescription'
   | 'messageViewer.noSearchResults'

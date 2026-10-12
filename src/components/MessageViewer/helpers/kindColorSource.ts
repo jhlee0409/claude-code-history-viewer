@@ -38,6 +38,23 @@ export function minimapFailedColor(): string {
 }
 
 /**
+ * Search-tick colors (spec, "PR 2" section): the same pairing as the list's
+ * own current-match mark. Plain ticks use the mark's text color, which stays
+ * legible on the strip in every theme; `--highlight` alone is a pale tint
+ * close to the strip's background in the light theme. The current tick is
+ * the current-match fill inside an outline of the text color.
+ */
+export const MINIMAP_TICK_CSS_VAR = "--highlight-foreground";
+export const MINIMAP_CURRENT_TICK_CSS_VAR = "--highlight-current";
+
+export function minimapTickColors(): { tick: string; current: string } {
+  return {
+    tick: readCssVar(MINIMAP_TICK_CSS_VAR),
+    current: readCssVar(MINIMAP_CURRENT_TICK_CSS_VAR),
+  };
+}
+
+/**
  * `MinimapColorSource` built from the Messages panel's kind colors (Design
  * §5). PR 1's only implementation; a token-cost mode (issue #570) is a
  * plausible second one that reorders priority without touching this shape.

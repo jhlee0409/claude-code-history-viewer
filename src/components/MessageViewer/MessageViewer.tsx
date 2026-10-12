@@ -264,6 +264,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   }, [sessionSearch.currentMatchIndex, sessionSearch.matches]);
 
   const currentMatchUuid = currentMatch?.messageUuid ?? null;
+
+  // Search matches in pages not loaded yet. The minimap draws no tick for
+  // them; its not-loaded band's tooltip counts them instead.
+  const notLoadedMatchCount = useMemo(() => {
+    if (!pagination.hasMore || !sessionSearch.matches?.length) return 0;
+    const loadedUuids = new Set(messages.map((message) => message.uuid));
+    return sessionSearch.matches.filter((match) => !loadedUuids.has(match.messageUuid)).length;
+  }, [pagination.hasMore, sessionSearch.matches, messages]);
   // ... (skip down to render loop)
   // We need to apply the highlight logic in the map function
 
@@ -1122,6 +1130,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             virtualRows={virtualRows}
             totalSize={totalSize}
             getScrollElement={getScrollElement}
+            matchedUuids={matchedUuids}
+            currentMatchUuid={currentMatchUuid}
+            uuidToIndexMap={uuidToIndexMap}
+            notLoadedMatchCount={notLoadedMatchCount}
+            hasMore={pagination.hasMore}
+            isLoadingMore={pagination.isLoadingMore}
+            unloadedCount={Math.max(0, pagination.totalCount - pagination.currentOffset)}
+            totalCount={pagination.totalCount}
+            onLoadEarlier={handleLoadEarlier}
           />
         )}
 
