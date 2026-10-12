@@ -34,7 +34,11 @@ import type { ProjectTreeProps } from "./types";
 import type { ProviderId, ClaudeSession } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useSessionNameIndex } from "../../hooks/useSessionNameIndex";
-import { computeSidebarMatches, normalizeSidebarQuery } from "../../utils/sidebarFilter";
+import {
+  collectScopedSessionIds,
+  computeSidebarMatches,
+  normalizeSidebarQuery,
+} from "../../utils/sidebarFilter";
 import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
@@ -383,10 +387,19 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         ? {
             projectPaths: [...sidebarMatches.projectPaths],
             sessionMatchesByProject: Object.fromEntries(sidebarMatches.sessionMatchesByProject),
+            sessionIds: filterScope.matchSessions
+              ? collectScopedSessionIds(sidebarMatches, sessionNameIndex.sessionsByProject)
+              : null,
           }
         : null
     );
-  }, [normalizedSearchTerm, setSidebarFilterResult, sidebarMatches]);
+  }, [
+    filterScope.matchSessions,
+    normalizedSearchTerm,
+    sessionNameIndex.sessionsByProject,
+    setSidebarFilterResult,
+    sidebarMatches,
+  ]);
 
   useEffect(() => () => setSidebarFilterResult(null), [setSidebarFilterResult]);
 

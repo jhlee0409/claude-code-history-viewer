@@ -92,7 +92,11 @@ interface MockStore {
     modifiers: { shift: boolean; cmdOrCtrl: boolean }
   ) => void;
   selectedProject: { path: string } | null;
-  sidebarFilterResult: { projectPaths: string[]; sessionMatchesByProject: Record<string, ClaudeSession[]> } | null;
+  sidebarFilterResult: {
+    projectPaths: string[];
+    sessionMatchesByProject: Record<string, ClaudeSession[]>;
+    sessionIds: string[] | null;
+  } | null;
 }
 
 const useTestStore = create<MockStore>((set) => ({
@@ -184,6 +188,7 @@ describe("SessionList", () => {
         sidebarFilterResult: {
           projectPaths: ["/projects/a"],
           sessionMatchesByProject: { "/projects/a": [mockSessions[1]!] },
+          sessionIds: null,
         },
       });
 
@@ -203,6 +208,7 @@ describe("SessionList", () => {
         sidebarFilterResult: {
           projectPaths: ["/projects/a", "/projects/b"],
           sessionMatchesByProject: { "/projects/b": [mockSessions[0]!] },
+          sessionIds: null,
         },
       });
 

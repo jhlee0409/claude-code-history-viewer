@@ -90,3 +90,28 @@ export const computeSidebarMatches = (
 
   return { projectPaths, sessionMatchesByProject };
 };
+
+/**
+ * Every session id the filter lets through, for scoping message search. A
+ * project matched by its own name contributes all its sessions, so this
+ * needs their lists too; returns null (no session-level restriction) when
+ * any of them is not loaded yet.
+ *
+ * Both `session_id` and `actual_session_id` are included: messages carry the
+ * latter, which differs from the former for some providers.
+ */
+export const collectScopedSessionIds = (
+  matches: SidebarFilterMatches,
+  sessionsByProject: ReadonlyMap<string, readonly ClaudeSession[]>
+): string[] | null => {
+  const ids = new Set<string>();
+  for (const path of matches.projectPaths) {
+    const sessions = matches.sessionMatchesByProject.get(path) ?? sessionsByProject.get(path);
+    if (!sessions) return null;
+    for (const session of sessions) {
+      ids.add(session.session_id);
+      if (session.actual_session_id) ids.add(session.actual_session_id);
+    }
+  }
+  return [...ids];
+};
