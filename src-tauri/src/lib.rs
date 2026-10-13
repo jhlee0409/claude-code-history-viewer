@@ -64,9 +64,9 @@ use crate::commands::{
     session::{
         delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
         load_project_sessions, load_project_sessions_page, load_session_messages,
-        load_session_messages_paginated, open_resume_in_terminal, read_restore_target,
-        rename_opencode_session_title, rename_session_native, reset_session_native_name,
-        restore_file, search_messages,
+        load_session_messages_paginated, move_session_to_project, open_resume_in_terminal,
+        read_restore_target, rename_opencode_session_title, rename_session_native,
+        reset_session_native_name, restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -246,6 +246,7 @@ fn run_tauri() {
             read_text_file,
             save_screenshot,
             delete_session,
+            move_session_to_project,
             open_resume_in_terminal,
             // Native session rename commands
             rename_session_native,

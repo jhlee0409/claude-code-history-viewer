@@ -3,9 +3,12 @@
  * Tests for session display, rename functionality, and user interactions
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { SessionItem } from "../components/SessionItem";
-import type { ClaudeSession } from "../types";
+import type { ClaudeProject, ClaudeSession } from "../types";
+import { api } from "@/services/api";
+import { toast } from "sonner";
+import { useAppStore } from "@/store/useAppStore";
 
 // Mock react-i18next
 vi.mock("react-i18next", async () => {
@@ -69,6 +72,14 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
     </button>
   ),
   DropdownMenuSeparator: () => <hr data-testid="dropdown-separator" />,
+}));
+
+vi.mock("@/services/api", () => ({
+  api: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 // Mock NativeRenameDialog
@@ -538,6 +549,106 @@ describe("SessionItem", () => {
 
       expect(screen.getByText("Rename in Codex CLI")).toBeInTheDocument();
       expect(screen.getByText("Delete Session")).toBeInTheDocument();
+    });
+  });
+
+  describe("Right-click menu", () => {
+    const openContextMenu = (session: ClaudeSession) => {
+      const { container } = render(
+        <SessionItem
+          session={session}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+      fireEvent.contextMenu(container.firstChild as HTMLElement);
+      return within(screen.getByRole("menu"));
+    };
+
+    it("explains Rename and Rename in Claude Code with tooltips on focus", async () => {
+      const menu = openContextMenu(createMockSession({ provider: "claude" }));
+
+      const rename = menu.getByRole("menuitem", { name: "Rename" });
+      fireEvent.focus(rename);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "session.renameTooltip"
+      );
+      fireEvent.blur(rename);
+
+      fireEvent.focus(
+        menu.getByRole("menuitem", { name: "Rename in Claude Code" })
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("tooltip")).toHaveTextContent(
+          "session.nativeRename.tooltip"
+        )
+      );
+    });
+
+    it("offers Move to project for Claude Code sessions", () => {
+      const menu = openContextMenu(
+        createMockSession({
+          provider: "claude",
+          file_path: "/home/u/.claude/projects/-a/abc.jsonl",
+        })
+      );
+      expect(
+        menu.getByRole("menuitem", { name: "Move to project…" })
+      ).toBeInTheDocument();
+    });
+
+    it("hides Move to project for other providers", () => {
+      const menu = openContextMenu(
+        createMockSession({
+          provider: "codex",
+          file_path: "/home/u/.codex/sessions/rollout-1.jsonl",
+        })
+      );
+      expect(
+        menu.queryByRole("menuitem", { name: "Move to project…" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("refuses to move an active session with a clear message", async () => {
+      const target: ClaudeProject = {
+        name: "-b",
+        path: "/home/u/.claude/projects/-b",
+        actual_path: "/b",
+        session_count: 1,
+        message_count: 1,
+        last_modified: "2024-01-01T00:00:00Z",
+        provider: "claude",
+      };
+      const otherRoot = { ...target, path: "/elsewhere/projects/-c" };
+      useAppStore.setState({ projects: [target, otherRoot] });
+      vi.mocked(api).mockRejectedValueOnce(
+        "SESSION_ACTIVE: session is open in a running Claude Code process (pid 1)"
+      );
+
+      const menu = openContextMenu(
+        createMockSession({
+          provider: "claude",
+          file_path: "/home/u/.claude/projects/-a/abc.jsonl",
+        })
+      );
+      fireEvent.click(menu.getByRole("menuitem", { name: "Move to project…" }));
+
+      const dialog = await screen.findByRole("dialog");
+      // Only projects from the same Claude projects folder are offered.
+      const options = within(dialog).getAllByRole("radio");
+      expect(options).toHaveLength(1);
+      fireEvent.click(options[0]!);
+      fireEvent.click(within(dialog).getByRole("button", { name: "session.move.confirm" }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("session.move.errorActive")
+      );
+      expect(api).toHaveBeenCalledWith("move_session_to_project", {
+        sessionPath: "/home/u/.claude/projects/-a/abc.jsonl",
+        targetProjectPath: "/home/u/.claude/projects/-b",
+      });
+      useAppStore.setState({ projects: [] });
     });
   });
 

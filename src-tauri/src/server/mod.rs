@@ -118,6 +118,7 @@ const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
     "/delete_preset",
     "/delete_session",
     "/delete_unified_preset",
+    "/move_session_to_project",
     "/rename_archive",
     "/rename_opencode_session_title",
     "/rename_session_native",
@@ -220,6 +221,7 @@ pub fn build_router(
         .route("/restore_file", post(h::restore_file))
         .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
+        .route("/move_session_to_project", post(h::move_session_to_project))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
         .route(

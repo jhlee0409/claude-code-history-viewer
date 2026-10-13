@@ -9,6 +9,7 @@ import {
   Copy,
   FileText,
   FolderOpen,
+  FolderInput,
   Play,
   Trash2,
   MoreHorizontal,
@@ -44,6 +45,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsSessionMove,
   inputRef,
   ignoreBlurRef,
   onEditValueChange,
@@ -58,6 +60,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   onCopyResumeCommand,
   onCopyFilePath,
   onRevealInFinder,
+  onMoveSession,
   onDeleteSession,
   onContextMenuOpenChange,
 }) => {
@@ -257,6 +260,12 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             <DropdownMenuItem onClick={onRevealInFinder}>
               <FolderOpen className="w-3 h-3 mr-2" />
               {t("session.showJsonlFile", "Show JSONL File")}
+            </DropdownMenuItem>
+          )}
+          {supportsSessionMove && (
+            <DropdownMenuItem onClick={onMoveSession}>
+              <FolderInput className="w-3 h-3 mr-2" />
+              {t("session.move.menuItem", "Move to project…")}
             </DropdownMenuItem>
           )}
           {supportsSessionDeletion && (
