@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { Indent, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { getKindLabelKey } from "./kindLabels";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { findTurnKeyForUuid } from "./outline/flattenOutline";
 import { NavigatorOutline } from "./outline/NavigatorOutline";
+import { includeIndex } from "./outline/rovingFocus";
 import { buildTurnOfMessage } from "./outline/turnOfMessage";
 import { useOutlineTurns } from "./outline/useOutlineTurns";
 
@@ -189,6 +190,9 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     getScrollElement: () => scrollElementRef.current,
     estimateSize,
     overscan: 5,
+    // Keep the row holding tabIndex=0 rendered after it scrolls away, as
+    // the outline does; otherwise Tab cannot reach a row.
+    rangeExtractor: (range) => includeIndex(defaultRangeExtractor(range), focusedIndex, range.count),
   });
 
   const handleEntryClick = useCallback(
