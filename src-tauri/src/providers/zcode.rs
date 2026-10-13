@@ -1,6 +1,6 @@
 //! Z Code provider (Z.ai's GLM-powered coding agent, <https://zcode.z.ai>).
 //!
-//! Z Code keeps the authoritative transcript history in a single SQLite store
+//! Z Code keeps the authoritative transcript history in a single `SQLite` store
 //! at `<home>/.zcode/cli/db/db.sqlite` (WAL). Relevant tables:
 //! - `session(id, directory, title, title_source, task_type, parent_id,
 //!   time_created, time_updated, time_archived)` — `directory` is the session
@@ -539,7 +539,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 }
 
 /// Candidate-session filter pushed into SQL. Only applied when the query is
-/// safe for a `LIKE` prefilter: SQLite's `LIKE` is case-insensitive for ASCII
+/// safe for a `LIKE` prefilter: `SQLite`'s `LIKE` is case-insensitive for ASCII
 /// only, and raw `part.data` is JSON — a query containing `"`/`\`/control
 /// characters can be contiguous in parsed text but escaped in the raw column,
 /// so those queries (and non-ASCII ones) fall back to scanning every session

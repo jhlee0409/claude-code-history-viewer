@@ -1181,6 +1181,10 @@ pub async fn search_all_providers(
         }
     }
 
+    // Central pass over every provider's results (e.g. `sessionIds`, which
+    // every provider sets). Claude and Codex already filtered before their own
+    // limit; providers that ignore filters truncated first, so a narrow scope
+    // can return fewer than `max_results` from them.
     all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
 
     // Prefer the user's matching prompts, then displayable assistant text,
@@ -1317,6 +1321,48 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn search_all_providers_honors_session_ids_for_claude() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("demo");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let line = |uuid: &str, session: &str, minute: u32| {
+            format!(
+                r#"{{"uuid":"{uuid}","sessionId":"{session}","timestamp":"2025-06-26T10:{minute:02}:00Z","type":"user","message":{{"role":"user","content":"sessionScopeProbe {uuid}"}}}}"#
+            )
+        };
+        std::fs::write(
+            project_dir.join("old.jsonl"),
+            format!("{}\n", line("old-1", "old", 1)),
+        )
+        .unwrap();
+        std::fs::write(
+            project_dir.join("new.jsonl"),
+            format!("{}\n{}\n", line("new-1", "new", 2), line("new-2", "new", 3)),
+        )
+        .unwrap();
+
+        // The older session must survive a limit of 1 because scoping is
+        // applied before truncation.
+        let results = search_all_providers(
+            Some(temp_dir.path().to_string_lossy().to_string()),
+            "sessionScopeProbe".to_string(),
+            Some(vec!["claude".to_string()]),
+            None,
+            Some(serde_json::json!({ "sessionIds": ["old"] })),
+            Some(1),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let ids: Vec<&str> = results.iter().map(|m| m.uuid.as_str()).collect();
+        assert_eq!(ids, ["old-1"]);
+        assert_eq!(results[0].provider.as_deref(), Some("claude"));
+    }
 
     #[tokio::test]
     async fn load_provider_session_by_path_rejects_providers_without_a_lookup() {

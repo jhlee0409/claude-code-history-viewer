@@ -13,6 +13,7 @@ import {
     Bot,
     MessageSquare,
     Lightbulb,
+    ListFilter,
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,8 +28,9 @@ import {
 } from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
+import { getProjectDisplayName } from "@/utils/pathUtils";
 import { getLocale } from "@/utils/time";
+import { buildMessageSearchScope, findResultProject, isResultInScope } from "./searchScope";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -132,6 +134,27 @@ export const GlobalSearchModal = ({
     const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
+    // Search covers only what the sidebar filter shows, unless the user opts
+    // out for this search.
+    const sidebarFilterResult = useAppStore((state) => state.sidebarFilterResult);
+    const sidebarFilterQuery = useAppStore((state) => state.sidebarFilterQuery);
+    const [followSidebarFilter, setFollowSidebarFilter] = useState(true);
+    const sidebarScope = useMemo(
+        () => buildMessageSearchScope(projects, sidebarFilterResult),
+        [projects, sidebarFilterResult],
+    );
+    const scope = followSidebarFilter ? sidebarScope : null;
+    const pickableProjects = scope ? scope.projects : projects;
+
+    // A project picked before the scope narrowed may no longer be offered.
+    useEffect(() => {
+        if (
+            selectedProjectPath !== "all" &&
+            !pickableProjects.some((project) => project.path === selectedProjectPath)
+        ) {
+            setSelectedProjectPath("all");
+        }
+    }, [pickableProjects, selectedProjectPath]);
 
     // Group results by project name
     const groupedResults = useMemo(() => {
@@ -143,11 +166,7 @@ export const GlobalSearchModal = ({
             const resultProvider = result.provider ?? "claude";
             // The backend labels results with the store directory name; the
             // project list may carry a decoded display name instead.
-            const matchingProject = projects.find(
-                (project) =>
-                    (project.provider ?? "claude") === resultProvider &&
-                    (project.name === projectName || getPathLeaf(project.path) === projectName)
-            );
+            const matchingProject = findResultProject(result, projects);
             const providerLabel = getProviderLabel(
                 (key, fallback) => t(key, fallback),
                 result.provider,
@@ -261,7 +280,8 @@ export const GlobalSearchModal = ({
             const nativeClaudePath = claudePath || undefined;
             const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
-            if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource)) {
+            const isScopeEmpty = scope !== null && scope.projects.length === 0;
+            if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource) || isScopeEmpty) {
                 setResults([]);
                 setIsSearching(false);
                 return;
@@ -274,6 +294,11 @@ export const GlobalSearchModal = ({
                     // Backend matches by directory name (last path segment), not full path
                     const dirName = selectedProjectPath.split(/[\\/]/).pop() || selectedProjectPath;
                     filters.projects = [dirName];
+                } else if (scope) {
+                    filters.projects = scope.projectNames;
+                }
+                if (scope?.sessionIds) {
+                    filters.sessionIds = [...scope.sessionIds];
                 }
                 if (messageTypeFilter !== "all") {
                     filters.messageType = messageTypeFilter;
@@ -296,7 +321,13 @@ export const GlobalSearchModal = ({
                           }
                         : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
-                setResults(searchResults);
+                // Claude and Codex results already honor the scope; this
+                // narrows the providers that don't apply search filters.
+                setResults(
+                    scope
+                        ? searchResults.filter((result) => isResultInScope(result, scope, projects))
+                        : searchResults,
+                );
                 setSelectedIndex(0);
             } catch (error) {
                 console.error("Global search failed:", error);
@@ -306,7 +337,7 @@ export const GlobalSearchModal = ({
                 setIsSearching(false);
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata, t],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata, scope, projects, t],
     );
 
     // Handle input change with debounce
@@ -492,6 +523,7 @@ export const GlobalSearchModal = ({
             setSelectedIndex(0);
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
+            setFollowSidebarFilter(true);
             setSessionTitles({});
             titleSweepTokenRef.current++;
         }
@@ -660,12 +692,12 @@ export const GlobalSearchModal = ({
                     </div>
 
                     {/* Divider */}
-                    {projects.length > 1 && (
+                    {pickableProjects.length > 1 && (
                         <div className="w-px h-4 bg-border" />
                     )}
 
                     {/* Project Filter */}
-                    {projects.length > 1 && (
+                    {pickableProjects.length > 1 && (
                         <>
                             <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
@@ -674,7 +706,7 @@ export const GlobalSearchModal = ({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">{t("globalSearch.allProjects")}</SelectItem>
-                                    {projects.map((project) => (
+                                    {pickableProjects.map((project) => (
                                         <SelectItem key={project.path} value={project.path}>
                                             {project.name}
                                         </SelectItem>
@@ -682,6 +714,34 @@ export const GlobalSearchModal = ({
                                 </SelectContent>
                             </Select>
                         </>
+                    )}
+
+                    {/* Sidebar filter scope */}
+                    {sidebarScope && (
+                        <button
+                            type="button"
+                            aria-pressed={followSidebarFilter}
+                            onClick={() => setFollowSidebarFilter((prev) => !prev)}
+                            title={
+                                followSidebarFilter
+                                    ? t("globalSearch.sidebarScope.onHint")
+                                    : t("globalSearch.sidebarScope.offHint")
+                            }
+                            className={cn(
+                                "ml-auto flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors min-w-0",
+                                followSidebarFilter
+                                    ? "bg-accent/15 text-accent"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                            )}
+                        >
+                            <ListFilter className="w-3 h-3 shrink-0" aria-hidden="true" />
+                            <span className="truncate">
+                                {t("globalSearch.sidebarScope.label", {
+                                    query: sidebarFilterQuery.trim(),
+                                    count: sidebarScope.projects.length,
+                                })}
+                            </span>
+                        </button>
                     )}
                 </div>
 
@@ -708,7 +768,9 @@ export const GlobalSearchModal = ({
 
                     {!isSearching && query.trim().length >= 2 && results.length === 0 && (
                         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                            {t("globalSearch.noResults")}
+                            {scope && scope.projects.length === 0
+                                ? t("globalSearch.sidebarScope.empty")
+                                : t("globalSearch.noResults")}
                         </div>
                     )}
 
