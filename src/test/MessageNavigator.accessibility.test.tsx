@@ -46,18 +46,24 @@ vi.mock("react-i18next", () => ({
 const virtualWindow = vi.hoisted(() => ({
   current: null as { startIndex: number; endIndex: number } | null,
 }));
+// The options the component last passed to the virtualizer, and the
+// measurement callback it hands back.
+const { virtualizerOptions, measureElementMock } = vi.hoisted(() => ({
+  virtualizerOptions: { current: null as { getItemKey?: (index: number) => string | number } | null },
+  measureElementMock: vi.fn(),
+}));
 
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     defaultRangeExtractor: actual.defaultRangeExtractor,
-    useVirtualizer: ({
-      count,
-      rangeExtractor = actual.defaultRangeExtractor,
-    }: {
+    useVirtualizer: (options: {
       count: number;
       rangeExtractor?: (range: Range) => number[];
+      getItemKey?: (index: number) => string | number;
     }) => {
+      const { count, rangeExtractor = actual.defaultRangeExtractor } = options;
+      virtualizerOptions.current = options;
       const indexes = virtualWindow.current
         ? rangeExtractor({ ...virtualWindow.current, overscan: 0, count })
         : Array.from({ length: count }, (_, index) => index);
@@ -65,6 +71,7 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
         getVirtualItems: () => indexes.map((index) => ({ index, start: index * 40 })),
         getTotalSize: () => count * 40,
         scrollToIndex: vi.fn(),
+        measureElement: measureElementMock,
       };
     },
   };
@@ -77,6 +84,7 @@ describe("MessageNavigator accessibility", () => {
     storeState.userOnlyFilter = false;
     storeState.targetMessageUuid = "message-2";
     virtualWindow.current = null;
+    virtualizerOptions.current = null;
   });
 
   it("supports roving focus and keyboard activation", () => {
@@ -146,6 +154,49 @@ describe("MessageNavigator accessibility", () => {
     expect(rows[2]).toHaveTextContent("Reply 20");
     expect(rows[2]).toHaveAttribute("tabindex", "0");
     expect(rows.filter((row) => row.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
+  it("measures each rendered row, so rows sit at their real heights", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          { uuid: "message-1", type: "user", content: "First", timestamp: "2026-02-27T10:00:00Z" } as never,
+          { uuid: "message-2", type: "assistant", content: "Second", timestamp: "2026-02-27T10:01:00Z" } as never,
+          { uuid: "message-3", type: "assistant", content: "Third", timestamp: "2026-02-27T10:02:00Z" } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const rows = screen.getAllByRole("option");
+    rows.forEach((row, index) => {
+      // measureElement finds a row's index through this attribute.
+      expect(row).toHaveAttribute("data-index", String(index));
+      expect(measureElementMock).toHaveBeenCalledWith(row);
+    });
+  });
+
+  it("keys measured sizes by message, so a prepended page cannot shift them", () => {
+    const message = (n: number) =>
+      ({ uuid: `message-${n}`, type: "assistant", content: `Reply ${n}`, timestamp: "2026-02-27T10:00:00Z" }) as never;
+    const props = {
+      width: 260,
+      isResizing: false,
+      onResizeStart: vi.fn(),
+      isCollapsed: false,
+      onToggleCollapse: vi.fn(),
+    };
+    const { rerender } = render(<MessageNavigator messages={[message(3), message(4)]} {...props} />);
+    expect(virtualizerOptions.current?.getItemKey?.(0)).toBe("message-3");
+
+    // Loading an earlier page puts two rows in front; message-3 moves to
+    // index 2 and must keep its key there.
+    rerender(<MessageNavigator messages={[message(1), message(2), message(3), message(4)]} {...props} />);
+    expect(virtualizerOptions.current?.getItemKey?.(2)).toBe("message-3");
   });
 
   it("hides Parallel Tasks entries and exposes a header toggle", () => {
