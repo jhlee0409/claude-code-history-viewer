@@ -212,9 +212,9 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
 };
 
 export const SessionList: React.FC<SessionListProps> = ({
-  sessions,
-  sessionsTotal = sessions.length,
-  hasMoreSessions = false,
+  sessions: loadedSessions,
+  sessionsTotal: loadedSessionsTotal = loadedSessions.length,
+  hasMoreSessions: loadedHasMoreSessions = false,
   selectedSession,
   isLoading,
   isLoadingMoreSessions = false,
@@ -240,6 +240,23 @@ export const SessionList: React.FC<SessionListProps> = ({
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
   const handleSessionSelectionClick = useAppStore((s) => s.handleSessionSelectionClick);
+
+  // When the sidebar filter shows this project only because some of its
+  // sessions matched by name, list just those. They come from a full session
+  // list, so paging is moot; prefer the loaded copy of each session when
+  // there is one, since it is the one kept fresh by the file watcher.
+  const sidebarMatches = useAppStore((s) =>
+    s.selectedProject
+      ? s.sidebarFilterResult?.sessionMatchesByProject[s.selectedProject.path]
+      : undefined
+  );
+  const sessions = useMemo(() => {
+    if (!sidebarMatches) return loadedSessions;
+    const loadedById = new Map(loadedSessions.map((session) => [session.session_id, session]));
+    return sidebarMatches.map((session) => loadedById.get(session.session_id) ?? session);
+  }, [sidebarMatches, loadedSessions]);
+  const sessionsTotal = sidebarMatches ? sessions.length : loadedSessionsTotal;
+  const hasMoreSessions = sidebarMatches ? false : loadedHasMoreSessions;
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -391,6 +408,15 @@ export const SessionList: React.FC<SessionListProps> = ({
   // for the project) is used for id→session mapping so a session hidden by the
   // current search filter is still deleted; `filteredAndSortedSessions` drives
   // "Select all" (only the currently visible rows).
+  const sidebarFilterHint = sidebarMatches ? (
+    <div className="px-3 pt-1.5 text-2xs text-muted-foreground" role="status">
+      {t("session.filter.sidebarMatches", {
+        count: sidebarMatches.length,
+        defaultValue: "Showing {{count}} sessions matching the sidebar filter",
+      })}
+    </div>
+  ) : null;
+
   const selectionBar = isSelectionMode ? (
     <SessionSelectionBar
       allSessions={sessions}
@@ -462,7 +488,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
 
-  if (isLoading) {
+  if (isLoading && !sidebarMatches) {
     return (
       <div className={cn(containerClass, borderClass, "space-y-2 py-2")}>
         {[1, 2, isWorktree || isMain ? 0 : 3].filter(Boolean).map((i) => (
@@ -491,6 +517,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     return (
       <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
         {controls}
+        {sidebarFilterHint}
         {selectionBar}
 
         {/* Session List */}
@@ -525,6 +552,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   return (
     <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
       {controls}
+      {sidebarFilterHint}
       {selectionBar}
 
       {/* Virtual Scroll List */}

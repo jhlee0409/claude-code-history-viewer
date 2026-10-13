@@ -91,6 +91,8 @@ interface MockStore {
     orderedIds: string[],
     modifiers: { shift: boolean; cmdOrCtrl: boolean }
   ) => void;
+  selectedProject: { path: string } | null;
+  sidebarFilterResult: { projectPaths: string[]; sessionMatchesByProject: Record<string, ClaudeSession[]> } | null;
 }
 
 const useTestStore = create<MockStore>((set) => ({
@@ -104,6 +106,8 @@ const useTestStore = create<MockStore>((set) => ({
   toggleSessionSelectionMode: () => set({ isSessionSelectionMode: false }),
   enterSessionSelectionMode: () => set({ isSessionSelectionMode: true }),
   handleSessionSelectionClick: () => {},
+  selectedProject: null,
+  sidebarFilterResult: null,
 }));
 
 // Selector-aware mock: SessionList reads some fields via `useAppStore(selector)`
@@ -165,7 +169,48 @@ describe("SessionList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset mock store state
-    useTestStore.setState({ sessionSortOrder: 'newest', sessionEntrypointFilter: 'all' });
+    useTestStore.setState({
+      sessionSortOrder: 'newest',
+      sessionEntrypointFilter: 'all',
+      selectedProject: null,
+      sidebarFilterResult: null,
+    });
+  });
+
+  describe("Sidebar filter", () => {
+    it("lists only the sessions the sidebar filter matched for the open project", () => {
+      useTestStore.setState({
+        selectedProject: { path: "/projects/a" },
+        sidebarFilterResult: {
+          projectPaths: ["/projects/a"],
+          sessionMatchesByProject: { "/projects/a": [mockSessions[1]!] },
+        },
+      });
+
+      render(<SessionList {...defaultProps} hasMoreSessions={true} />);
+
+      const sessionItems = screen.getAllByTestId(/session-item-/);
+      expect(sessionItems).toHaveLength(1);
+      expect(sessionItems[0]).toHaveAttribute("data-testid", "session-item-session-2");
+      expect(screen.getByText("session.filter.sidebarMatches")).toBeInTheDocument();
+      // All matches are already known, so there is nothing more to page in.
+      expect(screen.queryByText("session.loadMore")).not.toBeInTheDocument();
+    });
+
+    it("shows every loaded session when the open project matched by its own name", () => {
+      useTestStore.setState({
+        selectedProject: { path: "/projects/a" },
+        sidebarFilterResult: {
+          projectPaths: ["/projects/a", "/projects/b"],
+          sessionMatchesByProject: { "/projects/b": [mockSessions[0]!] },
+        },
+      });
+
+      render(<SessionList {...defaultProps} />);
+
+      expect(screen.getAllByTestId(/session-item-/)).toHaveLength(3);
+      expect(screen.queryByText("session.filter.sidebarMatches")).not.toBeInTheDocument();
+    });
   });
 
   describe("Loading state", () => {
