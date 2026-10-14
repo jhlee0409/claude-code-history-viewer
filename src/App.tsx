@@ -195,16 +195,15 @@ function App() {
       runPreloadWithHint(queued.hint, queued.messageId, queued.options);
       return;
     }
-    const startupEpoch = useAppStore.getState().beginNavigation();
+    // Asking for the hint is not a navigation: only observe the epoch here,
+    // and claim one once a hint actually arrives, so a startup without a hint
+    // never supersedes a navigation already in flight.
+    const observedEpoch = useAppStore.getState().navigationEpoch;
     void fetchStartupSessionHint().then((hint) => {
       // A second invocation, a deep link or the user may have navigated while
       // the startup command was resolving. The newer request owns navigation.
-      if (useAppStore.getState().navigationEpoch !== startupEpoch) return;
-      if (hint) {
-        runPreloadWithHint(hint, readWebUIDeepLink().messageId, {
-          epoch: startupEpoch,
-        });
-      }
+      if (!hint || useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      runPreloadWithHint(hint, readWebUIDeepLink().messageId);
     });
   }, [isLoadingProjects, projects, runPreloadWithHint]);
 
