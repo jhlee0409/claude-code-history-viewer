@@ -28,6 +28,7 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import { viewAfterLeavingProject } from "@/navigation/place";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import {
   type WebUINavigationOptions,
@@ -567,9 +568,6 @@ export const createProjectSlice: StateCreator<
 
     const previouslySelectedProject = get().selectedProject;
     const previouslySelectedSession = get().selectedSession;
-    // Global stats can be open with a project still selected; the flag, not
-    // the selection, says what is on screen.
-    const wasViewingGlobalStats = get().isViewingGlobalStats;
 
     set({ isRefreshingAllConversations: true, error: null });
 
@@ -577,8 +575,11 @@ export const createProjectSlice: StateCreator<
       await get().scanProjects();
 
       const stateAfterScan = get();
+      // A refresh reloads the place on screen; it never moves the user
+      // (plan §4.2). The only change it makes is the fallback when the open
+      // project or session no longer exists.
       if (!previouslySelectedProject) {
-        if (stateAfterScan.analytics.currentView === "analytics") {
+        if (stateAfterScan.view === "globalStats") {
           await stateAfterScan.loadGlobalStats();
         }
         return;
@@ -605,7 +606,7 @@ export const createProjectSlice: StateCreator<
         ) ?? null;
 
         if (refreshedSession) {
-          await get().selectSession(refreshedSession);
+          await get().reloadCurrent("refresh", refreshedSession);
         } else {
           set({
             selectedSession: null,
@@ -622,17 +623,15 @@ export const createProjectSlice: StateCreator<
       }
 
       const refreshedState = get();
-      if (wasViewingGlobalStats && refreshedState.analytics.currentView === "analytics") {
-        // Re-selecting the session above cleared the flag (App exits global
-        // stats on session change); restore it and reload the overview.
-        refreshedState.setViewingGlobalStats(true);
+      const { view } = refreshedState;
+      if (view === "globalStats") {
         await refreshedState.loadGlobalStats();
-      } else if (refreshedState.analytics.currentView === "tokenStats") {
+      } else if (view === "tokenStats") {
         await refreshedState.loadProjectTokenStats(refreshedProject.path);
         if (refreshedSession) {
           await refreshedState.loadSessionTokenStats(refreshedSession.file_path);
         }
-      } else if (refreshedState.analytics.currentView === "analytics") {
+      } else if (view === "analytics") {
         const projectSummary = await refreshedState.loadProjectStatsSummary(
           refreshedProject.path
         );
@@ -646,7 +645,7 @@ export const createProjectSlice: StateCreator<
         } else {
           refreshedState.setAnalyticsSessionComparison(null);
         }
-      } else if (refreshedState.analytics.currentView === "recentEdits") {
+      } else if (view === "edits") {
         const recentEdits = await refreshedState.loadRecentEdits(
           refreshedProject.path
         );
@@ -662,10 +661,10 @@ export const createProjectSlice: StateCreator<
             refreshedProject.path
           );
         }
-      } else if (refreshedState.analytics.currentView === "board") {
+      } else if (view === "board") {
         refreshedState.clearBoard();
         await refreshedState.loadBoardSessions(get().sessions);
-      } else if (refreshedState.analytics.currentView === "archive") {
+      } else if (view === "archive") {
         await refreshedState.loadArchives();
       }
     } catch (error) {
@@ -864,6 +863,8 @@ export const createProjectSlice: StateCreator<
     nextRequestId("selectProject");
 
     set({
+      // A project screen cannot stay open without its project (plan §4.1).
+      view: viewAfterLeavingProject(get().view),
       selectedProject: null,
       selectedSession: null,
       sessions: [],

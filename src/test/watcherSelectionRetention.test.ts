@@ -61,8 +61,9 @@ const createStore = () =>
     // 1500ms restore path untested while the assertions still passed.
     messages: [],
     activeSessionNearBottom: true,
-    analytics: { currentView: "messages", recentEdits: null, recentEditsGeneration: 0 },
-    selectSession: vi.fn().mockResolvedValue(undefined),
+    view: "conversation",
+    analytics: { recentEdits: null, recentEditsGeneration: 0 },
+    reloadCurrent: vi.fn().mockResolvedValue(undefined),
     invalidateRecentEdits: vi.fn(),
     clearSessionSearch: vi.fn(),
     clearTokenStats: vi.fn(),
@@ -113,6 +114,8 @@ describe("#508 a file write must not clear the open session", () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(store.getState().selectedSession?.file_path).toBe(SESSION.file_path);
+    // The session half of the refresh ran, as a reload of the open place.
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("watcher");
   });
 
   it("still clears the selection when the user picks a different project", async () => {

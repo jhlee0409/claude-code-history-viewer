@@ -68,11 +68,34 @@ export interface MessageSliceState {
   toolUseToSubagentMap: Map<string, string>;
 }
 
+/**
+ * Why the open session is being reloaded. A reload refreshes what is on screen
+ * and never moves the user (plan §4.2).
+ *
+ * - `watcher`: its JSONL changed on disk
+ * - `filter`: a message filter that the backend applies changed
+ * - `refresh`: the header refresh rescanned projects
+ * - `restore`: the conversation screen came back with no messages loaded
+ */
+export type ReloadReason = "watcher" | "filter" | "refresh" | "restore";
+
 export interface MessageSliceActions {
+  /**
+   * Loads a session as the open one. Store-internal: `navigate` opens a
+   * session and `reloadCurrent` reloads it; nothing else calls this.
+   */
   selectSession: (
     session: ClaudeSession,
     options?: WebUINavigationOptions,
   ) => Promise<void>;
+  /**
+   * Reload the open session in place: same place, same paged-in window,
+   * subagent stack and search kept (#508). `fresh` is a newer record of the
+   * same session file (the header refresh re-reads the list); a record of any
+   * other file is ignored, so a reload can never move the user. No-op without
+   * an open session.
+   */
+  reloadCurrent: (reason: ReloadReason, fresh?: ClaudeSession) => Promise<void>;
   /** Load the next (older) page of the current session and prepend it. */
   loadMoreMessages: () => Promise<void>;
   /**
@@ -408,6 +431,18 @@ export const createMessageSlice: StateCreator<
 
   return {
     ...initialMessageState,
+
+  reloadCurrent: async (reason, fresh) => {
+    const current = get().selectedSession;
+    if (!current) return;
+    // Restoring only fills a conversation that came back empty; one that
+    // still holds its messages is already current.
+    if (reason === "restore" && get().messages.length > 0) return;
+    const target = fresh?.file_path === current.file_path ? fresh : current;
+    // Same file, so `selectSession` takes its in-place path; "none" because a
+    // reload is not a WebUI history step.
+    await get().selectSession(target, { history: "none" });
+  },
 
   selectSession: async (session: ClaudeSession, options) => {
     // In-place reloads share a file_path, so the path guard alone cannot drop

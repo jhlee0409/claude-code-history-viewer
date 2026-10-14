@@ -1,13 +1,14 @@
 import { FolderOpen, MessageSquare, Columns, BarChart3, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import type { MobileTab } from "@/navigation/place";
 
 interface BottomTabBarProps {
-  activeView: string;
+  /** The selected tab, projected from the current place (`activeMobileTab`). */
+  activeTab: MobileTab | null;
   onOpenSidebar: () => void;
   onSwitchView: (view: string) => void;
   hasProject: boolean;
-  isViewingGlobalStats?: boolean;
 }
 
 const tabs = [
@@ -18,7 +19,7 @@ const tabs = [
   { id: "settings", icon: SlidersHorizontal, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
 ] as const;
 
-export function BottomTabBar({ activeView, onOpenSidebar, onSwitchView, hasProject, isViewingGlobalStats }: BottomTabBarProps) {
+export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProject }: BottomTabBarProps) {
   const { t } = useTranslation();
 
   return (
@@ -28,12 +29,7 @@ export function BottomTabBar({ activeView, onOpenSidebar, onSwitchView, hasProje
     >
       <div className="flex items-center justify-around h-full px-2">
         {tabs.map(({ id, icon: Icon, labelKey, alwaysEnabled }) => {
-          const isActive =
-            id === "projects"
-              ? false
-              : isViewingGlobalStats
-                ? false
-                : id === activeView;
+          const isActive = id !== "projects" && id === activeTab;
           const isDisabled = !alwaysEnabled && !hasProject;
 
           const handlePress = () => {

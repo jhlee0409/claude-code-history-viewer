@@ -25,7 +25,14 @@ export interface ProjectTreeProps {
   onGlobalStatsClick: () => void;
   isLoading: boolean;
   isLoadingMoreSessions?: boolean;
-  isViewingGlobalStats: boolean;
+  /** The global stats row is the open screen (library highlight, plan C3). */
+  isGlobalStatsActive: boolean;
+  /**
+   * An app-level screen is open, so the selected project/session are kept
+   * context rather than what the main area shows (plan C3 tree projection).
+   * Exposed as `data-selection="retained"` on the tree; not styled yet (T7).
+   */
+  isSelectionRetained?: boolean;
   /**
    * Render the selected project's sessions inline under its row. Off when the
    * layout shows them in a dedicated SessionsPane column.

@@ -5,8 +5,8 @@
  * `--session-folder <name>`, or `--session-title <text>`, the Rust side
  * stashes a {@link SessionHint} that the frontend retrieves via the
  * `get_startup_session_hint` command. This module resolves that hint against
- * the loaded project list and calls the existing `selectProject` /
- * `selectSession` actions — the same flow the GlobalSearch modal uses for
+ * the loaded project list and opens the match through `openMatch` (the
+ * store's `navigate`) — the same transaction the GlobalSearch modal uses for
  * cross-project navigation.
  *
  * Stage B resolvers:
@@ -43,10 +43,11 @@ export interface PreloadDependencies {
   getStartupSessionHint: () => Promise<SessionHint | null>;
   /** List of known projects — usually from the app store after initial load. */
   projects: ClaudeProject[];
-  /** Select a project (mirrors store action). */
-  selectProject: (project: ClaudeProject) => Promise<void>;
-  /** Select a session (mirrors store action). */
-  selectSession: (session: ClaudeSession) => Promise<void>;
+  /**
+   * Open the resolved match (project + session) as one navigation. Resolves
+   * false when a newer navigation superseded it on the way.
+   */
+  openMatch: (match: SessionPickerCandidate) => Promise<boolean>;
   /** Open the session picker modal for ambiguous title matches. */
   openSessionPicker: (candidates: SessionPickerCandidate[], hintValue: string) => void;
   /** i18n translator for the not-found toast. */
@@ -392,13 +393,8 @@ async function commitSingleMatch(
   if (!isCurrent() || useAppStore.getState().selectedSession) {
     return { handled: true, matched: false };
   }
-  await deps.selectProject(match.project);
-  // Re-check after the project-load await: the user may have clicked a
-  // session while selectProject was loading. Skipping this check lets the
-  // CLI hint clobber their manual choice.
-  if (!isCurrent() || useAppStore.getState().selectedSession) {
-    return { handled: true, matched: false };
-  }
-  await deps.selectSession(match.session);
-  return { handled: true, matched: isCurrent() };
+  // `navigate` re-checks its epoch after the project load, so a session the
+  // user clicked meanwhile is not clobbered by the hint.
+  const arrived = await deps.openMatch(match);
+  return { handled: true, matched: arrived && isCurrent() };
 }

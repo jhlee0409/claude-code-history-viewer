@@ -107,9 +107,12 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       goToPrevMatch: vi.fn(),
       clearSessionSearch: vi.fn(),
       loadGlobalStats: vi.fn(async () => {}),
-      isViewingGlobalStats: false,
-      setViewingGlobalStats: vi.fn(),
-      setAnalyticsCurrentView: vi.fn(),
+      view: "conversation",
+      navigationEpoch: 0,
+      navigate: vi.fn(async () => true),
+      beginNavigation: vi.fn(() => 1),
+      reloadCurrent: vi.fn(async () => {}),
+      setBoardHoverSession: vi.fn(),
       setAnalyticsMetricMode: vi.fn(),
       setRecentEditsMode: vi.fn(),
       setRecentEditsDockOpen: vi.fn(),
@@ -178,6 +181,7 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       isMessagesView: false,
       isTokenStatsView: false,
       isAnalyticsView: false,
+      isGlobalStatsView: false,
       isRecentEditsView: false,
       isSettingsView: false,
       isBoardView: false,
@@ -305,9 +309,7 @@ const VIEWS: ViewCase[] = [
   {
     label: "global stats",
     titleKey: "analytics.globalOverview",
-    arrange: () => {
-      appStoreState.isViewingGlobalStats = true;
-    },
+    arrange: () => Object.assign(computedMock, { isGlobalStatsView: true }),
   },
   {
     label: "recent edits",
@@ -354,7 +356,6 @@ describe("view title invariant", () => {
   beforeEach(() => {
     resetComputedMock();
     appStoreState.selectedProject = initialProject;
-    appStoreState.isViewingGlobalStats = false;
   });
 
   it.each(VIEWS)("$label: the title is shown exactly once, as the heading", ({ titleKey, arrange }) => {

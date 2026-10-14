@@ -36,7 +36,7 @@ describe("RecentEditsViewer for a provider without recent edits (#643)", () => {
       },
       setRecentEditsMode: vi.fn(),
       setRecentEditsDockOpen: vi.fn(),
-      setAnalyticsCurrentView: vi.fn(),
+      navigate: vi.fn(),
     };
 
     render(

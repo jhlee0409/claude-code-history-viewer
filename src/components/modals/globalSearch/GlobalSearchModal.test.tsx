@@ -29,14 +29,11 @@ const { mockApi, storeState, translate, useAppStoreMock } = vi.hoisted(() => {
     const state = {
         claudePath: "",
         projects: [],
-        selectProject: vi.fn(),
-        selectSession: vi.fn(),
+        navigate: vi.fn(),
         sessions: [],
         getSessionDisplayName: vi.fn(),
         activeProviders: ["claude"],
-        navigateToMessage: vi.fn(),
         clearTargetMessage: vi.fn(),
-        setAnalyticsCurrentView: vi.fn(),
         userMetadata: {
             settings: {
                 wsl: {

@@ -27,7 +27,7 @@ import type {
   SubagentSession,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
-import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
+import type { AnalyticsState } from "../../types/analytics";
 import type { UpdateSettings } from "../../types/updateSettings";
 
 // ============================================================================
@@ -148,7 +148,6 @@ export interface AppStoreState {
   globalSummary: GlobalStatsSummary | null;
   globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
-  isViewingGlobalStats: boolean;
 
   // Metadata state
   userMetadata: UserMetadata;
@@ -184,6 +183,12 @@ export interface AppStoreState {
   messageFilter: import('./filterSlice').MessageFilter;
 
   // Navigation state
+  view: import("@/navigation/place").View;
+  navigationEpoch: number;
+  placeHistory: {
+    back: import("./navigationSlice").PlaceHistoryEntry[];
+    forward: import("./navigationSlice").PlaceHistoryEntry[];
+  };
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
 
@@ -239,6 +244,14 @@ export interface AppStoreState {
 
 export interface AppStoreActions {
   // Navigation actions
+  navigate: (
+    target: import("./navigationSlice").NavigateTarget,
+    options?: import("./navigationSlice").NavigateOptions,
+  ) => Promise<boolean>;
+  beginNavigation: () => number;
+  stepPlaceHistory: (
+    direction: "back" | "forward",
+  ) => import("./navigationSlice").PlaceHistoryEntry | null;
   navigateToMessage: (
     uuid: string,
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
@@ -262,9 +275,17 @@ export interface AppStoreActions {
   setSessions: (sessions: ClaudeSession[]) => void;
 
   // Message actions
+  /**
+   * Loads a session as the open one. Internal to the store: UI and other
+   * callers move the user with `navigate` and reload with `reloadCurrent`.
+   */
   selectSession: (
     session: ClaudeSession,
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
+  ) => Promise<void>;
+  reloadCurrent: (
+    reason: import("./messageSlice").ReloadReason,
+    fresh?: ClaudeSession,
   ) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
@@ -293,7 +314,6 @@ export interface AppStoreActions {
   clearSessionSearch: () => void;
 
   // Analytics actions
-  setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
@@ -336,7 +356,6 @@ export interface AppStoreActions {
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
   clearGlobalStats: () => void;
-  setViewingGlobalStats: (value: boolean) => void;
 
   // Metadata actions
   loadMetadata: () => Promise<void>;

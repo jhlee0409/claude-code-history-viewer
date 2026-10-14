@@ -1,19 +1,25 @@
 import { useMemo } from "react";
 import { useAppStore } from "../../store/useAppStore";
 
+/**
+ * Screen flags for the current place. One flag per `view`; global stats is
+ * its own screen (`isGlobalStatsView`), not project analytics plus a flag.
+ */
 export function useAnalyticsComputed() {
+  const view = useAppStore((s) => s.view);
   const analytics = useAppStore((s) => s.analytics);
   const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
 
   return useMemo(
     () => ({
-      isTokenStatsView: analytics.currentView === "tokenStats",
-      isAnalyticsView: analytics.currentView === "analytics",
-      isMessagesView: analytics.currentView === "messages",
-      isRecentEditsView: analytics.currentView === "recentEdits",
-      isSettingsView: analytics.currentView === "settings",
-      isBoardView: analytics.currentView === "board",
-      isArchiveView: analytics.currentView === "archive",
+      isTokenStatsView: view === "tokenStats",
+      isAnalyticsView: view === "analytics",
+      isGlobalStatsView: view === "globalStats",
+      isMessagesView: view === "conversation",
+      isRecentEditsView: view === "edits",
+      isSettingsView: view === "settingsManager",
+      isBoardView: view === "board",
+      isArchiveView: view === "archive",
       hasAnyError: !!(
         analytics.projectSummaryError ||
         analytics.sessionComparisonError ||
@@ -31,7 +37,7 @@ export function useAnalyticsComputed() {
         isLoadingTokenStats,
     }),
     [
-      analytics.currentView,
+      view,
       analytics.projectSummaryError,
       analytics.sessionComparisonError,
       analytics.recentEditsError,

@@ -479,16 +479,20 @@ export const SessionBoard = () => {
                                             clearSearchIndex();
                                             buildSearchIndex(data.messages);
                                         }
-                                        // Navigate to message and switch view
-                                        useAppStore.getState().navigateToMessage(messageId);
-                                        useAppStore.getState().setAnalyticsCurrentView("messages");
+                                        // Open the conversation at that message. The session
+                                        // is already in place (hydrated above), so this moves
+                                        // the screen and sets the explicit target.
+                                        void useAppStore.getState().navigate({
+                                            view: "conversation",
+                                            messageId,
+                                        });
                                     }}
                                     scrollContainerRef={parentRef as React.RefObject<HTMLDivElement>}
                                     onHeightChange={(h) => handleLaneHeightChange(sessionId, h)}
                                     onFileClick={(file) => {
                                         // Deep link to recent edits
                                         useAppStore.getState().setAnalyticsRecentEditsSearchQuery(file);
-                                        useAppStore.getState().setAnalyticsCurrentView("recentEdits");
+                                        void useAppStore.getState().navigate({ view: "edits" });
                                     }}
                                 />
                             </div>

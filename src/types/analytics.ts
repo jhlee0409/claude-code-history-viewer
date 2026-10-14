@@ -14,19 +14,13 @@ import type { MetricMode, StatsMode } from "./stats.types";
 export type RecentEditsPagination = RecentEditsPaginationState;
 
 /**
- * Analytics 뷰 타입
- */
-export type AnalyticsView = 'messages' | 'tokenStats' | 'analytics' | 'recentEdits' | 'settings' | 'board' | 'archive';
-export type AnalyticsViewType = AnalyticsView;
-
-/**
  * Analytics 상태 인터페이스
  * - 높은 응집도: 관련된 상태들을 하나로 묶음
  * - 낮은 결합도: 각 상태는 독립적으로 관리 가능
  */
 export interface AnalyticsState {
-  // 현재 활성 뷰
-  currentView: AnalyticsView;
+  // The open screen is navigation state (`view`, navigationSlice), not
+  // analytics state.
   statsMode: StatsMode;
   metricMode: MetricMode;
 
@@ -61,9 +55,6 @@ export interface AnalyticsState {
  * 단일 책임 원칙을 따라 각 액션은 하나의 역할만 수행
  */
 export interface AnalyticsActions {
-  // 뷰 변경
-  setCurrentView: (view: AnalyticsView) => void;
-
   // 데이터 설정
   setProjectSummary: (summary: ProjectStatsSummary | null) => void;
   setProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
@@ -86,7 +77,7 @@ export interface AnalyticsActions {
   switchToTokenStats: () => void;
   switchToAnalytics: () => void;
   switchToRecentEdits: () => void;
-  setStatsMode: (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => Promise<void>;
+  setStatsMode: (mode: StatsMode, options?: { isGlobalScope?: boolean }) => Promise<void>;
   setMetricMode: (mode: MetricMode) => void;
 
   // 초기화
@@ -103,7 +94,6 @@ export const initialRecentEditsPagination: RecentEditsPagination =
   createInitialRecentEditsPagination();
 
 export const initialAnalyticsState: AnalyticsState = {
-  currentView: 'messages',
   statsMode: "billing_total",
   metricMode: "tokens",
   projectSummary: null,
@@ -138,7 +128,13 @@ export interface UseAnalyticsReturn {
     switchToSettings: () => void;
     switchToBoard: () => Promise<void>;
     switchToArchive: () => void;
-    setStatsMode: (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => Promise<void>;
+    switchToGlobalStats: () => Promise<void>;
+    /** Open a screen of the current context and load its data. */
+    openView: (view: import("../navigation/place").View) => Promise<void>;
+    /** Back/forward through visited places; false at either end. */
+    goBack: () => Promise<boolean>;
+    goForward: () => Promise<boolean>;
+    setStatsMode: (mode: StatsMode, options?: { isGlobalScope?: boolean }) => Promise<void>;
     setMetricMode: (mode: MetricMode) => void;
     refreshAnalytics: () => Promise<void>;
     clearAll: () => void;
@@ -147,7 +143,9 @@ export interface UseAnalyticsReturn {
   // 계산된 값들
   readonly computed: {
     isTokenStatsView: boolean;
+    /** Project analytics; global stats is `isGlobalStatsView`. */
     isAnalyticsView: boolean;
+    isGlobalStatsView: boolean;
     isMessagesView: boolean;
     isRecentEditsView: boolean;
     isSettingsView: boolean;

@@ -11,7 +11,7 @@ import type {
   MetricMode,
   StatsMode,
 } from "../../types";
-import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
+import type { AnalyticsState } from "../../types/analytics";
 import { initialAnalyticsState, initialRecentEditsPagination } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
@@ -37,7 +37,6 @@ export interface AnalyticsSliceState {
 }
 
 export interface AnalyticsSliceActions {
-  setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
@@ -82,15 +81,6 @@ export const createAnalyticsSlice: StateCreator<
   AnalyticsSlice
 > = (set, get) => ({
   ...initialAnalyticsSliceState,
-
-  setAnalyticsCurrentView: (view: AnalyticsViewType) => {
-    set((state) => ({
-      analytics: {
-        ...state.analytics,
-        currentView: view,
-      },
-    }));
-  },
 
   setAnalyticsStatsMode: (mode: StatsMode) => {
     set((state) => ({

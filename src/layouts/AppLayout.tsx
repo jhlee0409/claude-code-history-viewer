@@ -55,6 +55,22 @@ import type { SearchState, SearchFilterType } from "@/store/slices/types";
 import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "@/utils/worktreeUtils";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
 import { usePendingLoadCount } from "@/hooks/usePendingLoad";
+import { selectPlace } from "@/store/slices/navigationSlice";
+import {
+  activeLibraryItem,
+  activeMobileTab,
+  type MobileTab,
+  type View,
+} from "@/navigation/place";
+
+/** Bottom tab bar id → the screen it opens. */
+const MOBILE_TAB_VIEW: Record<MobileTab | "archive", View> = {
+  messages: "conversation",
+  board: "board",
+  analytics: "analytics",
+  settings: "settingsManager",
+  archive: "archive",
+};
 
 export interface AppLayoutProps {
   // Store state
@@ -96,11 +112,9 @@ export interface AppLayoutProps {
   isMobile: boolean;
 
   // Local state
-  isViewingGlobalStats: boolean;
   isSidebarCollapsed: boolean;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
-  setIsViewingGlobalStats: (value: boolean) => void;
 
   // Sidebar resize
   sidebarWidth: number;
@@ -191,11 +205,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     appVersion,
     isDesktop,
     isMobile,
-    isViewingGlobalStats,
     isSidebarCollapsed,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
-    setIsViewingGlobalStats,
     sidebarWidth,
     isSidebarResizing,
     handleSidebarResizeStart,
@@ -260,7 +272,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const recentEditsDockStats = useAppStore((s) => s.recentEditsDock);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
-  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+  const navigate = useAppStore((s) => s.navigate);
+  // Highlights are projections of the place (plan C3); primitives only, so
+  // the selectors stay stable between renders.
+  const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
+  const mobileTab = useAppStore((s) => activeMobileTab(selectPlace(s)));
   /*
     The non-visual `data-ready` marker on the root reads "true" only when no
     load is pending anywhere a screen can show a loader: the prop flags below,
@@ -300,14 +316,14 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   /*
     The return trip out of the dock. Mode is only a preference; what actually
-    decides what renders is `analytics.currentView`, so without the third call
+    decides what renders is the place's `view`, so without the third call
     the panel would simply vanish and leave the user on the transcript, which is
     not what choosing "Page" promises.
   */
   const handleUndockRecentEdits = () => {
     setRecentEditsMode("page");
     setRecentEditsDockOpen(false);
-    setAnalyticsCurrentView("recentEdits");
+    void navigate({ view: "edits" });
   };
 
   // Error State
@@ -358,23 +374,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     render a dock at all.
 
     Derived once and read by both, so the anchor and its target cannot drift
-    apart again. Matching the branch itself rather than testing for the messages
-    view, because global stats renders the analytics branch through a flag of
-    its own rather than through `currentView`.
+    apart again. Global stats is a screen of its own, so the conversation
+    screen is exactly the transcript branch.
   */
-  const isTranscriptView = !(
-    computed.isArchiveView ||
-    computed.isSettingsView ||
-    computed.isBoardView ||
-    computed.isRecentEditsView ||
-    computed.isAnalyticsView ||
-    isViewingGlobalStats ||
-    computed.isTokenStatsView
-  );
-  // Global stats renders inside the analytics branch; the flag can linger
-  // while Settings/Archive are open from the app menu.
-  const showsGlobalStats =
-    isViewingGlobalStats && !computed.isSettingsView && !computed.isArchiveView;
+  const isTranscriptView = computed.isMessagesView;
+  const showsGlobalStats = computed.isGlobalStatsView;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper below is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
@@ -563,7 +567,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 onGlobalStatsClick={handleGlobalStatsClick}
                 isLoading={isLoadingProjects || isLoadingSessions}
                 isLoadingMoreSessions={isLoadingMoreSessions}
-                isViewingGlobalStats={isViewingGlobalStats}
+                isGlobalStatsActive={libraryItem === "globalStats"}
+                isSelectionRetained={libraryItem !== null}
                 groupingMode={groupingMode}
                 worktreeGroups={worktreeGroups}
                 directoryGroups={directoryGroups}
@@ -599,7 +604,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 onGlobalStatsClick={handleGlobalStatsClick}
                 isLoading={isLoadingProjects || isLoadingSessions}
                 isLoadingMoreSessions={isLoadingMoreSessions}
-                isViewingGlobalStats={isViewingGlobalStats}
+                isGlobalStatsActive={libraryItem === "globalStats"}
+                isSelectionRetained={libraryItem !== null}
                 inlineSessions={!showSessionsPane}
                 width={isSidebarCollapsed ? undefined : sidebarWidth}
                 isResizing={isSidebarResizing}
@@ -714,7 +720,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             {/* Mobile Analytics Sub-Nav */}
             {isMobile &&
               selectedProject &&
-              !isViewingGlobalStats &&
               (computed.isAnalyticsView ||
                 computed.isTokenStatsView ||
                 computed.isRecentEditsView) && (
@@ -800,7 +805,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                     initialSearchQuery={analyticsState.recentEditsSearchQuery}
                   />
                 </OverlayScrollbarsComponent>
-              ) : computed.isAnalyticsView || isViewingGlobalStats ? (
+              ) : computed.isAnalyticsView || computed.isGlobalStatsView ? (
                 <OverlayScrollbarsComponent
                   className="h-full"
                   options={{
@@ -811,7 +816,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                   }}
                 >
                   <AnalyticsDashboard
-                    isViewingGlobalStats={isViewingGlobalStats}
+                    isGlobalScope={computed.isGlobalStatsView}
                   />
                 </OverlayScrollbarsComponent>
               ) : computed.isTokenStatsView ? (
@@ -977,28 +982,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
         {/* Mobile Bottom Tab Bar */}
         {isMobile && (
           <BottomTabBar
-            activeView={analyticsState.currentView}
+            activeTab={mobileTab}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-            isViewingGlobalStats={isViewingGlobalStats}
-            onSwitchView={(view) => {
-              setIsViewingGlobalStats(false);
-              switch (view) {
-                case "messages":
-                  analyticsActions.switchToMessages();
-                  break;
-                case "board":
-                  void analyticsActions.switchToBoard();
-                  break;
-                case "analytics":
-                  void analyticsActions.switchToAnalytics();
-                  break;
-                case "settings":
-                  analyticsActions.switchToSettings();
-                  break;
-                case "archive":
-                  analyticsActions.switchToArchive();
-                  break;
-              }
+            onSwitchView={(tab) => {
+              const view = MOBILE_TAB_VIEW[tab as keyof typeof MOBILE_TAB_VIEW];
+              if (view) void analyticsActions.openView(view);
             }}
             hasProject={!!selectedProject}
           />

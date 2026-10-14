@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { supportsRecentEdits } from "../../utils/providers";
 import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
+import type { View } from "../../navigation/place";
 
 /**
  * Sequence number for Recent Edits fetches, so a request can tell whether it is
@@ -17,9 +18,9 @@ let recentEditsRequestSeq = 0;
 export function useAnalyticsNavigation() {
   const { t } = useTranslation();
   const {
-    analytics,
     selectedSession,
-    setAnalyticsCurrentView,
+    navigate,
+    stepPlaceHistory,
     setAnalyticsStatsMode,
     setAnalyticsMetricMode,
     setAnalyticsProjectSummary,
@@ -44,25 +45,34 @@ export function useAnalyticsNavigation() {
     clearBoard,
   } = useAppStore();
 
+  // Every switch below is a navigation: `navigate` commits the screen at once
+  // (synchronously, before its first await) and the switch then loads the
+  // screen's data.
   const switchToMessages = useCallback(() => {
-    setAnalyticsCurrentView("messages");
+    void navigate({ view: "conversation" });
     clearAnalyticsErrors();
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [navigate, clearAnalyticsErrors]);
 
   const switchToSettings = useCallback(() => {
-    setAnalyticsCurrentView("settings");
+    void navigate({ view: "settingsManager" });
     clearAnalyticsErrors();
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [navigate, clearAnalyticsErrors]);
+
+  /** Global stats keeps the project and session as the place's context. */
+  const switchToGlobalStats = useCallback(async () => {
+    void navigate({ view: "globalStats" });
+    await loadGlobalStats();
+  }, [navigate, loadGlobalStats]);
 
   const switchToArchive = useCallback(() => {
-    setAnalyticsCurrentView("archive");
+    void navigate({ view: "archive" });
     clearAnalyticsErrors();
     // Load archives list when switching to archive view.
     const store = useAppStore.getState();
     if (!store.archive.isLoadingArchives) {
       void store.loadArchives();
     }
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [navigate, clearAnalyticsErrors]);
 
   const switchToTokenStats = useCallback(async () => {
     const project = useAppStore.getState().selectedProject;
@@ -70,7 +80,7 @@ export function useAnalyticsNavigation() {
       throw new Error(t("common.hooks.noProjectSelected"));
     }
 
-    setAnalyticsCurrentView("tokenStats");
+    void navigate({ view: "tokenStats" });
     clearAnalyticsErrors();
 
     try {
@@ -89,7 +99,7 @@ export function useAnalyticsNavigation() {
   }, [
     t,
     selectedSession,
-    setAnalyticsCurrentView,
+    navigate,
     clearAnalyticsErrors,
     loadProjectTokenStats,
     loadSessionTokenStats,
@@ -101,7 +111,7 @@ export function useAnalyticsNavigation() {
       throw new Error(t("common.hooks.noProjectSelected"));
     }
 
-    setAnalyticsCurrentView("analytics");
+    void navigate({ view: "analytics" });
     clearAnalyticsErrors();
 
     try {
@@ -149,7 +159,7 @@ export function useAnalyticsNavigation() {
   }, [
     t,
     selectedSession,
-    setAnalyticsCurrentView,
+    navigate,
     clearAnalyticsErrors,
     setAnalyticsLoadingProjectSummary,
     setAnalyticsLoadingSessionComparison,
@@ -168,7 +178,7 @@ export function useAnalyticsNavigation() {
       throw new Error(t("common.hooks.noProjectSelected"));
     }
 
-    setAnalyticsCurrentView("recentEdits");
+    void navigate({ view: "edits" });
     clearAnalyticsErrors();
 
     // The view explains the gap itself; asking the backend would only error
@@ -246,7 +256,7 @@ export function useAnalyticsNavigation() {
     }
   }, [
     t,
-    setAnalyticsCurrentView,
+    navigate,
     clearAnalyticsErrors,
     setAnalyticsLoadingRecentEdits,
     setAnalyticsRecentEdits,
@@ -262,7 +272,7 @@ export function useAnalyticsNavigation() {
 
     const provider = project.provider ?? "claude";
     if (provider !== "claude") {
-      setAnalyticsCurrentView("messages");
+      void navigate({ view: "conversation" });
       clearAnalyticsErrors();
       toast.warning(t("session.boardNotSupported"));
       return;
@@ -278,7 +288,7 @@ export function useAnalyticsNavigation() {
       } = useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
-      setAnalyticsCurrentView("board");
+      void navigate({ view: "board" });
       clearAnalyticsErrors();
 
       const firstSession = Object.values(boardSessions)[0];
@@ -319,12 +329,12 @@ export function useAnalyticsNavigation() {
         `Failed to load board: ${error instanceof Error ? error.message : String(error)}`
       );
     }
-  }, [t, setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [t, navigate, clearAnalyticsErrors]);
 
   const setStatsMode = useCallback(
     async (
       mode: StatsMode,
-      options?: { isViewingGlobalStats?: boolean }
+      options?: { isGlobalScope?: boolean }
     ) => {
       const currentMode = useAppStore.getState().analytics.statsMode;
       if (currentMode === mode) {
@@ -342,10 +352,10 @@ export function useAnalyticsNavigation() {
       const state = useAppStore.getState();
       const project = state.selectedProject;
       const session = state.selectedSession;
-      const currentView = state.analytics.currentView;
+      const screen = state.view;
       const isGlobalScope =
-        options?.isViewingGlobalStats ??
-        ((state.isViewingGlobalStats || !project) && currentView === "analytics");
+        options?.isGlobalScope ??
+        (screen === "globalStats" || (!project && screen === "analytics"));
 
       try {
         if (isGlobalScope) {
@@ -357,7 +367,7 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (currentView === "tokenStats") {
+        if (screen === "tokenStats") {
           await loadProjectTokenStats(project.path);
           if (session) {
             await loadSessionTokenStats(session.file_path);
@@ -365,7 +375,7 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (currentView === "analytics") {
+        if (screen === "analytics") {
           setAnalyticsLoadingProjectSummary(true);
           try {
             const summary = await loadProjectStatsSummary(project.path);
@@ -396,7 +406,7 @@ export function useAnalyticsNavigation() {
             ? error.message
             : t("common.hooks.projectSummaryLoadFailed");
         toast.error(errorMessage);
-        if (currentView === "analytics") {
+        if (screen === "analytics") {
           setAnalyticsProjectSummaryError(errorMessage);
           if (session != null) {
             setAnalyticsSessionComparisonError(errorMessage);
@@ -404,7 +414,7 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (currentView === "tokenStats") {
+        if (screen === "tokenStats") {
           useAppStore.getState().setError({
             type: AppErrorType.UNKNOWN,
             message: errorMessage,
@@ -442,7 +452,8 @@ export function useAnalyticsNavigation() {
   );
 
   const refreshAnalytics = useCallback(async () => {
-    switch (analytics.currentView) {
+    const { view } = useAppStore.getState();
+    switch (view) {
       case "tokenStats":
         clearTokenStats();
         await switchToTokenStats();
@@ -453,14 +464,19 @@ export function useAnalyticsNavigation() {
         setAnalyticsSessionComparison(null);
         await switchToAnalytics();
         break;
-      case "recentEdits":
+      case "edits":
         setAnalyticsRecentEdits(null);
         await switchToRecentEdits();
         break;
       case "board":
         await switchToBoard();
         break;
-      case "messages":
+      case "globalStats":
+        await loadGlobalStats();
+        break;
+      case "conversation":
+      case "empty":
+      case "settingsManager":
         break;
       case "archive":
         if (!useAppStore.getState().archive.isLoadingArchives) {
@@ -468,10 +484,10 @@ export function useAnalyticsNavigation() {
         }
         break;
       default:
-        console.warn("Unknown analytics view:", analytics.currentView);
+        console.warn("Unknown analytics view:", view);
     }
   }, [
-    analytics.currentView,
+    loadGlobalStats,
     switchToTokenStats,
     switchToAnalytics,
     switchToRecentEdits,
@@ -482,6 +498,70 @@ export function useAnalyticsNavigation() {
     setAnalyticsSessionComparison,
     setAnalyticsRecentEdits,
   ]);
+
+  /** Open a screen and load its data: one entry point per `view`. */
+  const openView = useCallback(
+    async (view: View) => {
+      switch (view) {
+        case "analytics":
+          return switchToAnalytics();
+        case "tokenStats":
+          return switchToTokenStats();
+        case "edits":
+          return switchToRecentEdits();
+        case "board":
+          return switchToBoard();
+        case "globalStats":
+          return switchToGlobalStats();
+        case "settingsManager":
+          return switchToSettings();
+        case "archive":
+          return switchToArchive();
+        case "conversation":
+        case "empty":
+          return switchToMessages();
+      }
+    },
+    [
+      switchToAnalytics,
+      switchToTokenStats,
+      switchToRecentEdits,
+      switchToBoard,
+      switchToGlobalStats,
+      switchToSettings,
+      switchToArchive,
+      switchToMessages,
+    ]
+  );
+
+  /**
+   * Back/forward through the places this window has been (plan §4.1: the
+   * document owns its history). Restores the context first, then opens the
+   * screen with its data; neither step records a new entry.
+   */
+  const stepHistory = useCallback(
+    async (direction: "back" | "forward"): Promise<boolean> => {
+      const entry = stepPlaceHistory(direction);
+      if (!entry) return false;
+      const restored = await navigate(
+        {
+          view: entry.view,
+          project: entry.project,
+          session: entry.session,
+          messageId: entry.messageId,
+        },
+        { record: false }
+      );
+      if (!restored) return false;
+      if (entry.view !== "conversation" && entry.view !== "empty") {
+        await openView(entry.view);
+      }
+      return true;
+    },
+    [navigate, openView, stepPlaceHistory]
+  );
+  const goBack = useCallback(() => stepHistory("back"), [stepHistory]);
+  const goForward = useCallback(() => stepHistory("forward"), [stepHistory]);
 
   const clearAll = useCallback(() => {
     resetAnalytics();
@@ -497,6 +577,10 @@ export function useAnalyticsNavigation() {
     switchToSettings,
     switchToBoard,
     switchToArchive,
+    switchToGlobalStats,
+    openView,
+    goBack,
+    goForward,
     setStatsMode,
     setMetricMode,
     refreshAnalytics,

@@ -19,6 +19,7 @@ export function useAnalyticsAutoLoad(computed: {
   const analyticsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
   const tokenStatsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
 
+  const view = useAppStore((s) => s.view);
   const {
     analytics,
     selectedProject,
@@ -53,7 +54,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      analytics.currentView === "analytics" &&
+      view === "analytics" &&
       selectedProjectPath &&
       selectedSessionId &&
       selectedSessionFilePath
@@ -122,7 +123,7 @@ export function useAnalyticsAutoLoad(computed: {
     dateFilterStartMs,
     dateFilterEndMs,
     sessionTokenStats?.session_id,
-    analytics.currentView,
+    view,
     analytics.sessionComparison?.session_id,
     analytics.isLoadingSessionComparison,
     isLoadingTokenStats,
@@ -142,7 +143,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      analytics.currentView === "tokenStats" &&
+      view === "tokenStats" &&
       selectedSessionId &&
       selectedSessionFilePath
     ) {
@@ -177,7 +178,7 @@ export function useAnalyticsAutoLoad(computed: {
     selectedSessionId,
     selectedSessionFilePath,
     sessionTokenStats?.session_id,
-    analytics.currentView,
+    view,
     isLoadingTokenStats,
     loadSessionTokenStats,
   ]);
@@ -200,11 +201,10 @@ export function useAnalyticsAutoLoad(computed: {
     const isStaleRequest = () =>
       requestSeq !== dateFilterRequestSeqRef.current;
 
-    // Global stats may be open with a project still selected (the overview
-    // no longer clears the selection), so ask the flag, not the selection.
+    // Global stats keeps the project selected, so ask the screen, not the
+    // selection. Project analytics without a project renders the overview too.
     const isGlobalScope =
-      (useAppStore.getState().isViewingGlobalStats || !selectedProjectPath) &&
-      analytics.currentView === "analytics";
+      view === "globalStats" || (!selectedProjectPath && view === "analytics");
 
     const update = async () => {
       try {
@@ -300,7 +300,7 @@ export function useAnalyticsAutoLoad(computed: {
   }, [
     dateFilterStartMs,
     dateFilterEndMs,
-    analytics.currentView,
+    view,
     computed.isTokenStatsView,
     computed.isAnalyticsView,
     selectedSessionId,

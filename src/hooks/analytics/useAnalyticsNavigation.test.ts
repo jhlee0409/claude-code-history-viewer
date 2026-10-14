@@ -1085,8 +1085,8 @@ describe("switchToRecentEdits provider gating (#643)", () => {
     });
 
     expect(fetchRecentEdits).not.toHaveBeenCalled();
+    expect(useAppStore.getState().view).toBe("edits");
     const analytics = useAppStore.getState().analytics;
-    expect(analytics.currentView).toBe("recentEdits");
     expect(analytics.isLoadingRecentEdits).toBe(false);
     expect(analytics.recentEditsError).toBeNull();
   });

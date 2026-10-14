@@ -49,15 +49,13 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
     : undefined;
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
-  const switchToMessages = useAppStore(
-    (s) => s.setAnalyticsCurrentView
-  );
+  const navigate = useAppStore((s) => s.navigate);
 
   const handleDock = () => {
     setRecentEditsMode("docked");
     setRecentEditsDockOpen(true);
     // The dock only renders beside a transcript, so go back to it.
-    switchToMessages("messages");
+    void navigate({ view: "conversation" });
   };
 
   // Sync internal state when external prop changes (e.g. navigation from Board)

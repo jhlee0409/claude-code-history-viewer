@@ -33,6 +33,8 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 import { useAppStore } from "@/store/useAppStore";
 import type { FullAppStore } from "@/store/slices/types";
+import { selectPlace } from "@/store/slices/navigationSlice";
+import type { View } from "@/navigation/place";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 
 // ---------------------------------------------------------------------------
@@ -113,85 +115,52 @@ const defaultApi = (command: string, args: Record<string, unknown> = {}) => {
 // The two adapters (see header)
 // ---------------------------------------------------------------------------
 
-type PlaceView =
-  | "conversation"
-  | "analytics"
-  | "tokenStats"
-  | "edits"
-  | "board"
-  | "globalStats"
-  | "archive"
-  | "settingsManager";
-
 interface ObservedPlace {
-  view: PlaceView;
+  view: View;
   project: string | null;
   session: string | null;
 }
 
-const LEGACY_VIEW: Record<string, PlaceView> = {
-  messages: "conversation",
-  analytics: "analytics",
-  tokenStats: "tokenStats",
-  recentEdits: "edits",
-  board: "board",
-  archive: "archive",
-  settings: "settingsManager",
-};
-
 /** What the user sees: the screen and the context the sidebar keeps. */
 function readPlace(state: FullAppStore = useAppStore.getState()): ObservedPlace {
-  const legacy = state.analytics.currentView;
-  // AppLayout renders the overview for the flag unless an app-level screen or
-  // a project screen that does not share the analytics branch is open.
-  const showsGlobal =
-    state.isViewingGlobalStats &&
-    (legacy === "analytics" || legacy === "messages" || legacy === "tokenStats");
+  const place = selectPlace(state);
   return {
-    view: showsGlobal ? "globalStats" : LEGACY_VIEW[legacy]!,
-    project: state.selectedProject?.path ?? null,
-    session: state.selectedSession?.file_path ?? null,
+    view: place.view,
+    project: place.project?.path ?? null,
+    session: place.session?.filePath ?? null,
   };
 }
 
 const act = {
   /** Sidebar session click into its own project (App.handleSessionSelect). */
   async openSession(p: ClaudeProject, s: ClaudeSession) {
-    const state = useAppStore.getState();
-    state.setViewingGlobalStats(false);
-    state.setAnalyticsCurrentView("messages");
-    if (state.selectedProject?.path !== p.path) {
-      await state.selectProject(p);
-    }
-    await useAppStore.getState().selectSession(s);
+    await useAppStore.getState().navigate({ view: "conversation", project: p, session: s });
   },
   /** Global stats row in the sidebar (App.handleGlobalStatsClick). */
   async openGlobalStats() {
-    const state = useAppStore.getState();
-    state.setViewingGlobalStats(true);
-    state.setAnalyticsCurrentView("analytics");
-    await state.loadGlobalStats();
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await result.current.switchToGlobalStats();
   },
   /** App menu → Settings Manager / Archive (Header). */
   openAppScreen(view: "settingsManager" | "archive") {
-    useAppStore
-      .getState()
-      .setAnalyticsCurrentView(view === "settingsManager" ? "settings" : "archive");
+    void useAppStore.getState().navigate({ view });
   },
   /** Mobile bottom tab bar (AppLayout `onSwitchView`). */
   async mobileTab(
     nav: ReturnType<typeof useAnalyticsNavigation>,
     tab: "messages" | "board" | "analytics" | "settings"
   ) {
-    useAppStore.getState().setViewingGlobalStats(false);
-    if (tab === "messages") nav.switchToMessages();
-    if (tab === "board") await nav.switchToBoard();
-    if (tab === "analytics") await nav.switchToAnalytics();
-    if (tab === "settings") nav.switchToSettings();
+    const VIEW = {
+      messages: "conversation",
+      board: "board",
+      analytics: "analytics",
+      settings: "settingsManager",
+    } as const;
+    await nav.openView(VIEW[tab]);
   },
   /** Sidebar re-click on the open project / provider filter dropping it. */
   leaveProject() {
-    useAppStore.getState().clearProjectSelection();
+    void useAppStore.getState().navigate({ project: null });
   },
 };
 

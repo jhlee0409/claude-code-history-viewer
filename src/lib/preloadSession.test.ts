@@ -64,8 +64,7 @@ function makeDeps(overrides: Partial<PreloadDependencies> = {}): PreloadDependen
   return {
     getStartupSessionHint: vi.fn().mockResolvedValue(null),
     projects: [],
-    selectProject: vi.fn().mockResolvedValue(undefined),
-    selectSession: vi.fn().mockResolvedValue(undefined),
+    openMatch: vi.fn().mockResolvedValue(true),
     openSessionPicker: vi.fn(),
     t: (_k: string, fallback?: string) => fallback ?? "Session not found",
     ...overrides,
@@ -92,8 +91,7 @@ describe("preloadSessionFromCli", () => {
     const deps = makeDeps();
     const result = await preloadSessionFromCli(deps);
     expect(result).toEqual({ handled: false, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -127,8 +125,7 @@ describe("preloadSessionFromCli", () => {
       projectPath: project.path,
       excludeSidechain: false,
     });
-    expect(deps.selectProject).toHaveBeenCalledWith(project);
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -145,7 +142,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: session }));
   });
 
   it("shows a toast and reports matched=false when session is missing", async () => {
@@ -161,8 +158,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Session not found");
   });
 
@@ -184,7 +180,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectProject).toHaveBeenCalledWith(projectB);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ project: projectB }));
   });
 
   it("ignores unsupported hint kinds without crashing", async () => {
@@ -220,8 +216,7 @@ describe("preloadSessionFromCli", () => {
 
     expect(api).not.toHaveBeenCalled();
     expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     // Not a "not found" toast either — user picked something.
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -247,7 +242,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: true });
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: session }));
   });
 
   it("folder kind selects most recent session in matching project", async () => {
@@ -275,7 +270,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(newer);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: newer }));
   });
 
   it("folder kind without a matching project shows not-found toast", async () => {
@@ -311,7 +306,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: true });
-    expect(deps.selectSession).toHaveBeenCalledWith(sessionWithSummary);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: sessionWithSummary }));
     expect(deps.openSessionPicker).not.toHaveBeenCalled();
   });
 
@@ -337,7 +332,7 @@ describe("preloadSessionFromCli", () => {
       ],
       "auth bug",
     );
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
   });
 
   it("title kind with zero matches shows not-found toast", async () => {
@@ -379,17 +374,14 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(renamedSession);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: renamedSession }));
   });
 
-  // Race simulation: user clicks a session while selectProject is awaiting.
-  // Exercises the post-selectProject guard inside commitSingleMatch.
-  it("skips selectSession when selectedSession mutates during selectProject await", async () => {
+  // Race simulation: the user clicks a session while the match is opening.
+  // `navigate` notices on its epoch and reports it did not arrive.
+  it("reports no match when opening it was superseded on the way", async () => {
     vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
-    const selectProject = vi.fn().mockImplementation(async () => {
-      mockStoreState.selectedSession = session;
-    });
-    const selectSession = vi.fn().mockResolvedValue(undefined);
+    const openMatch = vi.fn().mockResolvedValue(false);
 
     const deps = makeDeps({
       getStartupSessionHint: vi.fn().mockResolvedValue({
@@ -397,25 +389,24 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [project],
-      selectProject,
-      selectSession,
+      openMatch,
     });
 
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(selectProject).toHaveBeenCalledWith(project);
-    expect(selectSession).not.toHaveBeenCalled();
+    expect(openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("skips a resolved match when a newer preload supersedes it", async () => {
     vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
     let isCurrent = true;
-    const selectProject = vi.fn().mockImplementation(async () => {
+    const openMatch = vi.fn().mockImplementation(async () => {
       // Simulate a newer CLI/deep-link request arriving while the project
       // selection is loading.
       isCurrent = false;
+      return true;
     });
 
     const deps = makeDeps({
@@ -424,15 +415,14 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [project],
-      selectProject,
+      openMatch,
       isCurrent: () => isCurrent,
     });
 
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(selectProject).toHaveBeenCalledWith(project);
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -466,8 +456,7 @@ describe("preloadSessionFromCli", () => {
     // Only project A was scanned. B and C were aborted by the race guard.
     expect(scanCount).toBe(1);
     expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     // Not a "not found" toast either — user picked something.
     expect(toast.error).not.toHaveBeenCalled();
   });

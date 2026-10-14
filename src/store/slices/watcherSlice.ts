@@ -192,7 +192,7 @@ export const createWatcherSlice: StateCreator<
     sessionRefreshInFlight.add(sessionPath);
 
     try {
-      await get().selectSession(selectedSession);
+      await get().reloadCurrent("watcher");
     } catch (error) {
       reportRefreshError(error);
     } finally {
