@@ -211,6 +211,33 @@ describe("reloadCurrent", () => {
 
     expect(apiMock.mock.calls.length).toBe(calls);
   });
+
+  it("restore leaves a first load that is still in flight alone", async () => {
+    await state().navigate({ view: "conversation", project: A, session: A1 });
+    let release: (() => void) | null = null;
+    const base = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation((command: string, args?: Record<string, unknown>) =>
+      command === "load_provider_messages_paginated"
+        ? new Promise((resolve) => {
+            release = () => resolve(PAGE);
+          })
+        : base(command, args)
+    );
+    const pageLoads = () =>
+      apiMock.mock.calls.filter(([command]) => command === "load_provider_messages_paginated")
+        .length;
+    const moved = state().navigate({ view: "conversation", session: A2 });
+    await vi.waitFor(() => expect(release).not.toBeNull());
+    expect(state().isLoadingMessages).toBe(true);
+    const loads = pageLoads();
+
+    void state().reloadCurrent("restore");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(pageLoads()).toBe(loads);
+    release!();
+    await moved;
+  });
 });
 
 describe("back / forward", () => {

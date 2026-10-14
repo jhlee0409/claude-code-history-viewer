@@ -446,8 +446,15 @@ export const createMessageSlice: StateCreator<
     const current = get().selectedSession;
     if (!current) return;
     // Restoring only fills a conversation that came back empty; one that
-    // still holds its messages is already current.
-    if (reason === "restore" && get().messages.length > 0) return;
+    // still holds its messages is already current, and one whose load is
+    // still in flight is about to be (a second load would supersede it and
+    // fetch the same window again).
+    if (
+      reason === "restore" &&
+      (get().messages.length > 0 || get().isLoadingMessages)
+    ) {
+      return;
+    }
     const target = fresh?.file_path === current.file_path ? fresh : current;
     // Same file, so `selectSession` takes its in-place path; "none" because a
     // reload is not a WebUI history step.
