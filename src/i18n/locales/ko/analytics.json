@@ -202,5 +202,10 @@
   ],
   "analytics.weekend": "주말",
   "analytics.weeklyActiveDays": "주간 활동일",
-  "analytics.weeklyActivity": "주별 활동"
+  "analytics.weeklyActivity": "주별 활동",
+  "analytics.trend.new": "신규",
+  "analytics.trend.newDescription": "신규 — 전날 활동 없음",
+  "analytics.trend.upSmallBase": "증가 — 전날 값이 너무 작아 비교할 수 없음",
+  "analytics.trend.downSmallBase": "감소 — 전날 값이 너무 작아 비교할 수 없음",
+  "analytics.trend.flatSmallBase": "변동 없음 — 전날 값이 너무 작아 비교할 수 없음"
 }
