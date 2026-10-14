@@ -16,7 +16,7 @@
  * "Global stats" row selected.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import type { View } from "@/navigation/place";
 
@@ -41,6 +41,7 @@ vi.mock("react-i18next", async (importOriginal) => {
 import { useAppStore } from "@/store/useAppStore";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Header } from "@/layouts/Header/Header";
+import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { activeLibraryItem, activeMobileTab } from "@/navigation/place";
@@ -91,6 +92,7 @@ const flagsFor = (view: View) =>
     isBoardView: view === "board",
     isSettingsView: view === "settingsManager",
     isArchiveView: view === "archive",
+    isEmptyView: view === "empty",
     hasAnyError: false,
     isLoadingAnalytics: false,
     isLoadingTokenStats: false,
@@ -160,6 +162,68 @@ describe("header view tabs follow the place", () => {
     at(view, true);
     renderHeader(view);
     expect(selectedTabs()).toEqual([label]);
+  });
+});
+
+/**
+ * The tabs interaction contract (WAI-ARIA APG tabs, manual activation): one
+ * tab stop, arrows / Home / End move focus between enabled tabs, Enter or
+ * Space opens. Ported from the independent T2 review's keyboard probes.
+ */
+describe("header view tabs keyboard", () => {
+  const tabs = () =>
+    within(screen.getByRole("tablist")).getAllByRole("tab") as HTMLElement[];
+  const focus = (el: HTMLElement) => act(() => el.focus());
+  const press = (key: string) =>
+    fireEvent.keyDown(document.activeElement as Element, { key });
+
+  beforeEach(() => {
+    useAppStore.setState(pristine, true);
+  });
+
+  it("Right Arrow moves focus to the next view tab", () => {
+    at("conversation", true);
+    renderHeader("conversation");
+    focus(tabs()[0]!);
+    press("ArrowRight");
+    expect(document.activeElement).toBe(tabs()[1]);
+  });
+
+  it("only one tab is in the Tab sequence: the selected one", () => {
+    at("analytics", true);
+    renderHeader("analytics");
+    const stops = tabs().filter((tab) => tab.tabIndex === 0);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("with no tab selected (an app screen), the first tab is the stop", () => {
+    at("globalStats", true);
+    renderHeader("globalStats");
+    const stops = tabs().filter((tab) => tab.tabIndex === 0);
+    expect(stops).toEqual([tabs()[0]]);
+  });
+
+  it("Left Arrow wraps, Home and End jump to the ends", () => {
+    at("conversation", true);
+    renderHeader("conversation");
+    const all = tabs();
+    focus(all[0]!);
+    press("ArrowLeft");
+    expect(document.activeElement).toBe(all[all.length - 1]);
+    press("Home");
+    expect(document.activeElement).toBe(all[0]);
+    press("End");
+    expect(document.activeElement).toBe(all[all.length - 1]);
+  });
+
+  it("each tab controls the main view panel and carries a stable id", () => {
+    at("analytics", true);
+    renderHeader("analytics");
+    for (const tab of tabs()) {
+      expect(tab.getAttribute("aria-controls")).toBe(VIEW_PANEL_ID);
+    }
+    expect(tabs()[1]?.id).toBe(viewTabId("analytics"));
   });
 });
 

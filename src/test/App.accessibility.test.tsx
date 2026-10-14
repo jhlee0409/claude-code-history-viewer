@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
+import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
 
 const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
   const mockSession = {
@@ -396,6 +397,16 @@ describe("App accessibility smoke", () => {
       ).toBeNull();
     }
   );
+
+  it("labels the main view as the panel of the selected header tab", () => {
+    render(<App />);
+
+    const panel = document.getElementById(VIEW_PANEL_ID);
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("role", "tabpanel");
+    // The tab itself is the (mocked) header's; its id is pinned there.
+    expect(panel).toHaveAttribute("aria-labelledby", viewTabId("conversation"));
+  });
 
   it("keeps every rendered skip link pointing at a target that exists", () => {
     // The general invariant, asserted across the view states rather than for

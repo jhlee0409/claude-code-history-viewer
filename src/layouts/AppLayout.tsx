@@ -59,9 +59,11 @@ import { selectPlace } from "@/store/slices/navigationSlice";
 import {
   activeLibraryItem,
   activeMobileTab,
+  activeToolbarView,
   type MobileTab,
   type View,
 } from "@/navigation/place";
+import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
 
 /** Bottom tab bar id → the screen it opens. */
 const MOBILE_TAB_VIEW: Record<MobileTab | "archive", View> = {
@@ -277,6 +279,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // the selectors stay stable between renders.
   const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
   const mobileTab = useAppStore((s) => activeMobileTab(selectPlace(s)));
+  // The main view is the panel of the header's selected view tab. Only while
+  // a tab is selected and the header's tablist is shown (md and up).
+  const toolbarView = useAppStore((s) => activeToolbarView(selectPlace(s)));
+  const viewPanelLabel =
+    toolbarView && !isMobile ? viewTabId(toolbarView) : undefined;
   /*
     The non-visual `data-ready` marker on the root reads "true" only when no
     load is pending anywhere a screen can show a loader: the prop flags below,
@@ -767,7 +774,12 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               )}
 
             {/* Content */}
-            <div className="flex-1 overflow-hidden">
+            <div
+              id={VIEW_PANEL_ID}
+              role={viewPanelLabel ? "tabpanel" : undefined}
+              aria-labelledby={viewPanelLabel}
+              className="flex-1 overflow-hidden"
+            >
               {computed.isArchiveView ? (
                 <div className="h-full flex flex-col p-3 md:p-6">
                   <ArchiveManager
