@@ -54,8 +54,12 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
 
   useEffect(() => {
     if (!wslSettings.enabled) {
+      // A detection started before disabling is cancelled below, and its
+      // `finally` skips the reset — so clear the loading flag here, or it
+      // (and the pending-load registration that mirrors it) stays set.
       setDistros([]);
       setDistroError(null);
+      setIsLoadingDistros(false);
       return;
     }
 
