@@ -293,6 +293,10 @@ export interface AppStoreActions {
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
+  /**
+   * The project's billing summary (and, when supported, its conversation-only
+   * breakdown). A failure is rethrown unreported: the caller reports it once.
+   */
   loadProjectStatsSummary: (
     projectPath: string,
     owns?: () => boolean

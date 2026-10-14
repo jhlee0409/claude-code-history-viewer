@@ -1022,12 +1022,10 @@ export const createMessageSlice: StateCreator<
       }
       return billing;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Reported once, by the caller that owns the screen: every caller
+      // (`loadProjectAnalytics`) records it on the screen and its own caller
+      // raises the one notification.
       console.error("Failed to load project stats summary:", error);
-      if (owns()) {
-        toast.error(`Failed to load project stats summary: ${message}`);
-        get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      }
       throw error;
     }
   },

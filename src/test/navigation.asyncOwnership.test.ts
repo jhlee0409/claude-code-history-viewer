@@ -11,11 +11,12 @@
  *
  * Ported from the second independent T2 review's supplemental probes
  * (scratch/t2-review/review-2.md R1-R4, R6); each failed at e7646271.
- * The subagent request-identity and search-clear cases come from the
- * third review (scratch/t2-review/review-3.md R1, R3); each
+ * The subagent request-identity, search-clear and single-report cases come
+ * from the third review (scratch/t2-review/review-3.md R1, R3, R4); each
  * failed at 08a2a4e3.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage } from "@/types";
 
 const apiMock = vi.hoisted(() => vi.fn());
@@ -24,8 +25,14 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return { ...actual, useTranslation: () => ({ t: (key: string) => key }) };
+});
+
 import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
+import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -378,3 +385,17 @@ describe("clearing the global search drops its pending results (review-3 R3)", (
   });
 });
 
+describe("one failure is reported once (review-3 R4)", () => {
+  it("a project summary failure on a stats-mode change raises one error toast", async () => {
+    await state().navigate({ project: A, session: A1, view: "analytics" });
+    vi.mocked(toast.error).mockClear();
+    overrides.get_project_stats_summary = () =>
+      Promise.reject(new Error("summary failed"));
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(() => result.current.setStatsMode("conversation_only"));
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    // Recorded on the screen that asked, not as the app-wide error screen.
+    expect(state().analytics.projectSummaryError).toBeTruthy();
+    expect(state().error).toBeNull();
+  });
+});
