@@ -112,6 +112,13 @@ const getSessionDepth = (messages: ClaudeMessage[], stats: BoardSessionStats): S
 };
 
 
+/**
+ * Board loads are told apart by this counter (request identity): only the
+ * latest load, for the project that is still open, writes the board, and only
+ * the latest clears the loading flag. `clearBoard` supersedes every load.
+ */
+let boardRequest = 0;
+
 export const createBoardSlice: StateCreator<
     FullAppStore,
     [],
@@ -121,6 +128,11 @@ export const createBoardSlice: StateCreator<
     ...initialBoardState,
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
+        const request = ++boardRequest;
+        const isLatest = () => request === boardRequest;
+        const projectPath = get().selectedProject?.path;
+        const owns = () =>
+            isLatest() && get().selectedProject?.path === projectPath;
         set({ isLoadingBoard: true, boardLoadError: null });
 
         try {
@@ -136,7 +148,8 @@ export const createBoardSlice: StateCreator<
                 } catch (e) {
                     console.error("Failed to fetch git log:", e);
                     const msg = "Failed to fetch git log";
-                    set({ isLoadingBoard: false, boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg });
+                    if (isLatest()) set({ isLoadingBoard: false });
                     return; // Abort
                 }
             }
@@ -258,12 +271,16 @@ export const createBoardSlice: StateCreator<
                 } catch (err) {
                     console.error(`Failed to load session ${session.session_id}:`, err);
                     const msg = "Failed to load session";
-                    set({ boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg });
                     return null;
                 }
             });
 
             const results = await Promise.all(loadPromises);
+            if (!owns()) {
+                if (isLatest()) set({ isLoadingBoard: false });
+                return;
+            }
 
             const boardSessions: Record<string, BoardSessionData> = {};
             const allSortedSessionIds: string[] = [];
@@ -293,7 +310,8 @@ export const createBoardSlice: StateCreator<
         } catch (error) {
             console.error("Failed to load board sessions:", error);
             const msg = "Failed to load board sessions";
-            set({ isLoadingBoard: false, boardLoadError: msg });
+            if (owns()) set({ boardLoadError: msg });
+            if (isLatest()) set({ isLoadingBoard: false });
         }
     },
 
@@ -315,8 +333,11 @@ export const createBoardSlice: StateCreator<
         return { isTimelineExpanded: next };
     }),
 
-    clearBoard: () => set((state) => ({
-        ...initialBoardState,
-        isTimelineExpanded: state.isTimelineExpanded,
-    })),
+    clearBoard: () => {
+        boardRequest += 1;
+        set((state) => ({
+            ...initialBoardState,
+            isTimelineExpanded: state.isTimelineExpanded,
+        }));
+    },
 });

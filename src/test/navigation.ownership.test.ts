@@ -19,7 +19,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
+import { act, renderHook } from "@testing-library/react";
 import { useAppStore } from "@/store/useAppStore";
+import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
+import type { ProjectStatsSummary } from "@/types";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -260,5 +263,122 @@ describe("the header refresh is a reload: it never moves the user", () => {
     expect(state().navigationEpoch).toBe(epoch);
     expect(state().selectedProject?.path).toBe(A.path);
     expect(state().selectedSession?.file_path).toBe(A1.file_path);
+  });
+});
+
+describe("screen data belongs to the navigation that asked for it", () => {
+  it("a slower A analytics load does not overwrite B's analytics while B is open", async () => {
+    await state().navigate({ project: A });
+    const slowA = gate<ProjectStatsSummary>();
+    overrides.get_project_stats_summary = (args) =>
+      args.projectPath === A.path ? slowA.promise : { total_sessions: 22 };
+    const { result } = renderHook(() => useAnalyticsNavigation());
+
+    let pendingA!: Promise<void>;
+    act(() => {
+      pendingA = result.current.switchToAnalytics();
+    });
+    await act(async () => {
+      await state().navigate({ project: B, view: "analytics" });
+    });
+    await act(async () => {
+      await result.current.switchToAnalytics();
+    });
+    expect(state().analytics.projectSummary?.total_sessions).toBe(22);
+
+    slowA.resolve({ total_sessions: 11 } as ProjectStatsSummary);
+    await act(async () => {
+      await pendingA;
+    });
+
+    expect(state().analytics.projectSummary?.total_sessions).toBe(22);
+    expect(state().analytics.projectConversationSummary?.total_sessions).toBe(22);
+    expect(state().analytics.isLoadingProjectSummary).toBe(false);
+  });
+
+  it("a slower A analytics failure reports nothing while B's analytics is open", async () => {
+    await state().navigate({ project: A });
+    const slowA = gate<ProjectStatsSummary>();
+    overrides.get_project_stats_summary = (args) =>
+      args.projectPath === A.path ? slowA.promise : { total_sessions: 22 };
+    const { result } = renderHook(() => useAnalyticsNavigation());
+
+    let pendingA!: Promise<void>;
+    act(() => {
+      pendingA = result.current.switchToAnalytics();
+    });
+    await act(async () => {
+      await state().navigate({ project: B, view: "analytics" });
+      await result.current.switchToAnalytics();
+    });
+
+    slowA.reject(new Error("obsolete A summary failure"));
+    await act(async () => {
+      await pendingA.catch(() => {});
+    });
+
+    expect(state().analytics.projectSummaryError).toBeNull();
+    expect(state().error).toBeNull();
+    expect(state().analytics.projectSummary?.total_sessions).toBe(22);
+  });
+
+  it("a slower board load for A does not replace B's board", async () => {
+    await state().navigate({ project: A, view: "board" });
+    const slowA = gate<ClaudeMessage[]>();
+    overrides.get_git_log = () => [];
+    overrides.load_provider_messages = (args) =>
+      String(args.sessionPath).startsWith(A.path) ? slowA.promise : [message("b-msg")];
+
+    const loadingA = state().loadBoardSessions(LISTS[A.path]!);
+    await state().navigate({ project: B, view: "board" });
+    await state().loadBoardSessions(LISTS[B.path]!);
+    expect(Object.keys(state().boardSessions)).toEqual(["b1"]);
+
+    slowA.resolve([message("a-msg")]);
+    await loadingA;
+
+    expect(Object.keys(state().boardSessions)).toEqual(["b1"]);
+    expect(state().isLoadingBoard).toBe(false);
+  });
+});
+
+describe("refreshing a screen is a reload, not a navigation", () => {
+  it("refreshAnalytics reloads the open analytics without advancing the epoch", async () => {
+    await state().navigate({ project: A, view: "analytics" });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    const epoch = state().navigationEpoch;
+    const historyBefore = state().placeHistory;
+
+    await act(async () => {
+      await result.current.refreshAnalytics();
+    });
+
+    expect(state().navigationEpoch).toBe(epoch);
+    expect(state().placeHistory).toBe(historyBefore);
+    expect(state().analytics.projectSummary?.total_sessions).toBe(11);
+  });
+
+  it("refreshAnalytics on token stats, edits and board does not advance the epoch either", async () => {
+    overrides.get_git_log = () => [];
+    overrides.load_provider_messages = () => [];
+    overrides.get_recent_edits = () => ({
+      files: [],
+      total_edits_count: 0,
+      unique_files_count: 0,
+      project_cwd: A.actual_path,
+      offset: 0,
+      limit: 20,
+      has_more: false,
+    });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    for (const view of ["tokenStats", "edits", "board"] as const) {
+      await state().navigate({ project: A, view });
+      const epoch = state().navigationEpoch;
+      await act(async () => {
+        await result.current.refreshAnalytics();
+      });
+      expect(state().navigationEpoch, view).toBe(epoch);
+      expect(state().view, view).toBe(view);
+    }
   });
 });

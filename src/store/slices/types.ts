@@ -293,7 +293,10 @@ export interface AppStoreActions {
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
-  loadProjectStatsSummary: (projectPath: string) => Promise<ProjectStatsSummary>;
+  loadProjectStatsSummary: (
+    projectPath: string,
+    owns?: () => boolean
+  ) => Promise<ProjectStatsSummary>;
   loadSessionComparison: (
     sessionId: string,
     projectPath: string

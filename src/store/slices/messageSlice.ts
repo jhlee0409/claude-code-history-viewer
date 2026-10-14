@@ -115,8 +115,15 @@ export interface MessageSliceActions {
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
+  /**
+   * Fetch a project's billing summary (returned) and conversation-only
+   * summary (written to analytics). `owns` gates every write it makes after
+   * its awaits - the conversation summary and the failure report; it defaults
+   * to ownership of the place at call time.
+   */
   loadProjectStatsSummary: (
-    projectPath: string
+    projectPath: string,
+    owns?: () => boolean
   ) => Promise<ProjectStatsSummary>;
   loadSessionComparison: (
     sessionId: string,
@@ -952,8 +959,8 @@ export const createMessageSlice: StateCreator<
     }
   },
 
-  loadProjectStatsSummary: async (projectPath: string) => {
-    const ownsPlace = ownPlace(get);
+  loadProjectStatsSummary: async (projectPath: string, owns) => {
+    const ownsPlace = owns ?? ownPlace(get);
     try {
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
@@ -970,13 +977,17 @@ export const createMessageSlice: StateCreator<
               "Failed to load conversation-only project summary:",
               error
             );
-            toast.warning(
-              "Conversation-only project summary could not be loaded. Showing billing totals only."
-            );
+            if (ownsPlace()) {
+              toast.warning(
+                "Conversation-only project summary could not be loaded. Showing billing totals only."
+              );
+            }
             return billing;
           })
         : billing;
-      get().setAnalyticsProjectConversationSummary(conversation);
+      if (ownsPlace()) {
+        get().setAnalyticsProjectConversationSummary(conversation);
+      }
       return billing;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -990,6 +1001,7 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
+    const ownsPlace = ownPlace(get);
     const dateOptions = normalizeDateFilterOptions(get().dateFilter);
     try {
       return await fetchSessionComparison(
@@ -1002,7 +1014,9 @@ export const createMessageSlice: StateCreator<
       const message =
         error instanceof Error ? error.message : String(error);
       console.error("Failed to load session comparison:", error);
-      toast.error(`Failed to load session comparison: ${message}`);
+      if (ownsPlace()) {
+        toast.error(`Failed to load session comparison: ${message}`);
+      }
       throw error;
     }
   },

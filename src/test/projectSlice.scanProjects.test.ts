@@ -149,6 +149,14 @@ const createTestStore = () =>
       project_cwd: "/workspace",
     }),
     setAnalyticsRecentEdits: vi.fn(),
+    // The refresh reloads the open screen through the shared screen loaders
+    // (`navigation/screenData`), which own their loading and error flags.
+    setAnalyticsLoadingProjectSummary: vi.fn(),
+    setAnalyticsProjectSummaryError: vi.fn(),
+    setAnalyticsLoadingSessionComparison: vi.fn(),
+    setAnalyticsSessionComparisonError: vi.fn(),
+    setAnalyticsLoadingRecentEdits: vi.fn(),
+    setAnalyticsRecentEditsError: vi.fn(),
     loadBoardSessions: vi.fn().mockResolvedValue(undefined),
     loadArchives: vi.fn().mockResolvedValue(undefined),
     clearSessionSearch: vi.fn(),
@@ -963,7 +971,8 @@ describe("projectSlice scanProjects", () => {
     await store.getState().refreshAllConversations();
 
     expect(store.getState().loadProjectStatsSummary).toHaveBeenCalledWith(
-      project.path
+      project.path,
+      expect.any(Function)
     );
     expect(store.getState().setAnalyticsProjectSummary).toHaveBeenCalledWith(
       projectSummary

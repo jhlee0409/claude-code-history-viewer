@@ -2,6 +2,11 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
+import { ownPlace } from "../../navigation/ownership";
+import {
+  loadProjectAnalytics,
+  loadSessionAnalytics,
+} from "../../navigation/screenData";
 
 /**
  * Auto-load side effects for analytics data.
@@ -27,15 +32,7 @@ export function useAnalyticsAutoLoad(computed: {
     isLoadingTokenStats,
     sessionTokenStats,
     dateFilter,
-    setAnalyticsProjectSummary,
-    setAnalyticsSessionComparison,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsProjectSummaryError,
-    setAnalyticsSessionComparisonError,
     loadProjectTokenStats,
-    loadProjectStatsSummary,
-    loadSessionComparison,
     loadSessionTokenStats,
     loadGlobalStats,
   } = useAppStore();
@@ -76,41 +73,17 @@ export function useAnalyticsAutoLoad(computed: {
       }
       analyticsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
+      // A reload of the open screen's data, owned like any other screen load
+      // (`loadSessionAnalytics`): a navigation since it started drops it.
+      const project = useAppStore.getState().selectedProject;
+      const session = useAppStore.getState().selectedSession;
       const updateSessionData = async () => {
-        try {
-          setAnalyticsLoadingSessionComparison(true);
-
-          const promises: Promise<unknown>[] = [];
-
-          if (!hasCachedSessionComparison) {
-            promises.push(
-              loadSessionComparison(
-                selectedSessionId,
-                selectedProjectPath
-              ).then((comparison) => {
-                setAnalyticsSessionComparison(comparison);
-                setAnalyticsSessionComparisonError(null);
-              })
-            );
-          }
-
-          if (!hasCachedSessionTokenStats) {
-            promises.push(
-              loadSessionTokenStats(selectedSessionFilePath)
-            );
-          }
-
-          await Promise.all(promises);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : t("common.hooks.sessionComparisonLoadFailed");
-          setAnalyticsSessionComparisonError(errorMessage);
-          console.error("Failed to update session data:", error);
-        } finally {
-          setAnalyticsLoadingSessionComparison(false);
-        }
+        if (!project || !session) return;
+        await loadSessionAnalytics(useAppStore.getState, project, session, {
+          comparison: !hasCachedSessionComparison,
+          tokenStats: !hasCachedSessionTokenStats,
+          failureText: t("common.hooks.sessionComparisonLoadFailed"),
+        });
       };
 
       updateSessionData();
@@ -127,11 +100,6 @@ export function useAnalyticsAutoLoad(computed: {
     analytics.sessionComparison?.session_id,
     analytics.isLoadingSessionComparison,
     isLoadingTokenStats,
-    loadSessionComparison,
-    loadSessionTokenStats,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsSessionComparison,
-    setAnalyticsSessionComparisonError,
   ]);
 
   /**
@@ -198,8 +166,11 @@ export function useAnalyticsAutoLoad(computed: {
     }
     dateFilterKeyRef.current = currentDateFilterKey;
     const requestSeq = ++dateFilterRequestSeqRef.current;
+    // A reload of the open screen: a newer date change or any navigation
+    // since then owns what it would write.
+    const ownsPlace = ownPlace(useAppStore.getState);
     const isStaleRequest = () =>
-      requestSeq !== dateFilterRequestSeqRef.current;
+      requestSeq !== dateFilterRequestSeqRef.current || !ownsPlace();
 
     // Global stats keeps the project selected, so ask the screen, not the
     // selection. Project analytics without a project renders the overview too.
@@ -231,62 +202,28 @@ export function useAnalyticsAutoLoad(computed: {
             return;
           }
         } else if (computed.isAnalyticsView) {
-          setAnalyticsLoadingProjectSummary(true);
-          const summary = await loadProjectStatsSummary(
-            selectedProjectPath
-          );
-          if (isStaleRequest()) {
-            return;
-          }
-          setAnalyticsProjectSummary(summary);
-
-          if (selectedSessionId && selectedSessionFilePath) {
-            setAnalyticsLoadingSessionComparison(true);
-            try {
-              const [comparison] = await Promise.all([
-                loadSessionComparison(
-                  selectedSessionId,
-                  selectedProjectPath
-                ),
-                loadSessionTokenStats(selectedSessionFilePath),
-              ]);
-              if (isStaleRequest()) {
-                return;
-              }
-              setAnalyticsSessionComparison(comparison);
-              setAnalyticsSessionComparisonError(null);
-            } catch (err) {
-              if (isStaleRequest()) {
-                return;
-              }
-              const message =
-                err instanceof Error
-                  ? err.message
-                  : t("common.hooks.sessionComparisonLoadFailed");
-              setAnalyticsSessionComparison(null);
-              setAnalyticsSessionComparisonError(message);
-            } finally {
-              setAnalyticsLoadingSessionComparison(false);
-            }
-          } else {
-            setAnalyticsSessionComparison(null);
-            setAnalyticsSessionComparisonError(null);
-          }
+          const { selectedProject: project, selectedSession: session } =
+            useAppStore.getState();
+          if (!project) return;
+          await loadProjectAnalytics(useAppStore.getState, project, session, {
+            ownsPlace,
+            clearComparisonWithoutSession: true,
+            failureText: {
+              summary: t("common.hooks.projectSummaryLoadFailed"),
+              comparison: t("common.hooks.sessionComparisonLoadFailed"),
+            },
+          });
         }
       } catch (err) {
         if (isStaleRequest()) {
           return;
         }
+        // The loader has already recorded the failure on the screen.
         const message =
           err instanceof Error
             ? err.message
             : t("common.hooks.projectSummaryLoadFailed");
-        setAnalyticsProjectSummaryError(message);
         toast.error(message);
-      } finally {
-        if (computed.isAnalyticsView) {
-          setAnalyticsLoadingProjectSummary(false);
-        }
       }
     };
 
@@ -309,14 +246,6 @@ export function useAnalyticsAutoLoad(computed: {
     loadGlobalStats,
     loadProjectTokenStats,
     loadSessionTokenStats,
-    loadProjectStatsSummary,
-    loadSessionComparison,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsProjectSummary,
-    setAnalyticsSessionComparison,
-    setAnalyticsSessionComparisonError,
-    setAnalyticsProjectSummaryError,
     t,
   ]);
 }

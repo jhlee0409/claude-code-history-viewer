@@ -14,6 +14,12 @@ import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
 import { ownPlace } from "@/navigation/ownership";
 import {
+  loadProjectAnalytics,
+  loadRecentEditsScreen,
+  loadTokenStatsScreen,
+  reloadBoard,
+} from "@/navigation/screenData";
+import {
   detectWorktreeGroupsHybrid,
   groupProjectsByDirectory,
   groupProjectsByTime,
@@ -630,52 +636,25 @@ export const createProjectSlice: StateCreator<
         }
       }
 
-      const refreshedState = get();
-      const { view } = refreshedState;
+      // The open screen's data, through the loaders its navigation uses,
+      // under this refresh's ownership.
+      const { view } = get();
+      const loadOptions = { ownsPlace };
       if (view === "globalStats") {
-        await refreshedState.loadGlobalStats();
+        await get().loadGlobalStats();
       } else if (view === "tokenStats") {
-        await refreshedState.loadProjectTokenStats(refreshedProject.path);
-        if (refreshedSession) {
-          await refreshedState.loadSessionTokenStats(refreshedSession.file_path);
-        }
+        await loadTokenStatsScreen(get, refreshedProject, refreshedSession);
       } else if (view === "analytics") {
-        const projectSummary = await refreshedState.loadProjectStatsSummary(
-          refreshedProject.path
-        );
-        if (!ownsPlace()) return;
-        refreshedState.setAnalyticsProjectSummary(projectSummary);
-        if (refreshedSession) {
-          const sessionComparison = await refreshedState.loadSessionComparison(
-            refreshedSession.actual_session_id,
-            refreshedProject.path
-          );
-          if (!ownsPlace()) return;
-          refreshedState.setAnalyticsSessionComparison(sessionComparison);
-        } else {
-          refreshedState.setAnalyticsSessionComparison(null);
-        }
+        await loadProjectAnalytics(get, refreshedProject, refreshedSession, {
+          ...loadOptions,
+          clearComparisonWithoutSession: true,
+        });
       } else if (view === "edits") {
-        const recentEdits = await refreshedState.loadRecentEdits(
-          refreshedProject.path
-        );
-        // Same ownership rule as the navigation hook: if the selection moved on
-        // while this was in flight, writing would show one project's edits
-        // under another's identity.
-        if (ownsPlace()) {
-          // The whole page, so the cursor is replaced along with the rows.
-          // Passing only the rows is what left the cursor at 60 while the list
-          // went back to page 1 (#517).
-          refreshedState.setAnalyticsRecentEdits(
-            recentEdits,
-            refreshedProject.path
-          );
-        }
+        await loadRecentEditsScreen(get, refreshedProject, loadOptions);
       } else if (view === "board") {
-        refreshedState.clearBoard();
-        await refreshedState.loadBoardSessions(get().sessions);
+        await reloadBoard(get);
       } else if (view === "archive") {
-        await refreshedState.loadArchives();
+        await get().loadArchives();
       }
     } catch (error) {
       console.error("Failed to refresh all conversations:", error);
