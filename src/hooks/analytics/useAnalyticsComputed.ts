@@ -1,12 +1,24 @@
 import { useMemo } from "react";
 import { useAppStore } from "../../store/useAppStore";
+import { isProjectView, type View } from "../../navigation/place";
 
 /**
- * Screen flags for the current place. One flag per `view`; global stats is
+ * The screen that renders for a view (plan §4.1 validity): a project screen
+ * without a project renders the empty screen. `navigate` already lands there;
+ * this is the render-side half, so no state can show a project screen that
+ * has no project.
+ */
+function screenFor(view: View, hasProject: boolean): View {
+  return isProjectView(view) && !hasProject ? "empty" : view;
+}
+
+/**
+ * Screen flags for the current place. One flag per screen; global stats is
  * its own screen (`isGlobalStatsView`), not project analytics plus a flag.
  */
 export function useAnalyticsComputed() {
-  const view = useAppStore((s) => s.view);
+  const hasProject = useAppStore((s) => s.selectedProject != null);
+  const view = screenFor(useAppStore((s) => s.view), hasProject);
   const analytics = useAppStore((s) => s.analytics);
   const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
 
@@ -20,6 +32,7 @@ export function useAnalyticsComputed() {
       isSettingsView: view === "settingsManager",
       isBoardView: view === "board",
       isArchiveView: view === "archive",
+      isEmptyView: view === "empty",
       hasAnyError: !!(
         analytics.projectSummaryError ||
         analytics.sessionComparisonError ||

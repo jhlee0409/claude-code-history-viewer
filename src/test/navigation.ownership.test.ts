@@ -20,7 +20,11 @@ vi.mock("sonner", () => ({
 }));
 
 import { act, renderHook } from "@testing-library/react";
+import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
+import { useAnalyticsComputed } from "@/hooks/analytics/useAnalyticsComputed";
+import { resolvePlace } from "@/navigation/place";
+import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 import type { ProjectStatsSummary } from "@/types";
 import type { BoardSessionData } from "@/types/board.types";
@@ -484,5 +488,63 @@ describe("opening a message from the board is one navigation", () => {
     expect(state().view).toBe("conversation");
     expect(state().messages).toBe(messagesBefore);
     expect(state().targetMessageUuid).toBe("loaded");
+  });
+});
+
+describe("the validity table is applied at runtime, not only declared", () => {
+  it("a project screen without a project lands on the empty screen and says why", async () => {
+    await state().navigate({ view: "analytics" });
+
+    expect(state().view).toBe("empty");
+    expect(state().view).toBe(resolvePlace(selectPlace(state())).view);
+    expect(toast.info).toHaveBeenCalledWith("No project selected");
+  });
+
+  it("leaving the project for a project screen falls back the same way", async () => {
+    await state().navigate({ project: A, session: A1 });
+
+    await state().navigate({ project: null, view: "board" });
+
+    expect(state().view).toBe("empty");
+  });
+
+  it("the empty screen is a fallback, not a place the next move keeps", async () => {
+    await state().navigate({ view: "analytics" });
+
+    await state().navigate({ project: A, session: A1 });
+
+    expect(state().view).toBe("conversation");
+  });
+
+  it("the screen flags render the empty screen for a project view without a project", () => {
+    useAppStore.setState({ view: "analytics", selectedProject: null });
+    const { result } = renderHook(() => useAnalyticsComputed());
+
+    expect(result.current.isAnalyticsView).toBe(false);
+    expect(result.current.isEmptyView).toBe(true);
+  });
+
+  it("the empty screen never renders the retained session's transcript", () => {
+    useAppStore.setState({ view: "empty", selectedProject: A, selectedSession: A1 });
+    const { result } = renderHook(() => useAnalyticsComputed());
+
+    expect(result.current.isMessagesView).toBe(false);
+    expect(result.current.isEmptyView).toBe(true);
+  });
+
+  it("Back to a place whose project has vanished falls back with the reason", async () => {
+    await state().navigate({ project: A, session: A1 });
+    await state().navigate({ project: B, session: B1 });
+    useAppStore.setState({ projects: [B] });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+
+    await act(async () => {
+      await result.current.goBack();
+    });
+
+    expect(state().selectedProject).toBeNull();
+    expect(state().view).toBe("conversation");
+    expect(resolvePlace(selectPlace(state())).view).toBe("empty");
+    expect(toast.info).toHaveBeenCalledWith("Project not found");
   });
 });

@@ -119,6 +119,12 @@ export interface ResolvedPlace {
  * | conversation                       | project + session | empty     |
  * | analytics, edits, board, tokenStats| project           | empty     |
  * | globalStats, archive, settings, empty | –              | –         |
+ *
+ * Applied at runtime by `navigate` (a project screen without a project lands
+ * on `empty`, with the reason) and by the screen flags
+ * (`useAnalyticsComputed`). A conversation without a session keeps its view
+ * and renders its "select a session" state: the transitional form of `empty`
+ * until documents arrive (T8).
  */
 export function resolvePlace(place: Place): ResolvedPlace {
   if (place.view === "conversation") {

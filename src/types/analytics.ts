@@ -151,6 +151,8 @@ export interface UseAnalyticsReturn {
     isSettingsView: boolean;
     isBoardView: boolean;
     isArchiveView: boolean;
+    /** A fallback (or a project screen without a project): nothing to show. */
+    isEmptyView: boolean;
     hasAnyError: boolean;
     isLoadingAnalytics: boolean;
     isLoadingTokenStats: boolean;

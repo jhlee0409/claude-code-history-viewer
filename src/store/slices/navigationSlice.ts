@@ -29,11 +29,15 @@ import {
   type WebUINavigationOptions,
   writeWebUIDeepLink,
 } from "@/utils/webuiDeepLink";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 import {
+  isProjectView,
   placeOf,
   samePlace,
   viewAfterLeavingProject,
   type Place,
+  type PlaceFallback,
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
@@ -125,6 +129,16 @@ const entryOf = (state: FullAppStore): PlaceHistoryEntry => ({
   messageId: state.targetMessageUuid,
 });
 
+const FALLBACK_REASON_KEY: Record<PlaceFallback, string> = {
+  noProject: "common.hooks.noProjectSelected",
+  noSession: "session.select",
+};
+
+/** Tell the user why the move landed somewhere other than asked (§4.1). */
+export function notifyFallback(fallback: PlaceFallback): void {
+  toast.info(i18n.t(FALLBACK_REASON_KEY[fallback]));
+}
+
 const placeOfEntry = (entry: PlaceHistoryEntry): Place =>
   placeOf(entry.view, entry.project, entry.session);
 
@@ -168,10 +182,22 @@ export const createNavigationSlice: StateCreator<
     const opensProject =
       target.project != null && target.project.path !== openProject?.path;
 
-    let view = target.view ?? start.view;
+    // `empty` is where a fallback lands, never a screen to stay on: a move
+    // that names no screen goes to the conversation from there.
+    const kept = start.view === "empty" ? "conversation" : start.view;
+    let view = target.view ?? kept;
     if (dropsProject) {
       get().clearProjectSelection({ history });
-      view = target.view ?? viewAfterLeavingProject(start.view);
+      view = target.view ?? viewAfterLeavingProject(kept);
+    }
+    // Validity (plan §4.1): a project screen needs a project, otherwise the
+    // move lands on the empty screen and says why. The conversation without
+    // a session keeps its own view and renders its "select a session" state
+    // (the transitional representation of `empty` until T8).
+    const projectAfter = dropsProject ? null : (target.project ?? openProject);
+    if (isProjectView(view) && !projectAfter) {
+      view = "empty";
+      notifyFallback("noProject");
     }
     // The screen is the user's intent; commit it before anything loads.
     set({ view });

@@ -3,8 +3,17 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { supportsRecentEdits } from "../../utils/providers";
-import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
-import type { View } from "../../navigation/place";
+import {
+  AppErrorType,
+  type ClaudeProject,
+  type MetricMode,
+  type StatsMode,
+} from "../../types";
+import {
+  projectRefOf,
+  viewAfterLeavingProject,
+  type View,
+} from "../../navigation/place";
 import { ownPlace, type PlaceOwner } from "../../navigation/ownership";
 import {
   loadProjectAnalytics,
@@ -12,6 +21,17 @@ import {
   loadTokenStatsScreen,
   reloadBoard,
 } from "../../navigation/screenData";
+
+/** Whether `project` is still among the scanned projects. */
+function isKnownProject(project: ClaudeProject): boolean {
+  const ref = projectRefOf(project);
+  return useAppStore
+    .getState()
+    .projects.some((candidate) => {
+      const other = projectRefOf(candidate);
+      return other?.path === ref?.path && other?.provider === ref?.provider;
+    });
+}
 
 export function useAnalyticsNavigation() {
   const { t } = useTranslation();
@@ -433,6 +453,15 @@ export function useAnalyticsNavigation() {
     async (direction: "back" | "forward"): Promise<boolean> => {
       const entry = stepPlaceHistory(direction);
       if (!entry) return false;
+      // A place whose project has gone since (deleted, provider turned off)
+      // falls back like any place missing its context, with the reason.
+      if (entry.project && !isKnownProject(entry.project)) {
+        toast.info(t("project.notFound"));
+        return navigate(
+          { project: null, view: viewAfterLeavingProject(entry.view) },
+          { record: false }
+        );
+      }
       const restored = await navigate(
         {
           view: entry.view,
@@ -448,7 +477,7 @@ export function useAnalyticsNavigation() {
       }
       return true;
     },
-    [navigate, openView, stepPlaceHistory]
+    [t, navigate, openView, stepPlaceHistory]
   );
   const goBack = useCallback(() => stepHistory("back"), [stepHistory]);
   const goForward = useCallback(() => stepHistory("forward"), [stepHistory]);
