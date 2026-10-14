@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { api } from "@/services/api";
 import type { FullAppStore } from "./types";
+import { ownWork } from "@/navigation/ownership";
 import type {
     BoardSessionData,
     BoardSessionStats,
@@ -129,10 +130,15 @@ export const createBoardSlice: StateCreator<
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
         const request = ++boardRequest;
-        const isLatest = () => request === boardRequest;
-        const projectPath = get().selectedProject?.path;
-        const owns = () =>
-            isLatest() && get().selectedProject?.path === projectPath;
+        // The board and its screen error are the load's data: the latest
+        // load, for the project still open (`ownWork`). Its spinner is the
+        // latest load's to clear.
+        const owner = ownWork(get, {
+            context: { projectPath: get().selectedProject?.path ?? null },
+            isLatest: () => request === boardRequest,
+        });
+        const owns = owner.ownsData;
+        const isLatest = owner.ownsSpinner;
         set({ isLoadingBoard: true, boardLoadError: null });
 
         try {

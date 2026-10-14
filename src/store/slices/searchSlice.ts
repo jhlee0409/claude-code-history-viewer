@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { ClaudeMessage, SearchFilters } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
+import { ownPlace, ownWork } from "@/navigation/ownership";
 import { searchMessagesAsync, buildSearchIndex, isSearchIndexReady, linearSearchMessages } from "../../utils/searchIndex";
 import {
   type SearchState,
@@ -81,6 +82,7 @@ export const createSearchSlice: StateCreator<
   // is async - earlier async result can otherwise land on top of a later
   // sync result).
   let sessionSearchRequestId = 0;
+  let globalSearchRequestId = 0;
 
   return {
   ...initialSearchState,
@@ -103,6 +105,12 @@ export const createSearchSlice: StateCreator<
     }
 
     set({ searchQuery: query });
+    // Not scoped to a project: the latest search owns the results; its
+    // failure is feedback, raised only while no navigation has begun since.
+    const requestId = ++globalSearchRequestId;
+    const owner = ownWork(get, {
+      isLatest: () => requestId === globalSearchRequestId,
+    });
     try {
       const results = (hasNonClaudeProviders || hasCustomPaths || wslEnabled)
         ? await api<ClaudeMessage[]>("search_all_providers", {
@@ -120,9 +128,10 @@ export const createSearchSlice: StateCreator<
             query,
             filters,
           });
-      set({ searchResults: results });
+      if (owner.ownsData()) set({ searchResults: results });
     } catch (error) {
       console.error("Failed to search messages:", error);
+      if (!owner.ownsFeedback()) return;
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
     }
   },
@@ -137,6 +146,8 @@ export const createSearchSlice: StateCreator<
     const { sessionSearch } = get();
     const { filterType } = sessionSearch;
     const sessionPath = get().selectedSession?.file_path;
+    // Its toast is feedback: also gone once the user has navigated.
+    const ownsPlace = ownPlace(get);
 
     // Empty query clears search results
     if (!query.trim()) {
@@ -228,7 +239,7 @@ export const createSearchSlice: StateCreator<
       // the `isSearching` state.
       if (!isStillLatest()) return;
       const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to search messages: ${message}`);
+      if (ownsPlace()) toast.error(`Failed to search messages: ${message}`);
       set((state) => ({
         sessionSearch: {
           query,
@@ -239,6 +250,17 @@ export const createSearchSlice: StateCreator<
           results: [],
         },
       }));
+    } finally {
+      // The spinner is this search's to stop, also when the session changed
+      // under it (nothing else would) - unless a newer search took it over.
+      if (
+        requestId === sessionSearchRequestId &&
+        get().sessionSearch.isSearching
+      ) {
+        set((state) => ({
+          sessionSearch: { ...state.sessionSearch, isSearching: false },
+        }));
+      }
     }
   },
 

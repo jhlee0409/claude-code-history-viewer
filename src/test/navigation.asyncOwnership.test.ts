@@ -21,6 +21,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
+import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
 
 const project = (name: string): ClaudeProject => ({
@@ -77,6 +78,9 @@ let overrides: Record<string, (args: Record<string, unknown>) => unknown>;
 
 beforeEach(() => {
   overrides = {};
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
+  vi.mocked(toast.info).mockClear();
   apiMock.mockReset();
   apiMock.mockImplementation(async (cmd: string, args: Record<string, unknown> = {}) => {
     if (overrides[cmd]) return overrides[cmd](args);
@@ -105,6 +109,124 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+describe("feedback is owned by place and context (R1, R6)", () => {
+  it("a refresh scan failing after the user moved to Settings raises no global error", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const scan = gate<ClaudeProject[]>();
+    overrides.scan_projects = () => scan.promise;
+    const refresh = state().refreshAllConversations();
+    await state().navigate({ view: "settingsManager" });
+    scan.reject(new Error("obsolete refresh scan failure"));
+    await refresh;
+    expect(state().view).toBe("settingsManager");
+    expect(state().isRefreshingAllConversations).toBe(false);
+    expect(state().isLoadingProjects).toBe(false);
+    expect(state().error).toBeNull();
+  });
+
+  it("a scan failure with no navigation since still reports its error", async () => {
+    overrides.scan_projects = () => Promise.reject(new Error("scan failed"));
+    await state().scanProjects();
+    expect(state().error?.message).toContain("scan failed");
+  });
+
+  it("a same-session offset failure after a screen switch does not toast", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const locate = gate<number>();
+    overrides.get_provider_message_offset = () => locate.promise;
+    const locating = state().ensureMessageLoaded("old-target");
+    await state().navigate({ view: "settingsManager" });
+    locate.reject(new Error("obsolete same-session offset failure"));
+    expect(await locating).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("a conversation-only token fallback after a screen switch does not warn", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const token = gate<unknown>();
+    overrides.get_session_token_stats = (args) =>
+      args.statsMode === "conversation_only" ? token.promise : { session_id: "a1" };
+    const loading = state().loadSessionTokenStats(A1.file_path);
+    await state().navigate({ view: "settingsManager" });
+    token.reject(new Error("obsolete conversation stats failure"));
+    await loading;
+    expect(state().isLoadingTokenStats).toBe(false);
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("a subagent failure after a screen switch does not warn", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const agents = gate<never>();
+    overrides.get_session_subagents = () => agents.promise;
+    const loading = state().loadSubagents(A1.file_path, []);
+    await state().navigate({ view: "settingsManager" });
+    agents.reject(new Error("obsolete subagent failure"));
+    await loading;
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("a subagent failure with no navigation since still warns", async () => {
+    await state().navigate({ project: A, session: A1 });
+    overrides.get_session_subagents = () => Promise.reject(new Error("subagents failed"));
+    await state().loadSubagents(A1.file_path, []);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("spinners are cleared by the request that raised them (R2)", () => {
+  it("a message load abandoned for a project-only move does not strand the spinner", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const load = gate<MessagePage>();
+    overrides.load_provider_messages_paginated = () => load.promise;
+    const opening = state().navigate({ session: A2 });
+    await state().navigate({ project: B });
+    load.resolve(page());
+    expect(await opening).toBe(false);
+    expect(state().selectedSession).toBeNull();
+    expect(state().isLoadingMessages).toBe(false);
+  });
+
+  it("an older message load never clears a newer load's spinner", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const first = gate<MessagePage>();
+    const second = gate<MessagePage>();
+    const loads = [first, second];
+    overrides.load_provider_messages_paginated = () => loads.shift()!.promise;
+    const openingA2 = state().navigate({ session: A2 });
+    const openingA1 = state().navigate({ session: A1 });
+    first.resolve(page());
+    await openingA2;
+    expect(state().isLoadingMessages).toBe(true);
+    second.resolve(page());
+    await openingA1;
+    expect(state().isLoadingMessages).toBe(false);
+  });
+
+  it("an older-page load abandoned for a project-only move does not strand its flag", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const older = gate<MessagePage>();
+    overrides.load_provider_messages_paginated = () => older.promise;
+    const loading = state().loadMoreMessages();
+    await vi.waitFor(() => expect(state().pagination.isLoadingMore).toBe(true));
+    await state().navigate({ project: B });
+    older.resolve(page());
+    await loading;
+    expect(state().pagination.isLoadingMore).toBe(false);
+  });
+
+  it("an in-session search abandoned by a session switch does not strand its spinner", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const full = gate<ClaudeMessage[]>();
+    overrides.load_provider_messages = () => full.promise;
+    const searching = state().setSessionSearchQuery("loaded");
+    expect(state().sessionSearch.isSearching).toBe(true);
+    await state().navigate({ session: A2 });
+    full.resolve([message("loaded")]);
+    await searching;
+    expect(state().sessionSearch.isSearching).toBe(false);
+  });
+});
+
 describe("message target follows the selection atomically (R4)", () => {
   it("a cancelled session navigation drops the outgoing session's target", async () => {
     await state().navigate({ project: A, session: A1, messageId: "only-in-A1" });
@@ -116,5 +238,48 @@ describe("message target follows the selection atomically (R4)", () => {
     expect(await opening).toBe(false);
     expect(state().selectedSession?.file_path).toBe(A2.file_path);
     expect(state().targetMessageUuid).toBeNull();
+  });
+});
+
+describe("token data is owned by the context it was asked for (R3)", () => {
+  it("A's session token stats do not land after moving to B without another request", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const token = gate<unknown>();
+    overrides.get_session_token_stats = () => token.promise;
+    const loading = state().loadSessionTokenStats(A1.file_path);
+    await state().navigate({ project: B, session: B1 });
+    token.resolve({ session_id: "a1" });
+    await loading;
+    expect(state().sessionTokenStats?.session_id).not.toBe("a1");
+    expect(state().isLoadingTokenStats).toBe(false);
+  });
+
+  it("A's project token stats do not land after moving to B without another request", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const token = gate<unknown>();
+    overrides.get_project_token_stats = () => token.promise;
+    const loading = state().loadProjectTokenStats(A.path);
+    await state().navigate({ project: B, session: B1 });
+    token.resolve({
+      items: [{ session_id: "a1" }],
+      total_count: 1,
+      offset: 0,
+      limit: 20,
+      has_more: false,
+    });
+    await loading;
+    expect(state().projectTokenStats.map((row) => row.session_id)).not.toContain("a1");
+    expect(state().isLoadingTokenStats).toBe(false);
+  });
+
+  it("same-context token stats still land after a screen-only move (cache warming)", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const token = gate<unknown>();
+    overrides.get_session_token_stats = () => token.promise;
+    const loading = state().loadSessionTokenStats(A1.file_path);
+    await state().navigate({ view: "settingsManager" });
+    token.resolve({ session_id: "a1" });
+    await loading;
+    expect(state().sessionTokenStats?.session_id).toBe("a1");
   });
 });

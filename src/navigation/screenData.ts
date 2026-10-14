@@ -16,7 +16,7 @@
  */
 import type { FullAppStore } from "@/store/slices/types";
 import type { ClaudeProject, ClaudeSession } from "@/types";
-import { ownPlace, type PlaceOwner } from "./ownership";
+import { ownPlace, ownWork, type PlaceOwner } from "./ownership";
 
 type Get = () => FullAppStore;
 
@@ -43,14 +43,23 @@ export interface ScreenLoadOptions {
   ownsPlace?: PlaceOwner;
 }
 
+/**
+ * A screen load writes its data, its screen error and the feedback of the
+ * loaders it calls under one predicate - `ownsFeedback`, the strictest of the
+ * three (`./ownership`): screen data never lands after a navigation, not even
+ * as same-context cache warming.
+ */
 function ownerFor(
   get: Get,
   project: ClaudeProject,
   isLatest: () => boolean,
   ownsPlace: PlaceOwner,
 ): () => boolean {
-  return () =>
-    isLatest() && ownsPlace() && get().selectedProject?.path === project.path;
+  return ownWork(get, {
+    context: { projectPath: project.path },
+    isLatest,
+    ownsPlace,
+  }).ownsFeedback;
 }
 
 export interface SessionAnalyticsOptions extends ScreenLoadOptions {
@@ -135,7 +144,7 @@ export async function loadProjectAnalytics(
       ownsPlace,
       failureText: options.failureText?.comparison,
     });
-  } else if (options.clearComparisonWithoutSession) {
+  } else if (options.clearComparisonWithoutSession && owns()) {
     get().setAnalyticsSessionComparison(null);
     get().setAnalyticsSessionComparisonError(null);
   }
@@ -147,7 +156,9 @@ export async function loadTokenStatsScreen(
   project: ClaudeProject,
   session: ClaudeSession | null,
 ): Promise<void> {
-  // Both loads carry their own request identity and place ownership.
+  // Both loads own their writes themselves (`ownWork`): request identity and
+  // the project / session they were asked for for data, place ownership on
+  // top of that for feedback.
   await Promise.all([
     get().loadProjectTokenStats(project.path),
     session ? get().loadSessionTokenStats(session.file_path) : undefined,

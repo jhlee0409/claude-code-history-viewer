@@ -20,7 +20,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
-import { ownPlace } from "@/navigation/ownership";
+import { ownWork } from "@/navigation/ownership";
 import {
   fetchSessionTokenStats,
   fetchProjectTokenStats,
@@ -372,16 +372,16 @@ export const createMessageSlice: StateCreator<
     // navigated away must not silently page the newly selected session.
     const queuedSession = get().selectedSession;
     const queuedEpoch = sessionLoadEpoch;
+    // Owned from queue time: the session it was queued for, while no newer
+    // load of it (`selectSession`) has started.
+    const owner = ownWork(get, {
+      context: { sessionPath: queuedSession?.file_path ?? null },
+      isLatest: () => queuedEpoch === sessionLoadEpoch,
+    });
 
     const run = async (): Promise<void> => {
       const session = get().selectedSession;
-      if (
-        !queuedSession ||
-        queuedEpoch !== sessionLoadEpoch ||
-        session?.file_path !== queuedSession.file_path
-      ) {
-        return;
-      }
+      if (!queuedSession || !owner.ownsData()) return;
       const { pagination } = get();
       if (!session || !pagination.hasMore || pagination.isLoadingMore) return;
 
@@ -401,12 +401,7 @@ export const createMessageSlice: StateCreator<
 
         // Stale guard: user switched sessions (or reloaded in place) while
         // this page was in flight.
-        if (
-          queuedEpoch !== sessionLoadEpoch ||
-          get().selectedSession?.file_path !== sessionPath
-        ) {
-          return;
-        }
+        if (!owner.ownsData()) return;
 
         const existing = get().messages;
         const known = new Set(existing.map((m) => m.uuid));
@@ -425,18 +420,17 @@ export const createMessageSlice: StateCreator<
           },
         });
       } catch (error) {
-        if (
-          queuedEpoch !== sessionLoadEpoch ||
-          get().selectedSession?.file_path !== sessionPath
-        ) {
-          return;
-        }
         console.error("Failed to load earlier messages:", error);
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load earlier messages: ${message}`);
-        set({
-          pagination: { ...get().pagination, isLoadingMore: false },
-        });
+        if (owner.ownsFeedback()) {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`Failed to load earlier messages: ${message}`);
+        }
+      } finally {
+        // Ours to stop unless a newer load of the session replaced the
+        // window (and with it this flag).
+        if (owner.ownsSpinner() && get().pagination.isLoadingMore) {
+          set({ pagination: { ...get().pagination, isLoadingMore: false } });
+        }
       }
     };
 
@@ -465,9 +459,13 @@ export const createMessageSlice: StateCreator<
     // a stale overlapping reload (e.g. two quick filter toggles) — the epoch
     // does. Captured before any await.
     const epoch = ++sessionLoadEpoch;
-    // Taken before any await: a navigation started since then owns the screen,
-    // so this load's failure is no longer the user's concern there.
-    const ownsPlace = ownPlace(get);
+    // Taken before any await: the latest load (epoch) of this session owns
+    // its messages; a navigation started since then owns the screen, so this
+    // load's failure is no longer the user's concern there.
+    const owner = ownWork(get, {
+      context: { sessionPath: session.file_path },
+      isLatest: () => epoch === sessionLoadEpoch,
+    });
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshAllConversations에서 같은 세션을 재로드하는 경우
@@ -561,12 +559,7 @@ export const createMessageSlice: StateCreator<
 
       // Stale response guard: 다른 세션으로 이동했거나(경로), 같은 세션의 더
       // 새로운 reload가 시작되었으면(epoch) 중단.
-      if (
-        epoch !== sessionLoadEpoch ||
-        get().selectedSession?.file_path !== session.file_path
-      ) {
-        return;
-      }
+      if (!owner.ownsData()) return;
 
       // Apply system message filter (client-side; window-local)
       const filteredMessages = applySystemMessageFilter(windowMessages);
@@ -605,22 +598,10 @@ export const createMessageSlice: StateCreator<
       // Search index is built lazily on first search to avoid blocking UI
       // when loading large sessions (47k+ messages with tokenize:"full" is expensive).
     } catch (error) {
-      // Stale error guard: 경로·epoch 둘 중 하나라도 어긋나면 abandoned request의
-      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path guard 미러링)
-      if (
-        epoch !== sessionLoadEpoch ||
-        get().selectedSession?.file_path !== session.file_path
-      ) {
-        return;
-      }
-
       console.error("Failed to load session messages:", error);
-      if (!ownsPlace()) {
-        // Still the latest load of this session, so its spinner is ours to
-        // stop; the error belongs to a place the user has left.
-        set({ isLoadingMessages: false });
-        return;
-      }
+      // Abandoned (another session, a newer load, or a navigation since):
+      // the failure is not the user's concern on the screen they are on.
+      if (!owner.ownsFeedback()) return;
       // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
       // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
       const message = error instanceof Error ? error.message : String(error);
@@ -629,7 +610,13 @@ export const createMessageSlice: StateCreator<
       } else {
         get().setError({ type: AppErrorType.UNKNOWN, message });
       }
-      set({ isLoadingMessages: false });
+    } finally {
+      // The spinner this load raised is its own to stop, abandoned or not -
+      // a project-only move drops the session without starting another load,
+      // and nothing else would. A newer load of a session has taken it over.
+      if (owner.ownsSpinner() && get().isLoadingMessages) {
+        set({ isLoadingMessages: false });
+      }
     }
   },
 
@@ -648,6 +635,10 @@ export const createMessageSlice: StateCreator<
     const sessionPath = session.file_path;
     const provider = session.provider ?? "claude";
     const inSubagent = get().parentSessionStack.length > 0;
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => epoch === sessionLoadEpoch,
+    });
 
     let offset: number | null;
     try {
@@ -659,22 +650,22 @@ export const createMessageSlice: StateCreator<
       });
     } catch (error) {
       console.error("Failed to locate message offset:", error);
-      // The session this was asked for is no longer open: not the user's
-      // concern on the screen they are on now.
-      if (get().selectedSession?.file_path !== sessionPath) return false;
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to locate message: ${message}`);
+      // Another session, or a navigation since (even a screen switch within
+      // this session): not the user's concern on the screen they are on now.
+      if (owner.ownsFeedback()) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to locate message: ${message}`);
+      }
       return false;
     }
     if (offset == null) return false;
-    if (get().selectedSession?.file_path !== sessionPath) return false;
+    if (!owner.ownsData()) return false;
 
     // Extend the window until it covers offset (+1 because offset is 0-based
     // from the newest end). Pages are serialized through loadOlderChain.
     const needed = offset + 1;
     while (
-      epoch === sessionLoadEpoch &&
-      get().selectedSession?.file_path === sessionPath &&
+      owner.ownsData() &&
       get().pagination.hasMore &&
       get().pagination.currentOffset < needed
     ) {
@@ -737,7 +728,12 @@ export const createMessageSlice: StateCreator<
   loadSessionTokenStats: async (sessionPath: string) => {
     const requestId = nextRequestId("sessionTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
-    const ownsPlace = ownPlace(get);
+    // Always the open session's stats: a request for A1 never lands once B1
+    // is open, even if no newer token request started.
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => requestId === getRequestId("sessionTokenStats"),
+    });
     try {
       get().setError(null);
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
@@ -750,28 +746,27 @@ export const createMessageSlice: StateCreator<
               "conversation_only",
               dateOptions
             ).catch((error) => {
-              if (requestId !== getRequestId("sessionTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only session stats:",
                 error
               );
-              toast.warning(
-                "Conversation-only session stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only session stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
       ]);
       const conversationStats = breakdown ? conversationStatsRaw : stats;
-      if (requestId !== getRequestId("sessionTokenStats")) return;
+      if (!owner.ownsData()) return;
       set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
     } catch (error) {
-      if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
+      if (!owner.ownsData()) return;
       set({ sessionTokenStats: null, sessionConversationTokenStats: null });
-      if (!ownsPlace()) return;
+      if (!owner.ownsFeedback()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load session token stats: ${message}`);
       get().setError({
@@ -786,7 +781,11 @@ export const createMessageSlice: StateCreator<
   loadProjectTokenStats: async (projectPath: string) => {
     const requestId = nextRequestId("projectTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
-    const ownsPlace = ownPlace(get);
+    // Always the open project's stats (see `loadSessionTokenStats`).
+    const owner = ownWork(get, {
+      context: { projectPath },
+      isLatest: () => requestId === getRequestId("projectTokenStats"),
+    });
     try {
       set({
         projectTokenStats: [], // Reset on new project load
@@ -821,16 +820,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (requestId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project token stats:",
                 error
               );
-              toast.warning(
-                "Conversation-only project stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -838,16 +836,15 @@ export const createMessageSlice: StateCreator<
           ...dateOptions,
           stats_mode: "billing_total",
         }).catch((error) => {
-          if (requestId !== getRequestId("projectTokenStats")) {
-            return null;
-          }
           console.warn(
             "Failed to load project token stats summary, falling back to loaded-page aggregate:",
             error
           );
-          toast.warning(
-            "Project stats summary could not be loaded. Showing page aggregate only."
-          );
+          if (owner.ownsFeedback()) {
+            toast.warning(
+              "Project stats summary could not be loaded. Showing page aggregate only."
+            );
+          }
           return null;
         }),
         breakdown
@@ -855,16 +852,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (requestId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project summary:",
                 error
               );
-              toast.warning(
-                "Conversation-only project summary could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project summary could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -876,7 +872,7 @@ export const createMessageSlice: StateCreator<
         ? conversationSummaryRaw
         : billingSummary;
 
-      if (requestId !== getRequestId("projectTokenStats")) return;
+      if (!owner.ownsData()) return;
       set({
         projectTokenStats: billingResponse.items,
         projectConversationTokenStats: conversationResponse?.items ?? [],
@@ -891,15 +887,15 @@ export const createMessageSlice: StateCreator<
         },
       });
     } catch (error) {
-      if (requestId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load project token stats:", error);
+      if (!owner.ownsData()) return;
       set({
         projectTokenStats: [],
         projectConversationTokenStats: [],
         projectTokenStatsSummary: null,
         projectConversationTokenStatsSummary: null,
       });
-      if (!ownsPlace()) return;
+      if (!owner.ownsFeedback()) return;
       get().setError({
         type: AppErrorType.UNKNOWN,
         message: `Failed to load project token stats: ${error}`,
@@ -918,6 +914,10 @@ export const createMessageSlice: StateCreator<
 
     // Snapshot the current request ID to detect if a full reset happened mid-flight.
     const snapshotId = getRequestId("projectTokenStats");
+    const owner = ownWork(get, {
+      context: { projectPath },
+      isLatest: () => snapshotId === getRequestId("projectTokenStats"),
+    });
 
     try {
       set({
@@ -944,16 +944,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (snapshotId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project stats page:",
                 error
               );
-              toast.warning(
-                "Conversation-only project stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -962,7 +961,7 @@ export const createMessageSlice: StateCreator<
         ? conversationResponseRaw
         : billingResponse;
 
-      if (snapshotId !== getRequestId("projectTokenStats")) return;
+      if (!owner.ownsData()) return;
       set({
         projectTokenStats: [...projectTokenStats, ...billingResponse.items],
         projectConversationTokenStats: [
@@ -978,19 +977,19 @@ export const createMessageSlice: StateCreator<
         },
       });
     } catch (error) {
-      if (snapshotId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load more project token stats:", error);
-      set({
-        projectTokenStatsPagination: {
-          ...projectTokenStatsPagination,
-          isLoadingMore: false,
-        },
-      });
+    } finally {
+      // A newer full load replaced the pagination (and this flag) wholesale.
+      const pagination = get().projectTokenStatsPagination;
+      if (owner.ownsSpinner() && pagination.isLoadingMore) {
+        set({ projectTokenStatsPagination: { ...pagination, isLoadingMore: false } });
+      }
     }
   },
 
-  loadProjectStatsSummary: async (projectPath: string, owns) => {
-    const ownsPlace = owns ?? ownPlace(get);
+  loadProjectStatsSummary: async (projectPath: string, ownership) => {
+    const owns =
+      ownership ?? ownWork(get, { context: { projectPath } }).ownsFeedback;
     try {
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
@@ -1007,7 +1006,7 @@ export const createMessageSlice: StateCreator<
               "Failed to load conversation-only project summary:",
               error
             );
-            if (ownsPlace()) {
+            if (owns()) {
               toast.warning(
                 "Conversation-only project summary could not be loaded. Showing billing totals only."
               );
@@ -1015,14 +1014,14 @@ export const createMessageSlice: StateCreator<
             return billing;
           })
         : billing;
-      if (ownsPlace()) {
+      if (owns()) {
         get().setAnalyticsProjectConversationSummary(conversation);
       }
       return billing;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load project stats summary:", error);
-      if (ownsPlace()) {
+      if (owns()) {
         toast.error(`Failed to load project stats summary: ${message}`);
         get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
       }
@@ -1031,7 +1030,7 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    const ownsPlace = ownPlace(get);
+    const owner = ownWork(get, { context: { projectPath } });
     const dateOptions = normalizeDateFilterOptions(get().dateFilter);
     try {
       return await fetchSessionComparison(
@@ -1044,7 +1043,7 @@ export const createMessageSlice: StateCreator<
       const message =
         error instanceof Error ? error.message : String(error);
       console.error("Failed to load session comparison:", error);
-      if (ownsPlace()) {
+      if (owner.ownsFeedback()) {
         toast.error(`Failed to load session comparison: ${message}`);
       }
       throw error;
@@ -1083,12 +1082,13 @@ export const createMessageSlice: StateCreator<
     if (!supportsSubagents(get().selectedSession?.provider)) {
       return;
     }
+    const owner = ownWork(get, { context: { sessionPath } });
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
       });
       // Guard: only update if still viewing the same session
-      if (get().selectedSession?.file_path === sessionPath) {
+      if (owner.ownsData()) {
         // toolUseId → subagent file_path 매핑. 두 소스 사용:
         // 1) (신형) subagent.tool_use_id — agent-<id>.meta.json에서 읽은 Task tool_use id.
         //    progress 메시지가 없는 다중 subagent 세션도 정확히 매핑 (#288).
@@ -1132,15 +1132,17 @@ export const createMessageSlice: StateCreator<
       if (import.meta.env.DEV) {
         console.warn("[loadSubagents] Failed:", error);
       }
-      // 여전히 같은 세션을 보고 있을 때만 피드백 + 상태 초기화.
-      // CLAUDE.md 가이드: async 실패는 사용자에게 가시적 피드백 필요.
-      if (get().selectedSession?.file_path === sessionPath) {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.warning(`Failed to load subagent sessions: ${message}`);
+      // 여전히 같은 세션을 보고 있을 때만 상태 초기화, 그 사이 navigation이
+      // 없었을 때만 피드백 (CLAUDE.md: async 실패는 가시적 피드백 필요).
+      if (owner.ownsData()) {
         set({
           subagentSessions: [],
           toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
         });
+      }
+      if (owner.ownsFeedback()) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.warning(`Failed to load subagent sessions: ${message}`);
       }
     }
   },
