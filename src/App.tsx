@@ -20,7 +20,7 @@ import {
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
 import {
   fetchStartupSessionHint,
-  preloadSessionFromCli,
+  openSessionHint,
   type SessionHint,
 } from "./lib/preloadSession";
 import {
@@ -136,7 +136,6 @@ function App() {
   // One-shot guard so the first-launch `--session` preload fires exactly once
   // per process, even if project loading renders multiple times.
   const cliPreloadAttempted = useRef(false);
-  const openSessionPicker = useAppStore((s) => s.openSessionPicker);
 
   // Keep the latest projects list in a ref so the second-invocation event
   // listener (which is set up once and lives for the process lifetime) can
@@ -153,13 +152,7 @@ function App() {
   const pendingHintRef = useRef<SessionHint | null>(null);
   const pendingMessageTargetRef = useRef<string | null>(null);
 
-  /**
-   * Resolve a CLI / deep-link hint and open it. The hint owns a navigation
-   * epoch from the moment it is accepted: any later navigation (the user's
-   * click, a newer hint, a browser back) supersedes it, and nothing else does.
-   * In particular a session that is already open does not block it - the hint
-   * always wins over what is on screen (plan §4.3, §9b F4).
-   */
+  /** Open a CLI / deep-link hint; see `openSessionHint` for the epoch rule. */
   const runPreloadWithHint = useCallback(
     (
       hint: SessionHint,
@@ -167,26 +160,18 @@ function App() {
       options: { epoch?: number; record?: boolean } = {},
     ) => {
       const epoch = options.epoch ?? useAppStore.getState().beginNavigation();
-      const isCurrent = () => useAppStore.getState().navigationEpoch === epoch;
-
-      void preloadSessionFromCli({
-        getStartupSessionHint: () => Promise.resolve(hint),
-        projects: projectsRef.current,
-        openMatch: ({ project, session }) =>
-          navigate(
-            { view: "conversation", project, session, messageId },
-            { history: "none", epoch, record: options.record },
-          ),
-        openSessionPicker,
+      openSessionHint(hint, {
+        messageId,
+        epoch,
+        record: options.record,
         t: (key, fallback) => t(key, fallback ?? key),
-        isCurrent,
       }).catch((error) => {
-        if (!isCurrent()) return;
+        if (useAppStore.getState().navigationEpoch !== epoch) return;
         console.error("Failed to preload session:", error);
         toast.error(t("common.error.unexpected", "Failed to open session"));
       });
     },
-    [navigate, openSessionPicker, t],
+    [t],
   );
 
   useEffect(() => {

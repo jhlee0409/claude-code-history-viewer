@@ -16,9 +16,9 @@ vi.mock("@/services/api", () => ({
   api: vi.fn(),
 }));
 
-// Mutable store state so individual tests can mutate `selectedSession` mid-scan
-// to exercise the race guard. Also simulates `getSessionDisplayName` used by
-// the Stage B title-matcher.
+// Mutable store state. `selectedSession` is kept to prove the resolver no
+// longer reads it (an open session does not block a hint, plan §9b F4). Also
+// simulates `getSessionDisplayName` used by the Stage B title-matcher.
 const mockStoreState: {
   excludeSidechain: boolean;
   selectedSession: ClaudeSession | null;
@@ -197,13 +197,13 @@ describe("preloadSessionFromCli", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // Race guard smoke test: if the user has already picked a session by the time
-  // we enter the preload flow (e.g. hint resolves after project load), we do
-  // not clobber their choice.
-  it("skips select when user has already chosen a session before scan begins", async () => {
-    mockStoreState.selectedSession = session;
-    // The race guard fires at the top of the findSessionAcrossProjects loop,
-    // so api is never called — no mock queue needed.
+  // Plan §9b F4: a second `--session` launch while a session is open used to
+  // be dropped silently. The hint always wins over what is on screen; only a
+  // newer navigation (isCurrent) supersedes it.
+  it("opens the hint even when a session is already open", async () => {
+    const openSession: ClaudeSession = { ...session, session_id: "open", actual_session_id: "open" };
+    mockStoreState.selectedSession = openSession;
+    vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
     const deps = makeDeps({
       getStartupSessionHint: vi.fn().mockResolvedValue({
         kind: "uuid",
@@ -214,11 +214,8 @@ describe("preloadSessionFromCli", () => {
 
     const result = await preloadSessionFromCli(deps);
 
-    expect(api).not.toHaveBeenCalled();
-    expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.openMatch).not.toHaveBeenCalled();
-    // Not a "not found" toast either — user picked something.
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(result).toEqual({ handled: true, matched: true });
+    expect(deps.openMatch).toHaveBeenCalledWith({ project, session });
   });
 
   // ===== Stage B tests =====
@@ -426,19 +423,20 @@ describe("preloadSessionFromCli", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // Real race simulation: user clicks a session mid-scan. Exercises the
+  // Real race simulation: the user navigates mid-scan. Exercises the
   // per-loop guard inside scan helpers, not just the final guard.
-  it("aborts scan loop when selectedSession mutates mid-scan", async () => {
+  it("aborts the scan loop when a newer navigation supersedes it mid-scan", async () => {
     const projectA: ClaudeProject = { ...project, name: "a", path: "/a" };
     const projectB: ClaudeProject = { ...project, name: "b", path: "/b" };
     const projectC: ClaudeProject = { ...project, name: "c", path: "/c" };
     let scanCount = 0;
+    let current = true;
     vi.mocked(api).mockImplementation(async () => {
       scanCount += 1;
       if (scanCount === 1) {
-        // User clicks a session while project A's scan is in-flight.
-        // The NEXT loop iteration should abort before hitting project B.
-        mockStoreState.selectedSession = session;
+        // The user navigates while project A's scan is in flight. The NEXT
+        // loop iteration should abort before hitting project B.
+        current = false;
       }
       return [] as unknown as never; // No match in any project
     });
@@ -449,6 +447,7 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [projectA, projectB, projectC],
+      isCurrent: () => current,
     });
 
     const result = await preloadSessionFromCli(deps);
