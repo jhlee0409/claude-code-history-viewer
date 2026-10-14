@@ -138,6 +138,26 @@ describe("calculateDailyGrowth", () => {
     ).toEqual({ tokenGrowth: none, messageGrowth: none });
   });
 
+  it("compares against the calendar day before the last day, not an older recorded day", () => {
+    // daily_stats is sparse: days without activity have no row.
+    const growth = calculateDailyGrowth([
+      day("2026-01-01", { message_count: 22, total_tokens: 600_000 }),
+      day("2026-01-05", { message_count: 1_369, total_tokens: 44_000_000 }),
+    ]);
+    expect(growth).toEqual({ messageGrowth: { kind: "new" }, tokenGrowth: { kind: "new" } });
+  });
+
+  it("uses the previous calendar day across a month boundary", () => {
+    const growth = calculateDailyGrowth([
+      day("2026-02-28", { message_count: 100, total_tokens: 100_000 }),
+      day("2026-03-01", { message_count: 150, total_tokens: 50_000 }),
+    ]);
+    expect(growth).toEqual({
+      messageGrowth: { kind: "pct", value: 50 },
+      tokenGrowth: { kind: "pct", value: -50 },
+    });
+  });
+
   it("applies each metric's own floor independently", () => {
     // 15 messages is below the message floor; 15,000 tokens is above the token floor.
     const growth = calculateDailyGrowth([
