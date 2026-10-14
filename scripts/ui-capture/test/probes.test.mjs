@@ -1,8 +1,14 @@
 // minFontSize must include collapsed content: a smaller font hidden behind a
 // disclosure control or a <details> is opened and sampled (real WebKit).
 
+import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
+
+// Needs the pinned WebKit build (`pnpm exec playwright install webkit`). CI
+// does not install browsers, so the suite is skipped there and reports why.
+const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
+if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping probes.test: no WebKit at ${webkit.executablePath()}`);
 import { runProbes } from "../lib/probes.mjs";
 
 const PAGE = `<!doctype html><html><body style="margin:0;font-size:16px">
@@ -19,7 +25,7 @@ const PAGE = `<!doctype html><html><body style="margin:0;font-size:16px">
 
 let browser;
 beforeAll(async () => {
-  browser = await webkit.launch();
+  if (HAS_WEBKIT) browser = await webkit.launch();
 }, 60_000);
 afterAll(async () => {
   await browser?.close();
@@ -36,7 +42,7 @@ async function probe(options) {
   }
 }
 
-describe("runProbes minFontSize", () => {
+describe.skipIf(!HAS_WEBKIT)("runProbes minFontSize", () => {
   it("misses collapsed content when expansion is off (the regression)", async () => {
     const { minFontSize } = await probe({ expandCollapsed: false });
     expect(minFontSize.px).toBe(12);
