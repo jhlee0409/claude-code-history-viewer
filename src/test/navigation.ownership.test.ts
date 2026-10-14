@@ -382,3 +382,51 @@ describe("refreshing a screen is a reload, not a navigation", () => {
     }
   });
 });
+
+describe("an explicit message target belongs to its session", () => {
+  const urlMessage = () => new URL(window.location.href).searchParams.get("msg");
+
+  it("Back to a place without a target clears a later target and its msg URL", async () => {
+    await state().navigate({ project: A, session: A1 });
+    await state().navigate({ view: "analytics", messageId: "later-message" });
+    expect(urlMessage()).toBe("later-message");
+    const { result } = renderHook(() => useAnalyticsNavigation());
+
+    await act(async () => {
+      await result.current.goBack();
+    });
+
+    expect(state().view).toBe("conversation");
+    expect(state().selectedSession?.file_path).toBe(A1.file_path);
+    expect(state().targetMessageUuid).toBeNull();
+    expect(urlMessage()).toBeNull();
+  });
+
+  it("opening another session with messageId null drops the old session's target", async () => {
+    await state().navigate({ project: A, session: A1, messageId: "only-in-A1" });
+
+    await state().navigate({ session: A2, messageId: null });
+
+    expect(state().targetMessageUuid).toBeNull();
+    expect(urlMessage()).toBeNull();
+  });
+
+  it("opening another session without a target does not inherit the old one", async () => {
+    await state().navigate({ project: A, session: A1, messageId: "only-in-A1" });
+
+    await state().navigate({ session: A2 });
+
+    expect(state().targetMessageUuid).toBeNull();
+    expect(urlMessage()).toBeNull();
+  });
+
+  it("a screen switch that names no target keeps the current one", async () => {
+    await state().navigate({ project: A, session: A1, messageId: "kept" });
+
+    await state().navigate({ view: "analytics" });
+    await state().navigate({ view: "conversation" });
+
+    expect(state().targetMessageUuid).toBe("kept");
+    expect(urlMessage()).toBe("kept");
+  });
+});

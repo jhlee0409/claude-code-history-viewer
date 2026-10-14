@@ -200,12 +200,30 @@ export const createNavigationSlice: StateCreator<
       writeWebUIDeepLink({ sessionId: null, messageId: null }, history);
     }
 
-    if (target.messageId) {
-      // The session write above already pushed an entry; the target refines
-      // it rather than adding a second one.
-      const messageHistory: WebUIHistoryMode =
-        target.session && history !== "none" ? "replace" : history;
-      get().navigateToMessage(target.messageId, { history: messageHistory });
+    // The explicit target belongs to its session. `messageId` omitted keeps
+    // it (a screen switch), `null` drops it, and opening another session
+    // drops it unless the move names a new one.
+    // A session or project write above already pushed this move's entry; the
+    // target refines it rather than adding a second one.
+    const wroteUrl = Boolean(target.session) || opensProject;
+    const targetHistory: WebUIHistoryMode =
+      wroteUrl && history !== "none" ? "replace" : history;
+    const changedSession =
+      from.session?.file_path !== get().selectedSession?.file_path;
+    if (typeof target.messageId === "string") {
+      get().navigateToMessage(target.messageId, { history: targetHistory });
+    } else if (target.messageId === null || changedSession) {
+      get().clearTargetMessage();
+      const session = get().selectedSession;
+      if (session) {
+        writeWebUIDeepLink(
+          {
+            sessionId: session.actual_session_id || session.session_id,
+            messageId: null,
+          },
+          targetHistory,
+        );
+      }
     }
 
     if (options.record !== false) {
