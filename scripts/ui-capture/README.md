@@ -66,14 +66,17 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
 - Themes: `dark`, `light`.
 - Screens: `home`, `transcript` (the 1,369-message session), `analytics`,
   `token-stats` (legacy), `recent-edits`, `board`, `global-stats`, `archive`,
-  `settings` (Settings Manager), plus three states produced by request
+  `settings` (Settings Manager), two highlight-regression flows from the
+  UX audit (`global-stats-after-analytics`: a project's analytics, then
+  global stats; `archive-after-global-stats`: global stats, then the
+  archive), plus three states produced by request
   injection (`page.route` on `/api/<command>`):
   - `empty` - `scan_projects` / `scan_all_projects` answer `[]`
   - `loading` - the same requests are held (never answered)
   - `error` - `get_claude_folder_path` fails with `PERMISSION_DENIED`
 - Mobile adds `sidebar` (project drawer open).
 
-Desktop 3 × 2 × 12 + mobile 1 × 2 × 13 + measurement pair 3 × 1 × 2 = **104
+Desktop 3 × 2 × 14 + mobile 1 × 2 × 15 + measurement pair 3 × 1 × 2 = **120
 scenarios**.
 
 ## Output

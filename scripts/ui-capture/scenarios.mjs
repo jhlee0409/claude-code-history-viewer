@@ -107,6 +107,18 @@ const COMMON_SCREENS = [
     title: "Settings manager",
     steps: [{ do: "openProject", project: "featured" }, { do: "appMenu", item: "settingsManager" }],
   },
+  // Highlight regressions from the 2026-10-14 UX audit (captures 10 and 12):
+  // the header/tree highlight must follow the screen actually shown.
+  {
+    id: "global-stats-after-analytics",
+    title: "Global stats opened from a project's analytics",
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "analytics" }, { do: "globalStats" }],
+  },
+  {
+    id: "archive-after-global-stats",
+    title: "Archive opened from global stats",
+    steps: [{ do: "globalStats" }, { do: "appMenu", item: "archive" }],
+  },
   {
     id: "empty",
     title: "Empty state: no projects found",
