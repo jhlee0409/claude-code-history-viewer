@@ -34,6 +34,13 @@ import {
 
 import "./App.css";
 
+/** A CLI hint or WebUI deep link accepted before the first project scan. */
+interface PendingHintIntent {
+  hint: SessionHint;
+  messageId: string | null;
+  options: { epoch: number; record?: boolean };
+}
+
 function App() {
   const {
     projects,
@@ -145,12 +152,14 @@ function App() {
     projectsRef.current = projects;
   }, [projects]);
 
-  // Phase 3: second-invocation routing. If a `cli-session-hint` event arrives
-  // before projects finish loading, stash the latest hint here so the first
-  // load path can pick it up. Only the *latest* hint is kept — if the user
-  // re-invokes the CLI twice in quick succession, the newer intent wins.
-  const pendingHintRef = useRef<SessionHint | null>(null);
-  const pendingMessageTargetRef = useRef<string | null>(null);
+  // Phase 3: second-invocation routing. If a `cli-session-hint` event or a
+  // WebUI popstate arrives before projects finish loading, stash the latest
+  // intent here so the first load path can pick it up. Only the *latest* is
+  // kept — if the user re-invokes the CLI twice in quick succession, the
+  // newer intent wins. The whole intent is kept, not just the hint: the
+  // epoch it claimed (anything that navigates meanwhile supersedes it) and
+  // whether it records history (a popstate never does).
+  const pendingIntentRef = useRef<PendingHintIntent | null>(null);
 
   /** Open a CLI / deep-link hint; see `openSessionHint` for the epoch rule. */
   const runPreloadWithHint = useCallback(
@@ -180,12 +189,10 @@ function App() {
     cliPreloadAttempted.current = true;
     // Drain a hint that arrived before projects loaded, if any. Otherwise use
     // the Tauri-managed first-launch hint.
-    const queued = pendingHintRef.current;
+    const queued = pendingIntentRef.current;
     if (queued) {
-      pendingHintRef.current = null;
-      const messageId = pendingMessageTargetRef.current;
-      pendingMessageTargetRef.current = null;
-      runPreloadWithHint(queued, messageId);
+      pendingIntentRef.current = null;
+      runPreloadWithHint(queued.hint, queued.messageId, queued.options);
       return;
     }
     const startupEpoch = useAppStore.getState().beginNavigation();
@@ -223,8 +230,7 @@ function App() {
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
           if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-            pendingHintRef.current = hint;
-            pendingMessageTargetRef.current = null;
+            pendingIntentRef.current = { hint, messageId: null, options: { epoch } };
             return;
           }
           runPreloadWithHint(hint, null, { epoch });
@@ -250,8 +256,7 @@ function App() {
         const epoch = useAppStore.getState().beginNavigation();
         const popOptions = { history: "none", record: false, epoch } as const;
         if (!deepLink.sessionId) {
-          pendingHintRef.current = null;
-          pendingMessageTargetRef.current = null;
+          pendingIntentRef.current = null;
           void navigate(
             {
               project: null,
@@ -263,11 +268,11 @@ function App() {
         }
 
         if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-          pendingHintRef.current = {
-            kind: "uuid",
-            value: deepLink.sessionId,
+          pendingIntentRef.current = {
+            hint: { kind: "uuid", value: deepLink.sessionId },
+            messageId: deepLink.messageId,
+            options: { epoch, record: false },
           };
-          pendingMessageTargetRef.current = deepLink.messageId;
           return;
         }
 
@@ -276,15 +281,13 @@ function App() {
           state.selectedSession?.actual_session_id ||
           state.selectedSession?.session_id;
 
+        // The URL names a conversation, so the screen is the conversation,
+        // and its target is exactly the URL's (none clears it).
         if (currentSessionId === deepLink.sessionId) {
-          if (deepLink.messageId) {
-            void navigate(
-              { view: "conversation", messageId: deepLink.messageId },
-              popOptions,
-            );
-          } else {
-            state.clearTargetMessage();
-          }
+          void navigate(
+            { view: "conversation", messageId: deepLink.messageId },
+            popOptions,
+          );
           return;
         }
 
