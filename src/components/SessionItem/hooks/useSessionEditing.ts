@@ -313,11 +313,13 @@ export function useSessionEditing(session: ClaudeSession) {
     setIsDeletingSession(true);
     try {
       await api("delete_session", { filePath: session.file_path });
-      const { sessions, setSessions, selectedSession, setSelectedSession } =
+      const { sessions, setSessions, selectedSession, navigate } =
         useAppStore.getState();
       setSessions(sessions.filter((s) => s.session_id !== session.session_id));
       if (selectedSession?.session_id === session.session_id) {
-        setSelectedSession(null);
+        // The open place lost its session: fall back to the project's empty
+        // screen. Not a step the user can go back to.
+        await navigate({ session: null }, { record: false, history: "replace" });
       }
       setIsDeleteDialogOpen(false);
       toast.success(t("session.deleteSuccess", "Session deleted"));
