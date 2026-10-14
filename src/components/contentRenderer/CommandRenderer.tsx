@@ -9,6 +9,7 @@ import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { HighlightedText } from "../common/HighlightedText";
 import { AnsiText } from "../common/AnsiText";
 import { stripAnsiCodes } from "@/utils/ansiToHtml";
+import { parseCommandMessage } from "@/utils/commandMessage";
 
 type Props = {
   text: string;
@@ -18,22 +19,6 @@ type Props = {
   /** Color variant — "accent" (default, blue) for assistant context, "system" (amber) for system messages */
   variant?: "accent" | "system";
 };
-
-interface CommandGroup {
-  name?: string;
-  message?: string;
-  args?: string;
-}
-
-interface OutputTag {
-  type: "stdout" | "stderr" | "other";
-  name: string;
-  content: string;
-}
-
-interface CaveatBlock {
-  content: string;
-}
 
 const VARIANT_COLORS = {
   accent: {
@@ -70,107 +55,13 @@ export const CommandRenderer = ({
     }
   }, [searchQuery, text, setIsCommandExpanded]);
 
-  // Command 그룹 (name, message, args) 추출
-  const commandNameRegex = /<command-name>\s*(.*?)\s*<\/command-name>/gs;
-  const commandMessageRegex =
-    /<command-message>\s*(.*?)\s*<\/command-message>/gs;
-  const commandArgsRegex = /<command-args>\s*(.*?)\s*<\/command-args>/gs;
-
-  const nameMatch = text.match(commandNameRegex);
-  const messageMatch = text.match(commandMessageRegex);
-  const argsMatch = text.match(commandArgsRegex);
-
-  const extractedName = nameMatch?.[0]
-    ?.replace(/<\/?command-name>/g, "")
-    .trim();
-  const extractedMessage = messageMatch?.[0]
-    ?.replace(/<\/?command-message>/g, "")
-    .trim();
-  const extractedArgs = argsMatch?.[0]
-    ?.replace(/<\/?command-args>/g, "")
-    .trim();
-
-  // Hide message if it's just the command name without slash (e.g., name="/cost", message="cost")
-  const isRedundantMessage =
-    extractedName && extractedMessage &&
-    extractedName.replace(/^\//, "") === extractedMessage;
-
-  const commandGroup: CommandGroup = {
-    name: extractedName && extractedName.length > 0 ? extractedName : undefined,
-    message:
-      extractedMessage && extractedMessage.length > 0 && !isRedundantMessage
-        ? extractedMessage
-        : undefined,
-    args: extractedArgs && extractedArgs.length > 0 ? extractedArgs : undefined,
-  };
-
-  // 출력 태그들 (stdout, stderr 등) 추출 - 더 포괄적인 패턴 사용
-  const outputTags: OutputTag[] = [];
-
-  // stdout 계열: stdout, output이 포함된 모든 태그 (local-command-stdout 제외 - 별도 처리)
-  const stdoutRegex = /<(?!local-command-stdout)([^>]*(?:stdout|output)[^>]*)\s*>\s*(.*?)\s*<\/\1>/gs;
-  // stderr 계열: stderr, error가 포함된 모든 태그
-  const stderrRegex = /<([^>]*(?:stderr|error)[^>]*)\s*>\s*(.*?)\s*<\/\1>/gs;
-
-  let match;
-
-  // stdout 계열 태그들
-  while ((match = stdoutRegex.exec(text)) !== null) {
-    const [, tagName, content] = match;
-    if (content && content.trim()) {
-      outputTags.push({
-        type: "stdout",
-        name: tagName ?? "",
-        content: content.trim(),
-      });
-    }
-  }
-
-  // stderr 계열 태그들
-  while ((match = stderrRegex.exec(text)) !== null) {
-    const [, tagName, content] = match;
-    if (content && content.trim()) {
-      outputTags.push({
-        type: "stderr",
-        name: tagName ?? "",
-        content: content.trim(),
-      });
-    }
-  }
-
-  // Extract local-command-caveat tags
-  const caveatRegex = /<local-command-caveat>\s*(.*?)\s*<\/local-command-caveat>/gs;
-  const caveats: CaveatBlock[] = [];
-  let caveatMatch;
-  while ((caveatMatch = caveatRegex.exec(text)) !== null) {
-    const [, content] = caveatMatch;
-    if (content && content.trim()) {
-      caveats.push({ content: content.trim() });
-    }
-  }
-
-  // Extract local-command-stdout tags (user-visible command output, e.g., /cost)
-  const localStdoutRegex = /<local-command-stdout>\s*(.*?)\s*<\/local-command-stdout>/gs;
-  const localStdoutBlocks: string[] = [];
-  let localStdoutMatch;
-  while ((localStdoutMatch = localStdoutRegex.exec(text)) !== null) {
-    const [, content] = localStdoutMatch;
-    if (content && content.trim()) {
-      localStdoutBlocks.push(content.trim());
-    }
-  }
-
-  // Remove all tags
-  const withoutCommands = text
-    .replace(commandNameRegex, "")
-    .replace(commandMessageRegex, "")
-    .replace(commandArgsRegex, "")
-    .replace(stdoutRegex, "")
-    .replace(stderrRegex, "")
-    .replace(caveatRegex, "")
-    .replace(localStdoutRegex, "")
-    .replace(/^\s*\n/gm, "")
-    .trim();
+  const {
+    command: commandGroup,
+    outputs: outputTags,
+    caveats,
+    localStdout: localStdoutBlocks,
+    remainingText: withoutCommands,
+  } = parseCommandMessage(text);
 
   const hasCommandGroup =
     commandGroup.name || commandGroup.message || commandGroup.args;
@@ -379,7 +270,7 @@ export const CommandRenderer = ({
       {caveats.map((caveat, index) => (
         <CaveatRenderer
           key={index}
-          content={caveat.content}
+          content={caveat}
           searchQuery={searchQuery}
           isCurrentMatch={isCurrentMatch}
           currentMatchIndex={currentMatchIndex}
