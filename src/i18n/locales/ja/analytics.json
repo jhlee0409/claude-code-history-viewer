@@ -211,5 +211,6 @@
   "analytics.trend.times": "{{value}}倍",
   "analytics.trend.upDescription": "前日より増加",
   "analytics.trend.downDescription": "前日より減少",
-  "analytics.trend.flatDescription": "前日と変化なし"
+  "analytics.trend.flatDescription": "前日と変化なし",
+  "analytics.trend.timesDescription": "前日の{{value}}倍"
 }

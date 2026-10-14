@@ -211,5 +211,6 @@
   "analytics.trend.times": "{{value}}倍",
   "analytics.trend.upDescription": "较前一天上升",
   "analytics.trend.downDescription": "较前一天下降",
-  "analytics.trend.flatDescription": "与前一天持平"
+  "analytics.trend.flatDescription": "与前一天持平",
+  "analytics.trend.timesDescription": "是前一天的{{value}}倍"
 }

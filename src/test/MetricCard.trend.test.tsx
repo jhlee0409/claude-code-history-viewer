@@ -41,7 +41,10 @@ describe("MetricCard trend chip", () => {
   ])("renders +%i%% as a multiple (%s×) instead of a percentage", (value, times) => {
     renderCard({ kind: "pct", value });
     const chip = trendChip();
-    expect(chip?.textContent).toBe(`analytics.trend.times(${times})analytics.trend.upDescription`);
+    expect(chip?.textContent).toBe(
+      `analytics.trend.times(${times})analytics.trend.timesDescription(${times})`,
+    );
+    expect(chip).toHaveAttribute("title", `analytics.trend.timesDescription(${times})`);
     expect(chip?.className).toContain("text-success");
   });
 

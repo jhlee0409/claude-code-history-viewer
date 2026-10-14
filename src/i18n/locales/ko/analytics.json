@@ -211,5 +211,6 @@
   "analytics.trend.times": "{{value}}배",
   "analytics.trend.upDescription": "전날보다 증가",
   "analytics.trend.downDescription": "전날보다 감소",
-  "analytics.trend.flatDescription": "전날과 같음"
+  "analytics.trend.flatDescription": "전날과 같음",
+  "analytics.trend.timesDescription": "전날의 {{value}}배"
 }

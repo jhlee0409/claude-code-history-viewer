@@ -67,10 +67,13 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
             ? t("analytics.trend.downDescription")
             : t("analytics.trend.flatDescription");
       if (trend.value > MULTIPLE_ABOVE_PCT) {
+        const multiple = formatMultiple(trend.value);
+        // "62×" alone is ambiguous ("62 times more" vs "62 times as much",
+        // notably for 倍 in Chinese), so the explanation states the ratio.
         return chip(
           "up",
-          <span>{t("analytics.trend.times", { value: formatMultiple(trend.value) })}</span>,
-          description
+          <span>{t("analytics.trend.times", { value: multiple })}</span>,
+          t("analytics.trend.timesDescription", { value: multiple })
         );
       }
       return chip(direction, <span>{Math.abs(trend.value)}%</span>, description);

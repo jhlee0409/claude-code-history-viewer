@@ -211,5 +211,6 @@
   "analytics.trend.times": "{{value}}×",
   "analytics.trend.upDescription": "Up from the previous day",
   "analytics.trend.downDescription": "Down from the previous day",
-  "analytics.trend.flatDescription": "Unchanged from the previous day"
+  "analytics.trend.flatDescription": "Unchanged from the previous day",
+  "analytics.trend.timesDescription": "{{value}} times the previous day"
 }
