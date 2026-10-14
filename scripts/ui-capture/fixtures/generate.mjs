@@ -225,6 +225,10 @@ function createClaudeTranscript({ rng, cwd, sessionId, model, startMs = 0, isSid
     user(text) {
       return push({ ...base("user"), message: { role: "user", content: text } }, rng.int(40, 600) * 1000);
     },
+    /** A user record at a fixed offset (no rng draw, so later data is unchanged). */
+    userFixed(text, advanceMs) {
+      return push({ ...base("user"), message: { role: "user", content: text } }, advanceMs);
+    },
     assistant(content, stopReason) {
       const id = `msg_${hexFor(`${label}#msg${serial + 1}`, 24)}`;
       return push(
@@ -427,6 +431,12 @@ function buildClaudeSession({ rng, cwd, sessionId, model, spec, endMs, editsOnDi
   const t = createClaudeTranscript({ rng, cwd, sessionId, model });
   for (let turn = 0; turn < spec.turns; turn += 1) {
     claudeTurn(t, { rng, cwd, prompt: turn === 0 ? spec.title : promptFor(rng, lang), size: rng.int(4, 9), lang, editsOnDisk });
+    // Slash-command records exactly as Claude Code writes them (tag markup in
+    // a plain user message), right after the first turn so they sit near the
+    // top of the session (visible without scrolling) and the title is kept.
+    if (turn === 0 && spec.slashCommands) {
+      for (const text of C.SLASH_COMMAND_RECORDS) t.userFixed(text, 45_000);
+    }
   }
   return anchored(t);
 }
