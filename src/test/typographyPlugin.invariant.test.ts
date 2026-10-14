@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import postcss from "postcss";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
@@ -17,7 +18,15 @@ import { describe, expect, it } from "vitest";
 const ROOT = resolve(__dirname, "../..");
 const SRC = join(ROOT, "src");
 const PLUGIN = "@tailwindcss/typography";
-const PLUGIN_DIRECTIVE = /@plugin\s+["']@tailwindcss\/typography["']/;
+
+/** Whether a stylesheet loads the plugin through a real `@plugin` at-rule (not comments or strings). */
+function loadsTypographyPlugin(css: string): boolean {
+  let loaded = false;
+  postcss.parse(css).walkAtRules("plugin", (rule) => {
+    if (rule.params.trim().replace(/^["']|["']$/g, "") === PLUGIN) loaded = true;
+  });
+  return loaded;
+}
 
 function walk(dir: string, keep: (path: string) => boolean): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -29,7 +38,9 @@ function walk(dir: string, keep: (path: string) => boolean): string[] {
 
 /** Text of every string / template literal in a TS(X) source, comments excluded. */
 function literalTexts(source: string, fileName = "fixture.tsx"): string[] {
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX);
+  // .ts must parse as TS: generic arrows and `<T>x` casts are invalid TSX and would hide literals.
+  const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, false, kind);
   const texts: string[] = [];
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
@@ -46,9 +57,11 @@ function literalTexts(source: string, fileName = "fixture.tsx"): string[] {
 /** Plugin-only class tokens in a source: `prose-*` utilities or variants, incl. `prose-${...}`. */
 function findPluginOnlyProseClasses(source: string, fileName?: string): string[] {
   return literalTexts(source, fileName).flatMap((text) =>
-    text.split(/\s+/).filter((token) =>
-      // Either the utility (`prose-sm`, `dark:prose-invert`) or a variant (`prose-a:text-info`).
-      token.split(":").some((segment) => segment.startsWith("prose-")),
+    // Split on whitespace and HTML attribute punctuation so `class="prose-sm"` yields `prose-sm`.
+    text.split(/[\s"'`=<>]+/).filter((token) =>
+      // Either the utility (`prose-sm`, `dark:prose-invert`) or a variant (`prose-a:text-info`),
+      // with an optional important modifier (`!prose-sm`, `prose-sm!`).
+      token.split(":").some((segment) => segment.replace(/^!/, "").startsWith("prose-")),
     ),
   );
 }
@@ -60,8 +73,24 @@ describe("findPluginOnlyProseClasses", () => {
     ['const a = "prose-a:text-info prose-code:bg-muted";', ["prose-a:text-info", "prose-code:bg-muted"]],
     ["const a = `prose-${size}`;", ["prose-"]],
     ['<div className="prose prose-gray" />', ["prose-gray"]],
+    // Important modifier, leading (v3/v4) or trailing (v4).
+    ['const a = "!prose-sm";', ["!prose-sm"]],
+    ['const a = "hover:!prose-sm";', ["hover:!prose-sm"]],
+    ['const a = "prose-sm!";', ["prose-sm!"]],
+    ["const a = `!prose-${size}`;", ["!prose-"]],
+    // Class attributes inside HTML strings (ansiToHtml, export templates).
+    ['const html = `<div class="prose-sm">text</div>`;', ["prose-sm"]],
+    ["const html = '<span class=\"prose-sm text-info\">x</span>';", ["prose-sm"]],
   ])("flags %s", (source, expected) => {
     expect(findPluginOnlyProseClasses(source)).toEqual(expected);
+  });
+
+  // Generic arrows and angle-bracket casts are valid .ts but not valid .tsx.
+  it.each([
+    'const identity = <T>(x: T): T => x; const cls = "prose-sm";',
+    'const x = <string>"value"; const cls = "prose-sm";',
+  ])("flags %s in a .ts file", (source) => {
+    expect(findPluginOnlyProseClasses(source, "fixture.ts")).toEqual(["prose-sm"]);
   });
 
   it.each([
@@ -76,9 +105,23 @@ describe("findPluginOnlyProseClasses", () => {
   });
 });
 
+describe("loadsTypographyPlugin", () => {
+  it.each([
+    ['@import "tailwindcss";\n@plugin "@tailwindcss/typography";', true],
+    ["@plugin '@tailwindcss/typography';", true],
+    ['@import "tailwindcss";', false],
+    ['/* @plugin "@tailwindcss/typography"; */', false],
+    ['/*\n  @plugin "@tailwindcss/typography";\n*/\n@import "tailwindcss";', false],
+    ["a::before { content: '@plugin \"@tailwindcss/typography\"'; }", false],
+    ['@plugin "@tailwindcss/forms";', false],
+  ])("%s -> %s", (css, expected) => {
+    expect(loadsTypographyPlugin(css)).toBe(expected);
+  });
+});
+
 describe("typography plugin invariant", () => {
   const stylesheets = walk(SRC, (p) => p.endsWith(".css"));
-  const pluginLoaded = stylesheets.some((p) => PLUGIN_DIRECTIVE.test(readFileSync(p, "utf8")));
+  const pluginLoaded = stylesheets.some((p) => loadsTypographyPlugin(readFileSync(p, "utf8")));
 
   it("discovers the app stylesheets", () => {
     const names = stylesheets.map((p) => relative(ROOT, p));

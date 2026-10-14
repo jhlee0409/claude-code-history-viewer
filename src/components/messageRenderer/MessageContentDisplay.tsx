@@ -272,14 +272,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               />
             </div>
           ) : (
-            <div className={cn(
-              layout.prose,
-              "prose-headings:text-foreground prose-p:text-foreground prose-a:text-accent",
-              "prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded",
-              "prose-pre:bg-card prose-pre:text-foreground prose-pre:border prose-pre:border-border",
-              "prose-blockquote:text-muted-foreground prose-blockquote:border-l-4 prose-blockquote:border-accent prose-blockquote:pl-4",
-              "prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground"
-            )}>
+            <div className={layout.prose}>
               <ReactMarkdown
                 remarkPlugins={REMARK_PLUGINS}
                 rehypePlugins={REHYPE_PLUGINS}
