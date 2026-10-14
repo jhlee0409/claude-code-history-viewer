@@ -207,5 +207,6 @@
   "analytics.trend.newDescription": "新規 — 前日のアクティビティなし",
   "analytics.trend.upSmallBase": "増加 — 前日の値が小さすぎて比較できません",
   "analytics.trend.downSmallBase": "減少 — 前日の値が小さすぎて比較できません",
-  "analytics.trend.flatSmallBase": "変化なし — 前日の値が小さすぎて比較できません"
+  "analytics.trend.flatSmallBase": "変化なし — 前日の値が小さすぎて比較できません",
+  "analytics.trend.times": "{{value}}倍"
 }

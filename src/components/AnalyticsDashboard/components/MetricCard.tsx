@@ -21,6 +21,15 @@ const DIRECTION_STYLE: Record<TrendDirection, { className: string; Icon: React.E
 const pctDirection = (value: number): TrendDirection =>
   value > 0 ? "up" : value < 0 ? "down" : "flat";
 
+/** Above +100% a percentage is hard to read, so the chip shows a multiple instead. */
+const MULTIPLE_ABOVE_PCT = 100;
+
+/** "2.5" / "5" / "62": one decimal below 10×, whole numbers from 10× on. */
+const formatMultiple = (pct: number): string => {
+  const ratio = 1 + pct / 100;
+  return ratio < 10 ? String(Math.round(ratio * 10) / 10) : String(Math.round(ratio));
+};
+
 /**
  * Day-over-day trend chip. Only `pct` shows a number; the other kinds share
  * the same chip with an arrow and an explanation for hover and screen readers.
@@ -49,6 +58,12 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
 
   switch (trend.kind) {
     case "pct":
+      if (trend.value > MULTIPLE_ABOVE_PCT) {
+        return chip(
+          "up",
+          <span>{t("analytics.trend.times", { value: formatMultiple(trend.value) })}</span>
+        );
+      }
       return chip(pctDirection(trend.value), <span>{Math.abs(trend.value)}%</span>);
     case "new":
       return chip(

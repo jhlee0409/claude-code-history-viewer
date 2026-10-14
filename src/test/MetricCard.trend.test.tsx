@@ -6,7 +6,8 @@ import type { GrowthTrend } from "../components/AnalyticsDashboard/types";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, opts?: { value?: string }) =>
+      opts?.value != null ? `${key}(${opts.value})` : key,
   }),
   initReactI18next: {
     type: "3rdParty",
@@ -22,11 +23,24 @@ const renderCard = (trend?: GrowthTrend) =>
 const trendChip = () => screen.queryByTestId("metric-card-trend");
 
 describe("MetricCard trend chip", () => {
-  it("renders a percentage for a comparable base", () => {
-    renderCard({ kind: "pct", value: 400 });
+  it("renders a percentage for a comparable base up to +100%", () => {
+    renderCard({ kind: "pct", value: 100 });
     const chip = trendChip();
     expect(chip).not.toBeNull();
-    expect(chip?.textContent).toBe("400%");
+    expect(chip?.textContent).toBe("100%");
+    expect(chip?.className).toContain("text-success");
+  });
+
+  it.each([
+    [101, "2"],
+    [150, "2.5"],
+    [400, "5"],
+    [6123, "62"],
+    [7418, "75"],
+  ])("renders +%i%% as a multiple (%s×) instead of a percentage", (value, times) => {
+    renderCard({ kind: "pct", value });
+    const chip = trendChip();
+    expect(chip?.textContent).toBe(`analytics.trend.times(${times})`);
     expect(chip?.className).toContain("text-success");
   });
 

@@ -207,5 +207,6 @@
   "analytics.trend.newDescription": "新增 — 前一天無活動",
   "analytics.trend.upSmallBase": "上升 — 前一天數值過小，無法比較",
   "analytics.trend.downSmallBase": "下降 — 前一天數值過小，無法比較",
-  "analytics.trend.flatSmallBase": "持平 — 前一天數值過小，無法比較"
+  "analytics.trend.flatSmallBase": "持平 — 前一天數值過小，無法比較",
+  "analytics.trend.times": "{{value}}倍"
 }
