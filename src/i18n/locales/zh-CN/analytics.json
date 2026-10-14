@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "活动热力图",
   "analytics.activityPeriod": "活动时期",
   "analytics.activityTooltip": "{{day}}{{hour}}时\n活动：{{count}}次\n令牌：{{tokens}}",
-  "analytics.Analytics Dashboard": "分析仪表板",
   "analytics.andMoreSessions": "... 以及另外{{count}}个会话",
   "analytics.Avg Session Time": "平均会话时间",
   "analytics.avgSession": "平均会话",

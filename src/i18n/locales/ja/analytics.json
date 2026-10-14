@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "アクティビティヒートマップ",
   "analytics.activityPeriod": "活動期間",
   "analytics.activityTooltip": "{{day}}曜日 {{hour}}時\nアクティビティ: {{count}}回\nトークン: {{tokens}}",
-  "analytics.Analytics Dashboard": "分析ダッシュボード",
   "analytics.andMoreSessions": "... さらに{{count}}セッション",
   "analytics.Avg Session Time": "平均セッション時間",
   "analytics.avgSession": "平均セッション",

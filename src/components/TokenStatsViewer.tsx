@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   BarChart3,
   MessageSquare,
-  Sparkles,
   Layers,
   ChevronDown,
   Loader2,
@@ -73,7 +72,6 @@ interface TokenStatsViewerProps {
   projectConversationStatsSummary?: ProjectStatsSummary | null;
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
-  title?: string;
   isLoading?: boolean;
   dateFilter?: { start: Date | null; end: Date | null };
   setDateFilter?: (filter: { start: Date | null; end: Date | null }) => void;
@@ -90,7 +88,6 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   projectConversationStatsSummary,
   pagination,
   onLoadMore,
-  title,
   isLoading = false,
   dateFilter,
   setDateFilter,
@@ -444,30 +441,18 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       minHeight="py-24"
     >
       <div className="space-y-6">
-        {/* Header */}
-        {(title || (dateFilter && setDateFilter)) && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            {title && (
-              <div className="flex items-center gap-3 shrink-0">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: "color-mix(in oklch, var(--metric-purple) 15%, transparent)" }}
-                >
-                  <Sparkles className="w-4 h-4" style={{ color: "var(--metric-purple)" }} />
-                </div>
-                <h2 className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">
-                  {title}
-                </h2>
-              </div>
-            )}
-
-            {dateFilter && setDateFilter && (
-              <DatePickerHeader
-                dateFilter={dateFilter}
-                setDateFilter={setDateFilter}
-                className="bg-card/50"
-              />
-            )}
+        {/*
+          Date filter only. The view's title lives in the shell's content
+          header (AppLayout), so repeating it here showed it twice. Kept at the
+          trailing edge where it sat beside the old title.
+        */}
+        {dateFilter && setDateFilter && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
+            <DatePickerHeader
+              dateFilter={dateFilter}
+              setDateFilter={setDateFilter}
+              className="bg-card/50"
+            />
           </div>
         )}
 

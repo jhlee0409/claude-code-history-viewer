@@ -119,14 +119,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               <div className="w-16 h-16 mx-auto rounded-full bg-muted/30 flex items-center justify-center">
                 <BarChart3 className="w-8 h-8 text-muted-foreground/40" />
               </div>
-              <div>
-                <h2 className="text-sm font-medium text-foreground/80 mb-1">
-                  {t("analytics.Analytics Dashboard")}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {t("analytics.Select a project to view analytics")}
-                </p>
-              </div>
+              {/* The view's title is the shell's content header (AppLayout). */}
+              <p className="text-xs text-muted-foreground">
+                {t("analytics.Select a project to view analytics")}
+              </p>
             </div>
           }
         />

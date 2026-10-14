@@ -826,7 +826,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 >
                   <div className="p-3 md:p-6">
                     <TokenStatsViewer
-                      title={t("messages.tokenStats.title")}
                       sessionStats={sessionTokenStats}
                       sessionConversationStats={sessionConversationTokenStats}
                       projectStats={projectTokenStats}

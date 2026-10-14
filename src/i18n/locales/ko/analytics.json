@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "활동 히트맵",
   "analytics.activityPeriod": "활동 기간",
   "analytics.activityTooltip": "{{day}}요일 {{hour}}시\n활동: {{count}}회\n토큰: {{tokens}}",
-  "analytics.Analytics Dashboard": "분석 대시보드",
   "analytics.andMoreSessions": "... 그리고 {{count}}개 세션 더",
   "analytics.Avg Session Time": "평균 세션 시간",
   "analytics.avgSession": "평균 세션",
