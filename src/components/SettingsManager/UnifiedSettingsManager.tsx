@@ -9,6 +9,7 @@
  */
 
 import * as React from "react";
+import { usePendingLoad } from "@/hooks/usePendingLoad";
 import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   const [allSettings, setAllSettings] = React.useState<AllSettingsResponse | null>(null);
   const [activeScope, setActiveScope] = React.useState<SettingsScope>("user");
   const [isLoading, setIsLoading] = React.useState(true);
+  usePendingLoad(isLoading);
   const [error, setError] = React.useState<string | null>(null);
 
   // Project path state - allows changing project within the component

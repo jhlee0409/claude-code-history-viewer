@@ -61,6 +61,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { usePendingLoad } from "./usePendingLoad";
 import { api } from "@/services/api";
 import type {
   UnifiedPresetData,
@@ -119,6 +120,7 @@ export interface UseUnifiedPresetsResult {
 export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
   const [presets, setPresets] = useState<UnifiedPresetData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  usePendingLoad(isLoading);
   const [error, setError] = useState<string | null>(null);
 
   /**

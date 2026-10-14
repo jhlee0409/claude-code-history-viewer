@@ -49,7 +49,10 @@ directory, and Windows resolves the home folder without `HOME`.
 | Pointer | parked at (1,1) after every step, so no hover state or tooltip |
 
 **Settled state** = no tracked request in flight, `data-ready="true"` on the
-app root (attribute only; the root reads it from the store's loading flags),
+app root (attribute only; "true" only when no store load - including
+incremental "load more" pages and the recent-edits dock - and no view-level
+load registered with `usePendingLoad`, e.g. the Settings Manager's settings
+fetch, is pending; the terminal error screen is always "true"),
 `document.fonts.status === "loaded"`, and no DOM mutation for 4 consecutive
 100 ms steps of virtual time. Virtual time only advances while the app is
 network-idle, so debounces and deferred effects run in a fixed order.

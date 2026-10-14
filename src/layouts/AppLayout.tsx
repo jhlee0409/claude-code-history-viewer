@@ -54,6 +54,7 @@ import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import type { SearchState, SearchFilterType } from "@/store/slices/types";
 import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "@/utils/worktreeUtils";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
+import { usePendingLoadCount } from "@/hooks/usePendingLoad";
 
 export interface AppLayoutProps {
   // Store state
@@ -261,27 +262,37 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
   /*
-    Store-level loads that the props below do not carry. Together with the
-    prop flags they define the non-visual `data-ready` marker on the root: it
-    reads "true" only when no store-level load is pending. The UI capture
-    harness (`scripts/ui-capture`) waits on it, on top of network and DOM
-    quiescence, before it photographs a screen. Attribute only; it never
+    The non-visual `data-ready` marker on the root reads "true" only when no
+    load is pending anywhere a screen can show a loader: the prop flags below,
+    store-level loads the props do not carry (including incremental "load
+    more" pages and the recent-edits dock), and view-level loads components
+    keep in local state (`usePendingLoad`, e.g. the Settings Manager). The UI
+    capture harness (`scripts/ui-capture`) waits on it, on top of network and
+    DOM quiescence, before it photographs a screen. Attribute only; it never
     affects layout or styling.
   */
   const hasPendingStoreLoad = useAppStore(
     (s) =>
       s.isLoadingGlobalStats ||
       s.isLoadingBoard ||
+      s.isMetadataLoading ||
+      s.pagination.isLoadingMore ||
+      s.isLoadingRecentEditsDock ||
+      s.isLoadingMoreRecentEditsDock ||
+      s.analytics.recentEditsPagination.isLoadingMore ||
       s.archive.isLoadingArchives ||
       s.archive.isLoadingSessions ||
       s.archive.isLoadingExpiring ||
       s.archive.isLoadingDiskUsage
   );
+  const pendingViewLoads = usePendingLoadCount();
   const isSettled = !(
     hasPendingStoreLoad ||
+    pendingViewLoads > 0 ||
     isLoading ||
     isLoadingProjects ||
     isLoadingSessions ||
+    isLoadingMoreSessions ||
     isLoadingMessages ||
     isLoadingTokenStats ||
     computed.isAnyLoading
@@ -304,6 +315,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     return (
       <div
         className="h-screen flex items-center justify-center bg-background"
+        // Terminal error screen: nothing further loads, so it is settled.
         data-ready="true"
       >
         <div className="text-center max-w-md mx-auto p-8">

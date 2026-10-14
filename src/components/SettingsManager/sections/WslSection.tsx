@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { usePendingLoad } from "@/hooks/usePendingLoad";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -48,6 +49,7 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
 
   const [distros, setDistros] = useState<WslDistro[]>([]);
   const [isLoadingDistros, setIsLoadingDistros] = useState(false);
+  usePendingLoad(isLoadingDistros);
   const [distroError, setDistroError] = useState<string | null>(null);
 
   useEffect(() => {

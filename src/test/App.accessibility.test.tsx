@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
 
 const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
@@ -34,6 +35,10 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     // Store-level loads AppLayout folds into its `data-ready` marker.
     isLoadingGlobalStats: false,
     isLoadingBoard: false,
+    isMetadataLoading: false,
+    isLoadingRecentEditsDock: false,
+    isLoadingMoreRecentEditsDock: false,
+    analytics: { recentEditsPagination: { isLoadingMore: false } },
     archive: {
       isLoadingArchives: false,
       isLoadingSessions: false,
@@ -103,6 +108,11 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
   const resetStoreLoadFlags = () => {
     state.isLoadingGlobalStats = false;
     state.isLoadingBoard = false;
+    state.isMetadataLoading = false;
+    state.isLoadingRecentEditsDock = false;
+    state.isLoadingMoreRecentEditsDock = false;
+    state.analytics.recentEditsPagination.isLoadingMore = false;
+    state.pagination.isLoadingMore = false;
     Object.assign(state.archive, {
       isLoadingArchives: false,
       isLoadingSessions: false,
@@ -426,6 +436,11 @@ describe("App accessibility smoke", () => {
     ["an archive list is loading", () => { appStoreState.archive.isLoadingArchives = true; }, "false"],
     ["the archive disk usage is loading", () => { appStoreState.archive.isLoadingDiskUsage = true; }, "false"],
     ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
+    ["session metadata is loading", () => { appStoreState.isMetadataLoading = true; }, "false"],
+    ["another message page is loading", () => { appStoreState.pagination.isLoadingMore = true; }, "false"],
+    ["the recent-edits dock is loading", () => { appStoreState.isLoadingRecentEditsDock = true; }, "false"],
+    ["another recent-edits dock page is loading", () => { appStoreState.isLoadingMoreRecentEditsDock = true; }, "false"],
+    ["another recent-edits page is loading", () => { appStoreState.analytics.recentEditsPagination.isLoadingMore = true; }, "false"],
   ])("reports data-ready while %s", (_label, arrange, expected) => {
     arrange();
 
@@ -437,5 +452,18 @@ describe("App accessibility smoke", () => {
     expect(container.querySelector('[data-slot="main"]')).toBe(
       document.getElementById("main-content"),
     );
+  });
+
+  it("reports data-ready false while a view-level load is registered", () => {
+    // e.g. the Settings Manager fetching its settings (usePendingLoad).
+    const release = beginPendingLoad();
+    let container: HTMLElement;
+    try {
+      ({ container } = render(<App />));
+      expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "false");
+    } finally {
+      act(() => release());
+    }
+    expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "true");
   });
 });
