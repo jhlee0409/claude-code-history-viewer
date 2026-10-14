@@ -829,6 +829,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 >
                   <AnalyticsDashboard
                     isGlobalScope={computed.isGlobalStatsView}
+                    onRetry={() => void analyticsActions.refreshAnalytics()}
                   />
                 </OverlayScrollbarsComponent>
               ) : computed.isTokenStatsView ? (

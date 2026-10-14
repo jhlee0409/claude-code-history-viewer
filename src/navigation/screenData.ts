@@ -14,6 +14,7 @@
  * latest request's to clear: a superseded request never stops a newer one's
  * spinner, and an abandoned one never strands it.
  */
+import { toast } from "sonner";
 import type { FullAppStore } from "@/store/slices/types";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { ownPlace, ownWork, type PlaceOwner } from "./ownership";
@@ -111,8 +112,14 @@ export interface ProjectAnalyticsOptions extends ScreenLoadOptions {
 
 /**
  * Project analytics: the project summary, then the open session's
- * comparison. A summary failure is recorded on the screen and rethrown to the
- * caller while it still owns the screen.
+ * comparison.
+ *
+ * The loader is the one reporter of a summary failure, whichever path asked
+ * (opening the screen, a project switch, a stats-mode or date change, a
+ * refresh): while it still owns the screen it records the failure there - the
+ * dashboard renders it as its error state - and raises the one notification.
+ * It never rethrows, so no caller reports it a second time or escalates it to
+ * the app-wide error screen; a superseded failure reports nothing.
  */
 export async function loadProjectAnalytics(
   get: Get,
@@ -130,11 +137,13 @@ export async function loadProjectAnalytics(
     if (!owns()) return;
     get().setAnalyticsProjectSummary(summary);
   } catch (error) {
+    console.error("Failed to load project stats summary:", error);
     if (!owns()) return;
-    get().setAnalyticsProjectSummaryError(
-      errorText(error, options.failureText?.summary),
-    );
-    throw error;
+    const title = options.failureText?.summary;
+    const detail = errorText(error, title);
+    get().setAnalyticsProjectSummaryError(detail);
+    toast.error(title && detail !== title ? `${title}: ${detail}` : detail);
+    return;
   } finally {
     if (isLatest()) get().setAnalyticsLoadingProjectSummary(false);
   }

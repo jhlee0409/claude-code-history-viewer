@@ -21,6 +21,7 @@ import { getModelLifecycle } from "./utils/calculations";
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   isGlobalScope = false,
+  onRetry,
 }) => {
   const { t } = useTranslation();
   const {
@@ -201,6 +202,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ProjectStatsView
             projectSummary={projectSummary}
             conversationSummary={projectConversationSummary}
+            isLoading={analyticsState.isLoadingProjectSummary}
+            error={analyticsState.projectSummaryError}
+            onRetry={onRetry}
             providerId={selectedProject?.provider ?? "claude"}
           />
         )}

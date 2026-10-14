@@ -251,6 +251,12 @@ interface LoadingStateProps extends React.HTMLAttributes<HTMLDivElement> {
   isLoading: boolean;
   /** Error state */
   error?: string | null;
+  /** What failed, shown above the error's detail */
+  errorTitle?: string;
+  /** Offered under the error as a retry button */
+  onRetry?: () => void;
+  /** The retry button's label (required with `onRetry`) */
+  retryLabel?: string;
   /** Empty state check */
   isEmpty?: boolean;
   /** Custom loading component */
@@ -282,6 +288,9 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
       children,
       isLoading,
       error,
+      errorTitle,
+      onRetry,
+      retryLabel,
       isEmpty = false,
       loadingComponent,
       errorComponent,
@@ -379,9 +388,10 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
           )}
           {...props}
         >
-          <div className="text-center max-w-sm">
+          <div className="text-center max-w-sm" role="alert">
             <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
               <svg
+                aria-hidden="true"
                 className="w-6 h-6 text-destructive"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -395,7 +405,21 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
                 />
               </svg>
             </div>
-            <p className="text-sm text-destructive">{error}</p>
+            {errorTitle && (
+              <p className="text-sm font-semibold text-foreground mb-1">
+                {errorTitle}
+              </p>
+            )}
+            <p className="text-sm text-destructive break-words">{error}</p>
+            {onRetry && retryLabel && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="action-btn primary mt-4"
+              >
+                {retryLabel}
+              </button>
+            )}
           </div>
         </div>
       );

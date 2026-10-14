@@ -295,7 +295,8 @@ export interface AppStoreActions {
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
   /**
    * The project's billing summary (and, when supported, its conversation-only
-   * breakdown). A failure is rethrown unreported: the caller reports it once.
+   * breakdown). A failure is rethrown unreported: the screen loader
+   * (`loadProjectAnalytics`) reports it once.
    */
   loadProjectStatsSummary: (
     projectPath: string,

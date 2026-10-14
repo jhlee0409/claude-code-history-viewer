@@ -285,7 +285,6 @@ export function useAnalyticsNavigation() {
       const ownsPlace = ownPlace(useAppStore.getState);
       const state = useAppStore.getState();
       const project = state.selectedProject;
-      const session = state.selectedSession;
       const screen = state.view;
       const isGlobalScope =
         options?.isGlobalScope ??
@@ -311,15 +310,9 @@ export function useAnalyticsNavigation() {
           error instanceof Error
             ? error.message
             : t("common.hooks.projectSummaryLoadFailed");
+        // Project analytics never lands here: its loader records and
+        // reports a failure itself (`loadProjectAnalytics`).
         toast.error(errorMessage);
-        if (screen === "analytics") {
-          setAnalyticsProjectSummaryError(errorMessage);
-          if (session != null) {
-            setAnalyticsSessionComparisonError(errorMessage);
-          }
-          return;
-        }
-
         if (screen === "tokenStats") {
           useAppStore.getState().setError({
             type: AppErrorType.UNKNOWN,

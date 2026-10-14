@@ -993,41 +993,36 @@ export const createMessageSlice: StateCreator<
   loadProjectStatsSummary: async (projectPath: string, ownership) => {
     const owns =
       ownership ?? ownWork(get, { context: { projectPath } }).ownsFeedback;
-    try {
-      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+    // A failure is rethrown unreported: the screen loader that owns the
+    // screen (`loadProjectAnalytics`) records it there and raises the one
+    // notification.
+    const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
-      const billing = await fetchProjectStatsSummary(projectPath, {
-        ...dateOptions,
-        stats_mode: "billing_total",
-      });
-      const conversation = canLoadConversationBreakdown()
-        ? await fetchProjectStatsSummary(projectPath, {
-            ...dateOptions,
-            stats_mode: "conversation_only",
-          }).catch((error) => {
-            console.warn(
-              "Failed to load conversation-only project summary:",
-              error
+    const billing = await fetchProjectStatsSummary(projectPath, {
+      ...dateOptions,
+      stats_mode: "billing_total",
+    });
+    const conversation = canLoadConversationBreakdown()
+      ? await fetchProjectStatsSummary(projectPath, {
+          ...dateOptions,
+          stats_mode: "conversation_only",
+        }).catch((error) => {
+          console.warn(
+            "Failed to load conversation-only project summary:",
+            error
+          );
+          if (owns()) {
+            toast.warning(
+              "Conversation-only project summary could not be loaded. Showing billing totals only."
             );
-            if (owns()) {
-              toast.warning(
-                "Conversation-only project summary could not be loaded. Showing billing totals only."
-              );
-            }
-            return billing;
-          })
-        : billing;
-      if (owns()) {
-        get().setAnalyticsProjectConversationSummary(conversation);
-      }
-      return billing;
-    } catch (error) {
-      // Reported once, by the caller that owns the screen: every caller
-      // (`loadProjectAnalytics`) records it on the screen and its own caller
-      // raises the one notification.
-      console.error("Failed to load project stats summary:", error);
-      throw error;
+          }
+          return billing;
+        })
+      : billing;
+    if (owns()) {
+      get().setAnalyticsProjectConversationSummary(conversation);
     }
+    return billing;
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {

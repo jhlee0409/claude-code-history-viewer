@@ -218,7 +218,8 @@ export function useAnalyticsAutoLoad(computed: {
         if (isStaleRequest()) {
           return;
         }
-        // The loader has already recorded the failure on the screen.
+        // Global and token stats. Project analytics never lands here: its
+        // loader records and reports a failure itself.
         const message =
           err instanceof Error
             ? err.message

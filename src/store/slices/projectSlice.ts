@@ -650,9 +650,14 @@ export const createProjectSlice: StateCreator<
       } else if (view === "tokenStats") {
         await loadTokenStatsScreen(get, refreshedProject, refreshedSession);
       } else if (view === "analytics") {
+        // Reports its own failure on the screen (no app-wide error).
         await loadProjectAnalytics(get, refreshedProject, refreshedSession, {
           ...loadOptions,
           clearComparisonWithoutSession: true,
+          failureText: {
+            summary: i18n.t("common.hooks.projectSummaryLoadFailed"),
+            comparison: i18n.t("common.hooks.sessionComparisonLoadFailed"),
+          },
         });
       } else if (view === "edits") {
         await loadRecentEditsScreen(get, refreshedProject, loadOptions);
