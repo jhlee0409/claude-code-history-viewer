@@ -156,3 +156,33 @@ describe("a superseded navigation's loads do not take over the new screen", () =
     expect(state().error?.message).toBe("A2 is unreadable");
   });
 });
+
+describe("the WebUI URL follows the place even when a navigation is cancelled", () => {
+  const urlSession = () => new URL(window.location.href).searchParams.get("session");
+
+  it("a cancelled project navigation does not leave the previous session in the URL", async () => {
+    await state().navigate({ project: A, session: A1 });
+    expect(urlSession()).toBe("a1");
+    const load = gate<unknown>();
+    overrides.load_provider_sessions_page = () => load.promise;
+
+    const opening = state().navigate({ project: B });
+    await state().navigate({ view: "globalStats" });
+    load.resolve({ sessions: [B1], total: 1, nextOffset: 1, hasMore: false });
+
+    expect(await opening).toBe(false);
+    expect(state().selectedProject?.path).toBe(B.path);
+    expect(state().selectedSession).toBeNull();
+    expect(urlSession()).toBeNull();
+  });
+
+  it("opening another project's session still adds exactly one URL entry", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const push = vi.spyOn(window.history, "pushState");
+
+    await state().navigate({ project: B, session: B1 });
+
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(urlSession()).toBe("b1");
+  });
+});

@@ -171,16 +171,21 @@ export const createNavigationSlice: StateCreator<
     // The screen is the user's intent; commit it before anything loads.
     set({ view });
 
+    // The URL changes together with the selection it mirrors. Opening a
+    // project drops the open session at once (`selectProject`), so the URL
+    // drops it here too, before the first await: a navigation cancelled
+    // during the project load must not leave the outgoing session in it.
+    let sessionHistory = history;
     if (opensProject) {
+      writeWebUIDeepLink({ sessionId: null, messageId: null }, history);
+      // The session written next refines this entry rather than adding one.
+      if (history === "push") sessionHistory = "replace";
       await get().selectProject(target.project as ClaudeProject);
       if (!isCurrent()) return false;
-      if (target.session === undefined) {
-        writeWebUIDeepLink({ sessionId: null, messageId: null }, history);
-      }
     }
 
     if (target.session) {
-      await get().selectSession(target.session, { history });
+      await get().selectSession(target.session, { history: sessionHistory });
       if (!isCurrent()) return false;
     } else if (target.session === null && get().selectedSession) {
       set({
