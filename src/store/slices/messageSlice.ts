@@ -659,6 +659,9 @@ export const createMessageSlice: StateCreator<
       });
     } catch (error) {
       console.error("Failed to locate message offset:", error);
+      // The session this was asked for is no longer open: not the user's
+      // concern on the screen they are on now.
+      if (get().selectedSession?.file_path !== sessionPath) return false;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to locate message: ${message}`);
       return false;

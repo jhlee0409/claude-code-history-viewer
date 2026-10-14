@@ -85,6 +85,8 @@ let overrides: Record<string, (args: Record<string, unknown>) => unknown>;
 
 beforeEach(() => {
   overrides = {};
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.info).mockClear();
   apiMock.mockReset();
   apiMock.mockImplementation(async (command: string, args: Record<string, unknown> = {}) => {
     const override = overrides[command];
@@ -153,6 +155,23 @@ describe("a superseded navigation's loads do not take over the new screen", () =
     await loading;
 
     expect(state().error).toBeNull();
+  });
+
+  it("a late failure locating a message in a session the user left is not reported", async () => {
+    overrides.load_provider_messages_paginated = () => ({
+      ...page(),
+      has_more: true,
+    });
+    await state().navigate({ project: A, session: A1 });
+    const locate = gate<number>();
+    overrides.get_provider_message_offset = () => locate.promise;
+
+    const locating = state().ensureMessageLoaded("deep-in-A1");
+    await state().navigate({ session: A2 });
+    locate.reject(new Error("obsolete offset failure"));
+
+    expect(await locating).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("a failure of the navigation still in charge is still reported", async () => {

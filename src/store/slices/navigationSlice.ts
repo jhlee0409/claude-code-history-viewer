@@ -10,16 +10,20 @@
  * Moving the user is one transaction, `navigate` (plan §4.2):
  *
  * 1. The target is captured and the navigation epoch advances before anything
- *    awaits, and the screen is committed at once.
- * 2. The project and session loads it starts check the epoch after every
- *    await; a newer navigation makes them stop, so a slow load can no longer
- *    land on top of a later choice.
+ *    awaits; the screen (validated against the place's context, §4.1) and
+ *    the URL of the selection it drops are committed at once.
+ * 2. Every write that lands after an await checks that it still owns what it
+ *    writes (`src/navigation/ownership.ts`): data by request identity,
+ *    anything else the user sees (the global error, the URL, the target, the
+ *    place) also by the epoch. A slow load can no longer land on top of a
+ *    later choice, nor raise its failure over the screen the user moved to.
  * 3. Only then are the message target and the back/forward history written.
  *
  * Reloading what is on screen is not navigation: the watcher, filter toggles,
- * the header refresh and the restore after a screen switch use
- * `reloadCurrent` (message slice), which never changes the place and never
- * advances the epoch.
+ * the header refresh, `refreshAnalytics` and the restore after a screen switch
+ * reload through `reloadCurrent` and the shared screen loaders
+ * (`src/navigation/screenData.ts`); they never change the place and never
+ * advance the epoch, and a navigation that starts meanwhile supersedes them.
  */
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
