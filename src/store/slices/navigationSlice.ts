@@ -17,7 +17,8 @@
  *    anything else the user sees (the global error, the URL, the target, the
  *    place) also by the epoch. A slow load can no longer land on top of a
  *    later choice, nor raise its failure over the screen the user moved to.
- * 3. Only then are the message target and the back/forward history written.
+ * 3. Only then are a new message target and the back/forward history
+ *    written. (The outgoing session's target leaves with it in step 1.)
  *
  * Reloading what is on screen is not navigation: the watcher, filter toggles,
  * the header refresh, `refreshAnalytics` and the restore after a screen switch
@@ -175,7 +176,9 @@ export const createNavigationSlice: StateCreator<
       return false;
     }
     const epoch = options.epoch ?? start.navigationEpoch + 1;
-    const isCurrent = () => get().navigationEpoch === epoch;
+    // This navigation's own place ownership (`src/navigation/ownership.ts`):
+    // every write after an await below needs it.
+    const ownsPlace = () => get().navigationEpoch === epoch;
     const history = options.history ?? "push";
     const from = entryOf(start);
 
@@ -209,6 +212,18 @@ export const createNavigationSlice: StateCreator<
     // The screen is the user's intent; commit it before anything loads.
     set({ view });
 
+    // The explicit target belongs to its session, so it leaves with it:
+    // dropped together with the selection change, before the first await, so
+    // a move cancelled mid-load cannot carry it to the next session. Only a
+    // new explicit target waits for the load (below).
+    const leavesSession =
+      start.selectedSession != null &&
+      (opensProject ||
+        target.session === null ||
+        (target.session != null &&
+          target.session.file_path !== start.selectedSession.file_path));
+    if (leavesSession) get().clearTargetMessage();
+
     // The URL changes together with the selection it mirrors. Opening a
     // project drops the open session at once (`selectProject`), so the URL
     // drops it here too, before the first await: a navigation cancelled
@@ -216,15 +231,16 @@ export const createNavigationSlice: StateCreator<
     if (opensProject) {
       writeWebUIDeepLink({ sessionId: null, messageId: null }, historyMode());
       await get().selectProject(target.project as ClaudeProject);
-      if (!isCurrent()) return false;
     }
+    // Every step below lands after the project load: only while this
+    // navigation still owns the place.
+    if (!ownsPlace()) return false;
 
     if (target.session) {
       await get().selectSession(target.session, {
         history: historyMode(),
         cachedMessages: target.sessionMessages,
       });
-      if (!isCurrent()) return false;
     } else if (target.session === null && get().selectedSession) {
       set({
         selectedSession: null,
@@ -237,6 +253,8 @@ export const createNavigationSlice: StateCreator<
       get().clearTargetMessage();
       writeWebUIDeepLink({ sessionId: null, messageId: null }, historyMode());
     }
+    // ...and after the session load.
+    if (!ownsPlace()) return false;
 
     // The explicit target belongs to its session. `messageId` omitted keeps
     // it (a screen switch), `null` drops it, and opening another session
