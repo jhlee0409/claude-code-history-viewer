@@ -260,6 +260,32 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+  /*
+    Store-level loads that the props below do not carry. Together with the
+    prop flags they define the non-visual `data-ready` marker on the root: it
+    reads "true" only when no store-level load is pending. The UI capture
+    harness (`scripts/ui-capture`) waits on it, on top of network and DOM
+    quiescence, before it photographs a screen. Attribute only; it never
+    affects layout or styling.
+  */
+  const hasPendingStoreLoad = useAppStore(
+    (s) =>
+      s.isLoadingGlobalStats ||
+      s.isLoadingBoard ||
+      s.archive.isLoadingArchives ||
+      s.archive.isLoadingSessions ||
+      s.archive.isLoadingExpiring ||
+      s.archive.isLoadingDiskUsage
+  );
+  const isSettled = !(
+    hasPendingStoreLoad ||
+    isLoading ||
+    isLoadingProjects ||
+    isLoadingSessions ||
+    isLoadingMessages ||
+    isLoadingTokenStats ||
+    computed.isAnyLoading
+  );
 
   /*
     The return trip out of the dock. Mode is only a preference; what actually
@@ -276,7 +302,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
+      <div
+        className="h-screen flex items-center justify-center bg-background"
+        data-ready="true"
+      >
         <div className="text-center max-w-md mx-auto p-8">
           <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
             <AlertTriangle className="w-8 h-8 text-destructive" />
@@ -408,7 +437,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-background">
+      <div
+        className="h-screen flex flex-col bg-background"
+        data-ready={isSettled ? "true" : "false"}
+      >
         <nav
           aria-label={t("common.a11y.skipNavigation", {
             defaultValue: "Skip navigation",
@@ -598,6 +630,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           {/* Main Content Area */}
           <main
             id="main-content"
+            data-slot="main"
             tabIndex={-1}
             className="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
           >

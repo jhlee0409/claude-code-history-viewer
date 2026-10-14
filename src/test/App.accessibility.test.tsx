@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import App from "@/App";
 
-const { useAppStoreMock } = vi.hoisted(() => {
+const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
   const mockSession = {
     session_id: "session-1",
     actual_session_id: "session-1",
@@ -31,6 +31,15 @@ const { useAppStoreMock } = vi.hoisted(() => {
     isLoadingSessions: false,
     isLoadingMessages: false,
     isLoadingTokenStats: false,
+    // Store-level loads AppLayout folds into its `data-ready` marker.
+    isLoadingGlobalStats: false,
+    isLoadingBoard: false,
+    archive: {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    },
     error: null,
     sessionTokenStats: null,
     sessionConversationTokenStats: null,
@@ -91,9 +100,21 @@ const { useAppStoreMock } = vi.hoisted(() => {
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
 
+  const resetStoreLoadFlags = () => {
+    state.isLoadingGlobalStats = false;
+    state.isLoadingBoard = false;
+    Object.assign(state.archive, {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    });
+  };
+
   return {
     appStoreState: state,
     useAppStoreMock: storeMock,
+    resetStoreLoadFlags,
   };
 });
 
@@ -291,6 +312,7 @@ describe("App accessibility smoke", () => {
     window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     resetComputedMock();
+    resetStoreLoadFlags();
   });
 
   it("renders skip links and landmark targets", () => {
@@ -390,5 +412,30 @@ describe("App accessibility smoke", () => {
         { history: "none" },
       );
     });
+  });
+
+  /**
+   * The UI capture harness (scripts/ui-capture) photographs a screen only
+   * once the root reports `data-ready="true"`, so the marker must follow
+   * every load it folds in, and the main pane must carry its probe hook.
+   */
+  it.each([
+    ["nothing is loading", () => {}, "true"],
+    ["the global stats are loading", () => { appStoreState.isLoadingGlobalStats = true; }, "false"],
+    ["the board is loading", () => { appStoreState.isLoadingBoard = true; }, "false"],
+    ["an archive list is loading", () => { appStoreState.archive.isLoadingArchives = true; }, "false"],
+    ["the archive disk usage is loading", () => { appStoreState.archive.isLoadingDiskUsage = true; }, "false"],
+    ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
+  ])("reports data-ready while %s", (_label, arrange, expected) => {
+    arrange();
+
+    const { container } = render(<App />);
+
+    const marked = container.querySelectorAll("[data-ready]");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveAttribute("data-ready", expected);
+    expect(container.querySelector('[data-slot="main"]')).toBe(
+      document.getElementById("main-content"),
+    );
   });
 });
