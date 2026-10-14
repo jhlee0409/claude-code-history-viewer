@@ -2,8 +2,9 @@
 
 Deterministic screenshots and layout measurements of the WebUI build, for
 before/after evidence on UI pull requests (plan task **T0**). The same commit
-captured twice gives **0 changed pixels** in every scenario; a changed pixel
-therefore means the code changed something.
+captured twice gives **byte-identical pixels** in every scenario (the
+reproducibility gate compares raw RGBA values, not pixelmatch's thresholded
+count); a changed pixel therefore means the code changed something.
 
 ```bash
 nvm use                      # Node 22.18.0 (.nvmrc)
@@ -110,12 +111,15 @@ Measured after the screenshot, written per scenario:
 
 | `--gate` | Passes when | Use for |
 |---|---|---|
-| `reproducibility` (default) | every scenario has **0** changed pixels | `--repro`; PRs that must not change pixels |
+| `reproducibility` (default) | every scenario has **0 exactly differing pixels** (raw RGBA, same size; pixelmatch's threshold does not apply) | `--repro`; PRs that must not change pixels |
 | `unchanged` | every scenario ≤ **0.1 %** changed pixels | refactors with no intended visual change |
-| `changed` | unchanged scenarios pass; a scenario that differs from the base passes only if it matches an **approved baseline** (≤ 0.1 %) | intended visual changes |
+| `changed` | a scenario **with** an approved baseline must match it (≤ 0.1 %); a scenario **without** one must stay within the unchanged tolerance (≤ 0.1 %) of the base, so tolerated noise never needs approval | intended visual changes |
 
-pixelmatch threshold is 0.1 (anti-aliasing ignored, as pixelmatch does by
-default); the report also lists the exact (byte-level) differing pixel count.
+The 0.1 % tolerance counts pixelmatch-changed pixels (threshold 0.1,
+anti-aliasing ignored, as pixelmatch does by default); the report lists both
+that count and the exact (byte-level) differing pixel count, and only the
+latter decides `reproducibility`. Gate semantics are unit-tested in
+`test/compare.test.mjs` (`pnpm exec vitest run scripts/ui-capture`).
 In every mode a scenario missing on either side - removed from
 `scenarios.mjs`, failed to capture, or absent from the base - fails the gate.
 
@@ -145,7 +149,9 @@ failed; `2` usage error.
    `pnpm ui:capture --approve-from .ui-capture/runs/latest` (optionally
    `--only <ids>`), or capture-and-approve in one go with `--approve`.
 3. Re-run with `--gate changed`: changed scenarios now pass against the
-   approved images, and every other scenario must still match the base.
+   approved images, and every other scenario must still be within 0.1 % of
+   the base. An approved scenario whose head no longer matches its approved
+   image (e.g. the intended change was lost) fails as `differs-from-approved`.
 
 Approved baselines are local (`.ui-capture/` is gitignored); attach the
 shots and diffs to the PR as evidence.
