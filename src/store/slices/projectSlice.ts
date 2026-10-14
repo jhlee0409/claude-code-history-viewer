@@ -569,16 +569,21 @@ export const createProjectSlice: StateCreator<
 
     const previouslySelectedProject = get().selectedProject;
     const previouslySelectedSession = get().selectedSession;
+    // A refresh reloads the place on screen; it never moves the user
+    // (plan §4.2). Once anything navigates, the place belongs to that
+    // navigation, which loads it fresh itself: every step below that follows
+    // an await stops there rather than act on the snapshot above.
+    const ownsPlace = ownPlace(get);
 
     set({ isRefreshingAllConversations: true, error: null });
 
     try {
       await get().scanProjects();
+      if (!ownsPlace()) return;
 
       const stateAfterScan = get();
-      // A refresh reloads the place on screen; it never moves the user
-      // (plan §4.2). The only change it makes is the fallback when the open
-      // project or session no longer exists.
+      // The only change a refresh makes to the place is the fallback when the
+      // open project or session no longer exists.
       if (!previouslySelectedProject) {
         if (stateAfterScan.view === "globalStats") {
           await stateAfterScan.loadGlobalStats();
@@ -599,6 +604,7 @@ export const createProjectSlice: StateCreator<
       // `selectedSession` and would turn the re-select below into a fresh load
       // (dropping the subagent stack, pagination and search) - see #508, #609.
       await get().reloadProjectSessions(refreshedProject);
+      if (!ownsPlace()) return;
 
       let refreshedSession: ClaudeSession | null = null;
       if (previouslySelectedSession) {
@@ -608,6 +614,7 @@ export const createProjectSlice: StateCreator<
 
         if (refreshedSession) {
           await get().reloadCurrent("refresh", refreshedSession);
+          if (!ownsPlace()) return;
         } else {
           set({
             selectedSession: null,
@@ -636,12 +643,14 @@ export const createProjectSlice: StateCreator<
         const projectSummary = await refreshedState.loadProjectStatsSummary(
           refreshedProject.path
         );
+        if (!ownsPlace()) return;
         refreshedState.setAnalyticsProjectSummary(projectSummary);
         if (refreshedSession) {
           const sessionComparison = await refreshedState.loadSessionComparison(
             refreshedSession.actual_session_id,
             refreshedProject.path
           );
+          if (!ownsPlace()) return;
           refreshedState.setAnalyticsSessionComparison(sessionComparison);
         } else {
           refreshedState.setAnalyticsSessionComparison(null);
@@ -653,7 +662,7 @@ export const createProjectSlice: StateCreator<
         // Same ownership rule as the navigation hook: if the selection moved on
         // while this was in flight, writing would show one project's edits
         // under another's identity.
-        if (get().selectedProject?.path === refreshedProject.path) {
+        if (ownsPlace()) {
           // The whole page, so the cursor is replaced along with the rows.
           // Passing only the rows is what left the cursor at 60 while the list
           // went back to page 1 (#517).
@@ -670,6 +679,7 @@ export const createProjectSlice: StateCreator<
       }
     } catch (error) {
       console.error("Failed to refresh all conversations:", error);
+      if (!ownsPlace()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to refresh conversations: ${message}`);
       get().setError({
@@ -689,6 +699,7 @@ export const createProjectSlice: StateCreator<
     // Clearing the list belongs here, not in the reload. The outgoing
     // project's rows must not linger under the incoming project's name.
     set({
+      selectedProject: project,
       selectedSession: null,
       sessions: [],
       sessionsTotal: project.session_count,
@@ -714,8 +725,15 @@ export const createProjectSlice: StateCreator<
    * in the page is looked up on its own (absence from page 1 is not deletion):
    * if it still exists it is appended to the list, otherwise it is left for
    * the caller to handle (`refreshAllConversations` clears it).
+   *
+   * A reload, so it never selects anything: `project` must be the open
+   * project (`selectProject` opens it before calling this). A newer record of
+   * it - the header refresh passes the rescanned one - replaces the held
+   * record; any other project is ignored.
    */
   reloadProjectSessions: async (project: ClaudeProject) => {
+    const open = get().selectedProject;
+    if (!open || !isSameProject(project, open)) return;
     const requestId = nextRequestId("selectProject");
     const ownsPlace = ownPlace(get);
     set((state) => ({

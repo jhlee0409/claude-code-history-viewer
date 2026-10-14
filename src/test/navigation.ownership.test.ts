@@ -186,3 +186,79 @@ describe("the WebUI URL follows the place even when a navigation is cancelled", 
     expect(urlSession()).toBe("b1");
   });
 });
+
+describe("the header refresh is a reload: it never moves the user", () => {
+  it("a refresh started on A does not take the user back to A after they opened B", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const scan = gate<ClaudeProject[]>();
+    overrides.scan_projects = () => scan.promise;
+
+    const refresh = state().refreshAllConversations();
+    await state().navigate({ project: B, session: B1 });
+    scan.resolve([A, B]);
+    await refresh;
+
+    expect(state().selectedProject?.path).toBe(B.path);
+    expect(state().selectedSession?.file_path).toBe(B1.file_path);
+    expect(state().sessions.map((s) => s.file_path)).toEqual([B1.file_path]);
+  });
+
+  it("a refresh whose old project vanished does not clear the place the user moved to", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const scan = gate<ClaudeProject[]>();
+    overrides.scan_projects = () => scan.promise;
+
+    const refresh = state().refreshAllConversations();
+    await state().navigate({ project: B, session: B1 });
+    scan.resolve([B]);
+    await refresh;
+
+    expect(state().selectedProject?.path).toBe(B.path);
+    expect(state().selectedSession?.file_path).toBe(B1.file_path);
+  });
+
+  it("a refresh whose session list lands after the user moved does not drop the new session", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const list = gate<unknown>();
+    let held = false;
+    overrides.load_provider_sessions_page = (args) => {
+      if (args.projectPath === A.path && !held) {
+        held = true;
+        return list.promise;
+      }
+      const sessions = LISTS[String(args.projectPath)] ?? [];
+      return { sessions, total: sessions.length, nextOffset: sessions.length, hasMore: false };
+    };
+
+    const refresh = state().refreshAllConversations();
+    await vi.waitFor(() => expect(held).toBe(true));
+    await state().navigate({ project: B, session: B1 });
+    // A's list without A1: had the refresh carried on, it would clear "A1".
+    list.resolve({ sessions: [A2], total: 1, nextOffset: 1, hasMore: false });
+    await refresh;
+
+    expect(state().selectedProject?.path).toBe(B.path);
+    expect(state().selectedSession?.file_path).toBe(B1.file_path);
+    expect(state().sessions.map((s) => s.file_path)).toEqual([B1.file_path]);
+  });
+
+  it("a session-list reload of a project that is no longer open does not select it", async () => {
+    await state().navigate({ project: B, session: B1 });
+
+    await state().reloadProjectSessions(A);
+
+    expect(state().selectedProject?.path).toBe(B.path);
+    expect(state().sessions.map((s) => s.file_path)).toEqual([B1.file_path]);
+  });
+
+  it("a refresh with nobody moving still reloads the open place", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const epoch = state().navigationEpoch;
+
+    await state().refreshAllConversations();
+
+    expect(state().navigationEpoch).toBe(epoch);
+    expect(state().selectedProject?.path).toBe(A.path);
+    expect(state().selectedSession?.file_path).toBe(A1.file_path);
+  });
+});
