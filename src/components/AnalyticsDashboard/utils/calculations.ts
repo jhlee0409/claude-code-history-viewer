@@ -5,13 +5,28 @@
  */
 
 import pricingTable from "@/data/model-pricing.json";
+import type { GrowthTrend } from "../types";
 
 /**
- * Calculate growth rate between two values
+ * Classify the change from `previous` to `current`.
+ *
+ * `floor` is the smallest previous value a percentage is meaningful against:
+ * below it only the direction is reported, and a zero base is `new` (or
+ * `none` when both are zero).
  */
-export const calculateGrowthRate = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return Math.round(((current - previous) / previous) * 100);
+export const calculateGrowthTrend = (
+  current: number,
+  previous: number,
+  floor: number,
+): GrowthTrend => {
+  if (previous === 0) return current === 0 ? { kind: "none" } : { kind: "new" };
+  if (previous < floor) {
+    if (current > previous) return { kind: "up-small-base" };
+    if (current < previous) return { kind: "down-small-base" };
+    return { kind: "flat" };
+  }
+  // `+ 0` normalizes a rounded `-0` to `0`.
+  return { kind: "pct", value: Math.round(((current - previous) / previous) * 100) + 0 };
 };
 
 /**

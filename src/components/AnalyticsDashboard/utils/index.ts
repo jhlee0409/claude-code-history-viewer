@@ -6,7 +6,7 @@
 
 // Base calculations
 export {
-  calculateGrowthRate,
+  calculateGrowthTrend,
   formatNumber,
   formatCurrency,
   calculateModelPrice,
@@ -30,6 +30,7 @@ export {
 export {
   generateTrendData,
   calculateDailyGrowth,
+  GROWTH_FLOORS,
   extractProjectGrowth,
   type GrowthMetrics,
 } from "./projectCalculations";

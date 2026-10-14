@@ -5,8 +5,8 @@
  */
 
 import type { ProjectStatsSummary, DailyStats } from "../../../types";
-import type { DailyStatData } from "../types";
-import { calculateGrowthRate } from "./calculations";
+import type { DailyStatData, GrowthTrend } from "../types";
+import { calculateGrowthTrend } from "./calculations";
 
 // ============================================================================
 // Daily Stats Processing
@@ -130,29 +130,47 @@ export const generateTrendData = (
 // Growth Metrics
 // ============================================================================
 
+/**
+ * Smallest previous-day value a percentage is shown against, per metric.
+ * Below it the KPI card shows only the direction of the change.
+ */
+export const GROWTH_FLOORS = {
+  messages: 20,
+  tokens: 10_000,
+} as const;
+
 export interface GrowthMetrics {
-  tokenGrowth: number;
-  messageGrowth: number;
+  tokenGrowth: GrowthTrend;
+  messageGrowth: GrowthTrend;
 }
 
+const NO_GROWTH: GrowthMetrics = {
+  tokenGrowth: { kind: "none" },
+  messageGrowth: { kind: "none" },
+};
+
 /**
- * Calculate day-over-day growth rates for tokens and messages
+ * Calculate day-over-day growth trends for tokens and messages
  */
 export const calculateDailyGrowth = (dailyStats: DailyStats[]): GrowthMetrics => {
-  if (dailyStats.length < 2) {
-    return { tokenGrowth: 0, messageGrowth: 0 };
-  }
-
-  const lastDayStats = dailyStats[dailyStats.length - 1];
-  const prevDayStats = dailyStats[dailyStats.length - 2];
+  const lastDayStats = dailyStats.at(-1);
+  const prevDayStats = dailyStats.at(-2);
 
   if (!lastDayStats || !prevDayStats) {
-    return { tokenGrowth: 0, messageGrowth: 0 };
+    return NO_GROWTH;
   }
 
   return {
-    tokenGrowth: calculateGrowthRate(lastDayStats.total_tokens, prevDayStats.total_tokens),
-    messageGrowth: calculateGrowthRate(lastDayStats.message_count, prevDayStats.message_count),
+    tokenGrowth: calculateGrowthTrend(
+      lastDayStats.total_tokens,
+      prevDayStats.total_tokens,
+      GROWTH_FLOORS.tokens,
+    ),
+    messageGrowth: calculateGrowthTrend(
+      lastDayStats.message_count,
+      prevDayStats.message_count,
+      GROWTH_FLOORS.messages,
+    ),
   };
 };
 
