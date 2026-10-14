@@ -427,6 +427,7 @@ fn run_server(args: &[String]) {
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
     let read_only = args.iter().any(|a| a == "--read-only");
+    let file_watcher_enabled = crate::cli_args::server_file_watcher_enabled(args);
     let base_path = crate::cli_args::extract_flag_value(args, "--base-path")
         .map(|value| {
             server::normalize_base_path(&value).unwrap_or_else(|error| {
@@ -552,8 +553,18 @@ fn run_server(args: &[String]) {
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
-        // Start background file watcher (sends events to broadcast channel)
-        let _watcher_handle = start_server_file_watcher(&state);
+        // Start background file watcher (sends events to broadcast channel).
+        // The hidden test-only `--no-watch` skips it so a capture run sees a
+        // frozen data set; the handle must stay alive while the server runs.
+        let _watcher_handle = if file_watcher_enabled {
+            start_server_file_watcher(&state)
+        } else {
+            eprintln!(
+                "👁 File watcher disabled ({})",
+                crate::cli_args::NO_WATCH_FLAG
+            );
+            None
+        };
 
         server::start(state, &host, port, dist_dir.as_deref(), &base_path).await;
     });
