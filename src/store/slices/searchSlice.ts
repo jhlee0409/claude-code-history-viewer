@@ -99,15 +99,18 @@ export const createSearchSlice: StateCreator<
     const nativeClaudePath = claudePath || undefined;
     const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
+    // Not scoped to a project: the latest call owns the results - a clear
+    // included, so a search still pending when the query is cleared lands
+    // nothing. Its failure is feedback, raised only while no navigation has
+    // begun since.
+    const requestId = ++globalSearchRequestId;
+
     if (!query.trim() || (!claudePath && !hasAlternativeSource)) {
       set({ searchResults: [], searchQuery: "" });
       return;
     }
 
     set({ searchQuery: query });
-    // Not scoped to a project: the latest search owns the results; its
-    // failure is feedback, raised only while no navigation has begun since.
-    const requestId = ++globalSearchRequestId;
     const owner = ownWork(get, {
       isLatest: () => requestId === globalSearchRequestId,
     });

@@ -11,8 +11,9 @@
  *
  * Ported from the second independent T2 review's supplemental probes
  * (scratch/t2-review/review-2.md R1-R4, R6); each failed at e7646271.
- * The subagent request-identity cases come from the third review
- * (scratch/t2-review/review-3.md R1); each failed at 08a2a4e3.
+ * The subagent request-identity and search-clear cases come from the
+ * third review (scratch/t2-review/review-3.md R1, R3); each
+ * failed at 08a2a4e3.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage } from "@/types";
@@ -353,3 +354,27 @@ describe("subagent data is owned by the latest request of the session (review-3 
     await Promise.all([toA2, backToA1]);
   });
 });
+
+describe("clearing the global search drops its pending results (review-3 R3)", () => {
+  it("an earlier search that succeeds after the clear leaves the results empty", async () => {
+    const old = gate<ClaudeMessage[]>();
+    overrides.search_messages = () => old.promise;
+    const searching = state().searchMessages("old");
+    await state().searchMessages("");
+    old.resolve([message("old-hit")]);
+    await searching;
+    expect(state().searchQuery).toBe("");
+    expect(state().searchResults).toEqual([]);
+  });
+
+  it("an earlier search that fails after the clear raises no error", async () => {
+    const old = gate<ClaudeMessage[]>();
+    overrides.search_messages = () => old.promise;
+    const searching = state().searchMessages("old");
+    await state().searchMessages("");
+    old.reject(new Error("obsolete search failure"));
+    await searching;
+    expect(state().error).toBeNull();
+  });
+});
+
