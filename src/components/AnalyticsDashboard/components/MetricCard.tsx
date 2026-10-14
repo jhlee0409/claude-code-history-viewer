@@ -57,14 +57,24 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
   };
 
   switch (trend.kind) {
-    case "pct":
+    case "pct": {
+      const direction = pctDirection(trend.value);
+      // The number alone does not say which way it moved; the arrow is visual only.
+      const description =
+        direction === "up"
+          ? t("analytics.trend.upDescription")
+          : direction === "down"
+            ? t("analytics.trend.downDescription")
+            : t("analytics.trend.flatDescription");
       if (trend.value > MULTIPLE_ABOVE_PCT) {
         return chip(
           "up",
-          <span>{t("analytics.trend.times", { value: formatMultiple(trend.value) })}</span>
+          <span>{t("analytics.trend.times", { value: formatMultiple(trend.value) })}</span>,
+          description
         );
       }
-      return chip(pctDirection(trend.value), <span>{Math.abs(trend.value)}%</span>);
+      return chip(direction, <span>{Math.abs(trend.value)}%</span>, description);
+    }
     case "new":
       return chip(
         "up",

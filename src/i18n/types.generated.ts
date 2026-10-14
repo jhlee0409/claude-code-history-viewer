@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-14T13:24:16.235Z
- * 총 키 개수: 2019
+ * 생성 시간: 2026-10-14T13:36:09.300Z
+ * 총 키 개수: 2022
  * Namespace 수: 11
  */
 
@@ -255,7 +255,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (194개)
+ * analytics namespace의 번역 키 (197개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -440,11 +440,14 @@ export type AnalyticsKeys =
   | 'analytics.totalTokens'
   | 'analytics.totalTokensUsage'
   | 'analytics.totalUses'
+  | 'analytics.trend.downDescription'
   | 'analytics.trend.downSmallBase'
+  | 'analytics.trend.flatDescription'
   | 'analytics.trend.flatSmallBase'
   | 'analytics.trend.new'
   | 'analytics.trend.newDescription'
   | 'analytics.trend.times'
+  | 'analytics.trend.upDescription'
   | 'analytics.trend.upSmallBase'
   | 'analytics.units'
   | 'analytics.viewDetails'
@@ -2338,11 +2341,14 @@ export type TranslationKey =
   | 'analytics.totalTokens'
   | 'analytics.totalTokensUsage'
   | 'analytics.totalUses'
+  | 'analytics.trend.downDescription'
   | 'analytics.trend.downSmallBase'
+  | 'analytics.trend.flatDescription'
   | 'analytics.trend.flatSmallBase'
   | 'analytics.trend.new'
   | 'analytics.trend.newDescription'
   | 'analytics.trend.times'
+  | 'analytics.trend.upDescription'
   | 'analytics.trend.upSmallBase'
   | 'analytics.units'
   | 'analytics.viewDetails'

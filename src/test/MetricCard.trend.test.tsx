@@ -27,7 +27,8 @@ describe("MetricCard trend chip", () => {
     renderCard({ kind: "pct", value: 100 });
     const chip = trendChip();
     expect(chip).not.toBeNull();
-    expect(chip?.textContent).toBe("100%");
+    expect(chip?.textContent).toBe("100%analytics.trend.upDescription");
+    expect(chip).toHaveAttribute("title", "analytics.trend.upDescription");
     expect(chip?.className).toContain("text-success");
   });
 
@@ -40,13 +41,13 @@ describe("MetricCard trend chip", () => {
   ])("renders +%i%% as a multiple (%s×) instead of a percentage", (value, times) => {
     renderCard({ kind: "pct", value });
     const chip = trendChip();
-    expect(chip?.textContent).toBe(`analytics.trend.times(${times})`);
+    expect(chip?.textContent).toBe(`analytics.trend.times(${times})analytics.trend.upDescription`);
     expect(chip?.className).toContain("text-success");
   });
 
   it("renders a negative percentage as an absolute value in the destructive style", () => {
     renderCard({ kind: "pct", value: -75 });
-    expect(trendChip()?.textContent).toBe("75%");
+    expect(trendChip()?.textContent).toBe("75%analytics.trend.downDescription");
     expect(trendChip()?.className).toContain("text-destructive");
   });
 

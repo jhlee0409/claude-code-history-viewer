@@ -208,5 +208,8 @@
   "analytics.trend.upSmallBase": "증가 — 전날 값이 너무 작아 비교할 수 없음",
   "analytics.trend.downSmallBase": "감소 — 전날 값이 너무 작아 비교할 수 없음",
   "analytics.trend.flatSmallBase": "변동 없음 — 전날 값이 너무 작아 비교할 수 없음",
-  "analytics.trend.times": "{{value}}배"
+  "analytics.trend.times": "{{value}}배",
+  "analytics.trend.upDescription": "전날보다 증가",
+  "analytics.trend.downDescription": "전날보다 감소",
+  "analytics.trend.flatDescription": "전날과 같음"
 }
