@@ -11,6 +11,8 @@
  *
  * Ported from the second independent T2 review's supplemental probes
  * (scratch/t2-review/review-2.md R1-R4, R6); each failed at e7646271.
+ * The subagent request-identity cases come from the third review
+ * (scratch/t2-review/review-3.md R1); each failed at 08a2a4e3.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage } from "@/types";
@@ -281,5 +283,73 @@ describe("token data is owned by the context it was asked for (R3)", () => {
     token.resolve({ session_id: "a1" });
     await loading;
     expect(state().sessionTokenStats?.session_id).toBe("a1");
+  });
+});
+
+describe("subagent data is owned by the latest request of the session (review-3 R1)", () => {
+  const agent = {
+    agent_id: "new",
+    file_path: "/p/a/subagents/agent-new.jsonl",
+    tool_use_id: "new-tool",
+    message_count: 1,
+  };
+
+  it("an older same-session failure does not erase the newer request's subagents", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const old = gate<unknown[]>();
+    const next = gate<unknown[]>();
+    let n = 0;
+    overrides.get_session_subagents = () => (++n === 1 ? old.promise : next.promise);
+    const first = state().loadSubagents(A1.file_path, []);
+    const second = state().loadSubagents(A1.file_path, []);
+    next.resolve([agent]);
+    await second;
+    old.reject(new Error("stale subagent error"));
+    await first;
+    expect(state().subagentSessions).toEqual([agent]);
+    expect(state().toolUseToSubagentMap.get("new-tool")).toBe(agent.file_path);
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("an older reload's subagent list does not replace the newer reload's", async () => {
+    await state().navigate({ project: A, session: A1 });
+    let reload = 0;
+    overrides.load_provider_messages_paginated = () => ({
+      ...page(),
+      messages: [message(`reload-${++reload}`)],
+    });
+    const old = gate<unknown[]>();
+    const next = gate<unknown[]>();
+    const pending = [old, next];
+    overrides.get_session_subagents = () => pending.shift()!.promise;
+    await state().reloadCurrent("watcher");
+    await state().reloadCurrent("watcher");
+    expect(pending).toHaveLength(0);
+    next.resolve([agent]);
+    await vi.waitFor(() => expect(state().subagentSessions).toEqual([agent]));
+    old.resolve([]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(state().subagentSessions).toEqual([agent]);
+    expect(state().toolUseToSubagentMap.get("new-tool")).toBe(agent.file_path);
+  });
+
+  it("a new session load supersedes the outstanding subagent request", async () => {
+    await state().navigate({ project: A, session: A1 });
+    const stale = gate<unknown[]>();
+    overrides.get_session_subagents = () => stale.promise;
+    const staleLoad = state().loadSubagents(A1.file_path, []);
+    const held = gate<MessagePage>();
+    overrides.load_provider_messages_paginated = () => held.promise;
+    const toA2 = state().navigate({ session: A2 });
+    const backToA1 = state().navigate({ session: A1 });
+    await vi.waitFor(() => {
+      expect(state().selectedSession?.file_path).toBe(A1.file_path);
+      expect(state().isLoadingMessages).toBe(true);
+    });
+    stale.resolve([agent]);
+    await staleLoad;
+    expect(state().subagentSessions).toEqual([]);
+    held.resolve(page());
+    await Promise.all([toA2, backToA1]);
   });
 });

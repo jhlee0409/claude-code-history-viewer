@@ -484,6 +484,9 @@ export const createMessageSlice: StateCreator<
       }
     } else {
       clearSearchIndex();
+      // The outgoing session's subagent request no longer owns the list,
+      // even if the user comes back to that session before it settles.
+      nextRequestId("subagents");
       set({
         messages: [],
         pagination: { ...INITIAL_PAGINATION },
@@ -1082,7 +1085,13 @@ export const createMessageSlice: StateCreator<
     if (!supportsSubagents(get().selectedSession?.provider)) {
       return;
     }
-    const owner = ownWork(get, { context: { sessionPath } });
+    // Two reloads of the same file share its context and the navigation
+    // epoch: only the latest request of the session owns the list and map.
+    const requestId = nextRequestId("subagents");
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => requestId === getRequestId("subagents"),
+    });
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
