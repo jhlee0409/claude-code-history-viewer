@@ -12,6 +12,7 @@ import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
+import { ownPlace } from "@/navigation/ownership";
 import {
   detectWorktreeGroupsHybrid,
   groupProjectsByDirectory,
@@ -716,6 +717,7 @@ export const createProjectSlice: StateCreator<
    */
   reloadProjectSessions: async (project: ClaudeProject) => {
     const requestId = nextRequestId("selectProject");
+    const ownsPlace = ownPlace(get);
     set((state) => ({
       selectedProject: project,
       // The rows already on screen stay until the new page arrives. Blanking
@@ -791,6 +793,7 @@ export const createProjectSlice: StateCreator<
         return;
       }
       console.error("Failed to load project sessions:", error);
+      if (!ownsPlace()) return;
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
       if (requestId === getRequestId("selectProject")) {
@@ -818,6 +821,7 @@ export const createProjectSlice: StateCreator<
     }
 
     const requestId = getRequestId("selectProject");
+    const ownsPlace = ownPlace(get);
     set({ isLoadingMoreSessions: true });
 
     try {
@@ -851,6 +855,7 @@ export const createProjectSlice: StateCreator<
         return;
       }
       console.error("Failed to load more project sessions:", error);
+      if (!ownsPlace()) return;
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
       if (requestId === getRequestId("selectProject")) {

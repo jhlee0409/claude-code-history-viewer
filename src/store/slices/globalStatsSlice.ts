@@ -9,6 +9,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
+import { ownPlace } from "@/navigation/ownership";
 import { fetchGlobalStatsSummary } from "../../services/analyticsApi";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { hasAnyConversationBreakdownProvider } from "../../utils/providers";
@@ -65,6 +66,7 @@ export const createGlobalStatsSlice: StateCreator<
     // matching the project list and search (#362).
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
 
+    const ownsPlace = ownPlace(get);
     set({ isLoadingGlobalStats: true });
     get().setError(null);
 
@@ -131,10 +133,11 @@ export const createGlobalStatsSlice: StateCreator<
         return;
       }
       console.error("Failed to load global stats:", error);
+      set({ globalSummary: null, globalConversationSummary: null });
+      if (!ownsPlace()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load global stats: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      set({ globalSummary: null, globalConversationSummary: null });
     } finally {
       if (requestId === getRequestId("globalStats")) {
         set({ isLoadingGlobalStats: false });

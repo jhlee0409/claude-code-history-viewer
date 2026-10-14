@@ -20,6 +20,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
+import { ownPlace } from "@/navigation/ownership";
 import {
   fetchSessionTokenStats,
   fetchProjectTokenStats,
@@ -449,6 +450,9 @@ export const createMessageSlice: StateCreator<
     // a stale overlapping reload (e.g. two quick filter toggles) — the epoch
     // does. Captured before any await.
     const epoch = ++sessionLoadEpoch;
+    // Taken before any await: a navigation started since then owns the screen,
+    // so this load's failure is no longer the user's concern there.
+    const ownsPlace = ownPlace(get);
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshAllConversations에서 같은 세션을 재로드하는 경우
@@ -577,6 +581,12 @@ export const createMessageSlice: StateCreator<
       }
 
       console.error("Failed to load session messages:", error);
+      if (!ownsPlace()) {
+        // Still the latest load of this session, so its spinner is ours to
+        // stop; the error belongs to a place the user has left.
+        set({ isLoadingMessages: false });
+        return;
+      }
       // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
       // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
       const message = error instanceof Error ? error.message : String(error);
@@ -690,6 +700,7 @@ export const createMessageSlice: StateCreator<
   loadSessionTokenStats: async (sessionPath: string) => {
     const requestId = nextRequestId("sessionTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
+    const ownsPlace = ownPlace(get);
     try {
       get().setError(null);
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
@@ -722,13 +733,14 @@ export const createMessageSlice: StateCreator<
     } catch (error) {
       if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
+      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
+      if (!ownsPlace()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load session token stats: ${message}`);
       get().setError({
         type: AppErrorType.UNKNOWN,
         message: `Failed to load token stats: ${error}`,
       });
-      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -737,6 +749,7 @@ export const createMessageSlice: StateCreator<
   loadProjectTokenStats: async (projectPath: string) => {
     const requestId = nextRequestId("projectTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
+    const ownsPlace = ownPlace(get);
     try {
       set({
         projectTokenStats: [], // Reset on new project load
@@ -843,15 +856,16 @@ export const createMessageSlice: StateCreator<
     } catch (error) {
       if (requestId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load project token stats:", error);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load project token stats: ${error}`,
-      });
       set({
         projectTokenStats: [],
         projectConversationTokenStats: [],
         projectTokenStatsSummary: null,
         projectConversationTokenStatsSummary: null,
+      });
+      if (!ownsPlace()) return;
+      get().setError({
+        type: AppErrorType.UNKNOWN,
+        message: `Failed to load project token stats: ${error}`,
       });
     } finally {
       endTokenStatsLoading(loadingEpoch);
@@ -939,6 +953,7 @@ export const createMessageSlice: StateCreator<
   },
 
   loadProjectStatsSummary: async (projectPath: string) => {
+    const ownsPlace = ownPlace(get);
     try {
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
@@ -966,8 +981,10 @@ export const createMessageSlice: StateCreator<
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load project stats summary:", error);
-      toast.error(`Failed to load project stats summary: ${message}`);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      if (ownsPlace()) {
+        toast.error(`Failed to load project stats summary: ${message}`);
+        get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      }
       throw error;
     }
   },
