@@ -69,14 +69,17 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
   `settings` (Settings Manager), two highlight-regression flows from the
   UX audit (`global-stats-after-analytics`: a project's analytics, then
   global stats; `archive-after-global-stats`: global stats, then the
-  archive), plus three states produced by request
+  archive), plus four states produced by request
   injection (`page.route` on `/api/<command>`):
   - `empty` - `scan_projects` / `scan_all_projects` answer `[]`
   - `loading` - the same requests are held (never answered)
   - `error` - `get_claude_folder_path` fails with `PERMISSION_DENIED`
+  - `analytics-error` - the large session's project analytics, with
+    `get_project_stats_summary` failing (500 `boom`): the dashboard's own
+    error state, not a stuck loading text
 - Mobile adds `sidebar` (project drawer open).
 
-Desktop 3 × 2 × 14 + mobile 1 × 2 × 15 + measurement pair 3 × 1 × 2 = **120
+Desktop 3 × 2 × 15 + mobile 1 × 2 × 16 + measurement pair 3 × 1 × 2 = **128
 scenarios**.
 
 ## Output

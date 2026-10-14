@@ -143,6 +143,12 @@ const COMMON_SCREENS = [
     ],
     steps: [],
   },
+  {
+    id: "analytics-error",
+    title: "Project analytics with a failing summary: the dashboard's own error state",
+    inject: [{ command: "get_project_stats_summary", fail: { status: 500, error: "boom" } }],
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "analytics" }],
+  },
 ];
 
 /** Mobile-only screens. */
