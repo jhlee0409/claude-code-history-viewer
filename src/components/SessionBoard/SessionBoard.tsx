@@ -37,7 +37,14 @@ export const SessionBoard = () => {
         toggleTimeline,
         selectedSession,
         selectedProject,
+        boardHoverSession,
     } = useAppStore();
+    // The lane to bring forward: the one hovered in the sidebar, else the
+    // open session. Hover is board-only state, never a selection (F2).
+    const focusedSession = boardHoverSession ?? selectedSession;
+    // Hover belongs to this screen; leaving the board forgets it so the next
+    // visit brings the open session forward again.
+    useEffect(() => () => useAppStore.getState().setBoardHoverSession(null), []);
 
     // Clear brush on Escape (Step 9)
     useEffect(() => {
@@ -276,7 +283,7 @@ export const SessionBoard = () => {
 
     const selectedMessageIdRef = useRef(selectedMessageId);
     selectedMessageIdRef.current = selectedMessageId;
-    const selectedSessionId = selectedSession?.session_id;
+    const focusedSessionId = focusedSession?.session_id;
 
     const handleInteractionClick = useCallback((id: string) => {
         setSelectedMessageId(selectedMessageIdRef.current === id ? null : id);
@@ -312,8 +319,8 @@ export const SessionBoard = () => {
 
     // Scroll active session into view when transitioning from Detail view
     useEffect(() => {
-        if (selectedSessionId && visibleSessionIdsRef.current.length > 0) {
-            const index = visibleSessionIdsRef.current.indexOf(selectedSessionId);
+        if (focusedSessionId && visibleSessionIdsRef.current.length > 0) {
+            const index = visibleSessionIdsRef.current.indexOf(focusedSessionId);
             if (index !== -1) {
                 // Small timeout to ensure virtualizer is ready and layout is stable
                 requestAnimationFrame(() => {
@@ -321,7 +328,7 @@ export const SessionBoard = () => {
                 });
             }
         }
-    }, [selectedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
+    }, [focusedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
 
     if (isLoadingBoard) {
         return (
@@ -449,7 +456,7 @@ export const SessionBoard = () => {
                                     onHover={handleBoardHover}
                                     onLeave={handleBoardLeave}
                                     onToggleSticky={handleToggleSticky}
-                                    isSelected={selectedSession?.session_id === sessionId}
+                                    isSelected={focusedSession?.session_id === sessionId}
                                     onInteractionClick={handleInteractionClick}
                                     onNavigate={(messageId) => {
                                         // Set session and messages from board cache when session

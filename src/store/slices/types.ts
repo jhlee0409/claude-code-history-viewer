@@ -176,6 +176,7 @@ export interface AppStoreState {
   boardLoadError: string | null;
   dateFilter: import("../../types/board.types").DateFilter;
   isTimelineExpanded: boolean;
+  boardHoverSession: ClaudeSession | null;
 
   // Filter state
   userOnlyFilter: boolean;
@@ -388,6 +389,7 @@ export interface AppStoreActions {
   setMarkdownPretty: (pretty: boolean) => void;
   setDateFilter: (filter: import("../../types/board.types").DateFilter) => void;
   toggleTimeline: () => void;
+  setBoardHoverSession: (session: ClaudeSession | null) => void;
 
   // Filter actions
   setUserOnlyFilter: (enabled: boolean) => void;

@@ -27,6 +27,13 @@ export interface BoardSliceState {
     isMarkdownPretty: boolean;
     boardLoadError: string | null;
     isTimelineExpanded: boolean;
+    /**
+     * The session the pointer rests on in the sidebar while the board is open.
+     * Board-only: it scrolls and marks that session's lane and nothing else.
+     * It is not a selection, so the sidebar, the watcher, the WebUI URL and
+     * the open place never see it (plan §9b F2).
+     */
+    boardHoverSession: ClaudeSession | null;
 }
 
 export interface BoardSliceActions {
@@ -38,6 +45,7 @@ export interface BoardSliceActions {
     setMarkdownPretty: (pretty: boolean) => void;
     clearBoard: () => void;
     toggleTimeline: () => void;
+    setBoardHoverSession: (session: ClaudeSession | null) => void;
 }
 
 export type BoardSlice = BoardSliceState & BoardSliceActions;
@@ -51,6 +59,7 @@ const initialBoardState: BoardSliceState = {
     activeBrush: null,
     stickyBrush: false,
     selectedMessageId: null,
+    boardHoverSession: null,
     isMarkdownPretty: true, // Default to pretty printing
     boardLoadError: null,
     isTimelineExpanded: (() => {
@@ -292,6 +301,8 @@ export const createBoardSlice: StateCreator<
     setActiveBrush: (activeBrush) => set({ activeBrush }),
     setStickyBrush: (stickyBrush) => set({ stickyBrush }),
     setSelectedMessageId: (id) => set({ selectedMessageId: id }),
+
+    setBoardHoverSession: (session) => set({ boardHoverSession: session }),
     setMarkdownPretty: (isMarkdownPretty) => set({ isMarkdownPretty }),
 
     toggleTimeline: () => set((state) => {

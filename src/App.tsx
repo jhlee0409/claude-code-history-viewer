@@ -505,10 +505,13 @@ function App() {
     [clearProjectSelection, selectProject, analyticsActions, setDateFilter, setIsViewingGlobalStats]
   );
 
+  // Hovering a session in the sidebar while the board is open brings its lane
+  // forward. Board-only state: it must not select the session, or the
+  // sidebar, watcher, URL and global-stats exit would all follow the pointer.
   const handleSessionHover = useCallback(
     (session: ClaudeSession) => {
       if (computed.isBoardView) {
-        useAppStore.getState().setSelectedSession(session);
+        useAppStore.getState().setBoardHoverSession(session);
       }
     },
     [computed.isBoardView]
