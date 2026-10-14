@@ -86,6 +86,22 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     });
   };
 
+  /*
+    Collapsing a row (ArrowLeft) is tree state only: the project and any open
+    conversation stay where they are (plan §9b F3, expand is not select).
+    Expanding still opens the project, because the tree can list sessions of
+    the open project only; showing another project's sessions without
+    opening it is the sidebar rework (T7), as is making a re-click collapse.
+  */
+  const collapseProject = (project: ClaudeProject) => {
+    setExpandedProjects((prev) => {
+      if (!prev.has(project.path)) return prev;
+      const next = new Set(prev);
+      next.delete(project.path);
+      return next;
+    });
+  };
+
   const renderProjectWithSessions = (
     project: ClaudeProject,
     variant: "default" | "main" | "worktree" = "default",
@@ -110,7 +126,9 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           isExpanded={isExpanded}
           isSelected={selectedProject?.path === project.path}
           ariaLevel={ariaLevel}
-          onToggle={() => handleProjectClick(project)}
+          onToggle={() =>
+            isExpanded ? collapseProject(project) : handleProjectClick(project)
+          }
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project, providerSiblings)}
           variant={variant}
