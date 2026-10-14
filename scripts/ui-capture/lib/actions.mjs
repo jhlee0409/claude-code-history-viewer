@@ -147,8 +147,15 @@ export function createActions({ session, scenario, manifest, t }) {
     async view({ view }) {
       if (!(view in VIEW_LABEL_KEYS)) throw new Error(`unknown view "${view}"`);
       if (!mobile) {
-        const group = page.locator("#app-header [role=group]");
-        await click(group.getByRole("button", { name: t(VIEW_LABEL_KEYS[view]), exact: true }), `view ${view}`);
+        // View tabs are role=tab in a tablist since T2; base builds before it
+        // render them as buttons in a group, and both must be drivable.
+        const header = page.locator("#app-header");
+        const name = t(VIEW_LABEL_KEYS[view]);
+        const tab = header
+          .locator("[role=tablist]")
+          .getByRole("tab", { name, exact: true })
+          .or(header.locator("[role=group]").getByRole("button", { name, exact: true }));
+        await click(tab, `view ${view}`);
         return;
       }
       if (view === "tokenStats" || view === "recentEdits") {

@@ -11,6 +11,8 @@ import {
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
+import { selectPlace } from "@/store/slices/navigationSlice";
+import { activeToolbarView } from "@/navigation/place";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import { useModal } from "@/contexts/modal";
@@ -53,6 +55,9 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   } = useAppStore();
 
   const computed = analyticsComputed;
+  // The selected tab is a projection of the place, so global stats, the
+  // archive and the Settings Manager (no tab of their own) select none.
+  const activeTab = useAppStore((s) => activeToolbarView(selectPlace(s)));
   const isClaudeProject = (selectedProject?.provider ?? "claude") === "claude";
   const isRefreshingConversations =
     isRefreshingAllConversations ||
@@ -219,14 +224,14 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             back from any analytics view is always visible. */}
         {selectedProject && (
           <div
-            role="group"
+            role="tablist"
             aria-label={t("header.views", "Views")}
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
             <ViewTab
               icon={MessageSquare}
               label={t("message.view")}
-              isActive={computed.isMessagesView}
+              isActive={activeTab === "conversation"}
               onClick={() => {
                 if (!computed.isMessagesView) analyticsActions.switchToMessages();
               }}
@@ -234,7 +239,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             <ViewTab
               icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
               label={t("analytics.dashboard")}
-              isActive={computed.isAnalyticsView}
+              isActive={activeTab === "analytics"}
               isLoading={computed.isLoadingAnalytics}
               onClick={() => {
                 if (!computed.isAnalyticsView) handleLoadAnalytics();
@@ -244,7 +249,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             <ViewTab
               icon={computed.isLoadingTokenStats ? Loader2 : Activity}
               label={t("messages.tokenStats.existing")}
-              isActive={computed.isTokenStatsView}
+              isActive={activeTab === "tokenStats"}
               isLoading={computed.isLoadingTokenStats}
               onClick={() => {
                 if (!computed.isTokenStatsView) handleLoadTokenStats();
@@ -254,7 +259,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             <ViewTab
               icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
               label={t("recentEdits.title")}
-              isActive={computed.isRecentEditsView}
+              isActive={activeTab === "edits"}
               isLoading={computed.isLoadingRecentEdits}
               onClick={() => {
                 if (computed.isRecentEditsView && recentEditsMode !== "docked") {
@@ -272,7 +277,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
                   ? t("session.board.title")
                   : t("common.settings.claudeOnly", { name: t("session.board.title") })
               }
-              isActive={computed.isBoardView}
+              isActive={activeTab === "board"}
               disabled={!isClaudeProject}
               onClick={() => {
                 if (!computed.isBoardView) handleLoadBoard();
@@ -328,7 +333,8 @@ interface ViewTabProps {
 const ViewTab = ({ icon: Icon, label, isActive, isLoading, onClick, disabled }: ViewTabProps) => {
   return (
     <TooltipButton
-      aria-pressed={isActive}
+      role="tab"
+      aria-selected={isActive ?? false}
       onClick={onClick}
       disabled={disabled}
       className={cn(
