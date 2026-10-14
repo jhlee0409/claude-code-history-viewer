@@ -40,7 +40,16 @@ const INIT_SCRIPT = `(() => {
   }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
 })();`;
 
-export async function newScenarioPage(browser, { scenario, origin, locale, fixedNow, injections }) {
+/**
+ * Seeds localStorage before any app script runs (the context starts empty).
+ * Re-applied on every document of the context; captures never reload.
+ */
+const storageSeedScript = (seed) => `(() => {
+  const seed = ${JSON.stringify(seed)};
+  for (const [key, value] of Object.entries(seed)) window.localStorage.setItem(key, value);
+})();`;
+
+export async function newScenarioPage(browser, { scenario, origin, locale, fixedNow, injections, storageSeed = {} }) {
   const context = await browser.newContext({
     viewport: { width: scenario.viewport.width, height: scenario.viewport.height },
     deviceScaleFactor: 2,
@@ -53,6 +62,7 @@ export async function newScenarioPage(browser, { scenario, origin, locale, fixed
     acceptDownloads: false,
   });
   await context.addInitScript(INIT_SCRIPT);
+  await context.addInitScript(storageSeedScript(storageSeed));
   // Steps act on a settled page, so a locator that does not resolve quickly
   // never will; fail the scenario fast instead of after Playwright's 30 s.
   context.setDefaultTimeout(15_000);

@@ -21,7 +21,7 @@ import { createActions } from "./lib/actions.mjs";
 import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
-import { runProbes } from "./lib/probes.mjs";
+import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { startServer } from "./lib/server.mjs";
 
@@ -127,7 +127,11 @@ async function loadScenarios(file) {
     if (ids.has(scenario.id)) throw new UsageError(`duplicate scenario id ${scenario.id}`);
     ids.add(scenario.id);
   }
-  return { all, defaultLocale: module.DEFAULT_LOCALE ?? "ko" };
+  return {
+    all,
+    defaultLocale: module.DEFAULT_LOCALE ?? "ko",
+    measurement: { state: module.MEASUREMENT_STATE ?? null, storageSeed: module.STORAGE_SEED ?? {} },
+  };
 }
 
 const writeJson = (file, data) => {
@@ -163,7 +167,7 @@ function prepareArtifacts({ appDir, buildDir, build }) {
 // Capture
 // ---------------------------------------------------------------------------
 
-async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
+async function captureRun({ app, scenarios, declared, locale, measurement, runDir, label }) {
   const shotsDir = path.join(runDir, "shots");
   const probesDir = path.join(runDir, "probes");
   const logsDir = path.join(runDir, "logs");
@@ -211,6 +215,7 @@ async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
             locale,
             fixedNow: fixture.fixedNow,
             injections: scenario.screen.inject,
+            storageSeed: measurement.storageSeed,
           });
           await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
           const mode = scenario.screen.settle ?? "ready";
@@ -222,6 +227,9 @@ async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
           const probes = await runProbes(session.page);
+          const stateProblems = measurement.state
+            ? checkMeasurementState(probes.measurementState, measurement.state, { mobile: scenario.mobile })
+            : [];
           writeJson(path.join(probesDir, `${scenario.id}.json`), {
             scenario: scenario.id,
             screen: scenario.screen.id,
@@ -230,6 +238,7 @@ async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
             locale,
             ...probes,
           });
+          if (stateProblems.length) throw new Error(`measurement state: ${stateProblems.join("; ")}`);
           result.ok = true;
           result.readyMarker = settled.readyMarker;
         } catch (error) {
@@ -323,7 +332,7 @@ function locateShots(dir) {
 }
 
 /** A directory of PNGs (or a run dir) is used as-is; anything else is a git ref. */
-async function resolveBase({ base, scenarios, declared, locale, build }) {
+async function resolveBase({ base, scenarios, declared, locale, measurement, build }) {
   if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
     const dir = path.resolve(base);
     const { shotsDir, manifest } = locateShots(dir);
@@ -363,7 +372,7 @@ async function resolveBase({ base, scenarios, declared, locale, build }) {
     // Inside the try: a partially created worktree is removed as well.
     git(["worktree", "add", "--detach", worktree, sha]);
     const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), build });
-    const run = await captureRun({ app, scenarios, declared, locale, runDir: cacheDir, label: `base ${sha.slice(0, 12)}` });
+    const run = await captureRun({ app, scenarios, declared, locale, measurement, runDir: cacheDir, label: `base ${sha.slice(0, 12)}` });
     return { label: `${base} (${sha.slice(0, 12)})`, shotsDir: run.shotsDir, failures: run.failures.map((f) => `base ${f}`) };
   } finally {
     dropWorktree();
@@ -436,7 +445,7 @@ async function main() {
     return 0;
   }
 
-  const { all, defaultLocale } = await loadScenarios(opts.scenarios);
+  const { all, defaultLocale, measurement } = await loadScenarios(opts.scenarios);
   const declared = all.map((s) => s.id);
   const scenarios = opts.only.length ? all.filter((s) => opts.only.some((o) => s.id.includes(o))) : all;
   if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
@@ -459,15 +468,15 @@ async function main() {
   let comparison = null;
 
   if (opts.repro) {
-    const first = await captureRun({ app: head, scenarios, declared, locale, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
-    const second = await captureRun({ app: head, scenarios, declared, locale, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
+    const first = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
+    const second = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
     failures.push(...first.failures.map((f) => `run 1 ${f}`), ...second.failures.map((f) => `run 2 ${f}`));
     comparison = { gate: "reproducibility", baseLabel: first.runDir, headLabel: second.runDir, baseDir: first.shotsDir, headDir: second.shotsDir };
   } else {
-    const run = await captureRun({ app: head, scenarios, declared, locale, runDir, label: "head" });
+    const run = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir, label: "head" });
     failures.push(...run.failures);
     if (opts.base) {
-      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, build: opts.build });
+      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, build: opts.build });
       failures.push(...base.failures);
       comparison = { gate: opts.gate ?? "reproducibility", baseLabel: base.label, headLabel: run.runDir, baseDir: base.shotsDir, headDir: run.shotsDir };
     }

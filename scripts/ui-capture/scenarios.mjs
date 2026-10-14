@@ -13,6 +13,11 @@
 //   { do: "appMenu", item: "settingsManager" | "archive" }
 //   { do: "globalStats" }
 //   { do: "openSidebar" }                                   (mobile drawer)
+//   { do: "collapseProjects" }      every project row collapsed, none selected
+//   { do: "expandProject", project: "featured" | "<name>" }
+//                                   exactly one project open: its sessions
+//                                   inline (aria-expanded) or in the sessions
+//                                   pane, whichever the layout uses
 //
 // Injection (lib/browser.mjs), keyed by backend command (POST /api/<command>):
 //   { command, respond: <json> }             fulfil with 200 + JSON
@@ -23,6 +28,29 @@
 // DOM is quiet, instead of waiting for `data-ready="true"`.
 
 export const DEFAULT_LOCALE = "ko";
+
+/**
+ * Measurement state (plan §9b C4) every scenario starts from: sidebar 260px,
+ * scale 100%, inspector closed, one tab. Seeded into localStorage before the
+ * app's first script; the app defaults are not changed. The right-hand
+ * message navigator is today's inspector (the future inspector absorbs its
+ * outline); scale 100% is the app default (no stored settings in a fresh
+ * context); the app has no tab UI yet, so "one tab" holds by construction.
+ * probes.mjs records the measured state and run.mjs fails a scenario whose
+ * measured state differs.
+ */
+export const MEASUREMENT_STATE = {
+  sidebarWidthPx: 260,
+  fontScalePercent: 100,
+  inspectorOpen: false,
+  tabs: 1,
+};
+
+/** localStorage seed that establishes MEASUREMENT_STATE (app storage keys). */
+export const STORAGE_SEED = {
+  "sidebar-width": String(MEASUREMENT_STATE.sidebarWidthPx),
+  "navigator-open": String(MEASUREMENT_STATE.inspectorOpen),
+};
 
 export const DESKTOP_VIEWPORTS = [
   { id: "1180x760", width: 1180, height: 760 },
@@ -110,10 +138,24 @@ const MOBILE_SCREENS = [
   { id: "sidebar", title: "Project drawer open", steps: [{ do: "openSidebar" }] },
 ];
 
+/**
+ * Project-row measurement pair (C4 D3: collapsed / one project expanded) on
+ * the desktop sizes. Theme does not change geometry, so dark only.
+ */
+const MEASUREMENT_SCREENS = [
+  { id: "projects-collapsed", title: "Project tree, every project collapsed", steps: [{ do: "collapseProjects" }] },
+  {
+    id: "projects-expanded",
+    title: "Project tree, one project expanded",
+    steps: [{ do: "collapseProjects" }, { do: "expandProject", project: "featured" }],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: THEMES, screens: [...COMMON_SCREENS, ...MOBILE_SCREENS] },
+  { viewports: DESKTOP_VIEWPORTS, themes: ["dark"], screens: MEASUREMENT_SCREENS },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */

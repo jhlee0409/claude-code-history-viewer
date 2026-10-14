@@ -5,6 +5,9 @@
 //                  (the intersection of the window and every clipping
 //                  ancestor); session rows, library rows and "show all" carry
 //                  no data-row=project and are never counted
+//   measurementState  sidebar width, root font size, inspector (navigator)
+//                  storage flag, sessions layout - the C4 measurement state
+//                  each scenario is meant to start from (see checkMeasurementState)
 //   minFontSize    smallest computed font-size of any rendered, visible text,
 //                  sampled at evenly spaced scroll positions of every
 //                  scrollable container (virtualized lists render as they go)
@@ -46,7 +49,17 @@ const LAYOUT_PROBE = `(() => {
   });
   const expanded = fully.filter((row) => row.getAttribute("aria-expanded") === "true");
   const scrollArea = rows.length ? clipRectOf(rows[0]) : null;
+  const sidebar = document.getElementById("project-explorer");
+  const sidebarBox = sidebar && sidebar.checkVisibility() ? sidebar.getBoundingClientRect() : null;
   return {
+    measurementState: {
+      sidebarWidth: sidebarBox ? round(sidebarBox.width) : null,
+      rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      inspectorOpenStored: localStorage.getItem("navigator-open"),
+      sessionsLayout: document.getElementById("sessions-pane") ? "pane" : "inline",
+      selectedProjects: rows.filter((row) => row.getAttribute("aria-selected") === "true").length,
+      expandedProjects: rows.filter((row) => row.getAttribute("aria-expanded") === "true").length,
+    },
     hasReadyMarker: document.querySelector("[data-ready]") !== null,
     mainWidth: main ? round(main.getBoundingClientRect().width) : null,
     projectRows: {
@@ -112,6 +125,28 @@ const SCROLLABLES = `(() => {
     clientHeight: element.clientHeight,
   }));
 })()`;
+
+/**
+ * Differences between the measured state and the expected C4 measurement
+ * state. Desktop only: on mobile the sidebar is a full-width drawer. A
+ * collapsed-to-rail sidebar or a screen without the tree reports null width
+ * and is not judged.
+ */
+export function checkMeasurementState(measured, expected, { mobile }) {
+  const problems = [];
+  if (!measured) return ["no measurement state recorded"];
+  if (!mobile && measured.sidebarWidth !== null && measured.sidebarWidth !== expected.sidebarWidthPx) {
+    problems.push(`sidebar ${measured.sidebarWidth}px, expected ${expected.sidebarWidthPx}px`);
+  }
+  if (measured.inspectorOpenStored !== String(expected.inspectorOpen)) {
+    problems.push(`inspector (navigator-open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
+  }
+  const expectedRootPx = (16 * expected.fontScalePercent) / 100;
+  if (measured.rootFontSize !== expectedRootPx) {
+    problems.push(`root font size ${measured.rootFontSize}px, expected ${expectedRootPx}px (scale ${expected.fontScalePercent}%)`);
+  }
+  return problems;
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

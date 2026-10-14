@@ -73,7 +73,8 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
   - `error` - `get_claude_folder_path` fails with `PERMISSION_DENIED`
 - Mobile adds `sidebar` (project drawer open).
 
-Desktop 3 × 2 × 12 + mobile 1 × 2 × 13 = **98 scenarios**.
+Desktop 3 × 2 × 12 + mobile 1 × 2 × 13 + measurement pair 3 × 1 × 2 = **104
+scenarios**.
 
 ## Output
 
@@ -109,6 +110,30 @@ Measured after the screenshot, written per scenario:
   virtualized lists are sampled beyond the first screen. `at` names the
   element that produced it. Collapsed content is not expanded (T4 extends
   this).
+
+### Measurement state (C4)
+
+Every scenario starts from the C4 measurement state declared in
+`scenarios.mjs` → `MEASUREMENT_STATE`: sidebar **260 px**, scale **100 %**,
+inspector **closed**, **one tab**. `STORAGE_SEED` writes the app's own
+storage keys (`sidebar-width=260`, `navigator-open=false`) before the first
+app script; app defaults are untouched. The right-hand message navigator is
+today's inspector; scale 100 % is the default of a fresh context; the app has
+no tab UI yet. Each probe JSON records `measurementState` (measured sidebar
+width, root font size, stored inspector flag, sessions layout, selected /
+expanded project rows), and a scenario fails when the measured state differs
+(desktop sidebar width, inspector flag, root font size).
+
+Project-row pair (C4 D3), desktop sizes, dark:
+
+- `projects-collapsed--<size>--dark`: every project row collapsed, none
+  selected (`collapseProjects` asserts it).
+- `projects-expanded--<size>--dark`: exactly one project open
+  (`expandProject` asserts it). Where the layout shows sessions inline the
+  row is `aria-expanded="true"` and counted in `projectRows.expanded`; at
+  lg+ widths the app shows the open project's sessions in the sessions pane
+  instead (`measurementState.sessionsLayout: "pane"`, one selected row, no
+  inline expansion), which is recorded as such rather than faked.
 
 ## Gates
 

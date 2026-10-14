@@ -73,7 +73,55 @@ export function createActions({ session, scenario, manifest, t }) {
     await click(row, `project ${target.name}`);
   };
 
+  const projectRows = page.locator('[data-tree-node="project"]');
+  const projectState = () =>
+    page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-tree-node="project"]')];
+      return {
+        expanded: rows.filter((row) => row.getAttribute("aria-expanded") === "true").length,
+        selected: rows.filter((row) => row.getAttribute("aria-selected") === "true").length,
+        pane: document.getElementById("sessions-pane") !== null,
+      };
+    });
+
   const steps = {
+    async collapseProjects() {
+      await steps.openSidebar();
+      // The tree's own keyboard contract: ArrowLeft collapses an expanded row.
+      for (let guard = 0; guard < 50; guard += 1) {
+        const open = projectRows.and(page.locator('[aria-expanded="true"]')).first();
+        if ((await open.count()) === 0) break;
+        await open.focus();
+        await page.keyboard.press("ArrowLeft");
+        await settled("collapse project");
+      }
+      const state = await projectState();
+      if (state.expanded !== 0 || state.selected !== 0) {
+        throw new Error(`collapseProjects: ${state.expanded} expanded / ${state.selected} selected project rows remain`);
+      }
+    },
+
+    async expandProject({ project: key }) {
+      const target = project(key);
+      await steps.openSidebar();
+      await selectProjectRow(target);
+      const row = page.locator(`[data-tree-node="project"][data-project-path=${cssString(target.appPath)}]`).first();
+      if ((await row.getAttribute("aria-expanded")) === "false") {
+        await row.focus();
+        await page.keyboard.press("ArrowRight");
+        await settled(`expand ${target.name}`);
+      }
+      await parkPointer(page);
+      // One project open: inline (aria-expanded) or, where the layout shows
+      // sessions in the sessions pane, the selected project's pane.
+      const state = await projectState();
+      const inlineOpen = state.expanded === 1 && (await row.getAttribute("aria-expanded")) === "true";
+      const paneOpen = state.pane && state.expanded === 0 && state.selected === 1;
+      if (!inlineOpen && !paneOpen) {
+        throw new Error(`expandProject ${target.name}: ${JSON.stringify(state)} is not exactly one open project`);
+      }
+    },
+
     async openSidebar() {
       if (!mobile) return;
       if (await drawerOpen()) return;
