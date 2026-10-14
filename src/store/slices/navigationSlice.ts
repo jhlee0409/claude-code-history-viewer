@@ -29,6 +29,7 @@ import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession } from "../../types";
 import {
+  beginHistoryStep,
   type WebUIHistoryMode,
   type WebUINavigationOptions,
   writeWebUIDeepLink,
@@ -190,8 +191,10 @@ export const createNavigationSlice: StateCreator<
     // that names no screen goes to the conversation from there.
     const kept = start.view === "empty" ? "conversation" : start.view;
     let view = target.view ?? kept;
+    // Every URL write below belongs to this one history step.
+    const historyMode = beginHistoryStep(history);
     if (dropsProject) {
-      get().clearProjectSelection({ history });
+      get().clearProjectSelection({ history: historyMode() });
       view = target.view ?? viewAfterLeavingProject(kept);
     }
     // Validity (plan §4.1): a project screen needs a project, otherwise the
@@ -210,18 +213,15 @@ export const createNavigationSlice: StateCreator<
     // project drops the open session at once (`selectProject`), so the URL
     // drops it here too, before the first await: a navigation cancelled
     // during the project load must not leave the outgoing session in it.
-    let sessionHistory = history;
     if (opensProject) {
-      writeWebUIDeepLink({ sessionId: null, messageId: null }, history);
-      // The session written next refines this entry rather than adding one.
-      if (history === "push") sessionHistory = "replace";
+      writeWebUIDeepLink({ sessionId: null, messageId: null }, historyMode());
       await get().selectProject(target.project as ClaudeProject);
       if (!isCurrent()) return false;
     }
 
     if (target.session) {
       await get().selectSession(target.session, {
-        history: sessionHistory,
+        history: historyMode(),
         cachedMessages: target.sessionMessages,
       });
       if (!isCurrent()) return false;
@@ -235,21 +235,16 @@ export const createNavigationSlice: StateCreator<
         parentSessionStack: [],
       });
       get().clearTargetMessage();
-      writeWebUIDeepLink({ sessionId: null, messageId: null }, history);
+      writeWebUIDeepLink({ sessionId: null, messageId: null }, historyMode());
     }
 
     // The explicit target belongs to its session. `messageId` omitted keeps
     // it (a screen switch), `null` drops it, and opening another session
     // drops it unless the move names a new one.
-    // A session or project write above already pushed this move's entry; the
-    // target refines it rather than adding a second one.
-    const wroteUrl = Boolean(target.session) || opensProject;
-    const targetHistory: WebUIHistoryMode =
-      wroteUrl && history !== "none" ? "replace" : history;
     const changedSession =
       from.session?.file_path !== get().selectedSession?.file_path;
     if (typeof target.messageId === "string") {
-      get().navigateToMessage(target.messageId, { history: targetHistory });
+      get().navigateToMessage(target.messageId, { history: historyMode() });
     } else if (target.messageId === null || changedSession) {
       get().clearTargetMessage();
       const session = get().selectedSession;
@@ -259,7 +254,7 @@ export const createNavigationSlice: StateCreator<
             sessionId: session.actual_session_id || session.session_id,
             messageId: null,
           },
-          targetHistory,
+          historyMode(),
         );
       }
     }
