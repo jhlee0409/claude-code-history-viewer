@@ -11,6 +11,8 @@
 //   minFontSize    smallest computed font-size of any rendered, visible text,
 //                  sampled at evenly spaced scroll positions of every
 //                  scrollable container (virtualized lists render as they go)
+//                  and, at every position, again after opening the collapsed
+//                  content in view (see EXPAND_COLLAPSED)
 
 /* global window -- functions passed to page.evaluate run in the page */
 
@@ -55,7 +57,13 @@ const LAYOUT_PROBE = `(() => {
     measurementState: {
       sidebarWidth: sidebarBox ? round(sidebarBox.width) : null,
       rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
-      inspectorOpenStored: localStorage.getItem("navigator-open"),
+      inspectorOpenStored: (() => {
+        try {
+          return localStorage.getItem("navigator-open");
+        } catch {
+          return null; // opaque origin (no storage)
+        }
+      })(),
       sessionsLayout: document.getElementById("sessions-pane") ? "pane" : "inline",
       selectedProjects: rows.filter((row) => row.getAttribute("aria-selected") === "true").length,
       expandedProjects: rows.filter((row) => row.getAttribute("aria-expanded") === "true").length,
@@ -109,6 +117,41 @@ const FONT_SAMPLE = `(() => {
   return { min: Number.isFinite(min) ? min : null, minAt, samples };
 })()`;
 
+/**
+ * Open the collapsed content currently in view inside the main pane:
+ * disclosure controls (aria-expanded="false", not menus/popups, not tree
+ * rows) are clicked once and closed <details> are opened. Each control is
+ * marked so a later pass never toggles it back. Runs after the screenshot,
+ * so it never affects pixels. Returns how many were opened.
+ */
+const EXPAND_COLLAPSED = `(() => {
+  ${PAGE_HELPERS}
+  const scope = document.querySelector('[data-slot="main"]') || document.getElementById("main-content") || document.body;
+  const inView = (element) => {
+    const box = element.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return false;
+    if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    const v = intersect(box, clipRectOf(element));
+    return v.right - v.left >= 1 && v.bottom - v.top >= 1;
+  };
+  let opened = 0;
+  for (const details of scope.querySelectorAll("details:not([open])")) {
+    if (details.hasAttribute("data-ui-capture-opened") || !inView(details)) continue;
+    details.setAttribute("data-ui-capture-opened", "");
+    details.open = true;
+    opened += 1;
+  }
+  const controls = scope.querySelectorAll('[aria-expanded="false"]:not([aria-haspopup]):not([data-tree-node]):not([role="combobox"])');
+  for (const control of controls) {
+    if (control.hasAttribute("data-ui-capture-opened") || control.closest("[data-ui-capture-opened]") === control || !inView(control)) continue;
+    if (control.matches(":disabled, [aria-disabled=true]")) continue;
+    control.setAttribute("data-ui-capture-opened", "");
+    control.click();
+    opened += 1;
+  }
+  return opened;
+})()`;
+
 const SCROLLABLES = `(() => {
   const found = [];
   for (const element of document.querySelectorAll("*")) {
@@ -160,10 +203,29 @@ async function sampleFonts(page, accumulator) {
   }
 }
 
-export async function runProbes(page, { maxPositionsPerContainer = 16 } = {}) {
-  const layout = await page.evaluate(LAYOUT_PROBE);
-  const fonts = { min: null, minAt: null, samples: 0, positions: 0 };
+/** Let React, rAF and timer work catch up (page timers run on the paused clock). */
+async function letPageWork(page) {
+  await sleep(30);
+  await page.clock.runFor(50);
+  await sleep(30);
+}
+
+/** Sample, then open what is collapsed in view and sample the opened content. */
+async function sampleWithExpanded(page, fonts, expandCollapsed) {
   await sampleFonts(page, fonts);
+  if (!expandCollapsed) return;
+  const opened = await page.evaluate(EXPAND_COLLAPSED);
+  if (opened === 0) return;
+  fonts.expandedControls += opened;
+  fonts.expandedPositions += 1;
+  await letPageWork(page);
+  await sampleFonts(page, fonts);
+}
+
+export async function runProbes(page, { maxPositionsPerContainer = 16, expandCollapsed = true } = {}) {
+  const layout = await page.evaluate(LAYOUT_PROBE);
+  const fonts = { min: null, minAt: null, samples: 0, positions: 0, expandedControls: 0, expandedPositions: 0 };
+  await sampleWithExpanded(page, fonts, expandCollapsed);
 
   const containers = await page.evaluate(SCROLLABLES);
   for (let index = 0; index < containers.length; index += 1) {
@@ -178,10 +240,8 @@ export async function runProbes(page, { maxPositionsPerContainer = 16 } = {}) {
       }, [index, top]);
       // Let the virtualizer react: scroll events and React work run in real
       // time, rAF/timer work needs the paused clock to move.
-      await sleep(30);
-      await page.clock.runFor(50);
-      await sleep(30);
-      await sampleFonts(page, fonts);
+      await letPageWork(page);
+      await sampleWithExpanded(page, fonts, expandCollapsed);
     }
     await page.evaluate((i) => {
       const element = window.__uiCaptureScrollables[i];
@@ -198,6 +258,10 @@ export async function runProbes(page, { maxPositionsPerContainer = 16 } = {}) {
       textNodesSampled: fonts.samples,
       scrollPositionsSampled: fonts.positions,
       scrollContainers: containers.length,
+      // Collapsed content opened in the main pane and sampled (C4/T0:
+      // "펼친 내용도 포함한다").
+      expandedControls: fonts.expandedControls,
+      expandedPositions: fonts.expandedPositions,
     },
   };
 }

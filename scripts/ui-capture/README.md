@@ -108,8 +108,14 @@ Measured after the screenshot, written per scenario:
   text node (sr-only and fully clipped text excluded), sampled at evenly
   spaced scroll positions of the largest scrollable containers, so
   virtualized lists are sampled beyond the first screen. `at` names the
-  element that produced it. Collapsed content is not expanded (T4 extends
-  this).
+  element that produced it. At the first view and at every scroll position
+  the probe also opens the collapsed content in view inside the main pane
+  (disclosure controls with `aria-expanded="false"` that are not menus,
+  comboboxes or tree rows, and closed `<details>`), lets the page settle and
+  samples again, so a small font behind a collapsible (tool output, thinking,
+  diffs) is included. `expandedControls` / `expandedPositions` record how much
+  was opened. This runs after the screenshot and never affects pixels.
+  Regression test: `test/probes.test.mjs` (real WebKit).
 
 ### Measurement state (C4)
 
