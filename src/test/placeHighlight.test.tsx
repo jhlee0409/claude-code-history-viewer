@@ -217,6 +217,33 @@ describe("header view tabs keyboard", () => {
     expect(document.activeElement).toBe(all[all.length - 1]);
   });
 
+  it("the tab stop roves with focus: arrows, Home and End move tabIndex=0", () => {
+    at("conversation", true);
+    renderHeader("conversation");
+    const stops = () => tabs().filter((tab) => tab.tabIndex === 0);
+    focus(tabs()[0]!);
+    press("ArrowRight");
+    expect(document.activeElement).toBe(tabs()[1]);
+    expect(stops()).toEqual([tabs()[1]]);
+    press("End");
+    expect(stops()).toEqual([tabs()[tabs().length - 1]]);
+    press("Home");
+    expect(stops()).toEqual([tabs()[0]]);
+    press("ArrowLeft");
+    expect(stops()).toEqual([tabs()[tabs().length - 1]]);
+  });
+
+  it("the roving stop goes back to the selected tab once the place changes", () => {
+    at("conversation", true);
+    renderHeader("conversation");
+    focus(tabs()[0]!);
+    press("ArrowRight");
+    act(() => useAppStore.setState({ view: "tokenStats" }));
+    const stops = tabs().filter((tab) => tab.tabIndex === 0);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]?.getAttribute("aria-selected")).toBe("true");
+  });
+
   it("each tab controls the main view panel and carries a stable id", () => {
     at("analytics", true);
     renderHeader("analytics");

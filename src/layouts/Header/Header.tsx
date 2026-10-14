@@ -8,6 +8,7 @@ import {
   Columns,
   Search,
 } from "lucide-react";
+import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
@@ -69,10 +70,24 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     edits: computed.isLoadingRecentEdits,
     board: !isClaudeProject,
   };
+  // The stop roves with focus (APG): the tab the user last focused keeps it,
+  // as long as it stays enabled and the place has not moved since. Keyed to
+  // the selection it was taken under, so a new place resets it without an
+  // effect: the stop goes back to the newly selected tab.
+  const [roving, setRoving] = useState<{
+    under: ToolbarView | null;
+    view: ToolbarView;
+  } | null>(null);
+  const rovingStop =
+    roving && roving.under === activeTab && !tabDisabled[roving.view]
+      ? roving.view
+      : undefined;
   const tabStop: ToolbarView | undefined =
-    activeTab && !tabDisabled[activeTab]
+    rovingStop ??
+    (activeTab && !tabDisabled[activeTab]
       ? activeTab
-      : TOOLBAR_TAB_ORDER.find((view) => !tabDisabled[view]);
+      : TOOLBAR_TAB_ORDER.find((view) => !tabDisabled[view]));
+  const roveTo = (view: ToolbarView) => setRoving({ under: activeTab, view });
   const isRefreshingConversations =
     isRefreshingAllConversations ||
     isLoadingProjects ||
@@ -248,6 +263,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               label={t("message.view")}
               view="conversation"
               tabStop={tabStop === "conversation"}
+              onFocus={roveTo}
               isActive={activeTab === "conversation"}
               onClick={() => {
                 if (!computed.isMessagesView) analyticsActions.switchToMessages();
@@ -258,6 +274,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               label={t("analytics.dashboard")}
               view="analytics"
               tabStop={tabStop === "analytics"}
+              onFocus={roveTo}
               isActive={activeTab === "analytics"}
               isLoading={computed.isLoadingAnalytics}
               onClick={() => {
@@ -270,6 +287,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               label={t("messages.tokenStats.existing")}
               view="tokenStats"
               tabStop={tabStop === "tokenStats"}
+              onFocus={roveTo}
               isActive={activeTab === "tokenStats"}
               isLoading={computed.isLoadingTokenStats}
               onClick={() => {
@@ -282,6 +300,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               label={t("recentEdits.title")}
               view="edits"
               tabStop={tabStop === "edits"}
+              onFocus={roveTo}
               isActive={activeTab === "edits"}
               isLoading={computed.isLoadingRecentEdits}
               onClick={() => {
@@ -302,6 +321,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               }
               view="board"
               tabStop={tabStop === "board"}
+              onFocus={roveTo}
               isActive={activeTab === "board"}
               disabled={!isClaudeProject}
               onClick={() => {
@@ -384,6 +404,8 @@ interface ViewTabProps {
   view: ToolbarView;
   /** The tablist's single Tab stop (roving tabindex). */
   tabStop: boolean;
+  /** Focus landed on this tab: it becomes the roving Tab stop. */
+  onFocus: (view: ToolbarView) => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   isActive?: boolean;
@@ -395,6 +417,7 @@ interface ViewTabProps {
 const ViewTab = ({
   view,
   tabStop,
+  onFocus,
   icon: Icon,
   label,
   isActive,
@@ -409,6 +432,7 @@ const ViewTab = ({
       aria-selected={isActive ?? false}
       aria-controls={VIEW_PANEL_ID}
       tabIndex={tabStop ? 0 : -1}
+      onFocus={() => onFocus(view)}
       onClick={onClick}
       disabled={disabled}
       className={cn(
