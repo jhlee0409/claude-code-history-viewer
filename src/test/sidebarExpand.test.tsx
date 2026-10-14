@@ -77,6 +77,17 @@ describe("sidebar expand is not select (F3)", () => {
     expect(screen.getByRole("tree").getAttribute("data-expanded")).toBe("");
   });
 
+  it("re-expanding the open project's collapsed row expands it in place", () => {
+    const onProjectClick = vi.fn();
+    render(<Harness onProjectClick={onProjectClick} />);
+
+    fireEvent.keyDown(row(OPEN), { key: "ArrowLeft" });
+    fireEvent.keyDown(row(OPEN), { key: "ArrowRight" });
+
+    expect(onProjectClick).not.toHaveBeenCalled();
+    expect(screen.getByRole("tree").getAttribute("data-expanded")).toBe(OPEN.path);
+  });
+
   it("expanding a closed row still opens that project", () => {
     const onProjectClick = vi.fn();
     render(<Harness onProjectClick={onProjectClick} />);

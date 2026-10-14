@@ -102,6 +102,27 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     });
   };
 
+  /*
+    Re-expanding the open project's row (ArrowRight after ArrowLeft) is tree
+    state too: the project is already open, so only the row expands. Going
+    through `handleProjectClick` would take its re-click branch and collapse
+    the row again.
+  */
+  const expandOpenProject = (project: ClaudeProject) => {
+    setExpandedProjects((prev) => {
+      if (prev.has(project.path)) return prev;
+      const next = new Set(prev);
+      next.add(project.path);
+      return next;
+    });
+  };
+
+  const toggleProject = (project: ClaudeProject, isExpanded: boolean) => {
+    if (isExpanded) collapseProject(project);
+    else if (selectedProject?.path === project.path) expandOpenProject(project);
+    else handleProjectClick(project);
+  };
+
   const renderProjectWithSessions = (
     project: ClaudeProject,
     variant: "default" | "main" | "worktree" = "default",
@@ -126,9 +147,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           isExpanded={isExpanded}
           isSelected={selectedProject?.path === project.path}
           ariaLevel={ariaLevel}
-          onToggle={() =>
-            isExpanded ? collapseProject(project) : handleProjectClick(project)
-          }
+          onToggle={() => toggleProject(project, isExpanded)}
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project, providerSiblings)}
           variant={variant}
