@@ -50,11 +50,21 @@ export async function startServer({ binary, dist, home, fixtureRoot, logFile }) 
   child.on("exit", (code, signal) => {
     exited = { code, signal };
   });
+  // A spawn failure (missing binary) arrives as an "error" event, not "exit".
+  child.on("error", (error) => {
+    exited ??= { error: error.message };
+  });
+  // Any startup failure must not leave a process or an open log behind.
+  const abort = (message) => {
+    if (!exited) child.kill("SIGKILL");
+    log.end();
+    return new Error(message);
+  };
 
   const origin = `http://${HOST}:${port}`;
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (exited) throw new Error(`server exited during startup (${JSON.stringify(exited)}); see ${logFile}`);
+    if (exited) throw abort(`server exited during startup (${JSON.stringify(exited)}); see ${logFile}`);
     try {
       const response = await fetch(`${origin}/`);
       if (response.ok) break;
@@ -63,15 +73,13 @@ export async function startServer({ binary, dist, home, fixtureRoot, logFile }) 
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  if (Date.now() >= deadline) {
-    child.kill("SIGKILL");
-    throw new Error(`server did not answer on ${origin} within 30s; see ${logFile}`);
-  }
+  if (Date.now() >= deadline) throw abort(`server did not answer on ${origin} within 30s; see ${logFile}`);
 
   return {
     origin,
     port,
     args,
+    pid: child.pid,
     async stop() {
       if (!exited) {
         const done = new Promise((resolve) => child.once("exit", resolve));

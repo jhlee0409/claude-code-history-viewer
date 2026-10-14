@@ -22,6 +22,7 @@ import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { runProbes } from "./lib/probes.mjs";
+import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { startServer } from "./lib/server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -179,77 +180,81 @@ async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
   const fixture = generateFixture({ root: FIXTURE_ROOT });
   const fixtureBefore = snapshotTree(FIXTURE_ROOT, isAppCacheFile);
   const t = loadTranslator(app.appDir, locale);
-  const server = await startServer({
-    binary: app.serverBin,
-    dist: app.dist,
-    home: fixture.home,
-    fixtureRoot: FIXTURE_ROOT,
-    logFile: path.join(runDir, "server.log"),
-  });
-  const browser = await webkit.launch();
+  let serverArgs = null;
   const results = [];
   const started = Date.now();
-  console.log(`▸ capture [${label}] ${scenarios.length} scenarios, locale ${locale}, server ${server.origin}`);
+  await withServerAndBrowser(
+    {
+      startServer: () =>
+        startServer({
+          binary: app.serverBin,
+          dist: app.dist,
+          home: fixture.home,
+          fixtureRoot: FIXTURE_ROOT,
+          logFile: path.join(runDir, "server.log"),
+        }),
+      launchBrowser: () => webkit.launch(),
+    },
+    async ({ server, browser }) => {
+      serverArgs = server.args;
+      console.log(`▸ capture [${label}] ${scenarios.length} scenarios, locale ${locale}, server ${server.origin}`);
 
-  try {
-    for (const [index, scenario] of scenarios.entries()) {
-      const t0 = Date.now();
-      const result = { id: scenario.id, ok: false };
-      results.push(result);
-      let session;
-      try {
-        session = await newScenarioPage(browser, {
-          scenario,
-          origin: server.origin,
-          locale,
-          fixedNow: fixture.fixedNow,
-          injections: scenario.screen.inject,
-        });
-        await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
-        const mode = scenario.screen.settle ?? "ready";
-        let settled = await settle(session, { mode, label: "initial load" });
-        const runStep = createActions({ session, scenario, manifest: fixture, t });
-        for (const step of scenario.screen.steps ?? []) {
-          await runStep(step);
-        }
-        settled = await settle(session, { mode, label: "before capture" });
-        await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
-        const probes = await runProbes(session.page);
-        writeJson(path.join(probesDir, `${scenario.id}.json`), {
-          scenario: scenario.id,
-          screen: scenario.screen.id,
-          viewport: { width: scenario.viewport.width, height: scenario.viewport.height, deviceScaleFactor: 2 },
-          theme: scenario.theme,
-          locale,
-          ...probes,
-        });
-        result.ok = true;
-        result.readyMarker = settled.readyMarker;
-      } catch (error) {
-        result.error = String(error?.message ?? error).split("\n")[0];
-        // A failed scenario must not leave a stale or partial shot behind.
-        fs.rmSync(path.join(shotsDir, `${scenario.id}.png`), { force: true });
-      } finally {
-        if (session) {
-          writeJson(path.join(logsDir, `${scenario.id}.json`), {
-            blockedRequests: [...new Set(session.log.blockedRequests)],
-            injected: session.log.injected,
-            consoleErrors: session.log.consoleErrors,
-            pageErrors: session.log.pageErrors,
+      for (const [index, scenario] of scenarios.entries()) {
+        const t0 = Date.now();
+        const result = { id: scenario.id, ok: false };
+        results.push(result);
+        let session;
+        try {
+          session = await newScenarioPage(browser, {
+            scenario,
+            origin: server.origin,
+            locale,
+            fixedNow: fixture.fixedNow,
+            injections: scenario.screen.inject,
           });
-          await session.close().catch(() => {});
+          await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
+          const mode = scenario.screen.settle ?? "ready";
+          let settled = await settle(session, { mode, label: "initial load" });
+          const runStep = createActions({ session, scenario, manifest: fixture, t });
+          for (const step of scenario.screen.steps ?? []) {
+            await runStep(step);
+          }
+          settled = await settle(session, { mode, label: "before capture" });
+          await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
+          const probes = await runProbes(session.page);
+          writeJson(path.join(probesDir, `${scenario.id}.json`), {
+            scenario: scenario.id,
+            screen: scenario.screen.id,
+            viewport: { width: scenario.viewport.width, height: scenario.viewport.height, deviceScaleFactor: 2 },
+            theme: scenario.theme,
+            locale,
+            ...probes,
+          });
+          result.ok = true;
+          result.readyMarker = settled.readyMarker;
+        } catch (error) {
+          result.error = String(error?.message ?? error).split("\n")[0];
+          // A failed scenario must not leave a stale or partial shot behind.
+          fs.rmSync(path.join(shotsDir, `${scenario.id}.png`), { force: true });
+        } finally {
+          if (session) {
+            writeJson(path.join(logsDir, `${scenario.id}.json`), {
+              blockedRequests: [...new Set(session.log.blockedRequests)],
+              injected: session.log.injected,
+              consoleErrors: session.log.consoleErrors,
+              pageErrors: session.log.pageErrors,
+            });
+            await session.close().catch(() => {});
+          }
+          result.ms = Date.now() - t0;
         }
-        result.ms = Date.now() - t0;
+        const tag = result.ok ? "ok  " : "FAIL";
+        console.log(
+          `  [${String(index + 1).padStart(3)}/${scenarios.length}] ${tag} ${scenario.id.padEnd(34)} ${(result.ms / 1000).toFixed(1)}s${result.error ? `  ${result.error}` : ""}`,
+        );
       }
-      const tag = result.ok ? "ok  " : "FAIL";
-      console.log(
-        `  [${String(index + 1).padStart(3)}/${scenarios.length}] ${tag} ${scenario.id.padEnd(34)} ${(result.ms / 1000).toFixed(1)}s${result.error ? `  ${result.error}` : ""}`,
-      );
-    }
-  } finally {
-    await browser.close().catch(() => {});
-    await server.stop();
-  }
+    },
+  );
 
   const fixtureAfter = snapshotTree(FIXTURE_ROOT, isAppCacheFile);
   const fixtureChanges = [...new Set([...Object.keys(fixtureBefore.files), ...Object.keys(fixtureAfter.files)])]
@@ -282,7 +287,7 @@ async function captureRun({ app, scenarios, declared, locale, runDir, label }) {
       changedByRun: fixtureChanges,
     },
     versions: { node: process.version, playwright: playwrightVersion(), webkit: browserVersion },
-    server: { args: server.args },
+    server: { args: serverArgs },
     declared,
     scenarios: results,
     durationMs: Date.now() - started,
@@ -354,8 +359,9 @@ async function resolveBase({ base, scenarios, declared, locale, build }) {
     spawnSync("git", ["worktree", "prune"], { cwd: REPO, stdio: "ignore" });
   };
   dropWorktree(); // a leftover of an interrupted run
-  git(["worktree", "add", "--detach", worktree, sha]);
   try {
+    // Inside the try: a partially created worktree is removed as well.
+    git(["worktree", "add", "--detach", worktree, sha]);
     const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), build });
     const run = await captureRun({ app, scenarios, declared, locale, runDir: cacheDir, label: `base ${sha.slice(0, 12)}` });
     return { label: `${base} (${sha.slice(0, 12)})`, shotsDir: run.shotsDir, failures: run.failures.map((f) => `base ${f}`) };
@@ -438,8 +444,11 @@ async function main() {
   acquireLock();
 
   const probe = await webkit.launch();
-  browserVersion = probe.version();
-  await probe.close();
+  try {
+    browserVersion = probe.version();
+  } finally {
+    await probe.close();
+  }
 
   const state = gitState();
   const id = runId(state);

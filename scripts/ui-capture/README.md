@@ -220,6 +220,11 @@ purpose; captures of the old and new fixture are not comparable.
 - One run at a time per checkout: runs share `.ui-capture/fixture`, so a
   second run refuses to start while `.ui-capture/run.lock` names a live
   process.
+- **Process ownership**: `lib/lifecycle.mjs` owns the server and browser of a
+  capture; any failure after the server is up (browser launch included)
+  closes the browser and stops the server before the error propagates, and a
+  `--base <ref>` worktree is removed even when `git worktree add` itself
+  fails half-way. Fault-injection tests: `test/lifecycle.test.mjs`.
 
 ## Troubleshooting
 
