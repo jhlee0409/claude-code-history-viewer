@@ -281,7 +281,7 @@ export interface AppStoreActions {
    */
   selectSession: (
     session: ClaudeSession,
-    options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
+    options?: import("./messageSlice").SelectSessionOptions,
   ) => Promise<void>;
   reloadCurrent: (
     reason: import("./messageSlice").ReloadReason,

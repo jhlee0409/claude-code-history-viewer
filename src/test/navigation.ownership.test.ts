@@ -23,6 +23,8 @@ import { act, renderHook } from "@testing-library/react";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 import type { ProjectStatsSummary } from "@/types";
+import type { BoardSessionData } from "@/types/board.types";
+import { openBoardMessage } from "@/components/SessionBoard/openBoardMessage";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -428,5 +430,59 @@ describe("an explicit message target belongs to its session", () => {
 
     expect(state().targetMessageUuid).toBe("kept");
     expect(urlMessage()).toBe("kept");
+  });
+});
+
+describe("opening a message from the board is one navigation", () => {
+  const boardData = (session: ClaudeSession, uuids: string[]) =>
+    ({ session, messages: uuids.map(message) }) as unknown as BoardSessionData;
+
+  it("records the board with the session it had, then opens the lane's session from its cache", async () => {
+    await state().navigate({ project: A, session: A1 });
+    await state().navigate({ view: "board" });
+    apiMock.mockClear();
+
+    await openBoardMessage(boardData(A2, ["A2-first", "A2-board-cache"]), "A2-board-cache");
+
+    const outgoing = state().placeHistory.back.at(-1);
+    expect(outgoing?.view).toBe("board");
+    expect(outgoing?.session?.file_path).toBe(A1.file_path);
+    expect(state().view).toBe("conversation");
+    expect(state().selectedSession?.file_path).toBe(A2.file_path);
+    expect(state().messages.map((m) => m.uuid)).toEqual(["A2-first", "A2-board-cache"]);
+    expect(state().targetMessageUuid).toBe("A2-board-cache");
+    // The board already holds the whole session: no page is fetched.
+    expect(apiMock).not.toHaveBeenCalledWith(
+      "load_provider_messages_paginated",
+      expect.anything(),
+    );
+  });
+
+  it("Back from the opened message returns to the board with its original session", async () => {
+    await state().navigate({ project: A, session: A1 });
+    await state().navigate({ view: "board" });
+    await openBoardMessage(boardData(A2, ["A2-board-cache"]), "A2-board-cache");
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    overrides.get_git_log = () => [];
+    overrides.load_provider_messages = () => [];
+
+    await act(async () => {
+      await result.current.goBack();
+    });
+
+    expect(state().view).toBe("board");
+    expect(state().selectedSession?.file_path).toBe(A1.file_path);
+  });
+
+  it("a message in the session already open only moves the screen and the target", async () => {
+    await state().navigate({ project: A, session: A1 });
+    await state().navigate({ view: "board" });
+    const messagesBefore = state().messages;
+
+    await openBoardMessage(boardData(A1, ["from-board"]), "loaded");
+
+    expect(state().view).toBe("conversation");
+    expect(state().messages).toBe(messagesBefore);
+    expect(state().targetMessageUuid).toBe("loaded");
   });
 });

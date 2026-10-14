@@ -23,7 +23,7 @@
  */
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
-import type { ClaudeProject, ClaudeSession } from "../../types";
+import type { ClaudeMessage, ClaudeProject, ClaudeSession } from "../../types";
 import {
   type WebUIHistoryMode,
   type WebUINavigationOptions,
@@ -49,6 +49,11 @@ export interface NavigateTarget {
   project?: ClaudeProject | null;
   /** Opens this session, or `null` closes the open one and keeps the project. */
   session?: ClaudeSession | null;
+  /**
+   * The whole message list of `session`, when the caller already holds it
+   * (the board's lane cache): the session opens from it instead of fetching.
+   */
+  sessionMessages?: ClaudeMessage[];
   /** An explicit message target inside the session (search, deep link, CLI). */
   messageId?: string | null;
 }
@@ -185,7 +190,10 @@ export const createNavigationSlice: StateCreator<
     }
 
     if (target.session) {
-      await get().selectSession(target.session, { history: sessionHistory });
+      await get().selectSession(target.session, {
+        history: sessionHistory,
+        cachedMessages: target.sessionMessages,
+      });
       if (!isCurrent()) return false;
     } else if (target.session === null && get().selectedSession) {
       set({

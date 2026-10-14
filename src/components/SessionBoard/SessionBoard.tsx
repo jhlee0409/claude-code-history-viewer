@@ -13,7 +13,7 @@ import type { ActiveBrush } from "../../types/board.types";
 
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
-import { buildSearchIndex, clearSearchIndex } from "../../utils/searchIndex";
+import { openBoardMessage } from "./openBoardMessage";
 
 const selectBoardSessions = (s: ReturnType<typeof useAppStore.getState>) => s.boardSessions;
 
@@ -459,33 +459,7 @@ export const SessionBoard = () => {
                                     isSelected={focusedSession?.session_id === sessionId}
                                     onInteractionClick={handleInteractionClick}
                                     onNavigate={(messageId) => {
-                                        // Set session and messages from board cache when session
-                                        // differs or messages are empty (e.g., after board view switch)
-                                        const currentMessages = useAppStore.getState().messages;
-                                        if (selectedSession?.session_id !== sessionId || currentMessages.length === 0) {
-                                            useAppStore.setState({
-                                                selectedSession: data.session,
-                                                messages: data.messages,
-                                                isLoadingMessages: false,
-                                                pagination: {
-                                                    currentOffset: data.messages.length,
-                                                    pageSize: data.messages.length,
-                                                    totalCount: data.messages.length,
-                                                    hasMore: false,
-                                                    isLoadingMore: false,
-                                                }
-                                            });
-
-                                            clearSearchIndex();
-                                            buildSearchIndex(data.messages);
-                                        }
-                                        // Open the conversation at that message. The session
-                                        // is already in place (hydrated above), so this moves
-                                        // the screen and sets the explicit target.
-                                        void useAppStore.getState().navigate({
-                                            view: "conversation",
-                                            messageId,
-                                        });
+                                        void openBoardMessage(data, messageId);
                                     }}
                                     scrollContainerRef={parentRef as React.RefObject<HTMLDivElement>}
                                     onHeightChange={(h) => handleLaneHeightChange(sessionId, h)}

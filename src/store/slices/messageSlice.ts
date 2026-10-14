@@ -80,6 +80,14 @@ export interface MessageSliceState {
  */
 export type ReloadReason = "watcher" | "filter" | "refresh" | "restore";
 
+export interface SelectSessionOptions extends WebUINavigationOptions {
+  /**
+   * The session's whole message list, already in hand (the board's lane
+   * cache): it is opened from this instead of fetched.
+   */
+  cachedMessages?: ClaudeMessage[];
+}
+
 export interface MessageSliceActions {
   /**
    * Loads a session as the open one. Store-internal: `navigate` opens a
@@ -87,7 +95,7 @@ export interface MessageSliceActions {
    */
   selectSession: (
     session: ClaudeSession,
-    options?: WebUINavigationOptions,
+    options?: SelectSessionOptions,
   ) => Promise<void>;
   /**
    * Reload the open session in place: same place, same paged-in window,
@@ -509,6 +517,25 @@ export const createMessageSlice: StateCreator<
     // The session file may have changed (or the session did) — the cached
     // full-session fetch is no longer trustworthy either way.
     fullSessionCache = null;
+
+    const cached = options?.cachedMessages;
+    if (cached) {
+      // Already the whole session: the window is all of it.
+      clearSearchIndex();
+      set({
+        messages: cached,
+        isLoadingMessages: false,
+        pagination: {
+          currentOffset: cached.length,
+          pageSize: cached.length,
+          totalCount: cached.length,
+          hasMore: false,
+          isLoadingMore: false,
+        },
+      });
+      void get().loadSubagents(session.file_path, cached);
+      return;
+    }
 
     try {
       const sessionPath = session.file_path;

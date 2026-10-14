@@ -4,7 +4,8 @@
  * 1. The two old sources of "where am I" are gone for good: no
  *    `currentView`, no `isViewingGlobalStats` (or their setters) anywhere in
  *    the app source.
- * 2. Selection primitives are store-internal. Moving the user goes through
+ * 2. Selection primitives are store-internal, and nothing outside the store
+ *    writes the place's state directly. Moving the user goes through
  *    `navigate`, reloading through `reloadCurrent`; the table below is the
  *    complete list of files allowed to call the primitives directly, with the
  *    reason. A new caller must either use `navigate` / `reloadCurrent` or be
@@ -63,6 +64,28 @@ describe("place model invariants", () => {
       "store/slices/messageSlice.ts": "selectSession",
     },
   };
+
+  /**
+   * The place's state, written only by the store's own transactions. A
+   * component that writes it straight through `useAppStore.setState`
+   * bypasses `navigate` (history snapshot, epoch, URL, reset ownership).
+   */
+  const PLACE_FIELDS = [
+    "view",
+    "selectedProject",
+    "selectedSession",
+    "messages",
+    "targetMessageUuid",
+    "placeHistory",
+    "navigationEpoch",
+  ];
+
+  it("no app code writes the place through useAppStore.setState", () => {
+    const directWrite = new RegExp(
+      `useAppStore\\.setState\\(\\s*(?:\\([^)]*\\)\\s*=>\\s*\\(?)?\\{[^}]*\\b(?:${PLACE_FIELDS.join("|")})\\b`
+    );
+    expect(filesMatching(directWrite, (rel) => !isTest(rel))).toEqual([]);
+  });
 
   it.each(Object.keys(ALLOWED))("only the store calls %s()", (primitive) => {
     const callers = filesMatching(
