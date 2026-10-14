@@ -17,6 +17,7 @@
     "i18n:sync": "node scripts/sync-i18n-keys.mjs",
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "pricing:check": "node scripts/check-model-pricing.mjs",
+    "ui:capture": "node scripts/ui-capture/run.mjs",
     "prepare": "husky"
   },
   "dependencies": {
