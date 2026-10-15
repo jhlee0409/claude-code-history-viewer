@@ -14,6 +14,7 @@
 //   { do: "globalStats" }
 //   { do: "openSidebar" }                                   (mobile drawer)
 //   { do: "collapseProjects" }      every project row collapsed, none selected
+//   { do: "fontScale", percent: 90 | 100 | 110 | 120 | 130 }   (gear menu → font size)
 //   { do: "expandProject", project: "featured" | "<name>" }
 //                                   exactly one project open: its sessions
 //                                   inline (aria-expanded) or in the sessions
@@ -169,11 +170,32 @@ const MEASUREMENT_SCREENS = [
   },
 ];
 
+/**
+ * Font-scale pair (T4 / D9): every type step must render at base × scale
+ * (±0.5px) at 90% and 110%. The scale is set through the app's own menu as
+ * the first step (the WebUI does not restore a stored scale at startup);
+ * `fontScalePercent` overrides the measurement state's 100% for these
+ * scenarios only.
+ */
+const SCALE_SCREENS = [90, 110].flatMap((fontScalePercent) =>
+  ["transcript", "analytics"].map((base) => {
+    const screen = COMMON_SCREENS.find((s) => s.id === base);
+    return {
+      ...screen,
+      id: `${base}-scale${fontScalePercent}`,
+      title: `${screen.title} at font scale ${fontScalePercent}%`,
+      fontScalePercent,
+      steps: [{ do: "fontScale", percent: fontScalePercent }, ...screen.steps],
+    };
+  }),
+);
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: THEMES, screens: [...COMMON_SCREENS, ...MOBILE_SCREENS] },
   { viewports: DESKTOP_VIEWPORTS, themes: ["dark"], screens: MEASUREMENT_SCREENS },
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: ["light"], screens: SCALE_SCREENS },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */

@@ -36,6 +36,15 @@ describe("measurement state", () => {
     expect(checkMeasurementState({ ...measured, rootFontSize: 17.6 }, MEASUREMENT_STATE, { mobile: false })).toHaveLength(1);
   });
 
+  it("judges the font scale by --app-font-scale (the root font size never changes)", () => {
+    const at90 = { ...MEASUREMENT_STATE, fontScalePercent: 90 };
+    expect(checkMeasurementState({ ...measured, appFontScale: 0.9 }, at90, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, appFontScale: 1 }, at90, { mobile: false })).toEqual([
+      "--app-font-scale 1, expected 0.9 (scale 90%)",
+    ]);
+    expect(checkMeasurementState({ ...measured, appFontScale: 1 }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+  });
+
   it("does not judge the mobile drawer width", () => {
     expect(checkMeasurementState({ ...measured, sidebarWidth: 311 }, MEASUREMENT_STATE, { mobile: true })).toEqual([]);
   });

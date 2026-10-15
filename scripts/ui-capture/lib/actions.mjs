@@ -176,6 +176,27 @@ export function createActions({ session, scenario, manifest, t }) {
       await click(page.getByRole("menuitem", { name: t(MENU_LABEL_KEYS[item]) }), `menu ${item}`);
     },
 
+    /**
+     * The app's font-size setting through its own menu (gear → font size →
+     * N%), by keyboard: Radix opens a submenu on hover only after a timer and
+     * closes it when the pointer crosses other items, so pointer driving is
+     * fragile under the paused clock.
+     */
+    async fontScale({ percent }) {
+      await click(page.locator("#app-settings-button"), "open app menu");
+      // The trigger reads "<title> · <current>%": match the title as a substring.
+      await page.getByRole("menuitem", { name: t("common.settings.font.title") }).press("ArrowRight");
+      await settled("open font submenu");
+      const option = page.getByRole("menuitemradio", { name: `${t(`common.settings.font.${percent}`)} (${percent}%)`, exact: true });
+      await option.press("Enter");
+      await parkPointer(page);
+      await settled(`font scale ${percent}%`);
+      if ((await page.getByRole("menu").count()) > 0) {
+        await page.keyboard.press("Escape");
+        await settled("close app menu");
+      }
+    },
+
     async globalStats() {
       await steps.openSidebar();
       await click(page.locator('[data-tree-node="global"]').first(), "global stats");

@@ -57,6 +57,11 @@ const LAYOUT_PROBE = `(() => {
     measurementState: {
       sidebarWidth: sidebarBox ? round(sidebarBox.width) : null,
       rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      // The app's font-size setting: a CSS variable on <html>, not the root size.
+      appFontScale: (() => {
+        const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-font-scale"));
+        return Number.isFinite(value) ? value : null;
+      })(),
       inspectorOpenStored: (() => {
         try {
           return localStorage.getItem("navigator-open");
@@ -184,9 +189,14 @@ export function checkMeasurementState(measured, expected, { mobile }) {
   if (measured.inspectorOpenStored !== String(expected.inspectorOpen)) {
     problems.push(`inspector (navigator-open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
   }
-  const expectedRootPx = (16 * expected.fontScalePercent) / 100;
-  if (measured.rootFontSize !== expectedRootPx) {
-    problems.push(`root font size ${measured.rootFontSize}px, expected ${expectedRootPx}px (scale ${expected.fontScalePercent}%)`);
+  // The font-size setting scales the type tokens through --app-font-scale;
+  // the root font size stays the browser default at every scale.
+  if (measured.rootFontSize !== 16) {
+    problems.push(`root font size ${measured.rootFontSize}px, expected 16px`);
+  }
+  const expectedScale = expected.fontScalePercent / 100;
+  if (measured.appFontScale !== undefined && measured.appFontScale !== null && Math.abs(measured.appFontScale - expectedScale) > 1e-6) {
+    problems.push(`--app-font-scale ${measured.appFontScale}, expected ${expectedScale} (scale ${expected.fontScalePercent}%)`);
   }
   return problems;
 }

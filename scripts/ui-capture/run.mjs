@@ -22,6 +22,7 @@ import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
+import { TYPOGRAPHY_PROBE, checkTypography } from "./lib/typography.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { startServer } from "./lib/server.mjs";
 
@@ -167,7 +168,12 @@ function prepareArtifacts({ appDir, buildDir, build }) {
 // Capture
 // ---------------------------------------------------------------------------
 
-async function captureRun({ app, scenarios, declared, locale, measurement, runDir, label }) {
+/**
+ * `checkTypography`: fail a scenario whose typography is off (T4: lang, font
+ * order, body line height, steps × scale, min font). On for this checkout's
+ * captures; off for a --base capture, which is the "before" being compared.
+ */
+async function captureRun({ app, scenarios, declared, locale, measurement, runDir, label, checkTypography: enforceTypography = true }) {
   const shotsDir = path.join(runDir, "shots");
   const probesDir = path.join(runDir, "probes");
   const logsDir = path.join(runDir, "logs");
@@ -215,7 +221,7 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
             locale,
             fixedNow: fixture.fixedNow,
             injections: scenario.screen.inject,
-            storageSeed: measurement.storageSeed,
+            storageSeed: { ...measurement.storageSeed, ...(scenario.screen.storage ?? {}) },
           });
           await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
           const mode = scenario.screen.settle ?? "ready";
@@ -227,9 +233,19 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
           const probes = await runProbes(session.page);
-          const stateProblems = measurement.state
-            ? checkMeasurementState(probes.measurementState, measurement.state, { mobile: scenario.mobile })
+          const expectedState = measurement.state && {
+            ...measurement.state,
+            fontScalePercent: scenario.screen.fontScalePercent ?? measurement.state.fontScalePercent,
+          };
+          const stateProblems = expectedState
+            ? checkMeasurementState(probes.measurementState, expectedState, { mobile: scenario.mobile })
             : [];
+          const typography = await session.page.evaluate(TYPOGRAPHY_PROBE);
+          typography.problems = checkTypography(typography, {
+            locale,
+            scalePercent: expectedState?.fontScalePercent ?? 100,
+            minFontPx: probes.minFontSize.px,
+          });
           writeJson(path.join(probesDir, `${scenario.id}.json`), {
             scenario: scenario.id,
             screen: scenario.screen.id,
@@ -237,8 +253,10 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
             theme: scenario.theme,
             locale,
             ...probes,
+            typography,
           });
           if (stateProblems.length) throw new Error(`measurement state: ${stateProblems.join("; ")}`);
+          if (enforceTypography && typography.problems.length) throw new Error(`typography: ${typography.problems.join("; ")}`);
           result.ok = true;
           result.readyMarker = settled.readyMarker;
         } catch (error) {
@@ -372,7 +390,16 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
     // Inside the try: a partially created worktree is removed as well.
     git(["worktree", "add", "--detach", worktree, sha]);
     const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), build });
-    const run = await captureRun({ app, scenarios, declared, locale, measurement, runDir: cacheDir, label: `base ${sha.slice(0, 12)}` });
+    const run = await captureRun({
+      app,
+      scenarios,
+      declared,
+      locale,
+      measurement,
+      runDir: cacheDir,
+      label: `base ${sha.slice(0, 12)}`,
+      checkTypography: false,
+    });
     return { label: `${base} (${sha.slice(0, 12)})`, shotsDir: run.shotsDir, failures: run.failures.map((f) => `base ${f}`) };
   } finally {
     dropWorktree();
