@@ -273,9 +273,9 @@ purpose; captures of the old and new fixture are not comparable.
 
 ## Known limits
 
-- **Fonts**: external requests are blocked, so the Google-hosted IBM Plex Sans
-  / JetBrains Mono never load and text renders in the system fallback.
-  Deterministic on one machine; bundling the fonts locally is T4.
+- **Fonts**: IBM Plex Sans / JetBrains Mono are bundled (`src/assets/fonts`),
+  so the external-request block no longer changes rendering. CJK text uses
+  the OS fonts (per-language order in `index.css`).
 - **Same machine only**: screenshots depend on the OS font stack, the WebKit
   build and the checkout path (shown inside the app). Compare captures made
   on the same machine; do not commit baselines from one machine for another.

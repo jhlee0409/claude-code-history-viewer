@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { OverlayScrollbars } from "overlayscrollbars";
 import "overlayscrollbars/overlayscrollbars.css";
+import "./assets/fonts/fonts.css";
 import "./index.css";
 import "./scrollbar.css";
 import App from "./App.tsx";
