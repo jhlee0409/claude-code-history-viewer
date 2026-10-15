@@ -800,12 +800,12 @@
   }
 
   .prose sub {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: sub !important;
   }
 
   .prose sup {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: super !important;
   }
 
