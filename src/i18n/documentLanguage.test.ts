@@ -15,6 +15,13 @@ describe("toSupportedLanguage", () => {
     ["zh-TW", "zh-TW"],
     ["zh-HK", "zh-TW"],
     ["zh-Hant", "zh-TW"],
+    // Subtags after a singleton (x-, u-, t-) are extensions or private use,
+    // not region or script.
+    ["zh-CN-x-hk", "zh-CN"],
+    ["zh-u-hk", "zh-CN"],
+    ["zh-x-tw", "zh-CN"],
+    ["zh-Hans-CN-x-hk", "zh-CN"],
+    ["zh-Hant-u-nu-hanidec", "zh-TW"],
     ["fr-FR", "en"],
     ["", "en"],
   ])("%s -> %s", (input, expected) => {

@@ -11,7 +11,11 @@ const SUPPORTED: readonly SupportedLanguage[] = ["en", "ko", "ja", "zh-CN", "zh-
 export function toSupportedLanguage(lang: string): SupportedLanguage {
   const [primary = "", ...rest] = lang.toLowerCase().split(/[-_]/);
   if (primary === "zh") {
-    return rest.some((part) => ["tw", "hk", "mo", "hant"].includes(part)) ? "zh-TW" : "zh-CN";
+    // Only script/region subtags count; everything after a singleton
+    // (u-, t-, x-, ...) is an extension or private use.
+    const singleton = rest.findIndex((part) => part.length === 1);
+    const subtags = singleton === -1 ? rest : rest.slice(0, singleton);
+    return subtags.some((part) => ["tw", "hk", "mo", "hant"].includes(part)) ? "zh-TW" : "zh-CN";
   }
   return SUPPORTED.find((supported) => supported === primary) ?? "en";
 }
