@@ -416,7 +416,8 @@
    text-lg / text-xl / text-2xl are analytics-number aliases only (their
    current 18 / 20 / 24px, now also × scale). Nothing else exists: the
    default Tailwind sizes are cleared, and src/test/typography.guard.test.ts
-   rejects any other size class, inline px size or CSS px size. */
+   rejects any other size class (also arbitrary or concatenated), any inline
+   size that is not var(--text-<token>) and any other CSS font-size. */
 @theme static {
   --text-*: initial;
   --text-caption: calc(0.75rem * var(--app-font-scale));
