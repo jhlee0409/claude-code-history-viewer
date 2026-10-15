@@ -480,9 +480,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             The navigator is an outline OF the transcript, so it belongs
             against the transcript it indexes; the dock is a separate surface
             about the project and sits outside it.
+
+            Keyed by whether a session is open, so clearing or opening one
+            remounts the dock (fresh scroll, focus and panel state) while a
+            switch between sessions keeps it - the lifetime it had when it sat
+            inside the transcript or the "select a session" placeholder (T2).
           */}
           {showRecentEditsDock && (
             <RecentEditsDock
+              key={selectedSession == null ? "beside-placeholder" : "beside-transcript"}
               width={recentEditsDockWidth}
               isResizing={isRecentEditsDockResizing}
               onResizeStart={handleRecentEditsDockResizeStart}

@@ -222,11 +222,22 @@ vi.mock("@/components/MessageNavigator", () => ({
     <aside id={props.asideId}>{stub("MessageNavigator")(props)}</aside>
   ),
 }));
-vi.mock("@/components/PanelDock", () => ({
-  PanelDock: (props: { asideId?: string } & Record<string, unknown>) => (
-    <aside id={props.asideId}>{stub("PanelDock")(props)}</aside>
-  ),
-}));
+/** How often the recent-edits dock's panel mounted and unmounted. */
+const { dockLifecycle } = vi.hoisted(() => ({ dockLifecycle: { mounts: 0, unmounts: 0 } }));
+vi.mock("@/components/PanelDock", async () => {
+  const { useEffect } = await import("react");
+  return {
+    PanelDock: (props: { asideId?: string } & Record<string, unknown>) => {
+      useEffect(() => {
+        dockLifecycle.mounts += 1;
+        return () => {
+          dockLifecycle.unmounts += 1;
+        };
+      }, []);
+      return <aside id={props.asideId}>{stub("PanelDock")(props)}</aside>;
+    },
+  };
+});
 vi.mock("@/components/TokenStatsViewer", () => ({ TokenStatsViewer: stub("TokenStatsViewer") }));
 vi.mock("@/components/AnalyticsDashboard", () => ({
   AnalyticsDashboard: stub("AnalyticsDashboard"),
@@ -387,5 +398,50 @@ describe("shell characterization", () => {
       const { container } = render(<App />);
       expect(container).toMatchSnapshot();
     });
+  });
+});
+
+/*
+  The dock's lifetime on the transcript screen, as T2 (develop e3b84091) had
+  it: the dock sat beside the transcript or beside the "select a session"
+  placeholder, two different trees, so clearing or restoring the session
+  remounted it (its scroll, focus and local state start over), while
+  switching between two sessions kept it. The shell split must not change it.
+*/
+describe("recent-edits dock lifetime on the transcript screen", () => {
+  const initialSession = appStoreState.selectedSession as Record<string, unknown>;
+
+  beforeAll(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  beforeEach(() => {
+    resetComputedMock();
+    platformMock.isMobile = false;
+    appStoreState.selectedSession = initialSession;
+    Object.assign(dockLifecycle, { mounts: 0, unmounts: 0 });
+    Object.assign(computedMock, { isMessagesView: true });
+  });
+
+  it("keeps the dock across a switch to another session", () => {
+    const { rerender } = render(<App />);
+    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
+
+    appStoreState.selectedSession = { ...initialSession, session_id: "session-2" };
+    rerender(<App />);
+    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
+  });
+
+  it("remounts the dock when the session is cleared, and again when one is opened", () => {
+    const { rerender } = render(<App />);
+    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
+
+    appStoreState.selectedSession = null;
+    rerender(<App />);
+    expect(dockLifecycle).toEqual({ mounts: 2, unmounts: 1 });
+
+    appStoreState.selectedSession = initialSession;
+    rerender(<App />);
+    expect(dockLifecycle).toEqual({ mounts: 3, unmounts: 2 });
   });
 });
