@@ -10,7 +10,8 @@
  *
  * - The store, the navigation helpers and the navigation/analytics hooks are
  *   held to it for every feedback write.
- * - Every other component / hook that awaits is held to it for direct store
+ * - Every other component / hook / layout (`src/layouts`: the header, the
+ *   shell's screens and dock) that awaits is held to it for direct store
  *   writes (`useAppStore.setState(...)`, `useAppStore.getState().setError(...)`,
  *   …). Its own toasts and React state report the outcome of what the user
  *   did there and are not scanned.
@@ -49,14 +50,21 @@ const read = (file: string) => ({
 const FILES = SCOPES.flatMap((scope) => sourceFiles(path.join(SRC, scope))).map(read);
 const scoped = new Set(FILES.map((file) => file.rel));
 
-/** Components and hooks outside SCOPES that do async work. */
-const UI_FILES = [
-  ...sourceFiles(path.join(SRC, "components")),
-  ...sourceFiles(path.join(SRC, "hooks")),
-  path.join(SRC, "App.tsx"),
-]
-  .map(read)
-  .filter((file) => !scoped.has(file.rel) && /\bawait\b|\.then\(/.test(file.text));
+type SourceText = ReturnType<typeof read>;
+
+/** Of `files`, those outside SCOPES that do async work. */
+const doAsyncWork = (files: SourceText[]) =>
+  files.filter((file) => !scoped.has(file.rel) && /\bawait\b|\.then\(/.test(file.text));
+
+/** Components, hooks and layouts outside SCOPES that do async work. */
+const UI_FILES = doAsyncWork(
+  [
+    ...sourceFiles(path.join(SRC, "components")),
+    ...sourceFiles(path.join(SRC, "hooks")),
+    ...sourceFiles(path.join(SRC, "layouts")),
+    path.join(SRC, "App.tsx"),
+  ].map(read)
+);
 
 /**
  * `file#function:kind` -> why that function's late write of that kind is not
@@ -85,6 +93,15 @@ const feedbackKeys = (rel: string, write: AsyncWrite) =>
     .filter((kind) => FEEDBACK_KINDS.includes(kind))
     .map((kind) => `${rel}#${write.fn}:${kind}`);
 
+/** Direct store feedback written late and ungated, in UI-side `files`. */
+const uiViolations = (files: SourceText[]) =>
+  files.flatMap(({ rel, text }) =>
+    asyncWrites(rel, text)
+      .filter((write) => isStoreWrite(write) && isFeedback(write) && !write.gated)
+      .filter((write) => !feedbackKeys(rel, write).every((key) => EXEMPT[key]))
+      .map((write) => `${rel}:${write.line} ${write.fn}: ${write.callee} [${write.kinds.join(",")}]`)
+  );
+
 describe("async ownership invariant", () => {
   const violations = FILES.flatMap(({ rel, text }) =>
     asyncWrites(rel, text)
@@ -99,13 +116,38 @@ describe("async ownership invariant", () => {
 
   it("every direct store feedback write after an await in a component or hook is gated", () => {
     expect(UI_FILES.length).toBeGreaterThan(20);
-    const uiViolations = UI_FILES.flatMap(({ rel, text }) =>
-      asyncWrites(rel, text)
-        .filter((write) => isStoreWrite(write) && isFeedback(write) && !write.gated)
-        .filter((write) => !feedbackKeys(rel, write).every((key) => EXEMPT[key]))
-        .map((write) => `${rel}:${write.line} ${write.fn}: ${write.callee} [${write.kinds.join(",")}]`)
+    expect(uiViolations(UI_FILES)).toEqual([]);
+  });
+
+  it("scans the layouts: the header's async callbacks are in the UI-side scan", () => {
+    const layouts = UI_FILES.map((file) => file.rel).filter((rel) => rel.startsWith("layouts/"));
+    expect(layouts).toEqual(
+      expect.arrayContaining(["layouts/Header/Header.tsx", "layouts/Header/SessionCopyMenu.tsx"])
     );
-    expect(uiViolations).toEqual([]);
+  });
+
+  it("catches an ungated late store write added to a shell screen", () => {
+    const screens = read(path.join(SRC, "layouts/shell/screens.tsx"));
+    const probe = {
+      rel: screens.rel,
+      text: `${screens.text}
+export const LateScreen = () => {
+  const reload = useCallback(async () => {
+    await api();
+    useAppStore.getState().setError({ message: "late" });
+  }, []);
+  return null;
+};`,
+    };
+    const files = doAsyncWork([
+      ...UI_FILES.filter((file) => file.rel !== probe.rel),
+      probe,
+    ]);
+    expect(uiViolations(files)).toEqual([
+      expect.stringMatching(
+        /^layouts\/shell\/screens\.tsx:\d+ reload: useAppStore\.getState\(\)\.setError \[global-error\]$/
+      ),
+    ]);
   });
 
   it("every exemption still names a function with feedback after an await", () => {
