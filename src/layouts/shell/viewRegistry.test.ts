@@ -79,6 +79,10 @@ const LAYOUT_FILES = sourceFiles(path.join(SRC, "layouts")).map((file) => ({
   ),
 }));
 
+function unparen(node: ts.Expression): ts.Expression {
+  return ts.isParenthesizedExpression(node) ? unparen(node.expression) : node;
+}
+
 function containsJsx(node: ts.Node): boolean {
   if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
     return true;
@@ -169,6 +173,14 @@ describe("screenOf: the analytics flags resolve back to the place's view", () =>
 });
 
 describe("no view is rendered outside the registry (static scan of src/layouts)", () => {
+  it("has no nested ternary chains", () => {
+    const chains = findConditionals((node) => {
+      const branches = [unparen(node.whenTrue), unparen(node.whenFalse)];
+      return branches.some(ts.isConditionalExpression);
+    });
+    expect(chains).toEqual([]);
+  });
+
   it("has no ternary choosing markup on a view condition", () => {
     const VIEW_CONDITION = /\bis[A-Z]\w*View\b|\bview\s*[!=]==|[!=]==\s*view\b|\bscreen\s*[!=]==/;
     const picks = findConditionals(

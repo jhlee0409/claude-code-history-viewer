@@ -1,13 +1,4 @@
-import {
-  Loader2,
-  RefreshCw,
-  BarChart3,
-  MessageSquare,
-  Activity,
-  FileEdit,
-  Columns,
-  Search,
-} from "lucide-react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -15,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { activeToolbarView, type ToolbarView } from "@/navigation/place";
 import { VIEW_PANEL_ID, viewTabId } from "./viewTabIds";
+import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY } from "@/layouts/shell/viewRegistry";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import { useModal } from "@/contexts/modal";
@@ -157,6 +149,46 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     }
   };
 
+  // What each view tab does; its icon and label come from the view registry.
+  const tabBehaviour: Record<ToolbarView, TabBehaviour> = {
+    conversation: {
+      onClick: () => {
+        if (!computed.isMessagesView) analyticsActions.switchToMessages();
+      },
+    },
+    analytics: {
+      isLoading: computed.isLoadingAnalytics,
+      onClick: () => {
+        if (!computed.isAnalyticsView) handleLoadAnalytics();
+      },
+    },
+    tokenStats: {
+      isLoading: computed.isLoadingTokenStats,
+      onClick: () => {
+        if (!computed.isTokenStatsView) handleLoadTokenStats();
+      },
+    },
+    edits: {
+      isLoading: computed.isLoadingRecentEdits,
+      onClick: () => {
+        if (computed.isRecentEditsView && recentEditsMode !== "docked") {
+          analyticsActions.switchToMessages();
+        } else {
+          handleLoadRecentEdits();
+        }
+      },
+    },
+    board: {
+      // The board reads Claude Code data only; elsewhere the tab says why it is off.
+      label: isClaudeProject
+        ? undefined
+        : t("common.settings.claudeOnly", { name: t("session.board.title") }),
+      onClick: () => {
+        if (!computed.isBoardView) handleLoadBoard();
+      },
+    },
+  };
+
   return (
     <header
       id="app-header"
@@ -258,76 +290,24 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             onKeyDown={moveFocusAcrossTabs}
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
-            <ViewTab
-              icon={MessageSquare}
-              label={t("message.view")}
-              view="conversation"
-              tabStop={tabStop === "conversation"}
-              onFocus={roveTo}
-              isActive={activeTab === "conversation"}
-              onClick={() => {
-                if (!computed.isMessagesView) analyticsActions.switchToMessages();
-              }}
-            />
-            <ViewTab
-              icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
-              label={t("analytics.dashboard")}
-              view="analytics"
-              tabStop={tabStop === "analytics"}
-              onFocus={roveTo}
-              isActive={activeTab === "analytics"}
-              isLoading={computed.isLoadingAnalytics}
-              onClick={() => {
-                if (!computed.isAnalyticsView) handleLoadAnalytics();
-              }}
-              disabled={computed.isLoadingAnalytics}
-            />
-            <ViewTab
-              icon={computed.isLoadingTokenStats ? Loader2 : Activity}
-              label={t("messages.tokenStats.existing")}
-              view="tokenStats"
-              tabStop={tabStop === "tokenStats"}
-              onFocus={roveTo}
-              isActive={activeTab === "tokenStats"}
-              isLoading={computed.isLoadingTokenStats}
-              onClick={() => {
-                if (!computed.isTokenStatsView) handleLoadTokenStats();
-              }}
-              disabled={computed.isLoadingTokenStats}
-            />
-            <ViewTab
-              icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
-              label={t("recentEdits.title")}
-              view="edits"
-              tabStop={tabStop === "edits"}
-              onFocus={roveTo}
-              isActive={activeTab === "edits"}
-              isLoading={computed.isLoadingRecentEdits}
-              onClick={() => {
-                if (computed.isRecentEditsView && recentEditsMode !== "docked") {
-                  analyticsActions.switchToMessages();
-                } else {
-                  handleLoadRecentEdits();
-                }
-              }}
-              disabled={computed.isLoadingRecentEdits}
-            />
-            <ViewTab
-              icon={Columns}
-              label={
-                isClaudeProject
-                  ? t("session.board.title")
-                  : t("common.settings.claudeOnly", { name: t("session.board.title") })
-              }
-              view="board"
-              tabStop={tabStop === "board"}
-              onFocus={roveTo}
-              isActive={activeTab === "board"}
-              disabled={!isClaudeProject}
-              onClick={() => {
-                if (!computed.isBoardView) handleLoadBoard();
-              }}
-            />
+            {TOOLBAR_TAB_ORDER.map((view) => {
+              const { icon, labelKey } = VIEW_REGISTRY[view].tab;
+              const tab = tabBehaviour[view];
+              return (
+                <ViewTab
+                  key={view}
+                  icon={tab.isLoading ? Loader2 : icon}
+                  label={tab.label ?? t(labelKey)}
+                  view={view}
+                  tabStop={tabStop === view}
+                  onFocus={roveTo}
+                  isActive={activeTab === view}
+                  isLoading={tab.isLoading}
+                  onClick={tab.onClick}
+                  disabled={tabDisabled[view]}
+                />
+              );
+            })}
           </div>
         )}
 
@@ -365,14 +345,12 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   );
 };
 
-/** The header tabs, in display order. */
-const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
-  "conversation",
-  "analytics",
-  "tokenStats",
-  "edits",
-  "board",
-];
+interface TabBehaviour {
+  onClick: () => void;
+  isLoading?: boolean;
+  /** Replaces the registry label. */
+  label?: string;
+}
 
 /**
  * Arrow keys / Home / End move focus between the enabled tabs (APG tabs,
@@ -384,19 +362,26 @@ function moveFocusAcrossTabs(event: React.KeyboardEvent<HTMLElement>) {
   );
   const current = tabs.indexOf(document.activeElement as HTMLElement);
   if (current === -1 || tabs.length === 0) return;
-  const next =
-    event.key === "ArrowRight"
-      ? (current + 1) % tabs.length
-      : event.key === "ArrowLeft"
-        ? (current - 1 + tabs.length) % tabs.length
-        : event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? tabs.length - 1
-            : null;
+  const next = focusTarget(event.key, current, tabs.length);
   if (next === null) return;
   event.preventDefault();
   tabs[next]?.focus();
+}
+
+/** The tab index a navigation key moves focus to, or null for other keys. */
+function focusTarget(key: string, current: number, count: number): number | null {
+  switch (key) {
+    case "ArrowRight":
+      return (current + 1) % count;
+    case "ArrowLeft":
+      return (current - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
 }
 
 /* Segmented view tab: icon always, label from xl up. */
