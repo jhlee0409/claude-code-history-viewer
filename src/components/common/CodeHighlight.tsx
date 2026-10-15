@@ -41,7 +41,7 @@ export const CodeHighlight: React.FC<CodeHighlightProps> = ({
   if (isTooLargeToHighlight(code)) {
     return (
       <div>
-        <div className="px-2 py-1 text-xs text-muted-foreground">
+        <div className="px-2 py-1 text-list text-muted-foreground">
           {t("sizeGuard.highlightDisabled", {
             size: formatCharSize(code.length),
             defaultValue:

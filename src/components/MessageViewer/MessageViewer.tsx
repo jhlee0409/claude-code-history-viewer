@@ -80,8 +80,8 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
       >
         <ChevronIcon className="w-3 h-3 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="text-px10 text-muted-foreground/70 bg-muted rounded-full px-1.5">
+        <span className="text-list font-medium text-muted-foreground">{label}</span>
+        <span className="text-caption text-muted-foreground/70 bg-muted rounded-full px-1.5">
           {subagentSessions.length}
         </span>
       </button>
@@ -95,14 +95,14 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
               key={sa.file_path}
               type="button"
               onClick={() => void navigateToSubagent(sa)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-list rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
               title={sa.summary ?? sa.agent_id}
             >
               <Bot className="w-3 h-3 text-muted-foreground" />
               <span className="max-w-[200px] truncate">
                 {sa.summary ?? sa.agent_id}
               </span>
-              <span className="text-px10 text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
               </span>
             </button>
@@ -829,10 +829,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             <div className="mb-4">
               <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
             </div>
-            <h3 className="text-lg font-medium mb-2 text-foreground">
+            <h3 className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noMessages")}
             </h3>
-            <p className="text-sm text-center whitespace-pre-line">
+            <p className="text-body text-center whitespace-pre-line">
               {t("messageViewer.noMessagesDescription")}
             </p>
           </div>
@@ -879,7 +879,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={() => onFilterTypeChange("content")}
             className={cn(
-              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              "text-list px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "content"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -892,7 +892,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={() => onFilterTypeChange("toolId")}
             className={cn(
-              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              "text-list px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "toolId"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -918,7 +918,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             placeholder={t("messageViewer.searchPlaceholder")}
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
-              "w-full pl-9 pr-9 py-2 rounded-lg text-sm",
+              "w-full pl-9 pr-9 py-2 rounded-lg text-body",
               "bg-muted/50 border border-border/60",
               "text-foreground placeholder:text-muted-foreground",
               "focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring/70",
@@ -951,7 +951,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* Match Navigation - Enhanced touch targets */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
           <div className="shrink-0 flex items-center gap-1.5 order-3 lg:order-none">
-            <span className="whitespace-nowrap text-xs font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
+            <span className="whitespace-nowrap text-list font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
             <div className="flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60">
@@ -994,7 +994,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               type="button"
               onClick={enterCaptureMode}
               className={cn(
-                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
+                "flex items-center gap-1.5 text-list px-3 py-1.5 rounded-lg whitespace-nowrap",
                 "transition-all duration-200",
                 "bg-muted/60 hover:bg-muted",
                 "text-foreground/80 hover:text-foreground",
@@ -1014,7 +1014,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   type="button"
                   disabled={isExporting || displayMessages.length === 0}
                   className={cn(
-                    "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
+                    "flex items-center gap-1.5 text-list px-3 py-1.5 rounded-lg whitespace-nowrap",
                     "transition-all duration-200",
                     "bg-muted/60 hover:bg-muted",
                     "text-foreground/80 hover:text-foreground",
@@ -1076,7 +1076,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={() => void navigateBackToParent()}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md",
+              "inline-flex items-center gap-1.5 px-2.5 py-1 text-list font-medium rounded-md",
               "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
             )}
             aria-label={t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
@@ -1085,7 +1085,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             {t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
           </button>
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <span className="text-list text-muted-foreground flex items-center gap-1">
             <Bot className="w-3.5 h-3.5" />
             {selectedSession?.summary ?? selectedSession?.actual_session_id}
           </span>
@@ -1135,7 +1135,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
-          <div className="bg-muted/60 p-2 text-xs text-foreground border-b border-border space-y-1">
+          <div className="bg-muted/60 p-2 text-list text-foreground border-b border-border space-y-1">
             <div>
               {t("messageViewer.debugInfo.messages", {
                 current: displayMessages.length,
@@ -1190,10 +1190,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
           <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
-            <p className="text-lg font-medium mb-2 text-foreground">
+            <p className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noSearchResults")}
             </p>
-            <p className="text-sm">
+            <p className="text-body">
               {t("messageViewer.tryDifferentKeyword")}
             </p>
           </div>
@@ -1211,7 +1211,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 onClick={handleLoadEarlier}
                 disabled={pagination.isLoadingMore}
                 className={cn(
-                  "inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
+                  "inline-flex items-center gap-2 px-3 py-1.5 text-body rounded-md",
                   "text-muted-foreground bg-muted/50 hover:bg-muted transition-colors",
                   "disabled:opacity-60 disabled:cursor-default",
                 )}
@@ -1237,7 +1237,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 })}
               </button>
             ) : (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-body text-muted-foreground">
                 {t("messageViewer.allMessagesLoaded", {
                   count: messages.length,
                 })}
@@ -1379,7 +1379,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           aria-atomic="true"
           className={cn(
             "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
-            "px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium",
+            "px-4 py-2.5 rounded-lg shadow-lg text-body font-medium",
             "animate-in fade-in slide-in-from-bottom-2 duration-200",
             captureToast.type === "success"
               ? "bg-success text-success-foreground"

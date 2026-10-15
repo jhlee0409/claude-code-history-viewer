@@ -80,10 +80,10 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
     <div className="border rounded-lg p-3 bg-card">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs font-mono">
+          <Badge variant="outline" className="text-list font-mono">
             {hookName}
           </Badge>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-list text-muted-foreground">
             {t("settingsManager.unified.hooks.commandCount", { count: commands.length })}
           </span>
         </div>
@@ -94,7 +94,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-list"
                   onClick={() => {
                     onDelete();
                     setIsDeleteConfirm(false);
@@ -105,7 +105,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-list"
                   onClick={() => setIsDeleteConfirm(false)}
                 >
                   {t("common.cancel")}
@@ -129,7 +129,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
         {commands.map((cmd, idx) => (
           <div
             key={idx}
-            className="flex items-center gap-2 text-xs font-mono bg-muted rounded px-2 py-1 group"
+            className="flex items-center gap-2 text-list font-mono bg-muted rounded px-2 py-1 group"
           >
             <code className="flex-1 truncate">
               {cmd.command} {cmd.args?.join(" ")}
@@ -145,7 +145,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="h-5 text-xs px-2"
+                    className="h-5 text-list px-2"
                     onClick={() => {
                       onRemoveCommand(idx);
                       setCommandConfirmIndex(null);
@@ -156,7 +156,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 text-xs px-2"
+                    className="h-5 text-list px-2"
                     onClick={() => setCommandConfirmIndex(null)}
                   >
                     {t("common.cancel")}
@@ -282,12 +282,12 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
             >
               <Zap className="w-4 h-4 text-accent" />
             </div>
-            <span className="font-medium text-sm">
+            <span className="font-medium text-body">
               {t("settingsManager.unified.sections.hooks")}
             </span>
           </div>
           {hookCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {hookCount}
             </Badge>
           )}
@@ -297,13 +297,13 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
           <div className="pl-10 pr-4 pb-4 pt-2 space-y-3">
             {/* Action bar */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-list text-muted-foreground">
                 {t("settingsManager.unified.hooks.description")}
               </span>
               {!readOnly && (
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-list"
                   onClick={() => setIsAddOpen(true)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
@@ -314,7 +314,7 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
 
             {/* Hook list */}
             {hookCount === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+              <div className="text-center py-4 text-body text-muted-foreground border rounded-lg">
                 {t("settingsManager.unified.hooks.empty")}
               </div>
             ) : (

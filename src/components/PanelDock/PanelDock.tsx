@@ -98,12 +98,12 @@ export const PanelDock: React.FC<PanelDockProps> = ({
                 <div className="min-w-[7rem] flex-1">
                   <h2
                     id={headingId}
-                    className="truncate text-sm font-bold tracking-tight text-foreground"
+                    className="truncate text-body font-bold tracking-tight text-foreground"
                   >
                     {active.title}
                   </h2>
                   {active.subtitle && (
-                    <p className="truncate text-px11 text-muted-foreground">
+                    <p className="truncate text-caption text-muted-foreground">
                       {active.subtitle}
                     </p>
                   )}
@@ -134,7 +134,7 @@ export const PanelDock: React.FC<PanelDockProps> = ({
                       aria-selected={selected}
                       onClick={() => onActivateTab?.(groupIndex, tabId)}
                       className={cn(
-                        "rounded-t-md px-3 py-1.5 text-px11 font-medium transition-colors",
+                        "rounded-t-md px-3 py-1.5 text-caption font-medium transition-colors",
                         selected
                           ? "bg-card text-foreground"
                           : "text-muted-foreground hover:text-foreground"

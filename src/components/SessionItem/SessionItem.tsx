@@ -138,7 +138,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           {isSelectionMode ? (
             <span
               className={cn(
-                "text-xs leading-relaxed line-clamp-2 flex-1",
+                "text-list leading-relaxed line-clamp-2 flex-1",
                 editing.isNamed ? "font-bold" : "font-normal",
                 highlighted ? "text-accent" : "text-sidebar-foreground/70"
               )}

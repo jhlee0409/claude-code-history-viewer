@@ -29,8 +29,8 @@ export const ContentHeader = ({
           <Icon className="w-5 h-5 text-accent" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-foreground">{t(titleKey)}</h2>
-          <p className="text-xs text-muted-foreground">
+          <h2 className="text-body font-semibold text-foreground">{t(titleKey)}</h2>
+          <p className="text-list text-muted-foreground">
             {header.subtitle({ t, selectedSession, globalOverviewDescription })}
           </p>
         </div>

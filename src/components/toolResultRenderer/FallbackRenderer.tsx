@@ -31,7 +31,7 @@ export const FallbackRenderer = ({ toolResult }: Props) => {
               <pre
                 className={className}
                 style={getPreStyles(isDarkMode, style, {
-                  fontSize: "calc(0.8125rem * var(--app-font-scale))",
+                  fontSize: "var(--text-code)",
                   padding: "0.5rem",
                 })}
               >

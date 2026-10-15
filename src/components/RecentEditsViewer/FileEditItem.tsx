@@ -237,7 +237,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                 revealLabel={revealLabel}
                 className={cn(
                   "min-w-0 flex-1 text-muted-foreground",
-                  dense ? "text-px11" : layout.smallText
+                  dense ? "text-caption" : layout.smallText
                 )}
               />
             </div>
@@ -425,7 +425,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             className="rounded-lg p-6 max-w-md mx-4 shadow-xl bg-background"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-2 text-foreground">
+            <h3 className="text-title font-semibold mb-2 text-foreground">
               {t("recentEdits.confirmRestoreTitle")}
             </h3>
             <p className={`${layout.bodyText} mb-2 text-muted-foreground`}>
@@ -510,8 +510,8 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                     <pre
                       className={className}
                       style={getPreStyles(isDarkMode, style, {
-                        fontSize: "calc(0.8125rem * var(--app-font-scale))",
-                        lineHeight: "1.25rem",
+                        fontSize: "var(--text-code)",
+                        lineHeight: "var(--text-code--line-height)",
                         padding: "0.75rem",
                       })}
                     >

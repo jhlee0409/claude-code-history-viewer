@@ -135,7 +135,7 @@ const LoadingProgress = React.forwardRef<HTMLDivElement, LoadingProgressProps>(
       <div ref={ref} className={cn("w-full", className)} {...props}>
         {showLabel && !indeterminate && (
           <div className="flex justify-end mb-1">
-            <span className="text-xs text-muted-foreground tabular-nums">
+            <span className="text-list text-muted-foreground tabular-nums">
               {Math.round(clampedProgress)}%
             </span>
           </div>
@@ -225,9 +225,9 @@ const LoadingOverlay = React.forwardRef<HTMLDivElement, LoadingOverlayProps>(
               />
               {message && (
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{message}</p>
+                  <p className="text-body font-semibold text-foreground">{message}</p>
                   {subMessage && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-list text-muted-foreground mt-0.5">
                       {subMessage}
                     </p>
                   )}
@@ -353,11 +353,11 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
             />
             {loadingMessage && (
               <div>
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-body font-semibold text-foreground">
                   {loadingMessage}
                 </p>
                 {loadingSubMessage && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-list text-muted-foreground mt-1">
                     {loadingSubMessage}
                   </p>
                 )}
@@ -406,11 +406,11 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
               </svg>
             </div>
             {errorTitle && (
-              <p className="text-sm font-semibold text-foreground mb-1">
+              <p className="text-body font-semibold text-foreground mb-1">
                 {errorTitle}
               </p>
             )}
-            <p className="text-sm text-destructive break-words">{error}</p>
+            <p className="text-body text-destructive break-words">{error}</p>
             {onRetry && retryLabel && (
               <button
                 type="button"
@@ -461,7 +461,7 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
                 />
               </svg>
             </div>
-            <p className="text-sm text-muted-foreground">{i18n.t("common.noDataAvailable")}</p>
+            <p className="text-body text-muted-foreground">{i18n.t("common.noDataAvailable")}</p>
           </div>
         </div>
       );

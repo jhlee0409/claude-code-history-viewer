@@ -82,15 +82,15 @@ const EnvVarCard: React.FC<EnvVarCardProps> = React.memo(({
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-2">
-            <code className="font-mono text-sm font-medium">{envKey}</code>
+            <code className="font-mono text-body font-medium">{envKey}</code>
             {isSensitive && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-list">
                 {t("settingsManager.unified.env.sensitive")}
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <code className="font-mono text-xs text-muted-foreground truncate">
+            <code className="font-mono text-list text-muted-foreground truncate">
               {displayValue()}
             </code>
             {isSensitive && (
@@ -117,7 +117,7 @@ const EnvVarCard: React.FC<EnvVarCardProps> = React.memo(({
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-list"
                   onClick={() => {
                     onDelete();
                     setIsDeleteConfirm(false);
@@ -128,7 +128,7 @@ const EnvVarCard: React.FC<EnvVarCardProps> = React.memo(({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-list"
                   onClick={() => setIsDeleteConfirm(false)}
                 >
                   {t("common.cancel")}
@@ -227,12 +227,12 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
             >
               <Key className="w-4 h-4 text-accent" />
             </div>
-            <span className="font-medium text-sm">
+            <span className="font-medium text-body">
               {t("settingsManager.unified.sections.env")}
             </span>
           </div>
           {envCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {envCount}
             </Badge>
           )}
@@ -242,13 +242,13 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
           <div className="pl-10 pr-4 pb-4 pt-2 space-y-3">
             {/* Action bar */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-list text-muted-foreground">
                 {t("settingsManager.unified.env.description")}
               </span>
               {!readOnly && (
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-list"
                   onClick={() => setIsAddOpen(true)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
@@ -259,7 +259,7 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
 
             {/* Env var list */}
             {envCount === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+              <div className="text-center py-4 text-body text-muted-foreground border rounded-lg">
                 {t("settingsManager.unified.env.empty")}
               </div>
             ) : (
@@ -306,7 +306,7 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
                 type="password"
                 className="mt-1"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-list text-muted-foreground mt-1">
                 {t("settingsManager.unified.env.valueHint")}
               </p>
             </div>

@@ -45,7 +45,7 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
         data-testid="metric-card-trend"
         title={description}
         className={cn(
-          "flex items-center gap-1 px-2 py-1 rounded-md text-px10 font-semibold",
+          "flex items-center gap-1 px-2 py-1 rounded-md text-caption font-semibold",
           className
         )}
       >
@@ -130,19 +130,19 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
 
         {/* Value */}
-        <div className="font-mono text-[clamp(1.125rem,2vw,1.875rem)] leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
+        <div className="font-mono text-2xl leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
           {value}
         </div>
 
         {/* Label */}
-        <div className="text-px11 font-medium text-muted-foreground uppercase tracking-wider mb-auto">
+        <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mb-auto">
           {label}
         </div>
 
         {/* Sub value */}
         {subValue && (
           <div className="mt-3 pt-3 border-t border-border/30">
-            <div className="font-mono text-px11 text-muted-foreground/70">
+            <div className="font-mono text-caption text-muted-foreground/70">
               {subValue}
             </div>
           </div>

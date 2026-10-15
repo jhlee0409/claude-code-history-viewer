@@ -58,9 +58,9 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
               aria-current={isActive ? "page" : undefined}
             >
               <Icon className="w-5 h-5" />
-              <span className="text-3xs font-medium truncate max-w-full">{t(labelKey)}</span>
+              <span className="text-caption font-medium truncate max-w-full">{t(labelKey)}</span>
               {isDisabled && (
-                <span className="text-3xs text-muted-foreground/60 truncate max-w-full">
+                <span className="text-caption text-muted-foreground/60 truncate max-w-full">
                   ({t("common.mobile.selectProject")})
                 </span>
               )}

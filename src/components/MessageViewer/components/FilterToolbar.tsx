@@ -15,7 +15,7 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs border transition-colors",
+        "flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border transition-colors",
         active
           ? "bg-accent/15 text-accent border-accent/30"
           : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
@@ -58,7 +58,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
       {/* Filter icon + count */}
       <div className="flex items-center gap-1 shrink-0">
         <Filter className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
-        <span className={cn("text-2xs tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
+        <span className={cn("text-caption tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
           {isActive
             ? t("filter.showing", { filtered: filteredCount, total: totalCount })
             : totalCount}

@@ -58,7 +58,7 @@ export function UpdateErrorNotification({
                   onClose();
                   onRetry();
                 }}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                className="mt-2 inline-flex items-center gap-1.5 text-body font-medium text-primary hover:text-primary/80 transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 {t("common.retry")}

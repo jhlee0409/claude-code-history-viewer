@@ -74,7 +74,7 @@ export const SessionCopyMenu = ({
           title={triggerLabel}
           className={cn(
             "inline-flex items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            compact ? "p-2" : "gap-1.5 px-2 py-1 text-2xs font-mono",
+            compact ? "p-2" : "gap-1.5 px-2 py-1 text-caption font-mono",
           )}
         >
           <Terminal className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
@@ -117,7 +117,7 @@ export const SessionCopyMenu = ({
               <div className="flex flex-col text-left">
                 <span>{t("session.copyResumeCommand", "Copy Resume Command")}</span>
                 {hasCustomArgs && (
-                  <span className="text-3xs text-muted-foreground">
+                  <span className="text-caption text-muted-foreground">
                     {t("session.withCustomArguments", "with custom arguments")}
                   </span>
                 )}
@@ -129,7 +129,7 @@ export const SessionCopyMenu = ({
                   openSettingsSection("session-resume");
                   switchToSettings();
                 }}
-                className="text-2xs text-muted-foreground hover:text-foreground"
+                className="text-caption text-muted-foreground hover:text-foreground"
               >
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5" />
                 <span>{t("session.editCustomArguments", "Edit custom arguments…")}</span>

@@ -216,7 +216,7 @@ export const ArchiveBrowser: React.FC = () => {
     <div className="space-y-4">
       {/* Header with create button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">{t('archive.browse.title')}</h3>
+        <h3 className="text-body font-medium">{t('archive.browse.title')}</h3>
         <Button size="sm" onClick={() => setIsCreateOpen(true)} disabled={archive.isCreatingArchive || archive.isDeletingArchive}>
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           {t('archive.browse.empty.cta')}
@@ -225,7 +225,7 @@ export const ArchiveBrowser: React.FC = () => {
 
       {/* Archive storage path */}
       {archiveBasePath && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-2xs text-muted-foreground">
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-caption text-muted-foreground">
           <span className="truncate flex-1 font-mono">{archiveBasePath}</span>
           {isTauri() && (
             <Button
@@ -245,10 +245,10 @@ export const ArchiveBrowser: React.FC = () => {
       {archives.length === 0 ? (
         <div className="text-center py-12">
           <Package className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">
+          <p className="text-body font-medium text-muted-foreground">
             {t('archive.browse.empty.title')}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-list text-muted-foreground mt-1">
             {t('archive.browse.empty.description')}
           </p>
         </div>
@@ -275,19 +275,19 @@ export const ArchiveBrowser: React.FC = () => {
                 )}
                 <Archive className="w-4 h-4 text-accent shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{entry.name}</p>
+                  <p className="text-body font-medium truncate">{entry.name}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-2xs text-muted-foreground">
+                    <span className="text-caption text-muted-foreground">
                       {t('archive.browse.card.created', {
                         date: new Date(entry.createdAt).toLocaleDateString(),
                       })}
                     </span>
                     <span className="text-muted-foreground/40">·</span>
-                    <span className="text-2xs text-muted-foreground">
+                    <span className="text-caption text-muted-foreground">
                       {t('archive.browse.card.sessions', { count: entry.sessionCount })}
                     </span>
                     <span className="text-muted-foreground/40">·</span>
-                    <span className="text-2xs text-muted-foreground">
+                    <span className="text-caption text-muted-foreground">
                       {formatBytes(entry.totalSizeBytes)}
                     </span>
                   </div>
@@ -331,15 +331,15 @@ export const ArchiveBrowser: React.FC = () => {
                   {archive.isLoadingSessions ? (
                     <div className="flex items-center justify-center gap-2 py-3">
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">{t('common.loading')}</p>
+                      <p className="text-list text-muted-foreground">{t('common.loading')}</p>
                     </div>
                   ) : archive.currentArchiveSessionsError &&
                     archive.currentArchiveId === entry.id ? (
-                    <p className="text-xs text-destructive py-3 text-center">
+                    <p className="text-list text-destructive py-3 text-center">
                       {t('archive.error.loadSessionsFailed')}
                     </p>
                   ) : archive.currentArchiveSessions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-3 text-center">
+                    <p className="text-list text-muted-foreground py-3 text-center">
                       {t('archive.browse.sessions.empty')}
                     </p>
                   ) : (
@@ -349,11 +349,11 @@ export const ArchiveBrowser: React.FC = () => {
                           <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
                             <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs truncate">
+                              <p className="text-list truncate">
                                 {session.summary || session.fileName}
                               </p>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-2xs text-muted-foreground">
+                                <span className="text-caption text-muted-foreground">
                                   {t('archive.browse.sessions.messages', {
                                     count: session.messageCount,
                                   })}
@@ -361,7 +361,7 @@ export const ArchiveBrowser: React.FC = () => {
                                 {session.subagentCount > 0 && (
                                   <>
                                     <span className="text-muted-foreground/40">·</span>
-                                    <span className="text-2xs text-muted-foreground">
+                                    <span className="text-caption text-muted-foreground">
                                       {t('archive.browse.sessions.subagents', {
                                         count: session.subagentCount,
                                       })}
@@ -369,7 +369,7 @@ export const ArchiveBrowser: React.FC = () => {
                                   </>
                                 )}
                                 <span className="text-muted-foreground/40">·</span>
-                                <span className="text-2xs text-muted-foreground">
+                                <span className="text-caption text-muted-foreground">
                                   {formatBytes(session.sizeBytes)}
                                 </span>
                               </div>
@@ -400,17 +400,17 @@ export const ArchiveBrowser: React.FC = () => {
                                   >
                                     <Bot className="w-3 h-3 text-muted-foreground/60 shrink-0" />
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-2xs truncate text-muted-foreground">
+                                      <p className="text-caption truncate text-muted-foreground">
                                         {subagent.fileName.replace(/\.jsonl$/, '')}
                                       </p>
                                       <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-2xs text-muted-foreground/60">
+                                        <span className="text-caption text-muted-foreground/60">
                                           {t('archive.browse.sessions.messages', {
                                             count: subagent.messageCount,
                                           })}
                                         </span>
                                         <span className="text-muted-foreground/30">·</span>
-                                        <span className="text-2xs text-muted-foreground/60">
+                                        <span className="text-caption text-muted-foreground/60">
                                           {formatBytes(subagent.sizeBytes)}
                                         </span>
                                       </div>

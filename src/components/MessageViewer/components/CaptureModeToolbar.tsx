@@ -49,7 +49,7 @@ export function CaptureModeToolbar({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
           </span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-list font-medium text-muted-foreground uppercase tracking-wider">
             {t("captureMode.active")}
           </span>
         </div>
@@ -69,7 +69,7 @@ export function CaptureModeToolbar({
             )}
             title={t("captureMode.restoreAll")}
           >
-            <span className="text-xs font-mono tabular-nums">
+            <span className="text-list font-mono tabular-nums">
               {hiddenCount} {hiddenCount === 1 ? "block" : "blocks"} hidden
             </span>
             <RotateCcw className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -81,7 +81,7 @@ export function CaptureModeToolbar({
           <>
             {hiddenCount > 0 && <div className="h-4 w-px bg-border" />}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono tabular-nums text-accent">
+              <span className="text-list font-mono tabular-nums text-accent">
                 {t("captureMode.selectedCount", { count: selectedCount })}
               </span>
               <button
@@ -98,7 +98,7 @@ export function CaptureModeToolbar({
 
         {/* Selection hint with OS-specific modifier keys */}
         {!hasSelection && (
-          <span className="text-xs text-muted-foreground/70 italic">
+          <span className="text-list text-muted-foreground/70 italic">
             {t("captureMode.selectMessages")}
             {" · "}
             {isMacOS()
@@ -117,7 +117,7 @@ export function CaptureModeToolbar({
             disabled={isCapturing}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5",
-              "text-xs font-medium",
+              "text-list font-medium",
               "bg-accent hover:bg-accent/90",
               "text-accent-foreground",
               "border border-accent",
@@ -144,7 +144,7 @@ export function CaptureModeToolbar({
           onClick={exitCaptureMode}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5",
-            "text-xs font-medium",
+            "text-list font-medium",
             "bg-muted hover:bg-muted/80",
             "text-foreground/80 hover:text-foreground",
             "border border-border",

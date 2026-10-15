@@ -177,19 +177,19 @@ export const ExpandedCard = memo(({
                         </div>
 
                         <div className="flex flex-col gap-0.5">
-                            <span className={clsx("font-bold uppercase text-px11 tracking-wide",
+                            <span className={clsx("font-bold uppercase text-caption tracking-wide",
                                 toolUseBlock ? "text-accent" : (role === 'user' ? 'text-primary' : 'text-foreground')
                             )}>
                                 {toolUseBlock ? toolUseBlock.name : role}
                             </span>
-                            <span className="text-px10 text-muted-foreground font-mono leading-none">
+                            <span className="text-caption text-muted-foreground font-mono leading-none">
                                 {new Date(message.timestamp).toLocaleTimeString()}
                             </span>
                         </div>
                         {editedMdFile && (
                             <div
                                 className={clsx(
-                                    "flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-px10 text-amber-600 font-medium font-mono transition-colors",
+                                    "flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-caption text-amber-600 font-medium font-mono transition-colors",
                                     onFileClick && "hover:bg-amber-500/20 cursor-pointer"
                                 )}
                                 title={t("session.interaction.mdFileEditClick")}
@@ -259,7 +259,7 @@ export const ExpandedCard = memo(({
                         {/* Open in Full View inside Tooltip */}
                         <button
                             onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}
-                            className="p-1 hover:bg-muted rounded text-xs text-muted-foreground hover:text-foreground transition-colors mr-1"
+                            className="p-1 hover:bg-muted rounded text-list text-muted-foreground hover:text-foreground transition-colors mr-1"
                             title={t("session.board.openInView")}
                             aria-label={t("session.board.openInView")}
                         >
@@ -274,7 +274,7 @@ export const ExpandedCard = memo(({
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap select-text">
+                <div className="flex-1 overflow-y-auto p-4 font-mono text-list leading-relaxed whitespace-pre-wrap select-text">
                     {isMarkdownPretty && !toolUseBlock ? (
                         <Markdown className="break-words">
                             {content}
@@ -285,12 +285,12 @@ export const ExpandedCard = memo(({
                 </div>
 
                 {isError && (
-                    <div className="px-4 py-2 border-t border-destructive/20 bg-destructive/5 text-destructive text-xs font-medium">
+                    <div className="px-4 py-2 border-t border-destructive/20 bg-destructive/5 text-destructive text-list font-medium">
                         {t("session.board.errorDetected")}
                     </div>
                 )}
 
-                <div className="p-2 border-t border-border/50 bg-muted/10 rounded-b-lg flex justify-end gap-3 text-px10 text-muted-foreground shrink-0 font-mono">
+                <div className="p-2 border-t border-border/50 bg-muted/10 rounded-b-lg flex justify-end gap-3 text-caption text-muted-foreground shrink-0 font-mono">
                     {isClaudeAssistantMessage(message) && message.usage && (
                         <>
                             <span>{t("session.board.input")} {message.usage.input_tokens || 0}</span>

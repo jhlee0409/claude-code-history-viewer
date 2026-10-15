@@ -35,9 +35,9 @@ export const PinnedTurnHeader = React.memo<PinnedTurnHeaderProps>(({
       aria-label={t("navigator.outline.jumpToTurn")}
       className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-sidebar border-b border-border/50 text-left hover:bg-accent/10 transition-colors"
     >
-      <span className="text-2xs font-medium text-foreground shrink-0">{labelText}</span>
+      <span className="text-caption font-medium text-foreground shrink-0">{labelText}</span>
       {turn.header?.preview && (
-        <span className="text-2xs text-muted-foreground truncate flex-1">
+        <span className="text-caption text-muted-foreground truncate flex-1">
           {turn.header.preview}
         </span>
       )}

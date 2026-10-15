@@ -152,7 +152,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
         <span
           className={cn(
             "block truncate transition-colors",
-            isGrouped ? "text-xs" : "text-sm",
+            isGrouped ? "text-list" : "text-body",
             isExpanded
               ? isWorktree
                 ? "text-success font-medium"
@@ -168,7 +168,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           {displayName}
         </span>
         {parentPath && (
-          <span className="mt-0.5 block truncate text-2xs text-muted-foreground/70">
+          <span className="mt-0.5 block truncate text-caption text-muted-foreground/70">
             {parentPath}
           </span>
         )}
@@ -179,7 +179,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           <span className="mt-1 flex flex-wrap items-center gap-1">
             <span
               className={cn(
-                "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none",
+                "px-1.5 py-0.5 text-caption font-medium rounded-full leading-none",
                 getProviderBadgeStyle(providerId)
               )}
             >
@@ -206,7 +206,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
                     onSelectSibling?.(sibling);
                   }}
                   className={cn(
-                    "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none opacity-60 hover:opacity-100 transition-opacity",
+                    "px-1.5 py-0.5 text-caption font-medium rounded-full leading-none opacity-60 hover:opacity-100 transition-opacity",
                     getProviderBadgeStyle(siblingProvider)
                   )}
                 >
@@ -223,7 +223,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       {showProviderBadge && !hasSiblings && (
         <span
           className={cn(
-            "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
+            "px-1.5 py-0.5 text-caption font-medium rounded-full flex-shrink-0 leading-none",
             getProviderBadgeStyle(providerId)
           )}
         >
@@ -249,7 +249,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       {(!isGrouped && project.session_count > 0) || isGrouped ? (
         <span
           className={cn(
-            "text-2xs font-mono rounded",
+            "text-caption font-mono rounded",
             isGrouped
               ? "text-muted-foreground/60"
               : cn(

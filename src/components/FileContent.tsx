@@ -272,7 +272,7 @@ export const FileContent = ({
                 // nodes; fall back to a plain, truncation-guarded block
                 // (line numbers are dropped in this fallback).
                 <div className="bg-tool-file/5">
-                  <div className="px-4 pt-2 text-xs text-muted-foreground">
+                  <div className="px-4 pt-2 text-list text-muted-foreground">
                     {t("sizeGuard.highlightDisabled", {
                       size: formatCharSize(displayContent.length),
                       defaultValue:
@@ -307,8 +307,8 @@ export const FileContent = ({
                     <pre
                       className={className}
                       style={getPreStyles(isDarkMode, style, {
-                        fontSize: "calc(0.6875rem * var(--app-font-scale))",
-                        lineHeight: "1.2rem",
+                        fontSize: "var(--text-code)",
+                        lineHeight: "var(--text-code--line-height)",
                         maxHeight: "24rem",
                         overflow: "auto",
                         padding: "0.75rem",

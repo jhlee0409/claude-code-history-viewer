@@ -42,7 +42,7 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <Server className="w-10 h-10 opacity-20" />
-        <p className="text-px10 uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
+        <p className="text-caption uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
       </div>
     );
   }
@@ -67,10 +67,10 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-px11 font-medium text-foreground/90 truncate pr-2">
+                <span className="text-caption font-medium text-foreground/90 truncate pr-2">
                   {getProviderLabel((key, fallback) => t(key, fallback), provider.provider_id)}
                 </span>
-                <span className="font-mono text-px11 font-semibold tabular-nums shrink-0 text-foreground">
+                <span className="font-mono text-caption font-semibold tabular-nums shrink-0 text-foreground">
                   {useSessionBars
                     ? provider.sessions.toLocaleString()
                     : provider.tokens.toLocaleString()}
@@ -90,10 +90,10 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
             </div>
 
             <div className="w-28 text-right shrink-0">
-              <div className="font-mono text-px10 text-muted-foreground tabular-nums">
+              <div className="font-mono text-caption text-muted-foreground tabular-nums">
                 {percentage.toFixed(1)}%
               </div>
-              <div className="text-px10 text-muted-foreground">
+              <div className="text-caption text-muted-foreground">
                 {t(
                   "analytics.providerDistributionMeta",
                   "{{sessions}} sessions · {{projects}} projects",

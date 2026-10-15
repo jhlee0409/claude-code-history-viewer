@@ -54,7 +54,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           onClick={() => onModeChange("visual")}
         >
           <Eye className="w-3.5 h-3.5" />
-          <span className="text-xs">{t("settingsManager.mode.visual")}</span>
+          <span className="text-list">{t("settingsManager.mode.visual")}</span>
         </Button>
         <Button
           variant={editorMode === "json" ? "secondary" : "ghost"}
@@ -65,7 +65,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           onClick={() => onModeChange("json")}
         >
           <Code className="w-3.5 h-3.5" />
-          <span className="text-xs">{t("settingsManager.mode.json")}</span>
+          <span className="text-list">{t("settingsManager.mode.json")}</span>
         </Button>
       </div>
 

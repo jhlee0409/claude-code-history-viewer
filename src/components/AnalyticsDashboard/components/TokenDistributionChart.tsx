@@ -116,7 +116,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
           <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
             {formatNumber(total)}
           </div>
-          <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider mt-1">
+          <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
             {t("analytics.totalTokenUsage")}
           </div>
         </div>
@@ -149,10 +149,10 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
               {/* Label & Bar */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between mb-1">
-                  <span className="text-px11 font-medium text-foreground/80 truncate">
+                  <span className="text-caption font-medium text-foreground/80 truncate">
                     {item.label}
                   </span>
-                  <span className="font-mono text-px10 text-muted-foreground ml-2 tabular-nums">
+                  <span className="font-mono text-caption text-muted-foreground ml-2 tabular-nums">
                     {percentage.toFixed(1)}%
                   </span>
                 </div>
@@ -170,7 +170,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
 
               {/* Value */}
               <div
-                className="font-mono text-sm font-semibold text-right shrink-0 tabular-nums"
+                className="font-mono text-body font-semibold text-right shrink-0 tabular-nums"
                 style={{ color: item.color }}
               >
                 {formatNumber(item.value)}

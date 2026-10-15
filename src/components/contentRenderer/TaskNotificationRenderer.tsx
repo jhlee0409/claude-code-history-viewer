@@ -110,7 +110,7 @@ const TaskRow = memo(function TaskRow({
         )}
       >
         {/* Index number */}
-        <span className="text-2xs font-mono text-muted-foreground/50 w-4 text-right">
+        <span className="text-caption font-mono text-muted-foreground/50 w-4 text-right">
           {String(index + 1).padStart(2, "0")}
         </span>
 
@@ -125,7 +125,7 @@ const TaskRow = memo(function TaskRow({
 
           {/* Task ID badge */}
           <code className={cn(
-            "text-2xs font-mono px-1.5 py-0.5 rounded",
+            "text-caption font-mono px-1.5 py-0.5 rounded",
             "bg-background/80 text-foreground/80",
             "border border-border/50"
           )}>
@@ -135,7 +135,7 @@ const TaskRow = memo(function TaskRow({
           {/* Summary text */}
           {notification.summary && (
             <span className={cn(
-              "text-2xs text-muted-foreground truncate",
+              "text-caption text-muted-foreground truncate",
               "opacity-70 group-hover:opacity-100 transition-opacity"
             )}>
               {notification.summary}
@@ -145,7 +145,7 @@ const TaskRow = memo(function TaskRow({
 
         {/* Status label */}
         <span className={cn(
-          "text-3xs font-mono font-medium tracking-wider",
+          "text-caption font-mono font-medium tracking-wider",
           config.textClass
         )}>
           {config.label}
@@ -187,7 +187,7 @@ const TaskRow = memo(function TaskRow({
               "bg-muted/30"
             )}>
               <Terminal className="w-3 h-3 text-muted-foreground" />
-              <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                 Output
               </span>
             </div>
@@ -195,10 +195,10 @@ const TaskRow = memo(function TaskRow({
             {/* Result content */}
             <div className={cn(
               "p-2.5 max-h-48 overflow-y-auto overflow-x-auto",
-              "text-2xs"
+              "text-caption"
             )}>
               {notification.result ? (
-                <div className={cn(layout.prose, "text-2xs")}>
+                <div className={cn(layout.prose, "text-caption")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {notification.result}
                   </ReactMarkdown>
@@ -295,7 +295,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "bg-tool-task/10"
             )}>
               <Zap className="w-3.5 h-3.5 text-tool-task" />
-              <span className="text-xs font-medium text-tool-task">
+              <span className="text-list font-medium text-tool-task">
                 {t("taskNotification.agentTasks")}
               </span>
             </div>
@@ -306,7 +306,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "bg-background/60 border border-border/50"
             )}>
               <Hash className="w-2.5 h-2.5 text-muted-foreground" />
-              <span className="text-2xs font-mono font-medium text-foreground/80">
+              <span className="text-caption font-mono font-medium text-foreground/80">
                 {notifications.length}
               </span>
             </div>
@@ -322,7 +322,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-success/10 border border-success/20"
                 )}>
                   <CheckCircle2 className="w-2.5 h-2.5 text-success" />
-                  <span className="text-3xs font-mono text-success">
+                  <span className="text-caption font-mono text-success">
                     {statusCounts.completed}
                   </span>
                 </div>
@@ -334,7 +334,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "animate-pulse-subtle"
                 )}>
                   <Loader2 className="w-2.5 h-2.5 text-info animate-spin" />
-                  <span className="text-3xs font-mono text-info">
+                  <span className="text-caption font-mono text-info">
                     {statusCounts.running}
                   </span>
                 </div>
@@ -345,7 +345,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-destructive/10 border border-destructive/20"
                 )}>
                   <XCircle className="w-2.5 h-2.5 text-destructive" />
-                  <span className="text-3xs font-mono text-destructive">
+                  <span className="text-caption font-mono text-destructive">
                     {statusCounts.failed}
                   </span>
                 </div>
@@ -361,7 +361,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "bg-muted/50 text-muted-foreground"
             )}>
               <Clock className="w-3 h-3" />
-              <span className="text-3xs font-mono font-medium uppercase tracking-wider">
+              <span className="text-caption font-mono font-medium uppercase tracking-wider">
                 {allCompleted ? "Complete" :
                  hasFailed ? "Error" :
                  hasRunning ? "Running" : "Pending"}
@@ -408,11 +408,11 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   !isDetailsExpanded && "-rotate-90"
                 )} />
                 <Terminal className="w-3 h-3 text-muted-foreground" />
-                <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                   {t("taskNotification.details")}
                 </span>
               </div>
-              <span className="text-3xs text-muted-foreground/60">
+              <span className="text-caption text-muted-foreground/60">
                 {isDetailsExpanded ? "Collapse" : "Expand"}
               </span>
             </button>
@@ -424,7 +424,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
             )}>
               {isDetailsExpanded ? (
                 // Full content
-                <div className={cn(layout.prose, "text-2xs animate-fade-in")}>
+                <div className={cn(layout.prose, "text-caption animate-fade-in")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {remainingText}
                   </ReactMarkdown>
@@ -437,14 +437,14 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                 >
                   <div className={cn(
                     layout.prose,
-                    "text-2xs",
+                    "text-caption",
                     "line-clamp-3 text-muted-foreground"
                   )}>
                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                       {getPreviewLines(remainingText, 3)}
                     </ReactMarkdown>
                   </div>
-                  <span className="text-3xs text-info mt-1 inline-block">
+                  <span className="text-caption text-info mt-1 inline-block">
                     {t("taskNotification.showMore")}
                   </span>
                 </div>

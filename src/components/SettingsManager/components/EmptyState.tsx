@@ -28,10 +28,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ scope, className }) => {
       <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
         <FileX className="w-8 h-8 text-muted-foreground/50" />
       </div>
-      <p className="text-sm text-muted-foreground mb-2">
+      <p className="text-body text-muted-foreground mb-2">
         {t("settingsManager.noSettings")}
       </p>
-      <p className="text-xs text-muted-foreground/70">
+      <p className="text-list text-muted-foreground/70">
         {t(`settingsManager.scope.${scope}`)}
       </p>
     </div>

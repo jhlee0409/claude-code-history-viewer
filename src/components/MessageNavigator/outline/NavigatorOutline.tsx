@@ -248,7 +248,7 @@ export const NavigatorOutline: React.FC<NavigatorOutlineProps> = ({
   if (rows.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-muted-foreground text-center">{t("navigator.noMessages")}</p>
+        <p className="text-list text-muted-foreground text-center">{t("navigator.noMessages")}</p>
       </div>
     );
   }

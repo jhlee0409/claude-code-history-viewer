@@ -144,7 +144,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
               <Label className="text-muted-foreground">
                 {t("session.nativeRename.currentName", "Current name")}
               </Label>
-              <p className="text-sm bg-muted/50 rounded-md px-3 py-2 break-words">
+              <p className="text-body bg-muted/50 rounded-md px-3 py-2 break-words">
                 {currentName || t("session.summaryNotFound", "No summary")}
               </p>
             </div>
@@ -163,7 +163,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                 disabled={isRenaming}
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {usesStandaloneTitlePreview
                   ? t("session.nativeRename.previewOpenCode", {
                       title: previewText,

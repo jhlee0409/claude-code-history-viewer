@@ -28,19 +28,19 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
   return (
     <TooltipContent
       side={side}
-      className={cn("font-mono text-xs px-3 py-2", className)}
+      className={cn("font-mono text-list px-3 py-2", className)}
     >
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-px12">{title}</span>
+          <span className="font-semibold text-caption">{title}</span>
           {subtitle && (
-            <span className="text-primary-foreground/60 font-normal text-px10">
+            <span className="text-primary-foreground/60 font-normal text-caption">
               {subtitle}
             </span>
           )}
         </div>
         {rows && rows.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-px11">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-caption">
             {rows.map((row, idx) => (
               <React.Fragment key={`${row.label}-${idx}`}>
                 <span className="text-primary-foreground/60">{row.label}</span>

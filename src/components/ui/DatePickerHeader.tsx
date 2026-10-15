@@ -23,7 +23,7 @@ const formatDateForInput = (date: Date | null) => {
 };
 
 const INPUT_CLASS =
-    "bg-transparent text-px10 font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]";
+    "bg-transparent text-caption font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]";
 
 /**
  * Date range filter for analytics views.
@@ -82,7 +82,7 @@ export const DatePickerHeader = ({
         <div className={cn("flex items-center gap-1.5 bg-muted/30 p-0.5 rounded-lg border border-border/50", className)} >
             <div className="flex items-center gap-1.5 px-1.5 border-r border-border/50 pr-2">
                 <Calendar className="w-3 h-3 text-muted-foreground" />
-                <span className="text-px10 font-bold text-muted-foreground uppercase tracking-wide">
+                <span className="text-caption font-bold text-muted-foreground uppercase tracking-wide">
                     {t("common.dateFilter.label")}
                 </span>
             </div>
@@ -97,7 +97,7 @@ export const DatePickerHeader = ({
                         max={formatDateForInput(dateFilter.end)}
                         onChange={(e) => handleDateChange('start', e.target.value)}
                     />
-                    <span className="text-muted-foreground text-px10">-</span>
+                    <span className="text-muted-foreground text-caption">-</span>
                     <input
                         type="date"
                         aria-label={t("common.dateFilter.end")}
@@ -112,7 +112,7 @@ export const DatePickerHeader = ({
                     type="button"
                     onClick={() => setIsEditing(true)}
                     title={t("common.dateFilter.pickRange")}
-                    className="px-2 min-h-[36px] text-px10 font-mono text-foreground hover:text-accent transition-colors"
+                    className="px-2 min-h-[36px] text-caption font-mono text-foreground hover:text-accent transition-colors"
                 >
                     {t("common.dateFilter.allTime")}
                 </button>

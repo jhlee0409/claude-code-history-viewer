@@ -9,8 +9,8 @@
   border-radius: 0.375rem;
   padding: 0.75rem;
   overflow-x: auto;
-  font-size: 0.9375rem;
-  line-height: 1.5;
+  font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
   color: #1f2937;
 }
 
@@ -24,7 +24,7 @@
   background-color: #f3f4f6;
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
-  font-size: 0.9375rem;
+  font-size: var(--text-code);
   color: #1f2937;
 }
 

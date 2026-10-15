@@ -267,10 +267,10 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 <Layers className="w-5 h-5" style={{ color: "var(--metric-green)" }} />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-foreground">
+                <h3 className="text-body font-semibold text-foreground">
                   {t("analytics.projectStats", { count: totalCount })}
                 </h3>
-                <p className="text-px12 text-muted-foreground">
+                <p className="text-caption text-muted-foreground">
                   {t("analytics.projectOverallAnalysis")}
                 </p>
               </div>
@@ -303,12 +303,12 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       >
                         {formatNumber(metric.value)}
                       </div>
-                      <div className="text-px12 font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                      <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="font-mono text-xs">
+                  <TooltipContent className="font-mono text-list">
                     {metric.value.toLocaleString()}
                   </TooltipContent>
                 </Tooltip>
@@ -338,11 +338,11 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         {/* Individual Sessions */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <h4 className="flex items-center gap-2 text-body font-semibold text-foreground">
               <div className="w-1.5 h-5 rounded-full bg-accent" />
               {t("analytics.sessionStatsDetail")}
             </h4>
-            <span className="text-px11 text-muted-foreground font-mono">
+            <span className="text-caption text-muted-foreground font-mono">
               {projectStats.length} / {totalCount}
             </span>
           </div>
@@ -376,7 +376,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 disabled={isLoadingMore}
                 aria-label={t("analytics.showMoreSessions", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                 className={cn(
-                  "w-full py-4 rounded-xl text-px13 font-medium",
+                  "w-full py-4 rounded-xl text-list font-medium",
                   "bg-muted/30 hover:bg-muted/50",
                   "border border-border/50 hover:border-border",
                   "text-muted-foreground hover:text-foreground",
@@ -419,10 +419,10 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
           />
         </div>
-        <p className="text-sm font-medium text-foreground mb-1">
+        <p className="text-body font-medium text-foreground mb-1">
           {t("analytics.noTokenData")}
         </p>
-        <p className="text-px12 text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {t("analytics.selectSessionOrLoad")}
         </p>
       </div>
@@ -459,7 +459,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         {/* Current Session */}
         {sessionStats && (
           <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
+            <h3 className="flex items-center gap-2 text-body font-medium text-foreground/80 mb-3">
               <MessageSquare className="w-4 h-4 text-accent" />
               {t("analytics.currentSession")}
             </h3>

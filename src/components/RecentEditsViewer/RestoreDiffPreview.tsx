@@ -102,7 +102,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "loading") {
     return (
-      <div className="flex items-center gap-2 py-2 text-px11 text-muted-foreground">
+      <div className="flex items-center gap-2 py-2 text-caption text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
         {t("recentEdits.restorePreviewLoading", "Reading the file on disk...")}
       </div>
@@ -111,7 +111,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "identical") {
     return (
-      <p className="py-2 text-px11 text-muted-foreground">
+      <p className="py-2 text-caption text-muted-foreground">
         {t(
           "recentEdits.restorePreviewIdentical",
           "The file on disk already matches this version. Restoring changes nothing."
@@ -122,7 +122,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "creating") {
     return (
-      <p className="py-2 text-px11 text-muted-foreground">
+      <p className="py-2 text-caption text-muted-foreground">
         {t(
           "recentEdits.restorePreviewCreating",
           "This file is not on disk. Restoring will create it."
@@ -133,7 +133,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "unreadable") {
     return (
-      <div className="flex items-start gap-2 rounded bg-destructive/10 px-2 py-1.5 text-px11 text-destructive">
+      <div className="flex items-start gap-2 rounded bg-destructive/10 px-2 py-1.5 text-caption text-destructive">
         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
         <span>
           {t(
@@ -147,7 +147,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   return (
     <div className="min-w-0">
-      <p className="pb-1 text-px11 font-medium text-muted-foreground">
+      <p className="pb-1 text-caption font-medium text-muted-foreground">
         {t("recentEdits.restorePreviewHeading", "What changes on disk")}
       </p>
       {/*

@@ -90,7 +90,7 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
           onClick={() => setIsExpanded(prev => !prev)}
           className={cn(
             "flex items-center justify-center gap-1 w-full py-1.5 mt-1",
-            "text-2xs text-muted-foreground hover:text-foreground",
+            "text-caption text-muted-foreground hover:text-foreground",
             "border-t border-border/50",
             "transition-colors"
           )}
@@ -225,7 +225,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             <button
               onClick={() => setIsExpanded(prev => !prev)}
               className={cn(
-                "flex items-center gap-1 mt-1.5 text-2xs",
+                "flex items-center gap-1 mt-1.5 text-caption",
                 "text-accent-foreground/70 hover:text-accent-foreground",
                 "transition-colors"
               )}
@@ -291,7 +291,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             <button
               onClick={() => setIsExpanded(prev => !prev)}
               className={cn(
-                "flex items-center gap-1 mt-2 text-2xs",
+                "flex items-center gap-1 mt-2 text-caption",
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors"
               )}

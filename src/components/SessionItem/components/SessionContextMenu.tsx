@@ -114,7 +114,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   }, [position]);
 
   const menuItemClass = cn(
-    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm",
+    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-body",
     "hover:bg-accent hover:text-accent-foreground",
     "transition-colors cursor-pointer"
   );

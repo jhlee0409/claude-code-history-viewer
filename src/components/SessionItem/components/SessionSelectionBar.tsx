@@ -31,7 +31,7 @@ interface SessionSelectionBarProps {
 }
 
 const actionButtonClass = cn(
-  "flex items-center gap-1 rounded px-1.5 py-1 text-2xs font-medium transition-colors",
+  "flex items-center gap-1 rounded px-1.5 py-1 text-caption font-medium transition-colors",
   "disabled:opacity-40 disabled:pointer-events-none"
 );
 
@@ -227,7 +227,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-1.5 border-b border-border/30 bg-sidebar/95 px-2 py-1.5 backdrop-blur-sm">
       <div className="flex items-center justify-between">
-        <span className="text-2xs font-semibold text-foreground">
+        <span className="text-caption font-semibold text-foreground">
           {t("session.selection.count", {
             count: selectedCount,
             defaultValue: "{{count}} selected",
@@ -245,7 +245,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
       </div>
 
       {hasMoreSessions && (
-        <div className="flex items-center gap-1 text-2xs text-amber-600 dark:text-amber-400">
+        <div className="flex items-center gap-1 text-caption text-amber-600 dark:text-amber-400">
           <span>
             {t("session.selection.partialNotice", {
               loaded: allSessions.length,

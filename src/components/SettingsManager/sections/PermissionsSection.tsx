@@ -96,12 +96,12 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
 
   return (
     <div className="space-y-2">
-      <Label className={`text-sm ${variantLabelColors[variant]}`}>
+      <Label className={`text-body ${variantLabelColors[variant]}`}>
         {title}
       </Label>
       <div className="space-y-1.5">
         {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-1">
+          <p className="text-list text-muted-foreground italic py-1">
             {t("settingsManager.unified.permissions.empty")}
           </p>
         ) : (
@@ -112,7 +112,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
             >
               <Badge
                 variant="outline"
-                className={`flex-1 justify-start font-mono text-xs py-1 ${variantColors[variant]}`}
+                className={`flex-1 justify-start font-mono text-list py-1 ${variantColors[variant]}`}
               >
                 {item}
               </Badge>
@@ -122,7 +122,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="h-6 text-xs px-2"
+                      className="h-6 text-list px-2"
                       onClick={() => {
                         removeItem(index);
                         setConfirmIndex(null);
@@ -133,7 +133,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 text-xs px-2"
+                      className="h-6 text-list px-2"
                       onClick={() => setConfirmIndex(null)}
                     >
                       {t("common.cancel")}
@@ -161,7 +161,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
             value={newItem}
             onChange={(e) => setNewItem(e.target.value)}
             placeholder={placeholder}
-            className="h-8 text-sm"
+            className="h-8 text-body"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -278,12 +278,12 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
           >
             <Shield className="w-4 h-4 text-accent" />
           </div>
-          <span className="font-medium text-sm">
+          <span className="font-medium text-body">
             {t("settingsManager.unified.sections.permissions")}
           </span>
         </div>
         {totalCount > 0 && (
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-list">
             {totalCount}
           </Badge>
         )}
@@ -293,13 +293,13 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
         <div className="pl-10 pr-4 pb-4 pt-2 space-y-6">
           {/* Default Mode & Bypass Settings */}
           <div className="space-y-4">
-            <h4 className="text-sm font-medium text-muted-foreground border-b pb-2">
+            <h4 className="text-body font-medium text-muted-foreground border-b pb-2">
               {t("settingsManager.permissions.modeSettings")}
             </h4>
 
             {/* Default Permission Mode */}
             <div className="space-y-2">
-              <Label className="text-sm">
+              <Label className="text-body">
                 {t("settingsManager.permissions.defaultMode")}
               </Label>
               <Select
@@ -322,7 +322,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.permissions.defaultModeDesc")}
               </p>
             </div>
@@ -330,10 +330,10 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
             {/* Disable Bypass Permissions Mode */}
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
-                <Label className="text-sm">
+                <Label className="text-body">
                   {t("settingsManager.permissions.disableBypass")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.permissions.disableBypassDesc")}
                 </p>
               </div>
@@ -347,17 +347,17 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
 
           {/* Additional Directories */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
+            <h4 className="text-body font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
               <FolderOpen className="w-4 h-4" />
               {t("settingsManager.permissions.additionalDirectories")}
             </h4>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-list text-muted-foreground">
               {t("settingsManager.permissions.additionalDirectoriesDesc")}
             </p>
 
             <div className="space-y-1.5">
               {additionalDirectories.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-1">
+                <p className="text-list text-muted-foreground italic py-1">
                   {t("settingsManager.permissions.noAdditionalDirs")}
                 </p>
               ) : (
@@ -368,7 +368,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                   >
                     <Badge
                       variant="outline"
-                      className="flex-1 justify-start font-mono text-xs py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                      className="flex-1 justify-start font-mono text-list py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                     >
                       {dir}
                     </Badge>
@@ -378,7 +378,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                           <Button
                             variant="destructive"
                             size="sm"
-                            className="h-6 text-xs px-2"
+                            className="h-6 text-list px-2"
                             onClick={() => {
                               removeDirectory(index);
                               setDirConfirmIndex(null);
@@ -389,7 +389,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 text-xs px-2"
+                            className="h-6 text-list px-2"
                             onClick={() => setDirConfirmIndex(null)}
                           >
                             {t("common.cancel")}
@@ -417,7 +417,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                   value={newDirectory}
                   onChange={(e) => setNewDirectory(e.target.value)}
                   placeholder={t("settingsManager.permissions.directoryPlaceholder")}
-                  className="h-8 text-sm"
+                  className="h-8 text-body"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -434,7 +434,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
 
           {/* Permission Lists */}
           <div className="space-y-4">
-            <h4 className="text-sm font-medium text-muted-foreground border-b pb-2">
+            <h4 className="text-body font-medium text-muted-foreground border-b pb-2">
               {t("settingsManager.permissions.patternRules")}
             </h4>
 

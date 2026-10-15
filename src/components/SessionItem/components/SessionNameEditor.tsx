@@ -97,7 +97,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           }}
           placeholder={t("session.renamePlaceholder", "Enter session name...")}
           className={cn(
-            "flex-1 text-xs bg-background border border-accent/40 rounded px-2 py-1",
+            "flex-1 text-list bg-background border border-accent/40 rounded px-2 py-1",
             "focus:outline-none focus:ring-1 focus:ring-accent/60",
             "text-foreground placeholder:text-muted-foreground"
           )}
@@ -141,7 +141,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
     <>
       <span
         className={cn(
-          "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
+          "text-list leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
           readOnly && "cursor-default",
           isSelected ? "text-accent font-medium" : "text-sidebar-foreground/70"
         )}
@@ -160,14 +160,14 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                   className="w-2.5 h-2.5 text-info"
                   aria-hidden="true"
                 />
-                <span className="text-px9 font-medium text-info uppercase tracking-wide">
+                <span className="text-caption font-medium text-info uppercase tracking-wide">
                   {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
               <p className="font-medium">{cliSyncTitle}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-list text-muted-foreground mt-1">
                 {cliSyncDescription}
               </p>
             </TooltipContent>

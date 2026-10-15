@@ -131,7 +131,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         emptyComponent={
           <div className="flex flex-col items-center justify-center py-12">
             <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
-            <p className="text-lg mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
+            <p className="text-title mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
             <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noEditsDescription")}
             </p>
@@ -156,7 +156,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             })}
           </p>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            <span className="text-px11 text-muted-foreground font-mono">
+            <span className="text-caption text-muted-foreground font-mono">
               {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
             </span>
             <div
@@ -240,7 +240,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
                 onClick={handleShowMore}
                 disabled={isLoadingMore}
                 aria-label={t("recentEdits.showMore", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
-                className="w-full py-4 rounded-xl text-px13 font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 rounded-xl text-list font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoadingMore ? (
                   <>

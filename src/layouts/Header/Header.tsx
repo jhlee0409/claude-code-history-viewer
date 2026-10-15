@@ -214,26 +214,26 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         />
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-sm font-semibold text-foreground hidden md:block shrink-0">
+            <h1 className="text-body font-semibold text-foreground hidden md:block shrink-0">
               {t('common.appName')}
             </h1>
             {selectedProject && (
               <>
                 <span className="text-muted-foreground/40 hidden md:block">/</span>
-                <span className="text-sm text-muted-foreground truncate min-w-0 pointer-events-auto" title={selectedProject.actual_path}>
+                <span className="text-body text-muted-foreground truncate min-w-0 pointer-events-auto" title={selectedProject.actual_path}>
                   {getProjectDisplayName(selectedProject)}
                 </span>
               </>
             )}
             {!selectedProject && (
-              <h1 className="text-sm font-semibold text-foreground md:hidden">
+              <h1 className="text-body font-semibold text-foreground md:hidden">
                 {t('common.appName')}
               </h1>
             )}
           </div>
           {selectedSession ? (
             <p
-              className="text-2xs text-muted-foreground truncate min-w-0 max-w-[60ch] pointer-events-auto"
+              className="text-caption text-muted-foreground truncate min-w-0 max-w-[60ch] pointer-events-auto"
               title={selectedSession.summary || undefined}
             >
               <span className="text-muted-foreground/60 hidden md:inline">{t("session.title")}</span>{" "}
@@ -241,7 +241,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
                 `${t("session.title")} ${selectedSession.session_id.slice(-8)}`}
             </p>
           ) : (
-            <p className="text-2xs text-muted-foreground hidden md:block">{t('common.appDescription')}</p>
+            <p className="text-caption text-muted-foreground hidden md:block">{t('common.appDescription')}</p>
           )}
         </div>
       </div>
@@ -264,12 +264,12 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         {/* Search button with shortcut hint */}
         <button
           onClick={() => openModal("globalSearch")}
-          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 text-xs"
+          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 text-list"
           aria-label={t("common.commandPalette")}
         >
           <Search className="w-3.5 h-3.5" />
           <span>{t("globalSearch.placeholder")}</span>
-          <kbd className="ml-1 px-1 py-0.5 text-px10 font-mono bg-muted rounded border border-border">
+          <kbd className="ml-1 px-1 py-0.5 text-caption font-mono bg-muted rounded border border-border">
             {SHORTCUT_LABEL}
           </kbd>
         </button>
@@ -421,7 +421,7 @@ const ViewTab = ({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap",
+        "flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap",
         isActive
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",

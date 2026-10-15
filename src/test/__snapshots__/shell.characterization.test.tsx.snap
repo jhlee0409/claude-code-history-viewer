@@ -10,25 +10,25 @@ exports[`shell characterization > desktop > analytics 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -105,12 +105,12 @@ exports[`shell characterization > desktop > analytics 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -176,7 +176,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -222,25 +222,25 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -317,12 +317,12 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Session summary not found.
               </p>
@@ -388,7 +388,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -434,19 +434,19 @@ exports[`shell characterization > desktop > archive 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -515,12 +515,12 @@ exports[`shell characterization > desktop > archive 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Archive Manager
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Manage and preserve your conversation history
               </p>
@@ -546,7 +546,7 @@ exports[`shell characterization > desktop > archive 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -592,25 +592,25 @@ exports[`shell characterization > desktop > board 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -678,12 +678,12 @@ exports[`shell characterization > desktop > board 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Session Board
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Comparative overview of different sessions
               </p>
@@ -705,7 +705,7 @@ exports[`shell characterization > desktop > board 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -751,37 +751,37 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#message-navigator"
       >
         Skip to message navigator
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -870,7 +870,7 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -924,31 +924,31 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1024,12 +1024,12 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -1053,7 +1053,7 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1099,19 +1099,19 @@ exports[`shell characterization > desktop > empty 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1176,12 +1176,12 @@ exports[`shell characterization > desktop > empty 1`] = `
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -1192,7 +1192,7 @@ exports[`shell characterization > desktop > empty 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1238,25 +1238,25 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1332,12 +1332,12 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -1348,7 +1348,7 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1394,25 +1394,25 @@ exports[`shell characterization > desktop > global stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1489,12 +1489,12 @@ exports[`shell characterization > desktop > global stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Global Overview
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Aggregated statistics across projects on your machine
               </p>
@@ -1560,7 +1560,7 @@ exports[`shell characterization > desktop > global stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1606,25 +1606,25 @@ exports[`shell characterization > desktop > loading stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1701,12 +1701,12 @@ exports[`shell characterization > desktop > loading stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -1772,7 +1772,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1847,25 +1847,25 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1941,7 +1941,7 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -1987,25 +1987,25 @@ exports[`shell characterization > desktop > recent edits 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2079,12 +2079,12 @@ exports[`shell characterization > desktop > recent edits 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Recent Edits
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Recover accidentally deleted files by viewing the latest content after changes
               </p>
@@ -2150,7 +2150,7 @@ exports[`shell characterization > desktop > recent edits 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -2196,19 +2196,19 @@ exports[`shell characterization > desktop > settings 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2272,12 +2272,12 @@ exports[`shell characterization > desktop > settings 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Settings Manager
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Manage Claude Code settings across different scopes
               </p>
@@ -2303,7 +2303,7 @@ exports[`shell characterization > desktop > settings 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -2349,25 +2349,25 @@ exports[`shell characterization > desktop > token stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#sessions-pane"
       >
         Skip to sessions
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2446,12 +2446,12 @@ exports[`shell characterization > desktop > token stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Token Statistics
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -2521,7 +2521,7 @@ exports[`shell characterization > desktop > token stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -2567,13 +2567,13 @@ exports[`shell characterization > mobile > analytics 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2647,12 +2647,12 @@ exports[`shell characterization > mobile > analytics 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -2663,7 +2663,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
           class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
         >
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
             type="button"
           >
             <svg
@@ -2694,7 +2694,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
             Analytics Dashboard
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -2727,7 +2727,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
             Token Statistics
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -2812,7 +2812,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -2863,13 +2863,13 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2943,12 +2943,12 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Session summary not found.
               </p>
@@ -2959,7 +2959,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
           class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
         >
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
             type="button"
           >
             <svg
@@ -2990,7 +2990,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
             Analytics Dashboard
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -3023,7 +3023,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
             Token Statistics
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -3108,7 +3108,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3159,13 +3159,13 @@ exports[`shell characterization > mobile > archive 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3240,12 +3240,12 @@ exports[`shell characterization > mobile > archive 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Archive Manager
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Manage and preserve your conversation history
               </p>
@@ -3269,7 +3269,7 @@ exports[`shell characterization > mobile > archive 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3320,13 +3320,13 @@ exports[`shell characterization > mobile > board 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3391,12 +3391,12 @@ exports[`shell characterization > mobile > board 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Session Board
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Comparative overview of different sessions
               </p>
@@ -3416,7 +3416,7 @@ exports[`shell characterization > mobile > board 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3467,19 +3467,19 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3563,7 +3563,7 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3627,19 +3627,19 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3710,12 +3710,12 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -3739,7 +3739,7 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3790,13 +3790,13 @@ exports[`shell characterization > mobile > empty 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3867,12 +3867,12 @@ exports[`shell characterization > mobile > empty 1`] = `
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -3883,7 +3883,7 @@ exports[`shell characterization > mobile > empty 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -3934,13 +3934,13 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4011,12 +4011,12 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
                   </svg>
                 </div>
                 <h3
-                  class="text-lg font-medium text-foreground mb-2"
+                  class="text-title font-medium text-foreground mb-2"
                 >
                   Please select a session
                 </h3>
                 <p
-                  class="text-sm text-muted-foreground"
+                  class="text-body text-muted-foreground"
                 >
                   Select a project and session from the left to view conversation history
                 </p>
@@ -4027,7 +4027,7 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -4078,13 +4078,13 @@ exports[`shell characterization > mobile > global stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4158,12 +4158,12 @@ exports[`shell characterization > mobile > global stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Global Overview
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Aggregated statistics across projects on your machine
               </p>
@@ -4227,7 +4227,7 @@ exports[`shell characterization > mobile > global stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -4278,13 +4278,13 @@ exports[`shell characterization > mobile > loading stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4358,12 +4358,12 @@ exports[`shell characterization > mobile > loading stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Analytics Dashboard
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -4374,7 +4374,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
           class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
         >
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
             type="button"
           >
             <svg
@@ -4405,7 +4405,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
             Analytics Dashboard
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -4438,7 +4438,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
             Token Statistics
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -4523,7 +4523,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -4603,13 +4603,13 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4680,7 +4680,7 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
       </div>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -4731,13 +4731,13 @@ exports[`shell characterization > mobile > recent edits 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4808,12 +4808,12 @@ exports[`shell characterization > mobile > recent edits 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Recent Edits
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Recover accidentally deleted files by viewing the latest content after changes
               </p>
@@ -4824,7 +4824,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
           class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
         >
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -4855,7 +4855,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
             Analytics Dashboard
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -4888,7 +4888,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
             Token Statistics
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
             type="button"
           >
             <svg
@@ -4973,7 +4973,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -5024,13 +5024,13 @@ exports[`shell characterization > mobile > settings 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -5100,12 +5100,12 @@ exports[`shell characterization > mobile > settings 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Settings Manager
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 Manage Claude Code settings across different scopes
               </p>
@@ -5129,7 +5129,7 @@ exports[`shell characterization > mobile > settings 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"
@@ -5180,13 +5180,13 @@ exports[`shell characterization > mobile > token stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
         href="#app-settings-button"
       >
         Skip to settings
@@ -5262,12 +5262,12 @@ exports[`shell characterization > mobile > token stats 1`] = `
             </div>
             <div>
               <h2
-                class="text-sm font-semibold text-foreground"
+                class="text-body font-semibold text-foreground"
               >
                 Token Statistics
               </h2>
               <p
-                class="text-xs text-muted-foreground"
+                class="text-list text-muted-foreground"
               >
                 session summary
               </p>
@@ -5278,7 +5278,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
           class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
         >
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -5309,7 +5309,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
             Analytics Dashboard
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
             type="button"
           >
             <svg
@@ -5342,7 +5342,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
             Token Statistics
           </button>
           <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
             type="button"
           >
             <svg
@@ -5431,7 +5431,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
       </main>
     </div>
     <footer
-      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
+      class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
     >
       <div
         class="flex items-center gap-3 font-mono tabular-nums"

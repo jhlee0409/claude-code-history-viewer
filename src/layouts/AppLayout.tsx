@@ -281,10 +281,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
             <AlertTriangle className="w-8 h-8 text-destructive" />
           </div>
-          <h1 className="text-xl font-semibold text-foreground mb-2">
+          <h1 className="text-title font-semibold text-foreground mb-2">
             {t("common.errorOccurred")}
           </h1>
-          <p className="text-sm text-muted-foreground mb-6">{error.message}</p>
+          <p className="text-body text-muted-foreground mb-6">{error.message}</p>
           <button
             onClick={() => window.location.reload()}
             className="action-btn primary"

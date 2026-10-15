@@ -96,20 +96,20 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
             aria-hidden="true"
           />
         </span>
-        <span className="text-2xs font-medium text-muted-foreground">
+        <span className="text-caption font-medium text-muted-foreground">
           #{entry.turnIndex}
         </span>
         {entry.hasToolUse && entry.kind !== "tool" && (
           <Wrench className="w-2.5 h-2.5 text-muted-foreground/60" aria-hidden="true" />
         )}
-        <span className="ml-auto text-2xs text-muted-foreground/60">
+        <span className="ml-auto text-caption text-muted-foreground/60">
           {formattedTime}
         </span>
       </div>
       {/* Preview text; rows without text show their kind instead */}
       <p
         className={cn(
-          "text-xs line-clamp-2 leading-relaxed",
+          "text-list line-clamp-2 leading-relaxed",
           entry.preview ? kindStyle.textClass : "text-muted-foreground italic"
         )}
       >

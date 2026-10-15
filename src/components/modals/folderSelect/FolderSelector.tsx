@@ -116,7 +116,7 @@ export function FolderSelector({
 
       {/* Title & Description */}
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="text-title font-bold text-foreground">
           {isChangeMode
             ? t("folderPicker.change")
             : t("folderPicker.notFound")}
@@ -177,13 +177,13 @@ export function FolderSelector({
       {/* Help Section */}
       <Card variant="outline" className="text-left">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <CardTitle className="text-body font-semibold flex items-center gap-2">
             <HelpCircle className="h-4 w-4" />
             {t("folderPicker.help")}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground whitespace-pre-line">
+          <p className="text-body text-muted-foreground whitespace-pre-line">
             {t("folderPicker.helpDetails")}
           </p>
         </CardContent>

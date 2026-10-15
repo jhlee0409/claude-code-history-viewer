@@ -85,7 +85,7 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults }:
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.workflowTool.script", { defaultValue: "Script" })}</span>
             </button>
             {isScriptOpen && (
-              <pre className={cn("px-3 py-2 border-t border-border max-h-96 overflow-auto", layout.monoText, "text-px11 text-foreground/90 whitespace-pre-wrap")}>
+              <pre className={cn("px-3 py-2 border-t border-border max-h-96 overflow-auto", layout.monoText, "text-caption text-foreground/90 whitespace-pre-wrap")}>
                 {script}
               </pre>
             )}

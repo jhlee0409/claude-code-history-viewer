@@ -23,7 +23,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
     : null;
 
   return (
-    <div className="flex min-w-0 items-center gap-2 ml-7 text-2xs">
+    <div className="flex min-w-0 items-center gap-2 ml-7 text-caption">
       <span
         className={cn(
           "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono",

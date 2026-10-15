@@ -361,7 +361,7 @@ export const SettingsEditorPane: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 gap-1.5 text-xs"
+                  className="h-7 px-2 gap-1.5 text-list"
                   onClick={handleFormatJson}
                   disabled={isReadOnly || !!jsonError}
                   aria-label={t("settingsManager.json.format")}
@@ -391,7 +391,7 @@ export const SettingsEditorPane: React.FC = () => {
                   <Redo2 className="w-3.5 h-3.5" />
                 </Button>
                 {jsonError && (
-                  <span className="ml-2 text-xs text-destructive truncate">
+                  <span className="ml-2 text-list text-destructive truncate">
                     {t("settingsManager.json.invalidJson")}: {jsonError}
                   </span>
                 )}
@@ -399,7 +399,7 @@ export const SettingsEditorPane: React.FC = () => {
               {/* JSON Textarea */}
               <textarea
                 ref={jsonEditorRef}
-                className="flex-1 min-h-0 w-full bg-muted p-4 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
+                className="flex-1 min-h-0 w-full bg-muted p-4 rounded-lg text-body font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
                 value={jsonHistory.currentText}
                 onChange={handleJsonChange}
                 onKeyDown={handleJsonKeyDown}
@@ -424,7 +424,7 @@ export const SettingsEditorPane: React.FC = () => {
               ) : (
                 <XCircle className="h-4 w-4" />
               )}
-              <AlertDescription className="text-sm">
+              <AlertDescription className="text-body">
                 {saveResult.message}
               </AlertDescription>
             </Alert>

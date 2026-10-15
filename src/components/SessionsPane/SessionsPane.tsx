@@ -81,21 +81,21 @@ export function SessionsPane({
       >
         <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2 min-w-0">
           <MessageSquare className="w-3.5 h-3.5 text-accent shrink-0" />
-          <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground shrink-0">
+          <span className="text-list font-semibold tracking-wide uppercase text-muted-foreground shrink-0">
             {t("session.pane.title")}
           </span>
-          <span className="text-xs text-foreground truncate min-w-0" title={selectedProject.actual_path}>
+          <span className="text-list text-foreground truncate min-w-0" title={selectedProject.actual_path}>
             {selectedProject.name}
           </span>
           <span
             className={cn(
-              "px-1.5 py-0.5 text-2xs font-medium rounded-full shrink-0 leading-none",
+              "px-1.5 py-0.5 text-caption font-medium rounded-full shrink-0 leading-none",
               getProviderBadgeStyle(providerId),
             )}
           >
             {providerLabel}
           </span>
-          <span className="ml-auto text-2xs text-muted-foreground shrink-0 tabular-nums">
+          <span className="ml-auto text-caption text-muted-foreground shrink-0 tabular-nums">
             {count}
           </span>
         </div>

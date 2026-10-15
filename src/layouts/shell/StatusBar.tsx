@@ -48,7 +48,7 @@ export const StatusBar = ({
   ).find(([active]) => active)?.[1];
 
   return (
-    <footer className="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
+    <footer className="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground">
       <div className="flex items-center gap-3 font-mono tabular-nums">
         <span>
           {isDesktop

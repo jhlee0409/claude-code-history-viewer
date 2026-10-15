@@ -157,7 +157,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
 
         <div className="flex-1 overflow-auto space-y-4">
           {/* Summary */}
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-body">
             <span className="text-muted-foreground">
               {t("settingsManager.mcp.serverCount", { count: allServers.length })}
             </span>
@@ -213,7 +213,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-xs"
+                        className="h-6 text-list"
                         onClick={() => handleNavigateToSource(singleServer.source)}
                       >
                         <ExternalLink className="w-3 h-3 mr-1" />
@@ -227,16 +227,16 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                     {servers.map((server, idx) => (
                       <div
                         key={`${server.source}-${idx}`}
-                        className={`text-sm ${hasConflict ? "p-2 bg-muted rounded" : ""}`}
+                        className={`text-body ${hasConflict ? "p-2 bg-muted rounded" : ""}`}
                       >
                         <div className="flex items-center justify-between">
-                          <code className="text-xs text-muted-foreground font-mono truncate flex-1">
+                          <code className="text-list text-muted-foreground font-mono truncate flex-1">
                             {server.config.command} {server.config.args?.join(" ")}
                           </code>
                           <div className="flex items-center gap-2 ml-2">
                             <Badge
                               variant="outline"
-                              className={`text-xs ${sourceColors[server.source]}`}
+                              className={`text-list ${sourceColors[server.source]}`}
                             >
                               {server.sourceLabel}
                             </Badge>
@@ -244,7 +244,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-5 text-xs px-1"
+                                className="h-5 text-list px-1"
                                 onClick={() => handleNavigateToSource(server.source)}
                               >
                                 <ExternalLink className="w-3 h-3" />
@@ -253,7 +253,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                           </div>
                         </div>
                         {server.config.env && Object.keys(server.config.env).length > 0 && (
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="mt-1 text-list text-muted-foreground">
                             env: {Object.entries(server.config.env).slice(0, 2).map(([key, value]) => (
                               <span key={key} className="font-mono mr-2">
                                 {key}={maskValue(value)}

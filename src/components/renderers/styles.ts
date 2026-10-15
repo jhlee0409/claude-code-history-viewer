@@ -218,13 +218,13 @@ export const layout = {
   /** Small icon size (for status indicators) */
   iconSizeSmall: "w-3 h-3",
   /** Title text style */
-  titleText: "text-px12 font-medium",
+  titleText: "text-caption font-medium",
   /** Body text style */
-  bodyText: "text-px12",
+  bodyText: "text-caption",
   /** Small/meta text style */
-  smallText: "text-px12",
+  smallText: "text-caption",
   /** Monospace text */
-  monoText: "text-px12 font-mono",
+  monoText: "text-caption font-mono",
   /** Standard border radius */
   rounded: "rounded-md",
   /** Code block max height */
@@ -266,19 +266,19 @@ export const commonStyles = {
 
   /** Code block header */
   codeBlockHeader:
-    "flex justify-between items-center px-3 py-1 bg-secondary border-b border-border text-sm",
+    "flex justify-between items-center px-3 py-1 bg-secondary border-b border-border text-body",
 
   /** Inline code */
-  inlineCode: "text-xs px-2 py-1 rounded font-mono",
+  inlineCode: "text-list px-2 py-1 rounded font-mono",
 
   /** File path display */
-  filePath: "font-mono text-sm",
+  filePath: "font-mono text-body",
 
   /** Section divider */
   divider: "border-t border-border my-3",
 
   /** Metadata row */
-  metaRow: "flex items-center space-x-2 text-xs text-muted-foreground",
+  metaRow: "flex items-center space-x-2 text-list text-muted-foreground",
 
   /** Scrollable container */
   scrollable: "max-h-96 overflow-y-auto",
@@ -290,20 +290,20 @@ export const commonStyles = {
   muted: "text-muted-foreground",
 
   /** Small text */
-  small: "text-xs",
+  small: "text-list",
 
   /** Icon with text */
   iconText: "flex items-center gap-2",
 
   /** Badge */
-  badge: "px-2 py-0.5 rounded text-xs font-medium",
+  badge: "px-2 py-0.5 rounded text-list font-medium",
 } as const;
 
 /**
  * Prism theme configuration (shared across all code renderers)
  */
 export const codeTheme = {
-  fontSize: "calc(0.8125rem * var(--app-font-scale))",
-  lineHeight: "1.25rem",
+  fontSize: "var(--text-code)",
+  lineHeight: "var(--text-code--line-height)",
   padding: "0.5rem",
 } as const;

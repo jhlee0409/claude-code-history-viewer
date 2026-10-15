@@ -47,16 +47,16 @@ export const SessionDeleteDialog: React.FC<SessionDeleteDialogProps> = ({
             </span>
             {title}
           </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed">
+          <DialogDescription className="text-body leading-relaxed">
             {description}
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
-          <p className="text-xs font-medium text-destructive">
+          <p className="text-list font-medium text-destructive">
             {t("session.deleteTarget", "Session file")}
           </p>
-          <p className="mt-1 break-all text-xs text-muted-foreground">
+          <p className="mt-1 break-all text-list text-muted-foreground">
             {filePath}
           </p>
         </div>

@@ -307,8 +307,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <Archive className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{t("archive.settings.link")}</p>
-            <p className="text-xs text-muted-foreground">{t("archive.settings.linkDescription")}</p>
+            <p className="text-body font-medium">{t("archive.settings.link")}</p>
+            <p className="text-list text-muted-foreground">{t("archive.settings.linkDescription")}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>

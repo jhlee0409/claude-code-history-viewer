@@ -29,7 +29,7 @@ export const DateDivider: React.FC<DateDividerProps> = React.memo(
         <div className="flex-1 h-px bg-border/40" />
         <span
           className={cn(
-            "px-3 text-px11 font-medium",
+            "px-3 text-caption font-medium",
             "text-muted-foreground/70"
           )}
         >

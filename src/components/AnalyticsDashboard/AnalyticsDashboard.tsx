@@ -121,7 +121,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 <BarChart3 className="w-8 h-8 text-muted-foreground/40" />
               </div>
               {/* The view's title is the shell's content header (AppLayout). */}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("analytics.Select a project to view analytics")}
               </p>
             </div>
@@ -144,7 +144,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
+                  "flex items-center gap-2 px-4 py-2 text-caption font-medium rounded-md transition-all duration-200",
                   activeTab === "project"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -163,7 +163,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
+                  "flex items-center gap-2 px-4 py-2 text-caption font-medium rounded-md transition-all duration-200",
                   activeTab === "session"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"

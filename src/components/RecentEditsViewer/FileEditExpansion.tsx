@@ -116,7 +116,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
     <div className="border-t border-border bg-card/40">
       {/* Full absolute path, plus the jump arrow. */}
       <div className="flex items-start gap-2 px-2 py-1.5">
-        <code className="min-w-0 flex-1 break-all text-px11 text-muted-foreground">
+        <code className="min-w-0 flex-1 break-all text-caption text-muted-foreground">
           {edit.file_path}
         </code>
         {canJump && (
@@ -157,7 +157,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
                 title={hint}
                 aria-label={hint}
                 className={cn(
-                  "flex items-center gap-1 border-r border-border px-2 py-0.5 text-px11 transition-colors last:border-r-0",
+                  "flex items-center gap-1 border-r border-border px-2 py-0.5 text-caption transition-colors last:border-r-0",
                   active
                     ? "bg-accent/20 text-accent"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -223,8 +223,8 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
                 <pre
                   className={className}
                   style={getPreStyles(isDarkMode, style, {
-                    fontSize: "calc(0.75rem * var(--app-font-scale))",
-                    lineHeight: "1.15rem",
+                    fontSize: "var(--text-code)",
+                    lineHeight: "var(--text-code--line-height)",
                     padding: "0.5rem",
                   })}
                 >
@@ -277,7 +277,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-border px-2 py-1 text-px11 text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-border px-2 py-1 text-caption text-muted-foreground">
         <span>{language}</span>
         <span>{formatTimestamp(edit.timestamp)}</span>
       </div>

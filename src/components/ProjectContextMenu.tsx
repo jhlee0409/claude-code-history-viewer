@@ -128,7 +128,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   };
 
   const menuItemClass = cn(
-    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm",
+    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-body",
     "hover:bg-accent hover:text-accent-foreground",
     "transition-colors cursor-pointer"
   );
@@ -148,7 +148,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     >
       <div className="p-1">
         {/* Project name header */}
-        <div className="px-2 py-1.5 text-xs text-muted-foreground truncate border-b border-border mb-1">
+        <div className="px-2 py-1.5 text-list text-muted-foreground truncate border-b border-border mb-1">
           {project.name}
         </div>
 

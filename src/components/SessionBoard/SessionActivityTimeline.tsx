@@ -63,7 +63,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
       {/* Header / Collapsed view */}
       <button
         onClick={onToggle}
-        className="w-full h-8 px-3 flex items-center gap-2 text-xs hover:bg-muted/30 transition-colors"
+        className="w-full h-8 px-3 flex items-center gap-2 text-list hover:bg-muted/30 transition-colors"
         aria-expanded={isExpanded}
         aria-label={t("analytics.timeline.title")}
       >
@@ -73,11 +73,11 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         )}
 
-        <span className="text-px11 font-medium text-foreground/80 truncate">
+        <span className="text-caption font-medium text-foreground/80 truncate">
           {projectName ?? t("analytics.timeline.title")}
         </span>
 
-        <div className="flex items-center gap-3 ml-auto text-px10 text-muted-foreground shrink-0">
+        <div className="flex items-center gap-3 ml-auto text-caption text-muted-foreground shrink-0">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" aria-hidden="true" />
             {t("analytics.timeline.activeDays")}: {t(totalActiveDays === 1 ? "analytics.timeline.day" : "analytics.timeline.days", { count: totalActiveDays })}
@@ -99,7 +99,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
         <div className="px-4 pb-3 space-y-2">
           {/* Stats row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 bg-muted/40 rounded-full px-2.5 py-0.5 text-px10">
+            <span className="inline-flex items-center gap-1 bg-muted/40 rounded-full px-2.5 py-0.5 text-caption">
               <Flame className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
               <span className="text-muted-foreground">{t("analytics.timeline.longestStreak")}</span>
               <span className="font-medium text-foreground">
@@ -112,7 +112,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
                   e.stopPropagation();
                   handleDateClear();
                 }}
-                className="inline-flex items-center gap-0.5 bg-primary/10 rounded-full px-2.5 py-0.5 text-px10 text-primary/80 hover:text-primary hover:bg-primary/15 transition-colors"
+                className="inline-flex items-center gap-0.5 bg-primary/10 rounded-full px-2.5 py-0.5 text-caption text-primary/80 hover:text-primary hover:bg-primary/15 transition-colors"
               >
                 <X className="w-3 h-3" aria-hidden="true" />
                 {t("analytics.timeline.clearFilter")}

@@ -334,7 +334,7 @@ export const SessionBoard = () => {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-background/50 backdrop-blur-sm">
                 <LoadingSpinner size="lg" />
-                <p className="mt-4 text-sm text-muted-foreground animate-pulse">
+                <p className="mt-4 text-body text-muted-foreground animate-pulse">
                     {t("common.loading")}
                 </p>
             </div>
@@ -365,10 +365,10 @@ export const SessionBoard = () => {
                         <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
                             <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
                         </div>
-                        <h3 className="text-lg font-medium text-foreground mb-2">
+                        <h3 className="text-title font-medium text-foreground mb-2">
                             {t("session.board.empty.title")}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-body text-muted-foreground">
                             {t("session.board.empty.description")}
                         </p>
                     </div>
@@ -478,7 +478,7 @@ export const SessionBoard = () => {
             {/* Hint for panning */}
             {
                 isMetaPressed && !isDragging && (
-                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
+                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-list font-bold shadow-2xl animate-bounce z-[100]">
                         {t("session.board.dragToPan")}
                     </div>
                 )

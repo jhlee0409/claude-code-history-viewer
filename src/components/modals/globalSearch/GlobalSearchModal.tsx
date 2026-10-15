@@ -611,7 +611,7 @@ export const GlobalSearchModal = ({
                         value={query}
                         onChange={handleInputChange}
                         placeholder={t("globalSearch.placeholder")}
-                        className="border-0 shadow-none focus-visible:ring-0 px-0 h-auto text-sm"
+                        className="border-0 shadow-none focus-visible:ring-0 px-0 h-auto text-body"
                         autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
@@ -644,7 +644,7 @@ export const GlobalSearchModal = ({
                                 key={type}
                                 onClick={() => setMessageTypeFilter(type)}
                                 className={cn(
-                                    "flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors",
+                                    "flex items-center gap-1 px-2 py-1 text-list rounded-md transition-colors",
                                     messageTypeFilter === type
                                         ? "bg-foreground/10 text-foreground font-medium"
                                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -669,7 +669,7 @@ export const GlobalSearchModal = ({
                         <>
                             <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
-                                <SelectTrigger className="h-7 text-xs border-border w-40">
+                                <SelectTrigger className="h-7 text-list border-border w-40">
                                     <SelectValue placeholder={t("globalSearch.allProjects")} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -707,7 +707,7 @@ export const GlobalSearchModal = ({
                     )}
 
                     {!isSearching && query.trim().length >= 2 && results.length === 0 && (
-                        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <div className="px-4 py-8 text-center text-body text-muted-foreground">
                             {t("globalSearch.noResults")}
                         </div>
                     )}
@@ -717,20 +717,20 @@ export const GlobalSearchModal = ({
                         <div className="px-6 py-8 space-y-4">
                             <div className="text-center">
                                 <Search className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-body text-muted-foreground">
                                     {t("globalSearch.hint")}
                                 </p>
                             </div>
                             <div className="space-y-2">
-                                <div className="flex items-start gap-2 text-xs text-muted-foreground/70">
+                                <div className="flex items-start gap-2 text-list text-muted-foreground/70">
                                     <Lightbulb className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                                     <span>{t("globalSearch.tips.minChars")}</span>
                                 </div>
-                                <div className="flex items-start gap-2 text-xs text-muted-foreground/70">
+                                <div className="flex items-start gap-2 text-list text-muted-foreground/70">
                                     <Lightbulb className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                                     <span>{t("globalSearch.tips.filters")}</span>
                                 </div>
-                                <div className="flex items-start gap-2 text-xs text-muted-foreground/70">
+                                <div className="flex items-start gap-2 text-list text-muted-foreground/70">
                                     <Lightbulb className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                                     <span>{t("globalSearch.tips.navigate")}</span>
                                 </div>
@@ -740,7 +740,7 @@ export const GlobalSearchModal = ({
 
                     {/* Typing but not enough chars */}
                     {query && query.trim().length < 2 && !isSearching && (
-                        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <div className="px-4 py-8 text-center text-body text-muted-foreground">
                             {t("globalSearch.tips.minChars")}
                         </div>
                     )}
@@ -751,12 +751,12 @@ export const GlobalSearchModal = ({
                                 ([groupKey, group]) => (
                                     <div key={groupKey}>
                                         {/* Project Header */}
-                                        <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted sticky top-0 truncate flex items-center gap-2">
+                                        <div className="px-4 py-1.5 text-list font-medium text-muted-foreground bg-muted sticky top-0 truncate flex items-center gap-2">
                                             {group.provider && group.provider !== "claude" && (
                                                 <Badge
                                                     size="sm"
                                                     className={cn(
-                                                        "rounded px-1 py-0 text-2xs",
+                                                        "rounded px-1 py-0 text-caption",
                                                         getProviderBadgeStyle(group.provider)
                                                     )}
                                                 >
@@ -766,7 +766,7 @@ export const GlobalSearchModal = ({
                                             {group.pathUnavailable && (
                                                 <Badge
                                                     size="sm"
-                                                    className="rounded px-1 py-0 text-2xs bg-warning/15 text-warning"
+                                                    className="rounded px-1 py-0 text-caption bg-warning/15 text-warning"
                                                     title={t("project.pathUnavailableDescription", {
                                                         defaultValue: "Last-known location is unavailable",
                                                     })}
@@ -797,7 +797,7 @@ export const GlobalSearchModal = ({
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <span
                                                                     className={cn(
-                                                                        "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium",
+                                                                        "inline-flex items-center gap-1 text-list px-1.5 py-0.5 rounded font-medium",
                                                                         result.type === "user"
                                                                             ? "bg-info/10 text-info"
                                                                             : result.type === "assistant"
@@ -809,20 +809,20 @@ export const GlobalSearchModal = ({
                                                                     {result.type === "assistant" && <Bot className="w-3 h-3" />}
                                                                     {result.type}
                                                                 </span>
-                                                                <span className="text-xs text-muted-foreground">
+                                                                <span className="text-list text-muted-foreground">
                                                                     {formatTimestamp(result.timestamp)}
                                                                 </span>
                                                             </div>
                                                             {(() => {
                                                                 const sessionName = getSessionName(result);
                                                                 return sessionName ? (
-                                                                    <p className="flex items-center gap-1 text-xs text-muted-foreground/70 mb-0.5">
+                                                                    <p className="flex items-center gap-1 text-list text-muted-foreground/70 mb-0.5">
                                                                         <MessageSquare className="w-3 h-3 shrink-0" />
                                                                         <span className="truncate">{sessionName}</span>
                                                                     </p>
                                                                 ) : null;
                                                             })()}
-                                                            <p className="text-sm text-foreground line-clamp-2">
+                                                            <p className="text-body text-foreground line-clamp-2">
                                                                 {highlightText(getPreviewText(result))}
                                                             </p>
                                                         </div>
@@ -838,7 +838,7 @@ export const GlobalSearchModal = ({
                 </div>
 
                 {/* Footer with keyboard hints */}
-                <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground">
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
@@ -860,7 +860,7 @@ export const GlobalSearchModal = ({
                             </span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-px10">
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-caption">
                                 esc
                             </kbd>
                             <span className="ml-1">

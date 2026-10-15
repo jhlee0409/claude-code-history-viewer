@@ -404,29 +404,73 @@
   --highlight-foreground: oklch(0.98 0 0);
 }
 
+/* ============================================
+   TYPE SCALE (plan T4, decision.html §4)
+   ============================================
+   Five steps, each × --app-font-scale (Settings → font size):
+     caption 12 / 1.4    dates, counts, badges, shortcut hints
+     list    13 / 1.4    sidebar, tabs, buttons, tool-call rows
+     body    15 / 1.7 CJK · 1.55 other   conversation text, markdown
+     code    13 / 1.5    code blocks, diffs (monospace)
+     title   17 / 1.3    screen titles, card numbers
+   text-lg / text-xl / text-2xl are analytics-number aliases only (their
+   current 18 / 20 / 24px, now also × scale). Nothing else exists: the
+   default Tailwind sizes are cleared, and src/test/typography.guard.test.ts
+   rejects any other size class, inline px size or CSS px size. */
+@theme static {
+  --text-*: initial;
+  --text-caption: calc(0.75rem * var(--app-font-scale));
+  --text-caption--line-height: 1.4;
+  --text-list: calc(0.8125rem * var(--app-font-scale));
+  --text-list--line-height: 1.4;
+  --text-body: calc(0.9375rem * var(--app-font-scale));
+  --text-body--line-height: var(--leading-body);
+  --text-code: calc(0.8125rem * var(--app-font-scale));
+  --text-code--line-height: 1.5;
+  --text-title: calc(1.0625rem * var(--app-font-scale));
+  --text-title--line-height: 1.3;
+
+  /* Analytics numbers only (guard: AnalyticsDashboard, token/session stats, board lane). */
+  --text-lg: calc(1.125rem * var(--app-font-scale));
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: calc(1.25rem * var(--app-font-scale));
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: calc(1.5rem * var(--app-font-scale));
+  --text-2xl--line-height: calc(2 / 1.5);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+
+/* Per-language font order and body line height, keyed on html[lang]
+   (set before the first render and on every language change, see
+   src/i18n/documentLanguage.ts). Latin text always uses the bundled IBM Plex
+   Sans; CJK falls through to the platform font of that script so Japanese,
+   Simplified and Traditional Chinese each get their own glyph shapes. */
+:root {
+  --font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --leading-body: 1.55;
+}
+:root:lang(ko) {
+  --font-ui: "IBM Plex Sans", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(ja) {
+  --font-ui: "IBM Plex Sans", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(zh-CN), :root:lang(zh-Hans) {
+  --font-ui: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(zh-TW), :root:lang(zh-Hant), :root:lang(zh-HK) {
+  --font-ui: "IBM Plex Sans", "PingFang TC", "Microsoft JhengHei UI", "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
+  --leading-body: 1.7;
+}
+
 /* === Theme inline mapping === */
 @theme inline {
-  /* Typography Scale */
-  --font-family-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-
-  --font-size-2xs: calc(0.6875rem * var(--app-font-scale));
-  --font-size-2xs--line-height: calc(0.9375rem * var(--app-font-scale));
-  --font-size-xs: calc(0.8125rem * var(--app-font-scale));
-  --font-size-xs--line-height: calc(1.0625rem * var(--app-font-scale));
-  --font-size-sm: calc(0.9375rem * var(--app-font-scale));
-  --font-size-sm--line-height: calc(1.3125rem * var(--app-font-scale));
-  --font-size-base: calc(1.0625rem * var(--app-font-scale));
-  --font-size-base--line-height: calc(1.5625rem * var(--app-font-scale));
-  --font-size-lg: calc(1.1875rem * var(--app-font-scale));
-  --font-size-lg--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-xl: calc(1.3125rem * var(--app-font-scale));
-  --font-size-xl--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-2xl: calc(1.5625rem * var(--app-font-scale));
-  --font-size-2xl--line-height: calc(2.0625rem * var(--app-font-scale));
-  --font-size-3xl: calc(1.9375rem * var(--app-font-scale));
-  --font-size-3xl--line-height: calc(2.3125rem * var(--app-font-scale));
-
   /* Radius */
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -505,7 +549,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-ui);
     font-feature-settings: 'tnum' on, 'lnum' on;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -520,17 +564,17 @@
   }
 
   h1 {
-    @apply text-3xl;
+    @apply text-title;
     letter-spacing: -0.03em;
   }
 
   h2 {
-    @apply text-2xl;
+    @apply text-title;
     letter-spacing: -0.025em;
   }
 
   h3 {
-    @apply text-xl;
+    @apply text-title;
     letter-spacing: -0.02em;
   }
 
@@ -539,7 +583,7 @@
   code,
   pre,
   [data-mono] {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: var(--font-code);
     font-feature-settings: 'liga' on, 'calt' on;
   }
 
@@ -560,8 +604,8 @@
 
   /* Prose typography overrides for compact display */
   .prose {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
-    line-height: 1.5 !important;
+    font-size: var(--text-body) !important;
+    line-height: var(--leading-body) !important;
   }
 
   .prose p {
@@ -570,19 +614,21 @@
   }
 
   .prose h1 {
-    font-size: calc(0.9375rem * var(--app-font-scale)) !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
     margin-top: 0 !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h2 {
-    font-size: calc(0.875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h3 {
-    font-size: calc(0.8125rem * var(--app-font-scale)) !important;
+    font-size: var(--text-body) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -590,7 +636,7 @@
   .prose h4,
   .prose h5,
   .prose h6 {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
+    font-size: var(--text-body) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -628,15 +674,15 @@
   }
 
   .prose pre {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
-    line-height: 1.4 !important;
+    font-size: var(--text-code) !important;
+    line-height: var(--text-code--line-height) !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
     padding: 0.375em 0.5em !important;
   }
 
   .prose code {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-code) !important;
     padding: 0.0625em 0.1875em !important;
   }
 
@@ -647,7 +693,8 @@
   }
 
   .prose table {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-list) !important;
+    line-height: var(--text-list--line-height) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.75em !important;
     width: 100% !important;
@@ -743,7 +790,7 @@
   }
 
   .prose kbd {
-    font-size: calc(0.625rem * var(--app-font-scale)) !important;
+    font-size: var(--text-caption) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
@@ -983,7 +1030,7 @@
 
   /* === Data label style === */
   .data-label {
-    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+    @apply text-list font-medium uppercase tracking-wider text-muted-foreground;
     letter-spacing: 0.05em;
   }
 
@@ -1015,9 +1062,7 @@
   }
 
   .metric-label {
-    @apply font-semibold uppercase tracking-[0.1em] text-muted-foreground;
-    /* reactive 11px — respects the app font-size setting (#408/#412) */
-    font-size: calc(0.6875rem * var(--app-font-scale));
+    @apply text-caption font-semibold uppercase tracking-[0.1em] text-muted-foreground;
   }
 
   .metric-value {
@@ -1028,7 +1073,7 @@
   /* === Action button === */
   .action-btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-    @apply text-sm font-medium rounded-lg;
+    @apply text-body font-medium rounded-lg;
     @apply bg-secondary text-secondary-foreground;
     @apply hover:bg-secondary/80 active:scale-[0.98];
     @apply transition-all duration-150;
@@ -1058,7 +1103,7 @@
   .code-block-header {
     @apply flex items-center justify-between px-4 py-2;
     @apply bg-[oklch(0.08_0.015_260)] border-b border-border;
-    @apply text-xs text-muted-foreground;
+    @apply text-list text-muted-foreground;
   }
 
   /* === Tool result container === */
@@ -1071,12 +1116,12 @@
   .tool-result-header {
     @apply flex items-center gap-2 px-3 py-2;
     @apply border-b border-border/50;
-    @apply text-xs font-medium text-muted-foreground;
+    @apply text-list font-medium text-muted-foreground;
   }
 
   /* === Divider with label === */
   .divider-label {
-    @apply flex items-center gap-4 text-xs text-muted-foreground;
+    @apply flex items-center gap-4 text-list text-muted-foreground;
   }
 
   .divider-label::before,
@@ -1492,47 +1537,6 @@
    TYPOGRAPHY UTILITIES
    ============================================ */
 @layer utilities {
-
-  /* === Custom Text Sizes === */
-  .text-2xs {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-    line-height: calc(0.9375rem * var(--app-font-scale));
-  }
-
-  .text-3xs {
-    font-size: calc(0.625rem * var(--app-font-scale));
-    line-height: calc(0.8125rem * var(--app-font-scale));
-  }
-
-  /* === Fixed pixel text sizes, made reactive to --app-font-scale (issue #408) ===
-     These replace arbitrary `text-[Npx]` classes, which compile to a literal
-     font-size and so ignore the app font-size setting. They set font-size only —
-     matching the original arbitrary-value behavior — so appearance is unchanged
-     except that they now scale with the user's font-size preference. */
-  .text-px6 {
-    font-size: calc(0.375rem * var(--app-font-scale));
-  }
-  .text-px8 {
-    font-size: calc(0.5rem * var(--app-font-scale));
-  }
-  .text-px9 {
-    font-size: calc(0.5625rem * var(--app-font-scale));
-  }
-  .text-px10 {
-    font-size: calc(0.625rem * var(--app-font-scale));
-  }
-  .text-px11 {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-  }
-  .text-px12 {
-    font-size: calc(0.75rem * var(--app-font-scale));
-  }
-  .text-px13 {
-    font-size: calc(0.8125rem * var(--app-font-scale));
-  }
-  .text-px14 {
-    font-size: calc(0.875rem * var(--app-font-scale));
-  }
 
   /* === Text Wrapping === */
   .text-balance {

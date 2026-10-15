@@ -315,7 +315,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           <ListTree className="w-4 h-4 text-muted-foreground" />
 
           {/* Entry count */}
-          <span className="text-2xs font-mono text-muted-foreground">{allEntries.length}</span>
+          <span className="text-caption font-mono text-muted-foreground">{allEntries.length}</span>
         </div>
       </aside>
     );
@@ -345,10 +345,10 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
         <ListTree className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground flex-1">
+        <span className="text-list font-semibold text-foreground flex-1">
           {t("navigator.title")}
         </span>
-        <span className="text-2xs text-muted-foreground tabular-nums">
+        <span className="text-caption text-muted-foreground tabular-nums">
           {isOutlineRendered ? realTurnsCount : entries.length}
         </span>
         <button
@@ -414,7 +414,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={t("navigator.filter")}
             aria-label={t("navigator.filter")}
-            className="w-full pl-6 pr-2 py-1 text-xs bg-muted/30 border border-border/30 rounded focus:outline-none focus:ring-1 focus:ring-accent/40 placeholder:text-muted-foreground/40"
+            className="w-full pl-6 pr-2 py-1 text-list bg-muted/30 border border-border/30 rounded focus:outline-none focus:ring-1 focus:ring-accent/40 placeholder:text-muted-foreground/40"
           />
           {filterText && (
             <button
@@ -443,7 +443,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         />
       ) : entries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-list text-muted-foreground text-center">
             {filterText ? t("messageViewer.noSearchResults") : t("navigator.noMessages")}
           </p>
         </div>

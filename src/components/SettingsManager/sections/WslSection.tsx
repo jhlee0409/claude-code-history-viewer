@@ -111,7 +111,7 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-body font-medium hover:bg-muted/50 transition-colors">
         {isExpanded ? (
           <ChevronDown className="h-4 w-4 shrink-0" />
         ) : (
@@ -123,13 +123,13 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
 
       <CollapsibleContent>
         <div className="space-y-3 px-3 pb-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-list text-muted-foreground">
             {t("settings.wsl.description")}
           </p>
 
           {/* Enable toggle */}
           <div className="flex items-center justify-between">
-            <Label htmlFor="wsl-enabled" className="text-sm cursor-pointer">
+            <Label htmlFor="wsl-enabled" className="text-body cursor-pointer">
               {t("settings.wsl.enable")}
             </Label>
             <Switch
@@ -143,20 +143,20 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
           {/* Distros list (only shown when enabled) */}
           {wslSettings.enabled && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="text-list font-medium text-muted-foreground">
                 {t("settings.wsl.distros")}
               </p>
 
               {isLoadingDistros ? (
-                <p className="text-xs text-muted-foreground italic">
+                <p className="text-list text-muted-foreground italic">
                   {t("settings.wsl.scanning")}
                 </p>
               ) : distroError ? (
-                <p className="text-xs text-destructive">
+                <p className="text-list text-destructive">
                   {t("settings.wsl.detectError")}
                 </p>
               ) : distros.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">
+                <p className="text-list text-muted-foreground italic">
                   {t("settings.wsl.noDistros")}
                 </p>
               ) : (
@@ -178,16 +178,16 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
                           aria-label={distro.name}
                           className="h-4 w-4 rounded border-border"
                         />
-                        <span className="text-sm font-mono">{distro.name}</span>
+                        <span className="text-body font-mono">{distro.name}</span>
                         {distro.isDefault && (
-                          <span className="text-xs rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                          <span className="text-list rounded bg-primary/10 px-1.5 py-0.5 text-primary">
                             {t("settings.wsl.defaultBadge")}
                           </span>
                         )}
                       </label>
                     );
                   })}
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-list text-muted-foreground">
                     {t("settings.wsl.slowWarning")}
                   </p>
                 </>

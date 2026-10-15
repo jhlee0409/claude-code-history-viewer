@@ -82,7 +82,7 @@ export const useCopyButton = () => {
         aria-label={label}
         onClick={() => copyToClipboard(text, id)}
         disabled={state === "copying"}
-        className={`h-6 flex items-center gap-1 px-2 text-xs rounded transition-colors ${
+        className={`h-6 flex items-center gap-1 px-2 text-list rounded transition-colors ${
           state === "success"
             ? "bg-success/20 text-success"
             : state === "error"

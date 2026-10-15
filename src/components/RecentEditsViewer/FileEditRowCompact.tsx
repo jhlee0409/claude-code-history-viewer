@@ -208,10 +208,10 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
               is sized for roughly this. At 16px the text nearly filled it,
               which is what made the rows feel cramped as well as loud.
             */}
-            <span className="min-w-0 flex-1 truncate text-px13 font-semibold text-foreground">
+            <span className="min-w-0 flex-1 truncate text-list font-semibold text-foreground">
               {fileName}
             </span>
-            <span className="shrink-0 font-mono text-px11 text-muted-foreground">
+            <span className="shrink-0 font-mono text-caption text-muted-foreground">
               {edit.lines_added > 0 && (
                 <span className="text-success">
                   +{edit.lines_added}
@@ -244,7 +244,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
               canReveal={actions.canReveal && !isMissing}
               onReveal={actions.reveal}
               revealLabel={actions.revealLabel}
-              className="min-w-0 flex-1 text-px11 text-muted-foreground"
+              className="min-w-0 flex-1 text-caption text-muted-foreground"
             />
             <div
               className={cn(
@@ -303,7 +303,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
       </div>
 
       {actions.restoreError && (
-        <div className="mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-px11 text-destructive">
+        <div className="mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-caption text-destructive">
           {t("recentEdits.restoreError")}: {actions.restoreError}
         </div>
       )}
@@ -347,14 +347,14 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
             <button
               type="button"
               onClick={actions.cancelRestore}
-              className="rounded-md bg-muted px-4 py-2 text-sm text-foreground hover:bg-muted/80"
+              className="rounded-md bg-muted px-4 py-2 text-body text-foreground hover:bg-muted/80"
             >
               {t("recentEdits.cancel")}
             </button>
             <button
               type="button"
               onClick={actions.confirmRestore}
-              className="rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground hover:bg-accent/90"
+              className="rounded-md bg-accent px-4 py-2 text-body text-accent-foreground hover:bg-accent/90"
             >
               {t("recentEdits.confirmRestore")}
             </button>

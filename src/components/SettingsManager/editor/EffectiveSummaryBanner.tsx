@@ -64,24 +64,24 @@ export const EffectiveSummaryBanner: React.FC<EffectiveSummaryBannerProps> = ({
   return (
     <div className="mt-3 shrink-0">
       <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
-        <div className="flex items-center gap-3 flex-wrap text-sm">
+        <div className="flex items-center gap-3 flex-wrap text-body">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Info className="w-4 h-4" />
-            <span className="text-sm md:text-xs font-medium">
+            <span className="text-body md:text-list font-medium">
               {t("settingsManager.unified.banner.whatsActive")}:
             </span>
           </div>
 
           {/* Model */}
           {merged.model.value && (
-            <Badge variant="secondary" className="text-xs font-mono">
+            <Badge variant="secondary" className="text-list font-mono">
               {merged.model.value}
             </Badge>
           )}
 
           {/* MCP Servers */}
           {serverCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {serverCount} MCP
               {conflicts.length > 0 && (
                 <AlertTriangle className="w-3 h-3 ml-1 text-warning" />
@@ -91,21 +91,21 @@ export const EffectiveSummaryBanner: React.FC<EffectiveSummaryBannerProps> = ({
 
           {/* Permissions */}
           {permissionCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {permissionCount} {t("settingsManager.overview.permissions")}
             </Badge>
           )}
 
           {/* Hooks */}
           {hookCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {hookCount} {t("settingsManager.unified.banner.hookTypes")}
             </Badge>
           )}
 
           {/* Environment Variables */}
           {envCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {envCount} env
             </Badge>
           )}

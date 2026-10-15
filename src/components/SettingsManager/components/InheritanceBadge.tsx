@@ -81,7 +81,7 @@ export const InheritanceBadge: React.FC<InheritanceBadgeProps> = ({
         "gap-1 font-normal",
         config.bgColor,
         config.color,
-        size === "sm" ? "text-px10 h-5 px-1.5" : "text-xs h-6 px-2",
+        size === "sm" ? "text-caption h-5 px-1.5" : "text-list h-6 px-2",
         className
       )}
     >

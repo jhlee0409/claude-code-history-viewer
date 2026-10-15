@@ -816,7 +816,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           {/* Projects Count */}
           <div className="flex flex-col items-center gap-1">
             <Folder className="w-4 h-4 text-muted-foreground" />
-            <span className="text-2xs font-mono text-muted-foreground">{filteredProjects.length}</span>
+            <span className="text-caption font-mono text-muted-foreground">{filteredProjects.length}</span>
           </div>
         </div>
       </aside>
@@ -870,7 +870,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 </button>
               )}
               <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-accent">
+              <span className="text-list font-semibold uppercase tracking-widest text-accent">
                 {t("project.explorer")}
               </span>
             </div>
@@ -934,7 +934,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   </button>
                 </div>
               )}
-              <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+              <span className="text-list font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
                 {filteredProjects.length}
               </span>
             </div>
@@ -950,7 +950,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   type="button"
                   className={cn(
                     "flex min-w-0 flex-1 items-center gap-1.5 rounded-md border px-2 py-1",
-                    "bg-muted/30 text-left text-2xs font-medium text-muted-foreground transition-colors",
+                    "bg-muted/30 text-left text-caption font-medium text-muted-foreground transition-colors",
                     "hover:bg-accent/8 hover:text-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
                   )}
                   title={providerFilterSummary}
@@ -966,7 +966,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   <span className="min-w-0 flex-1 truncate">
                     {providerFilterSummary}
                   </span>
-                  <span className="rounded bg-accent/15 px-1 py-0.5 font-mono text-px10 leading-none text-accent">
+                  <span className="rounded bg-accent/15 px-1 py-0.5 font-mono text-caption leading-none text-accent">
                     {providerFilterCount}
                   </span>
                 </button>
@@ -995,7 +995,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   onClick={handleDiscoverProviders}
                   disabled={isDetectingProviders || isLoadingProjects}
                   className={cn(
-                    "inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-2xs font-medium transition-colors",
+                    "inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-caption font-medium transition-colors",
                     isDetectingProviders || isLoadingProjects
                       ? "cursor-not-allowed border-transparent bg-muted/20 text-muted-foreground/50"
                       : "border-accent/20 bg-accent/5 text-accent hover:bg-accent/10"
@@ -1025,7 +1025,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         }}
                         disabled={isDisabled}
                         className={cn(
-                          "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-2xs font-medium transition-colors",
+                          "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-caption font-medium transition-colors",
                           isDisabled
                             ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-not-allowed"
                             : isActive
@@ -1037,7 +1037,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         <span>{tab.label}</span>
                         <span
                           className={cn(
-                            "px-1 py-0.5 rounded text-px10 font-mono leading-none",
+                            "px-1 py-0.5 rounded text-caption font-mono leading-none",
                             isActive ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
                           )}
                         >
@@ -1065,7 +1065,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t("project.searchPlaceholder", "Search projects...")}
-              className="w-full pl-8 pr-8 py-1.5 text-xs bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
+              className="w-full pl-8 pr-8 py-1.5 text-list bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
             />
             {searchTerm && (
               <button
@@ -1103,7 +1103,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
                 <Folder className="w-8 h-8 text-muted-foreground/40" />
               </div>
-              <p className="text-sm text-muted-foreground">{t("project.notFound")}</p>
+              <p className="text-body text-muted-foreground">{t("project.notFound")}</p>
             </div>
           ) : (
             <div
@@ -1151,10 +1151,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-sidebar-foreground">
+                  <div className="text-body font-medium text-sidebar-foreground">
                     {t("project.globalStats")}
                   </div>
-                  <div className="text-2xs text-muted-foreground">
+                  <div className="text-caption text-muted-foreground">
                     {t("project.globalStatsDescription")}
                   </div>
                 </div>

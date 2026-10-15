@@ -180,7 +180,7 @@ export const RecentEditsPanel: React.FC = () => {
           */
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
             <FolderOpen className="h-6 w-6 opacity-40" aria-hidden="true" />
-            <p className="px-4 text-center text-px11">
+            <p className="px-4 text-center text-caption">
               {t(
                 "recentEdits.noProjectSelected",
                 "Select a project to see its edits"
@@ -190,7 +190,7 @@ export const RecentEditsPanel: React.FC = () => {
         ) : isUnavailable ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
             <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
-            <p className="px-4 text-center text-px11">
+            <p className="px-4 text-center text-caption">
               {t("recentEdits.unavailableForProvider", {
                 provider: getProviderLabel(
                   (key, fallback) => t(key, fallback),
@@ -200,7 +200,7 @@ export const RecentEditsPanel: React.FC = () => {
             </p>
           </div>
         ) : error ? (
-          <p className="px-3 py-6 text-center text-sm text-destructive">
+          <p className="px-3 py-6 text-center text-body text-destructive">
             {error}
           </p>
         ) : isLoading && files.length === 0 ? (
@@ -212,7 +212,7 @@ export const RecentEditsPanel: React.FC = () => {
             {files.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
                 <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
-                <p className="px-4 text-center text-px11">
+                <p className="px-4 text-center text-caption">
                   {recentEditsMissingOnly
                     ? t("recentEdits.noMissingFiles", "No missing files")
                     : t("recentEdits.noEdits")}
@@ -255,7 +255,7 @@ export const RecentEditsPanel: React.FC = () => {
                 type="button"
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2 text-px11 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2 text-caption text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
               >
                 {isLoadingMore ? (
                   <Loader2 className="h-3 w-3 animate-spin" />

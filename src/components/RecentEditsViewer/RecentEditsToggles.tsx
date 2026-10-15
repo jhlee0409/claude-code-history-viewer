@@ -24,7 +24,7 @@ const TRACK_CLASS = "flex items-center gap-1 p-1 bg-muted/30 rounded-lg";
 
 const buttonClass = (active: boolean, extra?: string) =>
   cn(
-    "rounded-md text-px11 font-medium transition-all duration-200",
+    "rounded-md text-caption font-medium transition-all duration-200",
     active
       ? "bg-card text-foreground shadow-sm"
       : "text-muted-foreground hover:text-foreground",

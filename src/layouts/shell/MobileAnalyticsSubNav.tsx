@@ -33,7 +33,7 @@ export const MobileAnalyticsSubNav = ({ view, analyticsActions }: MobileAnalytic
             type="button"
             onClick={() => OPEN[chip](analyticsActions)}
             className={cn(
-              "shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors",
+              "shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors",
               chip === view
                 ? "bg-accent/15 text-accent border border-accent/30"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"

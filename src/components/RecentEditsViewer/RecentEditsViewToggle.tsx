@@ -85,7 +85,7 @@ export const RecentEditsViewToggle: React.FC<RecentEditsViewToggleProps> = ({
             title={hint}
             aria-label={hint}
             className={cn(
-              "flex items-center gap-1 px-2 py-1 text-px11 font-medium transition-colors",
+              "flex items-center gap-1 px-2 py-1 text-caption font-medium transition-colors",
               "border-r border-border last:border-r-0",
               active
                 ? "bg-accent/20 text-accent"

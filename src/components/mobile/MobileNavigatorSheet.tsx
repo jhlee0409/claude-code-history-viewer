@@ -30,7 +30,7 @@ export function MobileNavigatorSheet({ messages }: MobileNavigatorSheetProps) {
           {/* Drag handle + title */}
           <div className="flex flex-col items-center pt-2 pb-1 border-b border-border/50">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30 mb-2" />
-            <SheetTitle className="text-sm font-semibold text-foreground">
+            <SheetTitle className="text-body font-semibold text-foreground">
               {t("common.mobile.openNavigator")}
             </SheetTitle>
           </div>
