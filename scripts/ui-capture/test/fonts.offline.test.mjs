@@ -5,7 +5,6 @@
 // then run on a real `vite build` of the app - what Tauri packages - which
 // must also ship both OFL license files.
 
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -14,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
 import { REQUIRED_FACES, fontProblems, loadRequiredFaces, watchFontTraffic } from "../lib/fonts.mjs";
+import { buildDist, listFiles, mainStylesheet } from "../lib/viteBuild.mjs";
 
 const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
 if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping fonts.offline.test: no WebKit at ${webkit.executablePath()}`);
@@ -124,31 +124,10 @@ describe.skipIf(!HAS_WEBKIT)("offline font loading (real WebKit)", () => {
   }, 60_000);
 });
 
-/** All files under `dir`, relative, with `/` separators. */
-function listFiles(dir) {
-  return fs.readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"));
-}
-
-/** A real production frontend build (the dist Tauri bundles), into a temp dir. */
-function buildDist() {
-  const outDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cchv-fonts-dist-")));
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key === "NODE_ENV" || key.startsWith("VITEST")) delete env[key];
-  const result = spawnSync(process.execPath, [path.join(REPO, "node_modules", "vite", "bin", "vite.js"), "build", "--outDir", outDir, "--emptyOutDir", "--logLevel", "error"], {
-    cwd: REPO,
-    env,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) throw new Error(`vite build failed:\n${result.stderr}${result.stdout}`);
-  return outDir;
-}
-
 describe("built dist (vite build)", () => {
   let dist;
   beforeAll(() => {
-    dist = buildDist();
+    dist = buildDist("cchv-fonts-dist-");
   }, 180_000);
   afterAll(() => {
     if (dist) fs.rmSync(dist, { recursive: true, force: true });
@@ -173,9 +152,7 @@ describe("built dist (vite build)", () => {
   });
 
   it.skipIf(!HAS_WEBKIT)("loads every face from the built stylesheet with the network blocked", async () => {
-    const stylesheets = listFiles(dist).filter((file) => /^assets\/index-[\w-]+\.css$/.test(file));
-    expect(stylesheets).toHaveLength(1);
-    const { problems, faces, traffic } = await checkFontsServedFrom(dist, { stylesheet: `/${stylesheets[0]}` });
+    const { problems, faces, traffic } = await checkFontsServedFrom(dist, { stylesheet: `/${mainStylesheet(dist)}` });
     expect(problems).toEqual([]);
     expect(faces).toHaveLength(REQUIRED_FACES.length);
     expect(traffic.external).toEqual([]);

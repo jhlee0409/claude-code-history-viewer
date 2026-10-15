@@ -1,19 +1,38 @@
 /**
- * Fixed row height of a SessionItem in the virtualized session list, at
- * 100 % font scale. Sized to fit a 2-line wrapped name:
- *   py-2.5 (20px) + name 2 × text-list/leading-relaxed (42px)
- *   + gap-1.5 (6px) + meta text-caption (17px) ≈ 85px → 88px with margin.
+ * Fixed row height of a SessionItem in the virtualized session list.
  * react-window's FixedSizeList stacks rows at `index * height`, so a row
- * taller than this overlaps the next one (#284); line-clamp-2 caps the name.
+ * taller than this overlaps the next one (#284). The height is derived from
+ * the row's layout and its type tokens (index.css), so it follows the font
+ * scale (Settings → font size) instead of a hand-tuned constant.
+ *
+ * Worst-case row (SessionItem.tsx, SessionNameEditor.tsx, SessionMeta.tsx):
+ *   py-2.5                                    20px (rem: not font-scaled)
+ *   name: 2 lines (line-clamp-2) of text-list × leading-relaxed
+ *   gap-1.5                                    6px
+ *   meta: a text-caption badge with py-0.5 (storage type / client)
+ * The safety margin covers what the formula leaves out: the inline CLI name
+ * badge and sub-pixel line rounding add up to 2.2px in WebKit; 4px keeps
+ * ~3px headroom at 90-130 % (scripts/ui-capture/test/sessionRowFit.test.mjs
+ * measures the real row in every app language).
  */
-export const SESSION_ITEM_HEIGHT = 88;
+export const SESSION_ROW = {
+  paddingY: 2 * 10,
+  gap: 6,
+  name: { lines: 2, tokenPx: 13, lineHeight: 1.625 },
+  meta: { tokenPx: 12, lineHeight: 1.4, badgePaddingY: 2 * 2 },
+  safety: 4,
+} as const;
 
-/**
- * Row height for a font-scale percentage (Settings → font size). The type
- * tokens grow with the scale, so the row must too; below 100 % the 100 %
- * height is kept (rows never shrink under their padding).
- */
+/** Content height of the worst-case row at a font scale (1 = 100 %), unrounded. */
+export function sessionItemContentHeight(scale: number): number {
+  const { paddingY, gap, name, meta } = SESSION_ROW;
+  const nameHeight = name.lines * name.tokenPx * name.lineHeight * scale;
+  const metaHeight = meta.tokenPx * meta.lineHeight * scale + meta.badgePaddingY;
+  return paddingY + nameHeight + gap + metaHeight;
+}
+
+/** Row height (px) for a font-scale percentage. */
 export function sessionItemHeight(fontScalePercent: number): number {
   const scale = Number.isFinite(fontScalePercent) ? fontScalePercent / 100 : 1;
-  return Math.ceil(SESSION_ITEM_HEIGHT * Math.max(1, scale));
+  return Math.ceil(sessionItemContentHeight(scale) + SESSION_ROW.safety);
 }

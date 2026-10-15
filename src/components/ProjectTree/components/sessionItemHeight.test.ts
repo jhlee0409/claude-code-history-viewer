@@ -1,18 +1,49 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SESSION_ITEM_HEIGHT, sessionItemHeight } from "./sessionItemHeight";
+import { SESSION_ROW, sessionItemContentHeight, sessionItemHeight } from "./sessionItemHeight";
+
+const INDEX_CSS = readFileSync(resolve(__dirname, "../../../index.css"), "utf8");
+
+/** px of a type token at 100 % (`--text-<step>: calc(<n>rem * var(--app-font-scale))`). */
+function tokenPx(step: string): number {
+  const m = new RegExp(`--text-${step}:\\s*calc\\(([\\d.]+)rem \\* var\\(--app-font-scale\\)\\)`).exec(INDEX_CSS);
+  if (!m?.[1]) throw new Error(`--text-${step} not found in index.css`);
+  return Number(m[1]) * 16;
+}
+
+function tokenLineHeight(step: string): number {
+  const m = new RegExp(`--text-${step}--line-height:\\s*([\\d.]+);`).exec(INDEX_CSS);
+  if (!m?.[1]) throw new Error(`--text-${step}--line-height not found in index.css`);
+  return Number(m[1]);
+}
 
 describe("sessionItemHeight", () => {
-  it("is the base height at 100 % and below", () => {
-    expect(sessionItemHeight(100)).toBe(SESSION_ITEM_HEIGHT);
-    expect(sessionItemHeight(90)).toBe(SESSION_ITEM_HEIGHT);
+  it("derives from the type tokens the row uses (index.css)", () => {
+    expect(SESSION_ROW.name.tokenPx).toBe(tokenPx("list"));
+    expect(SESSION_ROW.meta.tokenPx).toBe(tokenPx("caption"));
+    expect(SESSION_ROW.meta.lineHeight).toBe(tokenLineHeight("caption"));
   });
 
-  it("grows with the font scale so scaled text never overlaps the next row", () => {
-    expect(sessionItemHeight(110)).toBe(Math.ceil(SESSION_ITEM_HEIGHT * 1.1));
-    expect(sessionItemHeight(130)).toBe(Math.ceil(SESSION_ITEM_HEIGHT * 1.3));
+  it("is the content height plus the safety margin, rounded up", () => {
+    for (const percent of [90, 100, 110, 130]) {
+      const content = sessionItemContentHeight(percent / 100);
+      expect(sessionItemHeight(percent)).toBe(Math.ceil(content + SESSION_ROW.safety));
+      expect(sessionItemHeight(percent) - content).toBeGreaterThanOrEqual(SESSION_ROW.safety);
+    }
   });
 
-  it("falls back to the base height for a non-finite scale", () => {
-    expect(sessionItemHeight(Number.NaN)).toBe(SESSION_ITEM_HEIGHT);
+  it("counts a two-line name and a padded metadata badge (89.05px at 100 %, measured in WebKit)", () => {
+    expect(sessionItemContentHeight(1)).toBeCloseTo(89.05, 2);
+  });
+
+  it("follows the font scale both ways", () => {
+    expect(sessionItemHeight(90)).toBeLessThan(sessionItemHeight(100));
+    expect(sessionItemHeight(110)).toBeGreaterThan(sessionItemHeight(100));
+    expect(sessionItemHeight(130)).toBeGreaterThan(sessionItemHeight(110));
+  });
+
+  it("falls back to the 100 % height for a non-finite scale", () => {
+    expect(sessionItemHeight(Number.NaN)).toBe(sessionItemHeight(100));
   });
 });
