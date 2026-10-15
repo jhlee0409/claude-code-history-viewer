@@ -3,9 +3,10 @@
  * Generated from @fontsource/ibm-plex-sans@5.3.0 and
  * @fontsource/jetbrains-mono@5.3.0 (woff2 only). Both families are licensed
  * under the SIL Open Font License 1.1: ./ibm-plex-sans/OFL.txt and
- * ./jetbrains-mono/OFL.txt. Each style is split into unicode-range subsets
- * as Google Fonts served them; the browser fetches only the subsets a page
- * uses. CJK is not bundled: it falls back to the platform font of the
+ * ./jetbrains-mono/OFL.txt, which the build ships as
+ * fonts/<family>/OFL.txt (vite.config.ts, fontLicenses). Each style is split
+ * into unicode-range subsets as Google Fonts served them; the browser fetches
+ * only the subsets a page uses. CJK is not bundled: it falls back to the platform font of the
  * html[lang] script (per-language stacks in src/index.css).
  */
 
