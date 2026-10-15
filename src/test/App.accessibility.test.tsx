@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
+import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
 
-const { useAppStoreMock } = vi.hoisted(() => {
+const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
   const mockSession = {
     session_id: "session-1",
     actual_session_id: "session-1",
@@ -31,6 +33,19 @@ const { useAppStoreMock } = vi.hoisted(() => {
     isLoadingSessions: false,
     isLoadingMessages: false,
     isLoadingTokenStats: false,
+    // Store-level loads AppLayout folds into its `data-ready` marker.
+    isLoadingGlobalStats: false,
+    isLoadingBoard: false,
+    isMetadataLoading: false,
+    isLoadingRecentEditsDock: false,
+    isLoadingMoreRecentEditsDock: false,
+    analytics: { recentEditsPagination: { isLoadingMore: false } },
+    archive: {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    },
     error: null,
     sessionTokenStats: null,
     sessionConversationTokenStats: null,
@@ -52,9 +67,12 @@ const { useAppStoreMock } = vi.hoisted(() => {
     goToPrevMatch: vi.fn(),
     clearSessionSearch: vi.fn(),
     loadGlobalStats: vi.fn(async () => {}),
-    isViewingGlobalStats: false,
-    setViewingGlobalStats: vi.fn(),
-    setAnalyticsCurrentView: vi.fn(),
+    view: "conversation",
+    navigationEpoch: 0,
+    navigate: vi.fn(async () => true),
+    beginNavigation: vi.fn(() => 1),
+    reloadCurrent: vi.fn(async () => {}),
+    setBoardHoverSession: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
     loadMoreRecentEdits: vi.fn(async () => {}),
     updateUserSettings: vi.fn(),
@@ -91,15 +109,45 @@ const { useAppStoreMock } = vi.hoisted(() => {
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
 
+  const resetStoreLoadFlags = () => {
+    state.isLoadingGlobalStats = false;
+    state.isLoadingBoard = false;
+    state.isMetadataLoading = false;
+    state.isLoadingRecentEditsDock = false;
+    state.isLoadingMoreRecentEditsDock = false;
+    state.analytics.recentEditsPagination.isLoadingMore = false;
+    state.pagination.isLoadingMore = false;
+    Object.assign(state.archive, {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    });
+  };
+
   return {
     appStoreState: state,
     useAppStoreMock: storeMock,
+    resetStoreLoadFlags,
   };
 });
 
 vi.mock("@/components/ProjectTree", () => ({
-  ProjectTree: ({ asideId }: { asideId?: string }) => (
-    <aside id={asideId ?? "project-explorer"} tabIndex={-1}>
+  ProjectTree: ({
+    asideId,
+    isGlobalStatsActive,
+    isSelectionRetained,
+  }: {
+    asideId?: string;
+    isGlobalStatsActive?: boolean;
+    isSelectionRetained?: boolean;
+  }) => (
+    <aside
+      id={asideId ?? "project-explorer"}
+      tabIndex={-1}
+      data-global-stats-active={String(isGlobalStatsActive)}
+      data-selection={isSelectionRetained ? "retained" : "active"}
+    >
       project-tree
     </aside>
   ),
@@ -200,6 +248,7 @@ const { computedMock, resetComputedMock } = vi.hoisted(() => {
     isMessagesView: true,
     isTokenStatsView: false,
     isAnalyticsView: false,
+    isGlobalStatsView: false,
     isRecentEditsView: false,
     isSettingsView: false,
     isBoardView: false,
@@ -291,6 +340,7 @@ describe("App accessibility smoke", () => {
     window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     resetComputedMock();
+    resetStoreLoadFlags();
   });
 
   it("renders skip links and landmark targets", () => {
@@ -348,6 +398,16 @@ describe("App accessibility smoke", () => {
     }
   );
 
+  it("labels the main view as the panel of the selected header tab", () => {
+    render(<App />);
+
+    const panel = document.getElementById(VIEW_PANEL_ID);
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("role", "tabpanel");
+    // The tab itself is the (mocked) header's; its id is pinned there.
+    expect(panel).toHaveAttribute("aria-labelledby", viewTabId("conversation"));
+  });
+
   it("keeps every rendered skip link pointing at a target that exists", () => {
     // The general invariant, asserted across the view states rather than for
     // one link: whatever the nav offers must resolve.
@@ -374,6 +434,32 @@ describe("App accessibility smoke", () => {
     }
   });
 
+  /**
+   * Plan §9b C3 (audit capture 12): the sidebar's global stats row is
+   * selected only while global stats is the open screen, and on any app-level
+   * screen the tree marks its selection as kept context.
+   */
+  it.each([
+    ["globalStats", "true", "retained"],
+    ["archive", "false", "retained"],
+    ["settingsManager", "false", "retained"],
+    ["conversation", "false", "active"],
+    ["analytics", "false", "active"],
+  ] as const)(
+    "derives the sidebar highlight from the place: %s",
+    (view, globalActive, selection) => {
+      appStoreState.view = view;
+      try {
+        render(<App />);
+        const tree = document.getElementById("project-explorer");
+        expect(tree?.getAttribute("data-global-stats-active")).toBe(globalActive);
+        expect(tree?.getAttribute("data-selection")).toBe(selection);
+      } finally {
+        appStoreState.view = "conversation";
+      }
+    }
+  );
+
   it("replays a WebUI message link from browser history", async () => {
     render(<App />);
 
@@ -385,10 +471,54 @@ describe("App accessibility smoke", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
 
     await waitFor(() => {
-      expect(useAppStoreMock.getState().navigateToMessage).toHaveBeenCalledWith(
-        "message-2",
-        { history: "none" },
+      // Browser history replays as a navigation that writes no history.
+      expect(useAppStoreMock.getState().navigate).toHaveBeenCalledWith(
+        { view: "conversation", messageId: "message-2" },
+        expect.objectContaining({ history: "none", record: false }),
       );
     });
+  });
+
+  /**
+   * The UI capture harness (scripts/ui-capture) photographs a screen only
+   * once the root reports `data-ready="true"`, so the marker must follow
+   * every load it folds in, and the main pane must carry its probe hook.
+   */
+  it.each([
+    ["nothing is loading", () => {}, "true"],
+    ["the global stats are loading", () => { appStoreState.isLoadingGlobalStats = true; }, "false"],
+    ["the board is loading", () => { appStoreState.isLoadingBoard = true; }, "false"],
+    ["an archive list is loading", () => { appStoreState.archive.isLoadingArchives = true; }, "false"],
+    ["the archive disk usage is loading", () => { appStoreState.archive.isLoadingDiskUsage = true; }, "false"],
+    ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
+    ["session metadata is loading", () => { appStoreState.isMetadataLoading = true; }, "false"],
+    ["another message page is loading", () => { appStoreState.pagination.isLoadingMore = true; }, "false"],
+    ["the recent-edits dock is loading", () => { appStoreState.isLoadingRecentEditsDock = true; }, "false"],
+    ["another recent-edits dock page is loading", () => { appStoreState.isLoadingMoreRecentEditsDock = true; }, "false"],
+    ["another recent-edits page is loading", () => { appStoreState.analytics.recentEditsPagination.isLoadingMore = true; }, "false"],
+  ])("reports data-ready while %s", (_label, arrange, expected) => {
+    arrange();
+
+    const { container } = render(<App />);
+
+    const marked = container.querySelectorAll("[data-ready]");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveAttribute("data-ready", expected);
+    expect(container.querySelector('[data-slot="main"]')).toBe(
+      document.getElementById("main-content"),
+    );
+  });
+
+  it("reports data-ready false while a view-level load is registered", () => {
+    // e.g. the Settings Manager fetching its settings (usePendingLoad).
+    const release = beginPendingLoad();
+    let container: HTMLElement;
+    try {
+      ({ container } = render(<App />));
+      expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "false");
+    } finally {
+      act(() => release());
+    }
+    expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "true");
   });
 });

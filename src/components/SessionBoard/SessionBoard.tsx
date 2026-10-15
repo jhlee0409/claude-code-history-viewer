@@ -13,7 +13,7 @@ import type { ActiveBrush } from "../../types/board.types";
 
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
-import { buildSearchIndex, clearSearchIndex } from "../../utils/searchIndex";
+import { openBoardMessage } from "./openBoardMessage";
 
 const selectBoardSessions = (s: ReturnType<typeof useAppStore.getState>) => s.boardSessions;
 
@@ -37,7 +37,14 @@ export const SessionBoard = () => {
         toggleTimeline,
         selectedSession,
         selectedProject,
+        boardHoverSession,
     } = useAppStore();
+    // The lane to bring forward: the one hovered in the sidebar, else the
+    // open session. Hover is board-only state, never a selection (F2).
+    const focusedSession = boardHoverSession ?? selectedSession;
+    // Hover belongs to this screen; leaving the board forgets it so the next
+    // visit brings the open session forward again.
+    useEffect(() => () => useAppStore.getState().setBoardHoverSession(null), []);
 
     // Clear brush on Escape (Step 9)
     useEffect(() => {
@@ -276,7 +283,7 @@ export const SessionBoard = () => {
 
     const selectedMessageIdRef = useRef(selectedMessageId);
     selectedMessageIdRef.current = selectedMessageId;
-    const selectedSessionId = selectedSession?.session_id;
+    const focusedSessionId = focusedSession?.session_id;
 
     const handleInteractionClick = useCallback((id: string) => {
         setSelectedMessageId(selectedMessageIdRef.current === id ? null : id);
@@ -312,8 +319,8 @@ export const SessionBoard = () => {
 
     // Scroll active session into view when transitioning from Detail view
     useEffect(() => {
-        if (selectedSessionId && visibleSessionIdsRef.current.length > 0) {
-            const index = visibleSessionIdsRef.current.indexOf(selectedSessionId);
+        if (focusedSessionId && visibleSessionIdsRef.current.length > 0) {
+            const index = visibleSessionIdsRef.current.indexOf(focusedSessionId);
             if (index !== -1) {
                 // Small timeout to ensure virtualizer is ready and layout is stable
                 requestAnimationFrame(() => {
@@ -321,7 +328,7 @@ export const SessionBoard = () => {
                 });
             }
         }
-    }, [selectedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
+    }, [focusedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
 
     if (isLoadingBoard) {
         return (
@@ -449,39 +456,17 @@ export const SessionBoard = () => {
                                     onHover={handleBoardHover}
                                     onLeave={handleBoardLeave}
                                     onToggleSticky={handleToggleSticky}
-                                    isSelected={selectedSession?.session_id === sessionId}
+                                    isSelected={focusedSession?.session_id === sessionId}
                                     onInteractionClick={handleInteractionClick}
                                     onNavigate={(messageId) => {
-                                        // Set session and messages from board cache when session
-                                        // differs or messages are empty (e.g., after board view switch)
-                                        const currentMessages = useAppStore.getState().messages;
-                                        if (selectedSession?.session_id !== sessionId || currentMessages.length === 0) {
-                                            useAppStore.setState({
-                                                selectedSession: data.session,
-                                                messages: data.messages,
-                                                isLoadingMessages: false,
-                                                pagination: {
-                                                    currentOffset: data.messages.length,
-                                                    pageSize: data.messages.length,
-                                                    totalCount: data.messages.length,
-                                                    hasMore: false,
-                                                    isLoadingMore: false,
-                                                }
-                                            });
-
-                                            clearSearchIndex();
-                                            buildSearchIndex(data.messages);
-                                        }
-                                        // Navigate to message and switch view
-                                        useAppStore.getState().navigateToMessage(messageId);
-                                        useAppStore.getState().setAnalyticsCurrentView("messages");
+                                        void openBoardMessage(data, messageId);
                                     }}
                                     scrollContainerRef={parentRef as React.RefObject<HTMLDivElement>}
                                     onHeightChange={(h) => handleLaneHeightChange(sessionId, h)}
                                     onFileClick={(file) => {
                                         // Deep link to recent edits
                                         useAppStore.getState().setAnalyticsRecentEditsSearchQuery(file);
-                                        useAppStore.getState().setAnalyticsCurrentView("recentEdits");
+                                        void useAppStore.getState().navigate({ view: "edits" });
                                     }}
                                 />
                             </div>

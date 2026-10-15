@@ -14,6 +14,7 @@ import {
   type ProviderInfo,
   type UserMetadata,
 } from "../types";
+import type { View } from "../navigation/place";
 
 vi.mock("../services/api", () => ({
   api: vi.fn(),
@@ -48,7 +49,7 @@ type TestStore = ProjectSlice & {
   userMetadata: UserMetadata;
   updateUserSettings: ReturnType<typeof vi.fn>;
   excludeSidechain: boolean;
-  analytics: { currentView: "messages" | "analytics" | "tokenStats" | "recentEdits" | "board" | "archive" };
+  view: View;
   messages: unknown[];
   parentSessionStack: ClaudeSession[];
   activeProviders: ProviderInfo["id"][];
@@ -57,7 +58,7 @@ type TestStore = ProjectSlice & {
   loadMetadata: ReturnType<typeof vi.fn>;
   loadServerConfig: ReturnType<typeof vi.fn>;
   exitSessionSelectionMode: ReturnType<typeof vi.fn>;
-  selectSession: ReturnType<typeof vi.fn>;
+  reloadCurrent: ReturnType<typeof vi.fn>;
   loadGlobalStats: ReturnType<typeof vi.fn>;
   loadProjectTokenStats: ReturnType<typeof vi.fn>;
   loadSessionTokenStats: ReturnType<typeof vi.fn>;
@@ -116,7 +117,7 @@ const createTestStore = () =>
     userMetadata: DEFAULT_USER_METADATA,
     updateUserSettings: vi.fn().mockResolvedValue(undefined),
     excludeSidechain: true,
-    analytics: { currentView: "messages" },
+    view: "conversation",
     messages: [],
     parentSessionStack: [],
     activeProviders: ["claude"],
@@ -129,8 +130,10 @@ const createTestStore = () =>
     // Cross-slice dep added by the multi-select feature: selectProject /
     // clearProjectSelection abandon any in-progress session selection.
     exitSessionSelectionMode: vi.fn(),
-    selectSession: vi.fn().mockImplementation(async (session: ClaudeSession) => {
-      set({ selectedSession: session });
+    // The refresh reloads the open session in place; a fresh record of the
+    // same file replaces the held one.
+    reloadCurrent: vi.fn().mockImplementation(async (_reason: string, fresh?: ClaudeSession) => {
+      if (fresh) set({ selectedSession: fresh });
     }),
     loadGlobalStats: vi.fn().mockResolvedValue(undefined),
     loadProjectTokenStats: vi.fn().mockResolvedValue(undefined),
@@ -146,6 +149,14 @@ const createTestStore = () =>
       project_cwd: "/workspace",
     }),
     setAnalyticsRecentEdits: vi.fn(),
+    // The refresh reloads the open screen through the shared screen loaders
+    // (`navigation/screenData`), which own their loading and error flags.
+    setAnalyticsLoadingProjectSummary: vi.fn(),
+    setAnalyticsProjectSummaryError: vi.fn(),
+    setAnalyticsLoadingSessionComparison: vi.fn(),
+    setAnalyticsSessionComparisonError: vi.fn(),
+    setAnalyticsLoadingRecentEdits: vi.fn(),
+    setAnalyticsRecentEditsError: vi.fn(),
     loadBoardSessions: vi.fn().mockResolvedValue(undefined),
     loadArchives: vi.fn().mockResolvedValue(undefined),
     clearSessionSearch: vi.fn(),
@@ -608,7 +619,7 @@ describe("projectSlice scanProjects", () => {
     expect(store.getState().activeProviders).toEqual(["claude"]);
     expect(store.getState().selectedProject).toEqual(refreshedProject);
     expect(store.getState().sessions).toEqual([refreshedSession]);
-    expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedSession);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedSession);
     expect(store.getState().isRefreshingAllConversations).toBe(false);
   });
 
@@ -621,7 +632,7 @@ describe("projectSlice scanProjects", () => {
     const selectedSession = createMockSession("session-1", project);
     const refreshedSession = { ...selectedSession, message_count: 3 };
     const selectedAtSelectSession: Array<ClaudeSession | null> = [];
-    store.getState().selectSession.mockImplementation(async () => {
+    store.getState().reloadCurrent.mockImplementation(async () => {
       selectedAtSelectSession.push(store.getState().selectedSession);
     });
 
@@ -660,7 +671,7 @@ describe("projectSlice scanProjects", () => {
 
     await store.getState().refreshAllConversations();
 
-    expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedSession);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedSession);
     expect(selectedAtSelectSession).toHaveLength(1);
     expect(selectedAtSelectSession[0]?.file_path).toBe(selectedSession.file_path);
   });
@@ -731,7 +742,7 @@ describe("projectSlice scanProjects", () => {
         filePath: pagedSession.file_path,
         excludeSidechain: true,
       });
-      expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedPagedSession);
+      expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedPagedSession);
       expect(store.getState().selectedSession).toEqual(refreshedPagedSession);
       expect(store.getState().sessions).toEqual([firstPageSession, refreshedPagedSession]);
       // Pagination still continues from page 1.
@@ -926,7 +937,7 @@ describe("projectSlice scanProjects", () => {
 
     store.setState({
       claudePath: "/root/.claude",
-      analytics: { currentView: "analytics" },
+      view: "analytics",
       providers: [
         {
           id: "claude",
@@ -960,7 +971,8 @@ describe("projectSlice scanProjects", () => {
     await store.getState().refreshAllConversations();
 
     expect(store.getState().loadProjectStatsSummary).toHaveBeenCalledWith(
-      project.path
+      project.path,
+      expect.any(Function)
     );
     expect(store.getState().setAnalyticsProjectSummary).toHaveBeenCalledWith(
       projectSummary

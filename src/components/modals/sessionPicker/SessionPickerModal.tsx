@@ -23,8 +23,7 @@ export const SessionPickerModal: React.FC = () => {
     const candidates = useAppStore((s) => s.sessionPickerCandidates);
     const hintValue = useAppStore((s) => s.sessionPickerHintValue);
     const closeSessionPicker = useAppStore((s) => s.closeSessionPicker);
-    const selectProject = useAppStore((s) => s.selectProject);
-    const selectSession = useAppStore((s) => s.selectSession);
+    const navigate = useAppStore((s) => s.navigate);
     const getSessionDisplayName = useAppStore((s) => s.getSessionDisplayName);
 
     const isOpen = candidates !== null && candidates.length > 0;
@@ -39,10 +38,13 @@ export const SessionPickerModal: React.FC = () => {
     const handleSelect = useCallback(
         async (candidate: SessionPickerCandidate) => {
             closeSessionPicker();
-            await selectProject(candidate.project);
-            await selectSession(candidate.session);
+            await navigate({
+                view: "conversation",
+                project: candidate.project,
+                session: candidate.session,
+            });
         },
-        [closeSessionPicker, selectProject, selectSession],
+        [closeSessionPicker, navigate],
     );
 
     const handleDismiss = useCallback(() => {

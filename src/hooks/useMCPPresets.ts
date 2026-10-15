@@ -26,6 +26,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { usePendingLoad } from "./usePendingLoad";
 import { api } from "@/services/api";
 import type { MCPPresetData, MCPPresetInput } from "@/types";
 
@@ -51,6 +52,7 @@ export interface UseMCPPresetsResult {
 export const useMCPPresets = (): UseMCPPresetsResult => {
   const [presets, setPresets] = useState<MCPPresetData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  usePendingLoad(isLoading);
   const [error, setError] = useState<string | null>(null);
 
   // Load all MCP presets

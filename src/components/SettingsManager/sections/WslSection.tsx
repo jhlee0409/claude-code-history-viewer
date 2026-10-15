@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { usePendingLoad } from "@/hooks/usePendingLoad";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -48,12 +49,17 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
 
   const [distros, setDistros] = useState<WslDistro[]>([]);
   const [isLoadingDistros, setIsLoadingDistros] = useState(false);
+  usePendingLoad(isLoadingDistros);
   const [distroError, setDistroError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!wslSettings.enabled) {
+      // A detection started before disabling is cancelled below, and its
+      // `finally` skips the reset — so clear the loading flag here, or it
+      // (and the pending-load registration that mirrors it) stays set.
       setDistros([]);
       setDistroError(null);
+      setIsLoadingDistros(false);
       return;
     }
 

@@ -96,7 +96,7 @@ export const createSettingsSlice: StateCreator<
       get().reloadProjectSessions(selectedProject);
     }
     if (selectedSession) {
-      get().selectSession(selectedSession);
+      void get().reloadCurrent("filter");
     }
   },
 
@@ -105,7 +105,7 @@ export const createSettingsSlice: StateCreator<
     // Refresh current session when filter changes
     const { selectedSession } = get();
     if (selectedSession) {
-      get().selectSession(selectedSession);
+      void get().reloadCurrent("filter");
     }
   },
 

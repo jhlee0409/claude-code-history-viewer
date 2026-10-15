@@ -72,7 +72,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onGlobalStatsClick,
   isLoading,
   isLoadingMoreSessions = false,
-  isViewingGlobalStats,
+  isGlobalStatsActive,
+  isSelectionRetained = false,
   inlineSessions = true,
   width,
   isResizing,
@@ -100,9 +101,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const discoverProviders = useAppStore((state) => state.discoverProviders);
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
-  const clearProjectSelection = useAppStore(
-    (state) => state.clearProjectSelection
-  );
+  const navigate = useAppStore((state) => state.navigate);
 
   const {
     expandedProjects,
@@ -270,7 +269,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       try {
         setActiveProviders(normalized);
 
-        if (isViewingGlobalStats) {
+        if (isGlobalStatsActive) {
           await loadGlobalStats();
         }
 
@@ -279,7 +278,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         if (shouldClearSelection) {
           const latestSelectedProject = useAppStore.getState().selectedProject;
           if (latestSelectedProject?.path === previousSelectedProjectPath) {
-            clearProjectSelection();
+            void navigate({ project: null });
           }
         }
       } catch (error) {
@@ -290,8 +289,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     },
     [
       activeProviders,
-      clearProjectSelection,
-      isViewingGlobalStats,
+      navigate,
+      isGlobalStatsActive,
       loadGlobalStats,
       selectedProject,
       setActiveProviders,
@@ -632,7 +631,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     filteredUngroupedProjects.length,
     groupingMode,
     selectedProject?.path,
-    isViewingGlobalStats,
+    isGlobalStatsActive,
   ]);
 
   useEffect(() => {
@@ -765,7 +764,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         item: describeTreeItem(selectedItem),
       })
     );
-  }, [announceTree, describeTreeItem, isViewingGlobalStats, selectedProject?.path, t]);
+  }, [announceTree, describeTreeItem, isGlobalStatsActive, selectedProject?.path, t]);
 
   // Collapsed View
   if (isCollapsed) {
@@ -804,7 +803,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             onClick={handleGlobalStatsClick}
             className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-              isViewingGlobalStats ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
+              isGlobalStatsActive ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
             )}
             aria-label={t("project.globalStats")}
             title={t("project.globalStats")}
@@ -1110,6 +1109,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             <div
               ref={treeRef}
               role="tree"
+              data-selection={isSelectionRetained ? "retained" : "active"}
               aria-label={t("project.explorer")}
               aria-describedby={keyboardHelpId}
               onKeyDown={handleTreeKeyDown}
@@ -1129,12 +1129,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 role="treeitem"
                 data-tree-node="global"
                 aria-level={1}
-                aria-selected={isViewingGlobalStats}
+                aria-selected={isGlobalStatsActive}
                 tabIndex={-1}
                 className={cn(
                   "sidebar-item w-full flex items-center gap-3 mx-2 group",
                   "text-left transition-all duration-300",
-                  isViewingGlobalStats && "active"
+                  isGlobalStatsActive && "active"
                 )}
                 style={{ width: "calc(100% - 16px)" }}
               >
@@ -1143,7 +1143,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
                     "bg-accent/10 text-accent",
                     "group-hover:bg-accent/20 group-hover:shadow-sm group-hover:shadow-accent/20",
-                    isViewingGlobalStats && "bg-accent/20 shadow-glow"
+                    isGlobalStatsActive && "bg-accent/20"
                   )}
                 >
                   <span title={t("project.globalStats")}>

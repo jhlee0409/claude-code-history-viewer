@@ -10,7 +10,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FileEdit,
   Search,
   File,
   ChevronDown,
@@ -50,15 +49,13 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
     : undefined;
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
-  const switchToMessages = useAppStore(
-    (s) => s.setAnalyticsCurrentView
-  );
+  const navigate = useAppStore((s) => s.navigate);
 
   const handleDock = () => {
     setRecentEditsMode("docked");
     setRecentEditsDockOpen(true);
     // The dock only renders beside a transcript, so go back to it.
-    switchToMessages("messages");
+    void navigate({ view: "conversation" });
   };
 
   // Sync internal state when external prop changes (e.g. navigation from Board)
@@ -146,25 +143,18 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
 
   return (
     <div className="h-full flex flex-col p-3 md:p-6">
-      {/* Header with stats */}
+      {/*
+        Header with stats. The view's title lives in the shell's content header
+        (AppLayout), so only what this view adds is shown here: the counts.
+      */}
       <div className="mb-4 md:mb-6">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 shrink-0 rounded-xl bg-accent/20 flex items-center justify-center">
-              <span title="File Edits"><FileEdit className="w-5 h-5 text-accent" /></span>
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold text-foreground tracking-tight truncate">
-                {t("recentEdits.title")}
-              </h2>
-              <p className={`${layout.smallText} text-muted-foreground truncate`}>
-                {t("recentEdits.stats", {
-                  files: stats.uniqueFilesCount,
-                  edits: stats.totalEditsCount,
-                })}
-              </p>
-            </div>
-          </div>
+          <p className={`${layout.smallText} text-muted-foreground truncate min-w-0`}>
+            {t("recentEdits.stats", {
+              files: stats.uniqueFilesCount,
+              edits: stats.totalEditsCount,
+            })}
+          </p>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <span className="text-px11 text-muted-foreground font-mono">
               {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}

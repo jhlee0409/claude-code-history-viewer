@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "活動熱圖",
   "analytics.activityPeriod": "活動時期",
   "analytics.activityTooltip": "{{day}}{{hour}}時\n活動：{{count}}次\n權杖：{{tokens}}",
-  "analytics.Analytics Dashboard": "分析儀表板",
   "analytics.andMoreSessions": "... 以及另外{{count}}個會話",
   "analytics.Avg Session Time": "平均會話時間",
   "analytics.avgSession": "平均會話",
@@ -202,5 +201,15 @@
   ],
   "analytics.weekend": "週末",
   "analytics.weeklyActiveDays": "每週活躍天數",
-  "analytics.weeklyActivity": "每週活動"
+  "analytics.weeklyActivity": "每週活動",
+  "analytics.trend.new": "新增",
+  "analytics.trend.newDescription": "新增 — 前一天無活動",
+  "analytics.trend.upSmallBase": "上升 — 前一天數值過小，無法比較",
+  "analytics.trend.downSmallBase": "下降 — 前一天數值過小，無法比較",
+  "analytics.trend.flatSmallBase": "持平 — 前一天數值過小，無法比較",
+  "analytics.trend.times": "{{value}}倍",
+  "analytics.trend.upDescription": "較前一天上升",
+  "analytics.trend.downDescription": "較前一天下降",
+  "analytics.trend.flatDescription": "與前一天持平",
+  "analytics.trend.timesDescription": "是前一天的{{value}}倍"
 }

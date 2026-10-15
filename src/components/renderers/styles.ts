@@ -234,7 +234,7 @@ export const layout = {
   /** Command/code block with horizontal scroll */
   commandOverflow: "overflow-x-auto whitespace-pre-wrap break-words",
   /** Prose/markdown style */
-  prose: "prose prose-xs max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/80 prose-a:text-info prose-code:text-accent prose-code:bg-muted prose-pre:bg-muted prose-pre:text-foreground",
+  prose: "prose max-w-none",
 } as const;
 
 /**

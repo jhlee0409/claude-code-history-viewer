@@ -30,12 +30,21 @@ import { supportsConversationBreakdown } from "../../../utils/providers";
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
   conversationSummary: ProjectStatsSummary | null;
+  /** The summary is being (re)loaded. */
+  isLoading?: boolean;
+  /** Why the summary failed to load; shown once loading has finished. */
+  error?: string | null;
+  /** Reload the summary from the error state. */
+  onRetry?: () => void;
   providerId?: ProviderId;
 }
 
 export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   projectSummary,
   conversationSummary,
+  isLoading = false,
+  error = null,
+  onRetry,
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
@@ -62,12 +71,18 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
     );
   }, [conversationSummary]);
 
-  // 데이터가 없으면 항상 로딩 상태 표시 (뷰 전환 직후 isLoading이 false일 수 있음)
+  // Without data, a finished load that failed shows its error; anything else
+  // still loading (right after a screen switch the flag may not be set yet).
   if (!projectSummary) {
+    const failed = !isLoading && error != null;
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <LoadingState
-          isLoading={true}
+          isLoading={!failed}
+          error={failed ? error : null}
+          errorTitle={t("common.hooks.projectSummaryLoadFailed")}
+          onRetry={onRetry}
+          retryLabel={t("common.retry")}
           loadingMessage={t("analytics.loading")}
           spinnerSize="lg"
           withSparkle={true}

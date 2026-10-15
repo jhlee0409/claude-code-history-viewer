@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "アクティビティヒートマップ",
   "analytics.activityPeriod": "活動期間",
   "analytics.activityTooltip": "{{day}}曜日 {{hour}}時\nアクティビティ: {{count}}回\nトークン: {{tokens}}",
-  "analytics.Analytics Dashboard": "分析ダッシュボード",
   "analytics.andMoreSessions": "... さらに{{count}}セッション",
   "analytics.Avg Session Time": "平均セッション時間",
   "analytics.avgSession": "平均セッション",
@@ -202,5 +201,15 @@
   ],
   "analytics.weekend": "週末",
   "analytics.weeklyActiveDays": "週間アクティブ日数",
-  "analytics.weeklyActivity": "週別アクティビティ"
+  "analytics.weeklyActivity": "週別アクティビティ",
+  "analytics.trend.new": "新規",
+  "analytics.trend.newDescription": "新規 — 前日のアクティビティなし",
+  "analytics.trend.upSmallBase": "増加 — 前日の値が小さすぎて比較できません",
+  "analytics.trend.downSmallBase": "減少 — 前日の値が小さすぎて比較できません",
+  "analytics.trend.flatSmallBase": "変化なし — 前日の値が小さすぎて比較できません",
+  "analytics.trend.times": "{{value}}倍",
+  "analytics.trend.upDescription": "前日より増加",
+  "analytics.trend.downDescription": "前日より減少",
+  "analytics.trend.flatDescription": "前日と変化なし",
+  "analytics.trend.timesDescription": "前日の{{value}}倍"
 }

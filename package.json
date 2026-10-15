@@ -17,6 +17,7 @@
     "i18n:sync": "node scripts/sync-i18n-keys.mjs",
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "pricing:check": "node scripts/check-model-pricing.mjs",
+    "ui:capture": "node scripts/ui-capture/run.mjs",
     "prepare": "husky"
   },
   "dependencies": {
@@ -31,7 +32,6 @@
     "@radix-ui/react-switch": "^1.3.7",
     "@radix-ui/react-tabs": "^1.1.21",
     "@radix-ui/react-tooltip": "^1.2.16",
-    "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-virtual": "^3.14.10",
     "@tauri-apps/api": "2.11.0",
@@ -91,6 +91,9 @@
     "jsdom": "^24.1.3",
     "knip": "^5.88.1",
     "lint-staged": "^16.4.0",
+    "pixelmatch": "8.0.0",
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0",
     "postcss": "^8.5.26",
     "rollup-plugin-visualizer": "^6.0.11",
     "tailwindcss": "^4.3.3",

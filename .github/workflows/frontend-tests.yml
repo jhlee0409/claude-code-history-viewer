@@ -19,7 +19,6 @@ on:
       - "index.html"
       - "vite.config.ts"
       - "public/**"
-      - "tailwind.config.js"
       - "postcss.config.js"
       - "tsconfig*.json"
       - "eslint.config.js"

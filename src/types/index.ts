@@ -240,8 +240,6 @@ export type { AppError } from "./error.types";
 
 // Analytics Types
 export type {
-  AnalyticsView,
-  AnalyticsViewType,
   AnalyticsState,
   RecentEditsPagination,
 } from "./analytics";

@@ -88,9 +88,6 @@
   --shadow-xl: 0 20px 25px -5px oklch(0.2 0.02 260 / 0.1), 0 8px 10px -6px oklch(0.2 0.02 260 / 0.1);
   --shadow-2xl: 0 25px 50px -12px oklch(0.2 0.02 260 / 0.25);
   --shadow-inner: inset 0 2px 4px oklch(0.2 0.02 260 / 0.06);
-  --shadow-ring: 0 0 0 3px oklch(0.6 0.15 250 / 0.2);
-  --shadow-glow: 0 0 24px oklch(0.75 0.18 55 / 0.25);
-  --shadow-glow-accent: 0 0 32px oklch(0.6 0.15 250 / 0.3);
 
   /* === Light Theme (Secondary) === */
   --background: oklch(0.985 0.002 240);
@@ -105,13 +102,13 @@
   --secondary-foreground: oklch(0.25 0.02 260);
   --muted: oklch(0.94 0.005 240);
   --muted-foreground: oklch(0.45 0.02 260);
-  --accent: oklch(0.50 0.15 250);
+  --accent: oklch(0.50 0.16 275);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.48 0.20 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.88 0.01 240);
   --input: oklch(0.92 0.005 240);
-  --ring: oklch(0.60 0.05 250);
+  --ring: oklch(0.60 0.06 275);
 
   /* === Semantic Status Colors === */
   --success: oklch(0.45 0.12 145);
@@ -188,19 +185,14 @@
   /* === Sidebar (Light) === */
   --sidebar: oklch(0.97 0.005 240);
   --sidebar-foreground: oklch(0.2 0.02 260);
-  --sidebar-primary: oklch(0.75 0.18 55);
-  --sidebar-primary-foreground: oklch(0.15 0.05 55);
   --sidebar-accent: oklch(0.94 0.01 240);
   --sidebar-accent-foreground: oklch(0.2 0.02 260);
   --sidebar-border: oklch(0.88 0.01 240);
-  --sidebar-ring: oklch(0.65 0.15 55);
 
   /* === Advanced Gradients (Light) === */
   --gradient-subtle: linear-gradient(135deg, oklch(0.98 0.005 240) 0%, oklch(0.96 0.01 250) 100%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.7 0.16 55) 0%, oklch(0.6 0.18 45) 100%);
   --gradient-surface: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.98 0.005 240) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.94 0.01 240) 0%, oklch(0.96 0.015 250) 50%, oklch(0.94 0.01 240) 100%);
-  --gradient-glow: radial-gradient(ellipse at center, oklch(0.75 0.18 55 / 0.15) 0%, transparent 70%);
 
   /* === Glass/Blur Effects (Light) === */
   --glass-bg: oklch(1 0 0 / 0.7);
@@ -226,13 +218,13 @@
   --secondary-foreground: oklch(0.9 0.01 240);
   --muted: oklch(0.22 0.015 260);
   --muted-foreground: oklch(0.78 0.02 240);
-  --accent: oklch(0.72 0.14 250);
+  --accent: oklch(0.73 0.12 279);
   --accent-foreground: oklch(0.12 0 0);
   --destructive: oklch(0.72 0.18 25);
   --destructive-foreground: oklch(0.12 0 0);
   --border: oklch(0.25 0.015 260);
   --input: oklch(0.22 0.015 260);
-  --ring: oklch(0.50 0.05 250);
+  --ring: oklch(0.50 0.06 275);
 
   /* === Semantic Status Colors (Dark) ===
      Fills are bright in dark mode, so their foregrounds must be dark (like
@@ -271,12 +263,9 @@
   /* === Sidebar (Dark - Command Center) === */
   --sidebar: oklch(0.1 0.015 260);
   --sidebar-foreground: oklch(0.9 0.01 240);
-  --sidebar-primary: oklch(0.75 0.18 55);
-  --sidebar-primary-foreground: oklch(0.15 0.05 55);
   --sidebar-accent: oklch(0.18 0.015 260);
   --sidebar-accent-foreground: oklch(0.9 0.01 240);
   --sidebar-border: oklch(0.2 0.015 260);
-  --sidebar-ring: oklch(0.75 0.18 55);
 
   /* === Chart Colors (Dark) === */
   --chart-1: oklch(0.8 0.2 55);
@@ -327,16 +316,11 @@
   --shadow-xl: 0 20px 25px -5px oklch(0 0 0 / 0.45), 0 8px 10px -6px oklch(0 0 0 / 0.4);
   --shadow-2xl: 0 25px 50px -12px oklch(0 0 0 / 0.6);
   --shadow-inner: inset 0 2px 4px oklch(0 0 0 / 0.2);
-  --shadow-ring: 0 0 0 3px oklch(0.72 0.14 250 / 0.3);
-  --shadow-glow: 0 0 32px oklch(0.80 0.16 55 / 0.35);
-  --shadow-glow-accent: 0 0 40px oklch(0.72 0.14 250 / 0.4);
 
   /* === Advanced Gradients (Dark) === */
   --gradient-subtle: linear-gradient(135deg, oklch(0.14 0.015 260) 0%, oklch(0.12 0.02 270) 100%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.75 0.18 55) 0%, oklch(0.65 0.2 45) 100%);
   --gradient-surface: linear-gradient(180deg, oklch(0.18 0.015 260) 0%, oklch(0.12 0.015 260) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.2 0.015 260) 0%, oklch(0.25 0.02 270) 50%, oklch(0.2 0.015 260) 100%);
-  --gradient-glow: radial-gradient(ellipse at center, oklch(0.75 0.18 55 / 0.2) 0%, transparent 70%);
 
   /* === Glass/Blur Effects (Dark) === */
   --glass-bg: oklch(0.15 0.015 260 / 0.8);
@@ -499,12 +483,9 @@
   --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 /* ============================================
@@ -574,7 +555,7 @@
 
   /* Selection */
   ::selection {
-    background: oklch(0.75 0.18 55 / 0.3);
+    background: color-mix(in oklch, var(--accent) 30%, transparent);
   }
 
   /* Prose typography overrides for compact display */
@@ -978,25 +959,6 @@
     opacity: 0.05;
   }
 
-  /* === Gradient Mesh Background === */
-  .gradient-mesh {
-    background:
-      radial-gradient(at 40% 20%, oklch(0.6 0.12 250 / 0.15) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, oklch(0.75 0.15 55 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, oklch(0.65 0.12 280 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, oklch(0.7 0.14 175 / 0.08) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, oklch(0.6 0.1 200 / 0.1) 0px, transparent 50%);
-  }
-
-  .dark .gradient-mesh {
-    background:
-      radial-gradient(at 40% 20%, oklch(0.5 0.1 250 / 0.2) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, oklch(0.65 0.12 55 / 0.15) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, oklch(0.55 0.1 280 / 0.12) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, oklch(0.6 0.12 175 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, oklch(0.5 0.08 200 / 0.12) 0px, transparent 50%);
-  }
-
   /* === Spotlight Effect === */
   .spotlight {
     position: relative;
@@ -1031,17 +993,6 @@
     font-feature-settings: 'tnum' on;
   }
 
-  /* === Status indicators === */
-  .status-dot {
-    @apply w-2 h-2 rounded-full;
-    box-shadow: 0 0 0 2px oklch(0 0 0 / 0.1);
-  }
-
-  .status-dot.active {
-    @apply bg-accent;
-    box-shadow: 0 0 8px oklch(0.75 0.18 55 / 0.5);
-  }
-
   /* === Sidebar item === */
   .sidebar-item {
     @apply relative px-3 py-2.5 rounded-lg transition-all duration-200;
@@ -1056,17 +1007,6 @@
     content: '';
     @apply absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full;
     background: var(--accent);
-  }
-
-  /* === Command center card === */
-  .cmd-card {
-    @apply relative overflow-hidden rounded-xl bg-card border border-border;
-    @apply transition-all duration-300;
-  }
-
-  .cmd-card:hover {
-    @apply border-accent/30;
-    box-shadow: 0 0 0 1px oklch(0.75 0.18 55 / 0.1);
   }
 
   /* === Metric display === */
@@ -1400,31 +1340,6 @@
     }
   }
 
-  /* === Glow Effects === */
-  .glow-accent {
-    box-shadow: var(--shadow-glow);
-  }
-
-  .glow-accent-strong {
-    box-shadow: var(--shadow-glow-accent);
-  }
-
-  .animate-glow-pulse {
-    animation: glow-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes glow-pulse {
-
-    0%,
-    100% {
-      box-shadow: 0 0 20px oklch(0.75 0.18 55 / 0.2);
-    }
-
-    50% {
-      box-shadow: 0 0 35px oklch(0.75 0.18 55 / 0.4);
-    }
-  }
-
   /* === Shimmer Loading Effect === */
   .animate-shimmer {
     background: var(--gradient-shimmer);
@@ -1571,27 +1486,6 @@
     }
   }
 
-  /* === Attention Pulse (for notifications) === */
-  .animate-attention {
-    animation: attention 0.6s var(--ease-out-expo);
-  }
-
-  @keyframes attention {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 oklch(0.75 0.18 55 / 0.5);
-    }
-
-    70% {
-      transform: scale(1.02);
-      box-shadow: 0 0 0 10px oklch(0.75 0.18 55 / 0);
-    }
-
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 oklch(0.75 0.18 55 / 0);
-    }
-  }
 }
 
 /* ============================================
@@ -1710,13 +1604,6 @@
   }
 
   /* === Text Gradients === */
-  .text-gradient {
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
   .text-gradient-subtle {
     background: linear-gradient(135deg, var(--foreground) 0%, var(--muted-foreground) 100%);
     -webkit-background-clip: text;
@@ -1769,15 +1656,6 @@
 @layer utilities {
 
   /* === Focus Ring System === */
-  .focus-ring {
-    @apply outline-none;
-  }
-
-  .focus-ring:focus-visible {
-    box-shadow: var(--shadow-ring);
-    outline: none;
-  }
-
   .focus-ring-inset:focus-visible {
     box-shadow: inset 0 0 0 2px var(--ring);
     outline: none;
@@ -1791,14 +1669,6 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
-  }
-
-  .hover-glow {
-    @apply transition-all duration-300;
-  }
-
-  .hover-glow:hover {
-    box-shadow: var(--shadow-glow);
   }
 
   .hover-scale {
@@ -1902,10 +1772,6 @@
     border-radius: inherit;
   }
 
-  /* === Ring on Focus Within (for groups) === */
-  .group-focus-ring:focus-within {
-    box-shadow: var(--shadow-ring);
-  }
 }
 
 /* ============================================
@@ -2038,60 +1904,6 @@
       break-inside: avoid;
     }
   }
-}
-
-/* ============================================
-   SIDEBAR SCROLLBAR (Outside @layer for highest priority)
-   ============================================ */
-.scrollbar-sidebar {
-  scrollbar-width: thin !important;
-  scrollbar-color: #6366f1 #1a1a2e !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar {
-  width: 10px !important;
-  height: 10px !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-track {
-  background: #1a1a2e !important;
-  border-radius: 8px !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
-  border-radius: 8px !important;
-  border: 2px solid #1a1a2e !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%) !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #a5b4fc 0%, #818cf8 100%) !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
-
-/* Light theme */
-:root:not(.dark) .scrollbar-sidebar {
-  scrollbar-color: #6366f1 #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-track {
-  background: #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
-  border-color: #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4f46e5 0%, #4338ca 100%) !important;
 }
 
 /* ============================================

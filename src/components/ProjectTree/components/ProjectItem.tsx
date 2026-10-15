@@ -62,6 +62,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       type="button"
       role="treeitem"
       data-tree-node="project"
+      data-row="project"
       data-project-path={project.path}
       aria-level={ariaLevel}
       aria-selected={isSelected}

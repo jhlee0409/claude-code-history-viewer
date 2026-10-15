@@ -11,9 +11,9 @@ const cardVariants = cva(
         default: "border-border",
         elevated: "border-border shadow-md",
         interactive:
-          "border-border hover:border-accent/30 hover:shadow-glow-sm cursor-pointer active:scale-[0.99]",
+          "border-border hover:border-accent/30 cursor-pointer active:scale-[0.99]",
         glass:
-          "bg-card/80 backdrop-blur-xl border-border/50 shadow-inner-glow",
+          "bg-card/80 backdrop-blur-xl border-border/50",
         outline: "border-2 border-border bg-transparent",
       },
     },

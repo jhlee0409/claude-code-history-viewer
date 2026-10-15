@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import { toast } from 'sonner';
+import { usePendingLoad } from './usePendingLoad';
 import type { ClaudeProject, ClaudeSession } from '@/types';
 
 const isSubagentSession = (s: ClaudeSession) =>
@@ -17,6 +18,7 @@ const isSubagentSession = (s: ClaudeSession) =>
 export function useProjectSessions() {
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  usePendingLoad(isLoading);
   const activeRequestIdRef = useRef(0);
 
   const mainSessions = useMemo(

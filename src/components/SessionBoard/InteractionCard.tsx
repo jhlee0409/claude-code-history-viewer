@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { useTranslation } from "react-i18next";
 import { getCardSemantics } from "@/utils/cardSemantics";
 import { ExpandedCard } from "./ExpandedCard";
+import { formatCommandMessageText } from "@/utils/commandMessage";
 interface InteractionCardProps {
     message: ClaudeMessage;
     zoomLevel: ZoomLevel;
@@ -101,6 +102,8 @@ export const InteractionCard = memo(({
     }, [isExpanded]);
 
     const content = extractClaudeMessageContent(message) || "";
+    // Command markup (<command-name>, <local-command-stdout>, …) is shown as "/command args" / its output.
+    const displayContent = useMemo(() => formatCommandMessageText(content), [content]);
     const toolUseBlock = useMemo(() => getToolUseBlock(message), [message]);
     const role = getMessageRole(message);
 
@@ -264,7 +267,7 @@ export const InteractionCard = memo(({
 
         const tooltipContent = toolUseBlock
             ? getNaturalLanguageSummary(toolUseBlock.name, toolUseBlock.input)
-            : content;
+            : displayContent;
 
         const PixelCard = (
             <button
@@ -301,7 +304,7 @@ export const InteractionCard = memo(({
                     {PixelCard}
                     <ExpandedCard
                         message={message}
-                        content={content}
+                        content={displayContent}
                         editedMdFile={editedMdFile}
                         role={role}
                         isError={Boolean(isError)}
@@ -443,7 +446,7 @@ export const InteractionCard = memo(({
                             )}>
                                 {toolUseBlock
                                     ? getNaturalLanguageSummary(toolUseBlock.name, toolUseBlock.input)
-                                    : content}
+                                    : displayContent}
                             </p>
                         </div>
                         {isError && (
@@ -453,7 +456,7 @@ export const InteractionCard = memo(({
                 </div>
                 {isExpanded && <ExpandedCard
                     message={message}
-                    content={content}
+                    content={displayContent}
                     editedMdFile={editedMdFile}
                     role={role}
                     isError={Boolean(isError)}
@@ -551,7 +554,7 @@ export const InteractionCard = memo(({
 
                 {/* Content Area */}
                 <div className="text-xs text-foreground/90 whitespace-pre-wrap break-words leading-tight max-h-[300px] overflow-hidden relative">
-                    {content ? content : (toolUseBlock ? <SmartJsonDisplay data={toolUseBlock.input} /> : t("session.board.noContent"))}
+                    {displayContent ? displayContent : (toolUseBlock ? <SmartJsonDisplay data={toolUseBlock.input} /> : t("session.board.noContent"))}
                     {/* Gradient to fade out long content */}
                     <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-card to-transparent pointer-events-none" />
                 </div>
@@ -604,7 +607,7 @@ export const InteractionCard = memo(({
             </div>
             {isExpanded && <ExpandedCard
                 message={message}
-                content={content}
+                content={displayContent}
                 editedMdFile={editedMdFile}
                 role={role}
                 isError={Boolean(isError)}

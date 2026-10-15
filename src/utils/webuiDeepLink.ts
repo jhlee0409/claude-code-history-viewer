@@ -67,6 +67,26 @@ export function writeWebUIDeepLink(
   }
 }
 
+const currentHref = (): string =>
+  typeof window === "undefined" ? "" : window.location.href;
+
+/**
+ * One navigation is one browser history step, however many URL writes it
+ * makes (dropping the outgoing session, opening the new one, its message).
+ * Returns the mode for the move's next write: the navigation's own mode until
+ * the URL has actually changed since the move began, then "replace", so later
+ * writes refine the entry the first one added. Whether an entry is added
+ * depends only on whether the URL changes - a write that turned out to be a
+ * no-op (clearing a session the URL never had) does not use up the push.
+ */
+export function beginHistoryStep(
+  mode: WebUIHistoryMode,
+): () => WebUIHistoryMode {
+  const before = currentHref();
+  return () =>
+    mode === "push" && currentHref() !== before ? "replace" : mode;
+}
+
 export function listenForWebUIDeepLinks(
   listener: (deepLink: WebUIDeepLink) => void,
 ): () => void {

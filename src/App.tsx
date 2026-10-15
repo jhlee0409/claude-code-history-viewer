@@ -20,16 +20,26 @@ import {
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
 import {
   fetchStartupSessionHint,
-  preloadSessionFromCli,
+  openSessionHint,
   type SessionHint,
 } from "./lib/preloadSession";
 import {
   listenForWebUIDeepLinks,
   readWebUIDeepLink,
-  writeWebUIDeepLink,
 } from "./utils/webuiDeepLink";
+import {
+  viewAfterLeavingProject,
+  viewForProjectSwitch,
+} from "./navigation/place";
 
 import "./App.css";
+
+/** A CLI hint or WebUI deep link accepted before the first project scan. */
+interface PendingHintIntent {
+  hint: SessionHint;
+  messageId: string | null;
+  options: { epoch: number; record?: boolean };
+}
 
 function App() {
   const {
@@ -47,27 +57,8 @@ function App() {
     isLoadingMessages,
     isLoadingTokenStats,
     error,
-    sessionTokenStats,
-    sessionConversationTokenStats,
-    projectTokenStats,
-    projectConversationTokenStats,
-    projectTokenStatsSummary,
-    projectConversationTokenStatsSummary,
-    projectTokenStatsPagination,
-    sessionSearch,
-    selectProject,
+    navigate,
     loadMoreSessions,
-    selectSession,
-    clearProjectSelection,
-    setSessionSearchQuery,
-    setSearchFilterType,
-    goToNextMatch,
-    goToPrevMatch,
-    clearSessionSearch,
-    loadGlobalStats,
-    setAnalyticsCurrentView,
-    loadMoreProjectTokenStats,
-    loadMoreRecentEdits,
     updateUserSettings,
     getGroupedProjects,
     getDirectoryGroupedProjects,
@@ -76,7 +67,6 @@ function App() {
     hideProject,
     unhideProject,
     isProjectHidden,
-    dateFilter,
     setDateFilter,
     isNavigatorOpen,
     toggleNavigator,
@@ -137,7 +127,6 @@ function App() {
   // One-shot guard so the first-launch `--session` preload fires exactly once
   // per process, even if project loading renders multiple times.
   const cliPreloadAttempted = useRef(false);
-  const openSessionPicker = useAppStore((s) => s.openSessionPicker);
 
   // Keep the latest projects list in a ref so the second-invocation event
   // listener (which is set up once and lives for the process lifetime) can
@@ -147,45 +136,35 @@ function App() {
     projectsRef.current = projects;
   }, [projects]);
 
-  // Phase 3: second-invocation routing. If a `cli-session-hint` event arrives
-  // before projects finish loading, stash the latest hint here so the first
-  // load path can pick it up. Only the *latest* hint is kept — if the user
-  // re-invokes the CLI twice in quick succession, the newer intent wins.
-  const pendingHintRef = useRef<SessionHint | null>(null);
-  const pendingMessageTargetRef = useRef<string | null>(null);
-  const preloadGenerationRef = useRef(0);
+  // Phase 3: second-invocation routing. If a `cli-session-hint` event or a
+  // WebUI popstate arrives before projects finish loading, stash the latest
+  // intent here so the first load path can pick it up. Only the *latest* is
+  // kept — if the user re-invokes the CLI twice in quick succession, the
+  // newer intent wins. The whole intent is kept, not just the hint: the
+  // epoch it claimed (anything that navigates meanwhile supersedes it) and
+  // whether it records history (a popstate never does).
+  const pendingIntentRef = useRef<PendingHintIntent | null>(null);
 
-  const invalidatePreload = useCallback(() => {
-    preloadGenerationRef.current += 1;
-  }, []);
-
+  /** Open a CLI / deep-link hint; see `openSessionHint` for the epoch rule. */
   const runPreloadWithHint = useCallback(
-    (hint: SessionHint, messageId: string | null = null) => {
-      const generation = ++preloadGenerationRef.current;
-      const isCurrent = () => preloadGenerationRef.current === generation;
-
-      void preloadSessionFromCli({
-        getStartupSessionHint: () => Promise.resolve(hint),
-        projects: projectsRef.current,
-        selectProject,
-        selectSession: (session) =>
-          selectSession(session, { history: "none" }),
-        openSessionPicker,
+    (
+      hint: SessionHint,
+      messageId: string | null = null,
+      options: { epoch?: number; record?: boolean } = {},
+    ) => {
+      const epoch = options.epoch ?? useAppStore.getState().beginNavigation();
+      openSessionHint(hint, {
+        messageId,
+        epoch,
+        record: options.record,
         t: (key, fallback) => t(key, fallback ?? key),
-        isCurrent,
-      }).then(({ matched }) => {
-        if (isCurrent() && matched && messageId) {
-          const state = useAppStore.getState();
-          state.setAnalyticsCurrentView("messages");
-          state.navigateToMessage(messageId, { history: "none" });
-        }
       }).catch((error) => {
-        if (!isCurrent()) return;
+        if (useAppStore.getState().navigationEpoch !== epoch) return;
         console.error("Failed to preload session:", error);
         toast.error(t("common.error.unexpected", "Failed to open session"));
       });
     },
-    [selectProject, selectSession, openSessionPicker, t],
+    [t],
   );
 
   useEffect(() => {
@@ -194,22 +173,21 @@ function App() {
     cliPreloadAttempted.current = true;
     // Drain a hint that arrived before projects loaded, if any. Otherwise use
     // the Tauri-managed first-launch hint.
-    const queued = pendingHintRef.current;
+    const queued = pendingIntentRef.current;
     if (queued) {
-      pendingHintRef.current = null;
-      const messageId = pendingMessageTargetRef.current;
-      pendingMessageTargetRef.current = null;
-      runPreloadWithHint(queued, messageId);
+      pendingIntentRef.current = null;
+      runPreloadWithHint(queued.hint, queued.messageId, queued.options);
       return;
     }
-    const startupGeneration = preloadGenerationRef.current;
+    // Asking for the hint is not a navigation: only observe the epoch here,
+    // and claim one once a hint actually arrives, so a startup without a hint
+    // never supersedes a navigation already in flight.
+    const observedEpoch = useAppStore.getState().navigationEpoch;
     void fetchStartupSessionHint().then((hint) => {
-      // A second invocation or deep link may have arrived while the startup
-      // command was resolving. Its newer request owns navigation now.
-      if (preloadGenerationRef.current !== startupGeneration) return;
-      if (hint) {
-        runPreloadWithHint(hint, readWebUIDeepLink().messageId);
-      }
+      // A second invocation, a deep link or the user may have navigated while
+      // the startup command was resolving. The newer request owns navigation.
+      if (!hint || useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      runPreloadWithHint(hint, readWebUIDeepLink().messageId);
     });
   }, [isLoadingProjects, projects, runPreloadWithHint]);
 
@@ -229,16 +207,16 @@ function App() {
         if (cancelled) return;
         unlisten = await listen<SessionHint>("cli-session-hint", (event) => {
           const hint = event.payload;
-          invalidatePreload();
+          // Supersede whatever hint is still resolving.
+          const epoch = useAppStore.getState().beginNavigation();
           // Projects not yet loaded: stash and let the first-load effect
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
           if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-            pendingHintRef.current = hint;
-            pendingMessageTargetRef.current = null;
+            pendingIntentRef.current = { hint, messageId: null, options: { epoch } };
             return;
           }
-          runPreloadWithHint(hint);
+          runPreloadWithHint(hint, null, { epoch });
         });
       } catch (error) {
         // Non-Tauri environments (webui-server served in a browser) lack
@@ -251,25 +229,33 @@ function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [invalidatePreload, runPreloadWithHint]);
+  }, [runPreloadWithHint]);
 
+  // Browser back/forward (WebUI). Each popstate is a navigation that adds no
+  // history of its own: no URL write, no back/forward entry.
   useEffect(
     () =>
       listenForWebUIDeepLinks((deepLink) => {
-        invalidatePreload();
+        const epoch = useAppStore.getState().beginNavigation();
+        const popOptions = { history: "none", record: false, epoch } as const;
         if (!deepLink.sessionId) {
-          pendingHintRef.current = null;
-          pendingMessageTargetRef.current = null;
-          clearProjectSelection({ history: "none" });
+          pendingIntentRef.current = null;
+          void navigate(
+            {
+              project: null,
+              view: viewAfterLeavingProject(useAppStore.getState().view),
+            },
+            popOptions,
+          );
           return;
         }
 
         if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-          pendingHintRef.current = {
-            kind: "uuid",
-            value: deepLink.sessionId,
+          pendingIntentRef.current = {
+            hint: { kind: "uuid", value: deepLink.sessionId },
+            messageId: deepLink.messageId,
+            options: { epoch, record: false },
           };
-          pendingMessageTargetRef.current = deepLink.messageId;
           return;
         }
 
@@ -278,43 +264,32 @@ function App() {
           state.selectedSession?.actual_session_id ||
           state.selectedSession?.session_id;
 
+        // The URL names a conversation, so the screen is the conversation,
+        // and its target is exactly the URL's (none clears it).
         if (currentSessionId === deepLink.sessionId) {
-          if (deepLink.messageId) {
-            state.setAnalyticsCurrentView("messages");
-            state.navigateToMessage(deepLink.messageId, { history: "none" });
-          } else {
-            state.clearTargetMessage();
-          }
+          void navigate(
+            { view: "conversation", messageId: deepLink.messageId },
+            popOptions,
+          );
           return;
         }
 
-        clearProjectSelection({ history: "none" });
+        void navigate(
+          { project: null, view: viewAfterLeavingProject(state.view) },
+          popOptions,
+        );
         runPreloadWithHint(
           { kind: "uuid", value: deepLink.sessionId },
           deepLink.messageId,
+          { epoch, record: false },
         );
       }),
-    [clearProjectSelection, invalidatePreload, runPreloadWithHint],
+    [navigate, runPreloadWithHint],
   );
 
   // Local state
-  const isViewingGlobalStats = useAppStore((s) => s.isViewingGlobalStats);
-  const setIsViewingGlobalStats = useAppStore((s) => s.setViewingGlobalStats);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
-  // A selected session and the project-agnostic global-stats overview are
-  // mutually exclusive with viewing a conversation. The sidebar resets this
-  // flag explicitly on session select, but the global search modal selects
-  // sessions via store actions and can't reach this handler, so guarantee the
-  // exit whenever a session becomes selected (issue #390).
-  // refreshAllConversations re-selects the session; that is not navigation,
-  // so it is ignored here and the refresh restores the flag itself.
-  useEffect(() => {
-    if (selectedSession && !useAppStore.getState().isRefreshingAllConversations) {
-      setIsViewingGlobalStats(false);
-    }
-  }, [selectedSession, setIsViewingGlobalStats]);
 
   // Sidebar resize
   const {
@@ -356,14 +331,12 @@ function App() {
     direction: "left",
   });
 
-  // Global stats is a view, not a navigation target: keep the current
-  // project/session selected so the sidebar and sessions column retain their
-  // context and one click returns to the conversation.
+  // Global stats is a screen of the current place: the project/session stay
+  // as its context, so the sidebar and sessions column keep them and one
+  // click returns to the conversation.
   const handleGlobalStatsClick = useCallback(() => {
-    setIsViewingGlobalStats(true);
-    setAnalyticsCurrentView("analytics");
-    void loadGlobalStats();
-  }, [loadGlobalStats, setAnalyticsCurrentView, setIsViewingGlobalStats]);
+    void analyticsActions.switchToGlobalStats();
+  }, [analyticsActions]);
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => !prev);
@@ -390,9 +363,6 @@ function App() {
   const handleSessionSelect = useCallback(
     async (session: ClaudeSession) => {
       try {
-        setIsViewingGlobalStats(false);
-        setAnalyticsCurrentView("messages");
-
         // Find the project this session belongs to.
         //
         // Comparing `project.name === session.project_name` is unreliable
@@ -427,16 +397,13 @@ function App() {
           return projects.find((p) => p.name === s.project_name);
         };
 
-        const targetProject = findProjectForSession(session);
-        const currentProject = useAppStore.getState().selectedProject;
-        if (
-          targetProject &&
-          (!currentProject || currentProject.path !== targetProject.path)
-        ) {
-          await selectProject(targetProject);
-        }
-
-        await selectSession(session);
+        // One navigation: the conversation screen, the session's project (a
+        // no-op when it is already open) and the session.
+        await navigate({
+          view: "conversation",
+          project: findProjectForSession(session),
+          session,
+        });
       } catch (error) {
         // Per CLAUDE.md "에러 처리": async failures need user-visible
         // feedback (toast/alert). console.error alone leaves the user
@@ -446,7 +413,7 @@ function App() {
         toast.error(`${t("session.selectError")}: ${message}`);
       }
     },
-    [projects, selectProject, selectSession, setAnalyticsCurrentView, setIsViewingGlobalStats, t]
+    [projects, navigate, t]
   );
 
   const handleTokenStatClick = useCallback(
@@ -468,47 +435,41 @@ function App() {
 
   const handleProjectSelect = useCallback(
     async (project: ClaudeProject) => {
-      const currentProject = useAppStore.getState().selectedProject;
+      const { selectedProject: currentProject, view: screenBefore } =
+        useAppStore.getState();
 
+      // Re-clicking the open project leaves it (collapse-only is T7, F3).
       if (currentProject?.path === project.path) {
-        clearProjectSelection();
+        await navigate({ project: null });
         return;
       }
 
-      const activeView = useAppStore.getState().analytics.currentView;
-      setIsViewingGlobalStats(false);
+      // The screen follows the user into the new project (global stats
+      // becomes its analytics); its data is reloaded for that project.
+      const view = viewForProjectSwitch(screenBefore);
 
       analyticsActions.clearAll();
       setDateFilter({ start: null, end: null });
 
-      await selectProject(project);
-      writeWebUIDeepLink({ sessionId: null, messageId: null });
+      const arrived = await navigate({ view, project });
+      if (!arrived) return;
 
       try {
-        if (activeView === "tokenStats") {
-          await analyticsActions.switchToTokenStats();
-        } else if (activeView === "board") {
-          await analyticsActions.switchToBoard();
-        } else if (activeView === "recentEdits") {
-          await analyticsActions.switchToRecentEdits();
-        } else if (activeView === "analytics") {
-          await analyticsActions.switchToAnalytics();
-        } else if (activeView === "settings") {
-          analyticsActions.switchToSettings();
-        } else {
-          analyticsActions.switchToMessages();
-        }
+        await analyticsActions.openView(view);
       } catch (error) {
-        console.error(`Failed to auto-load ${activeView} view:`, error);
+        console.error(`Failed to auto-load ${view} view:`, error);
       }
     },
-    [clearProjectSelection, selectProject, analyticsActions, setDateFilter, setIsViewingGlobalStats]
+    [navigate, analyticsActions, setDateFilter]
   );
 
+  // Hovering a session in the sidebar while the board is open brings its lane
+  // forward. Board-only state: it must not select the session, or the
+  // sidebar, watcher, URL and global-stats exit would all follow the pointer.
   const handleSessionHover = useCallback(
     (session: ClaudeSession) => {
       if (computed.isBoardView) {
-        useAppStore.getState().setSelectedSession(session);
+        useAppStore.getState().setBoardHoverSession(session);
       }
     },
     [computed.isBoardView]
@@ -530,15 +491,6 @@ function App() {
       isLoadingMessages={isLoadingMessages}
       isLoadingTokenStats={isLoadingTokenStats}
       error={error}
-      sessionTokenStats={sessionTokenStats}
-      sessionConversationTokenStats={sessionConversationTokenStats}
-      projectTokenStats={projectTokenStats}
-      projectConversationTokenStats={projectConversationTokenStats}
-      projectTokenStatsSummary={projectTokenStatsSummary}
-      projectConversationTokenStatsSummary={projectConversationTokenStatsSummary}
-      projectTokenStatsPagination={projectTokenStatsPagination}
-      sessionSearch={sessionSearch}
-      dateFilter={dateFilter}
       analyticsState={analyticsState}
       analyticsActions={analyticsActions}
       computed={computed}
@@ -546,11 +498,9 @@ function App() {
       appVersion={appVersion}
       isDesktop={isDesktop}
       isMobile={isMobile}
-      isViewingGlobalStats={isViewingGlobalStats}
       isSidebarCollapsed={isSidebarCollapsed}
       isMobileSidebarOpen={isMobileSidebarOpen}
       setIsMobileSidebarOpen={setIsMobileSidebarOpen}
-      setIsViewingGlobalStats={setIsViewingGlobalStats}
       sidebarWidth={sidebarWidth}
       isSidebarResizing={isSidebarResizing}
       handleSidebarResizeStart={handleSidebarResizeStart}
@@ -578,14 +528,6 @@ function App() {
       hideProject={hideProject}
       unhideProject={unhideProject}
       isProjectHidden={isProjectHidden}
-      setDateFilter={setDateFilter}
-      setSessionSearchQuery={setSessionSearchQuery}
-      setSearchFilterType={setSearchFilterType}
-      clearSessionSearch={clearSessionSearch}
-      goToNextMatch={goToNextMatch}
-      goToPrevMatch={goToPrevMatch}
-      loadMoreProjectTokenStats={loadMoreProjectTokenStats}
-      loadMoreRecentEdits={loadMoreRecentEdits}
       globalOverviewDescription={globalOverviewDescription}
       liveStatusMessage={liveStatusMessage}
     />

@@ -5,8 +5,8 @@
  * `--session-folder <name>`, or `--session-title <text>`, the Rust side
  * stashes a {@link SessionHint} that the frontend retrieves via the
  * `get_startup_session_hint` command. This module resolves that hint against
- * the loaded project list and calls the existing `selectProject` /
- * `selectSession` actions — the same flow the GlobalSearch modal uses for
+ * the loaded project list and opens the match through `openMatch` (the
+ * store's `navigate`) — the same transaction the GlobalSearch modal uses for
  * cross-project navigation.
  *
  * Stage B resolvers:
@@ -43,10 +43,11 @@ export interface PreloadDependencies {
   getStartupSessionHint: () => Promise<SessionHint | null>;
   /** List of known projects — usually from the app store after initial load. */
   projects: ClaudeProject[];
-  /** Select a project (mirrors store action). */
-  selectProject: (project: ClaudeProject) => Promise<void>;
-  /** Select a session (mirrors store action). */
-  selectSession: (session: ClaudeSession) => Promise<void>;
+  /**
+   * Open the resolved match (project + session) as one navigation. Resolves
+   * false when a newer navigation superseded it on the way.
+   */
+  openMatch: (match: SessionPickerCandidate) => Promise<boolean>;
   /** Open the session picker modal for ambiguous title matches. */
   openSessionPicker: (candidates: SessionPickerCandidate[], hintValue: string) => void;
   /** i18n translator for the not-found toast. */
@@ -183,12 +184,12 @@ async function scanAllProjects(
   const out: ProjectSessionsPair[] = [];
 
   for (const project of projects) {
-    if (!isCurrent() || useAppStore.getState().selectedSession) {
+    if (!isCurrent()) {
       return null;
     }
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
-      if (!isCurrent() || useAppStore.getState().selectedSession) {
+      if (!isCurrent()) {
         return null;
       }
       out.push({ project, sessions });
@@ -210,10 +211,10 @@ async function resolveUuid(
 ): Promise<SessionPickerCandidate | null> {
   const { excludeSidechain } = useAppStore.getState();
   for (const project of projects) {
-    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+    if (!isCurrent()) return null;
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
-      if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+      if (!isCurrent()) return null;
       const session = matchByUuid(sessions, uuid);
       if (session) return { project, session };
     } catch (error) {
@@ -230,10 +231,10 @@ async function resolvePath(
 ): Promise<SessionPickerCandidate | null> {
   const { excludeSidechain } = useAppStore.getState();
   for (const project of projects) {
-    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+    if (!isCurrent()) return null;
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
-      if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+      if (!isCurrent()) return null;
       const session = matchByPath(sessions, absPath);
       if (session) return { project, session };
     } catch (error) {
@@ -258,12 +259,10 @@ async function resolveFolder(
   });
   if (!target || !isCurrent()) return null;
 
-  if (useAppStore.getState().selectedSession) return null;
-
   try {
     const { excludeSidechain } = useAppStore.getState();
     const sessions = await loadSessionsFor(target, excludeSidechain);
-    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+    if (!isCurrent()) return null;
     // Pick the most recently modified session as the "default" for a folder hint.
     const sorted = [...sessions].sort((a, b) => {
       const at = a.last_modified ?? "";
@@ -295,7 +294,7 @@ async function resolveTitle(
 
   const candidates: SessionPickerCandidate[] = [];
   for (const { project, sessions } of scanned) {
-    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
+    if (!isCurrent()) return null;
     for (const session of matchByTitle(sessions, substring)) {
       candidates.push({ project, session });
     }
@@ -349,9 +348,6 @@ export async function preloadSessionFromCli(
       return { handled: true, matched: false };
     }
     if (matches.length === 0) {
-      if (useAppStore.getState().selectedSession) {
-        return { handled: true, matched: false };
-      }
       toast.error(deps.t("globalSearch.sessionNotFound", "Session not found"));
       return { handled: true, matched: false };
     }
@@ -359,7 +355,7 @@ export async function preloadSessionFromCli(
       return commitSingleMatch(matches[0] ?? null, deps, isCurrent);
     }
     // Multi-match: delegate to the picker modal.
-    if (!isCurrent() || useAppStore.getState().selectedSession) {
+    if (!isCurrent()) {
       return { handled: true, matched: false };
     }
     deps.openSessionPicker(matches, hint.value);
@@ -371,8 +367,8 @@ export async function preloadSessionFromCli(
 }
 
 /**
- * Apply a resolved single match to the store — with the same guard flow as
- * Stage A: if the race guard fires, suppress both toast and selection.
+ * Apply a resolved single match. If a newer navigation superseded the hint,
+ * suppress both the toast and the move.
  */
 async function commitSingleMatch(
   match: SessionPickerCandidate | null,
@@ -383,22 +379,56 @@ async function commitSingleMatch(
     return { handled: true, matched: false };
   }
   if (!match) {
-    if (!isCurrent() || useAppStore.getState().selectedSession) {
-      return { handled: true, matched: false };
-    }
     toast.error(deps.t("globalSearch.sessionNotFound", "Session not found"));
     return { handled: true, matched: false };
   }
-  if (!isCurrent() || useAppStore.getState().selectedSession) {
-    return { handled: true, matched: false };
-  }
-  await deps.selectProject(match.project);
-  // Re-check after the project-load await: the user may have clicked a
-  // session while selectProject was loading. Skipping this check lets the
-  // CLI hint clobber their manual choice.
-  if (!isCurrent() || useAppStore.getState().selectedSession) {
-    return { handled: true, matched: false };
-  }
-  await deps.selectSession(match.session);
-  return { handled: true, matched: isCurrent() };
+  // `navigate` re-checks its epoch after the project load, so a session the
+  // user clicked meanwhile is not clobbered by the hint.
+  const arrived = await deps.openMatch(match);
+  return { handled: true, matched: arrived && isCurrent() };
+}
+
+export interface OpenSessionHintOptions {
+  /** Explicit message target inside the matched session (deep link). */
+  messageId?: string | null;
+  /** An epoch already claimed for this hint; claimed now when omitted. */
+  epoch?: number;
+  /** Record the move in back/forward history (default true). */
+  record?: boolean;
+  t: Translator;
+}
+
+/**
+ * Resolve a CLI / deep-link hint against the store and open it.
+ *
+ * The hint owns a navigation epoch from the moment it is accepted. Any later
+ * navigation (the user's click, a newer hint, a browser back) supersedes it;
+ * reloads and an already open session do not. That is the startup priority
+ * (plan §4.3): an explicit hint wins over whatever is on screen, including a
+ * session opened before a second launch (§9b F4).
+ */
+export function openSessionHint(
+  hint: SessionHint,
+  options: OpenSessionHintOptions,
+): Promise<{ handled: boolean; matched: boolean }> {
+  const epoch = options.epoch ?? useAppStore.getState().beginNavigation();
+  const isCurrent = () => useAppStore.getState().navigationEpoch === epoch;
+  return preloadSessionFromCli({
+    getStartupSessionHint: () => Promise.resolve(hint),
+    projects: useAppStore.getState().projects,
+    openMatch: ({ project, session }) =>
+      useAppStore.getState().navigate(
+        {
+          view: "conversation",
+          project,
+          session,
+          messageId: options.messageId ?? null,
+        },
+        { history: "none", epoch, record: options.record },
+      ),
+    openSessionPicker: (candidates, hintValue) =>
+      useAppStore.getState().openSessionPicker(candidates, hintValue),
+    t: options.t,
+    isCurrent,
+  });
 }

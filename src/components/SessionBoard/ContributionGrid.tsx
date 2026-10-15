@@ -24,7 +24,7 @@ const MIN_LABEL_GAP_PX = 44; // minimum pixel distance between label centres
 // Bar color ramp using the app's heatmap CSS variables.
 // Zero-day bars use a subtly visible "empty" tick.
 function getBarColor(intensity: number, isSelected: boolean): string {
-  if (isSelected) return "var(--chart-1)"; // amber accent when active
+  if (isSelected) return "var(--accent)"; // brand accent when active
   if (intensity === 0) return "var(--heatmap-empty)";
   if (intensity <= 0.33) return "var(--heatmap-low)";
   if (intensity <= 0.66) return "var(--heatmap-medium)";
@@ -210,7 +210,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                         "transition-opacity duration-100",
                         isClickable && "cursor-pointer hover:opacity-75",
                         isSelected &&
-                          "ring-1 ring-offset-[1px] ring-offset-background ring-[var(--chart-1)]"
+                          "ring-1 ring-offset-[1px] ring-offset-background ring-accent"
                       )}
                       style={{
                         backgroundColor: fillColor,
@@ -218,7 +218,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                         opacity: bar.sessionCount === 0 ? 0.3 : 1,
                         // Selected bar gets a faint glow
                         boxShadow: isSelected
-                          ? "0 0 6px var(--chart-1)"
+                          ? "0 0 6px var(--accent)"
                           : undefined,
                       }}
                       onClick={isClickable ? () => handleBarClick(bar) : undefined}

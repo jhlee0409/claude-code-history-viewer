@@ -1,16 +1,12 @@
-import {
-  Loader2,
-  RefreshCw,
-  BarChart3,
-  MessageSquare,
-  Activity,
-  FileEdit,
-  Columns,
-  Search,
-} from "lucide-react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
+import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
+import { selectPlace } from "@/store/slices/navigationSlice";
+import { activeToolbarView, type ToolbarView } from "@/navigation/place";
+import { VIEW_PANEL_ID, viewTabId } from "./viewTabIds";
+import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY } from "@/layouts/shell/viewRegistry";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import { useModal } from "@/contexts/modal";
@@ -53,7 +49,37 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   } = useAppStore();
 
   const computed = analyticsComputed;
+  // The selected tab is a projection of the place, so global stats, the
+  // archive and the Settings Manager (no tab of their own) select none.
+  const activeTab = useAppStore((s) => activeToolbarView(selectPlace(s)));
   const isClaudeProject = (selectedProject?.provider ?? "claude") === "claude";
+  // One tab stop for the whole tablist (roving tabindex): the selected tab,
+  // or the first enabled one while an app screen selects none.
+  const tabDisabled: Record<ToolbarView, boolean> = {
+    conversation: false,
+    analytics: computed.isLoadingAnalytics,
+    tokenStats: computed.isLoadingTokenStats,
+    edits: computed.isLoadingRecentEdits,
+    board: !isClaudeProject,
+  };
+  // The stop roves with focus (APG): the tab the user last focused keeps it,
+  // as long as it stays enabled and the place has not moved since. Keyed to
+  // the selection it was taken under, so a new place resets it without an
+  // effect: the stop goes back to the newly selected tab.
+  const [roving, setRoving] = useState<{
+    under: ToolbarView | null;
+    view: ToolbarView;
+  } | null>(null);
+  const rovingStop =
+    roving && roving.under === activeTab && !tabDisabled[roving.view]
+      ? roving.view
+      : undefined;
+  const tabStop: ToolbarView | undefined =
+    rovingStop ??
+    (activeTab && !tabDisabled[activeTab]
+      ? activeTab
+      : TOOLBAR_TAB_ORDER.find((view) => !tabDisabled[view]));
+  const roveTo = (view: ToolbarView) => setRoving({ under: activeTab, view });
   const isRefreshingConversations =
     isRefreshingAllConversations ||
     isLoadingProjects ||
@@ -121,6 +147,46 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
       console.error("Failed to load board:", error);
       window.alert(t("session.board.error.loadBoard"));
     }
+  };
+
+  // What each view tab does; its icon and label come from the view registry.
+  const tabBehaviour: Record<ToolbarView, TabBehaviour> = {
+    conversation: {
+      onClick: () => {
+        if (!computed.isMessagesView) analyticsActions.switchToMessages();
+      },
+    },
+    analytics: {
+      isLoading: computed.isLoadingAnalytics,
+      onClick: () => {
+        if (!computed.isAnalyticsView) handleLoadAnalytics();
+      },
+    },
+    tokenStats: {
+      isLoading: computed.isLoadingTokenStats,
+      onClick: () => {
+        if (!computed.isTokenStatsView) handleLoadTokenStats();
+      },
+    },
+    edits: {
+      isLoading: computed.isLoadingRecentEdits,
+      onClick: () => {
+        if (computed.isRecentEditsView && recentEditsMode !== "docked") {
+          analyticsActions.switchToMessages();
+        } else {
+          handleLoadRecentEdits();
+        }
+      },
+    },
+    board: {
+      // The board reads Claude Code data only; elsewhere the tab says why it is off.
+      label: isClaudeProject
+        ? undefined
+        : t("common.settings.claudeOnly", { name: t("session.board.title") }),
+      onClick: () => {
+        if (!computed.isBoardView) handleLoadBoard();
+      },
+    },
   };
 
   return (
@@ -219,65 +285,29 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             back from any analytics view is always visible. */}
         {selectedProject && (
           <div
-            role="group"
+            role="tablist"
             aria-label={t("header.views", "Views")}
+            onKeyDown={moveFocusAcrossTabs}
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
-            <ViewTab
-              icon={MessageSquare}
-              label={t("message.view")}
-              isActive={computed.isMessagesView}
-              onClick={() => {
-                if (!computed.isMessagesView) analyticsActions.switchToMessages();
-              }}
-            />
-            <ViewTab
-              icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
-              label={t("analytics.dashboard")}
-              isActive={computed.isAnalyticsView}
-              isLoading={computed.isLoadingAnalytics}
-              onClick={() => {
-                if (!computed.isAnalyticsView) handleLoadAnalytics();
-              }}
-              disabled={computed.isLoadingAnalytics}
-            />
-            <ViewTab
-              icon={computed.isLoadingTokenStats ? Loader2 : Activity}
-              label={t("messages.tokenStats.existing")}
-              isActive={computed.isTokenStatsView}
-              isLoading={computed.isLoadingTokenStats}
-              onClick={() => {
-                if (!computed.isTokenStatsView) handleLoadTokenStats();
-              }}
-              disabled={computed.isLoadingTokenStats}
-            />
-            <ViewTab
-              icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
-              label={t("recentEdits.title")}
-              isActive={computed.isRecentEditsView}
-              isLoading={computed.isLoadingRecentEdits}
-              onClick={() => {
-                if (computed.isRecentEditsView && recentEditsMode !== "docked") {
-                  analyticsActions.switchToMessages();
-                } else {
-                  handleLoadRecentEdits();
-                }
-              }}
-              disabled={computed.isLoadingRecentEdits}
-            />
-            <ViewTab
-              icon={Columns}
-              label={
-                isClaudeProject
-                  ? t("session.board.title")
-                  : t("common.settings.claudeOnly", { name: t("session.board.title") })
-              }
-              isActive={computed.isBoardView}
-              disabled={!isClaudeProject}
-              onClick={() => {
-                if (!computed.isBoardView) handleLoadBoard();
-              }}
-            />
+            {TOOLBAR_TAB_ORDER.map((view) => {
+              const { icon, labelKey } = VIEW_REGISTRY[view].tab;
+              const tab = tabBehaviour[view];
+              return (
+                <ViewTab
+                  key={view}
+                  icon={tab.isLoading ? Loader2 : icon}
+                  label={tab.label ?? t(labelKey)}
+                  view={view}
+                  tabStop={tabStop === view}
+                  onFocus={roveTo}
+                  isActive={activeTab === view}
+                  isLoading={tab.isLoading}
+                  onClick={tab.onClick}
+                  disabled={tabDisabled[view]}
+                />
+              );
+            })}
           </div>
         )}
 
@@ -315,8 +345,52 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   );
 };
 
+interface TabBehaviour {
+  onClick: () => void;
+  isLoading?: boolean;
+  /** Replaces the registry label. */
+  label?: string;
+}
+
+/**
+ * Arrow keys / Home / End move focus between the enabled tabs (APG tabs,
+ * manual activation: Enter or Space opens the focused one).
+ */
+function moveFocusAcrossTabs(event: React.KeyboardEvent<HTMLElement>) {
+  const tabs = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]:not(:disabled)')
+  );
+  const current = tabs.indexOf(document.activeElement as HTMLElement);
+  if (current === -1 || tabs.length === 0) return;
+  const next = focusTarget(event.key, current, tabs.length);
+  if (next === null) return;
+  event.preventDefault();
+  tabs[next]?.focus();
+}
+
+/** The tab index a navigation key moves focus to, or null for other keys. */
+function focusTarget(key: string, current: number, count: number): number | null {
+  switch (key) {
+    case "ArrowRight":
+      return (current + 1) % count;
+    case "ArrowLeft":
+      return (current - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
+}
+
 /* Segmented view tab: icon always, label from xl up. */
 interface ViewTabProps {
+  view: ToolbarView;
+  /** The tablist's single Tab stop (roving tabindex). */
+  tabStop: boolean;
+  /** Focus landed on this tab: it becomes the roving Tab stop. */
+  onFocus: (view: ToolbarView) => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   isActive?: boolean;
@@ -325,10 +399,25 @@ interface ViewTabProps {
   disabled?: boolean;
 }
 
-const ViewTab = ({ icon: Icon, label, isActive, isLoading, onClick, disabled }: ViewTabProps) => {
+const ViewTab = ({
+  view,
+  tabStop,
+  onFocus,
+  icon: Icon,
+  label,
+  isActive,
+  isLoading,
+  onClick,
+  disabled,
+}: ViewTabProps) => {
   return (
     <TooltipButton
-      aria-pressed={isActive}
+      role="tab"
+      id={viewTabId(view)}
+      aria-selected={isActive ?? false}
+      aria-controls={VIEW_PANEL_ID}
+      tabIndex={tabStop ? 0 : -1}
+      onFocus={() => onFocus(view)}
       onClick={onClick}
       disabled={disabled}
       className={cn(

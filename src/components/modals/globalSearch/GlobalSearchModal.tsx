@@ -129,7 +129,7 @@ export const GlobalSearchModal = ({
     // session-resolution sweep so it stops issuing project requests.
     const resolveTokenRef = useRef(0);
 
-    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, userMetadata } =
+    const { claudePath, projects, navigate, sessions, getSessionDisplayName, activeProviders, clearTargetMessage, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
@@ -337,14 +337,14 @@ export const GlobalSearchModal = ({
                 );
 
                 if (targetSession) {
-                    // Ensure the conversation pane is the active view — otherwise
-                    // a result clicked while in analytics/tokenStats/etc. loads the
-                    // session but stays hidden behind the other view (issue #390).
-                    setAnalyticsCurrentView("messages");
-                    await selectSession(targetSession);
-                    if (result.uuid) {
-                        navigateToMessage(result.uuid, { history: "replace" });
-                    }
+                    // One navigation: the conversation screen (from any other
+                    // screen, issue #390), the session, and the result as the
+                    // explicit message target.
+                    await navigate({
+                        view: "conversation",
+                        session: targetSession,
+                        messageId: result.uuid ?? null,
+                    });
                     onClose();
                     return;
                 }
@@ -412,12 +412,12 @@ export const GlobalSearchModal = ({
                     );
                     if (token !== resolveTokenRef.current) return; // cancelled
                     if (found) {
-                        setAnalyticsCurrentView("messages");
-                        await selectProject(found.project);
-                        await selectSession(found.session);
-                        if (result.uuid) {
-                            navigateToMessage(result.uuid, { history: "replace" });
-                        }
+                        await navigate({
+                            view: "conversation",
+                            project: found.project,
+                            session: found.session,
+                            messageId: result.uuid ?? null,
+                        });
                         onClose();
                         return;
                     }
@@ -434,7 +434,7 @@ export const GlobalSearchModal = ({
                 onClose();
             }
         },
-        [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, onClose, t],
+        [projects, sessions, navigate, clearTargetMessage, onClose, t],
     );
 
     // Keyboard navigation

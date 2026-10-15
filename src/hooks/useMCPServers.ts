@@ -61,6 +61,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { usePendingLoad } from "./usePendingLoad";
 import { api } from "@/services/api";
 import type { MCPServerConfig, MCPSource, AllMCPServersResponse } from "../types";
 
@@ -122,6 +123,7 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
   const [projectMcpFile, setProjectMcpFile] = useState<Record<string, MCPServerConfig>>({});
 
   const [isLoading, setIsLoading] = useState(false);
+  usePendingLoad(isLoading);
   const [error, setError] = useState<string | null>(null);
 
   /**

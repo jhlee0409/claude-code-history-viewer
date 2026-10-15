@@ -5,7 +5,6 @@
   "analytics.activityHeatmapTitle": "Activity Heatmap",
   "analytics.activityPeriod": "Activity Period",
   "analytics.activityTooltip": "{{day}}\nActivity: {{count}} times\nTokens: {{tokens}}",
-  "analytics.Analytics Dashboard": "Analytics Dashboard",
   "analytics.andMoreSessions": "... and {{count}} more sessions",
   "analytics.Avg Session Time": "Avg Session Time",
   "analytics.avgSession": "Avg Session",
@@ -202,5 +201,15 @@
   ],
   "analytics.weekend": "Weekend",
   "analytics.weeklyActiveDays": "Weekly Active Days",
-  "analytics.weeklyActivity": "Weekly Activity"
+  "analytics.weeklyActivity": "Weekly Activity",
+  "analytics.trend.new": "New",
+  "analytics.trend.newDescription": "New — no activity on the previous day",
+  "analytics.trend.upSmallBase": "Up — previous day too small to compare",
+  "analytics.trend.downSmallBase": "Down — previous day too small to compare",
+  "analytics.trend.flatSmallBase": "Unchanged — previous day too small to compare",
+  "analytics.trend.times": "{{value}}×",
+  "analytics.trend.upDescription": "Up from the previous day",
+  "analytics.trend.downDescription": "Down from the previous day",
+  "analytics.trend.flatDescription": "Unchanged from the previous day",
+  "analytics.trend.timesDescription": "{{value}} times the previous day"
 }

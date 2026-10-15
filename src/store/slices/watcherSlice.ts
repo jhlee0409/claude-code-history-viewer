@@ -6,6 +6,7 @@
 
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import { ownWork } from "@/navigation/ownership";
 import { AppErrorType } from "../../types";
 
 // ============================================================================
@@ -108,7 +109,9 @@ export const createWatcherSlice: StateCreator<
     }
   };
 
-  const reportRefreshError = (error: unknown) => {
+  /** A refresh's failure is feedback: only while it still owns the place. */
+  const reportRefreshError = (owns: () => boolean, error: unknown) => {
+    if (!owns()) return;
     get().setError({
       type: AppErrorType.UNKNOWN,
       message: `Failed to refresh session: ${String(error)}`,
@@ -123,10 +126,11 @@ export const createWatcherSlice: StateCreator<
     }
 
     queuedSessionRefreshes.delete(sessionPath);
+    const owner = ownWork(get, { context: { sessionPath } });
     try {
       await runSessionRefresh(queuedProjectPath, sessionPath);
     } catch (error) {
-      reportRefreshError(error);
+      reportRefreshError(owner.ownsFeedback, error);
     }
   };
 
@@ -163,10 +167,11 @@ export const createWatcherSlice: StateCreator<
 
     const quietTimer = setTimeout(() => {
       void (async () => {
+        const owner = ownWork(get, { context: { sessionPath } });
         try {
           await flushSessionRefresh(sessionPath);
         } catch (error) {
-          reportRefreshError(error);
+          reportRefreshError(owner.ownsFeedback, error);
         }
       })();
     }, delay);
@@ -190,11 +195,12 @@ export const createWatcherSlice: StateCreator<
     }
 
     sessionRefreshInFlight.add(sessionPath);
+    const owner = ownWork(get, { context: { sessionPath } });
 
     try {
-      await get().selectSession(selectedSession);
+      await get().reloadCurrent("watcher");
     } catch (error) {
-      reportRefreshError(error);
+      reportRefreshError(owner.ownsFeedback, error);
     } finally {
       lastSessionRefreshAt.set(sessionPath, Date.now());
       sessionRefreshInFlight.delete(sessionPath);
@@ -257,6 +263,7 @@ export const createWatcherSlice: StateCreator<
       })),
 
     triggerProjectRefresh: async (projectPath) => {
+      const owner = ownWork(get, { context: { projectPath } });
       try {
         const { selectedProject, reloadProjectSessions } = get();
 
@@ -277,10 +284,12 @@ export const createWatcherSlice: StateCreator<
           await reloadProjectSessions(selectedProject);
         }
       } catch (error) {
-        get().setError({
-          type: AppErrorType.UNKNOWN,
-          message: `Failed to refresh project: ${String(error)}`,
-        });
+        if (owner.ownsFeedback()) {
+          get().setError({
+            type: AppErrorType.UNKNOWN,
+            message: `Failed to refresh project: ${String(error)}`,
+          });
+        }
       } finally {
         // Always mark as updated regardless of success/failure
         get().markProjectUpdated(projectPath);

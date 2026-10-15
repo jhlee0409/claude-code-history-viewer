@@ -12,6 +12,13 @@ import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
+import { ownPlace, ownWork } from "@/navigation/ownership";
+import {
+  loadProjectAnalytics,
+  loadRecentEditsScreen,
+  loadTokenStatsScreen,
+  reloadBoard,
+} from "@/navigation/screenData";
 import {
   detectWorktreeGroupsHybrid,
   groupProjectsByDirectory,
@@ -28,6 +35,7 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import { viewAfterLeavingProject } from "@/navigation/place";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import {
   type WebUINavigationOptions,
@@ -451,6 +459,13 @@ export const createProjectSlice: StateCreator<
     // a custom Claude path, WSL, or any non-Claude provider detected on disk (#222).
     if (!claudePath && !hasCustomPaths && !wslEnabled && !hasNonClaudeProviders) return;
 
+    // The project list is not scoped to a place: the latest scan publishes
+    // it wherever the user is. Its failure is feedback, raised only while
+    // no navigation has begun since the scan started - a refresh abandoned
+    // for Settings must not replace Settings with the whole-app error.
+    const owner = ownWork(get, {
+      isLatest: () => requestId === getRequestId("scanProjects"),
+    });
     set({ isLoadingProjects: true, error: null });
     try {
       const start = performance.now();
@@ -484,9 +499,7 @@ export const createProjectSlice: StateCreator<
               customClaudePaths,
               settings,
             });
-            if (requestId !== getRequestId("scanProjects")) {
-              return;
-            }
+            if (!owner.ownsData()) return;
             loadedProviders.add(provider);
             projectsByProvider.set(provider, providerProjects);
             publishPartialResults();
@@ -511,11 +524,13 @@ export const createProjectSlice: StateCreator<
           `[Frontend] scanProjects: ${projects.length}개 프로젝트, ${duration.toFixed(1)}ms`
         );
       }
-      if (requestId !== getRequestId("scanProjects")) {
-        return;
-      }
+      if (!owner.ownsData()) return;
       set({ projects });
-      if (projects.length === 0 && providerErrors.length > 0) {
+      if (
+        projects.length === 0 &&
+        providerErrors.length > 0 &&
+        owner.ownsFeedback()
+      ) {
         set({
           error: {
             type: AppErrorType.UNKNOWN,
@@ -532,14 +547,10 @@ export const createProjectSlice: StateCreator<
       if (!get().isServerReadOnly && !worktreeGrouping && !userHasSet && projects.length > 0) {
         const { groups } = detectWorktreeGroupsHybrid(projects);
         if (groups.length > 0) {
-          if (requestId !== getRequestId("scanProjects")) {
-            return;
-          }
+          if (!owner.ownsData()) return;
           // Worktrees detected - auto-enable grouping
           await updateUserSettings({ worktreeGrouping: true });
-          if (requestId !== getRequestId("scanProjects")) {
-            return;
-          }
+          if (!owner.ownsData()) return;
           if (import.meta.env.DEV) {
             console.log(
               `[Worktree] Auto-enabled grouping: ${groups.length} groups detected`
@@ -548,13 +559,11 @@ export const createProjectSlice: StateCreator<
         }
       }
     } catch (error) {
-      if (requestId !== getRequestId("scanProjects")) {
-        return;
-      }
       console.error("Failed to scan projects:", error);
+      if (!owner.ownsFeedback()) return;
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
-      if (requestId === getRequestId("scanProjects")) {
+      if (owner.ownsSpinner()) {
         set({ isLoadingProjects: false });
       }
     }
@@ -567,18 +576,27 @@ export const createProjectSlice: StateCreator<
 
     const previouslySelectedProject = get().selectedProject;
     const previouslySelectedSession = get().selectedSession;
-    // Global stats can be open with a project still selected; the flag, not
-    // the selection, says what is on screen.
-    const wasViewingGlobalStats = get().isViewingGlobalStats;
+    // A refresh reloads the place on screen; it never moves the user
+    // (plan §4.2). Once anything navigates, the place belongs to that
+    // navigation, which loads it fresh itself: every step below that follows
+    // an await stops there rather than act on the snapshot above.
+    const ownsPlace = ownPlace(get);
+    const owner = ownWork(get, {
+      context: { projectPath: previouslySelectedProject?.path ?? null },
+      ownsPlace,
+    });
 
     set({ isRefreshingAllConversations: true, error: null });
 
     try {
       await get().scanProjects();
+      if (!owner.ownsFeedback()) return;
 
       const stateAfterScan = get();
+      // The only change a refresh makes to the place is the fallback when the
+      // open project or session no longer exists.
       if (!previouslySelectedProject) {
-        if (stateAfterScan.analytics.currentView === "analytics") {
+        if (stateAfterScan.view === "globalStats") {
           await stateAfterScan.loadGlobalStats();
         }
         return;
@@ -597,6 +615,7 @@ export const createProjectSlice: StateCreator<
       // `selectedSession` and would turn the re-select below into a fresh load
       // (dropping the subagent stack, pagination and search) - see #508, #609.
       await get().reloadProjectSessions(refreshedProject);
+      if (!owner.ownsFeedback()) return;
 
       let refreshedSession: ClaudeSession | null = null;
       if (previouslySelectedSession) {
@@ -605,7 +624,8 @@ export const createProjectSlice: StateCreator<
         ) ?? null;
 
         if (refreshedSession) {
-          await get().selectSession(refreshedSession);
+          await get().reloadCurrent("refresh", refreshedSession);
+          if (!owner.ownsFeedback()) return;
         } else {
           set({
             selectedSession: null,
@@ -621,55 +641,34 @@ export const createProjectSlice: StateCreator<
         }
       }
 
-      const refreshedState = get();
-      if (wasViewingGlobalStats && refreshedState.analytics.currentView === "analytics") {
-        // Re-selecting the session above cleared the flag (App exits global
-        // stats on session change); restore it and reload the overview.
-        refreshedState.setViewingGlobalStats(true);
-        await refreshedState.loadGlobalStats();
-      } else if (refreshedState.analytics.currentView === "tokenStats") {
-        await refreshedState.loadProjectTokenStats(refreshedProject.path);
-        if (refreshedSession) {
-          await refreshedState.loadSessionTokenStats(refreshedSession.file_path);
-        }
-      } else if (refreshedState.analytics.currentView === "analytics") {
-        const projectSummary = await refreshedState.loadProjectStatsSummary(
-          refreshedProject.path
-        );
-        refreshedState.setAnalyticsProjectSummary(projectSummary);
-        if (refreshedSession) {
-          const sessionComparison = await refreshedState.loadSessionComparison(
-            refreshedSession.actual_session_id,
-            refreshedProject.path
-          );
-          refreshedState.setAnalyticsSessionComparison(sessionComparison);
-        } else {
-          refreshedState.setAnalyticsSessionComparison(null);
-        }
-      } else if (refreshedState.analytics.currentView === "recentEdits") {
-        const recentEdits = await refreshedState.loadRecentEdits(
-          refreshedProject.path
-        );
-        // Same ownership rule as the navigation hook: if the selection moved on
-        // while this was in flight, writing would show one project's edits
-        // under another's identity.
-        if (get().selectedProject?.path === refreshedProject.path) {
-          // The whole page, so the cursor is replaced along with the rows.
-          // Passing only the rows is what left the cursor at 60 while the list
-          // went back to page 1 (#517).
-          refreshedState.setAnalyticsRecentEdits(
-            recentEdits,
-            refreshedProject.path
-          );
-        }
-      } else if (refreshedState.analytics.currentView === "board") {
-        refreshedState.clearBoard();
-        await refreshedState.loadBoardSessions(get().sessions);
-      } else if (refreshedState.analytics.currentView === "archive") {
-        await refreshedState.loadArchives();
+      // The open screen's data, through the loaders its navigation uses,
+      // under this refresh's ownership.
+      const { view } = get();
+      const loadOptions = { ownsPlace };
+      if (view === "globalStats") {
+        await get().loadGlobalStats();
+      } else if (view === "tokenStats") {
+        await loadTokenStatsScreen(get, refreshedProject, refreshedSession);
+      } else if (view === "analytics") {
+        // Reports its own failure on the screen (no app-wide error).
+        await loadProjectAnalytics(get, refreshedProject, refreshedSession, {
+          ...loadOptions,
+          clearComparisonWithoutSession: true,
+          failureText: {
+            summary: i18n.t("common.hooks.projectSummaryLoadFailed"),
+            comparison: i18n.t("common.hooks.sessionComparisonLoadFailed"),
+          },
+        });
+      } else if (view === "edits") {
+        await loadRecentEditsScreen(get, refreshedProject, loadOptions);
+      } else if (view === "board") {
+        await reloadBoard(get);
+      } else if (view === "archive") {
+        await get().loadArchives();
       }
     } catch (error) {
       console.error("Failed to refresh all conversations:", error);
+      if (!owner.ownsFeedback()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to refresh conversations: ${message}`);
       get().setError({
@@ -689,6 +688,7 @@ export const createProjectSlice: StateCreator<
     // Clearing the list belongs here, not in the reload. The outgoing
     // project's rows must not linger under the incoming project's name.
     set({
+      selectedProject: project,
       selectedSession: null,
       sessions: [],
       sessionsTotal: project.session_count,
@@ -714,9 +714,20 @@ export const createProjectSlice: StateCreator<
    * in the page is looked up on its own (absence from page 1 is not deletion):
    * if it still exists it is appended to the list, otherwise it is left for
    * the caller to handle (`refreshAllConversations` clears it).
+   *
+   * A reload, so it never selects anything: `project` must be the open
+   * project (`selectProject` opens it before calling this). A newer record of
+   * it - the header refresh passes the rescanned one - replaces the held
+   * record; any other project is ignored.
    */
   reloadProjectSessions: async (project: ClaudeProject) => {
+    const open = get().selectedProject;
+    if (!open || !isSameProject(project, open)) return;
     const requestId = nextRequestId("selectProject");
+    const owner = ownWork(get, {
+      context: { projectPath: project.path },
+      isLatest: () => requestId === getRequestId("selectProject"),
+    });
     set((state) => ({
       selectedProject: project,
       // The rows already on screen stay until the new page arrives. Blanking
@@ -743,9 +754,7 @@ export const createProjectSlice: StateCreator<
         limit: SESSION_PAGE_LIMIT,
       });
 
-      if (requestId !== getRequestId("selectProject")) {
-        return;
-      }
+      if (!owner.ownsData()) return;
 
       const held = get().selectedSession;
       // A subagent view selects the subagent's own file, which is never a list
@@ -759,9 +768,7 @@ export const createProjectSlice: StateCreator<
           : page.sessions.find((session) => session.file_path === held.file_path) ??
             (await lookUpSessionBeyondPage(provider, project, held, get().excludeSidechain));
 
-      if (requestId !== getRequestId("selectProject")) {
-        return;
-      }
+      if (!owner.ownsData()) return;
 
       // A session found beyond page 1 is appended so the open session stays
       // visible; `loadMoreSessions` dedupes it when its own page arrives.
@@ -788,13 +795,11 @@ export const createProjectSlice: StateCreator<
         set({ projects });
       }
     } catch (error) {
-      if (requestId !== getRequestId("selectProject")) {
-        return;
-      }
       console.error("Failed to load project sessions:", error);
+      if (!owner.ownsFeedback()) return;
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
-      if (requestId === getRequestId("selectProject")) {
+      if (owner.ownsSpinner()) {
         set({ isLoadingSessions: false });
       }
     }
@@ -819,6 +824,10 @@ export const createProjectSlice: StateCreator<
     }
 
     const requestId = getRequestId("selectProject");
+    const owner = ownWork(get, {
+      context: { projectPath: selectedProject.path },
+      isLatest: () => requestId === getRequestId("selectProject"),
+    });
     set({ isLoadingMoreSessions: true });
 
     try {
@@ -834,10 +843,7 @@ export const createProjectSlice: StateCreator<
       // so this can start mid-reload with the reload's id and the OLD offset.
       // If the reload landed first, the list no longer ends at that offset and
       // appending would skip the rows in between.
-      if (
-        requestId !== getRequestId("selectProject") ||
-        get().sessionsOffset !== sessionsOffset
-      ) {
+      if (!owner.ownsData() || get().sessionsOffset !== sessionsOffset) {
         return;
       }
 
@@ -848,13 +854,11 @@ export const createProjectSlice: StateCreator<
         hasMoreSessions: page.hasMore,
       });
     } catch (error) {
-      if (requestId !== getRequestId("selectProject")) {
-        return;
-      }
       console.error("Failed to load more project sessions:", error);
+      if (!owner.ownsFeedback()) return;
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
-      if (requestId === getRequestId("selectProject")) {
+      if (owner.ownsSpinner()) {
         set({ isLoadingMoreSessions: false });
       }
     }
@@ -864,6 +868,8 @@ export const createProjectSlice: StateCreator<
     nextRequestId("selectProject");
 
     set({
+      // A project screen cannot stay open without its project (plan §4.1).
+      view: viewAfterLeavingProject(get().view),
       selectedProject: null,
       selectedSession: null,
       sessions: [],

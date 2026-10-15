@@ -5,8 +5,8 @@
  */
 
 import type { ProjectStatsSummary, DailyStats } from "../../../types";
-import type { DailyStatData } from "../types";
-import { calculateGrowthRate } from "./calculations";
+import type { DailyStatData, GrowthTrend } from "../types";
+import { calculateGrowthTrend } from "./calculations";
 
 // ============================================================================
 // Daily Stats Processing
@@ -130,29 +130,61 @@ export const generateTrendData = (
 // Growth Metrics
 // ============================================================================
 
+/**
+ * Smallest previous-day value a percentage is shown against, per metric.
+ * Below it the KPI card shows only the direction of the change.
+ */
+export const GROWTH_FLOORS = {
+  messages: 20,
+  tokens: 10_000,
+} as const;
+
 export interface GrowthMetrics {
-  tokenGrowth: number;
-  messageGrowth: number;
+  tokenGrowth: GrowthTrend;
+  messageGrowth: GrowthTrend;
 }
 
+const NO_GROWTH: GrowthMetrics = {
+  tokenGrowth: { kind: "none" },
+  messageGrowth: { kind: "none" },
+};
+
+/** `YYYY-MM-DD` of the calendar day before `date` (also `YYYY-MM-DD`). */
+const previousCalendarDay = (date: string): string => {
+  const ms = Date.parse(`${date}T00:00:00Z`) - 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+};
+
 /**
- * Calculate day-over-day growth rates for tokens and messages
+ * Calculate day-over-day growth trends for tokens and messages.
+ *
+ * `dailyStats` is sorted by date and sparse (days without activity have no
+ * row), so the baseline is the calendar day before the last recorded day,
+ * which counts as zero when it has no row — not simply the row before it.
  */
 export const calculateDailyGrowth = (dailyStats: DailyStats[]): GrowthMetrics => {
-  if (dailyStats.length < 2) {
-    return { tokenGrowth: 0, messageGrowth: 0 };
+  const lastDayStats = dailyStats.at(-1);
+
+  if (!lastDayStats || dailyStats.length < 2) {
+    return NO_GROWTH;
   }
 
-  const lastDayStats = dailyStats[dailyStats.length - 1];
-  const prevDayStats = dailyStats[dailyStats.length - 2];
-
-  if (!lastDayStats || !prevDayStats) {
-    return { tokenGrowth: 0, messageGrowth: 0 };
-  }
+  const baselineDate = previousCalendarDay(lastDayStats.date);
+  const prevDayStats = dailyStats.find((stats) => stats.date === baselineDate);
+  const prevTokens = prevDayStats?.total_tokens ?? 0;
+  const prevMessages = prevDayStats?.message_count ?? 0;
 
   return {
-    tokenGrowth: calculateGrowthRate(lastDayStats.total_tokens, prevDayStats.total_tokens),
-    messageGrowth: calculateGrowthRate(lastDayStats.message_count, prevDayStats.message_count),
+    tokenGrowth: calculateGrowthTrend(
+      lastDayStats.total_tokens,
+      prevTokens,
+      GROWTH_FLOORS.tokens,
+    ),
+    messageGrowth: calculateGrowthTrend(
+      lastDayStats.message_count,
+      prevMessages,
+      GROWTH_FLOORS.messages,
+    ),
   };
 };
 

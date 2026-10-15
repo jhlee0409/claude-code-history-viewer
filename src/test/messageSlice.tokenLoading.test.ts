@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import type {
   ClaudeProject,
+  ClaudeSession,
   PaginatedTokenStats,
   ProjectStatsSummary,
   SessionTokenStats,
@@ -87,6 +88,8 @@ type TestStore = MessageSlice & {
   dateFilter: { start: Date | null; end: Date | null };
   setError: ReturnType<typeof vi.fn>;
   selectedProject: ClaudeProject | null;
+  /** Token stats are always the open session's (`ownWork` context). */
+  selectedSession: Pick<ClaudeSession, "file_path"> | null;
 };
 
 const createTestStore = () => {
@@ -95,6 +98,7 @@ const createTestStore = () => {
     dateFilter: { start: null, end: null },
     setError,
     selectedProject: null,
+    selectedSession: null,
     ...createMessageSlice(
       set as Parameters<typeof createMessageSlice>[0],
       get as Parameters<typeof createMessageSlice>[1]
@@ -163,6 +167,7 @@ describe("messageSlice token loading state", () => {
         last_modified: "2026-01-01T00:00:00.000Z",
         provider: "codex",
       },
+      selectedSession: { file_path: "/session-codex" },
     });
 
     const billingStats = buildSessionStats("session-codex");

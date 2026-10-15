@@ -9,7 +9,10 @@
 // ============================================================================
 
 export interface AnalyticsDashboardProps {
-  isViewingGlobalStats?: boolean;
+  /** Show the cross-project overview (the global stats screen). */
+  isGlobalScope?: boolean;
+  /** Reload the open screen's data; offered by the summary's error state. */
+  onRetry?: () => void;
 }
 
 // ============================================================================
@@ -23,12 +26,25 @@ export type SectionColorVariant = "green" | "purple" | "blue" | "amber" | "pink"
 // Component Props
 // ============================================================================
 
+/**
+ * Day-over-day KPI trend. A percentage is only reported when the previous
+ * value is at or above the metric's floor; smaller bases report a direction
+ * only, so a near-empty day never produces an absurd figure like +24133%.
+ */
+export type GrowthTrend =
+  | { kind: "pct"; value: number }
+  | { kind: "new" }
+  | { kind: "none" }
+  | { kind: "up-small-base" }
+  | { kind: "down-small-base" }
+  | { kind: "flat" };
+
 export interface MetricCardProps {
   icon: React.ElementType;
   label: string;
   value: string | number;
   subValue?: string;
-  trend?: number;
+  trend?: GrowthTrend;
   colorVariant: MetricColorVariant;
 }
 

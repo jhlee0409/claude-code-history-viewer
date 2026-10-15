@@ -9,6 +9,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
+import { ownWork } from "@/navigation/ownership";
 import { fetchGlobalStatsSummary } from "../../services/analyticsApi";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { hasAnyConversationBreakdownProvider } from "../../utils/providers";
@@ -21,18 +22,11 @@ export interface GlobalStatsSliceState {
   globalSummary: GlobalStatsSummary | null;
   globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
-  /**
-   * Whether the analytics view is showing the cross-project overview. Lives
-   * in the store (not App state) so refresh and date-filter reloads can tell
-   * global scope apart from "a project happens to be selected".
-   */
-  isViewingGlobalStats: boolean;
 }
 
 export interface GlobalStatsSliceActions {
   loadGlobalStats: () => Promise<void>;
   clearGlobalStats: () => void;
-  setViewingGlobalStats: (value: boolean) => void;
 }
 
 export type GlobalStatsSlice = GlobalStatsSliceState & GlobalStatsSliceActions;
@@ -45,7 +39,6 @@ const initialGlobalStatsState: GlobalStatsSliceState = {
   globalSummary: null,
   globalConversationSummary: null,
   isLoadingGlobalStats: false,
-  isViewingGlobalStats: false,
 };
 
 // ============================================================================
@@ -73,6 +66,11 @@ export const createGlobalStatsSlice: StateCreator<
     // matching the project list and search (#362).
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
 
+    // Global stats are not scoped to a project: the latest request owns the
+    // data; feedback also needs the place it started on.
+    const owner = ownWork(get, {
+      isLatest: () => requestId === getRequestId("globalStats"),
+    });
     set({ isLoadingGlobalStats: true });
     get().setError(null);
 
@@ -111,23 +109,20 @@ export const createGlobalStatsSlice: StateCreator<
               endDate,
               customClaudePaths,
             ).catch((error) => {
-              if (requestId !== getRequestId("globalStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only global stats:",
                 error
               );
-              toast.warning(
-                "Conversation-only global stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only global stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
       ]);
-      if (requestId !== getRequestId("globalStats")) {
-        return;
-      }
+      if (!owner.ownsData()) return;
       set({
         globalSummary: summary,
         globalConversationSummary: canLoadConversationSummary
@@ -135,16 +130,15 @@ export const createGlobalStatsSlice: StateCreator<
           : summary,
       });
     } catch (error) {
-      if (requestId !== getRequestId("globalStats")) {
-        return;
-      }
       console.error("Failed to load global stats:", error);
+      if (!owner.ownsData()) return;
+      set({ globalSummary: null, globalConversationSummary: null });
+      if (!owner.ownsFeedback()) return;
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load global stats: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      set({ globalSummary: null, globalConversationSummary: null });
     } finally {
-      if (requestId === getRequestId("globalStats")) {
+      if (owner.ownsSpinner()) {
         set({ isLoadingGlobalStats: false });
       }
     }
@@ -158,9 +152,5 @@ export const createGlobalStatsSlice: StateCreator<
       globalConversationSummary: null,
       isLoadingGlobalStats: false,
     });
-  },
-
-  setViewingGlobalStats: (value: boolean) => {
-    if (get().isViewingGlobalStats !== value) set({ isViewingGlobalStats: value });
   },
 });

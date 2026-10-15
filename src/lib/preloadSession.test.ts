@@ -16,9 +16,9 @@ vi.mock("@/services/api", () => ({
   api: vi.fn(),
 }));
 
-// Mutable store state so individual tests can mutate `selectedSession` mid-scan
-// to exercise the race guard. Also simulates `getSessionDisplayName` used by
-// the Stage B title-matcher.
+// Mutable store state. `selectedSession` is kept to prove the resolver no
+// longer reads it (an open session does not block a hint, plan §9b F4). Also
+// simulates `getSessionDisplayName` used by the Stage B title-matcher.
 const mockStoreState: {
   excludeSidechain: boolean;
   selectedSession: ClaudeSession | null;
@@ -64,8 +64,7 @@ function makeDeps(overrides: Partial<PreloadDependencies> = {}): PreloadDependen
   return {
     getStartupSessionHint: vi.fn().mockResolvedValue(null),
     projects: [],
-    selectProject: vi.fn().mockResolvedValue(undefined),
-    selectSession: vi.fn().mockResolvedValue(undefined),
+    openMatch: vi.fn().mockResolvedValue(true),
     openSessionPicker: vi.fn(),
     t: (_k: string, fallback?: string) => fallback ?? "Session not found",
     ...overrides,
@@ -92,8 +91,7 @@ describe("preloadSessionFromCli", () => {
     const deps = makeDeps();
     const result = await preloadSessionFromCli(deps);
     expect(result).toEqual({ handled: false, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -127,8 +125,7 @@ describe("preloadSessionFromCli", () => {
       projectPath: project.path,
       excludeSidechain: false,
     });
-    expect(deps.selectProject).toHaveBeenCalledWith(project);
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -145,7 +142,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: session }));
   });
 
   it("shows a toast and reports matched=false when session is missing", async () => {
@@ -161,8 +158,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Session not found");
   });
 
@@ -184,7 +180,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectProject).toHaveBeenCalledWith(projectB);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ project: projectB }));
   });
 
   it("ignores unsupported hint kinds without crashing", async () => {
@@ -201,13 +197,13 @@ describe("preloadSessionFromCli", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // Race guard smoke test: if the user has already picked a session by the time
-  // we enter the preload flow (e.g. hint resolves after project load), we do
-  // not clobber their choice.
-  it("skips select when user has already chosen a session before scan begins", async () => {
-    mockStoreState.selectedSession = session;
-    // The race guard fires at the top of the findSessionAcrossProjects loop,
-    // so api is never called — no mock queue needed.
+  // Plan §9b F4: a second `--session` launch while a session is open used to
+  // be dropped silently. The hint always wins over what is on screen; only a
+  // newer navigation (isCurrent) supersedes it.
+  it("opens the hint even when a session is already open", async () => {
+    const openSession: ClaudeSession = { ...session, session_id: "open", actual_session_id: "open" };
+    mockStoreState.selectedSession = openSession;
+    vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
     const deps = makeDeps({
       getStartupSessionHint: vi.fn().mockResolvedValue({
         kind: "uuid",
@@ -218,12 +214,8 @@ describe("preloadSessionFromCli", () => {
 
     const result = await preloadSessionFromCli(deps);
 
-    expect(api).not.toHaveBeenCalled();
-    expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
-    // Not a "not found" toast either — user picked something.
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(result).toEqual({ handled: true, matched: true });
+    expect(deps.openMatch).toHaveBeenCalledWith({ project, session });
   });
 
   // ===== Stage B tests =====
@@ -247,7 +239,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: true });
-    expect(deps.selectSession).toHaveBeenCalledWith(session);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: session }));
   });
 
   it("folder kind selects most recent session in matching project", async () => {
@@ -275,7 +267,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(newer);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: newer }));
   });
 
   it("folder kind without a matching project shows not-found toast", async () => {
@@ -311,7 +303,7 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: true });
-    expect(deps.selectSession).toHaveBeenCalledWith(sessionWithSummary);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: sessionWithSummary }));
     expect(deps.openSessionPicker).not.toHaveBeenCalled();
   });
 
@@ -337,7 +329,7 @@ describe("preloadSessionFromCli", () => {
       ],
       "auth bug",
     );
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
   });
 
   it("title kind with zero matches shows not-found toast", async () => {
@@ -379,17 +371,14 @@ describe("preloadSessionFromCli", () => {
     const result = await preloadSessionFromCli(deps);
 
     expect(result.matched).toBe(true);
-    expect(deps.selectSession).toHaveBeenCalledWith(renamedSession);
+    expect(deps.openMatch).toHaveBeenCalledWith(expect.objectContaining({ session: renamedSession }));
   });
 
-  // Race simulation: user clicks a session while selectProject is awaiting.
-  // Exercises the post-selectProject guard inside commitSingleMatch.
-  it("skips selectSession when selectedSession mutates during selectProject await", async () => {
+  // Race simulation: the user clicks a session while the match is opening.
+  // `navigate` notices on its epoch and reports it did not arrive.
+  it("reports no match when opening it was superseded on the way", async () => {
     vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
-    const selectProject = vi.fn().mockImplementation(async () => {
-      mockStoreState.selectedSession = session;
-    });
-    const selectSession = vi.fn().mockResolvedValue(undefined);
+    const openMatch = vi.fn().mockResolvedValue(false);
 
     const deps = makeDeps({
       getStartupSessionHint: vi.fn().mockResolvedValue({
@@ -397,25 +386,24 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [project],
-      selectProject,
-      selectSession,
+      openMatch,
     });
 
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(selectProject).toHaveBeenCalledWith(project);
-    expect(selectSession).not.toHaveBeenCalled();
+    expect(openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("skips a resolved match when a newer preload supersedes it", async () => {
     vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
     let isCurrent = true;
-    const selectProject = vi.fn().mockImplementation(async () => {
+    const openMatch = vi.fn().mockImplementation(async () => {
       // Simulate a newer CLI/deep-link request arriving while the project
       // selection is loading.
       isCurrent = false;
+      return true;
     });
 
     const deps = makeDeps({
@@ -424,31 +412,31 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [project],
-      selectProject,
+      openMatch,
       isCurrent: () => isCurrent,
     });
 
     const result = await preloadSessionFromCli(deps);
 
     expect(result).toEqual({ handled: true, matched: false });
-    expect(selectProject).toHaveBeenCalledWith(project);
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(openMatch).toHaveBeenCalledWith({ project, session });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // Real race simulation: user clicks a session mid-scan. Exercises the
+  // Real race simulation: the user navigates mid-scan. Exercises the
   // per-loop guard inside scan helpers, not just the final guard.
-  it("aborts scan loop when selectedSession mutates mid-scan", async () => {
+  it("aborts the scan loop when a newer navigation supersedes it mid-scan", async () => {
     const projectA: ClaudeProject = { ...project, name: "a", path: "/a" };
     const projectB: ClaudeProject = { ...project, name: "b", path: "/b" };
     const projectC: ClaudeProject = { ...project, name: "c", path: "/c" };
     let scanCount = 0;
+    let current = true;
     vi.mocked(api).mockImplementation(async () => {
       scanCount += 1;
       if (scanCount === 1) {
-        // User clicks a session while project A's scan is in-flight.
-        // The NEXT loop iteration should abort before hitting project B.
-        mockStoreState.selectedSession = session;
+        // The user navigates while project A's scan is in flight. The NEXT
+        // loop iteration should abort before hitting project B.
+        current = false;
       }
       return [] as unknown as never; // No match in any project
     });
@@ -459,6 +447,7 @@ describe("preloadSessionFromCli", () => {
         value: UUID,
       } as SessionHint),
       projects: [projectA, projectB, projectC],
+      isCurrent: () => current,
     });
 
     const result = await preloadSessionFromCli(deps);
@@ -466,8 +455,7 @@ describe("preloadSessionFromCli", () => {
     // Only project A was scanned. B and C were aborted by the race guard.
     expect(scanCount).toBe(1);
     expect(result).toEqual({ handled: true, matched: false });
-    expect(deps.selectProject).not.toHaveBeenCalled();
-    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(deps.openMatch).not.toHaveBeenCalled();
     // Not a "not found" toast either — user picked something.
     expect(toast.error).not.toHaveBeenCalled();
   });

@@ -34,7 +34,7 @@ function createTestStore() {
       set({ selectedSession: null });
     }),
     reloadProjectSessions: vi.fn(async () => {}),
-    selectSession: vi.fn(async () => {
+    reloadCurrent: vi.fn(async () => {
       selectedAtSelectSession.push(get().selectedSession);
     }),
   }) as unknown as AppStore);
@@ -50,8 +50,8 @@ describe("setExcludeSidechain", () => {
     expect(store.getState().excludeSidechain).toBe(true);
     expect(store.getState().selectProject).not.toHaveBeenCalled();
     expect(store.getState().reloadProjectSessions).toHaveBeenCalledWith(project);
-    expect(store.getState().selectSession).toHaveBeenCalledWith(session);
-    // Still selected when selectSession runs => it is an in-place reload.
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("filter");
+    // Still selected when the reload runs => it is an in-place reload.
     expect(selectedAtSelectSession).toEqual([session]);
   });
 });

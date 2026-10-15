@@ -11,11 +11,12 @@ import type {
   MetricMode,
   StatsMode,
 } from "../../types";
-import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
+import type { AnalyticsState } from "../../types/analytics";
 import { initialAnalyticsState, initialRecentEditsPagination } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
+import { ownPlace } from "@/navigation/ownership";
 import { fetchRecentEdits } from "../../services/analyticsApi";
 import { canLoadMore } from "../../utils/pagination";
 
@@ -37,7 +38,6 @@ export interface AnalyticsSliceState {
 }
 
 export interface AnalyticsSliceActions {
-  setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
@@ -82,15 +82,6 @@ export const createAnalyticsSlice: StateCreator<
   AnalyticsSlice
 > = (set, get) => ({
   ...initialAnalyticsSliceState,
-
-  setAnalyticsCurrentView: (view: AnalyticsViewType) => {
-    set((state) => ({
-      analytics: {
-        ...state.analytics,
-        currentView: view,
-      },
-    }));
-  },
 
   setAnalyticsStatsMode: (mode: StatsMode) => {
     set((state) => ({
@@ -311,6 +302,8 @@ export const createAnalyticsSlice: StateCreator<
 
     // Set loading state
     const requestId = ++recentEditsLoadMoreSeq;
+    // Taken before the await: the failure toast is feedback (`ownWork`).
+    const ownsPlace = ownPlace(get);
     set((state) => ({
       analytics: {
         ...state.analytics,
@@ -420,7 +413,7 @@ export const createAnalyticsSlice: StateCreator<
         latest.analytics.recentEditsGeneration === generation;
 
       if (stillOwns) {
-        toast.error(`Failed to load more edits: ${message}`);
+        if (ownsPlace()) toast.error(`Failed to load more edits: ${message}`);
         set((state) => ({
           analytics: {
             ...state.analytics,

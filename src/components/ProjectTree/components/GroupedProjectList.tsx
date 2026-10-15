@@ -86,6 +86,43 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     });
   };
 
+  /*
+    Collapsing a row (ArrowLeft) is tree state only: the project and any open
+    conversation stay where they are (plan §9b F3, expand is not select).
+    Expanding still opens the project, because the tree can list sessions of
+    the open project only; showing another project's sessions without
+    opening it is the sidebar rework (T7), as is making a re-click collapse.
+  */
+  const collapseProject = (project: ClaudeProject) => {
+    setExpandedProjects((prev) => {
+      if (!prev.has(project.path)) return prev;
+      const next = new Set(prev);
+      next.delete(project.path);
+      return next;
+    });
+  };
+
+  /*
+    Re-expanding the open project's row (ArrowRight after ArrowLeft) is tree
+    state too: the project is already open, so only the row expands. Going
+    through `handleProjectClick` would take its re-click branch and collapse
+    the row again.
+  */
+  const expandOpenProject = (project: ClaudeProject) => {
+    setExpandedProjects((prev) => {
+      if (prev.has(project.path)) return prev;
+      const next = new Set(prev);
+      next.add(project.path);
+      return next;
+    });
+  };
+
+  const toggleProject = (project: ClaudeProject, isExpanded: boolean) => {
+    if (isExpanded) collapseProject(project);
+    else if (selectedProject?.path === project.path) expandOpenProject(project);
+    else handleProjectClick(project);
+  };
+
   const renderProjectWithSessions = (
     project: ClaudeProject,
     variant: "default" | "main" | "worktree" = "default",
@@ -110,7 +147,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           isExpanded={isExpanded}
           isSelected={selectedProject?.path === project.path}
           ariaLevel={ariaLevel}
-          onToggle={() => handleProjectClick(project)}
+          onToggle={() => toggleProject(project, isExpanded)}
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project, providerSiblings)}
           variant={variant}

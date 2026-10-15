@@ -490,7 +490,7 @@ Assistant messages contain additional metadata within the `message` object:
 - Tauri commands are async and return `Result<T, String>`
 - Frontend uses `@tauri-apps/api/core` for invoking backend commands
 - All file paths must be absolute when passed to Rust commands
-- The app uses Tailwind CSS with custom Claude brand colors defined in `tailwind.config.js`
+- The app uses Tailwind CSS v4: theme tokens (brand indigo accent, semantic colours) are CSS custom properties in `src/index.css` (`:root`, `.dark`, mapped via `@theme inline`); there is no `tailwind.config.js`
 - Message components are memoized for performance
 - AutoSizer is used for responsive virtual scrolling
 - Message height is dynamically calculated and cached for variable height scrolling
