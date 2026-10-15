@@ -6,9 +6,13 @@
  *   tab; each title / label key exists in the English locale.
  * - The analytics hook's flags for each view resolve back to that view, so
  *   the registry renders what the place says.
- * - Statically, in `src/layouts`: no nested ternary (`a ? b : c ? d : e`), no
- *   ternary choosing markup on a view condition, and the view bodies are
- *   imported by the registry's screens only.
+ * - Statically, in `src/layouts`: no nested ternary (`a ? b : c ? d : e`) and
+ *   no ternary choosing markup on a view condition.
+ * - Statically, across `src/` (`screenRenderViolations`): the screens and the
+ *   view bodies they wrap are referenced only through the registry, nothing
+ *   picks a registry entry by a literal view, and no `if` / `switch` / `&&` /
+ *   ternary / early return on a view renders one. Self-tested against the
+ *   bypasses the T3 review found (scratch/t3-review/review.md, finding 1).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -19,6 +23,7 @@ import type { ClaudeProject } from "@/types";
 import type { ToolbarView, View } from "@/navigation/place";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsComputed } from "@/hooks/analytics/useAnalyticsComputed";
+import { screenRenderViolations, type SourceText } from "@/test/utils/screenRegistryGuard";
 import {
   MOBILE_ANALYTICS_VIEWS,
   TOOLBAR_TAB_ORDER,
@@ -50,13 +55,18 @@ const TOOLBAR: Record<ToolbarView, true> = {
 
 const SRC = path.resolve(__dirname, "../..");
 
+/** Production sources under `dir`: no tests, no test utilities, no mocks. */
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) return sourceFiles(full);
+    if (statSync(full).isDirectory()) {
+      return entry === "__mocks__" || full === path.join(SRC, "test") ? [] : sourceFiles(full);
+    }
     return /\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry) ? [full] : [];
   });
 }
+
+const relOf = (file: string) => path.relative(SRC, file).split(path.sep).join("/");
 
 const EN_KEYS = new Set(
   readdirSync(path.join(SRC, "i18n/locales/en"))
@@ -69,7 +79,7 @@ const EN_KEYS = new Set(
 );
 
 const LAYOUT_FILES = sourceFiles(path.join(SRC, "layouts")).map((file) => ({
-  rel: path.relative(SRC, file).split(path.sep).join("/"),
+  rel: relOf(file),
   source: ts.createSourceFile(
     file,
     readFileSync(file, "utf8"),
@@ -191,7 +201,7 @@ describe("no view is rendered outside the registry (static scan of src/layouts)"
     expect(picks).toEqual([]);
   });
 
-  it("imports the view bodies from the registry's screens only", () => {
+  it("has the registry's screens import every view body", () => {
     const BODIES = [
       "@/components/MessageViewer",
       "@/components/TokenStatsViewer",
@@ -201,14 +211,265 @@ describe("no view is rendered outside the registry (static scan of src/layouts)"
       "@/components/SessionBoard/SessionBoard",
       "@/components/ArchiveManager",
     ];
-    const importers = LAYOUT_FILES.flatMap(({ rel, source }) =>
-      source.statements
-        .filter(ts.isImportDeclaration)
-        .map((decl) => (decl.moduleSpecifier as ts.StringLiteral).text)
-        .filter((specifier) => BODIES.includes(specifier))
-        .map((specifier) => `${rel} → ${specifier}`)
+    const screens = LAYOUT_FILES.find(({ rel }) => rel === "layouts/shell/screens.tsx");
+    const imported = screens?.source.statements
+      .filter(ts.isImportDeclaration)
+      .map((decl) => (decl.moduleSpecifier as ts.StringLiteral).text);
+    expect(imported).toEqual(expect.arrayContaining(BODIES));
+  });
+});
+
+/** Every production source in `src/`, as the guard reads it. */
+const SRC_FILES: SourceText[] = sourceFiles(SRC).map((file) => ({
+  rel: relOf(file),
+  text: readFileSync(file, "utf8"),
+}));
+
+const textOf = (rel: string) => {
+  const file = SRC_FILES.find((candidate) => candidate.rel === rel);
+  if (!file) throw new Error(`no source ${rel}`);
+  return file.text;
+};
+
+/** The real sources with `rel` replaced (or added) by `text`. */
+const withFile = (rel: string, text: string): SourceText[] => [
+  ...SRC_FILES.filter((file) => file.rel !== rel),
+  { rel, text },
+];
+/** The real sources with `code` appended to `rel`. */
+const withAppended = (rel: string, code: string) => withFile(rel, `${textOf(rel)}\n${code}\n`);
+
+const guard = (files: SourceText[]) => screenRenderViolations(files, VIEWS);
+
+describe("screens render through the registry only (static scan of src/)", () => {
+  it("scans the whole production source tree", () => {
+    expect(SRC_FILES.length).toBeGreaterThan(300);
+    expect(SRC_FILES.map((file) => file.rel)).toEqual(
+      expect.arrayContaining([
+        "App.tsx",
+        "layouts/AppLayout.tsx",
+        "layouts/shell/screens.tsx",
+        "layouts/shell/viewRegistry.ts",
+        "components/SessionBoard/SessionBoard.tsx",
+      ])
     );
-    expect(importers.length).toBe(BODIES.length);
-    expect(importers.filter((line) => !line.startsWith("layouts/shell/screens.tsx"))).toEqual([]);
+  });
+
+  it("finds no violation in the current sources", () => {
+    expect(guard(SRC_FILES)).toEqual([]);
+  });
+
+  /*
+    Each case adds one way of rendering a screen without the registry, to
+    the real sources, and names a violation the guard must report. The first
+    is the reviewer's probe verbatim; it passed the previous guard.
+  */
+  it.each<[name: string, files: () => SourceText[], expected: RegExp[]]>([
+    [
+      "the review's probe: an aliased screen import rendered in an if-branch",
+      () =>
+        withAppended(
+          "layouts/AppLayout.tsx",
+          `import { BoardScreen as BypassScreen } from "@/layouts/shell/screens";
+export const UnregisteredShellView = ({ view }) => {
+  if (view === "board") return <BypassScreen />;
+  return null;
+};`
+        ),
+      [
+        /^layouts\/AppLayout\.tsx:\d+ imports BoardScreen from the screens module/,
+        /^layouts\/AppLayout\.tsx:\d+ renders <BypassScreen> \(BoardScreen\) outside the registry/,
+        /^layouts\/AppLayout\.tsx:\d+ renders <BypassScreen> \(BoardScreen\) under a view condition/,
+      ],
+    ],
+    [
+      "a view body rendered in an if-branch on a view flag",
+      () =>
+        withFile(
+          "layouts/shell/BoardBypass.tsx",
+          `import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
+export const BoardBypass = ({ computed }) => {
+  if (computed.isBoardView) {
+    return <SessionBoard />;
+  }
+  return null;
+};`
+        ),
+      [
+        /^layouts\/shell\/BoardBypass\.tsx:1 imports SessionBoard outside the registry's screens/,
+        /^layouts\/shell\/BoardBypass\.tsx:4 renders <SessionBoard> \(SessionBoard\) outside the registry/,
+        /^layouts\/shell\/BoardBypass\.tsx:4 renders <SessionBoard> \(SessionBoard\) under a view condition/,
+      ],
+    ],
+    [
+      "a screen short-circuited in the shell's markup (namespace import)",
+      () =>
+        withAppended(
+          "layouts/AppLayout.tsx",
+          `import * as Screens from "./shell/screens";
+export const ShortCircuit = ({ screen }) => <div>{screen === "archive" && <Screens.ArchiveScreen />}</div>;`
+        ),
+      [
+        /^layouts\/AppLayout\.tsx:\d+ imports \* from the screens module/,
+        /^layouts\/AppLayout\.tsx:\d+ renders <Screens\.ArchiveScreen> \(ArchiveScreen\) under a view condition/,
+      ],
+    ],
+    [
+      "a switch on the view, through a barrel import",
+      () =>
+        withFile(
+          "components/ViewSwitch.tsx",
+          `import { ArchiveManager as Archive } from "@/components/ArchiveManager";
+export function ViewSwitch({ view }) {
+  switch (view) {
+    case "archive":
+      return <Archive />;
+    default:
+      return null;
+  }
+}`
+        ),
+      [
+        /^components\/ViewSwitch\.tsx:1 imports ArchiveManager outside the registry's screens/,
+        /^components\/ViewSwitch\.tsx:5 renders <Archive> \(ArchiveManager\) under a view condition/,
+      ],
+    ],
+    [
+      "an early return on the view inside the screens module itself",
+      () =>
+        withAppended(
+          "layouts/shell/screens.tsx",
+          `export const ArchiveOnly = ({ view }: ViewScreenProps) => {
+  if (view !== "archive") return null;
+  return <ArchiveManager />;
+};`
+        ),
+      [/^layouts\/shell\/screens\.tsx:\d+ renders <ArchiveManager> \(ArchiveManager\) under a view condition/],
+    ],
+    [
+      "a switch picking screens inside the screens module itself",
+      () =>
+        withAppended(
+          "layouts/shell/screens.tsx",
+          `export const Picker = ({ view }: ViewScreenProps) => {
+  switch (view) {
+    case "board":
+      return <BoardScreen />;
+  }
+  return <EmptyScreen />;
+};`
+        ),
+      [/^layouts\/shell\/screens\.tsx:\d+ renders <BoardScreen> \(BoardScreen\) under a view condition/],
+    ],
+    [
+      "the shell's registry component rendered under a view flag",
+      () => {
+        const shell = textOf("layouts/AppLayout.tsx");
+        const main = /<Frame>\s*<Screen/;
+        expect(shell).toMatch(main);
+        return withFile(
+          "layouts/AppLayout.tsx",
+          shell.replace(main, "<Frame>{computed.isBoardView && <Screen />}<Screen")
+        );
+      },
+      [/^layouts\/AppLayout\.tsx:\d+ renders <Screen> \(entry\.component\) under a view condition/],
+    ],
+    [
+      "a screen laundered through a re-export",
+      () => withFile("layouts/shell/more.ts", `export { BoardScreen as Board } from "./screens";`),
+      [/^layouts\/shell\/more\.ts:1 imports BoardScreen from the screens module/],
+    ],
+    [
+      "a lazily imported view body",
+      () =>
+        withFile(
+          "layouts/LazyBoard.tsx",
+          `import { lazy } from "react";
+export const LazyBoard = lazy(() => import("@/components/SessionBoard/SessionBoard"));`
+        ),
+      [/^layouts\/LazyBoard\.tsx:2 imports \* from components\/SessionBoard\/SessionBoard outside the registry's screens/],
+    ],
+    [
+      "a registry entry picked by a literal view",
+      () =>
+        withAppended(
+          "layouts/shell/ContentHeader.tsx",
+          `export const Pinned = () => {
+  const Board = VIEW_REGISTRY.board.component;
+  return <Board />;
+};`
+        ),
+      [
+        /^layouts\/shell\/ContentHeader\.tsx:\d+ picks VIEW_REGISTRY\.board by a literal view/,
+        /^layouts\/shell\/ContentHeader\.tsx:\d+ reads a registry entry's component outside the shell/,
+      ],
+    ],
+  ])("catches %s", (_name, files, expected) => {
+    const violations = guard(files());
+    expect(violations).toEqual(
+      expect.arrayContaining(expected.map((pattern) => expect.stringMatching(pattern)))
+    );
+  });
+
+  it.each<[name: string, files: () => SourceText[]]>([
+    [
+      "a type-only import from the screens module",
+      () =>
+        withFile(
+          "layouts/shell/ScreenTypes.ts",
+          `import type { ViewScreenProps } from "./screens";
+import { type ViewScreenProps as Props } from "@/layouts/shell/screens";
+export type Both = ViewScreenProps | Props;`
+        ),
+    ],
+    [
+      "a helper imported from inside a view body's folder",
+      () =>
+        withFile(
+          "components/Lifecycle.tsx",
+          `import { getModelLifecycle } from "@/components/AnalyticsDashboard/utils/calculations";
+export const Lifecycle = ({ model }) => <span>{String(getModelLifecycle(model))}</span>;`
+        ),
+    ],
+    [
+      "a view condition choosing a prop, not a screen",
+      () =>
+        withAppended(
+          "layouts/shell/screens.tsx",
+          `export const GlobalOrProject = ({ view }: ViewScreenProps) => (
+  <AnalyticsDashboard isGlobalScope={view === "globalStats"} onRetry={() => undefined} />
+);`
+        ),
+    ],
+    [
+      "a screen chosen on a non-view condition inside the screens module",
+      () =>
+        withAppended(
+          "layouts/shell/screens.tsx",
+          `export const Guarded = ({ ready }: { ready: boolean }) => {
+  if (!ready) return <EmptyScreen />;
+  return <BoardScreen />;
+};`
+        ),
+    ],
+    [
+      "non-screen markup under a view condition",
+      () =>
+        withFile(
+          "layouts/shell/Badge.tsx",
+          `export const Badge = ({ view }) => (view === "board" ? <span>board</span> : null);`
+        ),
+    ],
+    [
+      "the registry read by the resolved view",
+      () =>
+        withFile(
+          "layouts/shell/TitleOf.ts",
+          `import { VIEW_REGISTRY } from "./viewRegistry";
+export const titleOf = (view) => VIEW_REGISTRY[view].titleKey;`
+        ),
+    ],
+  ])("accepts %s", (_name, files) => {
+    expect(guard(files())).toEqual([]);
   });
 });
