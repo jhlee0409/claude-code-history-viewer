@@ -1,0 +1,605 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`header view tabs characterization > claude project, analytics selected 1`] = `
+<div
+  aria-label="header.views"
+  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  role="tablist"
+>
+  <button
+    aria-controls="view-panel"
+    aria-label="message.view"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-conversation"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-message-square w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      message.view
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="analytics.dashboard"
+    aria-selected="true"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-analytics"
+    role="tab"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-bar-chart3 w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M3 3v18h18"
+      />
+      <path
+        d="M18 17V9"
+      />
+      <path
+        d="M13 17V5"
+      />
+      <path
+        d="M8 17v-3"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      analytics.dashboard
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="messages.tokenStats.existing"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-tokenStats"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-activity w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M22 12h-4l-3 9L9 3l-3 9H2"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      messages.tokenStats.existing
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="recentEdits.title"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-edits"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-file-edit w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"
+      />
+      <polyline
+        points="14 2 14 8 20 8"
+      />
+      <path
+        d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      recentEdits.title
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="session.board.title"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-board"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-columns w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="18"
+        rx="2"
+        ry="2"
+        width="18"
+        x="3"
+        y="3"
+      />
+      <line
+        x1="12"
+        x2="12"
+        y1="3"
+        y2="21"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      session.board.title
+    </span>
+  </button>
+</div>
+`;
+
+exports[`header view tabs characterization > loading analytics, token stats and recent edits 1`] = `
+<div
+  aria-label="header.views"
+  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  role="tablist"
+>
+  <button
+    aria-controls="view-panel"
+    aria-label="message.view"
+    aria-selected="true"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-conversation"
+    role="tab"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-message-square w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      message.view
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="analytics.dashboard"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    disabled=""
+    id="view-tab-analytics"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-loader2 w-4 h-4 animate-spin"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 12a9 9 0 1 1-6.219-8.56"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      analytics.dashboard
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="messages.tokenStats.existing"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    disabled=""
+    id="view-tab-tokenStats"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-loader2 w-4 h-4 animate-spin"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 12a9 9 0 1 1-6.219-8.56"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      messages.tokenStats.existing
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="recentEdits.title"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    disabled=""
+    id="view-tab-edits"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-loader2 w-4 h-4 animate-spin"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 12a9 9 0 1 1-6.219-8.56"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      recentEdits.title
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="session.board.title"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-board"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-columns w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="18"
+        rx="2"
+        ry="2"
+        width="18"
+        x="3"
+        y="3"
+      />
+      <line
+        x1="12"
+        x2="12"
+        y1="3"
+        y2="21"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      session.board.title
+    </span>
+  </button>
+</div>
+`;
+
+exports[`header view tabs characterization > non-claude project: board is disabled with the claude-only label 1`] = `
+<div
+  aria-label="header.views"
+  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  role="tablist"
+>
+  <button
+    aria-controls="view-panel"
+    aria-label="message.view"
+    aria-selected="true"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-conversation"
+    role="tab"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-message-square w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      message.view
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="analytics.dashboard"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-analytics"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-bar-chart3 w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M3 3v18h18"
+      />
+      <path
+        d="M18 17V9"
+      />
+      <path
+        d="M13 17V5"
+      />
+      <path
+        d="M8 17v-3"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      analytics.dashboard
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="messages.tokenStats.existing"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-tokenStats"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-activity w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M22 12h-4l-3 9L9 3l-3 9H2"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      messages.tokenStats.existing
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="recentEdits.title"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    id="view-tab-edits"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-file-edit w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"
+      />
+      <polyline
+        points="14 2 14 8 20 8"
+      />
+      <path
+        d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      recentEdits.title
+    </span>
+  </button>
+  <button
+    aria-controls="view-panel"
+    aria-label="common.settings.claudeOnly(session.board.title)"
+    aria-selected="false"
+    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    data-slot="tooltip-trigger"
+    data-state="closed"
+    disabled=""
+    id="view-tab-board"
+    role="tab"
+    tabindex="-1"
+    type="button"
+  >
+    <svg
+      class="lucide lucide-columns w-4 h-4"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="18"
+        rx="2"
+        ry="2"
+        width="18"
+        x="3"
+        y="3"
+      />
+      <line
+        x1="12"
+        x2="12"
+        y1="3"
+        y2="21"
+      />
+    </svg>
+    <span
+      class="hidden xl:inline"
+    >
+      common.settings.claudeOnly(session.board.title)
+    </span>
+  </button>
+</div>
+`;
