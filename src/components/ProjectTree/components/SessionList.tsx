@@ -14,17 +14,11 @@ import {
 import { SessionItem } from "../../SessionItem";
 import { SessionSelectionBar } from "../../SessionItem/components/SessionSelectionBar";
 import { useAppStore } from "@/store/useAppStore";
+import { sessionItemHeight } from "./sessionItemHeight";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
 
-// SessionItem fixed row height. Sized to fit a 2-line wrapped name:
-//   py-2.5 (20px) + name 2 × text-xs/leading-relaxed (39px)
-//   + gap-1.5 (6px) + meta text-2xs (15px) ≈ 80px → 88px with safety margin.
-// Bumping this matters because react-window's FixedSizeList stacks rows at
-// `index * height`; a row taller than the height visually overlaps the next
-// row (#284). line-clamp-2 caps the worst case at 2 lines.
-const SESSION_ITEM_HEIGHT = 88;
 // Virtual scroll을 적용할 최소 세션 수
 const VIRTUALIZATION_THRESHOLD = 20;
 // Virtual list의 최대 표시 높이
@@ -121,7 +115,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
             placeholder={t("session.filter.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
-            className="h-7 pl-7 pr-7 text-xs"
+            className="h-7 pl-7 pr-7 text-list"
           />
           {searchQuery && (
             <button
@@ -179,7 +173,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
 
       {/* Source (entrypoint) segmented filter */}
       <div className="flex items-center gap-1.5">
-        <span className="text-2xs text-muted-foreground shrink-0">
+        <span className="text-caption text-muted-foreground shrink-0">
           {t("session.filter.source.label")}
         </span>
         <div
@@ -195,7 +189,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
                 onClick={() => onEntrypointFilterChange(option)}
                 aria-pressed={isActive}
                 className={cn(
-                  "px-1.5 py-0.5 rounded text-2xs font-medium transition-colors",
+                  "px-1.5 py-0.5 rounded text-caption font-medium transition-colors",
                   isActive
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted/50"
@@ -236,6 +230,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     getSessionDisplayName,
   } = useAppStore();
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
+  const itemHeight = sessionItemHeight(useAppStore((s) => s.fontScale));
   const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
@@ -406,7 +401,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         disabled={isLoadingMoreSessions}
         className={cn(
           "w-full h-8 rounded-md border border-border/60 bg-background/70",
-          "text-2xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          "text-caption font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           "disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
         )}
       >
@@ -455,9 +450,9 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   // 리스트 높이 계산
   const listHeight = useMemo(() => {
-    const totalHeight = filteredAndSortedSessions.length * SESSION_ITEM_HEIGHT;
+    const totalHeight = filteredAndSortedSessions.length * itemHeight;
     return Math.min(totalHeight, isPane && paneListHeight ? paneListHeight : MAX_LIST_HEIGHT);
-  }, [filteredAndSortedSessions.length, isPane, paneListHeight]);
+  }, [filteredAndSortedSessions.length, isPane, paneListHeight, itemHeight]);
 
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
@@ -480,7 +475,7 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   if (sessions.length === 0 && !hasMoreSessions) {
     return (
-      <div className={cn(containerClass, "py-2 text-2xs text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
+      <div className={cn(containerClass, "py-2 text-caption text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
         {t("components:session.notFound", "No sessions")}
       </div>
     );
@@ -496,7 +491,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         {/* Session List */}
         <div className="space-y-1 py-2">
           {filteredAndSortedSessions.length === 0 ? (
-            <div className="py-2 text-2xs text-muted-foreground text-center">
+            <div className="py-2 text-caption text-muted-foreground text-center">
               {t("session.filter.noResults", "No matching sessions")}
             </div>
           ) : (
@@ -530,14 +525,14 @@ export const SessionList: React.FC<SessionListProps> = ({
       {/* Virtual Scroll List */}
       <div className="py-2">
         {filteredAndSortedSessions.length === 0 ? (
-          <div className="py-2 text-2xs text-muted-foreground text-center">
+          <div className="py-2 text-caption text-muted-foreground text-center">
             {t("session.filter.noResults", "No matching sessions")}
           </div>
         ) : (
           <List
             height={listHeight}
             itemCount={filteredAndSortedSessions.length}
-            itemSize={SESSION_ITEM_HEIGHT}
+            itemSize={itemHeight}
             width="100%"
             itemData={itemData}
             overscanCount={5}
