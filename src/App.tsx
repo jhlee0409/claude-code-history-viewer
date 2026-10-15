@@ -57,23 +57,8 @@ function App() {
     isLoadingMessages,
     isLoadingTokenStats,
     error,
-    sessionTokenStats,
-    sessionConversationTokenStats,
-    projectTokenStats,
-    projectConversationTokenStats,
-    projectTokenStatsSummary,
-    projectConversationTokenStatsSummary,
-    projectTokenStatsPagination,
-    sessionSearch,
     navigate,
     loadMoreSessions,
-    setSessionSearchQuery,
-    setSearchFilterType,
-    goToNextMatch,
-    goToPrevMatch,
-    clearSessionSearch,
-    loadMoreProjectTokenStats,
-    loadMoreRecentEdits,
     updateUserSettings,
     getGroupedProjects,
     getDirectoryGroupedProjects,
@@ -82,7 +67,6 @@ function App() {
     hideProject,
     unhideProject,
     isProjectHidden,
-    dateFilter,
     setDateFilter,
     isNavigatorOpen,
     toggleNavigator,
@@ -507,15 +491,6 @@ function App() {
       isLoadingMessages={isLoadingMessages}
       isLoadingTokenStats={isLoadingTokenStats}
       error={error}
-      sessionTokenStats={sessionTokenStats}
-      sessionConversationTokenStats={sessionConversationTokenStats}
-      projectTokenStats={projectTokenStats}
-      projectConversationTokenStats={projectConversationTokenStats}
-      projectTokenStatsSummary={projectTokenStatsSummary}
-      projectConversationTokenStatsSummary={projectConversationTokenStatsSummary}
-      projectTokenStatsPagination={projectTokenStatsPagination}
-      sessionSearch={sessionSearch}
-      dateFilter={dateFilter}
       analyticsState={analyticsState}
       analyticsActions={analyticsActions}
       computed={computed}
@@ -553,14 +528,6 @@ function App() {
       hideProject={hideProject}
       unhideProject={unhideProject}
       isProjectHidden={isProjectHidden}
-      setDateFilter={setDateFilter}
-      setSessionSearchQuery={setSessionSearchQuery}
-      setSearchFilterType={setSearchFilterType}
-      clearSessionSearch={clearSessionSearch}
-      goToNextMatch={goToNextMatch}
-      goToPrevMatch={goToPrevMatch}
-      loadMoreProjectTokenStats={loadMoreProjectTokenStats}
-      loadMoreRecentEdits={loadMoreRecentEdits}
       globalOverviewDescription={globalOverviewDescription}
       liveStatusMessage={liveStatusMessage}
     />

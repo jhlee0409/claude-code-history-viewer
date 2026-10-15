@@ -839,35 +839,35 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
                 data-stub="MessageViewer"
               />
             </div>
-            <div
-              class="hidden md:block"
-            >
-              <aside
-                id="message-navigator"
-              >
-                <div
-                  data-handlers="onResizeStart,onToggleCollapse"
-                  data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
-                  data-stub="MessageNavigator"
-                />
-              </aside>
-            </div>
-            <div
-              class="hidden xl:block"
-            >
-              <aside
-                id="recent-edits-dock"
-              >
-                <div
-                  data-handlers="onResizeStart"
-                  data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-                  data-stub="PanelDock"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden md:block"
+      >
+        <aside
+          id="message-navigator"
+        >
+          <div
+            data-handlers="onResizeStart,onToggleCollapse"
+            data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
+            data-stub="MessageNavigator"
+          />
+        </aside>
+      </div>
+      <div
+        class="hidden xl:block"
+      >
+        <aside
+          id="recent-edits-dock"
+        >
+          <div
+            data-handlers="onResizeStart"
+            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
+            data-stub="PanelDock"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
@@ -1035,22 +1035,22 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
                 </p>
               </div>
             </div>
-            <div
-              class="hidden xl:block"
-            >
-              <aside
-                id="recent-edits-dock"
-              >
-                <div
-                  data-handlers="onResizeStart"
-                  data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-                  data-stub="PanelDock"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden xl:block"
+      >
+        <aside
+          id="recent-edits-dock"
+        >
+          <div
+            data-handlers="onResizeStart"
+            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
+            data-stub="PanelDock"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
@@ -1923,22 +1923,22 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
                 data-stub="MessageViewer"
               />
             </div>
-            <div
-              class="hidden md:block"
-            >
-              <aside
-                id="message-navigator"
-              >
-                <div
-                  data-handlers="onResizeStart,onToggleCollapse"
-                  data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
-                  data-stub="MessageNavigator"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden md:block"
+      >
+        <aside
+          id="message-navigator"
+        >
+          <div
+            data-handlers="onResizeStart,onToggleCollapse"
+            data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
+            data-stub="MessageNavigator"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
@@ -3532,35 +3532,35 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
                 data-stub="MessageViewer"
               />
             </div>
-            <div
-              class="hidden md:block"
-            >
-              <aside
-                id="message-navigator"
-              >
-                <div
-                  data-handlers="onResizeStart,onToggleCollapse"
-                  data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
-                  data-stub="MessageNavigator"
-                />
-              </aside>
-            </div>
-            <div
-              class="hidden xl:block"
-            >
-              <aside
-                id="recent-edits-dock"
-              >
-                <div
-                  data-handlers="onResizeStart"
-                  data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-                  data-stub="PanelDock"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden md:block"
+      >
+        <aside
+          id="message-navigator"
+        >
+          <div
+            data-handlers="onResizeStart,onToggleCollapse"
+            data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
+            data-stub="MessageNavigator"
+          />
+        </aside>
+      </div>
+      <div
+        class="hidden xl:block"
+      >
+        <aside
+          id="recent-edits-dock"
+        >
+          <div
+            data-handlers="onResizeStart"
+            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
+            data-stub="PanelDock"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
@@ -3721,22 +3721,22 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
                 </p>
               </div>
             </div>
-            <div
-              class="hidden xl:block"
-            >
-              <aside
-                id="recent-edits-dock"
-              >
-                <div
-                  data-handlers="onResizeStart"
-                  data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-                  data-stub="PanelDock"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden xl:block"
+      >
+        <aside
+          id="recent-edits-dock"
+        >
+          <div
+            data-handlers="onResizeStart"
+            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
+            data-stub="PanelDock"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"
@@ -4662,22 +4662,22 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
                 data-stub="MessageViewer"
               />
             </div>
-            <div
-              class="hidden md:block"
-            >
-              <aside
-                id="message-navigator"
-              >
-                <div
-                  data-handlers="onResizeStart,onToggleCollapse"
-                  data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
-                  data-stub="MessageNavigator"
-                />
-              </aside>
-            </div>
           </div>
         </div>
       </main>
+      <div
+        class="hidden md:block"
+      >
+        <aside
+          id="message-navigator"
+        >
+          <div
+            data-handlers="onResizeStart,onToggleCollapse"
+            data-props="{"messages":[],"width":280,"isResizing":false,"isCollapsed":false,"asideId":"message-navigator"}"
+            data-stub="MessageNavigator"
+          />
+        </aside>
+      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground"

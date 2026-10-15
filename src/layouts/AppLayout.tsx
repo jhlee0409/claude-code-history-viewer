@@ -1,34 +1,11 @@
 import React from "react";
-import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useTranslation } from "react-i18next";
-import {
-  AlertTriangle,
-  MessageSquare,
-  Database,
-  BarChart3,
-  FileEdit,
-  Coins,
-  Settings,
-  Archive,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertTriangle } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
-import { LoadingSpinner } from "@/components/ui/loading";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
-import { MessageViewer } from "@/components/MessageViewer";
 import { MessageNavigator } from "@/components/MessageNavigator";
-import { PanelDock } from "@/components/PanelDock";
-import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
-import { RecentEditsViewToggle } from "@/components/RecentEditsViewer/RecentEditsViewToggle";
-import { TokenStatsViewer } from "@/components/TokenStatsViewer";
-import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
-import { RecentEditsViewer } from "@/components/RecentEditsViewer";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
-import { SettingsManager } from "@/components/SettingsManager";
-import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
-import { ArchiveManager } from "@/components/ArchiveManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
@@ -45,15 +22,11 @@ import {
   type ClaudeSession,
   type GroupingMode,
   type SessionTokenStats,
-  type DateFilter,
-  type ProjectStatsSummary,
   type AppError,
 } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
-import type { SearchState, SearchFilterType } from "@/store/slices/types";
 import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "@/utils/worktreeUtils";
-import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
 import { usePendingLoadCount } from "@/hooks/usePendingLoad";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import {
@@ -63,7 +36,18 @@ import {
   type MobileTab,
   type View,
 } from "@/navigation/place";
-import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
+import { viewTabId } from "@/layouts/Header/viewTabIds";
+import { ShellLayout } from "@/layouts/shell/ShellLayout";
+import { SkipLinks } from "@/layouts/shell/SkipLinks";
+import { ContentHeader } from "@/layouts/shell/ContentHeader";
+import { MobileAnalyticsSubNav } from "@/layouts/shell/MobileAnalyticsSubNav";
+import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
+import { StatusBar } from "@/layouts/shell/StatusBar";
+import {
+  VIEW_REGISTRY,
+  isMobileAnalyticsView,
+  screenOf,
+} from "@/layouts/shell/viewRegistry";
 
 /** Bottom tab bar id → the screen it opens. */
 const MOBILE_TAB_VIEW: Record<MobileTab | "archive", View> = {
@@ -90,15 +74,6 @@ export interface AppLayoutProps {
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   error: AppError | null;
-  sessionTokenStats: SessionTokenStats | null;
-  sessionConversationTokenStats: SessionTokenStats | null;
-  projectTokenStats: SessionTokenStats[];
-  projectConversationTokenStats: SessionTokenStats[];
-  projectTokenStatsSummary: ProjectStatsSummary | null;
-  projectConversationTokenStatsSummary: ProjectStatsSummary | null;
-  projectTokenStatsPagination: ProjectTokenStatsPagination;
-  sessionSearch: SearchState;
-  dateFilter: DateFilter;
 
   // Analytics
   analyticsState: UseAnalyticsReturn["state"];
@@ -154,25 +129,19 @@ export interface AppLayoutProps {
   hideProject: (projectPath: string) => Promise<void>;
   unhideProject: (projectPath: string) => Promise<void>;
   isProjectHidden: (projectPath: string) => boolean;
-  setDateFilter: (filter: { start: Date | null; end: Date | null }) => void;
-  setSessionSearchQuery: (query: string) => void;
-  setSearchFilterType: (type: SearchFilterType) => void;
-  clearSessionSearch: () => void;
-  goToNextMatch: () => void;
-  goToPrevMatch: () => void;
-  loadMoreProjectTokenStats: (path: string) => Promise<void>;
-  loadMoreRecentEdits: (path: string) => Promise<void>;
 
   // Computed
   globalOverviewDescription: string;
   liveStatusMessage: string;
 }
 
+/**
+ * The app shell, composed: fills the `ShellLayout` slots for the current
+ * screen. What each screen renders, and how it is titled, comes from
+ * `VIEW_REGISTRY`; this component only decides which slots are present.
+ */
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
-  // Loaded window may be partial under message pagination — used to render
-  // the "+" suffix on the message count.
-  const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
   // The dock is panel state, not layout state, so it is read from the store
   // rather than threaded through props like the navigator's older toggle.
   const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
@@ -191,15 +160,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     isLoadingMessages,
     isLoadingTokenStats,
     error,
-    sessionTokenStats,
-    sessionConversationTokenStats,
-    projectTokenStats,
-    projectConversationTokenStats,
-    projectTokenStatsSummary,
-    projectConversationTokenStatsSummary,
-    projectTokenStatsPagination,
-    sessionSearch,
-    dateFilter,
     analyticsState,
     analyticsActions,
     computed,
@@ -237,14 +197,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     hideProject,
     unhideProject,
     isProjectHidden,
-    setDateFilter,
-    setSessionSearchQuery,
-    setSearchFilterType,
-    clearSessionSearch,
-    goToNextMatch,
-    goToPrevMatch,
-    loadMoreProjectTokenStats,
-    loadMoreRecentEdits,
     globalOverviewDescription,
     liveStatusMessage,
   } = props;
@@ -271,10 +223,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     maxWidth: 520,
     storageKey: "sessions-pane-width",
   });
-  const recentEditsDockStats = useAppStore((s) => s.recentEditsDock);
-  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
-  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
-  const navigate = useAppStore((s) => s.navigate);
   // Highlights are projections of the place (plan C3); primitives only, so
   // the selectors stay stable between renders.
   const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
@@ -321,18 +269,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     computed.isAnyLoading
   );
 
-  /*
-    The return trip out of the dock. Mode is only a preference; what actually
-    decides what renders is the place's `view`, so without the third call
-    the panel would simply vanish and leave the user on the transcript, which is
-    not what choosing "Page" promises.
-  */
-  const handleUndockRecentEdits = () => {
-    setRecentEditsMode("page");
-    setRecentEditsDockOpen(false);
-    void navigate({ view: "edits" });
-  };
-
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
@@ -360,198 +296,92 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     );
   }
 
-  /*
-    Built once and rendered from two places: beside a transcript, and beside the
-    "select a session" placeholder. The panel already degrades on its own -
-    `effectiveScope` falls back to "project" with no session, and its request is
-    keyed on the selected project alone - so a project's recent edits stay
-    readable while the user is still choosing which session to open.
+  // The one screen the main area shows; everything per-screen below reads
+  // its registry entry.
+  const screen = screenOf(computed);
+  const entry = VIEW_REGISTRY[screen];
+  const Screen = entry.component;
+  const Frame = entry.frame;
 
-    Gated at xl (1280px), not md. The sidebar (256) plus the navigator (280)
-    plus this dock (340) is 876px of fixed chrome: at md (768) that leaves the
-    transcript nothing at all. 1280 leaves it ~404px, which is the narrowest
-    width this layout was actually reviewed at.
-  */
   /*
-    The dock renders in the transcript branch only, with a session or without
-    one, so the skip link has to track exactly that condition. Keying the link
-    to `selectedSession` was wrong in both directions once the dock stopped
-    needing a session: it hid the link while the panel was on screen, and it
-    left the link pointing at `#recent-edits-dock` on the views that never
-    render a dock at all.
-
-    Derived once and read by both, so the anchor and its target cannot drift
-    apart again. Global stats is a screen of its own, so the conversation
-    screen is exactly the transcript branch.
+    The transcript screen. The dock and the skip links that point into the
+    inspector track exactly this condition, so an anchor and its target cannot
+    drift apart. Global stats is a screen of its own, so the conversation
+    screen is exactly the transcript.
   */
   const isTranscriptView = computed.isMessagesView;
-  const showsGlobalStats = computed.isGlobalStatsView;
+  const showMessageNavigator = entry.inspector && selectedSession != null;
   /*
-    Gated on `xl` in JavaScript, not merely in CSS. The wrapper below is
+    Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
     between 768 and 1279 the panel used to mount, run its effect and fetch a
     page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
     was never the right gate for an `xl` surface.
 
-    Deliberately NOT gated on a selected project. Clicking the selected project
-    in the tree collapses and deselects it, and gating here meant the whole rail
-    vanished on a click the user made to collapse a node - the panel is a
-    workspace fixture, so it stays put and shows its own empty state instead.
-    The stale-rows problem that gate was solving is handled at the source:
-    `clearProjectSelection` drops the dock's fetched page, so there is nothing
-    left of the old project to render.
+    Deliberately NOT gated on a selected session or project. It stays beside
+    the "select a session" placeholder: the panel scopes itself to the project
+    on its own (`effectiveScope` falls back to "project"), so a refresh that
+    clears the session does not blank the one surface still able to say what
+    the project had been touching. And clicking the selected project in the
+    tree collapses and deselects it; the panel is a workspace fixture, so it
+    stays put and shows its own empty state. `clearProjectSelection` drops the
+    dock's fetched page, so there is nothing of the old project to render.
   */
   const showRecentEditsDock =
     isXlUp && isRecentEditsDockOpen && isTranscriptView;
 
-  const recentEditsDock = showRecentEditsDock ? (
-      <div className="hidden xl:block">
-        <PanelDock
-          asideId="recent-edits-dock"
-          isResizing={isRecentEditsDockResizing}
-          onResizeStart={(_group, event) =>
-            handleRecentEditsDockResizeStart(event)
-          }
-          groups={[
-            {
-              tabs: ["recentEdits"],
-              activeTab: "recentEdits",
-              size: recentEditsDockWidth,
-            },
-          ]}
-          panels={{
-            recentEdits: {
-              id: "recentEdits",
-              title: t("recentEdits.title"),
-              /*
-                The same mark the full page uses, scaled to a panel header.
-                Without it the dock read as anonymous text where every other
-                surface in the app leads with an icon in a tinted tile.
-              */
-              icon: (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/20">
-                  <FileEdit className="h-4 w-4 text-accent" aria-hidden="true" />
-                </span>
-              ),
-              /*
-                The same summary the full page shows, from the same counts, so
-                switching between the two shapes does not change what the header
-                tells you. Omitted until a result arrives rather than rendered as
-                zeroes, which would read as "this project has no edits".
-              */
-              subtitle: recentEditsDockStats
-                ? t("recentEdits.stats", {
-                    files: recentEditsDockStats.uniqueFilesCount,
-                    edits: recentEditsDockStats.totalEditsCount,
-                  })
-                : undefined,
-              headerAction: (
-                <RecentEditsViewToggle
-                  value="sidebar"
-                  onChange={(next) => next === "page" && handleUndockRecentEdits()}
-                />
-              ),
-              render: () => <RecentEditsPanel />,
-            },
-          }}
-        />
-      </div>
-    ) : null;
+  const projectTreeProps = {
+    projects,
+    sessions,
+    sessionsTotal,
+    hasMoreSessions,
+    selectedProject,
+    selectedSession,
+    onProjectSelect: handleProjectSelect,
+    onSessionSelect: handleSessionSelect,
+    onSessionHover: handleSessionHover,
+    onLoadMoreSessions: loadMoreSessions,
+    onGlobalStatsClick: handleGlobalStatsClick,
+    isLoading: isLoadingProjects || isLoadingSessions,
+    isLoadingMoreSessions,
+    isGlobalStatsActive: libraryItem === "globalStats",
+    isSelectionRetained: libraryItem !== null,
+  };
+  const groupingProps = {
+    groupingMode,
+    worktreeGroups,
+    directoryGroups,
+    timeGroups,
+    ungroupedProjects,
+    onGroupingModeChange: handleGroupingModeChange,
+    onHideProject: hideProject,
+    onUnhideProject: unhideProject,
+    isProjectHidden,
+  };
 
   return (
-    <TooltipProvider>
-      <div
-        className="h-screen flex flex-col bg-background"
-        data-ready={isSettled ? "true" : "false"}
-      >
-        <nav
-          aria-label={t("common.a11y.skipNavigation", {
-            defaultValue: "Skip navigation",
-          })}
-        >
-          {/*
-            Same rule, second instance. The desktop `ProjectTree` that owns
-            `#project-explorer` renders under `!isMobile`; on mobile the id
-            exists only inside the navigation drawer, and only while it is open.
-            So on mobile with the drawer shut this link resolved to nothing.
-          */}
-          {!isMobile && (
-            <a
-              href="#project-explorer"
-              className="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-            >
-              {t("common.a11y.skipToProjects", {
-                defaultValue: "Skip to project explorer",
-              })}
-            </a>
-          )}
-          {showSessionsPane && (
-            <a
-              href="#sessions-pane"
-              className="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-            >
-              {t("common.a11y.skipToSessions", { defaultValue: "Skip to sessions" })}
-            </a>
-          )}
-          <a
-            href="#main-content"
-            className="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-          >
-            {t("common.a11y.skipToMain", {
-              defaultValue: "Skip to main content",
-            })}
-          </a>
-          {showRecentEditsDock && (
-            <a
-              href="#recent-edits-dock"
-              className="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
-            >
-              {t("common.a11y.skipToRecentEdits", {
-                defaultValue: "Skip to recent edits",
-              })}
-            </a>
-          )}
-          {/*
-            `isTranscriptView` and not just a selected session: `MessageNavigator`
-            renders only in the transcript branch, while `selectedSession`
-            survives switching to analytics, token stats, board, settings or
-            archive. The link was keyed to the proxy, so on those views it stayed
-            in the tab order pointing at an id that was not in the document
-            (#518). Same treatment the recent-edits link above already has.
-          */}
-          {!isMobile && isTranscriptView && isNavigatorOpen && selectedSession && (
-            <a
-              href="#message-navigator"
-              className="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-            >
-              {t("common.a11y.skipToNavigator", {
-                defaultValue: "Skip to message navigator",
-              })}
-            </a>
-          )}
-          <a
-            href="#app-settings-button"
-            className="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-          >
-            {t("common.a11y.skipToSettings", {
-              defaultValue: "Skip to settings",
-            })}
-          </a>
-        </nav>
-
-        {/* Header */}
+    <ShellLayout
+      ready={isSettled}
+      skipLinks={
+        <SkipLinks
+          hasProjectExplorer={!isMobile}
+          hasSessionsPane={showSessionsPane}
+          hasRecentEditsDock={showRecentEditsDock}
+          hasMessageNavigator={
+            !isMobile && isTranscriptView && isNavigatorOpen && selectedSession != null
+          }
+        />
+      }
+      header={
         <Header
           analyticsActions={analyticsActions}
           analyticsComputed={computed}
           updater={updater}
         />
-
-        {/* Mobile Sidebar Drawer */}
-        {isMobile && (
-          <Sheet
-            open={isMobileSidebarOpen}
-            onOpenChange={setIsMobileSidebarOpen}
-          >
+      }
+      drawer={
+        isMobile && (
+          <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
             <SheetContent
               side="left"
               className="w-[var(--mobile-drawer-width)] p-0"
@@ -561,458 +391,155 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 {t("common.mobile.openSidebar")}
               </SheetTitle>
               <ProjectTree
-                projects={projects}
-                sessions={sessions}
-                sessionsTotal={sessionsTotal}
-                hasMoreSessions={hasMoreSessions}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-                onProjectSelect={handleProjectSelect}
-                onSessionSelect={handleSessionSelect}
-                onSessionHover={handleSessionHover}
-                onLoadMoreSessions={loadMoreSessions}
-                onGlobalStatsClick={handleGlobalStatsClick}
-                isLoading={isLoadingProjects || isLoadingSessions}
-                isLoadingMoreSessions={isLoadingMoreSessions}
-                isGlobalStatsActive={libraryItem === "globalStats"}
-                isSelectionRetained={libraryItem !== null}
-                groupingMode={groupingMode}
-                worktreeGroups={worktreeGroups}
-                directoryGroups={directoryGroups}
-                timeGroups={timeGroups}
-                ungroupedProjects={ungroupedProjects}
-                onGroupingModeChange={handleGroupingModeChange}
-                onHideProject={hideProject}
-                onUnhideProject={unhideProject}
-                isProjectHidden={isProjectHidden}
+                {...projectTreeProps}
+                {...groupingProps}
                 onClose={() => setIsMobileSidebarOpen(false)}
                 asideId="project-explorer"
               />
             </SheetContent>
           </Sheet>
-        )}
-
-        {/* Main Content */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Desktop Sidebar */}
-          {!isMobile && (
+        )
+      }
+      sidebar={
+        !isMobile && (
+          <div className="hidden md:block">
+            <ProjectTree
+              {...projectTreeProps}
+              inlineSessions={!showSessionsPane}
+              width={isSidebarCollapsed ? undefined : sidebarWidth}
+              isResizing={isSidebarResizing}
+              onResizeStart={handleSidebarResizeStart}
+              {...groupingProps}
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={handleToggleSidebar}
+              asideId="project-explorer"
+            />
+          </div>
+        )
+      }
+      list={
+        showSessionsPane && (
+          <SessionsPane
+            selectedProject={selectedProject}
+            sessions={sessions}
+            sessionsTotal={sessionsTotal}
+            hasMoreSessions={hasMoreSessions}
+            selectedSession={selectedSession}
+            isLoading={isLoadingSessions}
+            isLoadingMoreSessions={isLoadingMoreSessions}
+            onSessionSelect={handleSessionSelect}
+            onSessionHover={handleSessionHover}
+            onLoadMoreSessions={loadMoreSessions}
+            formatTimeAgo={formatTimeAgo}
+            width={sessionsPaneWidth}
+            isResizing={isSessionsPaneResizing}
+            onResizeStart={handleSessionsPaneResizeStart}
+          />
+        )
+      }
+      mainHeader={
+        <>
+          <ContentHeader
+            view={screen}
+            selectedSession={selectedSession}
+            globalOverviewDescription={globalOverviewDescription}
+          />
+          {isMobile && selectedProject && isMobileAnalyticsView(screen) && (
+            <MobileAnalyticsSubNav view={screen} analyticsActions={analyticsActions} />
+          )}
+        </>
+      }
+      main={
+        <Frame>
+          <Screen
+            view={screen}
+            analyticsState={analyticsState}
+            analyticsActions={analyticsActions}
+            onTokenStatClick={handleTokenStatClick}
+          />
+        </Frame>
+      }
+      mainLabelledBy={viewPanelLabel}
+      inspector={
+        <>
+          {showMessageNavigator && (
             <div className="hidden md:block">
-              <ProjectTree
-                projects={projects}
-                sessions={sessions}
-                sessionsTotal={sessionsTotal}
-                hasMoreSessions={hasMoreSessions}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-                onProjectSelect={handleProjectSelect}
-                onSessionSelect={handleSessionSelect}
-                onSessionHover={handleSessionHover}
-                onLoadMoreSessions={loadMoreSessions}
-                onGlobalStatsClick={handleGlobalStatsClick}
-                isLoading={isLoadingProjects || isLoadingSessions}
-                isLoadingMoreSessions={isLoadingMoreSessions}
-                isGlobalStatsActive={libraryItem === "globalStats"}
-                isSelectionRetained={libraryItem !== null}
-                inlineSessions={!showSessionsPane}
-                width={isSidebarCollapsed ? undefined : sidebarWidth}
-                isResizing={isSidebarResizing}
-                onResizeStart={handleSidebarResizeStart}
-                groupingMode={groupingMode}
-                worktreeGroups={worktreeGroups}
-                directoryGroups={directoryGroups}
-                timeGroups={timeGroups}
-                ungroupedProjects={ungroupedProjects}
-                onGroupingModeChange={handleGroupingModeChange}
-                onHideProject={hideProject}
-                onUnhideProject={unhideProject}
-                isProjectHidden={isProjectHidden}
-                isCollapsed={isSidebarCollapsed}
-                onToggleCollapse={handleToggleSidebar}
-                asideId="project-explorer"
+              <MessageNavigator
+                messages={messages}
+                width={navigatorWidth}
+                isResizing={isNavigatorResizing}
+                onResizeStart={handleNavigatorResizeStart}
+                isCollapsed={!isNavigatorOpen}
+                onToggleCollapse={toggleNavigator}
+                asideId="message-navigator"
               />
             </div>
           )}
+          {/*
+            Outermost on the right, after the navigator rather than before it.
+            The navigator is an outline OF the transcript, so it belongs
+            against the transcript it indexes; the dock is a separate surface
+            about the project and sits outside it.
+          */}
+          {showRecentEditsDock && (
+            <RecentEditsDock
+              width={recentEditsDockWidth}
+              isResizing={isRecentEditsDockResizing}
+              onResizeStart={handleRecentEditsDockResizeStart}
+            />
+          )}
+        </>
+      }
+      statusBar={
+        <StatusBar
+          isDesktop={isDesktop}
+          appVersion={appVersion}
+          projectCount={projects.length}
+          sessionCount={sessions.length}
+          messageCount={
+            selectedSession && computed.isMessagesView ? messages.length : null
+          }
+          isLoading={isLoading}
+          isLoadingProjects={isLoadingProjects}
+          isLoadingSessions={isLoadingSessions}
+          isLoadingMessages={isLoadingMessages}
+          isLoadingStats={computed.isAnyLoading}
+        />
+      }
+      chrome={
+        <>
+          <div
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {liveStatusMessage}
+          </div>
 
-          {showSessionsPane && (
-            <SessionsPane
-              selectedProject={selectedProject}
-              sessions={sessions}
-              sessionsTotal={sessionsTotal}
-              hasMoreSessions={hasMoreSessions}
-              selectedSession={selectedSession}
-              isLoading={isLoadingSessions}
-              isLoadingMoreSessions={isLoadingMoreSessions}
-              onSessionSelect={handleSessionSelect}
-              onSessionHover={handleSessionHover}
-              onLoadMoreSessions={loadMoreSessions}
-              formatTimeAgo={formatTimeAgo}
-              width={sessionsPaneWidth}
-              isResizing={isSessionsPaneResizing}
-              onResizeStart={handleSessionsPaneResizeStart}
+          {/* Update Manager (desktop only) */}
+          <DesktopOnly>
+            <SimpleUpdateManager updater={updater} />
+          </DesktopOnly>
+
+          {isMobile && (
+            <BottomTabBar
+              activeTab={mobileTab}
+              onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+              onSwitchView={(tab) => {
+                const view = MOBILE_TAB_VIEW[tab as keyof typeof MOBILE_TAB_VIEW];
+                if (view) void analyticsActions.openView(view);
+              }}
+              hasProject={!!selectedProject}
             />
           )}
 
-          {/* Main Content Area */}
-          <main
-            id="main-content"
-            data-slot="main"
-            tabIndex={-1}
-            className="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
-          >
-            {/* Content Header for non-message views */}
-            {(computed.isTokenStatsView ||
-              computed.isAnalyticsView ||
-              computed.isRecentEditsView ||
-              computed.isSettingsView ||
-              computed.isBoardView ||
-              computed.isArchiveView ||
-              showsGlobalStats) && (
-              <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-                    {showsGlobalStats ? (
-                      <Database className="w-5 h-5 text-accent" />
-                    ) : computed.isArchiveView ? (
-                      <Archive className="w-5 h-5 text-accent" />
-                    ) : computed.isSettingsView ? (
-                      <Settings className="w-5 h-5 text-accent" />
-                    ) : computed.isAnalyticsView ? (
-                      <BarChart3 className="w-5 h-5 text-accent" />
-                    ) : computed.isRecentEditsView ? (
-                      <FileEdit className="w-5 h-5 text-accent" />
-                    ) : computed.isBoardView ? (
-                      <MessageSquare className="w-5 h-5 text-accent" />
-                    ) : (
-                      <Coins className="w-5 h-5 text-accent" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">
-                      {showsGlobalStats
-                        ? t("analytics.globalOverview")
-                        : computed.isArchiveView
-                          ? t("archive.title")
-                          : computed.isSettingsView
-                            ? t("settingsManager.title")
-                            : computed.isAnalyticsView
-                            ? t("analytics.dashboard")
-                            : computed.isRecentEditsView
-                              ? t("recentEdits.title")
-                              : computed.isBoardView
-                                ? t("session.board.title")
-                                : t("messages.tokenStats.title")}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {showsGlobalStats
-                        ? globalOverviewDescription
-                        : computed.isArchiveView
-                          ? t("archive.description")
-                          : computed.isSettingsView
-                            ? t("settingsManager.description")
-                            : computed.isRecentEditsView
-                            ? t("recentEdits.description")
-                            : computed.isBoardView
-                              ? t(
-                                  "session.board.description",
-                                  "Comparative overview of different sessions"
-                                )
-                              : selectedSession?.summary ||
-                                t("session.summaryNotFound")}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Mobile Analytics Sub-Nav */}
-            {isMobile &&
-              selectedProject &&
-              (computed.isAnalyticsView ||
-                computed.isTokenStatsView ||
-                computed.isRecentEditsView) && (
-                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto">
-                  <button
-                    type="button"
-                    onClick={() => analyticsActions.switchToAnalytics()}
-                    className={cn(
-                      "shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors",
-                      computed.isAnalyticsView
-                        ? "bg-accent/15 text-accent border border-accent/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    {t("analytics.dashboard")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => analyticsActions.switchToTokenStats()}
-                    className={cn(
-                      "shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors",
-                      computed.isTokenStatsView
-                        ? "bg-accent/15 text-accent border border-accent/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Coins className="w-3.5 h-3.5" />
-                    {t("messages.tokenStats.title")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => analyticsActions.switchToRecentEdits()}
-                    className={cn(
-                      "shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-xs font-medium transition-colors",
-                      computed.isRecentEditsView
-                        ? "bg-accent/15 text-accent border border-accent/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <FileEdit className="w-3.5 h-3.5" />
-                    {t("recentEdits.title")}
-                  </button>
-                </div>
-              )}
-
-            {/* Content */}
-            <div
-              id={VIEW_PANEL_ID}
-              role={viewPanelLabel ? "tabpanel" : undefined}
-              aria-labelledby={viewPanelLabel}
-              className="flex-1 overflow-hidden"
-            >
-              {computed.isArchiveView ? (
-                <div className="h-full flex flex-col p-3 md:p-6">
-                  <ArchiveManager
-                    className="flex-1 min-h-0"
-                  />
-                </div>
-              ) : computed.isSettingsView ? (
-                <div className="h-full flex flex-col p-3 md:p-6">
-                  <SettingsManager
-                    projectPath={selectedProject?.actual_path}
-                    className="flex-1 min-h-0"
-                  />
-                </div>
-              ) : computed.isBoardView ? (
-                <SessionBoard />
-              ) : computed.isRecentEditsView ? (
-                <OverlayScrollbarsComponent
-                  className="h-full"
-                  options={{
-                    scrollbars: {
-                      theme: "os-theme-custom",
-                      autoHide: "leave",
-                    },
-                  }}
-                >
-                  <RecentEditsViewer
-                    recentEdits={analyticsState.recentEdits}
-                    pagination={analyticsState.recentEditsPagination}
-                    onLoadMore={() =>
-                      selectedProject &&
-                      loadMoreRecentEdits(selectedProject.path)
-                    }
-                    isLoading={analyticsState.isLoadingRecentEdits}
-                    error={analyticsState.recentEditsError}
-                    initialSearchQuery={analyticsState.recentEditsSearchQuery}
-                  />
-                </OverlayScrollbarsComponent>
-              ) : computed.isAnalyticsView || computed.isGlobalStatsView ? (
-                <OverlayScrollbarsComponent
-                  className="h-full"
-                  options={{
-                    scrollbars: {
-                      theme: "os-theme-custom",
-                      autoHide: "leave",
-                    },
-                  }}
-                >
-                  <AnalyticsDashboard
-                    isGlobalScope={computed.isGlobalStatsView}
-                    onRetry={() => void analyticsActions.refreshAnalytics()}
-                  />
-                </OverlayScrollbarsComponent>
-              ) : computed.isTokenStatsView ? (
-                <OverlayScrollbarsComponent
-                  className="h-full"
-                  options={{
-                    scrollbars: {
-                      theme: "os-theme-custom",
-                      autoHide: "leave",
-                    },
-                  }}
-                >
-                  <div className="p-3 md:p-6">
-                    <TokenStatsViewer
-                      sessionStats={sessionTokenStats}
-                      sessionConversationStats={sessionConversationTokenStats}
-                      projectStats={projectTokenStats}
-                      projectConversationStats={projectConversationTokenStats}
-                      projectStatsSummary={projectTokenStatsSummary}
-                      projectConversationStatsSummary={
-                        projectConversationTokenStatsSummary
-                      }
-                      providerId={selectedProject?.provider ?? "claude"}
-                      pagination={projectTokenStatsPagination}
-                      onLoadMore={() =>
-                        selectedProject &&
-                        loadMoreProjectTokenStats(selectedProject.path)
-                      }
-                      isLoading={isLoadingTokenStats}
-                      dateFilter={dateFilter}
-                      setDateFilter={setDateFilter}
-                      onSessionClick={handleTokenStatClick}
-                    />
-                  </div>
-                </OverlayScrollbarsComponent>
-              ) : selectedSession && !computed.isEmptyView ? (
-                <div className="flex h-full overflow-hidden">
-                  <div className="flex-1 min-w-0 overflow-x-hidden">
-                    <MessageViewer
-                      messages={messages}
-                      isLoading={isLoading}
-                      selectedSession={selectedSession}
-                      sessionSearch={sessionSearch}
-                      onSearchChange={setSessionSearchQuery}
-                      onFilterTypeChange={setSearchFilterType}
-                      onClearSearch={clearSessionSearch}
-                      onNextMatch={goToNextMatch}
-                      onPrevMatch={goToPrevMatch}
-                      onBack={() => analyticsActions.switchToBoard()}
-                    />
-                  </div>
-                  <div className="hidden md:block">
-                    <MessageNavigator
-                      messages={messages}
-                      width={navigatorWidth}
-                      isResizing={isNavigatorResizing}
-                      onResizeStart={handleNavigatorResizeStart}
-                      isCollapsed={!isNavigatorOpen}
-                      onToggleCollapse={toggleNavigator}
-                      asideId="message-navigator"
-                    />
-                  </div>
-                  {/*
-                    Outermost on the right, after the navigator rather than
-                    before it. The navigator is an outline OF the transcript, so
-                    it belongs against the transcript it indexes; the dock is a
-                    separate surface about the project and sits outside it.
-                  */}
-                  {recentEditsDock}
-                </div>
-              ) : (
-                /*
-                  Empty State. The dock stays mounted here: a project is already
-                  chosen at this point, only a session is not, and the panel
-                  scopes itself to the project on its own. Unmounting it meant a
-                  refresh that cleared the session also blanked the one surface
-                  still able to say what the project had been touching.
-                */
-                <div className="h-full flex">
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center max-w-sm mx-auto">
-                      <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                        <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
-                      </div>
-                      <h3 className="text-lg font-medium text-foreground mb-2">
-                        {t("session.select")}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {t("session.selectDescription")}
-                      </p>
-                    </div>
-                  </div>
-                  {recentEditsDock}
-                </div>
-              )}
-            </div>
-          </main>
-        </div>
-
-        {/* Status Bar (desktop only) */}
-        <footer className="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
-          <div className="flex items-center gap-3 font-mono tabular-nums">
-            <span>
-              {isDesktop
-                ? t("status.versionLabel", "v{{version}}", {
-                    version: appVersion,
-                  })
-                : t("status.webMode", "Web")}
-            </span>
-            <span className="text-border">&bull;</span>
-            <span>{t("project.count", { count: projects.length })}</span>
-            <span className="text-border">&bull;</span>
-            <span>{t("session.count", { count: sessions.length })}</span>
-            {selectedSession && computed.isMessagesView && (
-              <>
-                <span className="text-border">&bull;</span>
-                <span>
-                  {t("message.count", { count: messages.length })}
-                  {hasMoreMessages ? "+" : ""}
-                </span>
-              </>
-            )}
-          </div>
-
-          {(isLoading ||
-            isLoadingProjects ||
-            isLoadingSessions ||
-            isLoadingMessages ||
-            computed.isAnyLoading) && (
-            <div className="flex items-center gap-1.5">
-              <LoadingSpinner size="xs" variant="muted" />
-              <span>
-                {isLoading
-                  ? t("status.initializing")
-                  : isLoadingProjects
-                    ? t("status.scanning")
-                    : isLoadingSessions
-                      ? t("status.loadingSessions")
-                      : isLoadingMessages
-                        ? t("status.loadingMessages")
-                        : computed.isAnyLoading
-                          ? t("status.loadingStats")
-                          : null}
-              </span>
-            </div>
+          {isMobile && selectedSession && computed.isMessagesView && (
+            <MobileNavigatorSheet messages={messages} />
           )}
-        </footer>
-
-        <div
-          className="sr-only"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {liveStatusMessage}
-        </div>
-
-        {/* Update Manager (desktop only) */}
-        <DesktopOnly>
-          <SimpleUpdateManager updater={updater} />
-        </DesktopOnly>
-
-        {/* Mobile Bottom Tab Bar */}
-        {isMobile && (
-          <BottomTabBar
-            activeTab={mobileTab}
-            onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-            onSwitchView={(tab) => {
-              const view = MOBILE_TAB_VIEW[tab as keyof typeof MOBILE_TAB_VIEW];
-              if (view) void analyticsActions.openView(view);
-            }}
-            hasProject={!!selectedProject}
-          />
-        )}
-
-        {/* Mobile Navigator Sheet */}
-        {isMobile && selectedSession && computed.isMessagesView && (
-          <MobileNavigatorSheet messages={messages} />
-        )}
-      </div>
-
-      {/* Modals */}
-      <ModalContainer />
-    </TooltipProvider>
+        </>
+      }
+      modals={<ModalContainer />}
+    />
   );
 };
