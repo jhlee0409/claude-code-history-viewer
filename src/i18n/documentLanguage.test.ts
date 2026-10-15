@@ -52,6 +52,38 @@ describe("html[lang] follows the app language", () => {
     expect(document.documentElement.lang).toBe(language);
   });
 
+  // BCP 47 tags a browser, the OS or an older build may hand over: i18next
+  // must resolve them to the same app language html[lang] gets, so the first
+  // render's translations and fonts agree (zh-Hant must not render as en).
+  const ALIASES = [
+    ["zh-Hant", "zh-TW"],
+    ["zh-HK", "zh-TW"],
+    ["zh-MO", "zh-TW"],
+    ["zh-Hant-HK", "zh-TW"],
+    ["zh-Hans", "zh-CN"],
+    ["zh-CN", "zh-CN"],
+    ["zh-TW", "zh-TW"],
+    ["zh", "zh-CN"],
+    ["ja-JP", "ja"],
+    ["ko-KR", "ko"],
+    ["en-US", "en"],
+  ] as const;
+
+  it.each(ALIASES)("cold start with stored %s resolves i18n and html[lang] to %s before any render", async (stored, expected) => {
+    localStorage.setItem("i18nextLng", stored);
+    const { default: i18n } = await import("./index");
+    expect(i18n.resolvedLanguage).toBe(expected);
+    expect(i18n.language).toBe(expected);
+    expect(document.documentElement.lang).toBe(expected);
+  });
+
+  it.each(ALIASES)("cold start with browser language %s resolves i18n and html[lang] to %s before any render", async (detected, expected) => {
+    vi.stubGlobal("navigator", { ...navigator, language: detected, languages: [detected] });
+    const { default: i18n } = await import("./index");
+    expect(i18n.resolvedLanguage).toBe(expected);
+    expect(document.documentElement.lang).toBe(expected);
+  });
+
   it("cold start without a stored language uses the detected browser language", async () => {
     vi.stubGlobal("navigator", { ...navigator, language: "ja-JP", languages: ["ja-JP"] });
     await import("./index");
