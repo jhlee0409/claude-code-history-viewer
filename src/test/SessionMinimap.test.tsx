@@ -1,17 +1,29 @@
 import React, { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import type { Virtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { SessionMinimap } from "@/components/MessageViewer/components/SessionMinimap";
 import {
+  MINIMAP_BAND_MAX_SHARE,
   MINIMAP_BAR_PAD_PX,
+  MINIMAP_CURRENT_TICK_HEIGHT_PX,
   MINIMAP_TICK_GUTTER_PX,
+  MINIMAP_TICK_HEIGHT_PX,
   minimapScale,
+  minimapTickX,
   scrollTopForStripY,
   viewportBox,
 } from "@/components/MessageViewer/helpers/minimapLayout";
 import type { FlattenedMessage, FlattenedMessageItem } from "@/components/MessageViewer/types";
 import type { ClaudeMessage } from "@/types";
+
+// Keys come back as themselves; a count is appended so plural strings are checkable.
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) =>
+      options?.count === undefined ? key : `${key}:${options.count}`,
+  }),
+}));
 
 /** Mirrors `messageKinds.test.ts`'s fixture builder. */
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage =>
@@ -141,7 +153,7 @@ function stubComputedStyle() {
 function installCanvasContextMock() {
   const ctx = {
     fillRect: vi.fn((x: number, y: number, w: number, h: number) => {
-      paints.push({ x, y, w, h, alpha: ctx.globalAlpha });
+      paints.push({ x, y, w, h, alpha: ctx.globalAlpha, fill: ctx.fillStyle });
     }),
     clearRect: vi.fn(),
     setTransform: vi.fn(),
@@ -149,7 +161,7 @@ function installCanvasContextMock() {
     globalAlpha: 1,
   };
   // Each fillRect with the globalAlpha in force when it ran.
-  const paints: { x: number; y: number; w: number; h: number; alpha: number }[] = [];
+  const paints: { x: number; y: number; w: number; h: number; alpha: number; fill: string }[] = [];
   Object.assign(ctx, { paints });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     ctx as unknown as CanvasRenderingContext2D,
@@ -568,5 +580,244 @@ describe("SessionMinimap", () => {
     expect(resizeDisconnect).toHaveBeenCalled();
     expect(mutationDisconnect).toHaveBeenCalled();
     expect(scrollEl.removeEventListener).toHaveBeenCalledWith("scroll", expect.any(Function));
+  });
+});
+
+describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", () => {
+  type Paint = { x: number; y: number; w: number; h: number; alpha: number; fill: string };
+
+  /** 8,215 of 8,415 unloaded: far over the cap, so the band is a quarter of the strip. */
+  const LONG_SESSION = { hasMore: true, unloadedCount: 8215, totalCount: 8415 };
+  const CAPPED_BAND = STRIP_HEIGHT * MINIMAP_BAND_MAX_SHARE;
+
+  function renderStrip(
+    props: Partial<React.ComponentProps<typeof SessionMinimap>> = {},
+    scroll: Parameters<typeof makeScrollElement>[0] = { scrollTop: 0, clientHeight: 400, scrollHeight: 300 },
+  ) {
+    const rafQueue = installControllableRAF();
+    stubComputedStyle();
+    const ctx = installCanvasContextMock() as ReturnType<typeof installCanvasContextMock> & { paints: Paint[] };
+    const scrollEl = makeScrollElement(scroll);
+    const utils = render(
+      <SessionMinimap
+        virtualizer={makeVirtualizer()}
+        flattenedMessages={SAMPLE_FLATTENED}
+        virtualRows={[] as VirtualItem[]}
+        totalSize={SAMPLE_TOTAL_SIZE}
+        getScrollElement={() => scrollEl as unknown as HTMLElement}
+        {...props}
+      />,
+    );
+    return { ...utils, rafQueue, ctx, scrollEl };
+  }
+
+  /** jsdom has no PointerEvent; React reads `clientY` off any MouseEvent of the right type. */
+  const pointer = (target: Element, type: string, clientY: number) =>
+    act(() => {
+      target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientY } as MouseEventInit));
+    });
+
+  describe("not-loaded band", () => {
+    it("renders no band when every page is loaded", () => {
+      const { queryByTestId } = renderStrip({ hasMore: false, unloadedCount: 0, totalCount: 3 });
+      expect(queryByTestId("session-minimap-band")).toBeNull();
+    });
+
+    it("renders the band at the capped unloaded share of the strip", () => {
+      const { getByTestId } = renderStrip(LONG_SESSION);
+      expect(getByTestId("session-minimap-band").style.height).toBe(`${CAPPED_BAND}px`);
+    });
+
+    it("shows the unloaded count on the band", () => {
+      const { getByTestId } = renderStrip(LONG_SESSION);
+      expect(getByTestId("session-minimap-band")).toHaveTextContent((8215).toLocaleString());
+    });
+
+    it("starts the viewport box at the band's bottom edge at the top of the list", () => {
+      const { getByTestId } = renderStrip(LONG_SESSION);
+      expect(getByTestId("session-minimap-viewport").style.top).toBe(`${CAPPED_BAND}px`);
+    });
+
+    it("paints the session blocks below the band", () => {
+      const { rafQueue, ctx } = renderStrip(LONG_SESSION);
+      rafQueue.flush();
+      const ys = ctx.paints.map((paint) => paint.y);
+      expect(ys.length).toBeGreaterThan(0);
+      expect(Math.min(...ys)).toBeGreaterThanOrEqual(CAPPED_BAND);
+      expect(Math.max(...ys)).toBeLessThan(STRIP_HEIGHT);
+    });
+
+    it("maps a click below the band onto the region below it", () => {
+      const { getByTestId, scrollEl } = renderStrip(LONG_SESSION, {
+        scrollTop: 0,
+        clientHeight: 400,
+        scrollHeight: 4000,
+      });
+      const clickY = 120;
+      act(() => {
+        getByTestId("session-minimap").dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true, clientY: clickY } as MouseEventInit),
+        );
+      });
+      const mapHeight = STRIP_HEIGHT - CAPPED_BAND;
+      const scale = minimapScale(4000, mapHeight);
+      expect(scrollEl.scrollTop).toBe(scrollTopForStripY(clickY - CAPPED_BAND, scale, 400, 4000));
+    });
+
+    it("loads one older page on a band click, without scrolling the list", () => {
+      const onLoadEarlier = vi.fn();
+      const { getByTestId, scrollEl } = renderStrip(
+        { ...LONG_SESSION, onLoadEarlier },
+        { scrollTop: 500, clientHeight: 400, scrollHeight: 4000 },
+      );
+      act(() => {
+        getByTestId("session-minimap-band").dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true, clientY: 10 } as MouseEventInit),
+        );
+      });
+      expect(onLoadEarlier).toHaveBeenCalledTimes(1);
+      expect(scrollEl.scrollTop).toBe(500);
+    });
+
+    it("ignores a band click while a page is loading", () => {
+      const onLoadEarlier = vi.fn();
+      const { getByTestId } = renderStrip({ ...LONG_SESSION, isLoadingMore: true, onLoadEarlier });
+      act(() => {
+        getByTestId("session-minimap-band").dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true, clientY: 10 } as MouseEventInit),
+        );
+      });
+      expect(onLoadEarlier).not.toHaveBeenCalled();
+    });
+
+    it("does not start a drag from a press on the band", () => {
+      const { getByTestId, scrollEl } = renderStrip(LONG_SESSION, {
+        scrollTop: 0,
+        clientHeight: 400,
+        scrollHeight: 4000,
+      });
+      pointer(getByTestId("session-minimap-band"), "pointerdown", 10);
+      pointer(getByTestId("session-minimap"), "pointermove", 150);
+      expect(scrollEl.scrollTop).toBe(0);
+    });
+  });
+
+  describe("search ticks", () => {
+    const UUID_TO_INDEX = new Map([
+      ["p1", 0],
+      ["r1", 1],
+      ["t1", 2],
+    ]);
+
+    it("paints one tick per matched row in the right gutter, the current one taller", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["p1", "t1"]),
+        currentMatchUuid: "t1",
+        uuidToIndexMap: UUID_TO_INDEX,
+      });
+      rafQueue.flush();
+
+      const tickX = minimapTickX(STRIP_WIDTH);
+      const plain = ctx.paints.filter((paint) => paint.x === tickX && paint.h === MINIMAP_TICK_HEIGHT_PX);
+      const current = ctx.paints.filter(
+        (paint) => paint.x === tickX && paint.h === MINIMAP_CURRENT_TICK_HEIGHT_PX,
+      );
+      expect(plain).toHaveLength(1);
+      expect(current).toHaveLength(1);
+      // The current tick is the last thing painted, over its neighbors.
+      expect(ctx.paints[ctx.paints.length - 1]).toBe(current[0]);
+    });
+
+    it("never lets a bar paint into the tick's columns", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["p1"]),
+        currentMatchUuid: "p1",
+        uuidToIndexMap: UUID_TO_INDEX,
+      });
+      rafQueue.flush();
+      const tickX = minimapTickX(STRIP_WIDTH);
+      const bars = ctx.paints.filter((paint) => paint.x === MINIMAP_BAR_PAD_PX);
+      expect(bars.length).toBeGreaterThan(0);
+      for (const bar of bars) expect(bar.x + bar.w).toBeLessThanOrEqual(tickX - 1);
+    });
+
+    it("reads tick colors from the search-highlight tokens", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["p1", "t1"]),
+        currentMatchUuid: "t1",
+        uuidToIndexMap: UUID_TO_INDEX,
+      });
+      rafQueue.flush();
+      const tickX = minimapTickX(STRIP_WIDTH);
+      const fills = ctx.paints.filter((paint) => paint.x >= tickX - 1).map((paint) => paint.fill);
+      expect(fills).toContain("resolved(--highlight-foreground)");
+      expect(fills).toContain("resolved(--highlight-current)");
+    });
+
+    it("draws no tick for a match whose row is not loaded", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["unloaded-uuid"]),
+        currentMatchUuid: "unloaded-uuid",
+        uuidToIndexMap: UUID_TO_INDEX,
+      });
+      rafQueue.flush();
+      expect(ctx.paints.filter((paint) => paint.x >= minimapTickX(STRIP_WIDTH) - 1)).toHaveLength(0);
+    });
+  });
+
+  describe("hover preview", () => {
+    it("shows the hovered row's kind label and a text snippet", () => {
+      // 300px of content on a 200px strip: the prompt covers y 0 to 66.
+      const { getByTestId } = renderStrip();
+      pointer(getByTestId("session-minimap"), "pointermove", 10);
+      const tooltip = getByTestId("session-minimap-tooltip");
+      expect(tooltip).toHaveTextContent("navigator.kind.prompt");
+      expect(tooltip).toHaveTextContent("a typed prompt");
+    });
+
+    it("follows the pointer to another row", () => {
+      const { getByTestId } = renderStrip();
+      pointer(getByTestId("session-minimap"), "pointermove", 10);
+      pointer(getByTestId("session-minimap"), "pointermove", 100);
+      const tooltip = getByTestId("session-minimap-tooltip");
+      expect(tooltip).toHaveTextContent("navigator.kind.reply");
+      expect(tooltip).toHaveTextContent("a reply");
+    });
+
+    it("shows the not-loaded text, with any unloaded match count, over the band", () => {
+      const { getByTestId } = renderStrip({ ...LONG_SESSION, notLoadedMatchCount: 3 });
+      pointer(getByTestId("session-minimap"), "pointermove", 10);
+      const tooltip = getByTestId("session-minimap-tooltip");
+      expect(tooltip).toHaveTextContent("messageViewer.minimap.notLoadedTitle");
+      expect(tooltip).toHaveTextContent("messageViewer.minimap.notLoadedBody:8215");
+      expect(tooltip).toHaveTextContent("messageViewer.minimap.matchesNotLoaded:3");
+    });
+
+    it("shows nothing past the last row", () => {
+      // 300px of rows inside 600px of content: the lower half is the list's footer.
+      const { getByTestId, queryByTestId } = renderStrip({}, { scrollTop: 0, clientHeight: 400, scrollHeight: 600 });
+      pointer(getByTestId("session-minimap"), "pointermove", 180);
+      expect(queryByTestId("session-minimap-tooltip")).toBeNull();
+    });
+
+    it("hides when the pointer leaves the strip", () => {
+      const { getByTestId, queryByTestId } = renderStrip();
+      pointer(getByTestId("session-minimap"), "pointermove", 10);
+      expect(queryByTestId("session-minimap-tooltip")).not.toBeNull();
+      act(() => {
+        fireEvent.pointerLeave(getByTestId("session-minimap"));
+      });
+      expect(queryByTestId("session-minimap-tooltip")).toBeNull();
+    });
+
+    it("hides when a drag starts, and stays hidden while dragging", () => {
+      const { getByTestId, queryByTestId } = renderStrip();
+      const root = getByTestId("session-minimap");
+      pointer(root, "pointermove", 10);
+      pointer(root, "pointerdown", 10);
+      expect(queryByTestId("session-minimap-tooltip")).toBeNull();
+      pointer(root, "pointermove", 100);
+      expect(queryByTestId("session-minimap-tooltip")).toBeNull();
+    });
   });
 });

@@ -11,10 +11,11 @@
  * check that decides whether `<SessionMinimap>` mounts and whether the
  * wrapper around it gets right-padded by `MINIMAP_WIDTH_PX`.
  *
- * `SessionMinimap` itself (canvas drawing, viewport box, drag/click) is
- * already covered by `SessionMinimap.test.tsx`; it is stubbed here too, kept
- * only as a `data-testid="session-minimap"` marker so this file can assert
- * mount/unmount without re-testing its internals.
+ * `SessionMinimap` itself (canvas drawing, viewport box, drag/click, and PR
+ * 2's band, ticks, and hover) is already covered by `SessionMinimap.test.tsx`;
+ * it is stubbed here too, kept as a `data-testid="session-minimap"` marker
+ * that records its props, so this file can assert mount/unmount and the
+ * search and pagination wiring without re-testing its internals.
  */
 
 import React from "react";
@@ -30,7 +31,11 @@ import type { SearchState } from "@/store/slices/types";
 // a couple of effects in MessageViewer.tsx call directly.
 // ---------------------------------------------------------------------------
 
-const { storeState } = vi.hoisted(() => ({ storeState: {} as Record<string, unknown> }));
+const { storeState, minimapProps } = vi.hoisted(() => ({
+  storeState: {} as Record<string, unknown>,
+  // The props the stubbed `SessionMinimap` last rendered with.
+  minimapProps: { current: null as Record<string, unknown> | null },
+}));
 
 function resetStoreState() {
   Object.keys(storeState).forEach((key) => delete storeState[key]);
@@ -77,7 +82,7 @@ function resetStoreState() {
     loadMoreMessages: vi.fn(),
     ensureMessageLoaded: vi.fn(),
     fetchFullSessionMessages: vi.fn().mockResolvedValue([]),
-    // Unused until the turn outline (#632) lands; its MessageViewer calls this on mount.
+    // MessageViewer reports the visible row on mount, for the turn outline's pinned header (#632).
     setVisibleMessageUuid: vi.fn(),
   });
 }
@@ -240,7 +245,10 @@ vi.mock("@/components/MessageViewer/components/SessionMinimap", async () => {
   >("@/components/MessageViewer/components/SessionMinimap");
   return {
     MINIMAP_WIDTH_PX: actual.MINIMAP_WIDTH_PX,
-    SessionMinimap: () => React.createElement("div", { "data-testid": "session-minimap" }),
+    SessionMinimap: (props: Record<string, unknown>) => {
+      minimapProps.current = props;
+      return React.createElement("div", { "data-testid": "session-minimap" });
+    },
   };
 });
 
@@ -261,13 +269,13 @@ const SAMPLE_SEARCH: SearchState = {
   results: [],
 };
 
-function renderViewer() {
+function renderViewer(sessionSearch: SearchState = SAMPLE_SEARCH) {
   return render(
     <MessageViewer
       messages={[SAMPLE_MESSAGE]}
       isLoading={false}
       selectedSession={SAMPLE_SESSION}
-      sessionSearch={SAMPLE_SEARCH}
+      sessionSearch={sessionSearch}
       onSearchChange={vi.fn()}
       onFilterTypeChange={vi.fn()}
       onClearSearch={vi.fn()}
@@ -302,6 +310,7 @@ beforeEach(() => {
   resetStoreState();
   setMdUp(true);
   flattenedForRender = SAMPLE_FLATTENED;
+  minimapProps.current = null;
 });
 
 afterEach(() => {
@@ -370,5 +379,49 @@ describe("MessageViewer minimap mount gate", () => {
     const wrapper = getMinimapWrapper(container);
     expect((wrapper as HTMLElement).style.paddingRight).toBe("");
     expect(getByTestId("message-scroll-buttons").style.right).toBe("");
+  });
+});
+
+describe("MessageViewer minimap PR 2 wiring", () => {
+  /** One match in the loaded row, two in messages from older, unloaded pages. */
+  const SEARCH_WITH_UNLOADED: SearchState = {
+    ...SAMPLE_SEARCH,
+    query: "hello",
+    matches: [
+      { messageUuid: "m1", messageIndex: 400, matchIndex: 0, matchCount: 1 },
+      { messageUuid: "old-1", messageIndex: 3, matchIndex: 0, matchCount: 2 },
+      { messageUuid: "old-1", messageIndex: 3, matchIndex: 1, matchCount: 2 },
+    ],
+    currentMatchIndex: 0,
+  };
+
+  it("passes the search state and the pagination window to the strip", () => {
+    storeState.pagination = {
+      hasMore: true,
+      isLoadingMore: false,
+      pageSize: 200,
+      totalCount: 500,
+      currentOffset: 200,
+    };
+    renderViewer(SEARCH_WITH_UNLOADED);
+
+    const props = minimapProps.current;
+    expect(props).not.toBeNull();
+    expect(props?.hasMore).toBe(true);
+    expect(props?.isLoadingMore).toBe(false);
+    expect(props?.unloadedCount).toBe(300);
+    expect(props?.totalCount).toBe(500);
+    expect(props?.currentMatchUuid).toBe("m1");
+    expect([...(props?.matchedUuids as Set<string>)].sort()).toEqual(["m1", "old-1"]);
+    expect((props?.uuidToIndexMap as Map<string, number>).get("m1")).toBe(0);
+    expect(typeof props?.onLoadEarlier).toBe("function");
+    // Both occurrences inside "old-1" count; the loaded "m1" does not.
+    expect(props?.notLoadedMatchCount).toBe(2);
+  });
+
+  it("counts no unloaded matches once every page is loaded", () => {
+    renderViewer(SEARCH_WITH_UNLOADED);
+    expect(minimapProps.current?.hasMore).toBe(false);
+    expect(minimapProps.current?.notLoadedMatchCount).toBe(0);
   });
 });
