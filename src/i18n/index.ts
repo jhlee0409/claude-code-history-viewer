@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { applyDocumentLanguage } from './documentLanguage';
 
 // Namespace별 JSON import - LLM 친화적 구조
 // 각 namespace는 2-40KB로 단일 컨텍스트에서 처리 가능
@@ -242,6 +243,11 @@ i18n
       caches: ['localStorage'],
     },
   });
+
+// html[lang] = the resolved language, before the first render (this module
+// is imported before main.tsx renders) and on every later change.
+applyDocumentLanguage(i18n.resolvedLanguage ?? i18n.language ?? 'en');
+i18n.on('languageChanged', (lng) => applyDocumentLanguage(lng));
 
 export default i18n;
 
