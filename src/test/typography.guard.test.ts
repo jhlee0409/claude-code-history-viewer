@@ -25,6 +25,12 @@ import { beforeAll, describe, expect, it } from "vitest";
  * - inline sizes (`fontSize` properties, shorthand, computed names, JSX
  *   attributes, `style.fontSize =`, `setProperty("font-size")`) must resolve
  *   to `var(--text-<token>)`; numbers and unresolved values are findings.
+ *   Property keys resolve through the checker too (`const K = "fontSize";
+ *   { [K]: 13 }`, `style[K] = ...`, `setProperty(K, ...)`); a key typed only
+ *   as `string` is not constant and is skipped.
+ * - inline `font` shorthand (objects, `style.font =`, `setProperty("font")`,
+ *   CSS in strings): its size part must be `var(--text-<token>)`, or the
+ *   whole value a CSS-wide keyword.
  * - stylesheets: `font-size` must be `var(--text-<token>)` or a CSS-wide
  *   keyword; the `font` shorthand only a CSS-wide keyword; `@apply` classes
  *   follow the class rules.
@@ -92,6 +98,18 @@ function lastTopLevel(token: string, sepChar: string): number {
   return last;
 }
 
+/** Index of the first `sep` outside brackets/parentheses (-1 if none). */
+function topLevelIndex(token: string, sepChar: string): number {
+  let depth = 0;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "[" || c === "(") depth++;
+    else if ((c === "]" || c === ")") && depth > 0) depth--;
+    else if (c === sepChar && depth === 0) return i;
+  }
+  return -1;
+}
+
 /** The utility of a class token without variants (`md:`, `[&>p]:`) and `!`. */
 function utilityOf(token: string): string {
   return token.slice(lastTopLevel(token, ":") + 1).replace(/^!|!$/g, "");
@@ -156,6 +174,51 @@ function mayBeDynamicTextSize(token: string): boolean {
 export function isOffScaleFontSize(value: string, options: Options = {}): boolean {
   const v = value.trim().replace(/\s*!important$/, "");
   return !CSS_WIDE_KEYWORDS.includes(v) && !isTokenVariable(v, options);
+}
+
+/** Split a CSS value on top-level whitespace (not inside parentheses or quotes). */
+function cssTokens(value: string): string[] {
+  const tokens: string[] = [];
+  let depth = 0;
+  let quote = "";
+  let current = "";
+  for (const c of value) {
+    if (quote) {
+      if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "(") depth++;
+    else if (c === ")" && depth > 0) depth--;
+    else if (/\s/.test(c) && depth === 0) {
+      if (current) tokens.push(current);
+      current = "";
+      continue;
+    }
+    current += c;
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+/** Keywords and numbers that may precede the size in the `font` shorthand. */
+const FONT_PREFIX = /^(normal|italic|oblique|small-caps|bold|bolder|lighter|(ultra-|extra-|semi-)?(condensed|expanded)|-?[\d.]+(deg|grad|rad|turn)?)$/i;
+
+/**
+ * A `font` shorthand value whose size is not a type token. The size is the
+ * part before `/line-height`, or else the first part after the optional
+ * style/variant/weight/stretch prefix; only CSS-wide keywords and a
+ * `var(--text-<token>)` size pass (system fonts like `caption` set a size too).
+ */
+export function isOffScaleFontShorthand(value: string, options: Options = {}): boolean {
+  const v = value.trim().replace(/\s*!important$/, "");
+  if (CSS_WIDE_KEYWORDS.includes(v)) return false;
+  // `size/line-height` (or `size / line-height`): the size sits right before the slash.
+  const tokens = cssTokens(v).flatMap((token) => {
+    const slash = topLevelIndex(token, "/");
+    return slash === -1 ? [token] : [token.slice(0, slash), "/", token.slice(slash + 1)].filter(Boolean);
+  });
+  const slashAt = tokens.indexOf("/");
+  const size = slashAt !== -1 ? tokens[slashAt - 1] : tokens.find((t) => !FONT_PREFIX.test(t));
+  return !size || !isTokenVariable(size, options);
 }
 
 function walk(dir: string, keep: (path: string) => boolean): string[] {
@@ -264,28 +327,50 @@ function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName:
       const value = m[1] ?? "";
       if (isOffScaleFontSize(value, options)) report(node, `font-size: ${value.trim()}`);
     }
+    for (const m of text.matchAll(/(?<![\w-])font\s*:\s*([^;"'`}]+)/g)) {
+      const value = m[1] ?? "";
+      if (isOffScaleFontShorthand(value, options)) report(node, `font: ${value.trim()}`);
+    }
   };
 
-  const checkFontSizeValue = (value: ts.Expression | undefined, node: ts.Node) => {
+  type SizeProperty = "fontSize" | "font";
+  const isOffScale = (property: SizeProperty, v: Value) =>
+    typeof v === "number" || (property === "font" ? isOffScaleFontShorthand(v, options) : !isTokenVariable(v, options));
+
+  /** A value written to `fontSize` / `font`: it must resolve to the type scale. */
+  const checkSizeValue = (property: SizeProperty, value: ts.Expression | undefined, node: ts.Node) => {
     if (!value) return;
     // A config group, not a CSS value (tailwind-merge's `fontSize: [{ text: [...] }]`).
     if (ts.isArrayLiteralExpression(value) || ts.isObjectLiteralExpression(value)) return;
     const values = possibleValues(value, checker);
     const shown = value.getText(file);
-    if (!values) return report(node, `fontSize ${shown} (unresolved)`);
+    if (!values) return report(node, `${property} ${shown} (unresolved)`);
     for (const v of values) {
-      if (typeof v === "number" || !isTokenVariable(v, options)) report(node, `fontSize ${typeof v === "number" ? v : `"${v}"`}`);
+      if (isOffScale(property, v)) report(node, `${property} ${typeof v === "number" ? v : `"${v}"`}`);
     }
   };
 
-  const nameText = (name: ts.PropertyName | ts.JsxAttributeName | ts.MemberName): string | undefined => {
-    if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isPrivateIdentifier(name)) return name.text;
-    if (ts.isComputedPropertyName(name) && ts.isStringLiteralLike(name.expression)) return name.expression.text;
-    return undefined;
+  /** CSS properties that set a size, by the names they are written under. */
+  const SIZE_PROPERTY_NAMES: Record<string, SizeProperty> = { fontSize: "fontSize", "font-size": "fontSize", font: "font" };
+
+  /** The size properties among a key's possible names. */
+  const sizePropertiesOf = (names: Value[] | null): SizeProperty[] => [
+    ...new Set((names ?? []).map((n) => SIZE_PROPERTY_NAMES[String(n)]).filter((p) => p !== undefined)),
+  ];
+  /** Names of a declared property: `fontSize`, `"font-size"`, `[K]`. */
+  const declaredNames = (name: ts.PropertyName | ts.MemberName): Value[] | null => {
+    if (ts.isComputedPropertyName(name)) return possibleValues(name.expression, checker);
+    if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return [name.text];
+    return null;
   };
-  const isFontSizeName = (name: ts.PropertyName | ts.JsxAttributeName | ts.MemberName) => {
-    const text = nameText(name);
-    return text === "fontSize" || text === "font-size";
+
+  /**
+   * `{ fontSize: x }`, `{ [K]: x }`, `el.style.font = x` (a declared name) or
+   * `style[K] = x`, `setProperty(K, x)` (a key expression). Keys resolve via
+   * the checker; a key typed only as `string` is not a constant and is skipped.
+   */
+  const checkSizeWrite = (names: Value[] | null, value: ts.Expression | undefined, node: ts.Node) => {
+    for (const property of sizePropertiesOf(names)) checkSizeValue(property, value, node);
   };
 
   const isPartOfLargerString = (node: ts.Node): boolean => {
@@ -308,36 +393,27 @@ function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName:
       for (const v of values) if (typeof v === "string") checkClassText(v, node);
     }
 
-    if (ts.isPropertyAssignment(node) && isFontSizeName(node.name)) checkFontSizeValue(node.initializer, node);
-    if (ts.isShorthandPropertyAssignment(node) && isFontSizeName(node.name)) checkFontSizeValue(node.name, node);
-    if (ts.isJsxAttribute(node) && isFontSizeName(node.name)) {
+    if (ts.isPropertyAssignment(node)) checkSizeWrite(declaredNames(node.name), node.initializer, node);
+    if (ts.isShorthandPropertyAssignment(node)) checkSizeWrite(declaredNames(node.name), node.name, node);
+    // SVG `fontSize` attribute (a `font` JSX prop is a component's own prop, not CSS).
+    if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && SIZE_PROPERTY_NAMES[node.name.text] === "fontSize") {
       const init = node.initializer;
-      if (init && ts.isStringLiteral(init)) checkFontSizeValue(init, node);
-      else if (init && ts.isJsxExpression(init)) checkFontSizeValue(init.expression, node);
+      if (init && ts.isStringLiteral(init)) checkSizeValue("fontSize", init, node);
+      else if (init && ts.isJsxExpression(init)) checkSizeValue("fontSize", init.expression, node);
     }
-    // el.style.fontSize = x
-    if (
-      ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))
-    ) {
-      const name = ts.isPropertyAccessExpression(node.left)
-        ? node.left.name.text
-        : ts.isStringLiteralLike(node.left.argumentExpression)
-          ? node.left.argumentExpression.text
-          : undefined;
-      if (name === "fontSize") checkFontSizeValue(node.right, node);
+    // el.style.fontSize = x, el.style[K] = x
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      if (ts.isPropertyAccessExpression(node.left)) checkSizeWrite(declaredNames(node.left.name), node.right, node);
+      else if (ts.isElementAccessExpression(node.left)) checkSizeWrite(possibleValues(node.left.argumentExpression, checker), node.right, node);
     }
-    // el.style.setProperty("font-size", x)
+    // el.style.setProperty("font-size" | K, x)
     if (
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.name.text === "setProperty" &&
-      node.arguments[0] &&
-      ts.isStringLiteralLike(node.arguments[0]) &&
-      node.arguments[0].text === "font-size"
+      node.arguments[0]
     ) {
-      checkFontSizeValue(node.arguments[1], node);
+      checkSizeWrite(possibleValues(node.arguments[0], checker), node.arguments[1], node);
     }
     ts.forEachChild(node, visit);
   };
@@ -426,6 +502,21 @@ describe("type scale guard: detectors", () => {
     ]);
   });
 
+  it("finds the size in a font shorthand", () => {
+    for (const bad of ["13px Arial", "bold 12px/1.4 sans-serif", "italic 0.8rem serif", "13px / 1.4 a", "small-caption", "var(--oops) serif", "600 var(--weight) var(--text-body) sans"]) {
+      expect(isOffScaleFontShorthand(bad), bad).toBe(true);
+    }
+    for (const ok of ["inherit", "unset !important", "600 var(--text-body)/1.4 var(--font-sans)", "italic var(--text-code) monospace", "var(--text-body) / 1.4 serif"]) {
+      expect(isOffScaleFontShorthand(ok), ok).toBe(false);
+    }
+  });
+
+  it("resolves constant property keys and checks inline font shorthand (T4 re-review probes)", () => {
+    expect(format(scanSource(`<div style={{ font: "13px Arial" }} />`, "x.tsx"))).toEqual(['x.tsx:1 font "13px Arial"']);
+    expect(format(scanSource(`const key = "fontSize" as const; <div style={{ [key]: 13 }} />`, "x.tsx"))).toEqual(["x.tsx:1 fontSize 13"]);
+    expect(format(scanSource(`const key = "fontSize" as const; document.body.style[key] = "13px";`, "x.tsx"))).toEqual(['x.tsx:1 fontSize "13px"']);
+  });
+
   it("flags off-scale CSS font sizes and off-scale @apply", () => {
     const css = `.a { font-size: calc(0.6875rem * var(--app-font-scale)); }
 .b { font-size: var(--text-caption); }
@@ -472,6 +563,19 @@ const BYPASS_SOURCES: Array<[string, string]> = [
   ["dynamic size-name prefix", "function f(s: string) { return `text-x${s}`; }"],
   ["dynamic arbitrary template", "function f(n: number) { return `text-[${n}px]`; }"],
   ["css in a string, em", `const css = "<style>p { font-size: 0.7em }</style>";`],
+  // T4 re-review: font shorthand and constant (checker-resolved) property keys
+  ["inline font shorthand", `<div style={{ font: "13px Arial" }} />`],
+  ["const computed key in JSX style", `const key = "fontSize" as const; <div style={{ [key]: 13 }} />`],
+  ["const key DOM element access", `const key = "fontSize" as const; document.body.style[key] = "13px";`],
+  ["const key object element write", `const K = "fontSize"; const style: Record<string, unknown> = {}; style[K] = 13;`],
+  ["const computed key object literal", `const K = "fontSize"; const s = { [K]: "13px" };`],
+  ["as-const key map element access", `const keys = { size: "fontSize" } as const; document.body.style[keys.size] = "12px";`],
+  ["DOM font shorthand assignment", `document.body.style.font = "bold 12px/1.4 sans-serif";`],
+  ["const key font shorthand", `const F = "font"; <div style={{ [F]: "italic 0.8rem serif" }} />`],
+  ["const key setProperty", `const P = "font-size"; document.body.style.setProperty(P, "11px");`],
+  ["setProperty font shorthand", `document.body.style.setProperty("font", "11px serif");`],
+  ["system-font shorthand", `<div style={{ font: "small-caption" }} />`],
+  ["css in a string, font shorthand", `const css = "<style>p { font: 11px Arial }</style>";`],
 ];
 
 const ALLOWED_SOURCES: Array<[string, string]> = [
@@ -487,6 +591,13 @@ const ALLOWED_SOURCES: Array<[string, string]> = [
   ["dynamic text-prefixed non-size key", "function f(id: string) { return `text-editor-${id}`; }"],
   ["tailwind-merge fontSize class group", `const config = { classGroups: { fontSize: [{ text: ["caption", "list"] }] } };`],
   ["dynamic non-size class", "function f(gap: string) { return `flex gap-${gap} text-list`; }"],
+  ["font shorthand keyword", `<div style={{ font: "inherit" }} />`],
+  ["font shorthand with a token size", `<div style={{ font: "600 var(--text-body)/1.4 var(--font-sans)" }} />`],
+  ["font shorthand with a token size, no line height", `document.body.style.font = "italic var(--text-code) monospace";`],
+  ["const key token variable", `const K = "fontSize" as const; <div style={{ [K]: "var(--text-body)" }} />`],
+  ["const key DOM token variable", `const K = "fontSize"; document.body.style[K] = "var(--text-caption)";`],
+  ["unrelated const keys", `const K = "fontWeight"; const s = { [K]: 600 }; document.body.style[K] = "600";`],
+  ["string-typed key", `function f(k: string, v: string) { const s: Record<string, string> = {}; s[k] = v; return { [k]: v }; }`],
 ];
 
 describe("type scale guard: bypass routes", () => {
