@@ -64,6 +64,8 @@ export function TabStrip({ screens }: TabStripProps) {
   const commands = useCommandRunner();
   const listRef = useRef<HTMLDivElement>(null);
   const [overflowing, setOverflowing] = useState(false);
+  // Tabs hidden past either edge: that edge fades instead of cutting a tab.
+  const [hidden, setHidden] = useState({ before: false, after: false });
   // The roving Tab stop follows focus; a new active tab takes it back.
   const [focusId, setFocusId] = useState<string | null>(null);
   const activeId = items.find((item) => item.active)?.id ?? null;
@@ -75,13 +77,22 @@ export function TabStrip({ screens }: TabStripProps) {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const measure = () => setOverflowing(list.scrollWidth > list.clientWidth + 1);
+    const measure = () => {
+      setOverflowing(list.scrollWidth > list.clientWidth + 1);
+      setHidden({
+        before: list.scrollLeft > 1,
+        after: list.scrollLeft + list.clientWidth < list.scrollWidth - 1,
+      });
+    };
     measure();
+    list.addEventListener("scroll", measure, { passive: true });
     if (activeId) document.getElementById(documentTabId(activeId))?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(list);
-    return () => observer.disconnect();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(list);
+    return () => {
+      list.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
   }, [activeId, items.length]);
 
   const open = (id: string) => void activateTab(id, screens);
@@ -106,7 +117,13 @@ export function TabStrip({ screens }: TabStripProps) {
         role="tablist"
         aria-label={t("common.tabs.label")}
         onKeyDown={onKeyDown}
-        className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          hidden.after && !hidden.before && "[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]",
+          hidden.before && !hidden.after && "[mask-image:linear-gradient(to_left,black_calc(100%-2rem),transparent)]",
+          hidden.before && hidden.after &&
+            "[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%-2rem),transparent)]"
+        )}
       >
         {items.map((item) => (
           <DocumentTab
