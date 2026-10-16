@@ -36,6 +36,19 @@ describe("measurement state", () => {
     expect(checkMeasurementState({ ...measured, rootFontSize: 17.6 }, MEASUREMENT_STATE, { mobile: false })).toHaveLength(1);
   });
 
+  it("counts the open tabs (T8): one by default, a tab scenario's own count, none on builds without tabs", () => {
+    expect(checkMeasurementState({ ...measured, tabs: 1 }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, tabs: 3 }, MEASUREMENT_STATE, { mobile: false })).toEqual([
+      "3 tabs open, expected 1",
+    ]);
+    expect(checkMeasurementState({ ...measured, tabs: 3 }, { ...MEASUREMENT_STATE, tabs: 3 }, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, tabs: null }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+    const tabScenarios = expandScenarios().filter((s) => s.screen.id.startsWith("tabs-"));
+    expect(tabScenarios.map((s) => s.id)).toContain("tabs-overflow--1180x760--dark");
+    expect(tabScenarios.map((s) => s.id)).toContain("tabs-mobile-sheet--390x844--light");
+    expect(tabScenarios.every((s) => typeof s.screen.tabs === "number")).toBe(true);
+  });
+
   it("judges the font scale by --app-font-scale (the root font size never changes)", () => {
     const at90 = { ...MEASUREMENT_STATE, fontScalePercent: 90 };
     expect(checkMeasurementState({ ...measured, appFontScale: 0.9 }, at90, { mobile: false })).toEqual([]);

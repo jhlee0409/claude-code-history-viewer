@@ -47,10 +47,10 @@ export function createActions({ session, scenario, manifest, t }) {
   };
 
   const settled = (label) => settle(session, { label });
-  const click = async (locator, label) => {
+  const click = async (locator, label, options = {}) => {
     try {
       await locator.scrollIntoViewIfNeeded();
-      await locator.click();
+      await locator.click(options);
     } catch (error) {
       // Name the step: a bare locator timeout does not say which one.
       throw new Error(`${label}: ${String(error?.message ?? error).split("\n")[0]}`);
@@ -272,6 +272,61 @@ export function createActions({ session, scenario, manifest, t }) {
         await page.keyboard.press("Escape");
         await settled("close app menu");
       }
+    },
+
+    /**
+     * Conversation tabs (T8). ⌘+click (Ctrl+click off macOS) on a session row
+     * of a fixture project opens it in a new tab. `session` is "large" |
+     * "subagent", or `project` + `index` into that project's sessions.
+     */
+    async openSessionInNewTab({ session: key, project: projectKey = "featured", index = 0 }) {
+      const target = key ? fixtureSession(key) : { project: project(projectKey).name, title: project(projectKey).sessions[index].title };
+      if (mobile) throw new Error("openSessionInNewTab: no ⌘+click on a phone; use newTab + openSession");
+      await selectProjectRow(project(target.project));
+      await click(page.getByRole("tree").getByText(target.title.slice(0, 40)).first(), `session ${target.title} in a new tab`, {
+        modifiers: ["ControlOrMeta"],
+      });
+    },
+
+    /** ⌘+click on a toolbar screen tab: that screen in a new tab (desktop). */
+    async viewInNewTab({ view }) {
+      if (!(view in VIEW_LABEL_KEYS)) throw new Error(`unknown view "${view}"`);
+      const tab = page.locator("#app-header [role=tablist]").getByRole("tab", { name: t(VIEW_LABEL_KEYS[view]), exact: true });
+      await click(tab, `view ${view} in a new tab`, { modifiers: ["ControlOrMeta"] });
+    },
+
+    /** A new empty tab: the strip's + (desktop) or the tab sheet's button (phone). */
+    async newTab() {
+      if (mobile) {
+        await steps.tabSheet();
+        await click(page.getByRole("dialog").getByRole("button", { name: t("common.command.newTab"), exact: true }), "new tab");
+        return;
+      }
+      await click(page.locator('[data-slot="tabs"]').getByRole("button", { name: t("common.command.newTab"), exact: true }), "new tab");
+    },
+
+    /** Open the tab at `index` (0-based): from the strip, or the phone's tab sheet. */
+    async selectTab({ index }) {
+      if (mobile) {
+        await steps.tabSheet();
+        await click(page.getByRole("dialog").locator("li").nth(index).locator("button").first(), `tab ${index}`);
+        return;
+      }
+      // A tab scrolled half out of the strip: WebKit's scrollIntoViewIfNeeded
+      // leaves it there, so bring it fully into view before the click.
+      const tab = page.locator('[data-slot="tabs"] [role="tab"]').nth(index);
+      // The paused clock holds WebKit's next rendering update, so hit testing
+      // still sees the old scroll position until the page settles.
+      await tab.evaluate((el) => el.scrollIntoView({ block: "nearest", inline: "nearest" }));
+      await settled(`scroll tab ${index} into view`);
+      await click(tab, `tab ${index}`);
+    },
+
+    /** The phone toolbar's tab count: opens the list of tabs. */
+    async tabSheet() {
+      if (!mobile) throw new Error("tabSheet: phones only");
+      if (await drawerOpen()) return;
+      await click(page.locator("[data-mobile-tabs]"), "tab sheet");
     },
 
     async globalStats() {

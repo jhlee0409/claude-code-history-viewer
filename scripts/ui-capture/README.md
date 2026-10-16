@@ -88,7 +88,28 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
   at startup, so seeding storage would not work.
 
 Desktop 3 × 2 × 16 + mobile 1 × 2 × 17 + measurement pair 3 × 1 × 2 + font
-scale 1 × 1 × 4 = **140 scenarios**.
+scale 1 × 1 × 4 + library (T7) + conversation tabs (T8): `tabs-three` and
+`tabs-overflow` at 1180×760 and 1440×900, `tabs-mobile` and
+`tabs-mobile-sheet` at 390×844, both themes. A tab scenario declares how
+many tabs the measurement probe must find (`tabs`, default 1).
+
+### Tab timing (T8, plan §4.3 / F6)
+
+The capture pauses the page clock, so tab timing runs separately, with a
+real clock, on the same build and fixture:
+
+```bash
+node scripts/ui-capture/measure-tabs.mjs --out scratch/t8/timing   # after one capture run (build)
+```
+
+It opens the 1,369-message session and a second session with ⌘+click, then
+measures 10 times each: switching back to the large tab until its saved
+anchor message is on screen and the app is settled (`switch`, target median
+≤ 500 ms), the first activation after a page load (`first`, ≤ 1,500 ms) and
+switching back when the anchor lives in an older page (`oldPage`,
+≤ 2,000 ms). Median, p90 and the anchor's pixel drift go to `timing.json`.
+The server is the harness's debug build, so the desktop release app is not
+slower than these numbers.
 
 ## Output
 

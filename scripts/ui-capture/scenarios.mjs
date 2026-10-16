@@ -21,6 +21,12 @@
 //                                   pane, whichever the layout uses
 //   { do: "libraryList", list: "recent" | "favorites" }  (T7 sidebar library)
 //   { do: "favorite", session: "large" | "subagent", off? }  star (or unstar) via the row menu (T7)
+//   Conversation tabs (T8):
+//   { do: "openSessionInNewTab", session? | project + index }  ⌘+click a session row (desktop)
+//   { do: "viewInNewTab", view }    ⌘+click a toolbar screen tab (desktop)
+//   { do: "newTab" }                the strip's + (desktop) / the tab sheet's button (phone)
+//   { do: "selectTab", index }      a tab from the strip / the tab sheet
+//   { do: "tabSheet" }              open the phone's tab sheet
 //
 // `cleanup` steps run after the capture and the probes: they undo what the
 // steps wrote to the shared fixture.
@@ -246,6 +252,60 @@ const LIBRARY_SCREENS = [
   },
 ];
 
+/**
+ * Conversation tabs (plan T8). `tabs` is how many tabs the measurement
+ * probe must find (the C4 default is one).
+ */
+const TAB_SCREENS = [
+  {
+    id: "tabs-three",
+    title: "Three tabs: two conversations and a project's analytics; the first is open",
+    tabs: 3,
+    steps: [
+      { do: "openSession", session: "large" },
+      { do: "openSessionInNewTab", project: "featured", index: 2 },
+      { do: "viewInNewTab", view: "analytics" },
+      { do: "selectTab", index: 0 },
+    ],
+  },
+  {
+    id: "tabs-overflow",
+    title: "More tabs than the strip can show: it scrolls, and a menu lists them all",
+    tabs: 12,
+    steps: [
+      { do: "openSession", session: "large" },
+      { do: "openSessionInNewTab", project: "featured", index: 1 },
+      { do: "openSessionInNewTab", project: "featured", index: 2 },
+      { do: "openSessionInNewTab", project: "featured", index: 3 },
+      { do: "viewInNewTab", view: "analytics" },
+      { do: "viewInNewTab", view: "board" },
+      ...Array.from({ length: 6 }, () => ({ do: "newTab" })),
+      { do: "selectTab", index: 0 },
+    ],
+  },
+];
+
+/** Phones: no strip; the toolbar's tab count and its sheet. */
+const MOBILE_TAB_SCREENS = [
+  {
+    id: "tabs-mobile",
+    title: "Two tabs on a phone: the toolbar shows the count",
+    tabs: 2,
+    steps: [{ do: "openSession", session: "large" }, { do: "newTab" }, { do: "openSession", session: "subagent" }],
+  },
+  {
+    id: "tabs-mobile-sheet",
+    title: "The phone's tab sheet listing the open tabs",
+    tabs: 2,
+    steps: [
+      { do: "openSession", session: "large" },
+      { do: "newTab" },
+      { do: "openSession", session: "subagent" },
+      { do: "tabSheet" },
+    ],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -257,6 +317,12 @@ export const MATRIX = [
     themes: THEMES,
     screens: LIBRARY_SCREENS,
   },
+  {
+    viewports: DESKTOP_VIEWPORTS.filter((v) => v.id !== "1920x1080"),
+    themes: THEMES,
+    screens: TAB_SCREENS,
+  },
+  { viewports: MOBILE_VIEWPORTS, themes: THEMES, screens: MOBILE_TAB_SCREENS },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */

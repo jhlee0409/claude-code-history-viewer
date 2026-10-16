@@ -70,6 +70,14 @@ const LAYOUT_PROBE = `(() => {
         }
       })(),
       sessionsLayout: document.getElementById("sessions-pane") ? "pane" : "inline",
+      // Conversation tabs (T8): the strip's tabs (md and up), else the
+      // phone toolbar's tab count; null on builds without tabs.
+      tabs: (() => {
+        const strip = document.querySelector('[data-slot="tabs"]');
+        if (strip && strip.checkVisibility()) return strip.querySelectorAll('[role="tab"]').length;
+        const count = document.querySelector("[data-mobile-tabs]");
+        return count && count.checkVisibility() ? Number(count.textContent.trim()) : null;
+      })(),
       selectedProjects: rows.filter((row) => row.getAttribute("aria-selected") === "true").length,
       expandedProjects: rows.filter((row) => row.getAttribute("aria-expanded") === "true").length,
     },
@@ -193,6 +201,9 @@ export function checkMeasurementState(measured, expected, { mobile }) {
   // the root font size stays the browser default at every scale.
   if (measured.rootFontSize !== 16) {
     problems.push(`root font size ${measured.rootFontSize}px, expected 16px`);
+  }
+  if (measured.tabs !== undefined && measured.tabs !== null && expected.tabs !== undefined && measured.tabs !== expected.tabs) {
+    problems.push(`${measured.tabs} tabs open, expected ${expected.tabs}`);
   }
   const expectedScale = expected.fontScalePercent / 100;
   if (measured.appFontScale !== undefined && measured.appFontScale !== null && Math.abs(measured.appFontScale - expectedScale) > 1e-6) {

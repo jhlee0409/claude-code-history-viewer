@@ -241,6 +241,7 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           const expectedState = measurement.state && {
             ...measurement.state,
             fontScalePercent: scenario.screen.fontScalePercent ?? measurement.state.fontScalePercent,
+            tabs: scenario.screen.tabs ?? measurement.state.tabs,
           };
           const stateProblems = expectedState
             ? checkMeasurementState(probes.measurementState, expectedState, { mobile: scenario.mobile })
