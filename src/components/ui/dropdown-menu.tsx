@@ -127,7 +127,9 @@ const DropdownMenuRadioItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <span className="h-2 w-2 rounded-full bg-current" />
+        {/* block: Radix's indicator is an inline span, so an inline dot would
+            ignore its size and render 0 x 0 (no visible selection). */}
+        <span className="block h-2 w-2 rounded-full bg-current" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
