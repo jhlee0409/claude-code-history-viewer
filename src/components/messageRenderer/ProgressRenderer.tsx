@@ -9,7 +9,7 @@ import { memo } from "react";
 import {
   Activity,
   Server,
-  Terminal,
+  SquareTerminal,
   Webhook,
   Search,
   RefreshCw,
@@ -37,7 +37,7 @@ const PROGRESS_CONFIG: Record<
 > = {
   agent_progress: { icon: Bot, variant: "info" },
   mcp_progress: { icon: Server, variant: "mcp" },
-  bash_progress: { icon: Terminal, variant: "terminal" },
+  bash_progress: { icon: SquareTerminal, variant: "terminal" },
   hook_progress: { icon: Webhook, variant: "warning" },
   search_results_received: { icon: Search, variant: "web" },
   query_update: { icon: RefreshCw, variant: "info" },

@@ -1,4 +1,5 @@
-import { FolderOpen, MessageSquare, Columns2, ChartColumn, SlidersHorizontal } from "lucide-react";
+import { FolderOpen } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/navigation/place";
@@ -13,10 +14,10 @@ interface BottomTabBarProps {
 
 const tabs = [
   { id: "projects", icon: FolderOpen, labelKey: "common.mobile.tab.projects", alwaysEnabled: true },
-  { id: "messages", icon: MessageSquare, labelKey: "common.mobile.tab.messages", alwaysEnabled: true },
-  { id: "board", icon: Columns2, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
-  { id: "analytics", icon: ChartColumn, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
-  { id: "settings", icon: SlidersHorizontal, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
+  { id: "messages", icon: SCREEN_ICONS.conversation, labelKey: "common.mobile.tab.messages", alwaysEnabled: true },
+  { id: "board", icon: SCREEN_ICONS.board, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
+  { id: "analytics", icon: SCREEN_ICONS.analytics, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
+  { id: "settings", icon: SCREEN_ICONS.settings, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
 ] as const;
 
 export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProject }: BottomTabBarProps) {

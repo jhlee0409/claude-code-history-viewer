@@ -4,7 +4,7 @@ import {
   Copy,
   CloudDownload,
   LoaderCircle,
-  SquareTerminal as SquareTerminal,
+  SquareTerminal,
   Trash,
   X,
 } from "lucide-react";

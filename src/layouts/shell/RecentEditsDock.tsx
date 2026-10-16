@@ -8,11 +8,14 @@
  * width this layout was actually reviewed at.
  */
 import { useTranslation } from "react-i18next";
-import { FilePen } from "lucide-react";
+import {  } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { useAppStore } from "@/store/useAppStore";
 import { PanelDock } from "@/components/PanelDock";
 import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
 import { RecentEditsViewToggle } from "@/components/RecentEditsViewer/RecentEditsViewToggle";
+
+const EditsIcon = SCREEN_ICONS.edits;
 
 interface RecentEditsDockProps {
   width: number;
@@ -63,7 +66,7 @@ export const RecentEditsDock = ({ width, isResizing, onResizeStart }: RecentEdit
             */
             icon: (
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/20">
-                <FilePen className="h-4 w-4 text-accent" aria-hidden="true" />
+                <EditsIcon className="h-4 w-4 text-accent" aria-hidden="true" />
               </span>
             ),
             /*

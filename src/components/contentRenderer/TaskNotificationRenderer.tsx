@@ -11,7 +11,7 @@ import {
   CircleX,
   LoaderCircle,
   ChevronDown,
-  Terminal,
+  SquareTerminal,
   Zap,
   Clock,
   Hash,
@@ -186,7 +186,7 @@ const TaskRow = memo(function TaskRow({
               "border-b border-border/30",
               "bg-muted/30"
             )}>
-              <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+              <SquareTerminal className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                 Output
               </span>
@@ -407,7 +407,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "transition-transform duration-200",
                   !isDetailsExpanded && "-rotate-90"
                 )} />
-                <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+                <SquareTerminal className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                   {t("taskNotification.details")}
                 </span>

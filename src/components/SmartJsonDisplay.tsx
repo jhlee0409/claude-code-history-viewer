@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Terminal,
+  SquareTerminal,
   FileText,
   Search,
   Hash,
@@ -24,8 +24,8 @@ const KEY_ICONS: Record<string, React.ReactNode> = {
     path: <span title="Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
     file_path: <span title="File Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
     filename: <span title="Filename"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
-    command: <span title="Command"><Terminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
-    cmd: <span title="Command"><Terminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
+    command: <span title="Command"><SquareTerminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
+    cmd: <span title="Command"><SquareTerminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
     query: <span title="Query"><Search className="w-3.5 h-3.5 text-tool-search" /></span>,
     id: <span title="ID"><Hash className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /></span>,
     task_id: <span title="Task ID"><Hash className="w-3.5 h-3.5 text-tool-task" /></span>,

@@ -1,5 +1,5 @@
 import React from "react";
-import { TriangleAlert, LoaderCircle, SquareTerminal as SquareTerminal } from "lucide-react";
+import { TriangleAlert, LoaderCircle, SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,

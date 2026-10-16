@@ -20,7 +20,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-message-square w-4 h-4"
+      class="lucide lucide-message-square-text w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -33,6 +33,15 @@ exports[`header view tabs characterization > claude project, analytics selected 
     >
       <path
         d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+      />
+      <path
+        d="M7 11h10"
+      />
+      <path
+        d="M7 15h6"
+      />
+      <path
+        d="M7 7h8"
       />
     </svg>
     <span
@@ -55,7 +64,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4"
+      class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -99,7 +108,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-activity w-4 h-4"
+      class="lucide lucide-coins w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -111,7 +120,18 @@ exports[`header view tabs characterization > claude project, analytics selected 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"
+        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+      />
+      <path
+        d="M15 6h1v4"
+      />
+      <path
+        d="m6.134 14.768.866-.5 2 3.464"
+      />
+      <circle
+        cx="16"
+        cy="8"
+        r="6"
       />
     </svg>
     <span
@@ -134,7 +154,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-file-pen lucide-file-edit w-4 h-4"
+      class="lucide lucide-file-pen-line lucide-file-signature w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -146,13 +166,16 @@ exports[`header view tabs characterization > claude project, analytics selected 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"
+        d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
       />
       <path
-        d="M14 2v5a1 1 0 0 0 1 1h5"
+        d="M14.487 7.858A1 1 0 0 1 14 7V2"
       />
       <path
-        d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"
+        d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+      />
+      <path
+        d="M8 18h1"
       />
     </svg>
     <span
@@ -175,7 +198,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-columns-2 lucide-columns w-4 h-4"
+      class="lucide lucide-square-kanban lucide-kanban-square w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -194,7 +217,13 @@ exports[`header view tabs characterization > claude project, analytics selected 
         y="3"
       />
       <path
-        d="M12 3v18"
+        d="M8 7v7"
+      />
+      <path
+        d="M12 7v4"
+      />
+      <path
+        d="M16 7v9"
       />
     </svg>
     <span
@@ -226,7 +255,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-message-square w-4 h-4"
+      class="lucide lucide-message-square-text w-4 h-4 text-accent"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -239,6 +268,15 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     >
       <path
         d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+      />
+      <path
+        d="M7 11h10"
+      />
+      <path
+        d="M7 15h6"
+      />
+      <path
+        d="M7 7h8"
       />
     </svg>
     <span
@@ -369,7 +407,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-columns-2 lucide-columns w-4 h-4"
+      class="lucide lucide-square-kanban lucide-kanban-square w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -388,7 +426,13 @@ exports[`header view tabs characterization > loading analytics, token stats and 
         y="3"
       />
       <path
-        d="M12 3v18"
+        d="M8 7v7"
+      />
+      <path
+        d="M12 7v4"
+      />
+      <path
+        d="M16 7v9"
       />
     </svg>
     <span
@@ -420,7 +464,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-message-square w-4 h-4"
+      class="lucide lucide-message-square-text w-4 h-4 text-accent"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -433,6 +477,15 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     >
       <path
         d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+      />
+      <path
+        d="M7 11h10"
+      />
+      <path
+        d="M7 15h6"
+      />
+      <path
+        d="M7 7h8"
       />
     </svg>
     <span
@@ -499,7 +552,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-activity w-4 h-4"
+      class="lucide lucide-coins w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -511,7 +564,18 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"
+        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+      />
+      <path
+        d="M15 6h1v4"
+      />
+      <path
+        d="m6.134 14.768.866-.5 2 3.464"
+      />
+      <circle
+        cx="16"
+        cy="8"
+        r="6"
       />
     </svg>
     <span
@@ -534,7 +598,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-file-pen lucide-file-edit w-4 h-4"
+      class="lucide lucide-file-pen-line lucide-file-signature w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -546,13 +610,16 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"
+        d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
       />
       <path
-        d="M14 2v5a1 1 0 0 0 1 1h5"
+        d="M14.487 7.858A1 1 0 0 1 14 7V2"
       />
       <path
-        d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"
+        d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+      />
+      <path
+        d="M8 18h1"
       />
     </svg>
     <span
@@ -576,7 +643,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
   >
     <svg
       aria-hidden="true"
-      class="lucide lucide-columns-2 lucide-columns w-4 h-4"
+      class="lucide lucide-square-kanban lucide-kanban-square w-4 h-4"
       fill="none"
       height="24"
       stroke="currentColor"
@@ -595,7 +662,13 @@ exports[`header view tabs characterization > non-claude project: board is disabl
         y="3"
       />
       <path
-        d="M12 3v18"
+        d="M8 7v7"
+      />
+      <path
+        d="M12 7v4"
+      />
+      <path
+        d="M16 7v9"
       />
     </svg>
     <span

@@ -5,7 +5,7 @@ import {
   Check,
   RotateCcw,
   Link2,
-  Terminal,
+  SquareTerminal,
   Copy,
   FileText,
   FolderOpen,
@@ -215,7 +215,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNativeRenameClick}>
-                <Terminal className="w-3.5 h-3.5 mr-2" />
+                <SquareTerminal className="w-3.5 h-3.5 mr-2" />
                 {providerId === "opencode"
                   ? t(
                       "session.nativeRename.menuItemOpenCode",

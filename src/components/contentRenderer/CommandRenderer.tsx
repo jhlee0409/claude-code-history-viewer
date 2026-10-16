@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Terminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
+import { SquareTerminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -102,14 +102,14 @@ export const CommandRenderer = ({
                   isCommandExpanded && "rotate-90"
                 )}
               />
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
             </button>
           ) : (
             <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
@@ -239,7 +239,7 @@ export const CommandRenderer = ({
           )}
         >
           <div className={cn("flex items-center mb-1.5", layout.iconSpacing)}>
-            <Terminal className={cn(layout.iconSize, "text-muted-foreground")} />
+            <SquareTerminal className={cn(layout.iconSize, "text-muted-foreground")} />
             <span className={cn("text-list font-medium text-muted-foreground")}>
               {t("commandRenderer.commandOutput")}
             </span>

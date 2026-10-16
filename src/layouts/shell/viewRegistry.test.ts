@@ -23,7 +23,23 @@ import type { ClaudeProject } from "@/types";
 import type { ToolbarView, View } from "@/navigation/place";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsComputed } from "@/hooks/analytics/useAnalyticsComputed";
+import {
+  Archive,
+  Bot,
+  ChartColumn,
+  ChartPie,
+  Coins,
+  FilePenLine,
+  MessageSquareText,
+  PanelRight,
+  RotateCcwClock,
+  Settings,
+  SquareKanban,
+  SquareTerminal,
+  Star,
+} from "lucide-react";
 import { screenRenderViolations, type SourceText } from "@/test/utils/screenRegistryGuard";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import {
   MOBILE_ANALYTICS_VIEWS,
   TOOLBAR_TAB_ORDER,
@@ -146,6 +162,51 @@ describe("VIEW_REGISTRY completeness", () => {
 
   it("shows the inspector on the conversation screen only", () => {
     expect(VIEWS.filter((view) => VIEW_REGISTRY[view].inspector)).toEqual(["conversation"]);
+  });
+});
+
+describe("screen icons (decision page section 7, plan T5)", () => {
+  it("fixes one glyph per meaning, as the decision table lists them", () => {
+    expect(SCREEN_ICONS).toEqual({
+      conversation: MessageSquareText,
+      analytics: ChartColumn,
+      edits: FilePenLine,
+      board: SquareKanban,
+      // The table says `history`; lucide 1.57 names that glyph rotate-ccw-clock.
+      recent: RotateCcwClock,
+      favorites: Star,
+      globalStats: ChartPie,
+      archive: Archive,
+      inspector: PanelRight,
+      agent: Bot,
+      terminal: SquareTerminal,
+      settings: Settings,
+      // Not in the table: token stats keeps the coins it already shows.
+      tokenStats: Coins,
+    });
+  });
+
+  it("draws each screen with its meaning's icon", () => {
+    const expected: Record<View, unknown> = {
+      empty: SCREEN_ICONS.conversation,
+      conversation: SCREEN_ICONS.conversation,
+      analytics: SCREEN_ICONS.analytics,
+      tokenStats: SCREEN_ICONS.tokenStats,
+      edits: SCREEN_ICONS.edits,
+      board: SCREEN_ICONS.board,
+      globalStats: SCREEN_ICONS.globalStats,
+      archive: SCREEN_ICONS.archive,
+      settingsManager: SCREEN_ICONS.settings,
+    };
+    for (const view of VIEWS) {
+      expect(VIEW_REGISTRY[view].icon, view).toBe(expected[view]);
+    }
+  });
+
+  it("gives a header tab no icon of its own, so tab and content header always match", () => {
+    for (const view of TOOLBAR_TAB_ORDER) {
+      expect(Object.keys(VIEW_REGISTRY[view].tab), view).toEqual(["labelKey"]);
+    }
   });
 });
 

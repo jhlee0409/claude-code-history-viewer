@@ -10,7 +10,7 @@ import {
   ListTodo,
   Plug,
   Search,
-  Terminal,
+  SquareTerminal,
   Wrench,
   FilePlus,
   GitCommitVertical,
@@ -61,7 +61,7 @@ const getIcon = (name: string) => {
 
   // Terminal/Shell
   if (lower.includes("bash") || lower.includes("command") || lower.includes("shell") || lower.includes("kill")) {
-    return Terminal;
+    return SquareTerminal;
   }
 
   // File reading

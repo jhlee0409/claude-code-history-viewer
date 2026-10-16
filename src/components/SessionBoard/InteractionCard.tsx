@@ -12,7 +12,7 @@ import {
     isClaudeUserMessage
 } from "../../utils/messageUtils";
 import { clsx } from "clsx";
-import { FileText, X, Bot, User, Ban, GitCommitHorizontal as GitIcon, PencilLine, CircleCheck, Link2, Layers, Timer, Scissors, TriangleAlert, Zap, Plug, Terminal } from "lucide-react";
+import { FileText, X, Bot, User, Ban, GitCommitHorizontal as GitIcon, PencilLine, CircleCheck, Link2, Layers, Timer, Scissors, TriangleAlert, Zap, Plug, SquareTerminal } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
 import { getNaturalLanguageSummary, getAgentName } from "../../utils/toolSummaries";
@@ -494,7 +494,7 @@ export const InteractionCard = memo(({
                     <FileEditDisplay toolUseBlock={toolUseBlock} />
                 ) : isShell && shellCommand ? (
                     <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--tool-terminal)]/10 border border-[var(--tool-terminal)]/20 rounded text-caption text-[var(--tool-terminal)] font-medium mb-1">
-                        <Terminal className="w-3.5 h-3.5 shrink-0" />
+                        <SquareTerminal className="w-3.5 h-3.5 shrink-0" />
                         <code className="font-mono truncate">$ {shellCommand}</code>
                     </div>
                 ) : null}

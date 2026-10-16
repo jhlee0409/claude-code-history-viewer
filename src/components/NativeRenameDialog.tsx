@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TriangleAlert, Terminal } from "lucide-react";
+import { TriangleAlert, SquareTerminal } from "lucide-react";
 import { useNativeRename } from "@/hooks/useNativeRename";
 import type { ProviderId } from "@/types";
 
@@ -86,7 +86,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Terminal className="w-4 h-4" />
+            <SquareTerminal className="w-4 h-4" />
             {isOpenCode
               ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
               : isCodex

@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
 import { InteractionCard } from "./InteractionCard";
-import { Terminal, FilePlus, FileText, Book, TrendingUp, Zap, GitCommitHorizontal, Search, Globe, Plug, Eye } from "lucide-react";
+import { SquareTerminal, FilePlus, FileText, Book, TrendingUp, Zap, GitCommitHorizontal, Search, Globe, Plug, Eye } from "lucide-react";
 import { clsx } from "clsx";
 import {
     extractClaudeMessageContent,
@@ -347,7 +347,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Terminal className="w-3.5 h-3.5" />
+                                        <SquareTerminal className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.shellCount}</span>
                                     </button>
                                 )}

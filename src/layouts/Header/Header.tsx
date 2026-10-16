@@ -291,7 +291,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
             {TOOLBAR_TAB_ORDER.map((view) => {
-              const { icon, labelKey } = VIEW_REGISTRY[view].tab;
+              const { icon, tab: { labelKey } } = VIEW_REGISTRY[view];
               const tab = tabBehaviour[view];
               return (
                 <ViewTab
@@ -429,7 +429,8 @@ const ViewTab = ({
       )}
       content={label}
     >
-      <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+      {/* Selected: the icon takes the accent (#9AA0F0 in dark, decision page 7). */}
+      <Icon className={cn("w-4 h-4", isActive && !isLoading && "text-accent", isLoading && "animate-spin")} />
       <span className="hidden xl:inline">{label}</span>
     </TooltipButton>
   );

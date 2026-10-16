@@ -7,7 +7,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, LoaderCircle, Archive, SlidersHorizontal } from "lucide-react";
+import { Settings, RefreshCw, MessageSquare, Folder, LoaderCircle } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,9 @@ import { FilterMenuGroup } from "./FilterMenuGroup";
 import { ViewMenuGroup } from "./ViewMenuGroup";
 import { FontMenuGroup } from "./FontMenuGroup";
 import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
+
+const SettingsManagerIcon = SCREEN_ICONS.settings;
+const ArchiveIcon = SCREEN_ICONS.archive;
 
 interface SettingDropdownProps {
   updater: UseUpdaterReturn;
@@ -63,13 +67,13 @@ export const SettingDropdown = ({
               <DropdownMenuSeparator />
               {onOpenSettingsManager && (
                 <DropdownMenuItem onClick={onOpenSettingsManager}>
-                  <SlidersHorizontal className="mr-2 h-4 w-4 text-foreground" />
+                  <SettingsManagerIcon className="mr-2 h-4 w-4 text-foreground" />
                   <span>{t("settingsManager.title")}</span>
                 </DropdownMenuItem>
               )}
               {onOpenArchive && (
                 <DropdownMenuItem onClick={onOpenArchive} disabled={archiveDisabled}>
-                  <Archive className="mr-2 h-4 w-4 text-foreground" />
+                  <ArchiveIcon className="mr-2 h-4 w-4 text-foreground" />
                   <span>
                     {archiveDisabled
                       ? t("common.settings.claudeOnly", { name: t("archive.title") })

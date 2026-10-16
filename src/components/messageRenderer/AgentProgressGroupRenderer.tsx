@@ -14,7 +14,7 @@ import {
   CircleAlert,
   FilePen,
   FileSearch,
-  Terminal,
+  SquareTerminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,7 @@ const getActionIcon = (data: ProgressData) => {
           const toolName = String(toolUse.name).toLowerCase();
           if (toolName.includes("edit") || toolName.includes("write")) return FilePen;
           if (toolName.includes("read") || toolName.includes("glob") || toolName.includes("grep")) return FileSearch;
-          if (toolName.includes("bash")) return Terminal;
+          if (toolName.includes("bash")) return SquareTerminal;
         }
       }
     }

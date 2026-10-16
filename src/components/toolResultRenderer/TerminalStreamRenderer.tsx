@@ -1,6 +1,6 @@
 "use client";
 
-import { Terminal } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
@@ -36,7 +36,7 @@ export const TerminalStreamRenderer = ({
     <Renderer className="bg-tool-terminal/10 border-tool-terminal/30">
       <Renderer.Header
         title={t('terminalStreamRenderer.title')}
-        icon={<Terminal className={cn(layout.iconSize, "text-tool-terminal")} />}
+        icon={<SquareTerminal className={cn(layout.iconSize, "text-tool-terminal")} />}
         titleClassName="text-foreground"
         rightContent={
           <div className={cn("flex items-center", layout.iconSpacing)}>

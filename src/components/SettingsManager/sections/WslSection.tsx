@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ChevronDown, ChevronRight, Terminal } from "lucide-react";
+import { ChevronDown, ChevronRight, SquareTerminal } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
 import { isWindows, isTauri } from "@/utils/platform";
@@ -117,7 +117,7 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
         ) : (
           <ChevronRight className="h-4 w-4 shrink-0" />
         )}
-        <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <SquareTerminal className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span>{t("settings.wsl.title")}</span>
       </CollapsibleTrigger>
 

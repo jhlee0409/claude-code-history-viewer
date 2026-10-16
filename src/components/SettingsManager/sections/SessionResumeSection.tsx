@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import {
   ChevronDown,
   ChevronRight,
-  Terminal,
+  SquareTerminal,
   TriangleAlert,
   CircleCheck,
   CircleX,
@@ -260,7 +260,7 @@ export function SessionResumeSection({
           className="flex items-center justify-between w-full p-4 text-left hover:bg-muted/30 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Terminal className="h-4 w-4 text-primary shrink-0" />
+            <SquareTerminal className="h-4 w-4 text-primary shrink-0" />
             <div>
               <h3 className="text-body font-medium text-foreground">
                 {t("settings.sessionResume.title", "Session Resume Arguments")}

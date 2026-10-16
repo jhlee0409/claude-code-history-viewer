@@ -1,7 +1,8 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { ListIndentIncrease, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
+import { ListIndentIncrease, ListTree, Search, X, PanelRightClose, User, Zap } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -17,6 +18,8 @@ import { findTurnKeyForUuid } from "./outline/flattenOutline";
 import { NavigatorOutline } from "./outline/NavigatorOutline";
 import { buildTurnOfMessage } from "./outline/turnOfMessage";
 import { useOutlineTurns } from "./outline/useOutlineTurns";
+
+const InspectorIcon = SCREEN_ICONS.inspector;
 
 // Height estimation constants for virtual scrolling
 const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
@@ -306,7 +309,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             title={t("navigator.toggle")}
             aria-label={t("navigator.toggle")}
           >
-            <PanelRight className="w-4 h-4" />
+            <InspectorIcon className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-accent/20" />

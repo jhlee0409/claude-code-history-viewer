@@ -2,7 +2,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Folder,
-  Database,
   ChevronDown,
   ChevronRight,
   List,
@@ -15,6 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -46,6 +46,8 @@ import {
   normalizeProviderIds,
   PROVIDER_IDS,
 } from "../../utils/providers";
+
+const GlobalStatsIcon = SCREEN_ICONS.globalStats;
 
 type ProviderTabId = "all" | ProviderId;
 
@@ -809,7 +811,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             aria-label={t("project.globalStats")}
             title={t("project.globalStats")}
           >
-            <Database className="w-4 h-4" />
+            <GlobalStatsIcon className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-accent/20" />
@@ -1148,7 +1150,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   )}
                 >
                   <span title={t("project.globalStats")}>
-                    <Database className="w-4 h-4 transition-transform group-hover:scale-110" />
+                    <GlobalStatsIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">

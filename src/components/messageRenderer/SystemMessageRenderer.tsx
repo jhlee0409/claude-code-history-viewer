@@ -3,7 +3,7 @@ import {
   Info,
   TriangleAlert,
   CircleAlert,
-  Terminal,
+  SquareTerminal,
   CircleStop,
   Clock,
   Minimize2,
@@ -113,7 +113,7 @@ const SUBTYPE_CONFIG: Record<
     borderColor: "border-tool-system/30",
   },
   local_command: {
-    icon: Terminal,
+    icon: SquareTerminal,
     color: "text-tool-terminal",
     bgColor: "bg-tool-terminal/10",
     borderColor: "border-tool-terminal/30",

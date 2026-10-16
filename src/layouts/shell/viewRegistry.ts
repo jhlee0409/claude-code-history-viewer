@@ -8,28 +8,18 @@
  * `src/layouts` picks a component, title or icon per view; the registry test
  * holds that line.
  *
- * Today's icon pairs are kept as they render (zero visual change): the board's
- * content header shows a message icon while its tab shows columns, and token
- * stats shows coins in the content header and activity on its tab. Unifying
- * them is icon work (T5), not shell work.
+ * A screen has one icon (`SCREEN_ICONS`, decision page section 7): the header
+ * tab draws the entry's `icon`, so a tab and its content header cannot
+ * disagree (the board once showed a message icon in its header and columns on
+ * its tab; token stats showed coins and activity).
  */
 import type { ComponentType, ReactNode } from "react";
 import type { TFunction } from "i18next";
-import {
-  Activity,
-  Archive,
-  ChartColumn,
-  Coins,
-  Columns2,
-  Database,
-  FilePen,
-  MessageSquare,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ClaudeSession } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { ToolbarView, View } from "@/navigation/place";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import {
   AnalyticsScreen,
   ArchiveScreen,
@@ -58,7 +48,7 @@ export interface ViewEntry {
   component: ComponentType<ViewScreenProps>;
   /** What the body sits in inside the view panel. */
   frame: ComponentType<{ children: ReactNode }>;
-  /** The screen's mark: content header, mobile sub-nav. */
+  /** The screen's mark: header tab, content header, mobile sub-nav. */
   icon: LucideIcon;
   /**
    * The screen's name (content header, mobile sub-nav). An i18n key that
@@ -72,9 +62,8 @@ export interface ViewEntry {
   inspector: boolean;
 }
 
-/** A header view tab: its own icon and label (they differ from the header's). */
+/** A header view tab: its label (which may differ from the title). It draws the entry's icon. */
 export interface TabEntry {
-  icon: LucideIcon;
   labelKey: string;
 }
 
@@ -91,7 +80,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
   empty: {
     component: EmptyScreen,
     frame: BareFrame,
-    icon: MessageSquare,
+    icon: SCREEN_ICONS.conversation,
     titleKey: "session.select",
     header: null,
     inspector: false,
@@ -99,55 +88,55 @@ export const VIEW_REGISTRY: ViewRegistry = {
   conversation: {
     component: ConversationScreen,
     frame: BareFrame,
-    icon: MessageSquare,
+    icon: SCREEN_ICONS.conversation,
     titleKey: "message.view",
     header: null,
     inspector: true,
-    tab: { icon: MessageSquare, labelKey: "message.view" },
+    tab: { labelKey: "message.view" },
   },
   analytics: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
-    icon: ChartColumn,
+    icon: SCREEN_ICONS.analytics,
     titleKey: "analytics.dashboard",
     header: { subtitle: sessionSummary },
     inspector: false,
-    tab: { icon: ChartColumn, labelKey: "analytics.dashboard" },
+    tab: { labelKey: "analytics.dashboard" },
   },
   tokenStats: {
     component: TokenStatsScreen,
     frame: ScrollFrame,
-    icon: Coins,
+    icon: SCREEN_ICONS.tokenStats,
     titleKey: "messages.tokenStats.title",
     header: { subtitle: sessionSummary },
     inspector: false,
-    tab: { icon: Activity, labelKey: "messages.tokenStats.existing" },
+    tab: { labelKey: "messages.tokenStats.existing" },
   },
   edits: {
     component: RecentEditsScreen,
     frame: ScrollFrame,
-    icon: FilePen,
+    icon: SCREEN_ICONS.edits,
     titleKey: "recentEdits.title",
     header: { subtitle: ({ t }) => t("recentEdits.description") },
     inspector: false,
-    tab: { icon: FilePen, labelKey: "recentEdits.title" },
+    tab: { labelKey: "recentEdits.title" },
   },
   board: {
     component: BoardScreen,
     frame: BareFrame,
-    icon: MessageSquare,
+    icon: SCREEN_ICONS.board,
     titleKey: "session.board.title",
     header: {
       subtitle: ({ t }) =>
         t("session.board.description", "Comparative overview of different sessions"),
     },
     inspector: false,
-    tab: { icon: Columns2, labelKey: "session.board.title" },
+    tab: { labelKey: "session.board.title" },
   },
   globalStats: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
-    icon: Database,
+    icon: SCREEN_ICONS.globalStats,
     titleKey: "analytics.globalOverview",
     header: { subtitle: ({ globalOverviewDescription }) => globalOverviewDescription },
     inspector: false,
@@ -155,7 +144,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
   archive: {
     component: ArchiveScreen,
     frame: PaddedFrame,
-    icon: Archive,
+    icon: SCREEN_ICONS.archive,
     titleKey: "archive.title",
     header: { subtitle: ({ t }) => t("archive.description") },
     inspector: false,
@@ -163,7 +152,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
   settingsManager: {
     component: SettingsScreen,
     frame: PaddedFrame,
-    icon: Settings,
+    icon: SCREEN_ICONS.settings,
     titleKey: "settingsManager.title",
     header: { subtitle: ({ t }) => t("settingsManager.description") },
     inspector: false,

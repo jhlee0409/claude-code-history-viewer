@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Terminal, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Copy, SquareTerminal, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -77,7 +77,7 @@ export const SessionCopyMenu = ({
             compact ? "p-2" : "gap-1.5 px-2 py-1 text-caption font-mono",
           )}
         >
-          <Terminal className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
+          <SquareTerminal className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
           {!compact && (
             <>
               <span>{session.actual_session_id.slice(0, 8)}</span>
@@ -113,7 +113,7 @@ export const SessionCopyMenu = ({
                 );
               }}
             >
-              <Terminal className="mr-2 h-4 w-4 shrink-0" />
+              <SquareTerminal className="mr-2 h-4 w-4 shrink-0" />
               <div className="flex flex-col text-left">
                 <span>{t("session.copyResumeCommand", "Copy Resume Command")}</span>
                 {hasCustomArgs && (
