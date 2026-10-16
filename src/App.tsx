@@ -33,9 +33,11 @@ import {
 } from "./navigation/place";
 import { projectListing } from "./navigation/library";
 import {
-  activateTab,
   openHintInTab,
   openInNewTab,
+  openMatchInTab,
+  openTabAtUrl,
+  planUrlMove,
   reportStoredTabsProblems,
   restoreActiveTab,
   startTabsPersistence,
@@ -57,9 +59,20 @@ interface HintRunOptions {
   record?: boolean;
   /**
    * Where the session opens: its own tab (a CLI launch, startup, a URL of a
-   * closed tab - plan §4.3) or the active tab (browser back/forward).
+   * closed tab - plan §4.3), the tab a URL names, or the active tab (an old
+   * URL naming no tab).
    */
-  target?: "tab" | "active";
+  target?: "tab" | "active" | { tabId: string };
+}
+
+/** How a hint's match opens for `target` (`HintRunOptions.target`). */
+function openMatchFor(target: HintRunOptions["target"]) {
+  if (target === "active") return undefined;
+  if (typeof target === "object") {
+    const { tabId } = target;
+    return (...args: Parameters<typeof openHintInTab>) => openMatchInTab(tabId, ...args);
+  }
+  return openHintInTab;
 }
 
 function App() {
@@ -193,7 +206,7 @@ function App() {
         messageId,
         epoch,
         record: options.record,
-        openMatch: options.target === "active" ? undefined : openHintInTab,
+        openMatch: openMatchFor(options.target),
         t: (key, fallback) => t(key, fallback ?? key),
       }).catch((error) => {
         if (useAppStore.getState().navigationEpoch !== epoch) return;
@@ -274,10 +287,13 @@ function App() {
     };
   }, [runPreloadWithHint]);
 
-  // Browser back/forward (WebUI). Each popstate is a navigation that adds no
-  // history of its own: no URL write, no back/forward entry. A URL names the
-  // tab its session was open in (§9b F1): that tab comes forward first and
-  // the move happens inside it; a tab closed since gets a new one.
+  // Browser back/forward (WebUI). Each popstate is one navigation that adds
+  // no history of its own: no URL write, no back/forward entry. It claims its
+  // epoch first and every step after - the tab coming forward, the move
+  // inside it, a lookup of the URL's session - runs under that epoch, so a
+  // later navigation supersedes all of it and it writes nothing more.
+  // A URL names the tab its session was open in (§9b F1): that tab comes
+  // forward at the URL's place; a tab closed since gets a new one.
   useEffect(
     () =>
       listenForWebUIDeepLinks((deepLink) => {
@@ -305,50 +321,24 @@ function App() {
           return;
         }
 
-        const { documents, activeDocumentId } = useAppStore.getState();
-        const tabId = deepLink.tabId;
-        if (tabId && tabId !== activeDocumentId) {
-          if (!documents.some((doc) => doc.id === tabId)) {
-            runPreloadWithHint(uuidHint, deepLink.messageId, { epoch, record: false, target: "tab" });
+        const move = planUrlMove({ ...deepLink, sessionId: deepLink.sessionId });
+        switch (move.kind) {
+          case "here":
+            // The URL names a conversation, so the screen is the
+            // conversation, and its target is exactly the URL's (none
+            // clears it).
+            void navigate({ view: "conversation", messageId: deepLink.messageId }, popOptions);
             return;
-          }
-          void activateTab(tabId, tabScreensRef.current, { epoch, history: "none" }).then((opened) => {
-            if (!opened) return;
-            const state = useAppStore.getState();
-            const shown = state.selectedSession?.actual_session_id || state.selectedSession?.session_id;
-            if (shown === deepLink.sessionId) {
-              void navigate({ view: "conversation", messageId: deepLink.messageId }, { history: "none", record: false });
-            } else {
-              runPreloadWithHint(uuidHint, deepLink.messageId, { record: false, target: "active" });
-            }
-          });
-          return;
+          case "tab":
+            void openTabAtUrl(move.tabId, deepLink, tabScreensRef.current, epoch);
+            return;
+          case "resolve":
+            runPreloadWithHint(uuidHint, deepLink.messageId, {
+              epoch,
+              record: false,
+              target: move.into === "newTab" ? "tab" : move.into,
+            });
         }
-
-        const state = useAppStore.getState();
-        const currentSessionId =
-          state.selectedSession?.actual_session_id ||
-          state.selectedSession?.session_id;
-
-        // The URL names a conversation, so the screen is the conversation,
-        // and its target is exactly the URL's (none clears it).
-        if (currentSessionId === deepLink.sessionId) {
-          void navigate(
-            { view: "conversation", messageId: deepLink.messageId },
-            popOptions,
-          );
-          return;
-        }
-
-        void navigate(
-          { project: null, view: viewAfterLeavingProject(state.view) },
-          popOptions,
-        );
-        runPreloadWithHint(uuidHint, deepLink.messageId, {
-          epoch,
-          record: false,
-          target: "active",
-        });
       }),
     [navigate, runPreloadWithHint],
   );

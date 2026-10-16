@@ -347,6 +347,43 @@ describe("switching tabs", () => {
   });
 });
 
+describe("superseded activations write nothing (review #1)", () => {
+  it("an activation superseded while its screen's data loads resolves false; the newer tab stays", async () => {
+    await open(A, A1);
+    await state().navigate({ view: "analytics" });
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+
+    let releaseScreen = () => {};
+    const heldScreens: TabScreens = {
+      openView: (view) => {
+        // A screen loader enters its screen with a navigation of its own
+        // before its first await (`enterScreen`).
+        void state().navigate({ view });
+        return new Promise<void>((resolve) => (releaseScreen = resolve));
+      },
+    };
+    const stale = activateTab(tab1, heldScreens);
+    await waitFor(() => expect(state().view).toBe("analytics"));
+    await activateTab(tab2, screens);
+    releaseScreen();
+
+    await expect(stale).resolves.toBe(false);
+    expect(where()).toEqual([tab2, B.path, B1.file_path]);
+  });
+
+  it("an activation whose screen loader navigates is still the owner when nothing else moved", async () => {
+    await open(A, A1);
+    await state().navigate({ view: "analytics" });
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const enteringScreens: TabScreens = { openView: (view) => state().navigate({ view }) };
+    await expect(activateTab(tab1, enteringScreens)).resolves.toBe(true);
+    expect(state().view).toBe("analytics");
+  });
+});
+
 describe("closing tabs", () => {
   it("closing the active tab while it loads: the neighbour opens and the abandoned load lands nowhere", async () => {
     await open(A, A1);

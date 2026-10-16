@@ -10,6 +10,8 @@ import { act, render, waitFor } from "@testing-library/react";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
 const apiMock = vi.hoisted(() => vi.fn());
+/** The screens' data loader (`openView`); a test can hold it. */
+const openViewMock = vi.hoisted(() => vi.fn(async (view: string): Promise<undefined> => void view));
 vi.mock("@/services/api", () => ({ api: apiMock }));
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -18,7 +20,7 @@ vi.mock("@/hooks/useAppInitialization", () => ({ useAppInitialization: () => {} 
 vi.mock("@/hooks/useAppKeyboard", () => ({ useAppKeyboard: () => {} }));
 vi.mock("@/hooks/useExternalLinks", () => ({ useExternalLinks: () => {} }));
 vi.mock("@/hooks/useAnalytics", () => ({
-  useAnalytics: () => ({ state: {}, actions: { openView: async () => undefined }, computed: {} }),
+  useAnalytics: () => ({ state: {}, actions: { openView: openViewMock }, computed: {} }),
 }));
 vi.mock("@/hooks/useUpdater", () => ({ useUpdater: () => ({ state: {} }) }));
 vi.mock("@/hooks/useLiveStatusMessage", () => ({ useLiveStatusMessage: () => "" }));
@@ -76,8 +78,19 @@ async function popTo(href: string) {
   });
 }
 
+/** Let every pending promise chain (a stale completion included) run out. */
+async function settleAll() {
+  for (let i = 0; i < 5; i += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
+}
+
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
+  openViewMock.mockReset();
+  openViewMock.mockImplementation(async () => undefined);
   apiMock.mockReset();
   apiMock.mockImplementation(async (command: string, args: Record<string, unknown> = {}) => {
     const sessions = args.projectPath === A.path ? [S1] : [S2, S3];
@@ -151,6 +164,48 @@ describe("WebUI back/forward with tabs (§9b F1)", () => {
     await waitFor(() => expect(state().selectedSession?.file_path).toBe(S3.file_path));
     expect(state().activeDocumentId).toBe(tab1);
     expect(currentDocuments().find((d) => d.id === tab2)?.session?.filePath).toBe(S1.file_path);
+  });
+
+  it("a superseded back writes nothing: the tab activated meanwhile keeps its session (review #1)", async () => {
+    render(<App />);
+    await act(async () => {
+      await state().navigate({ view: "conversation", project: A, session: S1 });
+      await state().navigate({ view: "analytics" });
+    });
+    const tabA = state().activeDocumentId;
+    const tabAUrl = window.location.href;
+    expect(url().get("session")).toBe("s1");
+    await act(async () => {
+      await openInNewTab(() => state().navigate({ view: "conversation", project: B, session: S2 }));
+    });
+    const tabB = state().activeDocumentId;
+
+    // Back to tab A's URL; a screen data load it starts is held. (The URL
+    // names A's session, so A comes forward on the conversation: whatever
+    // the activation still awaits when the user moves on must write nothing.)
+    let releaseScreen = () => {};
+    openViewMock.mockImplementation(() => new Promise<undefined>((resolve) => (releaseScreen = () => resolve(undefined))));
+    await popTo(tabAUrl);
+    await waitFor(() =>
+      expect(
+        openViewMock.mock.calls.length > 0 ||
+          (state().activeDocumentId === tabA && state().selectedSession?.file_path === S1.file_path && !state().isLoadingMessages),
+      ).toBe(true),
+    );
+
+    // The user switches to tab B before A's screen has loaded.
+    openViewMock.mockImplementation(async () => undefined);
+    await act(async () => {
+      await activateTab(tabB, screens);
+    });
+    expect(state().selectedSession?.file_path).toBe(S2.file_path);
+
+    releaseScreen();
+    await settleAll();
+
+    expect(state().activeDocumentId).toBe(tabB);
+    expect(state().selectedSession?.file_path).toBe(S2.file_path);
+    expect(currentDocuments().find((d) => d.id === tabA)?.session?.filePath).toBe(S1.file_path);
   });
 
   it("a URL whose tab was closed opens its session in a new tab", async () => {

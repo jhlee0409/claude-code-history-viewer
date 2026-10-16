@@ -211,10 +211,16 @@ interface OpenOptions {
   history: WebUIHistoryMode;
 }
 
-/** Rehydrate `doc` into the live store (see the file comment for the order). */
+/**
+ * Rehydrate `doc` into the live store (see the file comment for the order).
+ * Resolves true only while the activation still owns the place at the end:
+ * a navigation begun meanwhile (another tab, a click) supersedes it, and a
+ * caller acting on the result (a popstate moving inside the tab) then writes
+ * nothing.
+ */
 async function openDocument(doc: TabDocument, screens: TabScreens, options: OpenOptions): Promise<boolean> {
   const { epoch } = options;
-  const owns = () => get().navigationEpoch === epoch;
+  let owns = () => get().navigationEpoch === epoch;
   const resolved = await resolveDocument(doc, owns);
   if (resolved === "superseded" || !owns()) return false;
 
@@ -247,8 +253,15 @@ async function openDocument(doc: TabDocument, screens: TabScreens, options: Open
     set({ documents: get().documents.map((d) => (d.id === doc.id ? { ...d, unavailable: reason } : d)) });
     return true;
   }
-  if (LOADS_DATA(resolved.view)) await screens.openView(resolved.view);
-  return true;
+  if (LOADS_DATA(resolved.view)) {
+    const loading = screens.openView(resolved.view);
+    // The screen's loader enters its screen with a navigation of its own
+    // before its first await (`enterScreen`): that one is this activation's,
+    // and anything after it supersedes both.
+    owns = ownPlace(get);
+    await loading;
+  }
+  return owns();
 }
 
 export interface ActivateOptions {
@@ -402,6 +415,107 @@ export function restoreActiveTab(screens: TabScreens): Promise<boolean> {
 export interface HintMatch {
   project: ClaudeProject;
   session: ClaudeSession;
+}
+
+// ---------------------------------------------------------------------------
+// Browser back/forward (WebUI, plan §9b F1)
+// ---------------------------------------------------------------------------
+
+/** The place a WebUI history entry names (`?session=&msg=&tab=`). */
+export interface UrlPlace {
+  sessionId: string | null;
+  messageId: string | null;
+  tabId?: string | null;
+}
+
+/**
+ * What a popstate does, decided before anything awaits:
+ * - `here`: the active tab already shows the URL's session - move inside it;
+ * - `tab`: tab `tabId` shows it - that tab comes forward, at the URL's place;
+ * - `resolve`: the URL's session has to be looked up first, then opens in
+ *   tab `tabId` (the tab it names), the active tab (an old URL naming no
+ *   tab), or a tab of its own (the tab it names was closed).
+ */
+export type UrlMove =
+  | { kind: "here" }
+  | { kind: "tab"; tabId: string }
+  | { kind: "resolve"; into: "newTab" | "active" | { tabId: string } };
+
+/** Whether tab `doc` shows the session a URL names (by the id URLs carry). */
+const showsSessionId = (doc: TabDocument, sessionId: string): boolean =>
+  doc.session != null && (doc.session.actualSessionId === sessionId || doc.session.sessionId === sessionId);
+
+const liveSessionId = (state: AppStore): string | null =>
+  state.selectedSession?.actual_session_id || state.selectedSession?.session_id || null;
+
+/** How the popstate for `url` moves (see `UrlMove`); `url` names a session. */
+export function planUrlMove(url: UrlPlace & { sessionId: string }, state: AppStore = get()): UrlMove {
+  const { activeDocumentId } = state;
+  const tabId = url.tabId ?? null;
+  if ((tabId === null || tabId === activeDocumentId) && liveSessionId(state) === url.sessionId) return { kind: "here" };
+  const documents = currentDocuments(state);
+  const named = tabId ? documents.find((d) => d.id === tabId) : undefined;
+  if (tabId && !named) return { kind: "resolve", into: "newTab" };
+  if (named && showsSessionId(named, url.sessionId)) return { kind: "tab", tabId: named.id };
+  return { kind: "resolve", into: named ? { tabId: named.id } : "active" };
+}
+
+const POP = { history: "none", record: false } as const;
+
+/**
+ * Bring tab `tabId` forward at the URL's place, as one navigation under the
+ * popstate's `epoch`: the URL's place becomes the tab's before it opens, so
+ * activating it is the whole move. Superseded, it writes nothing.
+ */
+export async function openTabAtUrl(
+  tabId: string,
+  url: UrlPlace,
+  screens: TabScreens,
+  epoch: number,
+): Promise<boolean> {
+  const state = get();
+  if (state.navigationEpoch !== epoch) return false;
+  const documents = currentDocuments(state);
+  if (!documents.some((d) => d.id === tabId)) return false;
+  set({
+    documents: documents.map((d) =>
+      d.id === tabId ? { ...d, view: "conversation", targetMessageUuid: url.messageId } : d,
+    ),
+  });
+  return activateTab(tabId, screens, { epoch, history: "none" });
+}
+
+/**
+ * A URL's session, looked up, opens in tab `tabId` - the tab the URL names
+ * (§9b F1): it becomes that tab's place and the tab comes forward, under the
+ * lookup's epoch. A tab closed meanwhile: the session gets a tab of its own.
+ */
+export async function openMatchInTab(tabId: string, match: HintMatch, options: HintOpenOptions): Promise<boolean> {
+  const state = get();
+  if (state.navigationEpoch !== options.epoch) return false;
+  const documents = currentDocuments(state);
+  const doc = documents.find((d) => d.id === tabId);
+  if (!doc) return openHintInTab(match, options);
+  if (state.activeDocumentId === tabId && state.hydratedDocumentId === tabId) {
+    return get().navigate(
+      { view: "conversation", project: match.project, session: match.session, messageId: options.messageId },
+      { ...POP, epoch: options.epoch },
+    );
+  }
+  const placed = documentFromLive(
+    doc,
+    {
+      view: "conversation",
+      selectedProject: match.project,
+      selectedSession: match.session,
+      parentSessionStack: [],
+      targetMessageUuid: options.messageId,
+      placeHistory: doc.history,
+    },
+    null,
+  );
+  set({ documents: documents.map((d) => (d.id === tabId ? placed : d)) });
+  return activateTab(tabId, NO_SCREENS, { epoch: options.epoch, history: "none" });
 }
 
 export interface HintOpenOptions {
