@@ -266,6 +266,9 @@
   "project.kind.main": "Project",
   "project.kind.worktree": "Worktree",
   "session.noProjects.title": "No projects found",
-  "session.noProjects.description": "No conversation history was found. Claude Code history is read from:",
-  "session.noProjects.hint": "Other assistants are read from their own default folders. Start a session in a supported assistant and refresh, or add another folder in {{settings}} → {{section}}."
+  "session.noProjects.description": "No conversation history was found in the assistants found on this computer. Claude Code history is read from:",
+  "session.noProjects.hint": "Start a session in a supported assistant and search again, or add another folder in {{settings}} → {{section}}.",
+  "session.noProjects.claudeTitle": "No Claude Code projects found",
+  "session.noProjects.claudeDescription": "No Claude Code history was found in:",
+  "session.noProjects.claudeHint": "Other assistants (Codex CLI, OpenCode and more) are searched only when you ask. Find them with the button below, or add another Claude folder in {{settings}} → {{section}}."
 }

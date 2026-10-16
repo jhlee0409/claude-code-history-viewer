@@ -70,9 +70,11 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
   `settings` (Settings Manager), two highlight-regression flows from the
   UX audit (`global-stats-after-analytics`: a project's analytics, then
   global stats; `archive-after-global-stats`: global stats, then the
-  archive), plus four states produced by request
+  archive), plus five states produced by request
   injection (`page.route` on `/api/<command>`):
   - `empty` - `scan_projects` / `scan_all_projects` answer `[]`
+  - `empty-first-launch` - the same, with `load_user_metadata` answering no
+    saved provider discovery (first launch: Claude Code scanned only)
   - `loading` - the same requests are held (never answered)
   - `error` - `get_claude_folder_path` fails with `PERMISSION_DENIED`
   - `analytics-error` - the large session's project analytics, with
@@ -85,8 +87,8 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
   (`{ do: "fontScale", percent }`); the WebUI does not restore a stored scale
   at startup, so seeding storage would not work.
 
-Desktop 3 × 2 × 15 + mobile 1 × 2 × 16 + measurement pair 3 × 1 × 2 + font
-scale 1 × 1 × 4 = **132 scenarios**.
+Desktop 3 × 2 × 16 + mobile 1 × 2 × 17 + measurement pair 3 × 1 × 2 + font
+scale 1 × 1 × 4 = **140 scenarios**.
 
 ## Output
 

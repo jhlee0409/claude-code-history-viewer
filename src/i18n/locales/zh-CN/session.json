@@ -266,6 +266,9 @@
   "project.kind.main": "项目",
   "project.kind.worktree": "工作树",
   "session.noProjects.title": "未找到项目",
-  "session.noProjects.description": "未找到对话历史。Claude Code 的历史记录从以下位置读取：",
-  "session.noProjects.hint": "其他助手的历史记录从各自的默认文件夹读取。请在受支持的助手中开始会话后刷新，或在 {{settings}} → {{section}} 中添加其他文件夹。"
+  "session.noProjects.description": "在此电脑上找到的助手中没有对话历史。Claude Code 的历史记录从以下位置读取：",
+  "session.noProjects.hint": "请在受支持的助手中开始会话后重新搜索，或在 {{settings}} → {{section}} 中添加其他文件夹。",
+  "session.noProjects.claudeTitle": "未找到 Claude Code 项目",
+  "session.noProjects.claudeDescription": "在以下位置未找到 Claude Code 历史记录：",
+  "session.noProjects.claudeHint": "其他助手（Codex CLI、OpenCode 等）的历史记录仅在你请求时才会搜索。可使用下方按钮查找，或在 {{settings}} → {{section}} 中添加其他 Claude 文件夹。"
 }

@@ -127,6 +127,17 @@ const COMMON_SCREENS = [
     steps: [],
   },
   {
+    // First launch: no provider discovery saved yet, so startup scans Claude
+    // Code only and the screen must not claim other assistants are empty.
+    id: "empty-first-launch",
+    title: "Empty state before any provider discovery (Claude Code only)",
+    inject: [
+      ...PROJECT_SCAN_COMMANDS.map((command) => ({ command, respond: [] })),
+      { command: "load_user_metadata", respond: { version: 1, sessions: {}, projects: {}, settings: {} } },
+    ],
+    steps: [],
+  },
+  {
     id: "loading",
     title: "Loading state: project scan pending",
     inject: PROJECT_SCAN_COMMANDS.map((command) => ({ command, hold: true })),

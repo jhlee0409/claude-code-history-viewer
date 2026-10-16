@@ -33,6 +33,7 @@ import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
 import type { ProviderId, ClaudeSession } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
+import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
@@ -101,7 +102,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
   const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
-  const discoverProviders = useAppStore((state) => state.discoverProviders);
+  const {
+    discover: handleDiscoverProviders,
+    hasSearched: hasSearchedOtherProviders,
+  } = useProviderDiscovery();
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const navigate = useAppStore((state) => state.navigate);
@@ -327,13 +331,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     );
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
-
-  const handleDiscoverProviders = useCallback(() => {
-    void discoverProviders().catch((error) => {
-      console.error("Failed to discover providers:", error);
-      toast.error(t("common.provider.detectError"));
-    });
-  }, [discoverProviders, t]);
 
   // Defer the filtering work: the input echoes each keystroke immediately
   // while re-filtering hundreds/thousands of projects runs as an
@@ -1116,8 +1113,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               {/* No projects at all reads the same as the main area's empty
                   state; a search or provider filter with no match keeps
                   "not found". */}
-              <p className="text-body text-muted-foreground">
-                {projects.length === 0 ? t("session.noProjects.title") : t("project.notFound")}
+              <p className="text-body text-muted-foreground [&:lang(ko)]:break-keep">
+                {projects.length === 0
+                  ? t(hasSearchedOtherProviders ? "session.noProjects.title" : "session.noProjects.claudeTitle")
+                  : t("project.notFound")}
               </p>
             </div>
           ) : (

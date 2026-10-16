@@ -10,7 +10,9 @@
 //   overlaps the "what's active" summary, and both can be scrolled fully
 //   above the bottom tab bar.
 // - No projects: the main area says the same as the sidebar (no projects
-//   found) instead of asking to select a session.
+//   found) instead of asking to select a session. Before any provider
+//   discovery (first launch) both say "no Claude Code projects" and the main
+//   area offers "Find other providers".
 // - Transcript: the current-date label never sits on top of the message
 //   list (it gets its own row).
 // - Transcript search: the placeholder fits the input in every locale, at a
@@ -145,6 +147,26 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
         // Once as the main heading, once as the project tree's empty text.
         const everywhere = await page.getByText(t("session.noProjects.title"), { exact: true }).count();
         expect(everywhere).toBe(2);
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
+  }
+
+  for (const locale of ["en", "ko"]) {
+    it(`no projects before provider discovery (${locale}): "no Claude Code projects", offers Find other providers`, async () => {
+      const { session, page, t } = await openScenario("empty-first-launch--1440x900--light", { locale });
+      try {
+        const main = page.locator("[data-slot=main]");
+        await expect(main.getByRole("heading", { name: t("session.noProjects.claudeTitle"), exact: true }).count()).resolves.toBe(1);
+        await expect(main.getByRole("heading", { name: t("session.noProjects.title"), exact: true }).count()).resolves.toBe(0);
+        await expect(main.getByRole("button", { name: t("project.discoverProviders"), exact: true }).count()).resolves.toBe(1);
+        const titles = page.getByText(t("session.noProjects.claudeTitle"), { exact: true });
+        expect(await titles.count()).toBe(2);
+        // The longer title wraps in the sidebar: Korean wraps between words
+        // (keep-all), never inside one ("없\n습니다").
+        const wordBreaks = await titles.evaluateAll((els) => els.map((el) => getComputedStyle(el).wordBreak));
+        expect(wordBreaks).toEqual(locale === "ko" ? ["keep-all", "keep-all"] : ["normal", "normal"]);
       } finally {
         await session.close();
       }
