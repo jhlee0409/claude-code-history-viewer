@@ -399,7 +399,7 @@ export const SettingsEditorPane: React.FC = () => {
               {/* JSON Textarea */}
               <textarea
                 ref={jsonEditorRef}
-                className="flex-1 min-h-0 w-full bg-muted p-4 rounded-lg text-body font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
+                className="flex-1 min-h-80 @2xl:min-h-0 w-full bg-muted p-4 rounded-lg text-body font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
                 value={jsonHistory.currentText}
                 onChange={handleJsonChange}
                 onKeyDown={handleJsonKeyDown}

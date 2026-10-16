@@ -24,6 +24,9 @@
 :root {
   /* === Mobile Layout Tokens === */
   --mobile-bottom-bar-height: 3.5rem;
+  /* The tab bar's full height with the device's bottom safe area: the bar is
+     this tall and the main area reserves the same, so it never covers content. */
+  --mobile-bottom-inset: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));
   --mobile-header-height: 3rem;
   --mobile-touch-target: 2.75rem;
   --mobile-drawer-width: min(80vw, 320px);

@@ -63,7 +63,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -276,7 +276,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -474,7 +474,7 @@ exports[`shell characterization > desktop > archive 1`] = `
         </aside>
       </div>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -648,7 +648,7 @@ exports[`shell characterization > desktop > board 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -833,7 +833,7 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1000,7 +1000,7 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1155,7 +1155,7 @@ exports[`shell characterization > desktop > empty 1`] = `
         </aside>
       </div>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1310,7 +1310,7 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1467,7 +1467,7 @@ exports[`shell characterization > desktop > global stats 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1674,7 +1674,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -1917,7 +1917,7 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -2057,7 +2057,7 @@ exports[`shell characterization > desktop > recent edits 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -2255,7 +2255,7 @@ exports[`shell characterization > desktop > settings 1`] = `
         </aside>
       </div>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -2424,7 +2424,7 @@ exports[`shell characterization > desktop > token stats 1`] = `
         />
       </aside>
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -2628,7 +2628,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -2931,7 +2931,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -3234,7 +3234,7 @@ exports[`shell characterization > mobile > archive 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -3396,7 +3396,7 @@ exports[`shell characterization > mobile > board 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -3563,7 +3563,7 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -3723,7 +3723,7 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -3881,7 +3881,7 @@ exports[`shell characterization > mobile > empty 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -4026,7 +4026,7 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -4171,7 +4171,7 @@ exports[`shell characterization > mobile > global stats 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -4366,7 +4366,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -4699,7 +4699,7 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -4827,7 +4827,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -5130,7 +5130,7 @@ exports[`shell characterization > mobile > settings 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"
@@ -5287,7 +5287,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
       class="flex-1 flex overflow-hidden"
     >
       <main
-        class="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+        class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
         id="main-content"
         tabindex="-1"

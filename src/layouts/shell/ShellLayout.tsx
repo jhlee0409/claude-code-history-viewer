@@ -67,7 +67,7 @@ export const ShellLayout = ({
           id="main-content"
           data-slot="main"
           tabIndex={-1}
-          className="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
+          className="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         >
           {mainHeader}
           <div
