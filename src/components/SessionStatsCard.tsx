@@ -73,7 +73,7 @@ export const SessionStatsCard = memo(({
         <div className="flex items-center justify-between gap-4">
           {/* Left: Total & Messages & Duration */}
           <div className="flex items-baseline gap-4">
-            <div>
+            <div className="shrink-0 whitespace-nowrap">
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
                 {formatNumber(stats.total_tokens)}
               </span>
@@ -83,7 +83,7 @@ export const SessionStatsCard = memo(({
               <span className="font-mono tabular-nums">{stats.message_count.toLocaleString()}</span>
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
-            <div className="text-caption text-muted-foreground">
+            <div className="text-caption text-muted-foreground whitespace-nowrap">
               <span className="font-mono tabular-nums">{formatDurationCompact(durationMinutes)}</span>
             </div>
           </div>
