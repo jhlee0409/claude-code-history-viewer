@@ -296,7 +296,7 @@ export const createNavigationSlice: StateCreator<
     // place of its own.
     const opened = get().selectedSession;
     if (changedSession && opened && get().parentSessionStack.length === 0) {
-      const recentSessions = pushRecent(get().recentSessions, recentEntryOf(opened, Date.now()));
+      const recentSessions = pushRecent(get().recentSessions, recentEntryOf(opened, Date.now(), get().selectedProject));
       set({ recentSessions });
       saveRecent(recentSessions);
     }

@@ -30,6 +30,7 @@ type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; a
  */
 export const SessionItem: React.FC<SessionItemProps> = ({
   session,
+  project,
   isSelected,
   onSelect,
   onHover,
@@ -124,7 +125,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           onRevealInFinder={editing.handleRevealInFinder}
           onDeleteSession={editing.handleDeleteSession}
           isFavorite={isFavorite}
-          onToggleFavorite={() => void toggleSessionFavorite(session)}
+          onToggleFavorite={() => void toggleSessionFavorite(session, project)}
         />
       )}
 

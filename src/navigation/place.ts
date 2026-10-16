@@ -44,6 +44,15 @@ export interface SessionRef {
   filePath: string;
   sessionId: string;
   actualSessionId?: string;
+  /**
+   * The `path` of the project that lists the session, recorded by the
+   * sidebar library (recent, favourites) so an entry opens its project
+   * directly. Most providers list projects under a virtual path
+   * (`codex://{cwd}`) while the session file lives elsewhere, so the file path
+   * alone does not name the project. Absent in a place and in refs saved
+   * before it existed.
+   */
+  projectPath?: string;
 }
 
 export interface Place {

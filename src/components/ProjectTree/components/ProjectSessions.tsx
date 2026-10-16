@@ -177,6 +177,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
         <SessionItem
           key={session.file_path}
           session={session}
+          project={project}
           variant="compact"
           isSelected={selectedSession?.file_path === session.file_path}
           onSelect={() => onSessionSelect(session)}

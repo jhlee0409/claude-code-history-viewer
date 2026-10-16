@@ -167,7 +167,10 @@ pub struct SessionMetadata {
 }
 
 /// A session's location: it loads by `file_path` + `provider`; `session_id`
-/// is the metadata key (the frontend's `SessionRef`).
+/// is the metadata key (the frontend's `SessionRef`). `project_path` is the
+/// path of the project that lists it - for most providers a virtual path
+/// (`codex://{cwd}`) that does not contain the file - so the frontend opens
+/// that project directly. Refs saved before it have none.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionRefMetadata {
@@ -176,6 +179,8 @@ pub struct SessionRefMetadata {
     pub session_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actual_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
 }
 
 impl SessionMetadata {
@@ -372,6 +377,41 @@ mod tests {
         assert_eq!(session_ref.actual_session_id.as_deref(), Some("a-1"));
         assert!(!session.is_empty());
         assert_eq!(serde_json::to_value(&session).unwrap(), json);
+    }
+
+    /// A library ref names the project that lists the session (`projectPath`):
+    /// for most providers the project path is virtual (`codex://{cwd}`) and
+    /// does not contain the session file, so the file path alone cannot find
+    /// it. A ref without it (saved earlier) loads and gains no key.
+    #[test]
+    fn test_session_ref_keeps_the_project_path() {
+        let json = serde_json::json!({
+            "starred": true,
+            "ref": {
+                "provider": "codex",
+                "filePath": "/home/u/.codex/sessions/2026/10/15/rollout-1.jsonl",
+                "sessionId": "s-1",
+                "projectPath": "codex:///work/alpha"
+            }
+        });
+        let session: SessionMetadata = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(
+            session
+                .session_ref
+                .as_ref()
+                .and_then(|r| r.project_path.as_deref()),
+            Some("codex:///work/alpha")
+        );
+        assert_eq!(serde_json::to_value(&session).unwrap(), json);
+
+        let earlier: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "ref": { "provider": "claude", "filePath": "/p/s.jsonl", "sessionId": "s" }
+        }))
+        .unwrap();
+        assert!(earlier.session_ref.as_ref().unwrap().project_path.is_none());
+        assert!(serde_json::to_value(&earlier).unwrap()["ref"]
+            .get("projectPath")
+            .is_none());
     }
 
     /// Stars recorded before `ref` existed still load, and gain no `ref` key.

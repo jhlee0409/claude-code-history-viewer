@@ -374,7 +374,7 @@ export interface AppStoreActions {
     sessionId: string,
     update: Partial<SessionMetadata>
   ) => Promise<void>;
-  toggleSessionFavorite: (session: ClaudeSession) => Promise<void>;
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => Promise<void>;
   backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
   updateProjectMetadata: (
     projectPath: string,

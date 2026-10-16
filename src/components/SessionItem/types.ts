@@ -1,7 +1,13 @@
-import type { ClaudeSession } from "@/types";
+import type { ClaudeProject, ClaudeSession } from "@/types";
 
 export interface SessionItemProps {
   session: ClaudeSession;
+  /**
+   * The project that lists the row, when the caller knows it (a project's
+   * preview in the sidebar); a favourite records it. Omitted: the open
+   * project when its list holds the session.
+   */
+  project?: ClaudeProject;
   isSelected: boolean;
   onSelect: () => void;
   onHover?: () => void;

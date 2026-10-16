@@ -112,7 +112,7 @@ describe("favourites", () => {
     await state().toggleSessionFavorite(A1);
     expect(disk.sessions.a1).toEqual({
       starred: true,
-      ref: { provider: "claude", filePath: A1.file_path, sessionId: "a1", actualSessionId: "a1" },
+      ref: { provider: "claude", filePath: A1.file_path, sessionId: "a1", actualSessionId: "a1", projectPath: A.path },
     });
     expect(favoritesOf(state().userMetadata).map((f) => f.sessionId)).toEqual(["a1"]);
 

@@ -17,11 +17,10 @@ import type {
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
 import type { FullAppStore } from "./types";
-import type { ClaudeSession } from "../../types";
+import type { ClaudeProject, ClaudeSession } from "../../types";
 import { toast } from "sonner";
 import i18n from "@/i18n";
-import { sessionRefOf } from "@/navigation/place";
-import { favoritesMissingRef } from "@/navigation/library";
+import { favoritesMissingRef, libraryRefOf, projectListing } from "@/navigation/library";
 
 // ============================================================================
 // State Interface
@@ -54,10 +53,11 @@ export interface MetadataSliceActions {
   ) => Promise<void>;
   /**
    * Star or unstar a session (the sidebar's favourites, plan T7). Starring
-   * records where the session lives (`ref`); unstarring drops both. A failed
-   * save is reported with a toast.
+   * records where the session lives (`ref`, with `project`: the project that
+   * lists it, else the one `projectListing` finds); unstarring drops both. A
+   * failed save is reported with a toast.
    */
-  toggleSessionFavorite: (session: ClaudeSession) => Promise<void>;
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => Promise<void>;
   /**
    * Give the stars among `sessions` that predate `ref` the location they
    * lack. Called when a project's sessions load.
@@ -179,12 +179,12 @@ export const createMetadataSlice: StateCreator<
     }
   },
 
-  toggleSessionFavorite: async (session: ClaudeSession) => {
+  toggleSessionFavorite: async (session: ClaudeSession, project?: ClaudeProject | null) => {
     const { userMetadata } = get();
     const existing = userMetadata.sessions[session.session_id] ?? {};
     const starring = !existing.starred;
     const update: SessionMetadata = starring
-      ? { ...existing, starred: true, ref: sessionRefOf(session) }
+      ? { ...existing, starred: true, ref: libraryRefOf(session, project ?? projectListing(get(), session)) }
       : { ...existing, starred: undefined, ref: undefined };
     try {
       const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
@@ -201,8 +201,8 @@ export const createMetadataSlice: StateCreator<
 
   backfillFavoriteRefs: async (sessions: ClaudeSession[]) => {
     for (const session of favoritesMissingRef(get().userMetadata, sessions)) {
-      const ref = sessionRefOf(session);
-      if (ref) await get().updateSessionMetadata(session.session_id, { ref });
+      const ref = libraryRefOf(session, projectListing(get(), session));
+      await get().updateSessionMetadata(session.session_id, { ref });
     }
   },
 

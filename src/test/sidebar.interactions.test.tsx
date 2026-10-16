@@ -176,14 +176,15 @@ describe("sidebar sessions (plan T7)", () => {
 
     fireEvent.contextMenu(sessionRow(2));
     fireEvent.click(await screen.findByRole("menuitem", { name: "session.favorite.add" }));
-    expect(toggleSessionFavorite).toHaveBeenLastCalledWith(SESSIONS[1]);
+    // With the project that lists it, so the favourite's ref names it.
+    expect(toggleSessionFavorite).toHaveBeenLastCalledWith(SESSIONS[1], ALPHA);
 
     fireEvent.keyDown(sessionRow(3), { key: "ContextMenu" });
     const item = await screen.findByRole("menuitem", { name: "session.favorite.add" });
     // The menu takes focus, so Enter on it runs the item.
     expect(document.activeElement?.getAttribute("role")).toBe("menuitem");
     fireEvent.click(item);
-    expect(toggleSessionFavorite).toHaveBeenLastCalledWith(SESSIONS[2]);
+    expect(toggleSessionFavorite).toHaveBeenLastCalledWith(SESSIONS[2], ALPHA);
   });
 
   it("a starred session shows its star; the menu then offers to remove it", async () => {

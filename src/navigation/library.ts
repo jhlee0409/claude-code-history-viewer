@@ -5,9 +5,10 @@
  * `ref`).
  *
  * Both lists name a session by its `SessionRef` (provider + file path, the
- * load key), so an entry opens without scanning every project
- * (`openSessionRef`). A favourite starred before `ref` existed has none until
- * its project is opened; it is listed as "location check needed".
+ * load key, plus the path of the project that lists it), so an entry opens
+ * its own project without scanning every project (`openSessionRef`). A
+ * favourite starred before `ref` existed has none until its project is
+ * opened; it is listed as "location check needed".
  */
 import type { ClaudeProject, ClaudeSession, UserMetadata } from "@/types";
 import { sessionRefOf, type SessionRef } from "./place";
@@ -26,10 +27,25 @@ export interface RecentEntry {
   openedAt: number;
 }
 
-/** The entry for an opened session. */
-export function recentEntryOf(session: ClaudeSession, openedAt: number): RecentEntry {
+/**
+ * A session's ref as the library records it: with the path of the project
+ * that lists it (`SessionRef.projectPath`), when known.
+ */
+export function libraryRefOf(session: ClaudeSession, project?: ClaudeProject | null): SessionRef {
   return {
-    ref: sessionRefOf(session) as SessionRef,
+    ...(sessionRefOf(session) as SessionRef),
+    ...(project ? { projectPath: project.path } : {}),
+  };
+}
+
+/** The entry for an opened session, listed by `project`. */
+export function recentEntryOf(
+  session: ClaudeSession,
+  openedAt: number,
+  project?: ClaudeProject | null,
+): RecentEntry {
+  return {
+    ref: libraryRefOf(session, project),
     title: session.summary ?? "",
     openedAt,
   };
@@ -55,6 +71,7 @@ function parseRef(value: unknown): SessionRef | null {
     filePath: r.filePath,
     sessionId: r.sessionId,
     ...(isString(r.actualSessionId) ? { actualSessionId: r.actualSessionId } : {}),
+    ...(isString(r.projectPath) ? { projectPath: r.projectPath } : {}),
   };
 }
 
@@ -131,6 +148,27 @@ export function favoritesMissingRef(
     const meta = metadata.sessions?.[s.session_id];
     return meta?.starred === true && !parseRef(meta.ref);
   });
+}
+
+/**
+ * The project that lists `session`, for recording it in a ref: the open
+ * project when its loaded list holds the session, else the project whose
+ * storage path holds the file. Undefined when neither knows (a provider
+ * with virtual project paths, the session not in the open list).
+ */
+export function projectListing(
+  state: {
+    projects: readonly ClaudeProject[];
+    selectedProject: ClaudeProject | null;
+    sessions: readonly ClaudeSession[];
+  },
+  session: ClaudeSession,
+): ClaudeProject | undefined {
+  const { selectedProject, sessions, projects } = state;
+  if (selectedProject && sessions.some((s) => s.file_path === session.file_path)) return selectedProject;
+  const provider = session.provider ?? "claude";
+  const byPath = findProjectForSessionPath(projects, session.file_path, provider);
+  return byPath && (byPath.provider ?? "claude") === provider ? byPath : undefined;
 }
 
 /**
