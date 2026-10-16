@@ -265,3 +265,23 @@ it("a ref naming another project does not read the open project's full list", as
   expect(state().selectedSession?.file_path).toBe(target.file_path);
   expect(loaded).not.toContain(b.path);
 });
+
+it("a ref whose projectPath is no longer listed still searches the open project's full list", async () => {
+  // The stored projectPath points at a project that is gone (moved/renamed);
+  // the session now lives beyond the loaded page of the open project.
+  const p = projectOf("codex");
+  const { firstPage, all, older } = diskOf(p);
+  serve(all);
+  useAppStore.setState({
+    projects: [p],
+    selectedProject: p,
+    sessions: firstPage,
+    sessionsTotal: TOTAL,
+    sessionsOffset: PAGE_SIZE,
+    hasMoreSessions: true,
+  });
+  const ref = { ...libraryRefOf(older, p), projectPath: "codex:///work/moved-away" };
+
+  expect(await openSessionRef(ref)).toBe("opened");
+  expect(state().selectedSession?.file_path).toBe(older.file_path);
+});
