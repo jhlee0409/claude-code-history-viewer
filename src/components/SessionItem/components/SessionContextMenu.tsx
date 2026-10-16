@@ -81,15 +81,9 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         onClose();
       }
     };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
     };
   }, [onClose]);
 
@@ -106,6 +100,23 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   // inside that dialog: portalled to <body> the menu sits under the drawer,
   // outside its focus trap, and the drawer takes every tap meant for it.
   const portalTarget = anchor?.closest<HTMLElement>('[role="dialog"]') ?? document.body;
+
+  // Escape closes this menu only, and focus goes back to the row it was
+  // opened on. Caught on the window in the capture phase, before anything
+  // else sees it: a dialog holding the row (the phone's drawer) dismisses
+  // on a document-level Escape, which would close it together with the
+  // menu. With the menu gone, the next Escape reaches the drawer.
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+      if (anchor?.isConnected) anchor.focus();
+    };
+    window.addEventListener("keydown", handleEscape, { capture: true });
+    return () => window.removeEventListener("keydown", handleEscape, { capture: true });
+  }, [onClose, anchor]);
   useEffect(() => {
     let armed = false;
     const raf = requestAnimationFrame(() => {

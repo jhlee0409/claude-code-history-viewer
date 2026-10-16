@@ -8,7 +8,9 @@
 // - Option+Tab reaches the toolbar tablist (one roving stop, arrows walk
 //   it), the gear and the library rows.
 // - Row menu from the keyboard (Shift+F10 / ContextMenu): focus lands on the
-//   first item, ArrowDown moves, Escape closes.
+//   first item, ArrowDown moves, Escape closes it and focus returns to the
+//   row, where ArrowDown goes on along the tree. In the phone drawer the
+//   first Escape closes the menu only; the second closes the drawer.
 // - The row menu stays open while the transcript scrolls beside the sidebar
 //   (it loads more and keeps its anchor on its own); a scroll that moves the
 //   row (its scroll container) closes it.
@@ -137,6 +139,10 @@ describe.skipIf(!ENABLED)("sidebar in WebKit", () => {
       await page.keyboard.press("Escape");
       await settle(session, { label: "menu closed" });
       expect(await menu.count()).toBe(0);
+      // Focus is back on the row, and the tree keys go on from there.
+      expect(await focusedRowPath(page)).toBe(next);
+      await page.keyboard.press("ArrowDown");
+      expect(await focusedRowPath(page)).toBe(paths[(paths.indexOf(next) + 1) % paths.length]);
     } finally {
       await session.close();
     }
@@ -288,6 +294,32 @@ describe.skipIf(!ENABLED)("sidebar in WebKit", () => {
       await settle(session, { label: "starred" });
       expect(await page.getByRole("menu").count()).toBe(0);
       expect(await drawer.count()).toBe(1);
+    } finally {
+      await session.close();
+    }
+  }, 120_000);
+
+  it("phone drawer: Escape closes the row menu only and returns focus to the row; a second Escape closes the drawer", async () => {
+    const { session, page, run } = await openScenario("sidebar-sessions--390x844--light");
+    try {
+      await run({ do: "openSidebar" });
+      const drawer = page.getByRole("dialog");
+      const row = drawer.locator('[role="treeitem"][data-tree-node="session"]').first();
+      const rowPath = await row.getAttribute("data-session-path");
+      await row.focus();
+      await page.keyboard.press("Shift+F10");
+      await settle(session, { label: "row menu" });
+      expect(await drawer.getByRole("menu").count()).toBe(1);
+
+      await page.keyboard.press("Escape");
+      await settle(session, { label: "menu closed" });
+      expect(await page.getByRole("menu").count()).toBe(0);
+      expect(await page.getByRole("dialog").count()).toBe(1);
+      expect(await focusedRowPath(page)).toBe(rowPath);
+
+      await page.keyboard.press("Escape");
+      await settle(session, { label: "drawer closed" });
+      expect(await page.getByRole("dialog").count()).toBe(0);
     } finally {
       await session.close();
     }
