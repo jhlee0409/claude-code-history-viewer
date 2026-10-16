@@ -92,7 +92,9 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       }}
       onContextMenu={onContextMenu}
       className={cn(
-        "group/project w-full h-7 flex items-center gap-1.5 pl-1 pr-2 rounded-md",
+        // 28px; 26px on a desktop mouse screen, where it buys a 21st row at
+        // 1440x900 (plan C4 margin). Phones and touch screens keep 28px.
+        "group/project w-full h-7 md:pointer-fine:h-6.5 flex items-center gap-1.5 pl-1 pr-2 rounded-md",
         "text-left text-list outline-none transition-colors cursor-pointer",
         "focus-visible:ring-2 focus-visible:ring-accent",
         isSelected

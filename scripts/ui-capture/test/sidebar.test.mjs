@@ -16,6 +16,8 @@
 //   row (its scroll container) closes it.
 // - Phone drawer: the row menu opens inside the drawer and takes the tap
 //   (portalled to <body> the drawer covered it).
+// - Project rows: 26px on a desktop mouse screen (one more row at 1440x900),
+//   28px on a phone and on any touch screen.
 // - Touch screen (hasTouch, pointer: coarse): every session row shows its
 //   actions button (24px); a tap opens the row menu, a tap on an item runs
 //   it. A mouse-only screen shows no such button.
@@ -324,6 +326,23 @@ describe.skipIf(!ENABLED)("sidebar in WebKit", () => {
       await session.close();
     }
   }, 120_000);
+
+  it("project rows: 26px with a mouse on desktop, 28px on a phone or a touch screen", async () => {
+    const heights = async (id, contextOptions) => {
+      const { session, page, run } = await openScenario(id, { contextOptions });
+      try {
+        if (id.includes("390x844")) await run({ do: "openSidebar" });
+        return await page
+          .locator('[data-row="project"]')
+          .evaluateAll((rows) => [...new Set(rows.map((row) => Math.round(row.getBoundingClientRect().height)))]);
+      } finally {
+        await session.close();
+      }
+    };
+    expect(await heights("projects-collapsed--1440x900--dark")).toEqual([26]);
+    expect(await heights("projects-collapsed--1440x900--dark", { hasTouch: true })).toEqual([28]);
+    expect(await heights("sidebar-sessions--390x844--light")).toEqual([28]);
+  }, 180_000);
 
   it("touch screen: the row's actions button opens the row menu by tap; a mouse screen has none", async () => {
     const { session, page, t, run } = await openScenario("sidebar-sessions--390x844--light", {
