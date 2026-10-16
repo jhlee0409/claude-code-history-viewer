@@ -174,7 +174,8 @@ export function isSessionMetadataEmpty(metadata: SessionMetadata): boolean {
     !metadata.customName &&
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
-    !metadata.notes
+    !metadata.notes &&
+    !metadata.ref
   );
 }
 

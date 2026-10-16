@@ -158,6 +158,24 @@ pub struct SessionMetadata {
     /// User notes about the session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+
+    /// Where the session lives, recorded when it is starred, so a favourite
+    /// opens without scanning every project. Optional: stars saved before it
+    /// existed have none until their project is opened (plan T7).
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub session_ref: Option<SessionRefMetadata>,
+}
+
+/// A session's location: it loads by `file_path` + `provider`; `session_id`
+/// is the metadata key (the frontend's `SessionRef`).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRefMetadata {
+    pub provider: String,
+    pub file_path: String,
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actual_session_id: Option<String>,
 }
 
 impl SessionMetadata {
@@ -167,6 +185,7 @@ impl SessionMetadata {
             && self.starred.is_none()
             && self.tags.is_empty()
             && self.notes.is_none()
+            && self.session_ref.is_none()
     }
 }
 
@@ -327,6 +346,54 @@ mod tests {
             ..Default::default()
         };
         assert!(!with_name.is_empty());
+    }
+
+    /// A favourite records where its session lives (`ref`, plan T7), so the
+    /// sidebar can open it without scanning every project.
+    #[test]
+    fn test_session_ref_roundtrip_in_the_frontend_wire_format() {
+        let json = serde_json::json!({
+            "starred": true,
+            "ref": {
+                "provider": "codex",
+                "filePath": "/home/u/.codex/sessions/rollout-1.jsonl",
+                "sessionId": "s-1",
+                "actualSessionId": "a-1"
+            }
+        });
+        let session: SessionMetadata = serde_json::from_value(json.clone()).unwrap();
+        let session_ref = session.session_ref.clone().expect("ref is kept");
+        assert_eq!(session_ref.provider, "codex");
+        assert_eq!(
+            session_ref.file_path,
+            "/home/u/.codex/sessions/rollout-1.jsonl"
+        );
+        assert_eq!(session_ref.session_id, "s-1");
+        assert_eq!(session_ref.actual_session_id.as_deref(), Some("a-1"));
+        assert!(!session.is_empty());
+        assert_eq!(serde_json::to_value(&session).unwrap(), json);
+    }
+
+    /// Stars recorded before `ref` existed still load, and gain no `ref` key.
+    #[test]
+    fn test_legacy_star_without_ref_loads_and_serializes_without_ref() {
+        let session: SessionMetadata =
+            serde_json::from_value(serde_json::json!({ "starred": true })).unwrap();
+        assert!(session.session_ref.is_none());
+        let out = serde_json::to_value(&session).unwrap();
+        assert_eq!(out, serde_json::json!({ "starred": true }));
+
+        let ref_only: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "ref": { "provider": "claude", "filePath": "/p/s.jsonl", "sessionId": "s" }
+        }))
+        .unwrap();
+        assert!(
+            !ref_only.is_empty(),
+            "a ref alone is metadata worth keeping"
+        );
+        assert!(serde_json::to_value(&ref_only).unwrap()["ref"]
+            .get("actualSessionId")
+            .is_none());
     }
 
     #[test]
