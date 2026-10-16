@@ -509,6 +509,52 @@ describe("§6 reachability through the real shell", () => {
       await waitFor(() => expect(tabs()).toHaveLength(1));
     });
 
+    it("Delete on a focused tab moves focus to the tab that takes its place (review #8)", async () => {
+      await renderShell();
+      const plus = () => within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") });
+      await activate(plus());
+      await activate(plus());
+      await waitFor(() => expect(tabs()).toHaveLength(3));
+      const ids = tabs().map((tab) => tab.dataset.documentId);
+
+      // The middle tab (not the open one): its right neighbour takes focus.
+      tabs()[1]!.focus();
+      await act(async () => {
+        fireEvent.keyDown(tabs()[1]!, { key: "Delete" });
+      });
+      await waitFor(() => expect(tabs()).toHaveLength(2));
+      expect(document.activeElement).toBe(tabs()[1]);
+      expect((document.activeElement as HTMLElement).dataset.documentId).toBe(ids[2]);
+      expect(tabs()[1]!.tabIndex).toBe(0);
+
+      // The last tab, which is open: its left neighbour opens and takes focus.
+      await act(async () => {
+        fireEvent.keyDown(tabs()[1]!, { key: "Backspace" });
+      });
+      await waitFor(() => expect(tabs()).toHaveLength(1));
+      await waitFor(() => expect(document.activeElement).toBe(tabs()[0]));
+      expect(tabs()[0]!.dataset.documentId).toBe(ids[0]);
+
+      // The only tab: the empty tab that replaces it takes focus.
+      await act(async () => {
+        fireEvent.keyDown(tabs()[0]!, { key: "Delete" });
+      });
+      await waitFor(() => expect(tabs()[0]!.dataset.documentId).not.toBe(ids[0]));
+      await waitFor(() => expect(document.activeElement).toBe(tabs()[0]));
+    });
+
+    it("the close shortcut from a focused tab keeps focus in the strip (review #8)", async () => {
+      await renderShell();
+      await activate(within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") }));
+      await waitFor(() => expect(tabs()).toHaveLength(2));
+      selectedTab()!.focus();
+      await act(async () => {
+        fireEvent.keyDown(selectedTab()!, { key: "w", code: "KeyW", altKey: true, bubbles: true, cancelable: true });
+      });
+      await waitFor(() => expect(tabs()).toHaveLength(1));
+      await waitFor(() => expect(document.activeElement).toBe(tabs()[0]));
+    });
+
     it("a tab that cannot open says why inside the tab, and closes from there", async () => {
       useAppStore.setState({
         documents: [{ ...state().documents[0]!, unavailable: "session" }],

@@ -202,7 +202,7 @@ export interface TabList {
  * The tab to show after `closingId` closes: its right neighbour, else its
  * left one (plan §4.3). Null when it is the only tab.
  */
-export function neighbourAfterClose(documents: readonly TabDocument[], closingId: string): string | null {
+export function neighbourAfterClose(documents: readonly { id: string }[], closingId: string): string | null {
   const index = documents.findIndex((d) => d.id === closingId);
   if (index === -1) return null;
   return documents[index + 1]?.id ?? documents[index - 1]?.id ?? null;

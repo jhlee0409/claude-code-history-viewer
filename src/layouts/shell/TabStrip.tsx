@@ -8,7 +8,9 @@
  *   it (`activateTab`). The × closes it, as do middle-click, Delete and ⌘W.
  * - `role=tablist` with roving focus: arrows / Home / End move focus, Enter
  *   or Space opens the focused tab (manual activation: opening one loads a
- *   session).
+ *   session). Closing the focused tab from the keyboard (Delete, ⌘W/⌥W)
+ *   moves focus to the tab that takes its place - its right neighbour, else
+ *   its left one, else the empty tab that replaces it - never to the page.
  * - Too many tabs to fit: the strip scrolls sideways (the active tab is kept
  *   in view) and a "⌄" menu lists every tab.
  *
@@ -28,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { activateTab, closeTab, type TabScreens } from "@/navigation/tabs";
+import { neighbourAfterClose } from "@/navigation/documents";
 import { useCommandRunner } from "@/commands/CommandRunner";
 import { shortcutLabel } from "@/commands/keys";
 import { getCommand } from "@/commands/registry";
@@ -72,6 +75,24 @@ export function TabStrip({ screens }: TabStripProps) {
   const stopId = focusId && items.some((item) => item.id === focusId) ? focusId : activeId;
 
   useEffect(() => setFocusId(null), [activeId]);
+
+  // Keyboard focus survives closing the focused tab (WCAG 2.4.3). The tab
+  // that last had focus; the tab Delete chose to take it.
+  const focusedIdRef = useRef<string | null>(null);
+  const focusNextRef = useRef<string | null>(null);
+  useEffect(() => {
+    const lost = focusedIdRef.current;
+    if (!lost || items.some((item) => item.id === lost)) return;
+    focusedIdRef.current = null;
+    const wanted = focusNextRef.current;
+    focusNextRef.current = null;
+    // Only when focus went down with the removed tab (to the page), not
+    // when the user had already moved it elsewhere.
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const target = wanted && items.some((item) => item.id === wanted) ? wanted : (activeId ?? items[0]?.id);
+    if (target) document.getElementById(documentTabId(target))?.focus();
+  }, [items, activeId]);
 
   // Keep the active tab in view and track whether the strip overflows.
   useEffect(() => {
@@ -130,9 +151,25 @@ export function TabStrip({ screens }: TabStripProps) {
             key={item.id}
             item={item}
             tabStop={item.id === stopId}
-            onFocus={() => setFocusId(item.id)}
+            onFocus={() => {
+              focusedIdRef.current = item.id;
+              setFocusId(item.id);
+            }}
+            onBlur={() => {
+              // Focus left a tab that is still there (a click elsewhere, Tab):
+              // it no longer needs saving. A tab removed while focused keeps it.
+              queueMicrotask(() => {
+                if (focusedIdRef.current === item.id && document.getElementById(documentTabId(item.id))) {
+                  focusedIdRef.current = null;
+                }
+              });
+            }}
             onOpen={() => open(item.id)}
             onClose={() => close(item.id)}
+            onCloseFromKeyboard={() => {
+              focusNextRef.current = neighbourAfterClose(items, item.id);
+              close(item.id);
+            }}
             closeLabel={t("common.tabs.closeNamed", { name: item.label })}
           />
         ))}
@@ -180,12 +217,15 @@ interface DocumentTabProps {
   item: TabItem;
   tabStop: boolean;
   onFocus: () => void;
+  onBlur: () => void;
   onOpen: () => void;
   onClose: () => void;
+  /** Delete / Backspace on the focused tab: focus goes to the tab taking its place. */
+  onCloseFromKeyboard: () => void;
   closeLabel: string;
 }
 
-function DocumentTab({ item, tabStop, onFocus, onOpen, onClose, closeLabel }: DocumentTabProps) {
+function DocumentTab({ item, tabStop, onFocus, onBlur, onOpen, onClose, onCloseFromKeyboard, closeLabel }: DocumentTabProps) {
   const Glyph = item.unavailable ? CircleAlert : item.icon;
   return (
     <button
@@ -199,6 +239,7 @@ function DocumentTab({ item, tabStop, onFocus, onOpen, onClose, closeLabel }: Do
       tabIndex={tabStop ? 0 : -1}
       title={item.label}
       onFocus={onFocus}
+      onBlur={onBlur}
       onClick={() => {
         if (!item.active) onOpen();
       }}
@@ -211,7 +252,7 @@ function DocumentTab({ item, tabStop, onFocus, onOpen, onClose, closeLabel }: Do
       onKeyDown={(event) => {
         if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
-          onClose();
+          onCloseFromKeyboard();
         }
       }}
       className={cn(
