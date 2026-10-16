@@ -12,7 +12,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { VIEW_REGISTRY } from "@/layouts/shell/viewRegistry";
 import { isAppView, type View } from "@/navigation/place";
 import type { TabDocument } from "@/navigation/documents";
-import { getProjectDisplayName } from "@/utils/pathUtils";
+import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
 
 /** The DOM id of a tab in the strip. */
 export const documentTabId = (id: string) => `document-tab-${id}`;
@@ -50,7 +50,7 @@ export function tabLabel(parts: LabelParts, t: Translate): string {
 
 const partsOf = (doc: TabDocument): LabelParts => ({
   view: doc.view,
-  projectName: doc.projectName ?? (doc.project ? doc.project.path.split("/").pop() ?? doc.project.path : null),
+  projectName: doc.projectName ?? (doc.project ? getPathLeaf(doc.project.path) : null),
   sessionTitle: doc.title,
   sessionId: doc.session?.sessionId ?? null,
   unavailable: doc.unavailable !== null,
