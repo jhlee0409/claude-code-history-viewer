@@ -16,7 +16,7 @@ import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 // Local imports
 import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
-import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
+import { CurrentDateBar } from "./components/CurrentDateBar";
 import { SessionMinimap, MINIMAP_WIDTH_PX } from "./components/SessionMinimap";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
@@ -1104,18 +1104,18 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
+      {/* Current date — its own row above the list, never over a message. */}
+      {flattenedMessages.length > 0 && (
+        <CurrentDateBar
+          virtualRows={virtualRows}
+          flattenedMessages={flattenedMessages}
+        />
+      )}
+
       <div
         className="relative flex-1 min-h-0"
         style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
       >
-        {/* Floating date overlay — outside scroll container to stay fixed */}
-        {flattenedMessages.length > 0 && scrollElementReady && (
-          <FloatingDateOverlay
-            virtualRows={virtualRows}
-            flattenedMessages={flattenedMessages}
-          />
-        )}
-
         {/* Session minimap strip — see `showMinimapStrip`. */}
         {showMinimapStrip && (
           <SessionMinimap

@@ -9,6 +9,8 @@
 // - Settings on a phone: the editor footer (mode toggle, reset, save) never
 //   overlaps the "what's active" summary, and both can be scrolled fully
 //   above the bottom tab bar.
+// - Transcript: the current-date label never sits on top of the message
+//   list (it gets its own row).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +21,7 @@ import { buildDist } from "../lib/viteBuild.mjs";
 import { startServer } from "../lib/server.mjs";
 import { newScenarioPage, settle } from "../lib/browser.mjs";
 import { createActions } from "../lib/actions.mjs";
-import { loadTranslator } from "../lib/i18n.mjs";
+import { loadTranslator, SUPPORTED_LOCALES } from "../lib/i18n.mjs";
 import { generateFixture } from "../fixtures/generate.mjs";
 import { STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
 
@@ -129,4 +131,45 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
     }
   }, 120_000);
 
+  const transcriptCases = [
+    ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: { "navigator-open": "true" } })),
+    ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--390x844--dark", locale, storage: {} })),
+    { id: "transcript--1440x900--light", locale: "en", storage: {} },
+  ];
+
+  for (const { id, locale, storage } of transcriptCases) {
+    const label = `${id} ${locale}${storage["navigator-open"] === "true" ? " (navigator open)" : ""}`;
+    it(`${label}: date label sits outside the message list`, async () => {
+      const { session, page } = await openScenario(id, { locale, storage });
+      try {
+        // The scroll viewport of the message list holds the virtual rows.
+        const list = await page.evaluate(() => {
+          const row = document.querySelector("[data-index]");
+          for (let el = row?.parentElement; el; el = el.parentElement) {
+            const overflowY = getComputedStyle(el).overflowY;
+            if (overflowY === "auto" || overflowY === "scroll") {
+              const r = el.getBoundingClientRect();
+              return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+            }
+          }
+          return null;
+        });
+        expect(list).not.toBeNull();
+        // The date label: the visible atomic polite live region (the base
+        // build's floating pill has no data hook, hence the role query;
+        // sr-only announcers share the role).
+        const status = page.locator("[data-current-date], [role=status][aria-live=polite][aria-atomic=true]:not(.sr-only)");
+        expect(await status.count()).toBe(1);
+        const label = await status.first().evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, height: r.height, text: el.textContent };
+        });
+        expect(label.text).toMatch(/\S/);
+        expect(label.height).toBeGreaterThan(0);
+        expect.soft(overlapArea(label, list), `date label "${label.text}" overlaps the message list`).toBe(0);
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
+  }
 });

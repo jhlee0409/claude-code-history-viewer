@@ -212,8 +212,8 @@ vi.mock("@/components/MessageViewer/hooks/useMessageVirtualization", () => ({
 
 // Rendering details of these sub-components are out of scope for the gate
 // this file tests; each is stubbed to a cheap no-op.
-vi.mock("@/components/MessageViewer/components/FloatingDateOverlay", () => ({
-  FloatingDateOverlay: () => null,
+vi.mock("@/components/MessageViewer/components/CurrentDateBar", () => ({
+  CurrentDateBar: () => null,
 }));
 vi.mock("@/components/MessageViewer/components/CaptureModeToolbar", () => ({
   CaptureModeToolbar: () => null,
