@@ -86,12 +86,59 @@ const PLACE_ACTIONS = /^(navigate|clearProjectSelection|setSelectedSession)$/;
 const SPINNER_FIELDS =
   /^isLoading|^isRefreshing|^isCreating|^isDeleting|^isRenaming|^isExporting|^isDetecting|^isSearching/;
 
+/**
+ * The text of a literal key: `a`, `"a"`, `'a'`, `` `a` ``, `1`. Anything
+ * else (an expression to evaluate) has none.
+ */
+function literalText(node: ts.Node): string | undefined {
+  if (
+    ts.isIdentifier(node) ||
+    ts.isPrivateIdentifier(node) ||
+    ts.isStringLiteral(node) ||
+    ts.isNoSubstitutionTemplateLiteral(node) ||
+    ts.isNumericLiteral(node)
+  ) {
+    return node.text;
+  }
+  return undefined;
+}
+
+/**
+ * The name a property key writes, however it is spelled: `error`,
+ * `"error"`, `['error']`, `` [`error`] ``, or `[KEY]` with a local
+ * `const KEY = "error"`. `null` when the scan cannot tell (`[pick()]`), so
+ * callers can refuse what they cannot check.
+ */
+function propertyKey(name: ts.PropertyName | ts.BindingName, at: ts.Node): string | null {
+  if (!ts.isComputedPropertyName(name)) return literalText(name) ?? null;
+  const expression = unwrap(name.expression);
+  if (ts.isIdentifier(expression)) {
+    const init = localInitializer(expression.text, at);
+    const value = init && unwrap(init);
+    return value && (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value))
+      ? value.text
+      : null;
+  }
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  }
+  return null;
+}
+
+/** `x.name` and `x["name"]`: the member a call or access reads. */
+function memberName(node: ts.Expression): string | undefined {
+  const value = unwrap(node);
+  if (ts.isPropertyAccessExpression(value)) return value.name.text;
+  if (ts.isElementAccessExpression(value)) {
+    const key = unwrap(value.argumentExpression);
+    if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) return key.text;
+  }
+  return undefined;
+}
+
 const calleeName = (call: ts.CallExpression): string =>
-  ts.isPropertyAccessExpression(call.expression)
-    ? call.expression.name.text
-    : ts.isIdentifier(call.expression)
-      ? call.expression.text
-      : "";
+  memberName(call.expression) ??
+  (ts.isIdentifier(call.expression) ? call.expression.text : "");
 
 const unwrap = (node: ts.Expression): ts.Expression => {
   let current = node;
@@ -329,12 +376,20 @@ function addKindsOfObject(
     if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
       continue;
     }
-    const name = property.name.getText();
+    const key = propertyKey(property.name, property);
     // A shorthand `{ error }` writes a value the scan cannot see: not cleared.
     const value = ts.isPropertyAssignment(property)
       ? unwrap(property.initializer)
       : undefined;
     const sets = value === undefined || !isNullish(value);
+    if (key === null) {
+      // A computed key the scan cannot resolve may be any field - `error`
+      // included - so it is refused, not passed.
+      kinds.add(nested ? "data" : "opaque");
+      if (!nested && sets) kinds.add("global-error");
+      continue;
+    }
+    const name = key;
     if (/^error$/.test(name) && !nested) {
       if (sets) kinds.add("global-error");
     } else if (/error$/i.test(name)) {
@@ -552,80 +607,152 @@ export interface GlobalErrorWrite {
   callee: string;
 }
 
-/** `[x, name] = useState(…)` setters declared in `file`: a component's own state. */
-function reactStateSetters(file: ts.SourceFile): Set<string> {
-  const setters = new Set<string>();
-  const visit = (node: ts.Node) => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isArrayBindingPattern(node.name) &&
-      node.initializer &&
-      ts.isCallExpression(unwrap(node.initializer)) &&
-      /^(?:React\.)?useState$/.test((unwrap(node.initializer) as ts.CallExpression).expression.getText())
-    ) {
-      const setter = node.name.elements[1];
-      if (setter && ts.isBindingElement(setter) && ts.isIdentifier(setter.name)) setters.add(setter.name.text);
+/** The identifier in `name` (a binding, maybe destructured) that binds `text`. */
+function bindingIn(name: ts.BindingName, text: string): ts.Identifier | undefined {
+  if (ts.isIdentifier(name)) return name.text === text ? name : undefined;
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) continue;
+    const found = bindingIn(element.name, text);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** The identifier `statement` declares as `text`, if it declares it. */
+function declaredBy(statement: ts.Statement, text: string): ts.Identifier | undefined {
+  if (ts.isVariableStatement(statement)) {
+    for (const declaration of statement.declarationList.declarations) {
+      const found = bindingIn(declaration.name, text);
+      if (found) return found;
     }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  return setters;
+  }
+  if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === text) {
+    return statement.name;
+  }
+  if (ts.isImportDeclaration(statement) && statement.importClause) {
+    const clause = statement.importClause;
+    if (clause.name?.text === text) return clause.name;
+    const bindings = clause.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings) && bindings.name.text === text) return bindings.name;
+    if (bindings && ts.isNamedImports(bindings)) {
+      const element = bindings.elements.find((e) => e.name.text === text);
+      if (element) return element.name;
+    }
+  }
+  return undefined;
 }
 
 /**
- * Local names bound to the store's `setError`: `const { setError: fail } =
- * …`, `const fail = get().setError`, `const fail = useAppStore((s) =>
- * s.setError)`.
+ * The declaration `id` refers to, by lexical scope: the nearest enclosing
+ * block, loop, catch clause or function that binds its name. `undefined`
+ * for a name declared nowhere in the file.
  */
-function setErrorAliases(file: ts.SourceFile): Set<string> {
-  const aliases = new Set<string>();
-  const isSetError = (node: ts.Expression): boolean => {
-    const value = unwrap(node);
-    if (ts.isPropertyAccessExpression(value)) return value.name.text === "setError";
-    if (ts.isCallExpression(value)) return value.arguments.some((arg) => isSetError(arg));
-    if (ts.isArrowFunction(value) && !ts.isBlock(value.body)) return isSetError(value.body);
-    return false;
-  };
-  const visit = (node: ts.Node) => {
-    if (ts.isVariableDeclaration(node)) {
-      if (ts.isObjectBindingPattern(node.name)) {
-        for (const element of node.name.elements) {
-          const property = element.propertyName?.getText() ?? element.name.getText();
-          if (property === "setError" && ts.isIdentifier(element.name)) aliases.add(element.name.text);
-        }
-      } else if (ts.isIdentifier(node.name) && node.initializer && isSetError(node.initializer)) {
-        aliases.add(node.name.text);
+function declarationOf(id: ts.Identifier): ts.Identifier | undefined {
+  const text = id.text;
+  let scope: ts.Node | undefined = id.parent;
+  while (scope) {
+    if (ts.isBlock(scope) || ts.isSourceFile(scope) || ts.isModuleBlock(scope) || ts.isCaseClause(scope) || ts.isDefaultClause(scope)) {
+      for (const statement of scope.statements) {
+        const found = declaredBy(statement, text);
+        if (found) return found;
       }
     }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  return aliases;
+    if (
+      (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) &&
+      scope.initializer &&
+      ts.isVariableDeclarationList(scope.initializer)
+    ) {
+      for (const declaration of scope.initializer.declarations) {
+        const found = bindingIn(declaration.name, text);
+        if (found) return found;
+      }
+    }
+    if (ts.isCatchClause(scope) && scope.variableDeclaration) {
+      const found = bindingIn(scope.variableDeclaration.name, text);
+      if (found) return found;
+    }
+    if (ts.isFunctionLike(scope)) {
+      for (const parameter of scope.parameters) {
+        const found = bindingIn(parameter.name, text);
+        if (found) return found;
+      }
+      if (ts.isFunctionExpression(scope) && scope.name?.text === text) return scope.name;
+    }
+    scope = scope.parent;
+  }
+  return undefined;
+}
+
+/** `declared` is the setter of `[x, setter] = useState(…)`: a component's own state. */
+function isReactStateSetter(declared: ts.Identifier): boolean {
+  const element = declared.parent;
+  if (!ts.isBindingElement(element) || !ts.isArrayBindingPattern(element.parent)) return false;
+  const declaration = element.parent.parent;
+  if (!ts.isVariableDeclaration(declaration) || !declaration.initializer) return false;
+  const init = unwrap(declaration.initializer);
+  return (
+    element.parent.elements.indexOf(element) === 1 &&
+    ts.isCallExpression(init) &&
+    /^(?:React\.)?useState$/.test(init.expression.getText())
+  );
+}
+
+/** An expression that reads the store's `setError` (`get().setError`, `(s) => s["setError"]`, …). */
+function readsSetError(node: ts.Expression): boolean {
+  const value = unwrap(node);
+  if (memberName(value) === "setError") return true;
+  if (ts.isCallExpression(value)) return value.arguments.some((arg) => readsSetError(arg));
+  if (ts.isArrowFunction(value) && !ts.isBlock(value.body)) return readsSetError(value.body);
+  return false;
+}
+
+/**
+ * `declared` is bound to the store's `setError`: `const { setError: fail } =
+ * …` (the key spelled any way), `const fail = get().setError`, `const fail =
+ * useAppStore((s) => s.setError)`.
+ */
+function isSetErrorAlias(declared: ts.Identifier): boolean {
+  const parent = declared.parent;
+  if (ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent)) {
+    const key = parent.propertyName ? propertyKey(parent.propertyName, parent) : declared.text;
+    return key === "setError";
+  }
+  return (
+    ts.isVariableDeclaration(parent) &&
+    parent.name === declared &&
+    parent.initializer !== undefined &&
+    readsSetError(parent.initializer)
+  );
 }
 
 /**
  * Every write that sets the app's error screen in `source` - synchronous or
  * not: a non-null `setError(…)` of the store (through `get()`, `getState()`,
  * a destructured or selected alias), and a top-level `error` field written
- * by the slice's `set(…)` or a store's `setState(…)`. A component's own
- * `useState` setter and a class component's `this.setState` are not the
- * store's. Nested `error` fields (`archive.error`) are a screen's.
+ * by the slice's `set(…)` or a store's `setState(…)` - its key spelled any
+ * way (`"error"`, `['error']`, a local constant), and a computed key the
+ * scan cannot resolve counted as one. A component's own `useState` setter
+ * (resolved by lexical scope at the call, so it exempts only its own calls)
+ * and a class component's `this.setState` are not the store's. Nested
+ * `error` fields (`archive.error`) are a screen's.
  */
 export function globalErrorWrites(fileName: string, source: string): GlobalErrorWrite[] {
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   const aliases = toastAliases(file);
-  const own = reactStateSetters(file);
-  const setErrors = setErrorAliases(file);
   const writes: GlobalErrorWrite[] = [];
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
       const kind = classify(node, aliases);
       const callee = node.expression.getText();
-      const componentState = own.has(callee) || callee.startsWith("this.");
+      // What the called name is bound to where it is called, not anywhere
+      // in the file: a component's own `setError` / `set` exempts its own
+      // calls only.
+      const declared = ts.isIdentifier(node.expression) ? declarationOf(node.expression) : undefined;
+      const componentState =
+        (declared !== undefined && isReactStateSetter(declared)) || callee.startsWith("this.");
       const viaAlias =
-        ts.isIdentifier(node.expression) &&
-        setErrors.has(callee) &&
-        !own.has(callee) &&
+        declared !== undefined &&
+        isSetErrorAlias(declared) &&
         !isNullish(node.arguments[0]);
       if ((kind?.kinds.includes("global-error") && !componentState) || viaAlias) {
         writes.push({

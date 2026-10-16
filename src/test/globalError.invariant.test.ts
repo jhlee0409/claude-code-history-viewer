@@ -98,6 +98,72 @@ describe("the app's error screen is raised only by app-wide failures", () => {
       ["a renamed setError", component(`const { setError: fail } = useAppStore(); fail({ message: "x" });`)],
       ["a selected setError", component(`const fail = useAppStore((s) => s.setError); fail({ message: "x" });`)],
       ["an assigned setError", slice(`const fail = get().setError; fail({ message: "x" });`)],
+      // T8 third review P2: keys the scan read with their quotes on.
+      ["a quoted key", slice(`set({ "error": { type: "UNKNOWN", message: "x" } });`)],
+      ["a computed string key", slice(`set({ ['error']: { type: "UNKNOWN", message: "x" } });`)],
+      ["a computed template key", slice("set({ [`error`]: { type: 'UNKNOWN', message: 'x' } });")],
+      ["a computed constant key", slice(`const KEY = "error"; set({ [KEY]: { type: "UNKNOWN", message: "x" } });`)],
+      ["a computed key it cannot resolve", slice(`set({ [pick()]: { type: "UNKNOWN", message: "x" } });`)],
+      ["a quoted key in an updater", slice(`set((s) => ({ ...s, "error": { type: "UNKNOWN", message: "x" } }));`)],
+      ["setState with a quoted key", component(`useAppStore.setState({ 'error': { type: "UNKNOWN", message: "x" } });`)],
+      ["an element-access setError", slice(`get()["setError"]({ type: "UNKNOWN", message: "x" });`)],
+      ["a quoted destructured setError", component(`const { "setError": fail } = useAppStore.getState(); fail({ message: "x" });`)],
+      ["a selected element-access setError", component(`const fail = useAppStore((s) => s["setError"]); fail({ message: "x" });`)],
+    ])("catches %s", (_name, text) => {
+      expect(violations([{ rel: "store/slices/thingSlice.ts", text }])).toHaveLength(1);
+    });
+
+    // T8 third review P2: a React setter exempted only its own scope's calls,
+    // not every call of that name in the file.
+    it.each([
+      [
+        "the store's setError beside a component's own setError (the reviewer's file)",
+        `
+        export function Form() {
+          const [error, setError] = useState(null);
+          return error;
+        }
+        export function loadThing() {
+          const { setError } = useAppStore.getState();
+          setError({ type: "UNKNOWN", message: "x" });
+        }`,
+      ],
+      [
+        "the slice's set beside a component's own set",
+        `
+        export function Widget() {
+          const [value, set] = useState(0);
+          return value;
+        }
+        export const createThingSlice = (set, get) => ({
+          loadThing: async () => { set({ error: { type: "UNKNOWN", message: "x" } }); },
+        });`,
+      ],
+      [
+        "an outer store setError after an inner component's setter went out of scope",
+        `
+        export function Panel() {
+          const { setError } = useAppStore.getState();
+          function Inner() {
+            const [error, setError] = useState(null);
+            return error;
+          }
+          setError({ type: "UNKNOWN", message: "x" });
+          return Inner;
+        }`,
+      ],
+      [
+        "an alias of the store's setError beside a React setter of the same name",
+        `
+        export function Form() {
+          const [error, fail] = useState(null);
+          return error;
+        }
+        export function loadThing() {
+          const fail = useAppStore.getState().setError;
+          fail({ type: "UNKNOWN", message: "x" });
+        }`,
+      ],
     ])("catches %s", (_name, text) => {
       expect(violations([{ rel: "store/slices/thingSlice.ts", text }])).toHaveLength(1);
     });
@@ -112,6 +178,25 @@ describe("the app's error screen is raised only by app-wide failures", () => {
           const save = async () => { try { await api(); } catch (e) { setError(String(e)); } };
           return error;
         }`],
+      [
+        "a React setter shadowing the store's in its own scope",
+        `
+        export function Panel() {
+          const { setError } = useAppStore.getState();
+          function Inner() {
+            const [error, setError] = useState(null);
+            const save = async () => { try { await api(); } catch (e) { setError(String(e)); } };
+            return error;
+          }
+          setError(null);
+          return Inner;
+        }`,
+      ],
+      ["a quoted key that is not the error", slice(`set({ "errorCount": 1, ['isLoading']: false });`)],
+      [
+        "a nested quoted error (a screen's own)",
+        slice(`set((s) => ({ archive: { ...s.archive, "error": String(error) } }));`),
+      ],
       ["a class component's own state", `
         export class Boundary extends Component {
           static getDerivedStateFromError() { return null; }
