@@ -9,6 +9,8 @@
 // - Settings on a phone: the editor footer (mode toggle, reset, save) never
 //   overlaps the "what's active" summary, and both can be scrolled fully
 //   above the bottom tab bar.
+// - No projects: the main area says the same as the sidebar (no projects
+//   found) instead of asking to select a session.
 // - Transcript: the current-date label never sits on top of the message
 //   list (it gets its own row).
 // - Transcript search: the placeholder fits the input in every locale, at a
@@ -132,6 +134,22 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
       await session.close();
     }
   }, 120_000);
+
+  for (const locale of ["en", "ko"]) {
+    it(`no projects (${locale}): sidebar and main say the same thing, no "select a session"`, async () => {
+      const { session, page, t } = await openScenario("empty--1440x900--light", { locale });
+      try {
+        const main = page.locator("[data-slot=main]");
+        await expect(main.getByRole("heading", { name: t("session.noProjects.title"), exact: true }).count()).resolves.toBe(1);
+        await expect(main.getByText(t("session.select"), { exact: true }).count()).resolves.toBe(0);
+        // Once as the main heading, once as the project tree's empty text.
+        const everywhere = await page.getByText(t("session.noProjects.title"), { exact: true }).count();
+        expect(everywhere).toBe(2);
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
+  }
 
   const transcriptCases = [
     ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: { "navigator-open": "true" } })),

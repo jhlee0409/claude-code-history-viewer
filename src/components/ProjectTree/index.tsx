@@ -1113,7 +1113,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
                 <Icon icon={Folder} size={24} className="text-muted-foreground/40" />
               </div>
-              <p className="text-body text-muted-foreground">{t("project.notFound")}</p>
+              {/* No projects at all reads the same as the main area's empty
+                  state; a search or provider filter with no match keeps
+                  "not found". */}
+              <p className="text-body text-muted-foreground">
+                {projects.length === 0 ? t("session.noProjects.title") : t("project.notFound")}
+              </p>
             </div>
           ) : (
             <div
