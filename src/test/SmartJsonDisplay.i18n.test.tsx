@@ -47,4 +47,10 @@ describe("SmartJsonDisplay i18n", () => {
     render(<SmartJsonDisplay data={null} />);
     expect(screen.getByText("t:smartJsonDisplay.noData")).toBeInTheDocument();
   });
+  it("ignores inherited object keys such as constructor, toString and __proto__", () => {
+    const data = JSON.parse('{"constructor":"c","toString":"t","hasOwnProperty":"h","__proto__":{"x":1},"path":"/a"}');
+    const { container } = render(<SmartJsonDisplay data={data} />);
+    const iconTitles = Array.from(container.querySelectorAll("span[title]")).map((el) => el.getAttribute("title"));
+    expect(iconTitles).toEqual(["t:smartJsonDisplay.keys.path"]);
+  });
 });

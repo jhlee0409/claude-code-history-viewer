@@ -116,7 +116,9 @@ export const SmartJsonDisplay = ({ data, className }: SmartJsonDisplayProps) => 
     return (
         <div className={clsx("text-list flex flex-col gap-2", className)}>
             {sortedKeys.map(key => {
-                const keyIcon = KEY_ICONS[key.toLowerCase()];
+                // Own keys only: tool input can contain "constructor" or "__proto__".
+                const lowerKey = key.toLowerCase();
+                const keyIcon = Object.hasOwn(KEY_ICONS, lowerKey) ? KEY_ICONS[lowerKey] : undefined;
                 const icon = keyIcon
                     ? <span title={t(keyIcon.titleKey)}><keyIcon.icon className={clsx("w-3.5 h-3.5", keyIcon.className)} /></span>
                     : <div className="w-3 h-3 opacity-20 bg-current rounded-full" />; // Dot fallback
