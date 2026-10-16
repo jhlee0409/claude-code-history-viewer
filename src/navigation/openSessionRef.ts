@@ -86,6 +86,9 @@ async function findSession(ref: SessionRef, owns: () => boolean): Promise<Found 
       const cached = matchByPath(state.sessions, ref.filePath);
       if (cached) return { project, session: cached };
       if (isCompleteList(state)) continue;
+      // The ref names another project: the open one cannot hold it, so its
+      // loaded list was enough of a check - don't read the rest of it.
+      if (ref.projectPath && ref.projectPath !== project.path) continue;
     }
     let session: ClaudeSession | undefined;
     try {

@@ -233,3 +233,35 @@ it("a newer navigation during the lookup owns the screen", async () => {
   expect(state().selectedSession).toBeNull();
   expect(toastMock.error).not.toHaveBeenCalled();
 });
+
+it("a ref naming another project does not read the open project's full list", async () => {
+  // Open: a large Codex project B (partial list). Ref: a session of project A.
+  const b = { ...projectOf("codex"), name: "big", path: "codex:///work/big", actual_path: "/work/big" };
+  const a = { ...projectOf("codex"), name: "small", path: "codex:///work/small", actual_path: "/work/small", session_count: 1 };
+  const bPage = Array.from({ length: PAGE_SIZE }, (_, i) => sessionOf(b, `b-${i}`));
+  const target = { ...sessionOf(a, "a-target"), file_path: "/home/u/.codex/sessions/2026/10/17/rollout-a-target.jsonl" };
+  const loaded: string[] = [];
+  apiMock.mockImplementation(async (command: string, args: Record<string, unknown> = {}) => {
+    if (command === "load_provider_sessions" || command === "load_project_sessions") {
+      const path = String(args.projectPath ?? args.path ?? "");
+      loaded.push(path);
+      return path === a.path ? [target] : bPage;
+    }
+    if (command === "load_provider_messages_paginated") return EMPTY_PAGE;
+    if (command === "load_provider_sessions_page") return { sessions: [target], total: 1, nextOffset: 1, hasMore: false };
+    return null;
+  });
+  useAppStore.setState({
+    projects: [b, a],
+    selectedProject: b,
+    sessions: bPage,
+    sessionsTotal: 900,
+    sessionsOffset: PAGE_SIZE,
+    hasMoreSessions: true,
+  });
+
+  expect(await openSessionRef(libraryRefOf(target, a))).toBe("opened");
+
+  expect(state().selectedSession?.file_path).toBe(target.file_path);
+  expect(loaded).not.toContain(b.path);
+});
