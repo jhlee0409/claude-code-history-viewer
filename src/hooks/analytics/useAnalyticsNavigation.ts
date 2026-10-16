@@ -216,11 +216,16 @@ export function useAnalyticsNavigation() {
         useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
-      const firstSession = Object.values(boardSessions)[0];
+      // The cached board belongs to the open project only when it holds the
+      // open project's sessions, compared by file: a project name is the
+      // last directory segment, so two projects can both be "repo".
+      const listed = new Set(sessions.map((s) => s.file_path));
+      const holdsOtherSessions = Object.values(boardSessions).some(
+        (board) => !listed.has(board.session.file_path)
+      );
       const needsFullReload =
         !hasAnySessionsLoaded ||
-        (firstSession &&
-          firstSession.session.project_name !== project.name) ||
+        holdsOtherSessions ||
         sessions.length > Object.keys(boardSessions).length;
 
       if (needsFullReload && sessions.length > 0) {
