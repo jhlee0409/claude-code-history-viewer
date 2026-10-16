@@ -89,6 +89,11 @@ export interface TabDocument {
   live?: LiveObjects;
   /** Its capture mode; absent: off, nothing hidden or selected. */
   capture?: CaptureState;
+  /**
+   * The board's open (expanded) message - a message target of the tab's,
+   * like `targetMessageUuid`. Absent: none. Not stored in `tabs.v1`.
+   */
+  selectedMessageId?: string | null;
 }
 
 let idCounter = 0;
@@ -122,6 +127,8 @@ export function blankDocument(id: string = newDocumentId(), now: number = Date.n
  * fields (a place built for a tab that is not open), the tab keeps its own.
  */
 export interface LiveState extends Partial<CaptureState> {
+  /** Absent (a place built for a tab that is not open): the tab keeps its own. */
+  selectedMessageId?: string | null;
   view: View;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
@@ -164,6 +171,7 @@ export function documentFromLive(
     unavailable: null,
     live: { project, session, parentStack: stack },
     capture: captureOf(live) ?? base.capture,
+    selectedMessageId: live.selectedMessageId !== undefined ? live.selectedMessageId : base.selectedMessageId,
   };
 }
 

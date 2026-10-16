@@ -5,21 +5,33 @@
  *
  * - `document` - the tab's own: saved into its snapshot (`TabDocument`)
  *   when the tab is left and put back when it opens again, so another tab
- *   never sees it (the place, its history and target, the capture-mode rows).
+ *   never sees it (the place, its history and targets - the transcript's
+ *   and the board's open message - and the capture-mode rows).
  * - `reset` - belongs to the tab on screen but is not kept: every tab
- *   switch starts it empty (the transcript's find; its matches are of one
- *   transcript and would point into another).
- * - `reloaded` - what the open place shows, loaded again for the place
- *   whenever a tab opens it (messages, session lists, screen data): never
- *   carried from one tab into another.
+ *   switch puts it back to its initial value (the transcript's find, whose
+ *   matches point into one transcript; board hover; what the transcript
+ *   reports about its scroll, reported again once the incoming one shows;
+ *   the sidebar's multi-selection).
+ * - `reloaded` - the open place's transcript and session list: the switch
+ *   itself loads the incoming tab's place, so the outgoing tab's never
+ *   shows in it.
+ * - `screen` - a project screen's (or the docked panel's) data, for the
+ *   place it was loaded for: a switch leaves it, unseen, and that screen's
+ *   loader replaces it when it opens on the incoming tab's place.
  * - `app` - one for the whole window, whatever tab is open: preferences,
- *   the project list, panels, the tabs themselves, app-wide searches.
+ *   the project list, panels, the tabs themselves, app-wide searches. Some
+ *   are cleared when no project is open (board tools, the date range), never
+ *   by a switch between tabs.
  *
  * `src/test/stateScope.invariant.test.ts` fails when a store field is
- * missing here, so a new field has to be classified, and checks that the
- * `document` and `reset` fields really behave so across a tab switch.
+ * missing here, so a new field has to be classified. Each scope's behaviour
+ * across a real switch is checked field by field in
+ * `navigation.tabs.test.ts` ("… (stateScope)"): `document` comes back with
+ * its tab and not in another, `reset` starts at its initial value,
+ * `reloaded` never keeps the outgoing tab's value, `screen` is replaced by
+ * its screen's loader, `app` is left as it was.
  */
-export type StateScope = "document" | "reset" | "reloaded" | "app";
+export type StateScope = "document" | "reset" | "reloaded" | "screen" | "app";
 
 export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   // --- the tab's place (navigationSlice, projectSlice, messageSlice) -------
@@ -36,11 +48,23 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   hiddenMessageIds: "document",
   selectedMessageIds: "document",
   selectionAnchor: "document",
+  // The board's open (expanded) message: a message target of the tab's.
+  selectedMessageId: "document",
 
-  // --- the transcript's find (searchSlice) ----------------------------------
+  // --- started over on every switch ------------------------------------------
+  // The transcript's find.
   sessionSearch: "reset",
+  // Board hover: a property of the board screen, dropped by every move.
+  boardHoverSession: "reset",
+  // Reported by the transcript on screen; the incoming one reports again.
+  visibleMessageUuid: "reset",
+  activeSessionNearBottom: "reset",
+  // The sidebar's multi-selection (also abandoned when the project changes).
+  isSessionSelectionMode: "reset",
+  sessionSelectionIds: "reset",
+  sessionSelectionAnchor: "reset",
 
-  // --- loaded for the open place ---------------------------------------------
+  // --- the open place's transcript and session list --------------------------
   messages: "reloaded",
   pagination: "reloaded",
   isLoadingMessages: "reloaded",
@@ -52,36 +76,32 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   hasMoreSessions: "reloaded",
   isLoadingSessions: "reloaded",
   isLoadingMoreSessions: "reloaded",
-  isLoadingTokenStats: "reloaded",
-  sessionTokenStats: "reloaded",
-  sessionConversationTokenStats: "reloaded",
-  projectTokenStats: "reloaded",
-  projectConversationTokenStats: "reloaded",
-  projectTokenStatsSummary: "reloaded",
-  projectConversationTokenStatsSummary: "reloaded",
-  projectTokenStatsPagination: "reloaded",
-  analytics: "reloaded",
-  boardSessions: "reloaded",
-  visibleSessionIds: "reloaded",
-  allSortedSessionIds: "reloaded",
-  isLoadingBoard: "reloaded",
-  boardLoadError: "reloaded",
-  // Board hover and the board's selected message: dropped by every navigation.
-  boardHoverSession: "reloaded",
-  selectedMessageId: "reloaded",
-  // The docked Recent Edits rows are the open project's.
-  recentEditsDock: "reloaded",
-  recentEditsDockError: "reloaded",
-  recentEditsDockRequestedKey: "reloaded",
-  isLoadingRecentEditsDock: "reloaded",
-  isLoadingMoreRecentEditsDock: "reloaded",
-  // Reported by the transcript on screen.
-  visibleMessageUuid: "reloaded",
-  activeSessionNearBottom: "reloaded",
   // Set by the activation that opens a tab (its saved anchor).
   pendingAnchor: "reloaded",
   // Advances with every setting of the target (its lookups' ownership).
   targetRequest: "reloaded",
+
+  // --- a screen's data, loaded when the screen opens ---------------------------
+  isLoadingTokenStats: "screen",
+  sessionTokenStats: "screen",
+  sessionConversationTokenStats: "screen",
+  projectTokenStats: "screen",
+  projectConversationTokenStats: "screen",
+  projectTokenStatsSummary: "screen",
+  projectConversationTokenStatsSummary: "screen",
+  projectTokenStatsPagination: "screen",
+  analytics: "screen",
+  boardSessions: "screen",
+  visibleSessionIds: "screen",
+  allSortedSessionIds: "screen",
+  isLoadingBoard: "screen",
+  boardLoadError: "screen",
+  // The docked Recent Edits rows: loaded by the panel for the open project.
+  recentEditsDock: "screen",
+  recentEditsDockError: "screen",
+  recentEditsDockRequestedKey: "screen",
+  isLoadingRecentEditsDock: "screen",
+  isLoadingMoreRecentEditsDock: "screen",
 
   // --- the tabs themselves and navigation bookkeeping -----------------------
   documents: "app",
@@ -155,10 +175,6 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   searchFilters: "app",
   sessionPickerCandidates: "app",
   sessionPickerHintValue: "app",
-  // Sidebar multi-selection: cleared when the project changes.
-  isSessionSelectionMode: "app",
-  sessionSelectionIds: "app",
-  sessionSelectionAnchor: "app",
 };
 
 /** The fields of `scope`. */

@@ -362,6 +362,10 @@ export const createRecentEditsPanelSlice: StateCreator<
     const generation = ++recentEditsDockGeneration;
     set({
       isLoadingRecentEditsDock: true,
+      // A page still loading for the rows this request replaces is disowned
+      // (the generation) and never lowers its spinner: lowered here, or
+      // `loadMoreRecentEditsDock` stays blocked for the new rows.
+      isLoadingMoreRecentEditsDock: false,
       recentEditsDockError: null,
       recentEditsDockRequestedKey: key,
     });

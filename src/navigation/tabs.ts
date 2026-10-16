@@ -55,14 +55,26 @@ const providerOf = (p: { provider?: string }) => p.provider ?? "claude";
 
 /**
  * Make `doc` the active tab in the store: what it keeps besides its place
- * comes with it (`stateScope.ts`) - its capture mode (a new tab: none) - and
- * the transcript's find starts empty (its matches are another transcript's;
- * a search still running for the tab left behind lands nowhere). The place
- * itself opens through `navigate` afterwards.
+ * comes with it (`stateScope.ts` `document`) - its capture mode and the
+ * board's open message (a new tab: none) - and every `reset` field starts
+ * over: the transcript's find (its matches are another transcript's; a
+ * search still running for the tab left behind lands nowhere), board hover,
+ * the transcript's scroll report (the incoming transcript reports its own)
+ * and the sidebar's multi-selection. The place itself opens through
+ * `navigate` afterwards.
  */
 function enterTab(doc: TabDocument, partial: Partial<AppStore>): void {
-  set({ ...partial, ...(doc.capture ?? NO_CAPTURE), activeDocumentId: doc.id });
+  set({
+    ...partial,
+    ...(doc.capture ?? NO_CAPTURE),
+    selectedMessageId: doc.selectedMessageId ?? null,
+    boardHoverSession: null,
+    visibleMessageUuid: null,
+    activeSessionNearBottom: true,
+    activeDocumentId: doc.id,
+  });
   get().clearSessionSearch();
+  get().exitSessionSelectionMode();
 }
 
 /** Screens whose data loads after the place is committed. */

@@ -179,6 +179,8 @@ beforeEach(() => {
       }
       case "get_session_subagents":
         return [];
+      case "get_recent_edits":
+        return { files: [], total_edits_count: 0, unique_files_count: 0, offset: 0, limit: 50, has_more: false };
       case "load_provider_messages": {
         const path = String(args.sessionPath);
         await held(`full:${path}`);
@@ -210,6 +212,47 @@ const open = (p: ClaudeProject, s: ClaudeSession) => state().navigate({ view: "c
 const tabOf = (id: string) => currentDocuments().find((d) => d.id === id);
 const activeId = () => state().activeDocumentId;
 const where = () => [activeId(), state().selectedProject?.path ?? null, state().selectedSession?.file_path ?? null];
+
+/** Store fields by name, for the stateScope behaviour tests. */
+const pick = (fields: string[]) =>
+  Object.fromEntries(fields.map((f) => [f, (state() as unknown as Record<string, unknown>)[f]]));
+const comparable = (value: unknown) =>
+  JSON.stringify(value, (_key, v: unknown) => (v instanceof Map ? { map: [...v.entries()] } : v));
+const same = (a: unknown, b: unknown) => comparable(a) === comparable(b);
+/** `value` changed in a way that keeps its type: tab 1's own value. */
+const tag = (value: unknown): unknown => {
+  if (typeof value === "boolean") return !value;
+  if (typeof value === "number") return value + 1;
+  if (typeof value === "string") return `${value}~tab1`;
+  if (value === null) return { tab1: true };
+  if (Array.isArray(value)) return [...value, { tab1: true }];
+  if (value instanceof Map) return new Map([...value.entries(), ["tab1", "tab1"]]);
+  if (typeof value === "object") return { ...value, tab1: true };
+  return value;
+};
+const tagged = (fields: string[]) => Object.fromEntries(fields.map((f) => [f, tag(pick([f])[f])]));
+/** What every `reset` field holds on a switch: its initial value; the find keeps its filter type. */
+const resetValues = () => ({
+  ...Object.fromEntries(fieldsOf("reset").map((f) => [f, (pristine as unknown as Record<string, unknown>)[f]])),
+  sessionSearch: createEmptySearchState(state().sessionSearch.filterType),
+});
+/** Every `reset` field away from its reset value (a find, board hover, scroll report, sidebar selection). */
+const setEveryResetField = (uuid: string) => {
+  useAppStore.setState({
+    sessionSearch: {
+      ...state().sessionSearch,
+      query: "q",
+      currentMatchIndex: 0,
+      matches: [{ messageUuid: uuid, messageIndex: 0, matchIndex: 0, matchCount: 1 }],
+    },
+    boardHoverSession: A2,
+    visibleMessageUuid: uuid,
+    activeSessionNearBottom: !pristine.activeSessionNearBottom,
+    isSessionSelectionMode: true,
+    sessionSelectionIds: [A2.session_id],
+    sessionSelectionAnchor: A2.session_id,
+  });
+};
 
 /** Tabs as `tabs.v1` would hold them, loaded into the store as at startup. */
 function startWithStoredTabs(documents: TabDocument[], activeIdStored: string) {
@@ -456,9 +499,10 @@ describe("a tab's transcript state: search and capture (review #5)", () => {
     expect(capture()).toEqual(NONE);
   });
 
-  it("every `document` field is the tab's own and every `reset` field starts empty (stateScope)", async () => {
+  it("every `document` field is the tab's own: not in another tab, back with its tab (stateScope)", async () => {
     // Tab 1 with every per-tab field away from its default: a subagent
-    // transcript, a target, history, another screen, capture rows, a find.
+    // transcript, a target, history, another screen, capture rows, the
+    // board's open message.
     await open(A, A1);
     const tab1 = activeId();
     await state().navigateToSubagent(SUBAGENT);
@@ -468,28 +512,126 @@ describe("a tab's transcript state: search and capture (review #5)", () => {
     state().hideMessage(`${SUBAGENT.file_path}#2`);
     const rows = [`${SUBAGENT.file_path}#0`, `${SUBAGENT.file_path}#1`];
     state().handleSelectionClick(rows[0]!, rows, { shift: false, cmdOrCtrl: false });
-    useAppStore.setState({
-      sessionSearch: { ...state().sessionSearch, query: "q", currentMatchIndex: 0, matches: [{ messageUuid: rows[0]!, messageIndex: 0, matchIndex: 0, matchCount: 1 }] },
-    });
-    const pick = (fields: string[]) =>
-      Object.fromEntries(fields.map((f) => [f, (state() as unknown as Record<string, unknown>)[f]]));
+    state().setSelectedMessageId(`${SUBAGENT.file_path}#3`);
     const documentFields = fieldsOf("document");
     const tab1Values = pick(documentFields);
-    // The only `reset` field today; a new one needs its empty value here.
-    expect(fieldsOf("reset")).toEqual(["sessionSearch"]);
-    const resetDefaults = { sessionSearch: createEmptySearchState(state().sessionSearch.filterType) };
 
     await newTab();
     const fresh = pick(documentFields);
-    const leaked = documentFields.filter((f) => JSON.stringify(fresh[f]) === JSON.stringify(tab1Values[f]));
+    const leaked = documentFields.filter((f) => same(fresh[f], tab1Values[f]));
     expect(leaked, "per-tab fields that showed tab 1's value in a new tab").toEqual([]);
-    expect(pick(fieldsOf("reset"))).toEqual(resetDefaults);
 
     await activateTab(tab1, screens);
     const back = pick(documentFields);
-    const lost = documentFields.filter((f) => JSON.stringify(back[f]) !== JSON.stringify(tab1Values[f]));
+    const lost = documentFields.filter((f) => !same(back[f], tab1Values[f]));
     expect(lost, "per-tab fields tab 1 did not get back").toEqual([]);
-    expect(pick(fieldsOf("reset"))).toEqual(resetDefaults);
+  });
+
+  it("the board's open message belongs to its tab: a second tab on the same project starts without it (re-review #2)", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    state().setSelectedMessageId("a-message");
+    await openInNewTab(() => open(A, A2));
+    expect(state().selectedMessageId).toBeNull();
+    state().setSelectedMessageId("a2-message");
+    await activateTab(tab1, screens);
+    expect(state().selectedMessageId).toBe("a-message");
+    await openInNewTab(() => open(A, A2));
+    expect(state().selectedMessageId).toBeNull();
+  });
+
+  it("every `reset` field starts over on every switch, into a new tab and back (stateScope)", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    const resetFields = fieldsOf("reset");
+    setEveryResetField(`${A1.file_path}#1`);
+    expect(resetFields.filter((f) => same(pick([f])[f], resetValues()[f])), "reset fields the test did not set").toEqual([]);
+
+    await newTab();
+    expect(pick(resetFields)).toEqual(resetValues());
+
+    setEveryResetField(`${A1.file_path}#1`);
+    await activateTab(tab1, screens);
+    expect(pick(resetFields)).toEqual(resetValues());
+
+    // A switch between two tabs on the same project resets them too.
+    await openInNewTab(() => open(A, A2));
+    setEveryResetField(`${A2.file_path}#1`);
+    await activateTab(tab1, screens);
+    expect(pick(resetFields)).toEqual(resetValues());
+  });
+
+  it("every `reloaded` field is the place's: a switch shows the incoming tab's place, never the outgoing tab's (stateScope)", async () => {
+    // Tab 1 on A/A1 with every reloaded field holding tab 1's value.
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+    await activateTab(tab1, screens);
+    const reloaded = fieldsOf("reloaded");
+    useAppStore.setState(tagged(reloaded));
+    const tab1Values = pick(reloaded);
+
+    await activateTab(tab2, screens);
+    const carried = reloaded.filter((f) => same(pick([f])[f], tab1Values[f]));
+    expect(carried, "reloaded fields that kept tab 1's value in tab 2").toEqual([]);
+    expect(state().messages.every((m) => m.uuid.startsWith(B1.file_path))).toBe(true);
+    expect(state().sessions).toEqual([B1]);
+  });
+
+  it("every `screen` field is replaced by its screen's loader when it opens on the incoming tab's place (stateScope)", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+    await activateTab(tab1, screens);
+    const screenFields = fieldsOf("screen");
+    useAppStore.setState(tagged(screenFields));
+    const tab1Values = pick(screenFields);
+
+    await activateTab(tab2, screens);
+    // Nothing shows them until a screen opens; each screen's loader, for
+    // tab 2's place, replaces what tab 1 left.
+    const get = () => useAppStore.getState();
+    await loadTokenStatsScreen(get, B, B1);
+    await loadProjectAnalytics(get, B, B1);
+    await reloadBoard(get);
+    await state().loadRecentEditsDock({ projectPath: B.path, scope: "project", grouping: "file" });
+    const carried = screenFields.filter((f) => same(pick([f])[f], tab1Values[f]));
+    expect(carried, "screen fields still holding tab 1's value after tab 2's screens loaded").toEqual([]);
+  });
+
+  it("every `app` field is the window's: switching between tabs leaves it as it was (stateScope)", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+    // The tabs and the navigation themselves: every switch writes them.
+    const BOOKKEEPING = [
+      "documents",
+      "activeDocumentId",
+      "hydratedDocumentId",
+      "tabsRestorePending",
+      "navigationEpoch",
+      "recentSessions",
+    ];
+    const app = fieldsOf("app").filter((f) => !BOOKKEEPING.includes(f));
+    expect(BOOKKEEPING.every((f) => fieldsOf("app").includes(f))).toBe(true);
+    // Primitives change; objects keep their value (a switch must not write them).
+    useAppStore.setState(
+      Object.fromEntries(
+        app.flatMap((f) => {
+          const value = pick([f])[f];
+          return ["boolean", "number", "string"].includes(typeof value) ? [[f, tag(value)]] : [];
+        }),
+      ),
+    );
+    const before = pick(app);
+
+    await activateTab(tab1, screens);
+    expect(app.filter((f) => !same(pick([f])[f], before[f])), "app fields a switch changed").toEqual([]);
+    await activateTab(tab2, screens);
+    expect(app.filter((f) => !same(pick([f])[f], before[f])), "app fields a switch changed").toEqual([]);
   });
 
   it("a search still running for tab 1 does not land in tab 2 on the same conversation", async () => {

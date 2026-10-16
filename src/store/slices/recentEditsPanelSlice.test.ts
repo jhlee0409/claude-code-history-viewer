@@ -366,6 +366,31 @@ describe("recentEditsPanelSlice dock fetch: regressions from adversarial review"
     ).toEqual(["/project/fresh.ts"]);
   });
 
+  it("a new request's rows can page again while an abandoned page is still loading (T8 stateScope)", async () => {
+    let resolveSlow;
+    fetchRecentEdits.mockResolvedValueOnce(page(twenty("a"), true, 0));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockImplementationOnce(() => new Promise((resolve) => (resolveSlow = resolve)));
+    const slow = store.getState().loadMoreRecentEditsDock(request);
+    expect(store.getState().isLoadingMoreRecentEditsDock).toBe(true);
+
+    // Another project's rows (a tab switch, a project change) replace them.
+    const other = { ...request, projectPath: "/storage/other" };
+    fetchRecentEdits.mockResolvedValueOnce(page(twenty("b"), true, 0));
+    await store.getState().loadRecentEditsDock(other);
+    expect(store.getState().isLoadingMoreRecentEditsDock).toBe(false);
+
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/b20.ts"], false, 20));
+    await store.getState().loadMoreRecentEditsDock(other);
+    expect(store.getState().recentEditsDock?.files).toHaveLength(21);
+
+    resolveSlow?.(page(["/project/a20.ts"], false, 20));
+    await slow;
+    expect(store.getState().recentEditsDock?.files.map((f) => f.file_path)).not.toContain("/project/a20.ts");
+  });
+
   it("clears the missing flag on a restored row (P2-7)", async () => {
     // `exists_on_disk` is resolved when the page is fetched, so without this a
     // just-restored file stays red, stays inside the Missing Only filter, and
