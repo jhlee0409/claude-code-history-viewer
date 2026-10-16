@@ -13,6 +13,7 @@ export {
   hasExplicitModelPricing,
   MODEL_PRICING_AUDITED_AT,
   getHeatColor,
+  getHeatTextColor,
 } from "./calculations";
 
 // Tool name utilities

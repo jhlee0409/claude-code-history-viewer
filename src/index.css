@@ -166,6 +166,13 @@
   --heatmap-low: oklch(0.83 0.09 145);
   --heatmap-medium: oklch(0.68 0.14 145);
   --heatmap-high: oklch(0.52 0.15 145);
+  /* Text drawn on each cell (the day number): opaque, >= 4.5:1 on its own
+     cell (heatmapContrast.test.tsx). Dark text on the pale steps, white on
+     the darkest. */
+  --heatmap-empty-foreground: oklch(0.45 0.02 260);
+  --heatmap-low-foreground: oklch(0.32 0.08 145);
+  --heatmap-medium-foreground: oklch(0.22 0.05 145);
+  --heatmap-high-foreground: oklch(1 0 0);
 
   /* === Dashboard Glow Effects === */
   --glow-green: 0 0 12px oklch(0.7 0.16 145 / 0.3);
@@ -292,6 +299,11 @@
   --heatmap-low: oklch(0.40 0.14 145);
   --heatmap-medium: oklch(0.60 0.17 145);
   --heatmap-high: oklch(0.78 0.18 145);
+  /* Light text on the dim steps, dark on the bright ones. */
+  --heatmap-empty-foreground: oklch(0.78 0.02 240);
+  --heatmap-low-foreground: oklch(0.95 0.03 145);
+  --heatmap-medium-foreground: oklch(0.16 0.03 145);
+  --heatmap-high-foreground: oklch(0.2 0.05 145);
 
   /* === Dashboard Glow Effects (Dark) === */
   --glow-green: 0 0 16px oklch(0.75 0.18 145 / 0.4);

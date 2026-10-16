@@ -16,6 +16,8 @@
 // - Transcript: the current-date label never sits on top of the message
 //   list (it gets its own row), and names the day of the first visible row,
 //   not of an overscanned row above the viewport.
+// - Analytics heatmap: the day numbers reach 4.5:1 on their cells (colours
+//   resolved by WebKit's own canvas), light and dark.
 // - Transcript search: the placeholder fits the input in every locale, at a
 //   narrow desktop main pane (navigator open) and on a phone.
 
@@ -230,6 +232,57 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
       await session.close();
     }
   }, 180_000);
+
+  /** WCAG 2 ratio of each heatmap day number on its cell, resolved by WebKit's canvas. */
+  const heatmapDayContrasts = (page) =>
+    page.evaluate(() => {
+      const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+      // Paint the layers bottom-up (card, cell, text) so a translucent
+      // colour is measured as it shows, composited over what is below it.
+      const paint = (...layers) => {
+        ctx.clearRect(0, 0, 1, 1);
+        for (const css of layers) {
+          ctx.fillStyle = "#000";
+          ctx.fillStyle = css;
+          ctx.fillRect(0, 0, 1, 1);
+        }
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      };
+      const lum = (c) => {
+        const [r, g, b] = c.map((v) => {
+          const s = v / 255;
+          return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      return Array.from(document.querySelectorAll('button[style*="--heatmap-"] span'))
+        .filter((span) => span.textContent === "1")
+        .map((span) => {
+          const cell = span.closest("button");
+          const card = getComputedStyle(document.body).backgroundColor;
+          const fill = getComputedStyle(cell).backgroundColor;
+          const [a, b] = [lum(paint(card, fill, getComputedStyle(span).color)), lum(paint(card, fill))];
+          return {
+            cell: cell.style.backgroundColor,
+            ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+          };
+        });
+    });
+
+  for (const theme of ["light", "dark"]) {
+    it(`analytics heatmap (${theme}): day numbers reach 4.5:1 on their cells`, async () => {
+      const { session, page } = await openScenario(`analytics--1440x900--${theme}`, { locale: "en" });
+      try {
+        const results = await heatmapDayContrasts(page);
+        expect(results.length).toBeGreaterThan(0);
+        for (const { cell, ratio } of results) {
+          expect.soft(ratio, `day "1" on ${cell}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+        }
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
+  }
 
   const transcriptCases = [
     ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: { "navigator-open": "true" } })),
