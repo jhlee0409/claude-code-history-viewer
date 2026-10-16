@@ -242,6 +242,7 @@
   "common.tabs.restoreDropped_one": "有 {{count}} 個已儲存的分頁無法還原。",
   "common.tabs.restoreDropped_other": "有 {{count}} 個已儲存的分頁無法還原。",
   "common.tabs.limitReached": "最多可開啟 {{max}} 個分頁，已關閉最久未使用的分頁。",
+  "common.tabs.openScreenFailed": "無法在新分頁中開啟此畫面。",
   "common.command.newTab": "新增分頁",
   "common.command.closeTab": "關閉分頁",
   "common.command.nextTab": "下一個分頁",

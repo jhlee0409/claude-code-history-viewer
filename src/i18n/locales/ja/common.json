@@ -242,6 +242,7 @@
   "common.tabs.restoreDropped_one": "保存されたタブ {{count}} 個を復元できませんでした。",
   "common.tabs.restoreDropped_other": "保存されたタブ {{count}} 個を復元できませんでした。",
   "common.tabs.limitReached": "タブは最大 {{max}} 個まで開けます。最も長く使っていないタブを閉じました。",
+  "common.tabs.openScreenFailed": "この画面を新しいタブで開けませんでした。",
   "common.command.newTab": "新しいタブ",
   "common.command.closeTab": "タブを閉じる",
   "common.command.nextTab": "次のタブ",

@@ -385,7 +385,7 @@ export async function openInNewTab<T>(
     /**
      * A result that means nothing opened (a library entry whose session is
      * gone): the new tab goes away again and the previous one is back as it
-     * was - nothing navigated.
+     * was - nothing navigated. A rejected `open` does the same, then rethrows.
      */
     discardIf?: (result: T) => boolean;
   } = {},
@@ -405,15 +405,25 @@ export async function openInNewTab<T>(
   // `open` claims its navigation before its first await; anything after it
   // owns the tab list.
   const owns = ownPlace(get);
-  const result = await opening;
-  const previous = documents.find((d) => d.id === previousId);
-  if (owns() && options.discardIf?.(result) && get().activeDocumentId === doc.id && previous) {
+  const discard = () => {
+    const previous = documents.find((d) => d.id === previousId);
+    if (!owns() || get().activeDocumentId !== doc.id || !previous) return;
     enterTab(previous, {
       documents: get().documents.filter((d) => d.id !== doc.id),
       hydratedDocumentId: previousId,
       placeHistory: previousHistory,
     });
+  };
+  let result: T;
+  try {
+    result = await opening;
+  } catch (error) {
+    // Nothing opened either: the caller reports the failure over the
+    // previous tab, not over an empty one it left behind.
+    discard();
+    throw error;
   }
+  if (options.discardIf?.(result)) discard();
   return result;
 }
 

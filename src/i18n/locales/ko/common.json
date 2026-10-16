@@ -242,6 +242,7 @@
   "common.tabs.restoreDropped_one": "저장된 탭 {{count}}개를 복원하지 못했습니다.",
   "common.tabs.restoreDropped_other": "저장된 탭 {{count}}개를 복원하지 못했습니다.",
   "common.tabs.limitReached": "탭은 최대 {{max}}개까지 열립니다. 가장 오래 안 쓴 탭을 닫았습니다.",
+  "common.tabs.openScreenFailed": "이 화면을 새 탭에서 열지 못했습니다.",
   "common.command.newTab": "새 탭",
   "common.command.closeTab": "탭 닫기",
   "common.command.nextTab": "다음 탭",

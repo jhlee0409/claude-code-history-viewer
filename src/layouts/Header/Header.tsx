@@ -14,6 +14,7 @@ import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { isActionModifier, isMacOS, isTauri } from "@/utils/platform";
 import { openInNewTab } from "@/navigation/tabs";
 import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
@@ -305,7 +306,11 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
                 // ⌘+click (Ctrl+click elsewhere): this screen in a new tab
                 // (decision page §2).
                 if (isActionModifier(event)) {
-                  void openInNewTab(() => analyticsActions.openView(tabView));
+                  // A failure takes the new tab away again (`openInNewTab`).
+                  openInNewTab(() => analyticsActions.openView(tabView)).catch((error: unknown) => {
+                    console.error(`Failed to open ${tabView} in a new tab:`, error);
+                    toast.error(t("common.tabs.openScreenFailed"));
+                  });
                   return;
                 }
                 tab.onClick();

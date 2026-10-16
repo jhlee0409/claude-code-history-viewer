@@ -242,6 +242,7 @@
   "common.tabs.restoreDropped_one": "有 {{count}} 个已保存的标签页无法恢复。",
   "common.tabs.restoreDropped_other": "有 {{count}} 个已保存的标签页无法恢复。",
   "common.tabs.limitReached": "最多可打开 {{max}} 个标签页，已关闭最久未使用的标签页。",
+  "common.tabs.openScreenFailed": "无法在新标签页中打开此页面。",
   "common.command.newTab": "新建标签页",
   "common.command.closeTab": "关闭标签页",
   "common.command.nextTab": "下一个标签页",

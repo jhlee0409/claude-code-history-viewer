@@ -242,6 +242,7 @@
   "common.tabs.restoreDropped_one": "{{count}} saved tab couldn't be restored.",
   "common.tabs.restoreDropped_other": "{{count}} saved tabs couldn't be restored.",
   "common.tabs.limitReached": "Up to {{max}} tabs stay open; the one used longest ago was closed.",
+  "common.tabs.openScreenFailed": "Couldn't open this screen in a new tab.",
   "common.command.newTab": "New Tab",
   "common.command.closeTab": "Close Tab",
   "common.command.nextTab": "Next Tab",
