@@ -542,6 +542,13 @@
     box-sizing: border-box;
   }
 
+  /* Icons keep their 14 / 16 / 24 px in a tight flex row instead of being
+     squeezed (plan T5: the UI capture probe found 4.5 px and 9.8 px wide
+     icons on narrow screens). */
+  svg.lucide {
+    flex-shrink: 0;
+  }
+
   html,
   body,
   #root {
