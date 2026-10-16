@@ -233,6 +233,11 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
           const probes = await runProbes(session.page);
+          // Undo what the steps wrote to the shared fixture (a favourite),
+          // so later scenarios start from the same data.
+          for (const step of scenario.screen.cleanup ?? []) {
+            await runStep(step);
+          }
           const expectedState = measurement.state && {
             ...measurement.state,
             fontScalePercent: scenario.screen.fontScalePercent ?? measurement.state.fontScalePercent,

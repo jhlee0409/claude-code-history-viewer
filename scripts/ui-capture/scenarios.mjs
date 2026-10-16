@@ -19,6 +19,12 @@
 //                                   exactly one project open: its sessions
 //                                   inline (aria-expanded) or in the sessions
 //                                   pane, whichever the layout uses
+//   { do: "libraryList", list: "recent" | "favorites" }  (T7 sidebar library)
+//   { do: "favorite", session: "large" | "subagent", off? }  star (or unstar) via the row menu (T7)
+//
+// `cleanup` steps run after the capture and the probes: they undo what the
+// steps wrote to the shared fixture.
+//   { do: "selectSessions", project: "featured", count }  "Select" + check rows
 //
 // Injection (lib/browser.mjs), keyed by backend command (POST /api/<command>):
 //   { command, respond: <json> }             fulfil with 200 + JSON
@@ -201,12 +207,56 @@ const SCALE_SCREENS = [90, 110].flatMap((fontScalePercent) =>
   }),
 );
 
+/**
+ * The T7 sidebar (plan T7 VERIFY): sessions inside the sidebar, the library's
+ * recent and favourite lists, and multi-select mode. Builds before T7 have no
+ * library lists or favourites, so those two fail on such a base (new
+ * screens); `sidebar-sessions` and `select-mode` run on both.
+ */
+const LIBRARY_SCREENS = [
+  {
+    id: "sidebar-sessions",
+    title: "The open project's sessions, listed in the sidebar",
+    steps: [{ do: "openSession", session: "large" }],
+  },
+  {
+    id: "select-mode",
+    title: "Multi-select mode with two sessions checked",
+    steps: [{ do: "openProject", project: "featured" }, { do: "selectSessions", project: "featured", count: 2 }],
+  },
+  {
+    id: "recent",
+    title: "Library: recently opened sessions",
+    steps: [
+      { do: "openSession", session: "subagent" },
+      { do: "openSession", session: "large" },
+      { do: "libraryList", list: "recent" },
+    ],
+  },
+  {
+    id: "favorites",
+    title: "Library: a starred session",
+    steps: [
+      { do: "openSession", session: "large" },
+      { do: "favorite", session: "subagent" },
+      { do: "libraryList", list: "favorites" },
+    ],
+    // Runs after the capture: the star lives in the shared fixture.
+    cleanup: [{ do: "favorite", session: "subagent", off: true }],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: THEMES, screens: [...COMMON_SCREENS, ...MOBILE_SCREENS] },
   { viewports: DESKTOP_VIEWPORTS, themes: ["dark"], screens: MEASUREMENT_SCREENS },
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: ["light"], screens: SCALE_SCREENS },
+  {
+    viewports: [...DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), ...MOBILE_VIEWPORTS],
+    themes: THEMES,
+    screens: LIBRARY_SCREENS,
+  },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */

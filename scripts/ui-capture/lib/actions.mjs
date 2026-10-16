@@ -26,6 +26,9 @@ const MENU_LABEL_KEYS = {
   archive: "archive.title",
 };
 
+/** Library sections that expand in place (T7 sidebar). */
+const LIBRARY_LISTS = new Set(["recent", "favorites"]);
+
 const cssString = (value) => JSON.stringify(value);
 
 export function createActions({ session, scenario, manifest, t }) {
@@ -158,11 +161,19 @@ export function createActions({ session, scenario, manifest, t }) {
         // View tabs are role=tab in a tablist since T2; base builds before it
         // render them as buttons in a group, and both must be drivable.
         const header = page.locator("#app-header");
-        const name = t(VIEW_LABEL_KEYS[view]);
-        const tab = header
-          .locator("[role=tablist]")
-          .getByRole("tab", { name, exact: true })
-          .or(header.locator("[role=group]").getByRole("button", { name, exact: true }));
+        const tabNamed = (name) =>
+          header
+            .locator("[role=tablist]")
+            .getByRole("tab", { name, exact: true })
+            .or(header.locator("[role=group]").getByRole("button", { name, exact: true }));
+        const tab = tabNamed(t(VIEW_LABEL_KEYS[view]));
+        // Since T7 token stats has no tab: it opens from the analytics
+        // screen's header (plan C1). Builds before T7 still have the tab.
+        if (view === "tokenStats" && (await tab.count()) === 0) {
+          await click(tabNamed(t(VIEW_LABEL_KEYS.analytics)), "view analytics");
+          await click(page.locator('[data-related-view="tokenStats"]'), "view tokenStats");
+          return;
+        }
         await click(tab, `view ${view}`);
         return;
       }
@@ -178,10 +189,63 @@ export function createActions({ session, scenario, manifest, t }) {
       await click(mobileTab(view), `view ${view}`);
     },
 
+    /**
+     * An app-level tool (Settings Manager, Archive). Since T7 it is a sidebar
+     * library row (in the drawer on mobile); builds before T7 have it in the
+     * gear menu, so that path stays as the fallback.
+     */
     async appMenu({ item }) {
       if (!(item in MENU_LABEL_KEYS)) throw new Error(`unknown app menu item "${item}"`);
+      await steps.openSidebar();
+      const row = page.locator(`[data-library-item="${item}"]`).first();
+      if ((await row.count()) > 0) {
+        await click(row, `library ${item}`);
+        await closeDrawer();
+        return;
+      }
+      await closeDrawer();
       await click(page.locator("#app-settings-button"), "open app menu");
       await click(page.getByRole("menuitem", { name: t(MENU_LABEL_KEYS[item]) }), `menu ${item}`);
+    },
+
+    /** Expand a library list in the sidebar ("recent" | "favorites"). T7 and later. */
+    async libraryList({ list }) {
+      if (!LIBRARY_LISTS.has(list)) throw new Error(`unknown library list "${list}"`);
+      await steps.openSidebar();
+      const row = page.locator(`[data-library-item="${list}"]`).first();
+      if ((await row.getAttribute("aria-expanded")) !== "true") await click(row, `library ${list}`);
+    },
+
+    /** Star a fixture session through its row's context menu (T7 and later). */
+    async favorite({ session: key, off = false }) {
+      const target = fixtureSession(key);
+      await steps.openSidebar();
+      await selectProjectRow(project(target.project));
+      const row = page.getByRole("tree").getByText(target.title.slice(0, 40)).first();
+      await row.scrollIntoViewIfNeeded();
+      await row.click({ button: "right" });
+      await settled("session menu");
+      const label = t(off ? "session.favorite.remove" : "session.favorite.add");
+      await click(page.getByRole("menuitem", { name: label, exact: true }), `${off ? "unfavorite" : "favorite"} ${key}`);
+      await closeDrawer();
+    },
+
+    /**
+     * Multi-select mode on the open project's sessions: the "Select" button,
+     * then `count` rows checked (decision (나): ⌘+click no longer selects).
+     */
+    async selectSessions({ project: key, count }) {
+      const target = project(key);
+      await steps.openSidebar();
+      await selectProjectRow(target);
+      const enter = page.getByRole("button", { name: t("session.selection.enter"), exact: true }).first();
+      await click(enter, "enter selection mode");
+      const titles = target.sessions.map((s) => s.title).slice(0, count);
+      const pane = page.locator("#sessions-pane");
+      const scope = mobile ? page.getByRole("dialog") : (await pane.count()) > 0 ? pane : page.getByRole("tree");
+      for (const title of titles) {
+        await click(scope.getByText(title.slice(0, 40)).first(), `check ${title}`);
+      }
     },
 
     /**
