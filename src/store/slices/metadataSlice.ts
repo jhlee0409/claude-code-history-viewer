@@ -116,6 +116,24 @@ export const initialMetadataState: MetadataSliceState = {
 // Slice Creator
 // ============================================================================
 
+/*
+  Metadata writes go out one at a time (T7 review R3). Each request sends a
+  whole record (session, project or settings), which the backend stores as
+  is, and answers with the whole metadata. Two writes built from the same
+  snapshot therefore lose one of them - a ref backfill used to write back a
+  star the user had just removed - and an older answer could land over a
+  newer one. Queued, each write reads the state the previous one left when
+  its turn comes, and the answers arrive in order. A failed write does not
+  stall the ones behind it; its own caller still sees the failure. One app
+  store, so one queue.
+*/
+let writes: Promise<unknown> = Promise.resolve();
+function inTurn<T>(write: () => Promise<T>): Promise<T> {
+  const turn = writes.then(write);
+  writes = turn.catch(() => undefined);
+  return turn;
+}
+
 export const createMetadataSlice: StateCreator<
   FullAppStore,
   [],
@@ -145,109 +163,122 @@ export const createMetadataSlice: StateCreator<
     }
   },
 
-  saveMetadata: async () => {
-    const { userMetadata } = get();
+  saveMetadata: () =>
+    inTurn(async () => {
+      const { userMetadata } = get();
 
-    try {
-      await api("save_user_metadata", { metadata: userMetadata });
-    } catch (error) {
-      console.error("Failed to save user metadata:", error);
-      set({ metadataError: String(error) });
-    }
-  },
+      try {
+        await api("save_user_metadata", { metadata: userMetadata });
+      } catch (error) {
+        console.error("Failed to save user metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
-  updateSessionMetadata: async (
-    sessionId: string,
-    update: Partial<SessionMetadata>
-  ) => {
-    const { userMetadata } = get();
-    const existingSession = userMetadata.sessions[sessionId] || {};
-    const mergedSession: SessionMetadata = { ...existingSession, ...update };
+  updateSessionMetadata: (sessionId: string, update: Partial<SessionMetadata>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const existingSession = userMetadata.sessions[sessionId] || {};
+      const mergedSession: SessionMetadata = { ...existingSession, ...update };
 
-    try {
-      const updatedMetadata = await api<UserMetadata>(
-        "update_session_metadata",
-        {
+      try {
+        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
           sessionId,
           update: mergedSession,
-        }
-      );
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update session metadata:", error);
-      set({ metadataError: String(error) });
-    }
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        console.error("Failed to update session metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
+
+  // It toggles what the record holds when the write's turn comes.
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => {
+    const ref = libraryRefOf(session, project ?? projectListing(get(), session));
+    return inTurn(async function toggleSessionFavorite() {
+      const existing = get().userMetadata.sessions[session.session_id] ?? {};
+      const update: SessionMetadata = existing.starred
+        ? { ...existing, starred: undefined, ref: undefined }
+        : { ...existing, starred: true, ref };
+      try {
+        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+          sessionId: session.session_id,
+          update,
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        console.error("Failed to update favourite:", error);
+        set({ metadataError: String(error) });
+        toast.error(i18n.t("session.favorite.saveError"));
+      }
+    });
   },
 
-  toggleSessionFavorite: async (session: ClaudeSession, project?: ClaudeProject | null) => {
-    const { userMetadata } = get();
-    const existing = userMetadata.sessions[session.session_id] ?? {};
-    const starring = !existing.starred;
-    const update: SessionMetadata = starring
-      ? { ...existing, starred: true, ref: libraryRefOf(session, project ?? projectListing(get(), session)) }
-      : { ...existing, starred: undefined, ref: undefined };
-    try {
-      const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
-        sessionId: session.session_id,
-        update,
-      });
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update favourite:", error);
-      set({ metadataError: String(error) });
-      toast.error(i18n.t("session.favorite.saveError"));
-    }
-  },
-
+  // The ref is taken now, while `sessions` is the list it came from. Whether
+  // the session still needs it (starred, no ref) is decided at write time, so
+  // an unstar made meanwhile is never undone.
   backfillFavoriteRefs: async (sessions: ClaudeSession[]) => {
-    for (const session of favoritesMissingRef(get().userMetadata, sessions)) {
-      const ref = libraryRefOf(session, projectListing(get(), session));
-      await get().updateSessionMetadata(session.session_id, { ref });
+    const pending = favoritesMissingRef(get().userMetadata, sessions).map((session) => ({
+      sessionId: session.session_id,
+      ref: libraryRefOf(session, projectListing(get(), session)),
+    }));
+    for (const { sessionId, ref } of pending) {
+      await inTurn(async () => {
+        const existing = get().userMetadata.sessions[sessionId];
+        if (existing?.starred !== true || existing.ref) return;
+        try {
+          const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+            sessionId,
+            update: { ...existing, ref },
+          });
+          set({ userMetadata: updatedMetadata });
+        } catch (error) {
+          console.error("Failed to record a favourite's location:", error);
+          set({ metadataError: String(error) });
+        }
+      });
     }
   },
 
-  updateProjectMetadata: async (
-    projectPath: string,
-    update: Partial<ProjectMetadata>
-  ) => {
-    const { userMetadata } = get();
-    const existingProject = userMetadata.projects[projectPath] || {};
-    const mergedProject: ProjectMetadata = { ...existingProject, ...update };
+  updateProjectMetadata: (projectPath: string, update: Partial<ProjectMetadata>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const existingProject = userMetadata.projects[projectPath] || {};
+      const mergedProject: ProjectMetadata = { ...existingProject, ...update };
 
-    try {
-      const updatedMetadata = await api<UserMetadata>(
-        "update_project_metadata",
-        {
+      try {
+        const updatedMetadata = await api<UserMetadata>("update_project_metadata", {
           projectPath,
           update: mergedProject,
-        }
-      );
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update project metadata:", error);
-      set({ metadataError: String(error) });
-    }
-  },
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        console.error("Failed to update project metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
-  updateUserSettings: async (update: Partial<UserSettings>) => {
-    const { userMetadata } = get();
-    const mergedSettings: UserSettings = {
-      ...userMetadata.settings,
-      ...update,
-    };
+  updateUserSettings: (update: Partial<UserSettings>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const mergedSettings: UserSettings = {
+        ...userMetadata.settings,
+        ...update,
+      };
 
-    try {
-      const updatedMetadata = await api<UserMetadata>("update_user_settings", {
-        settings: mergedSettings,
-      });
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update user settings:", error);
-      const message = String(error);
-      set({ metadataError: message });
-      throw new Error(message);
-    }
-  },
+      try {
+        const updatedMetadata = await api<UserMetadata>("update_user_settings", {
+          settings: mergedSettings,
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        console.error("Failed to update user settings:", error);
+        const message = String(error);
+        set({ metadataError: message });
+        throw new Error(message);
+      }
+    }),
 
   getSessionDisplayName: (
     sessionId: string,
