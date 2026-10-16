@@ -156,11 +156,13 @@
   --metric-pink: oklch(0.6 0.14 310);
   --metric-teal: oklch(0.65 0.15 170);
 
-  /* === Heatmap Colors (Activity gradient) === */
-  --heatmap-empty: oklch(0.2 0.01 260);
-  --heatmap-low: oklch(0.35 0.12 145);
-  --heatmap-medium: oklch(0.55 0.16 145);
-  --heatmap-high: oklch(0.75 0.18 145);
+  /* === Heatmap Colors (Activity gradient) ===
+     Light: an empty day is a faint tile on the card; more activity = more
+     ink (darker green). Dark (below) runs the other way: more glow. */
+  --heatmap-empty: oklch(0.93 0.008 240);
+  --heatmap-low: oklch(0.83 0.09 145);
+  --heatmap-medium: oklch(0.68 0.14 145);
+  --heatmap-high: oklch(0.52 0.15 145);
 
   /* === Dashboard Glow Effects === */
   --glow-green: 0 0 12px oklch(0.7 0.16 145 / 0.3);

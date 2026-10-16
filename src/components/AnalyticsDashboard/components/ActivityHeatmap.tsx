@@ -166,7 +166,7 @@ const MonthBlock: React.FC<{
                       "w-[14px] h-[14px] rounded-sm cursor-pointer",
                       "transition-transform duration-150",
                       "hover:scale-125 hover:z-10",
-                      intensity > 0 && "hover:ring-1 hover:ring-white/30"
+                      "hover:ring-1 hover:ring-foreground/30"
                     )}
                     style={{ backgroundColor: heatColor }}
                     aria-label={`${cell.date}: ${cell.messageCount} ${t("analytics.tooltip.messages")}`}
