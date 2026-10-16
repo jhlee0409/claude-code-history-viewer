@@ -39,6 +39,7 @@ import {
   openTabAtUrl,
   planUrlMove,
   reportStoredTabsProblems,
+  retryUnavailableTab,
   restoreActiveTab,
   startTabsPersistence,
   type TabScreens,
@@ -86,6 +87,7 @@ function App() {
     messages,
     isLoading,
     isLoadingProjects,
+    projectsScanned,
     isLoadingSessions,
     isLoadingMoreSessions,
     isLoadingMessages,
@@ -162,14 +164,6 @@ function App() {
   // per process, even if project loading renders multiple times.
   const cliPreloadAttempted = useRef(false);
 
-  // Keep the latest projects list in a ref so the second-invocation event
-  // listener (which is set up once and lives for the process lifetime) can
-  // always see the current list without re-subscribing on every render.
-  const projectsRef = useRef(projects);
-  useEffect(() => {
-    projectsRef.current = projects;
-  }, [projects]);
-
   // Phase 3: second-invocation routing. If a `cli-session-hint` event or a
   // WebUI popstate arrives before projects finish loading, stash the latest
   // intent here so the first load path can pick it up. Only the *latest* is
@@ -218,9 +212,13 @@ function App() {
     [t],
   );
 
+  // Startup waits for the first project scan to complete - an empty one
+  // included (§4.3 barrier): a restored tab whose project is gone then says
+  // so inside the tab instead of waiting forever.
+  const projectsReady = !isLoadingProjects && (projectsScanned || projects.length > 0);
   useEffect(() => {
     if (cliPreloadAttempted.current) return;
-    if (isLoadingProjects || projects.length === 0) return;
+    if (!projectsReady) return;
     cliPreloadAttempted.current = true;
     // Drain a hint that arrived before projects loaded, if any. Otherwise use
     // the Tauri-managed first-launch hint.
@@ -246,7 +244,13 @@ function App() {
       }
       runPreloadWithHint(hint, readWebUIDeepLink().messageId);
     });
-  }, [isLoadingProjects, projects, runPreloadWithHint]);
+  }, [projectsReady, runPreloadWithHint]);
+
+  // A tab that could not find its project opens once a later scan lists it.
+  useEffect(() => {
+    if (!cliPreloadAttempted.current) return;
+    void retryUnavailableTab(tabScreensRef.current);
+  }, [projects]);
 
   // Second-invocation routing. `tauri-plugin-single-instance` (CLI re-exec)
   // and macOS `RunEvent::Opened` (Spotlight/Dock/Finder) both emit
@@ -269,7 +273,7 @@ function App() {
           // Projects not yet loaded: stash and let the first-load effect
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
-          if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
+          if (!cliPreloadAttempted.current) {
             pendingIntentRef.current = { hint, messageId: null, options: { epoch } };
             return;
           }
@@ -301,7 +305,7 @@ function App() {
         const epoch = useAppStore.getState().beginNavigation();
         const popOptions = { history: "none", record: false, epoch } as const;
         const sessionId = deepLink.sessionId;
-        if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
+        if (!cliPreloadAttempted.current) {
           // Before startup has opened anything, the latest URL with a session
           // is kept for it; one without a session leaves the restore alone.
           pendingIntentRef.current = sessionId

@@ -442,6 +442,19 @@ export function restoreActiveTab(screens: TabScreens): Promise<boolean> {
   return activateTab(activeDocumentId, screens, { history: "replace" });
 }
 
+/**
+ * The active tab could not be opened because its project was not scanned
+ * (an empty first scan, a provider turned off); the project list has changed
+ * since and now lists it: open the tab (T8). Anything else: nothing.
+ */
+export function retryUnavailableTab(screens: TabScreens): Promise<boolean> {
+  const state = get();
+  const doc = state.documents.find((d) => d.id === state.activeDocumentId);
+  if (!doc || doc.unavailable !== "project" || !projectFor(doc)) return Promise.resolve(false);
+  set({ hydratedDocumentId: null });
+  return activateTab(doc.id, screens, { history: "replace" });
+}
+
 export interface HintMatch {
   project: ClaudeProject;
   session: ClaudeSession;

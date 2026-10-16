@@ -57,6 +57,13 @@ export interface ProjectSliceState {
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
   isLoadingProjects: boolean;
+  /**
+   * A project scan has completed and published its list - possibly empty.
+   * Startup waits for this, not for a non-empty list: before the first scan
+   * the list is empty too, and an empty scan must still let the restored
+   * tabs say what they could not find (T8).
+   */
+  projectsScanned: boolean;
   isLoadingSessions: boolean;
   isLoadingMoreSessions: boolean;
   isRefreshingAllConversations: boolean;
@@ -99,6 +106,7 @@ const initialProjectState: ProjectSliceState = {
   selectedSession: null,
   isLoading: false,
   isLoadingProjects: false,
+  projectsScanned: false,
   isLoadingSessions: false,
   isLoadingMoreSessions: false,
   isRefreshingAllConversations: false,
@@ -527,7 +535,7 @@ export const createProjectSlice: StateCreator<
         );
       }
       if (!owner.ownsData()) return;
-      set({ projects });
+      set({ projects, projectsScanned: true });
       if (
         projects.length === 0 &&
         providerErrors.length > 0 &&
