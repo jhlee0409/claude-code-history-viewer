@@ -668,12 +668,20 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     }
   }, []);
 
+  // Announce once per selection change. `announceTree` alternates the text so
+  // a repeat is re-read, so re-running this on an unrelated dependency change
+  // (a new `t`) would set state on every render and never settle.
+  const announcedSelectionRef = useRef<string | null>(null);
   useEffect(() => {
     const tree = treeRef.current;
     if (!tree) return;
 
     const selectedItem = tree.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]');
     if (!selectedItem) return;
+
+    const selectionKey = `${selectedProject?.path ?? ""}|${String(isGlobalStatsActive)}`;
+    if (announcedSelectionRef.current === selectionKey) return;
+    announcedSelectionRef.current = selectionKey;
 
     announceTree(
       t("project.currentSelection", "Selected: {{item}}", {
