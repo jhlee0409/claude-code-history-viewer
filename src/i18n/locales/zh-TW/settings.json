@@ -409,7 +409,7 @@
   "settingsManager.tabs.mcp": "MCP伺服器",
   "settingsManager.tabs.overview": "概覽",
   "settingsManager.tabs.presets": "預設",
-  "settingsManager.title": "設定管理器",
+  "settingsManager.title": "Claude Code 設定",
   "settingsManager.unified.banner.effectiveSettings": "有效設定摘要",
   "settingsManager.unified.banner.hookTypes": "鉤子類型",
   "settingsManager.unified.banner.noSettings": "任何範圍都沒有配置設定",

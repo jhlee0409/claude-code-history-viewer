@@ -409,7 +409,7 @@
   "settingsManager.tabs.mcp": "MCP 서버",
   "settingsManager.tabs.overview": "개요",
   "settingsManager.tabs.presets": "프리셋",
-  "settingsManager.title": "설정 관리자",
+  "settingsManager.title": "Claude Code 설정",
   "settingsManager.unified.banner.effectiveSettings": "적용된 설정 요약",
   "settingsManager.unified.banner.hookTypes": "훅 유형",
   "settingsManager.unified.banner.noSettings": "어떤 범위에도 설정이 없습니다",

@@ -217,7 +217,7 @@
   "common.command.find": "会話内を検索",
   "common.command.toggleNavigator": "メッセージナビゲーターを表示/非表示",
   "common.command.toggleMinimap": "セッションミニマップを表示/非表示",
-  "common.command.openSettingsManager": "設定マネージャーを開く",
+  "common.command.openSettingsManager": "Claude Code の設定を開く",
   "common.command.openArchive": "アーカイブマネージャーを開く",
   "common.command.sendFeedback": "フィードバックを送る…",
   "common.command.checkForUpdates": "アップデートを確認…",

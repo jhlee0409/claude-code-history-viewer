@@ -409,7 +409,7 @@
   "settingsManager.tabs.mcp": "MCPサーバー",
   "settingsManager.tabs.overview": "概要",
   "settingsManager.tabs.presets": "プリセット",
-  "settingsManager.title": "設定マネージャー",
+  "settingsManager.title": "Claude Code の設定",
   "settingsManager.unified.banner.effectiveSettings": "有効な設定の概要",
   "settingsManager.unified.banner.hookTypes": "フックタイプ",
   "settingsManager.unified.banner.noSettings": "どのスコープにも設定が構成されていません",

@@ -409,7 +409,7 @@
   "settingsManager.tabs.mcp": "MCP Servers",
   "settingsManager.tabs.overview": "Overview",
   "settingsManager.tabs.presets": "Presets",
-  "settingsManager.title": "Settings Manager",
+  "settingsManager.title": "Claude Code Settings",
   "settingsManager.unified.banner.effectiveSettings": "Effective Settings Summary",
   "settingsManager.unified.banner.hookTypes": "hook types",
   "settingsManager.unified.banner.noSettings": "No settings configured across any scope",

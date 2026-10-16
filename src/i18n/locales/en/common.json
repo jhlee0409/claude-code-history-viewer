@@ -217,7 +217,7 @@
   "common.command.find": "Find in Conversation",
   "common.command.toggleNavigator": "Show or Hide Message Navigator",
   "common.command.toggleMinimap": "Show or Hide Session Minimap",
-  "common.command.openSettingsManager": "Open Settings Manager",
+  "common.command.openSettingsManager": "Open Claude Code Settings",
   "common.command.openArchive": "Open Archive Manager",
   "common.command.sendFeedback": "Send Feedback…",
   "common.command.checkForUpdates": "Check for Updates…",

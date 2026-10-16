@@ -217,7 +217,7 @@
   "common.command.find": "在對話中尋找",
   "common.command.toggleNavigator": "顯示/隱藏訊息導覽器",
   "common.command.toggleMinimap": "顯示/隱藏會話小地圖",
-  "common.command.openSettingsManager": "開啟設定管理器",
+  "common.command.openSettingsManager": "開啟 Claude Code 設定",
   "common.command.openArchive": "開啟封存管理器",
   "common.command.sendFeedback": "發送意見回饋…",
   "common.command.checkForUpdates": "檢查更新…",

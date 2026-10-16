@@ -217,7 +217,7 @@
   "common.command.find": "대화에서 찾기",
   "common.command.toggleNavigator": "메시지 네비게이터 보기/숨기기",
   "common.command.toggleMinimap": "세션 미니맵 보기/숨기기",
-  "common.command.openSettingsManager": "설정 관리자 열기",
+  "common.command.openSettingsManager": "Claude Code 설정 열기",
   "common.command.openArchive": "아카이브 관리자 열기",
   "common.command.sendFeedback": "피드백 보내기…",
   "common.command.checkForUpdates": "업데이트 확인…",

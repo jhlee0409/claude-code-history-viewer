@@ -2273,7 +2273,7 @@ exports[`shell characterization > desktop > settings 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Settings Manager
+                Claude Code Settings
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -5289,7 +5289,7 @@ exports[`shell characterization > mobile > settings 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Settings Manager
+                Claude Code Settings
               </h2>
               <p
                 class="text-list text-muted-foreground"
