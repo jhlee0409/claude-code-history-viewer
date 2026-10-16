@@ -348,6 +348,36 @@ describe("WebUI back/forward with tabs (§9b F1)", () => {
     expect(url().get("tab")).toBe(tabA);
   });
 
+  it("a superseded back to a project-screen tab writes nothing once its screen data arrives (review #1)", async () => {
+    render(<App />);
+    const tabA = state().activeDocumentId;
+    await act(async () => {
+      await state().navigate({ view: "analytics", project: A });
+    });
+    const tabAUrl = window.location.href;
+    expect(url().get("tab")).toBe(tabA);
+    await act(async () => {
+      await openInNewTab(() => state().navigate({ view: "conversation", project: B, session: S2 }));
+    });
+    const tabB = state().activeDocumentId;
+
+    let releaseScreen = () => {};
+    openViewMock.mockImplementation(() => new Promise<undefined>((resolve) => (releaseScreen = () => resolve(undefined))));
+    await popTo(tabAUrl);
+    await waitFor(() => expect(openViewMock).toHaveBeenCalledWith("analytics"));
+    openViewMock.mockImplementation(async () => undefined);
+    await act(async () => {
+      await activateTab(tabB, screens);
+    });
+
+    releaseScreen();
+    await settleAll();
+
+    expect(state().activeDocumentId).toBe(tabB);
+    expect(state().selectedSession?.file_path).toBe(S2.file_path);
+    expect(state().view).toBe("conversation");
+  });
+
   it("a URL whose tab was closed opens its session in a new tab", async () => {
     render(<App />);
     await act(async () => {
