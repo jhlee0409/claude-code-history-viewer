@@ -66,9 +66,23 @@ const {
     isLoadingRecentEditsDock: false,
     isLoadingMoreRecentEditsDock: false,
     isRecentEditsDockOpen: true,
-    recentEditsDock: { uniqueFilesCount: 3, totalEditsCount: 7 },
+    // Screen data is shown only with its owner's place
+    // (`navigation/screenOwner.ts`): this fixture's is the open project and
+    // session. The dock answers its project-wide request
+    // (`recentEditsDockRequestKey`: path, scope, grouping, session).
+    recentEditsScope: "project",
+    recentEditsGroupingProject: "file",
+    recentEditsDock: {
+      uniqueFilesCount: 3,
+      totalEditsCount: 7,
+      requestKey: JSON.stringify(["/tmp/project", "project", "file", ""]),
+    },
     analytics: {
-      recentEditsPagination: { isLoadingMore: false },
+      recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
+      recentEditsOwner: "/tmp/project",
+      recentEditsPagination: { hasMore: false },
+      isLoadingRecentEdits: false,
+      recentEditsError: null,
       projectSummary: null,
       projectConversationSummary: null,
       sessionComparison: null,
@@ -91,6 +105,8 @@ const {
     projectTokenStatsSummary: { total: "summary" },
     projectConversationTokenStatsSummary: { total: "conversation-summary" },
     projectTokenStatsPagination: { hasMore: false },
+    projectTokenStatsOwner: "/tmp/project",
+    sessionTokenStatsOwner: "/tmp/session.jsonl",
     sessionSearch: { query: "", matches: [], currentMatchIndex: -1, filterType: "content" },
     initializeApp: vi.fn(async () => {}),
     selectProject: vi.fn(async () => {}),

@@ -28,6 +28,7 @@ import type {
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState } from "../../types/analytics";
+import type { OwnedSetter } from "./analyticsSlice";
 import type { UpdateSettings } from "../../types/updateSettings";
 
 // ============================================================================
@@ -123,6 +124,12 @@ export interface AppStoreState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
+  projectTokenStatsOwner: string | null;
+  sessionTokenStatsOwner: string | null;
+  /** The project token stats load's failure, and the project it was for. */
+  projectTokenStatsError: string | null;
+  projectTokenStatsErrorOwner: string | null;
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
   toolUseToSubagentMap: Map<string, string>;
@@ -174,6 +181,9 @@ export interface AppStoreState {
   selectedMessageId: string | null;
   isMarkdownPretty: boolean;
   boardLoadError: string | null;
+  /** Whose the board and its error are: the project path they were loaded for. */
+  boardOwner: string | null;
+  boardLoadErrorOwner: string | null;
   dateFilter: import("../../types/board.types").DateFilter;
   isTimelineExpanded: boolean;
   boardHoverSession: ClaudeSession | null;
@@ -340,20 +350,18 @@ export interface AppStoreActions {
   // Analytics actions
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
-  setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsSessionComparison: (comparison: SessionComparison | null) => void;
+  // A value with the place it was loaded for, or a clear (`OwnedSetter`).
+  setAnalyticsProjectSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsProjectConversationSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsSessionComparison: OwnedSetter<SessionComparison>;
   setAnalyticsLoadingProjectSummary: (loading: boolean) => void;
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
-  setAnalyticsProjectSummaryError: (error: string | null) => void;
-  setAnalyticsSessionComparisonError: (error: string | null) => void;
-  setAnalyticsRecentEdits: (
-    page: PaginatedRecentEdits | null,
-    requestedProjectPath?: string
-  ) => void;
+  setAnalyticsProjectSummaryError: OwnedSetter<string>;
+  setAnalyticsSessionComparisonError: OwnedSetter<string>;
+  setAnalyticsRecentEdits: OwnedSetter<PaginatedRecentEdits>;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
-  setAnalyticsRecentEditsError: (error: string | null) => void;
+  setAnalyticsRecentEditsError: OwnedSetter<string>;
   loadRecentEdits: (projectPath: string) => Promise<import("../../types").PaginatedRecentEdits>;
   loadMoreRecentEdits: (projectPath: string) => Promise<void>;
   invalidateRecentEdits: (projectPath: string) => void;

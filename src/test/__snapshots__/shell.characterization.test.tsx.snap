@@ -2577,7 +2577,7 @@ exports[`shell characterization > desktop > token stats 1`] = `
               >
                 <div
                   data-handlers="onLoadMore,onSessionClick,setDateFilter"
-                  data-props="{"sessionStats":{"session_id":"session-stats"},"sessionConversationStats":{"session_id":"session-conversation-stats"},"projectStats":[{"session_id":"project-stats"}],"projectConversationStats":[{"session_id":"project-conversation-stats"}],"projectStatsSummary":{"total":"summary"},"projectConversationStatsSummary":{"total":"conversation-summary"},"providerId":"claude","pagination":{"hasMore":false},"isLoading":false,"dateFilter":{"start":null,"end":null}}"
+                  data-props="{"sessionStats":{"session_id":"session-stats"},"sessionConversationStats":{"session_id":"session-conversation-stats"},"projectStats":[{"session_id":"project-stats"}],"projectConversationStats":[{"session_id":"project-conversation-stats"}],"projectStatsSummary":{"total":"summary"},"projectConversationStatsSummary":{"total":"conversation-summary"},"providerId":"claude","pagination":{"hasMore":false},"isLoading":false,"error":null,"dateFilter":{"start":null,"end":null}}"
                   data-stub="TokenStatsViewer"
                 />
               </div>
@@ -5696,7 +5696,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
               >
                 <div
                   data-handlers="onLoadMore,onSessionClick,setDateFilter"
-                  data-props="{"sessionStats":{"session_id":"session-stats"},"sessionConversationStats":{"session_id":"session-conversation-stats"},"projectStats":[{"session_id":"project-stats"}],"projectConversationStats":[{"session_id":"project-conversation-stats"}],"projectStatsSummary":{"total":"summary"},"projectConversationStatsSummary":{"total":"conversation-summary"},"providerId":"claude","pagination":{"hasMore":false},"isLoading":false,"dateFilter":{"start":null,"end":null}}"
+                  data-props="{"sessionStats":{"session_id":"session-stats"},"sessionConversationStats":{"session_id":"session-conversation-stats"},"projectStats":[{"session_id":"project-stats"}],"projectConversationStats":[{"session_id":"project-conversation-stats"}],"projectStatsSummary":{"total":"summary"},"projectConversationStatsSummary":{"total":"conversation-summary"},"providerId":"claude","pagination":{"hasMore":false},"isLoading":false,"error":null,"dateFilter":{"start":null,"end":null}}"
                   data-stub="TokenStatsViewer"
                 />
               </div>

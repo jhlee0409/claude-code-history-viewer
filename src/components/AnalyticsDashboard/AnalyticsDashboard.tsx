@@ -12,7 +12,9 @@ import { ChartColumn, Layers, Activity } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/loading";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../../store/useAppStore";
+import { selectProjectAnalytics } from "@/navigation/screenOwner";
 import type { AnalyticsDashboardProps } from "./types";
 import { ProjectStatsView, SessionStatsView, GlobalStatsView } from "./views";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
@@ -28,8 +30,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const {
     selectedProject,
     selectedSession,
-    sessionTokenStats,
-    sessionConversationTokenStats,
     globalSummary,
     globalConversationSummary,
     isLoadingGlobalStats,
@@ -39,11 +39,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     analytics: analyticsState,
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
-
-  const projectSummary = analyticsState.projectSummary;
-  const projectConversationSummary = analyticsState.projectConversationSummary;
-  const sessionComparison = analyticsState.sessionComparison;
-  const sessionStats = sessionTokenStats;
+  // Only the open place's data: another tab's (or an earlier load's) is
+  // never shown under this project (`navigation/screenOwner.ts`).
+  const {
+    projectSummary,
+    projectConversationSummary,
+    sessionComparison,
+    sessionTokenStats: sessionStats,
+    sessionConversationTokenStats,
+    isLoading: isLoadingProjectSummary,
+    error: projectSummaryError,
+  } = useAppStore(useShallow(selectProjectAnalytics));
   const hasSessionData =
     selectedSession != null && sessionStats != null && sessionComparison != null;
 
@@ -203,8 +209,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ProjectStatsView
             projectSummary={projectSummary}
             conversationSummary={projectConversationSummary}
-            isLoading={analyticsState.isLoadingProjectSummary}
-            error={analyticsState.projectSummaryError}
+            isLoading={isLoadingProjectSummary}
+            error={projectSummaryError}
             onRetry={onRetry}
             providerId={selectedProject?.provider ?? "claude"}
           />

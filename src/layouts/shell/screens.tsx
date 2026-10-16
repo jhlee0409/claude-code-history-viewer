@@ -16,7 +16,9 @@ import { Icon } from "@/components/icon/Icon";
 import { Button } from "@/components/ui/button";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
+import { selectRecentEditsPage, selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
@@ -214,33 +216,26 @@ export const AnalyticsScreen = ({ view, analyticsActions }: ViewScreenProps) => 
 /** Transitional (plan C1) until token stats becomes an analytics tab (T9b). */
 export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
   const selectedProject = useAppStore((s) => s.selectedProject);
-  const sessionTokenStats = useAppStore((s) => s.sessionTokenStats);
-  const sessionConversationTokenStats = useAppStore((s) => s.sessionConversationTokenStats);
-  const projectTokenStats = useAppStore((s) => s.projectTokenStats);
-  const projectConversationTokenStats = useAppStore((s) => s.projectConversationTokenStats);
-  const projectTokenStatsSummary = useAppStore((s) => s.projectTokenStatsSummary);
-  const projectConversationTokenStatsSummary = useAppStore(
-    (s) => s.projectConversationTokenStatsSummary
-  );
-  const projectTokenStatsPagination = useAppStore((s) => s.projectTokenStatsPagination);
+  // Only the open place's stats (`navigation/screenOwner.ts`).
+  const stats = useAppStore(useShallow(selectTokenStats));
   const loadMoreProjectTokenStats = useAppStore((s) => s.loadMoreProjectTokenStats);
-  const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
   const dateFilter = useAppStore((s) => s.dateFilter);
   const setDateFilter = useAppStore((s) => s.setDateFilter);
 
   return (
     <div className="p-3 md:p-6">
       <TokenStatsViewer
-        sessionStats={sessionTokenStats}
-        sessionConversationStats={sessionConversationTokenStats}
-        projectStats={projectTokenStats}
-        projectConversationStats={projectConversationTokenStats}
-        projectStatsSummary={projectTokenStatsSummary}
-        projectConversationStatsSummary={projectConversationTokenStatsSummary}
+        sessionStats={stats.sessionStats}
+        sessionConversationStats={stats.sessionConversationStats}
+        projectStats={stats.projectStats}
+        projectConversationStats={stats.projectConversationStats}
+        projectStatsSummary={stats.projectStatsSummary}
+        projectConversationStatsSummary={stats.projectConversationStatsSummary}
         providerId={selectedProject?.provider ?? "claude"}
-        pagination={projectTokenStatsPagination}
+        pagination={stats.pagination}
         onLoadMore={() => selectedProject && loadMoreProjectTokenStats(selectedProject.path)}
-        isLoading={isLoadingTokenStats}
+        isLoading={stats.isLoading}
+        error={stats.error}
         dateFilter={dateFilter}
         setDateFilter={setDateFilter}
         onSessionClick={onTokenStatClick}
@@ -252,13 +247,15 @@ export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
 export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => {
   const selectedProject = useAppStore((s) => s.selectedProject);
   const loadMoreRecentEdits = useAppStore((s) => s.loadMoreRecentEdits);
+  // Only the open project's edits (`navigation/screenOwner.ts`).
+  const page = useAppStore(useShallow(selectRecentEditsPage));
   return (
     <RecentEditsViewer
-      recentEdits={analyticsState.recentEdits}
-      pagination={analyticsState.recentEditsPagination}
+      recentEdits={page.recentEdits}
+      pagination={page.pagination}
       onLoadMore={() => selectedProject && loadMoreRecentEdits(selectedProject.path)}
-      isLoading={analyticsState.isLoadingRecentEdits}
-      error={analyticsState.recentEditsError}
+      isLoading={page.isLoading}
+      error={page.error}
       initialSearchQuery={analyticsState.recentEditsSearchQuery}
     />
   );

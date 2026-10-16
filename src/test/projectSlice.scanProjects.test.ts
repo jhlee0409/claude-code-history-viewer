@@ -994,7 +994,8 @@ describe("projectSlice scanProjects", () => {
       expect.any(Function)
     );
     expect(store.getState().setAnalyticsProjectSummary).toHaveBeenCalledWith(
-      projectSummary
+      projectSummary,
+      project.path
     );
     expect(store.getState().setAnalyticsSessionComparison).toHaveBeenCalledWith(
       null

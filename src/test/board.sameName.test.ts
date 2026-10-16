@@ -76,6 +76,8 @@ it("the board of the same project is reused", async () => {
     selectedProject: B,
     sessions: [B1],
     boardSessions: { [B1.session_id]: { session: B1 } },
+    // Loaded for B (`navigation/screenOwner.ts`).
+    boardOwner: B.path,
     dateFilter: { start: new Date(0), end: new Date() },
     loadBoardSessions,
   } as unknown as Partial<FullAppStore>);

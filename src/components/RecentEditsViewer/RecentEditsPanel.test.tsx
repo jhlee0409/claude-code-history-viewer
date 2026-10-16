@@ -21,6 +21,7 @@ vi.mock("@/store/useAppStore", () => ({
 }));
 
 import { RecentEditsPanel } from "./RecentEditsPanel";
+import { recentEditsDockRequestKey } from "@/store/slices/recentEditsPanelSlice";
 
 const loadRecentEditsDock = vi.fn();
 
@@ -81,16 +82,18 @@ describe("RecentEditsPanel with no project selected", () => {
   });
 
   it("still reports a genuinely empty project as having no edits", () => {
+    // An answer to the open project's own request (`navigation/screenOwner.ts`).
+    const request = {
+      projectPath: "/storage/project",
+      scope: "project" as const,
+      grouping: "file" as const,
+    };
     state = baseState({
       recentEditsDock: {
         files: [],
-        requestKey: "k",
+        requestKey: recentEditsDockRequestKey(request),
         hasMore: false,
-        request: {
-          projectPath: "/tmp/project",
-          scope: "project" as const,
-          grouping: "file" as const,
-        },
+        request,
       },
     });
 

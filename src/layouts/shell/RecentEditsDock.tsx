@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import {  } from "lucide-react";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { useAppStore } from "@/store/useAppStore";
+import { selectRecentEditsDock, selectRecentEditsDockKey } from "@/navigation/screenOwner";
 import { PanelDock } from "@/components/PanelDock";
 import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
 import { RecentEditsViewToggle } from "@/components/RecentEditsViewer/RecentEditsViewToggle";
@@ -25,7 +26,9 @@ interface RecentEditsDockProps {
 
 export const RecentEditsDock = ({ width, isResizing, onResizeStart }: RecentEditsDockProps) => {
   const { t } = useTranslation();
-  const stats = useAppStore((s) => s.recentEditsDock);
+  // The counts of the rows answering the current request only: never
+  // another project's (`navigation/screenOwner.ts`).
+  const stats = useAppStore((s) => selectRecentEditsDock(s, selectRecentEditsDockKey(s)).result);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const navigate = useAppStore((s) => s.navigate);

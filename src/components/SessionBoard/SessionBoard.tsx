@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../../store/useAppStore";
+import { selectBoard } from "@/navigation/screenOwner";
 import { SessionLane } from "./SessionLane";
 import { BoardControls } from "./BoardControls";
 import { SessionActivityTimeline } from "./SessionActivityTimeline";
 import { getFilterEndMs } from "./useActivityData";
-import { LoadingSpinner } from "../ui/loading";
+import { LoadingSpinner, LoadingState } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
@@ -16,13 +18,16 @@ import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { openBoardMessage } from "./openBoardMessage";
 
-const selectBoardSessions = (s: ReturnType<typeof useAppStore.getState>) => s.boardSessions;
-
 export const SessionBoard = () => {
-    const boardSessions = useAppStore(selectBoardSessions);
+    // Only the open project's board (`navigation/screenOwner.ts`): another
+    // tab's lanes are never shown under this project.
     const {
+        boardSessions,
         allSortedSessionIds,
-        isLoadingBoard,
+        isLoading: isLoadingBoard,
+        error: boardLoadError,
+    } = useAppStore(useShallow(selectBoard));
+    const {
         zoomLevel,
         activeBrush,
         setActiveBrush,
@@ -330,6 +335,17 @@ export const SessionBoard = () => {
             }
         }
     }, [focusedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
+
+    if (boardLoadError && allSortedSessionIds.length === 0 && !isLoadingBoard) {
+        return (
+            <LoadingState
+                isLoading={false}
+                error={boardLoadError}
+                errorTitle={t("error.loadBoard")}
+                className="h-full"
+            />
+        );
+    }
 
     if (isLoadingBoard) {
         return (

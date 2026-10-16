@@ -48,6 +48,19 @@ export interface AnalyticsState {
   projectSummaryError: string | null;
   sessionComparisonError: string | null;
   recentEditsError: string | null;
+
+  /**
+   * Whose each value is: the project path (or, for the session comparison,
+   * the session file path) it was loaded for. A screen shows a value only on
+   * its owner's place (`navigation/screenOwner.ts`).
+   */
+  projectSummaryOwner: string | null;
+  projectConversationSummaryOwner: string | null;
+  sessionComparisonOwner: string | null;
+  recentEditsOwner: string | null;
+  projectSummaryErrorOwner: string | null;
+  sessionComparisonErrorOwner: string | null;
+  recentEditsErrorOwner: string | null;
 }
 
 /**
@@ -109,6 +122,13 @@ export const initialAnalyticsState: AnalyticsState = {
   projectSummaryError: null,
   sessionComparisonError: null,
   recentEditsError: null,
+  projectSummaryOwner: null,
+  projectConversationSummaryOwner: null,
+  sessionComparisonOwner: null,
+  recentEditsOwner: null,
+  projectSummaryErrorOwner: null,
+  sessionComparisonErrorOwner: null,
+  recentEditsErrorOwner: null,
 };
 
 /**

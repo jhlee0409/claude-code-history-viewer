@@ -27,6 +27,13 @@ export interface BoardSliceState {
     selectedMessageId: string | null;
     isMarkdownPretty: boolean;
     boardLoadError: string | null;
+    /**
+     * Whose the board and its error are: the project path they were loaded
+     * for. The board screen shows them only on that project
+     * (`navigation/screenOwner.ts`).
+     */
+    boardOwner: string | null;
+    boardLoadErrorOwner: string | null;
     isTimelineExpanded: boolean;
     /**
      * The session the pointer rests on in the sidebar while the board is open.
@@ -63,6 +70,8 @@ const initialBoardState: BoardSliceState = {
     boardHoverSession: null,
     isMarkdownPretty: true, // Default to pretty printing
     boardLoadError: null,
+    boardOwner: null,
+    boardLoadErrorOwner: null,
     isTimelineExpanded: (() => {
         try {
             const stored = localStorage.getItem(TIMELINE_STORAGE_KEY);
@@ -130,16 +139,29 @@ export const createBoardSlice: StateCreator<
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
         const request = ++boardRequest;
+        const projectPath = get().selectedProject?.path ?? null;
         // The board and its screen error are the load's data: the latest
         // load, for the project still open (`ownWork`). Its spinner is the
         // latest load's to clear.
         const owner = ownWork(get, {
-            context: { projectPath: get().selectedProject?.path ?? null },
+            context: { projectPath },
             isLatest: () => request === boardRequest,
         });
         const owns = owner.ownsData;
         const isLatest = owner.ownsSpinner;
-        set({ isLoadingBoard: true, boardLoadError: null });
+        // The board and its error are written with the project they are
+        // for: the board screen shows them on that project only.
+        set({ isLoadingBoard: true, boardLoadError: null, boardLoadErrorOwner: null });
+
+        // A project without sessions has an empty board - its own, so the
+        // screen shows it as empty rather than as still loading.
+        if (sessions.length === 0) {
+            if (owns()) {
+                set({ boardSessions: {}, allSortedSessionIds: [], visibleSessionIds: [], boardOwner: projectPath });
+            }
+            if (isLatest()) set({ isLoadingBoard: false });
+            return;
+        }
 
         try {
             const selectedProject = get().selectedProject;
@@ -154,7 +176,7 @@ export const createBoardSlice: StateCreator<
                 } catch (e) {
                     console.error("Failed to fetch git log:", e);
                     const msg = "Failed to fetch git log";
-                    if (owns()) set({ boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
                     if (isLatest()) set({ isLoadingBoard: false });
                     return; // Abort
                 }
@@ -277,7 +299,7 @@ export const createBoardSlice: StateCreator<
                 } catch (err) {
                     console.error(`Failed to load session ${session.session_id}:`, err);
                     const msg = "Failed to load session";
-                    if (owns()) set({ boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
                     return null;
                 }
             });
@@ -310,13 +332,14 @@ export const createBoardSlice: StateCreator<
                 boardSessions,
                 allSortedSessionIds,
                 visibleSessionIds: allSortedSessionIds, // Initially show all
+                boardOwner: projectPath,
                 isLoadingBoard: false,
             });
 
         } catch (error) {
             console.error("Failed to load board sessions:", error);
             const msg = "Failed to load board sessions";
-            if (owns()) set({ boardLoadError: msg });
+            if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
             if (isLatest()) set({ isLoadingBoard: false });
         }
     },

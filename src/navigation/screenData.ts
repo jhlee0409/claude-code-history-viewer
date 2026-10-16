@@ -93,12 +93,15 @@ export async function loadSessionAnalytics(
       tokenStats ? get().loadSessionTokenStats(session.file_path) : undefined,
     ]);
     if (!owns()) return;
-    if (result !== undefined) get().setAnalyticsSessionComparison(result);
+    if (result !== undefined) get().setAnalyticsSessionComparison(result, session.file_path);
     get().setAnalyticsSessionComparisonError(null);
   } catch (error) {
     if (!owns()) return;
     get().setAnalyticsSessionComparison(null);
-    get().setAnalyticsSessionComparisonError(errorText(error, options.failureText));
+    get().setAnalyticsSessionComparisonError(
+      errorText(error, options.failureText),
+      session.file_path,
+    );
   } finally {
     if (isLatest()) get().setAnalyticsLoadingSessionComparison(false);
   }
@@ -135,13 +138,13 @@ export async function loadProjectAnalytics(
   try {
     const summary = await get().loadProjectStatsSummary(project.path, owns);
     if (!owns()) return;
-    get().setAnalyticsProjectSummary(summary);
+    get().setAnalyticsProjectSummary(summary, project.path);
   } catch (error) {
     console.error("Failed to load project stats summary:", error);
     if (!owns()) return;
     const title = options.failureText?.summary;
     const detail = errorText(error, title);
-    get().setAnalyticsProjectSummaryError(detail);
+    get().setAnalyticsProjectSummaryError(detail, project.path);
     toast.error(title && detail !== title ? `${title}: ${detail}` : detail);
     return;
   } finally {
@@ -200,7 +203,7 @@ export async function loadRecentEditsScreen(
     get().setAnalyticsRecentEdits(result, project.path);
   } catch (error) {
     if (owns()) {
-      get().setAnalyticsRecentEditsError(errorText(error, options.failureText));
+      get().setAnalyticsRecentEditsError(errorText(error, options.failureText), project.path);
     }
     console.error("Failed to load recent edits:", error);
     throw error;

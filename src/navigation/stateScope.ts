@@ -15,9 +15,12 @@
  * - `reloaded` - the open place's transcript and session list: the switch
  *   itself loads the incoming tab's place, so the outgoing tab's never
  *   shows in it.
- * - `screen` - a project screen's (or the docked panel's) data, for the
- *   place it was loaded for: a switch leaves it, unseen, and that screen's
- *   loader replaces it when it opens on the incoming tab's place.
+ * - `screen` - a project screen's (or the docked panel's) data, written with
+ *   its owner: the place it was loaded for (`./screenOwner`). A switch
+ *   leaves it in the store, but a screen renders a value only when its
+ *   owner is the screen's current place - otherwise its loading state, or
+ *   its own error state once its own load failed - until that screen's
+ *   loader replaces it for the incoming tab's place.
  * - `app` - one for the whole window, whatever tab is open: preferences,
  *   the project list, panels, the tabs themselves, app-wide searches. Some
  *   are cleared when no project is open (board tools, the date range), never
@@ -29,7 +32,9 @@
  * `navigation.tabs.test.ts` ("… (stateScope)"): `document` comes back with
  * its tab and not in another, `reset` starts at its initial value,
  * `reloaded` never keeps the outgoing tab's value, `screen` is replaced by
- * its screen's loader, `app` is left as it was.
+ * its screen's loader and never shown under the incoming place before that
+ * (`screenOwnership.tabs.test.tsx` renders each screen across held and
+ * failed loads), `app` is left as it was.
  */
 export type StateScope = "document" | "reset" | "reloaded" | "screen" | "app";
 
@@ -90,12 +95,19 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   projectTokenStatsSummary: "screen",
   projectConversationTokenStatsSummary: "screen",
   projectTokenStatsPagination: "screen",
+  // Whose the token stats are, and the project load's failure.
+  projectTokenStatsOwner: "screen",
+  sessionTokenStatsOwner: "screen",
+  projectTokenStatsError: "screen",
+  projectTokenStatsErrorOwner: "screen",
   analytics: "screen",
   boardSessions: "screen",
   visibleSessionIds: "screen",
   allSortedSessionIds: "screen",
   isLoadingBoard: "screen",
   boardLoadError: "screen",
+  boardOwner: "screen",
+  boardLoadErrorOwner: "screen",
   // The docked Recent Edits rows: loaded by the panel for the open project.
   recentEditsDock: "screen",
   recentEditsDockError: "screen",

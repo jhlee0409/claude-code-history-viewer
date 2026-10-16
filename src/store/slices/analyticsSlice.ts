@@ -40,25 +40,31 @@ export interface AnalyticsSliceState {
 export interface AnalyticsSliceActions {
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
-  setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsSessionComparison: (comparison: SessionComparison | null) => void;
+  // Every value is written with its owner (`navigation/screenOwner.ts`):
+  // the project path it was loaded for, or the session file path for the
+  // session comparison. Only a clear (`null`) has none.
+  setAnalyticsProjectSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsProjectConversationSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsSessionComparison: OwnedSetter<SessionComparison>;
   setAnalyticsLoadingProjectSummary: (loading: boolean) => void;
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
-  setAnalyticsProjectSummaryError: (error: string | null) => void;
-  setAnalyticsSessionComparisonError: (error: string | null) => void;
-  setAnalyticsRecentEdits: (
-    page: PaginatedRecentEdits | null,
-    requestedProjectPath?: string
-  ) => void;
+  setAnalyticsProjectSummaryError: OwnedSetter<string>;
+  setAnalyticsSessionComparisonError: OwnedSetter<string>;
+  setAnalyticsRecentEdits: OwnedSetter<PaginatedRecentEdits>;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
-  setAnalyticsRecentEditsError: (error: string | null) => void;
+  setAnalyticsRecentEditsError: OwnedSetter<string>;
   loadRecentEdits: (projectPath: string) => Promise<PaginatedRecentEdits>;
   loadMoreRecentEdits: (projectPath: string) => Promise<void>;
   invalidateRecentEdits: (projectPath: string) => void;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
+}
+
+/** A screen value's setter: a value with the place it was loaded for, or a clear. */
+export interface OwnedSetter<T> {
+  (value: null): void;
+  (value: T, owner: string): void;
 }
 
 export type AnalyticsSlice = AnalyticsSliceState & AnalyticsSliceActions;
@@ -101,29 +107,32 @@ export const createAnalyticsSlice: StateCreator<
     }));
   },
 
-  setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => {
+  setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         projectSummary: summary,
+        projectSummaryOwner: summary ? (owner ?? null) : null,
       },
     }));
   },
 
-  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => {
+  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         projectConversationSummary: summary,
+        projectConversationSummaryOwner: summary ? (owner ?? null) : null,
       },
     }));
   },
 
-  setAnalyticsSessionComparison: (comparison: SessionComparison | null) => {
+  setAnalyticsSessionComparison: (comparison: SessionComparison | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         sessionComparison: comparison,
+        sessionComparisonOwner: comparison ? (owner ?? null) : null,
       },
     }));
   },
@@ -146,20 +155,22 @@ export const createAnalyticsSlice: StateCreator<
     }));
   },
 
-  setAnalyticsProjectSummaryError: (error: string | null) => {
+  setAnalyticsProjectSummaryError: (error: string | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         projectSummaryError: error,
+        projectSummaryErrorOwner: error ? (owner ?? null) : null,
       },
     }));
   },
 
-  setAnalyticsSessionComparisonError: (error: string | null) => {
+  setAnalyticsSessionComparisonError: (error: string | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         sessionComparisonError: error,
+        sessionComparisonErrorOwner: error ? (owner ?? null) : null,
       },
     }));
   },
@@ -186,6 +197,7 @@ export const createAnalyticsSlice: StateCreator<
     set((state) => ({
       analytics: {
         ...state.analytics,
+        recentEditsOwner: page ? (requestedProjectPath ?? null) : null,
         recentEdits: page
           ? {
               files: page.files,
@@ -257,11 +269,12 @@ export const createAnalyticsSlice: StateCreator<
     }));
   },
 
-  setAnalyticsRecentEditsError: (error: string | null) => {
+  setAnalyticsRecentEditsError: (error: string | null, owner?: string) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         recentEditsError: error,
+        recentEditsErrorOwner: error ? (owner ?? null) : null,
       },
     }));
   },
@@ -418,6 +431,7 @@ export const createAnalyticsSlice: StateCreator<
           analytics: {
             ...state.analytics,
             recentEditsError: `Failed to load more edits: ${message}`,
+            recentEditsErrorOwner: projectPath,
           },
         }));
       }
@@ -446,6 +460,9 @@ export const createAnalyticsSlice: StateCreator<
         projectSummaryError: null,
         sessionComparisonError: null,
         recentEditsError: null,
+        projectSummaryErrorOwner: null,
+        sessionComparisonErrorOwner: null,
+        recentEditsErrorOwner: null,
       },
     }));
   },

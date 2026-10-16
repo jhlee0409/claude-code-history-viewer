@@ -15,12 +15,13 @@ import { ChevronDown, FilePen, FolderOpen, LoaderCircle } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { useTheme } from "@/contexts/theme";
 import { useAppStore } from "@/store/useAppStore";
+import { useShallow } from "zustand/react/shallow";
 import {
   recentEditsDockRequestKey,
   selectRecentEditsDensity,
   selectRecentEditsGrouping,
-  type RecentEditsDockRequest,
 } from "@/store/slices/recentEditsPanelSlice";
+import { selectRecentEditsDock, selectRecentEditsDockRequest } from "@/navigation/screenOwner";
 import { getProviderLabel, supportsRecentEdits } from "@/utils/providers";
 import { FileEditItem } from "./FileEditItem";
 import { FileEditRowCompact } from "./FileEditRowCompact";
@@ -38,10 +39,7 @@ export const RecentEditsPanel: React.FC = () => {
   const selectedProject = useAppStore((s) => s.selectedProject);
   const navigateToMessage = useAppStore((s) => s.navigateToMessage);
 
-  const recentEdits = useAppStore((s) => s.recentEditsDock);
-  const isLoading = useAppStore((s) => s.isLoadingRecentEditsDock);
   const isLoadingMore = useAppStore((s) => s.isLoadingMoreRecentEditsDock);
-  const error = useAppStore((s) => s.recentEditsDockError);
   const loadRecentEditsDock = useAppStore((s) => s.loadRecentEditsDock);
   const loadMoreRecentEditsDock = useAppStore(
     (s) => s.loadMoreRecentEditsDock
@@ -78,19 +76,18 @@ export const RecentEditsPanel: React.FC = () => {
   const isUnavailable =
     selectedProject != null && !supportsRecentEdits(selectedProject.provider);
 
-  const request: RecentEditsDockRequest | null =
-    selectedProject && !isUnavailable
-      ? {
-          projectPath: selectedProject.path,
-          scope: effectiveScope,
-          grouping,
-          sessionFilePath: selectedSession?.file_path,
-        }
-      : null;
+  const request = useAppStore(useShallow(selectRecentEditsDockRequest));
 
   // Keyed on the request identity rather than the object, so the effect reruns
   // exactly when the question being asked changes.
   const requestKey = request ? recentEditsDockRequestKey(request) : null;
+  // Only the rows (and the failure) answering this request: the slot may
+  // still hold another project's or scope's answer (`navigation/screenOwner.ts`).
+  const {
+    result: recentEdits,
+    isLoading,
+    error,
+  } = useAppStore(useShallow((s) => selectRecentEditsDock(s, requestKey)));
 
   // Taken from the request the rows on screen answer, not from `request` above.
   // The two differ whenever the dock outlives the selection - deselecting a

@@ -63,6 +63,12 @@ export interface MessageSliceState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
+  projectTokenStatsOwner: string | null;
+  sessionTokenStatsOwner: string | null;
+  /** The project token stats load's failure, and the project it was for. */
+  projectTokenStatsError: string | null;
+  projectTokenStatsErrorOwner: string | null;
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
@@ -220,6 +226,10 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsSummary: null,
   projectConversationTokenStatsSummary: null,
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
+  projectTokenStatsOwner: null,
+  sessionTokenStatsOwner: null,
+  projectTokenStatsError: null,
+  projectTokenStatsErrorOwner: null,
   subagentSessions: [],
   parentSessionStack: [],
   toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
@@ -783,11 +793,15 @@ export const createMessageSlice: StateCreator<
       ]);
       const conversationStats = breakdown ? conversationStatsRaw : stats;
       if (!owner.ownsData()) return;
-      set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
+      set({
+        sessionTokenStats: stats,
+        sessionConversationTokenStats: conversationStats,
+        sessionTokenStatsOwner: sessionPath,
+      });
     } catch (error) {
       console.error("Failed to load session token stats:", error);
       if (!owner.ownsData()) return;
-      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
+      set({ sessionTokenStats: null, sessionConversationTokenStats: null, sessionTokenStatsOwner: null });
       if (!owner.ownsFeedback()) return;
       // The token stats screen is one tab's: it says so there, and the
       // tabs stay (never the app's error screen).
@@ -815,6 +829,9 @@ export const createMessageSlice: StateCreator<
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: null,
+        projectTokenStatsErrorOwner: null,
       });
 
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
@@ -904,19 +921,25 @@ export const createMessageSlice: StateCreator<
           hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
+        projectTokenStatsOwner: projectPath,
       });
     } catch (error) {
       console.error("Failed to load project token stats:", error);
       if (!owner.ownsData()) return;
+      const message = i18n.t("error.tokenStatsLoadFailed", { detail: errorDetail(error) });
+      // The screen's own error state, for this project only.
       set({
         projectTokenStats: [],
         projectConversationTokenStats: [],
         projectTokenStatsSummary: null,
         projectConversationTokenStatsSummary: null,
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: message,
+        projectTokenStatsErrorOwner: projectPath,
       });
       if (!owner.ownsFeedback()) return;
       // One tab's screen: a notification, never the app's error screen.
-      toast.error(i18n.t("error.tokenStatsLoadFailed", { detail: errorDetail(error) }));
+      toast.error(message);
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -1034,7 +1057,7 @@ export const createMessageSlice: StateCreator<
         })
       : billing;
     if (owns()) {
-      get().setAnalyticsProjectConversationSummary(conversation);
+      get().setAnalyticsProjectConversationSummary(conversation, projectPath);
     }
     return billing;
   },
@@ -1075,6 +1098,10 @@ export const createMessageSlice: StateCreator<
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),
+      projectTokenStatsOwner: null,
+      sessionTokenStatsOwner: null,
+      projectTokenStatsError: null,
+      projectTokenStatsErrorOwner: null,
     });
   },
 

@@ -74,6 +74,8 @@ interface TokenStatsViewerProps {
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
   isLoading?: boolean;
+  /** The screen's own load failed (shown when it has nothing else to show). */
+  error?: string | null;
   dateFilter?: { start: Date | null; end: Date | null };
   setDateFilter?: (filter: { start: Date | null; end: Date | null }) => void;
   onSessionClick?: (stats: SessionTokenStats) => void;
@@ -90,6 +92,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   pagination,
   onLoadMore,
   isLoading = false,
+  error = null,
   dateFilter,
   setDateFilter,
   onSessionClick,
@@ -411,6 +414,19 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   // ============================================
   // EMPTY STATE
   // ============================================
+  if (!sessionStats && !projectStats.length && (isLoading || error)) {
+    // Nothing of this place's yet: its load is running, or it failed.
+    return (
+      <LoadingState
+        isLoading={isLoading && !error}
+        error={error}
+        loadingMessage={t("analytics.loading")}
+        withSparkle
+        spinnerSize="lg"
+        minHeight="py-24"
+      />
+    );
+  }
   if (!sessionStats && !projectStats.length) {
     return (
       <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-border/50 bg-card/30">

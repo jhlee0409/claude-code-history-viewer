@@ -211,7 +211,7 @@ export function useAnalyticsNavigation() {
     const ownsPlace = enterScreen("board");
     clearAnalyticsErrors();
     try {
-      const { boardSessions, loadBoardSessions, dateFilter, sessions } =
+      const { boardSessions, boardOwner, loadBoardSessions, dateFilter, sessions } =
         useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
@@ -224,10 +224,13 @@ export function useAnalyticsNavigation() {
       );
       const needsFullReload =
         !hasAnySessionsLoaded ||
+        // Loaded for another project (`navigation/screenOwner.ts`).
+        boardOwner !== project.path ||
         holdsOtherSessions ||
         sessions.length > Object.keys(boardSessions).length;
 
-      if (needsFullReload && sessions.length > 0) {
+      // An empty list loads too: the empty board is the project's own.
+      if (needsFullReload) {
         await loadBoardSessions(sessions);
         // The date range below frames this board; a navigation since then
         // owns the screen and its filter.
@@ -319,9 +322,9 @@ export function useAnalyticsNavigation() {
         toast.error(errorMessage);
         // The token stats screen is one tab's: the notification is all
         // (never the app's error screen, which would hide every tab).
-        if (screen === "tokenStats") return;
+        if (screen === "tokenStats" || !project) return;
 
-        setAnalyticsProjectSummaryError(errorMessage);
+        setAnalyticsProjectSummaryError(errorMessage, project.path);
       }
     },
     [
