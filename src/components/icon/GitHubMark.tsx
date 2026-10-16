@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { DEFAULT_ICON_SIZE, type IconSize } from "./iconRules";
 
 /**
  * The GitHub mark. lucide-react 1.x removed its brand icons (`GithubIcon`),
@@ -11,9 +12,9 @@ import type { SVGProps } from "react";
  * ignores the stroke rules of `<Icon>`. Size it like any icon (14 / 16 / 24).
  */
 export function GitHubMark({
-  size = 16,
+  size = DEFAULT_ICON_SIZE,
   ...props
-}: Omit<SVGProps<SVGSVGElement>, "width" | "height"> & { size?: 14 | 16 | 24 }) {
+}: Omit<SVGProps<SVGSVGElement>, "width" | "height"> & { size?: IconSize }) {
   return (
     <svg
       viewBox="0 0 24 24"

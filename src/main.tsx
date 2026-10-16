@@ -12,6 +12,7 @@ import { PlatformProvider } from "./contexts/platform";
 import { ThemeProvider } from "./contexts/theme/ThemeProvider.tsx";
 import { ModalProvider } from "./contexts/modal/ModalProvider.tsx";
 import { Toaster } from "sonner";
+import { IconProvider } from "./components/icon/Icon";
 import WebUILogin from "./components/auth/WebUILogin.tsx";
 import {
   clearAuthErrorQuery,
@@ -41,25 +42,27 @@ async function bootstrap(): Promise<void> {
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <ErrorBoundary>
-        <PlatformProvider>
-          <ThemeProvider>
-            <ModalProvider>
-              {showLogin ? (
-                <WebUILogin
-                  onAuthenticated={() => {
-                    clearAuthErrorQuery();
-                    window.location.reload();
-                  }}
-                />
-              ) : (
-                <App />
-              )}
-              <Toaster />
-            </ModalProvider>
-          </ThemeProvider>
-        </PlatformProvider>
-      </ErrorBoundary>
+      <IconProvider>
+        <ErrorBoundary>
+          <PlatformProvider>
+            <ThemeProvider>
+              <ModalProvider>
+                {showLogin ? (
+                  <WebUILogin
+                    onAuthenticated={() => {
+                      clearAuthErrorQuery();
+                      window.location.reload();
+                    }}
+                  />
+                ) : (
+                  <App />
+                )}
+                <Toaster />
+              </ModalProvider>
+            </ThemeProvider>
+          </PlatformProvider>
+        </ErrorBoundary>
+      </IconProvider>
     </StrictMode>
   );
 }
