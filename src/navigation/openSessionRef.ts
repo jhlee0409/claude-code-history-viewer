@@ -14,15 +14,18 @@
  *    projects. Most providers list projects under a virtual path
  *    (`codex://{cwd}`), so the file path alone does not name the project.
  *
- * Any navigation that begins while the lists load owns the screen; this one
- * then gives up silently (`ownPlace`).
+ * The click is a navigation from the moment it is made (plan T2 §4.2): it
+ * claims the navigation epoch before its first await, as a CLI hint does
+ * (`openSessionHint`), and hands that epoch to `navigate`. A later click, a
+ * hint, a browser back - any navigation that begins while the lists load -
+ * owns the screen, whichever lookup finishes first; this one then gives up
+ * silently, without a toast even when its lookup failed.
  */
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { loadSessionsFor, matchByPath, openSessionHint } from "@/lib/preloadSession";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeProject, ClaudeSession } from "@/types";
-import { ownPlace } from "./ownership";
 import { findProjectForSessionPath } from "./library";
 import type { SessionRef } from "./place";
 
@@ -87,14 +90,24 @@ async function findSession(ref: SessionRef, owns: () => boolean): Promise<Found 
 
 export async function openSessionRef(ref: SessionRef): Promise<OpenSessionRefResult> {
   const get = useAppStore.getState;
-  const owns = ownPlace(get);
-  const found = await findSession(ref, owns);
+  const epoch = get().beginNavigation();
+  const owns = () => get().navigationEpoch === epoch;
+  let found: Awaited<ReturnType<typeof findSession>>;
+  try {
+    found = await findSession(ref, owns);
+  } catch (error) {
+    if (!owns()) return "superseded";
+    throw error;
+  }
   if (found === "superseded" || !owns()) return "superseded";
   if (!found) {
     toast.error(i18n.t("globalSearch.sessionNotFound"));
     return "notFound";
   }
-  const arrived = await get().navigate({ view: "conversation", project: found.project, session: found.session });
+  const arrived = await get().navigate(
+    { view: "conversation", project: found.project, session: found.session },
+    { epoch },
+  );
   return arrived ? "opened" : "superseded";
 }
 
