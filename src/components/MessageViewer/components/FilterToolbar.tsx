@@ -73,13 +73,13 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           active={messageFilter.roles.user}
           onClick={() => toggleRole("user")}
           label={t("filter.role.user")}
-          icon={<User className="w-3 h-3" />}
+          icon={<User className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.roles.assistant}
           onClick={() => toggleRole("assistant")}
           label={t("filter.role.assistant")}
-          icon={<Bot className="w-3 h-3" />}
+          icon={<Bot className="w-3.5 h-3.5" />}
         />
       </div>
 
@@ -91,32 +91,32 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           active={messageFilter.contentTypes.text}
           onClick={() => toggleContentType("text")}
           label={t("filter.content.text")}
-          icon={<MessageSquareText className="w-3 h-3" />}
+          icon={<MessageSquareText className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.thinking}
           onClick={() => toggleContentType("thinking")}
           label={t("filter.content.thinking")}
-          icon={<Brain className="w-3 h-3" />}
+          icon={<Brain className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.toolCalls}
           onClick={() => toggleContentType("toolCalls")}
           label={t("filter.content.toolCalls")}
-          icon={<Wrench className="w-3 h-3" />}
+          icon={<Wrench className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.commands}
           onClick={() => toggleContentType("commands")}
           label={t("filter.content.commands")}
-          icon={<Terminal className="w-3 h-3" />}
+          icon={<Terminal className="w-3.5 h-3.5" />}
         />
         {hasParallelTasks && (
           <FilterToggle
             active={messageFilter.contentTypes.parallelTasks}
             onClick={() => toggleContentType("parallelTasks")}
             label={t("filter.content.parallelTasks")}
-            icon={<Zap className="w-3 h-3" />}
+            icon={<Zap className="w-3.5 h-3.5" />}
           />
         )}
       </div>

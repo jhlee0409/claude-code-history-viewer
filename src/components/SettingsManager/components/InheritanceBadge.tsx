@@ -40,22 +40,22 @@ const scopeConfig: Record<
   }
 > = {
   user: {
-    icon: <User className="w-3 h-3" />,
+    icon: <User className="w-3.5 h-3.5" />,
     color: "text-blue-600 dark:text-blue-400",
     bgColor: "bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800",
   },
   project: {
-    icon: <FolderOpen className="w-3 h-3" />,
+    icon: <FolderOpen className="w-3.5 h-3.5" />,
     color: "text-green-600 dark:text-green-400",
     bgColor: "bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800",
   },
   local: {
-    icon: <FileCode className="w-3 h-3" />,
+    icon: <FileCode className="w-3.5 h-3.5" />,
     color: "text-amber-600 dark:text-amber-400",
     bgColor: "bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800",
   },
   managed: {
-    icon: <BuildingComplex className="w-3 h-3" />,
+    icon: <BuildingComplex className="w-3.5 h-3.5" />,
     color: "text-purple-600 dark:text-purple-400",
     bgColor: "bg-purple-100 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800",
   },

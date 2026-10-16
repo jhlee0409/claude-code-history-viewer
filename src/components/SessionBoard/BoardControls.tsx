@@ -102,7 +102,7 @@ export const BoardControls = ({
             <div className="flex items-center gap-4">
                 {/* Brushing Dropdowns */}
                 <div className="hidden lg:flex items-center gap-1.5">
-                    <Funnel className="w-3 h-3 text-muted-foreground mr-0.5" />
+                    <Funnel className="w-3.5 h-3.5 text-muted-foreground mr-0.5" />
                     
                     <Select
                         value={activeBrush?.type === 'tool' ? activeBrush.value : ""}
@@ -211,7 +211,7 @@ export const BoardControls = ({
                 <div className="flex items-center gap-2">
                     {activeBrush && stickyBrush && (
                         <div className="bg-accent/10 p-1 rounded">
-                            <Lock className="w-3 h-3 fill-accent text-accent" />
+                            <Lock className="w-3.5 h-3.5 fill-accent text-accent" />
                         </div>
                     )}
                 </div>

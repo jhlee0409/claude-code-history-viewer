@@ -263,7 +263,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
           onClick={handleToggleAll}
           className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
         >
-          <CheckCheck className="h-3 w-3" />
+          <CheckCheck className="h-3.5 w-3.5" />
           <span>
             {allVisibleSelected
               ? t("session.selection.clear", "Clear")
@@ -282,9 +282,9 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
           >
             {isLoadingAll ? (
-              <LoaderCircle className="h-3 w-3 animate-spin" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <CloudDownload className="h-3 w-3" />
+              <CloudDownload className="h-3.5 w-3.5" />
             )}
             <span>
               {isLoadingAll
@@ -307,7 +307,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
           disabled={selectedCount === 0}
           className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
         >
-          <Copy className="h-3 w-3" />
+          <Copy className="h-3.5 w-3.5" />
           <span>{t("session.selection.copyIds", "Copy IDs")}</span>
         </button>
 
@@ -318,7 +318,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             disabled={resumableCount === 0}
             className={cn(actionButtonClass, "ml-auto text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
           >
-            <SquareTerminal className="h-3 w-3" />
+            <SquareTerminal className="h-3.5 w-3.5" />
             <span>
               {t("session.selection.resume", {
                 count: resumableCount,
@@ -335,7 +335,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             disabled={deletableCount === 0}
             className={cn(actionButtonClass, "text-destructive hover:bg-destructive/10")}
           >
-            <Trash className="h-3 w-3" />
+            <Trash className="h-3.5 w-3.5" />
             <span>
               {t("session.selection.delete", {
                 count: deletableCount,

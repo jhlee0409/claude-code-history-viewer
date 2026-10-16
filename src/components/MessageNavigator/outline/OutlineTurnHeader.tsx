@@ -18,7 +18,7 @@ const CountChip: React.FC<CountChipProps> = ({ icon: Icon, count, label, classNa
   if (count === 0) return null;
   return (
     <span className="inline-flex items-center gap-0.5" title={label}>
-      <Icon className={cn("w-3 h-3", className)} aria-hidden="true" />
+      <Icon className={cn("w-3.5 h-3.5", className)} aria-hidden="true" />
       <span aria-hidden="true" className="text-caption tabular-nums">
         {count}
       </span>
@@ -102,7 +102,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
       <div className="flex items-center gap-1.5 mb-0.5">
         <ChevronRight
           className={cn(
-            "w-3 h-3 shrink-0 text-muted-foreground transition-transform",
+            "w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform",
             isOpen && "rotate-90",
           )}
           aria-hidden="true"

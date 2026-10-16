@@ -92,7 +92,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       <div className="flex items-center gap-1.5 mb-0.5">
         <span title={kindLabel} className="shrink-0 inline-flex">
           <KindIcon
-            className={cn("w-3 h-3", isFailed ? "text-destructive" : kindStyle.iconClass)}
+            className={cn("w-3.5 h-3.5", isFailed ? "text-destructive" : kindStyle.iconClass)}
             aria-hidden="true"
           />
         </span>
@@ -100,7 +100,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
           #{entry.turnIndex}
         </span>
         {entry.hasToolUse && entry.kind !== "tool" && (
-          <Wrench className="w-2.5 h-2.5 text-muted-foreground/60" aria-hidden="true" />
+          <Wrench className="w-3.5 h-3.5 text-muted-foreground/60" aria-hidden="true" />
         )}
         <span className="ml-auto text-caption text-muted-foreground/60">
           {formattedTime}

@@ -106,9 +106,9 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
               {t("settingsManager.unified.sidebar.advanced") || "Advanced"}
             </span>
             {advancedExpanded ? (
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             ) : (
-              <ChevronRight className="w-3 h-3" />
+              <ChevronRight className="w-3.5 h-3.5" />
             )}
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2">

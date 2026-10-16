@@ -333,7 +333,7 @@ export function SessionResumeSection({
                             className="inline-flex items-center gap-1 px-2 py-0.5 text-caption text-muted-foreground hover:text-foreground rounded hover:bg-muted"
                             title={t("common.reset", "Reset")}
                           >
-                            <RotateCcw className="h-3 w-3" />
+                            <RotateCcw className="h-3.5 w-3.5" />
                             <span>{t("common.reset", "Reset")}</span>
                           </button>
                           {isDirty && (
@@ -343,7 +343,7 @@ export function SessionResumeSection({
                               disabled={!validation.isValid}
                               className="inline-flex items-center gap-1 px-2.5 py-0.5 text-caption font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
                             >
-                              <CircleCheck className="h-3 w-3" />
+                              <CircleCheck className="h-3.5 w-3.5" />
                               <span>{t("common.save", "Save")}</span>
                             </button>
                           )}
@@ -373,7 +373,7 @@ export function SessionResumeSection({
                       {/* Inline Validation Error */}
                       {!validation.isValid && (
                         <p className="flex items-center gap-1 text-caption text-destructive">
-                          <CircleX className="h-3 w-3 shrink-0" />
+                          <CircleX className="h-3.5 w-3.5 shrink-0" />
                           <span>{getValidationErrorMessage(validation)}</span>
                         </p>
                       )}

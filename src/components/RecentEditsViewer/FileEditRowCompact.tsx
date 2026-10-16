@@ -175,7 +175,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
       */}
       <div className="pointer-events-none relative flex items-start gap-1.5 px-2.5 py-2">
         <ChevronIcon
-          className="h-3 w-3 shrink-0 text-muted-foreground"
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
           style={{ marginTop: "3.5px" }}
           aria-hidden="true"
         />

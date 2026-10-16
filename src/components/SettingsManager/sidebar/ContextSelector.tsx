@@ -400,7 +400,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
               {validRecentProjects.length > 0 && (
                 <SelectGroup>
                   <SelectLabel className="flex items-center gap-1.5 text-list">
-                    <Clock className="w-3 h-3" />
+                    <Clock className="w-3.5 h-3.5" />
                     {t("settingsManager.context.recent")}
                   </SelectLabel>
                   {validRecentProjects.map((recent) => (
@@ -418,7 +418,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
               {groupedProjects.map((group) => (
                 <SelectGroup key={group.path}>
                   <SelectLabel className="flex items-center gap-1.5 text-list bg-muted/50 -mx-1 px-2 py-1">
-                    <Folder className="w-3 h-3 text-warning" />
+                    <Folder className="w-3.5 h-3.5 text-warning" />
                     {group.name}
                   </SelectLabel>
                   {group.projects.map((project) => (
@@ -532,7 +532,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <TriangleAlert className="w-5 h-5 text-warning" />
+                <TriangleAlert className="w-4 h-4 text-warning" />
                 {t("settingsManager.unsavedChanges.title")}
               </DialogTitle>
               <DialogDescription>

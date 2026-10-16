@@ -119,7 +119,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                 onClick={() => setIsDeleteConfirm(true)}
                 aria-label={t("common.delete")}
               >
-                <Trash className="w-3 h-3" />
+                <Trash className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>
@@ -170,7 +170,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                   onClick={() => setCommandConfirmIndex(idx)}
                   aria-label={t("common.remove")}
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </Button>
               )
             )}

@@ -44,6 +44,7 @@ import {
   ExternalLink,
   CircleX,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import { useUnifiedPresets } from "@/hooks/useUnifiedPresets";
 import { mergeSettings } from "@/utils/settingsMerger";
@@ -148,7 +149,7 @@ const FileCard = React.memo<{
             )}
             {analysis.mcpCount > 0 && (
               <Badge variant="secondary" className="text-caption h-5">
-                <Server aria-hidden className="w-2.5 h-2.5 mr-1" />
+                <Server aria-hidden className="w-3.5 h-3.5 mr-1" />
                 {analysis.mcpCount} MCP
               </Badge>
             )}
@@ -159,13 +160,13 @@ const FileCard = React.memo<{
             )}
             {analysis.hasPermissions && (
               <Badge variant="secondary" className="text-caption h-5">
-                <Shield aria-hidden className="w-2.5 h-2.5 mr-1" />
+                <Shield aria-hidden className="w-3.5 h-3.5 mr-1" />
                 {t("settingsManager.analyzer.permissions")}
               </Badge>
             )}
             {analysis.hasHooks && (
               <Badge variant="secondary" className="text-caption h-5">
-                <Zap aria-hidden className="w-2.5 h-2.5 mr-1" />
+                <Zap aria-hidden className="w-3.5 h-3.5 mr-1" />
                 {t("settingsManager.analyzer.hooks")}
               </Badge>
             )}
@@ -192,12 +193,12 @@ const SEVERITY_BORDER: Record<IssueSeverity, string> = {
 
 const IssueCard = React.memo<{ issue: SettingsIssue }>(({ issue }) => {
   const { t } = useTranslation();
-  const { Icon, className: iconClass } = SEVERITY_ICON[issue.severity];
+  const { Icon: SeverityIcon, className: iconClass } = SEVERITY_ICON[issue.severity];
 
   return (
     <div className={`p-3 rounded-lg border ${SEVERITY_BORDER[issue.severity]}`}>
       <div className="flex items-start gap-3">
-        <Icon aria-hidden className={`w-4 h-4 shrink-0 mt-0.5 ${iconClass}`} />
+        <SeverityIcon aria-hidden className={`w-4 h-4 shrink-0 mt-0.5 ${iconClass}`} />
         <div className="flex-1 min-w-0 space-y-1">
           <p className="text-body font-medium">
             {t(issue.titleKey)}
@@ -436,7 +437,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-title">
-            <FolderTree aria-hidden className="w-5 h-5 text-accent" />
+            <FolderTree aria-hidden className="w-4 h-4 text-accent" />
             {t("settingsManager.analyzer.title")}
           </DialogTitle>
           <DialogDescription className="text-body">
@@ -488,11 +489,11 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 }`}
               >
                 {issueCounts.total === 0 ? (
-                  <CircleCheck aria-hidden className="w-5 h-5 text-success shrink-0" />
+                  <CircleCheck aria-hidden className="w-4 h-4 text-success shrink-0" />
                 ) : issueCounts.errors > 0 ? (
-                  <CircleX aria-hidden className="w-5 h-5 text-destructive shrink-0" />
+                  <CircleX aria-hidden className="w-4 h-4 text-destructive shrink-0" />
                 ) : (
-                  <TriangleAlert aria-hidden className="w-5 h-5 text-warning shrink-0" />
+                  <TriangleAlert aria-hidden className="w-4 h-4 text-warning shrink-0" />
                 )}
                 <div>
                   <p className="text-body font-medium">
@@ -604,7 +605,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   <span className="text-success">~/.claude/</span>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
-                  <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                  <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                   <span>settings.json</span>
                   <Badge variant="outline" className="text-caption h-4">
                     {t("settingsManager.analyzer.recommended.globalSettings")}
@@ -620,21 +621,21 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   <span className="text-info">your-project/</span>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
-                  <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                  <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                   <span>.mcp.json</span>
                   <Badge variant="outline" className="text-caption h-4">
                     {t("settingsManager.analyzer.recommended.projectMcp")}
                   </Badge>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
-                  <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                  <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                   <span>.claude/settings.json</span>
                   <Badge variant="outline" className="text-caption h-4">
                     {t("settingsManager.analyzer.recommended.teamSettings")}
                   </Badge>
                 </div>
                 <div className="pl-4 flex items-center gap-2 text-muted-foreground/60">
-                  <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/30" />
+                  <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/30" />
                   <span>.claude/settings.local.json</span>
                   <Badge variant="outline" className="text-caption h-4 opacity-50">
                     gitignore
@@ -653,15 +654,15 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400">
                   {t("settingsManager.analyzer.scope.local")}
                 </Badge>
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
                 <Badge variant="secondary" className="bg-success/10 text-success">
                   {t("settingsManager.analyzer.scope.project")}
                 </Badge>
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
                 <Badge variant="secondary" className="bg-info/10 text-info">
                   {t("settingsManager.analyzer.scope.user")}
                 </Badge>
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
                 <Badge variant="secondary" className="bg-warning/10 text-warning">
                   {t("settingsManager.analyzer.scope.global")}
                 </Badge>
@@ -679,7 +680,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               className="flex items-center gap-2 text-list text-accent hover:underline"
               aria-label={t("settingsManager.analyzer.officialDocs")}
             >
-              <ExternalLink aria-hidden className="w-3 h-3" />
+              <ExternalLink aria-hidden className="w-3.5 h-3.5" />
               {t("settingsManager.analyzer.officialDocs")}
             </a>
           </TabsContent>
@@ -692,7 +693,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Live warning if MCP in settings.json */}
             {summary.hasMcpInSettings && (
               <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-                <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <TriangleAlert aria-hidden className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                 <div>
                   <p className="text-body font-medium text-destructive">
                     {t("settingsManager.analyzer.status.mcpInSettings")}
@@ -731,7 +732,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
 
             {/* Important Note */}
             <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-              <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <TriangleAlert aria-hidden className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <div>
                 <p className="text-body font-medium text-destructive">
                   {t("settingsManager.analyzer.mcp.warning.title")}
@@ -765,7 +766,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Use Presets */}
             <div className="border-t border-border/50 pt-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-accent/5 border border-accent/20">
-                <Package aria-hidden className="w-8 h-8 text-accent shrink-0" />
+                <Icon icon={Package} size={24} className="text-accent shrink-0" aria-hidden />
                 <div>
                   <p className="text-body font-medium">
                     {t("settingsManager.analyzer.mcp.usePresets.title")}

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { TriangleAlert, Mail, Copy, RefreshCw, CircleCheck, CircleQuestionMark } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { withTranslation, type WithTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -136,7 +137,7 @@ ${t("error.emailTemplate.thanks", {
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-4">
                   <div className="rounded-full bg-destructive/10 p-4">
-                    <TriangleAlert className="h-12 w-12 text-destructive" />
+                    <Icon icon={TriangleAlert} size={24} className="text-destructive" />
                   </div>
                 </div>
                 <h1 className="text-title font-bold mb-2 text-foreground">

@@ -21,7 +21,7 @@ export function MobileNavigatorSheet({ messages }: MobileNavigatorSheetProps) {
         className="fixed bottom-20 right-4 z-30 md:hidden w-12 h-12 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
         aria-label={t("common.mobile.openNavigator")}
       >
-        <ListTree className="w-5 h-5" />
+        <ListTree className="w-4 h-4" />
       </button>
 
       {/* Bottom Sheet */}

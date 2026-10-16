@@ -9,6 +9,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
+import type { IconSize } from "@/components/icon/iconRules";
 import { Skeleton, SkeletonText } from "./skeleton";
 import i18n from "@/i18n";
 
@@ -26,16 +28,20 @@ interface LoadingSpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: SpinnerVariant;
   /** Show decorative sparkle overlay */
   withSparkle?: boolean;
-  /** Custom icon to use instead of Loader2 */
+  /** Custom icon to use instead of LoaderCircle */
   icon?: LucideIcon;
 }
 
-const spinnerSizes: Record<SpinnerSize, { spinner: string; sparkle: string }> = {
-  xs: { spinner: "w-3 h-3", sparkle: "w-1.5 h-1.5" },
-  sm: { spinner: "w-4 h-4", sparkle: "w-2 h-2" },
-  md: { spinner: "w-6 h-6", sparkle: "w-3 h-3" },
-  lg: { spinner: "w-10 h-10", sparkle: "w-4 h-4" },
-  xl: { spinner: "w-14 h-14", sparkle: "w-6 h-6" },
+/**
+ * Spinner and sparkle sizes. Icons come in 14 / 16 / 24 only, so md, lg and
+ * xl share the 24 px spinner (the variants stay for their callers).
+ */
+const spinnerSizes: Record<SpinnerSize, { spinner: IconSize; sparkle: IconSize; box: string }> = {
+  xs: { spinner: 14, sparkle: 14, box: "w-3.5 h-3.5" },
+  sm: { spinner: 16, sparkle: 14, box: "w-4 h-4" },
+  md: { spinner: 24, sparkle: 14, box: "w-6 h-6" },
+  lg: { spinner: 24, sparkle: 14, box: "w-6 h-6" },
+  xl: { spinner: 24, sparkle: 16, box: "w-6 h-6" },
 };
 
 const spinnerVariants: Record<SpinnerVariant, string> = {
@@ -52,7 +58,7 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
       size = "md",
       variant = "accent",
       withSparkle = false,
-      icon: Icon = LoaderCircle,
+      icon: glyph = LoaderCircle,
       ...props
     },
     ref
@@ -64,14 +70,18 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
       return (
         <div
           ref={ref}
-          className={cn("relative inline-flex items-center justify-center", sizeConfig.spinner, className)}
+          className={cn("relative inline-flex items-center justify-center", sizeConfig.box, className)}
           {...props}
         >
           <Icon
-            className={cn("absolute", sizeConfig.spinner, colorClass, "animate-spin opacity-40")}
+            icon={glyph}
+            size={sizeConfig.spinner}
+            className={cn("absolute", colorClass, "animate-spin opacity-40")}
           />
-          <Sparkles
-            className={cn("absolute", sizeConfig.sparkle, colorClass, "animate-pulse")}
+          <Icon
+            icon={Sparkles}
+            size={sizeConfig.sparkle}
+            className={cn("absolute", colorClass, "animate-pulse")}
           />
         </div>
       );
@@ -79,7 +89,7 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
 
     return (
       <div ref={ref} className={cn("inline-flex items-center justify-center", className)} {...props}>
-        <Icon className={cn(sizeConfig.spinner, colorClass, "animate-spin")} />
+        <Icon icon={glyph} size={sizeConfig.spinner} className={cn(colorClass, "animate-spin")} />
       </div>
     );
   }

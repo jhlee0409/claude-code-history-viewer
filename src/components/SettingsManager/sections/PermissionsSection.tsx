@@ -147,7 +147,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
                     onClick={() => setConfirmIndex(index)}
                     aria-label={t("common.remove")}
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </Button>
                 )
               )}
@@ -403,7 +403,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                           onClick={() => setDirConfirmIndex(index)}
                           aria-label={t("common.remove")}
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-3.5 h-3.5" />
                         </Button>
                       )
                     )}

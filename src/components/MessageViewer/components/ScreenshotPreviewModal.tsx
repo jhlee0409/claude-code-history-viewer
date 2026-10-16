@@ -222,7 +222,7 @@ export function ScreenshotPreviewModal({
             aria-label={t("captureMode.preview.cancel")}
             title={t("captureMode.preview.cancel")}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>

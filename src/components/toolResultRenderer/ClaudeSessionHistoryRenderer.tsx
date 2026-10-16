@@ -18,7 +18,7 @@ const ErrorFallbackDetails = ({ label, content }: { label: string; content: stri
         onClick={() => setOpen(prev => !prev)}
         className={cn(layout.bodyText, "flex items-center gap-1 cursor-pointer")}
       >
-        <ChevronRight className={cn("w-3 h-3 transition-transform", open && "rotate-90")} />
+        <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-90")} />
         {label}
       </button>
       {open && (

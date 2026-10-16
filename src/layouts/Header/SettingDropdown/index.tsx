@@ -50,9 +50,9 @@ export const SettingDropdown = ({
             className="p-2 rounded-lg transition-colors cursor-pointer relative text-muted-foreground/50 hover:text-foreground/80 hover:bg-muted"
             aria-label={t("common.settings.title")}
           >
-            <Settings className="w-5 h-5 text-foreground" />
+            <Settings className="w-4 h-4 text-foreground" />
             {isCheckingForUpdates && (
-              <LoaderCircle className="absolute -top-1 -right-1 w-3 h-3 animate-spin text-info" />
+              <LoaderCircle className="absolute -top-1 -right-1 w-3.5 h-3.5 animate-spin text-info" />
             )}
           </button>
         </DropdownMenuTrigger>

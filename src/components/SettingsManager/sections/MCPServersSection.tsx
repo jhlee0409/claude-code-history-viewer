@@ -189,14 +189,14 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label={t("common.edit")}
             >
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
               aria-label={t("common.delete")}
             >
-              <Trash className="w-3 h-3" />
+              <Trash className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -437,7 +437,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               {t("settingsManager.mcp.addTitle")}
             </DialogTitle>
             <DialogDescription>
@@ -558,7 +558,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash className="w-5 h-5" />
+              <Trash className="w-4 h-4" />
               {t("settingsManager.mcp.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>

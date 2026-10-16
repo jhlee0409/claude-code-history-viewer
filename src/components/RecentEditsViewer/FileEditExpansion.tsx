@@ -163,7 +163,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                {chip.mode === "diff" && <FileDiff className="h-3 w-3" />}
+                {chip.mode === "diff" && <FileDiff className="h-3.5 w-3.5" />}
                 <span>{label}</span>
               </button>
             );

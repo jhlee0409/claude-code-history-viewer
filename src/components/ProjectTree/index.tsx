@@ -15,6 +15,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
@@ -888,7 +889,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingNone", "Flat list")}
                     aria-label={t("project.groupingNone", "Flat list")}
                   >
-                    <List className="w-3 h-3" />
+                    <List className="w-3.5 h-3.5" />
                   </button>
                   {/* Directory Grouping */}
                   <button
@@ -902,7 +903,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingDirectory", "Group by directory")}
                     aria-label={t("project.groupingDirectory", "Group by directory")}
                   >
-                    <FolderTree className="w-3 h-3" />
+                    <FolderTree className="w-3.5 h-3.5" />
                   </button>
                   {/* Worktree Grouping */}
                   <button
@@ -916,7 +917,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingWorktree", "Group by worktree")}
                     aria-label={t("project.groupingWorktree", "Group by worktree")}
                   >
-                    <GitBranch className="w-3 h-3" />
+                    <GitBranch className="w-3.5 h-3.5" />
                   </button>
                   {/* Time (Session Recency) Grouping */}
                   <button
@@ -930,7 +931,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingTime", "Group by time")}
                     aria-label={t("project.groupingTime", "Group by time")}
                   >
-                    <Clock className="w-3 h-3" />
+                    <Clock className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
@@ -959,9 +960,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     : t("common.expand", "Expand")}: ${providerFilterSummary} (${providerFilterCount})`}
                 >
                   {areProviderFiltersOpen ? (
-                    <ChevronDown className="h-3 w-3 shrink-0" />
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                   ) : (
-                    <ChevronRight className="h-3 w-3 shrink-0" />
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1 truncate">
                     {providerFilterSummary}
@@ -985,7 +986,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 title={t("project.resetProviderFilters", "Reset")}
                 aria-label={t("project.resetProviderFilters", "Reset")}
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
             <CollapsibleContent>
@@ -1003,7 +1004,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   title={t("project.discoverProviders", "Find other providers")}
                   aria-label={t("project.discoverProviders", "Find other providers")}
                 >
-                  <Search className="h-3 w-3" aria-hidden="true" />
+                  <Search className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>
                     {isDetectingProviders || isLoadingProjects
                       ? t("project.discoveringProviders", "Searching for providers...")
@@ -1074,7 +1075,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                 aria-label={t("common.clear", "Clear")}
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1101,7 +1102,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           {filteredProjects.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
-                <Folder className="w-8 h-8 text-muted-foreground/40" />
+                <Icon icon={Folder} size={24} className="text-muted-foreground/40" />
               </div>
               <p className="text-body text-muted-foreground">{t("project.notFound")}</p>
             </div>

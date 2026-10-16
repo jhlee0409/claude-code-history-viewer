@@ -49,7 +49,7 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
           className
         )}
       >
-        <Icon className="w-3 h-3" aria-hidden="true" />
+        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
         {content}
         {description && <span className="sr-only">{description}</span>}
       </div>
@@ -123,7 +123,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
               background: `color-mix(in oklch, ${colorVar} 15%, transparent)`,
             }}
           >
-            <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: colorVar }} />
+            <Icon className="w-4 h-4" style={{ color: colorVar }} />
           </div>
 
           <TrendChip trend={trend} />

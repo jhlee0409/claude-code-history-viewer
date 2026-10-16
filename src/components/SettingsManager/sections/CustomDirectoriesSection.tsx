@@ -250,7 +250,7 @@ export function CustomDirectoriesSection({
                       onClick={handleSaveEdit}
                       aria-label={t("common.save")}
                     >
-                      <Check className="h-3 w-3" />
+                      <Check className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -259,7 +259,7 @@ export function CustomDirectoriesSection({
                       onClick={handleCancelEdit}
                       aria-label={t("common.cancel")}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 ) : (
@@ -279,7 +279,7 @@ export function CustomDirectoriesSection({
                     onClick={() => handleStartEdit(cp)}
                     aria-label={t("settings.customDirectories.label")}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -288,7 +288,7 @@ export function CustomDirectoriesSection({
                     onClick={() => handleRemove(cp.path)}
                     aria-label={t("settings.customDirectories.remove")}
                   >
-                    <Trash className="h-3 w-3" />
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}

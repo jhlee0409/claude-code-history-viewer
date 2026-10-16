@@ -341,7 +341,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                         key={idx}
                         className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 bg-secondary border border-border text-foreground/80", layout.rounded, layout.smallText)}
                       >
-                        <Wrench className="w-3 h-3 text-muted-foreground" />
+                        <Wrench className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-mono">{contentItem.tool_name}</span>
                       </div>
                     );

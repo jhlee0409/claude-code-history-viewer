@@ -87,7 +87,7 @@ export const OutlineTaskRow = React.memo<OutlineTaskRowProps>(({
     >
       <div className="flex items-center gap-1.5 mb-0.5">
         <Zap
-          className={cn("w-3 h-3 shrink-0", isFailed ? "text-destructive" : "text-tool-task")}
+          className={cn("w-3.5 h-3.5 shrink-0", isFailed ? "text-destructive" : "text-tool-task")}
           aria-hidden="true"
         />
         <span className="text-list font-medium text-foreground/80 truncate flex-1">{label}</span>

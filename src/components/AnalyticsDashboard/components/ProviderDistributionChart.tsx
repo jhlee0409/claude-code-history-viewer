@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Server } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import type { ProviderUsageStats } from "../../../types";
 import { getProviderId, getProviderLabel } from "../../../utils/providers";
@@ -41,7 +42,7 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
   if (sortedProviders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <Server className="w-10 h-10 opacity-20" />
+        <Icon icon={Server} size={24} className="opacity-20" />
         <p className="text-caption uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
       </div>
     );

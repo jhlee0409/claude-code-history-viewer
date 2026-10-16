@@ -169,9 +169,9 @@ export const ExpandedCard = memo(({
                                 <ToolIcon toolName={toolUseBlock.name} className="w-4 h-4 text-accent" />
                             ) : (
                                 role === 'user' ? (
-                                    <User className="w-3 h-3 text-primary" />
+                                    <User className="w-3.5 h-3.5 text-primary" />
                                 ) : (
-                                    <Bot className="w-3 h-3 text-muted-foreground" />
+                                    <Bot className="w-3.5 h-3.5 text-muted-foreground" />
                                 )
                             )}
                         </div>
@@ -200,7 +200,7 @@ export const ExpandedCard = memo(({
                                     }
                                 }}
                             >
-                                <FileText className="w-3 h-3" />
+                                <FileText className="w-3.5 h-3.5" />
                                 <span className="truncate max-w-[120px]">{editedMdFile}</span>
                             </div>
                         )}
@@ -217,7 +217,7 @@ export const ExpandedCard = memo(({
                                 title={t("session.board.prevMsg")}
                                 aria-label={t("session.board.prevMsg")}
                             >
-                                <ChevronUp className="w-3 h-3" />
+                                <ChevronUp className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onNext?.(); }}
@@ -226,7 +226,7 @@ export const ExpandedCard = memo(({
                                 title={t("session.board.nextMsg")}
                                 aria-label={t("session.board.nextMsg")}
                             >
-                                <ChevronDown className="w-3 h-3" />
+                                <ChevronDown className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
@@ -241,7 +241,7 @@ export const ExpandedCard = memo(({
                                 title={t("session.board.rawText")}
                                 aria-label={t("session.board.rawText")}
                             >
-                                <TextAlignStart className="w-3 h-3" />
+                                <TextAlignStart className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => setMarkdownPretty(true)}
@@ -252,7 +252,7 @@ export const ExpandedCard = memo(({
                                 title={t("session.board.prettyMarkdown")}
                                 aria-label={t("session.board.prettyMarkdown")}
                             >
-                                <FileCode className="w-3 h-3" />
+                                <FileCode className="w-3.5 h-3.5" />
                             </button>
                         </div>
 

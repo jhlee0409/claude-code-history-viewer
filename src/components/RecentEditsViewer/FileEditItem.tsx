@@ -174,11 +174,11 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           >
             {isExpanded ? (
               <span title={tCommon("common.collapse", "Collapse")}>
-                <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronDown className={dense ? "h-3.5 w-3.5" : "w-4 h-4"} />
               </span>
             ) : (
               <span title={tCommon("common.expand", "Expand")}>
-                <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronRight className={dense ? "h-3.5 w-3.5" : "w-4 h-4"} />
               </span>
             )}
           </div>
@@ -309,7 +309,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               aria-label={t("recentEdits.showDiff")}
               aria-pressed={isExpanded && viewMode === "diff"}
             >
-              <FileDiff className="w-3 h-3" />
+              <FileDiff className="w-3.5 h-3.5" />
               <span>{t("recentEdits.diff")}</span>
             </button>
           </div>
@@ -332,7 +332,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <div
             className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}
           >
-            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3 h-3" /></span>
+            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3.5 h-3.5" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>

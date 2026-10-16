@@ -14,6 +14,7 @@ import {
   MessageSquare,
   LoaderCircle,
 } from 'lucide-react';
+import { Icon } from "@/components/icon/Icon";
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -244,7 +245,7 @@ export const ArchiveBrowser: React.FC = () => {
       {/* Archive list */}
       {archives.length === 0 ? (
         <div className="text-center py-12">
-          <Package className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+          <Icon icon={Package} size={24} className="mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-body font-medium text-muted-foreground">
             {t('archive.browse.empty.title')}
           </p>
@@ -398,7 +399,7 @@ export const ArchiveBrowser: React.FC = () => {
                                     key={subagent.fileName}
                                     className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/20 transition-colors"
                                   >
-                                    <Bot className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+                                    <Bot className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                                     <div className="min-w-0 flex-1">
                                       <p className="text-caption truncate text-muted-foreground">
                                         {subagent.fileName.replace(/\.jsonl$/, '')}
@@ -424,9 +425,9 @@ export const ArchiveBrowser: React.FC = () => {
                                       onClick={() => handleExportSubagent(entry.id, session.sessionId, subagent.fileName)}
                                     >
                                       {exportingSessionId === trackingId ? (
-                                        <LoaderCircle className="w-3 h-3 animate-spin" />
+                                        <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                                       ) : (
-                                        <Download className="w-3 h-3" />
+                                        <Download className="w-3.5 h-3.5" />
                                       )}
                                     </Button>
                                   </div>

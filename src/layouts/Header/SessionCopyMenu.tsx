@@ -81,7 +81,7 @@ export const SessionCopyMenu = ({
           {!compact && (
             <>
               <span>{session.actual_session_id.slice(0, 8)}</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
             </>
           )}
         </button>

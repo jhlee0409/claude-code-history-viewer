@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartColumn, Layers, Activity } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/loading";
 import { useAppStore } from "../../store/useAppStore";
@@ -118,7 +119,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           emptyComponent={
             <div className="text-center space-y-4">
               <div className="w-16 h-16 mx-auto rounded-full bg-muted/30 flex items-center justify-center">
-                <ChartColumn className="w-8 h-8 text-muted-foreground/40" />
+                <Icon icon={ChartColumn} size={24} className="text-muted-foreground/40" />
               </div>
               {/* The view's title is the shell's content header (AppLayout). */}
               <p className="text-list text-muted-foreground">

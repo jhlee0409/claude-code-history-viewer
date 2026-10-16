@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
@@ -279,7 +280,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       >
         <div className="text-center max-w-md mx-auto p-8">
           <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
-            <TriangleAlert className="w-8 h-8 text-destructive" />
+            <Icon icon={TriangleAlert} size={24} className="text-destructive" />
           </div>
           <h1 className="text-title font-semibold text-foreground mb-2">
             {t("common.errorOccurred")}

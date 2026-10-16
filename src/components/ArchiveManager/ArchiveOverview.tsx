@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TriangleAlert, HardDrive, Clock, Archive, Info, Settings2, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { Icon } from "@/components/icon/Icon";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -557,7 +558,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
             ) : archive.expiringSessions.length === 0 ? (
               <div className="text-center py-6">
-                <Clock className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+                <Icon icon={Clock} size={24} className="mx-auto text-muted-foreground/50 mb-2" />
                 <p className="text-body text-muted-foreground">
                   {t('archive.overview.expiring.noExpiring')}
                 </p>
@@ -648,7 +649,7 @@ export const ArchiveOverview: React.FC = () => {
                             onClick={() => handleArchiveSession(expiring, false)}
                             disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
-                            <Archive className="w-3 h-3 mr-1" />
+                            <Archive className="w-3.5 h-3.5 mr-1" />
                             {t('archive.overview.expiring.archiveMainOnly')}
                           </Button>
                           <Button
@@ -658,7 +659,7 @@ export const ArchiveOverview: React.FC = () => {
                             onClick={() => handleArchiveSession(expiring, true)}
                             disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
-                            <Archive className="w-3 h-3 mr-1" />
+                            <Archive className="w-3.5 h-3.5 mr-1" />
                             {t('archive.overview.expiring.archiveWithSubagents')}
                           </Button>
                         </div>

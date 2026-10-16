@@ -66,7 +66,7 @@ export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
               onClick={() => setShowInput(prev => !prev)}
               className={cn(layout.monoText, styles.accent, "flex items-center gap-1 cursor-pointer hover:opacity-80")}
             >
-              <ChevronRight className={cn("w-3 h-3 transition-transform", showInput && "rotate-90")} />
+              <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showInput && "rotate-90")} />
               {t("serverToolUseRenderer.showInput")}
             </button>
             {showInput && (

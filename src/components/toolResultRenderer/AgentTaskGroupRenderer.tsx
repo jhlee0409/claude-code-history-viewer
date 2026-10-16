@@ -93,7 +93,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
       >
         <ChevronRight
           className={cn(
-            "w-3 h-3 shrink-0 transition-transform text-muted-foreground",
+            "w-3.5 h-3.5 shrink-0 transition-transform text-muted-foreground",
             isExpanded && "rotate-90"
           )}
         />
@@ -131,7 +131,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
 
           {task.outputFile && (
             <div className="flex items-center gap-2">
-              <FileText className="w-3 h-3 text-muted-foreground" />
+              <FileText className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">
                 {t("agentTaskGroup.transcript")}
               </span>
@@ -151,9 +151,9 @@ const AgentTaskItem = memo(function AgentTaskItem({
                 title={t("agentTaskGroup.copyPath")}
               >
                 {copied ? (
-                  <Check className="w-3 h-3 text-success" />
+                  <Check className="w-3.5 h-3.5 text-success" />
                 ) : (
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
@@ -242,7 +242,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
 
             {task.outputFile && (
               <div className="flex items-center gap-2 mt-2">
-                <FileText className="w-3 h-3 text-muted-foreground" />
+                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground">
                   {t("agentTaskGroup.transcript")}
                 </span>

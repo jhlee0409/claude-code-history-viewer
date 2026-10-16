@@ -247,7 +247,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
           {includeSystemInfo && systemInfo && (
             <div className="rounded-md border border-border bg-muted/50 p-2.5 text-list">
               <div className="flex items-center gap-1.5 font-medium text-foreground mb-1.5">
-                <Info className="h-3 w-3" />
+                <Info className="h-3.5 w-3.5" />
                 {t("feedback.systemInfoPreview")}
               </div>
               <div className="space-y-0.5 text-muted-foreground text-caption">

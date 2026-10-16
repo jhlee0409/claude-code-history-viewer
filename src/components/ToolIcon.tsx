@@ -24,7 +24,7 @@ type Props = {
   /** Whether to apply tool-specific color */
   colored?: boolean;
   /** Size variant */
-  size?: "sm" | "default" | "lg";
+  size?: "sm" | "default";
 };
 
 /** Tool variant to Tailwind color class mapping */
@@ -49,9 +49,8 @@ const VARIANT_COLORS: Record<RendererVariant, string> = {
 
 /** Size classes */
 const SIZE_CLASSES = {
-  sm: "w-3 h-3",
+  sm: "w-3.5 h-3.5",
   default: "w-4 h-4",
-  lg: "w-5 h-5",
 };
 
 import { getToolVariant } from "@/utils/toolIconUtils";

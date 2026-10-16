@@ -86,7 +86,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Terminal className="w-5 h-5" />
+            <Terminal className="w-4 h-4" />
             {isOpenCode
               ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
               : isCodex

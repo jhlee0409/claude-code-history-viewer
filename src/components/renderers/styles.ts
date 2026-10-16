@@ -193,7 +193,7 @@ export function getVariantStyles(variant: RendererVariant): VariantStyles {
  * - headerPadding: 10px horizontal, 6px vertical
  * - iconGap: 6px
  * - iconSize: 16x16px (standard)
- * - iconSizeSmall: 12x12px (badges)
+ * - iconSizeSmall: 14x14px (badges)
  * - titleText/bodyText/smallText: 12px
  * - headerHeight: 32px minimum (grows when content wraps)
  * - rounded: 6px border radius
@@ -216,7 +216,7 @@ export const layout = {
   /** Standard icon size */
   iconSize: "w-4 h-4",
   /** Small icon size (for status indicators) */
-  iconSizeSmall: "w-3 h-3",
+  iconSizeSmall: "w-3.5 h-3.5",
   /** Title text style */
   titleText: "text-caption font-medium",
   /** Body text style */

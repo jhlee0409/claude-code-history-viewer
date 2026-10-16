@@ -110,7 +110,7 @@ export const SessionStatsCard = memo(({
             const percentage = stats.total_tokens > 0 ? (token.value / stats.total_tokens) * 100 : 0;
             return (
               <div key={token.key} className="flex items-center gap-1.5">
-                <Icon className="w-3 h-3 shrink-0" style={{ color: token.color }} />
+                <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: token.color }} />
                 <span className="text-caption text-muted-foreground">{token.label}</span>
                 <span
                   className="font-mono text-caption font-semibold tabular-nums"

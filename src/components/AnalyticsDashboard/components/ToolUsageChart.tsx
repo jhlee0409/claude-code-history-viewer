@@ -7,6 +7,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Wrench } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import type { ToolUsageStats } from "../../../types";
 import { getToolDisplayName } from "../utils";
@@ -34,7 +35,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
   if (topTools.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <Wrench className="w-10 h-10 opacity-20" />
+        <Icon icon={Wrench} size={24} className="opacity-20" />
         <p className="text-caption uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
       </div>
     );

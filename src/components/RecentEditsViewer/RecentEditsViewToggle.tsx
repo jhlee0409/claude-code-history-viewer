@@ -93,7 +93,7 @@ export const RecentEditsViewToggle: React.FC<RecentEditsViewToggleProps> = ({
               disabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
             )}
           >
-            <Icon className="h-3 w-3" aria-hidden="true" />
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
             {/*
               Label always shown. At two short words the whole control is about
               110px, which fits the panel header even at its 280px minimum, and

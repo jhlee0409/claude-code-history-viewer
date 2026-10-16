@@ -72,7 +72,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: TaskData }) {
       )}
       {task.blockedBy && task.blockedBy.length > 0 && (
         <div className="flex items-center gap-0.5 shrink-0">
-          <Ban className={cn("w-2.5 h-2.5 text-warning")} />
+          <Ban className={cn("w-3.5 h-3.5 text-warning")} />
           <span className={cn(layout.monoText, "text-warning")}>
             {task.blockedBy.join(",")}
           </span>

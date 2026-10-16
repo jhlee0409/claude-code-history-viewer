@@ -116,7 +116,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           title={t("common.save")}
           aria-label={t("common.save")}
         >
-          <Check className="w-3 h-3" />
+          <Check className="w-3.5 h-3.5" />
         </button>
         <button
           type="button"
@@ -131,7 +131,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           title={t("common.cancel")}
           aria-label={t("common.cancel")}
         >
-          <X className="w-3 h-3" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     );
@@ -157,7 +157,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                 aria-label={cliSyncTitle}
               >
                 <Link2
-                  className="w-2.5 h-2.5 text-info"
+                  className="w-3.5 h-3.5 text-info"
                   aria-hidden="true"
                 />
                 <span className="text-caption font-medium text-info uppercase tracking-wide">
@@ -195,19 +195,19 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             title={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
             aria-label={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
           >
-            {readOnly ? <Ellipsis className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+            {readOnly ? <Ellipsis className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {!readOnly && (
             <DropdownMenuItem onClick={onRenameClick}>
-              <Pencil className="w-3 h-3 mr-2" />
+              <Pencil className="w-3.5 h-3.5 mr-2" />
               {t("session.renameMenuItem", "Rename")}
             </DropdownMenuItem>
           )}
           {!readOnly && hasCustomName && (
             <DropdownMenuItem onClick={onResetCustomName}>
-              <RotateCcw className="w-3 h-3 mr-2" />
+              <RotateCcw className="w-3.5 h-3.5 mr-2" />
               {t("session.resetName", "Reset name")}
             </DropdownMenuItem>
           )}
@@ -215,7 +215,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNativeRenameClick}>
-                <Terminal className="w-3 h-3 mr-2" />
+                <Terminal className="w-3.5 h-3.5 mr-2" />
                 {providerId === "opencode"
                   ? t(
                       "session.nativeRename.menuItemOpenCode",
@@ -240,22 +240,22 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           )}
           {!readOnly && <DropdownMenuSeparator />}
           <DropdownMenuItem onClick={onCopySessionId}>
-            <Copy className="w-3 h-3 mr-2" />
+            <Copy className="w-3.5 h-3.5 mr-2" />
             {t("session.copySessionId", "Copy Session ID")}
           </DropdownMenuItem>
           {supportsResumeCommand && (
             <DropdownMenuItem onClick={onCopyResumeCommand}>
-              <Play className="w-3 h-3 mr-2" />
+              <Play className="w-3.5 h-3.5 mr-2" />
               {t("session.copyResumeCommand", "Copy Resume Command")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onCopyFilePath}>
-            <FileText className="w-3 h-3 mr-2" />
+            <FileText className="w-3.5 h-3.5 mr-2" />
             {t("session.copyFilePath", "Copy File Path")}
           </DropdownMenuItem>
           {supportsRevealInFinder && (
             <DropdownMenuItem onClick={onRevealInFinder}>
-              <FolderOpen className="w-3 h-3 mr-2" />
+              <FolderOpen className="w-3.5 h-3.5 mr-2" />
               {t("session.showJsonlFile", "Show JSONL File")}
             </DropdownMenuItem>
           )}
@@ -266,7 +266,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                 onClick={onDeleteSession}
                 className="text-destructive focus:text-destructive"
               >
-                <Trash className="w-3 h-3 mr-2" />
+                <Trash className="w-3.5 h-3.5 mr-2" />
                 {t("session.deleteSession", "Delete Session")}
               </DropdownMenuItem>
             </>

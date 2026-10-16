@@ -42,7 +42,7 @@ export function UpdateErrorNotification({
       <div className="bg-card rounded-lg shadow-lg border border-destructive/50 p-4 min-w-80 max-w-sm">
         <div className="flex items-start space-x-3">
           <div className="p-2 rounded-full bg-destructive/10">
-            <CircleAlert className="w-5 h-5 text-destructive" />
+            <CircleAlert className="w-4 h-4 text-destructive" />
           </div>
 
           <div className="flex-1 min-w-0">

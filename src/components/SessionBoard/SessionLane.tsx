@@ -256,7 +256,7 @@ export const SessionLane = ({
                 {zoomLevel === 0 ? (
                     <div className="flex flex-col items-center gap-1.5 text-center h-full justify-between">
                         <div className="flex gap-1">
-                            {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommitHorizontal className="w-2.5 h-2.5 text-tool-git" /></span>}
+                            {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommitHorizontal className="w-3.5 h-3.5 text-tool-git" /></span>}
                         </div>
                         <div className="text-caption font-bold text-muted-foreground">
                             {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
@@ -278,19 +278,19 @@ export const SessionLane = ({
 
                                 {stats.commitCount > 0 && (
                                     <div className="flex items-center gap-1 text-tool-git" title={t("session.board.gitCommits")}>
-                                        <GitCommitHorizontal className="w-3 h-3" />
+                                        <GitCommitHorizontal className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold">{stats.commitCount}</span>
                                     </div>
                                 )}
 
                                 <div className="flex items-center gap-1 text-success" title={t("analytics.inputTokens")}>
-                                    <TrendingUp className="w-3 h-3" />
+                                    <TrendingUp className="w-3.5 h-3.5" />
                                     <span className="text-caption font-mono">{formatNumber(stats.inputTokens || 0)}</span>
                                     <span className="text-caption opacity-60">{t("analytics.in", "in")}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 text-tool-mcp" title={t("analytics.outputTokens")}>
-                                    <Zap className="w-3 h-3" />
+                                    <Zap className="w-3.5 h-3.5" />
                                     <span className="text-caption font-mono">{formatNumber(stats.outputTokens || 0)}</span>
                                     <span className="text-caption opacity-60">{t("analytics.out", "out")}</span>
                                 </div>
@@ -347,7 +347,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Terminal className="w-3 h-3" />
+                                        <Terminal className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.shellCount}</span>
                                     </button>
                                 )}
@@ -376,7 +376,7 @@ export const SessionLane = ({
                                                     }
                                                 }}
                                             >
-                                                <FilePlus className="w-3 h-3" />
+                                                <FilePlus className="w-3.5 h-3.5" />
                                                 <span className="text-caption font-bold font-mono">{createdCount}</span>
                                             </button>
                                         );
@@ -398,7 +398,7 @@ export const SessionLane = ({
                                                     }
                                                 }}
                                             >
-                                                <FilePlus className="w-3 h-3" />
+                                                <FilePlus className="w-3.5 h-3.5" />
                                                 <span className="text-caption font-bold font-mono">{stats.fileToolCount}</span>
                                             </button>
                                         );
@@ -424,7 +424,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Search className="w-3 h-3" />
+                                        <Search className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.searchCount}</span>
                                     </button>
                                 )}
@@ -447,7 +447,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Globe className="w-3 h-3" />
+                                        <Globe className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.webCount}</span>
                                     </button>
                                 )}
@@ -470,7 +470,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Plug className="w-3 h-3" />
+                                        <Plug className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.mcpCount}</span>
                                     </button>
                                 )}
@@ -493,7 +493,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <GitCommitHorizontal className="w-3 h-3" />
+                                        <GitCommitHorizontal className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.gitToolCount}</span>
                                     </button>
                                 )}
@@ -516,7 +516,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Book className="w-3 h-3" />
+                                        <Book className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.markdownEditCount}</span>
                                     </button>
                                 )}
@@ -539,7 +539,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <FileText className="w-3 h-3" />
+                                        <FileText className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.fileEditCount}</span>
                                     </button>
                                 )}
@@ -562,7 +562,7 @@ export const SessionLane = ({
                                             }
                                         }}
                                     >
-                                        <Eye className="w-3 h-3" />
+                                        <Eye className="w-3.5 h-3.5" />
                                         <span className="text-caption font-bold font-mono">{stats.codeReadCount}</span>
                                     </button>
                                 )}
@@ -574,7 +574,7 @@ export const SessionLane = ({
                                     <div className="text-caption uppercase font-bold text-tool-git/70 tracking-tighter w-full">{t("session.board.gitCommits")}</div>
                                     {data.gitCommits.slice(0, 2).map(commit => (
                                         <div key={commit.hash} className="flex items-center gap-1.5 text-caption text-tool-git/80 font-mono bg-tool-git/5 px-1.5 py-0.5 rounded border border-tool-git/10 max-w-full overflow-hidden" title={commit.message}>
-                                            <GitCommitHorizontal className="w-2.5 h-2.5 shrink-0" />
+                                            <GitCommitHorizontal className="w-3.5 h-3.5 shrink-0" />
                                             <span className="truncate">{commit.message}</span>
                                             <code className="text-caption opacity-40 shrink-0">{commit.hash.substring(0, 7)}</code>
                                         </div>

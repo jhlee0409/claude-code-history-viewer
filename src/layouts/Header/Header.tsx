@@ -278,7 +278,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label={t("common.commandPalette")}
         >
-          <Search className="w-5 h-5" />
+          <Search className="w-4 h-4" />
         </button>
 
         {/* Project views — one segmented control, Messages first so the way

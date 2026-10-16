@@ -7,6 +7,7 @@ import {
   CircleQuestionMark,
   Search,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { isTauri } from "@/utils/platform";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
@@ -110,7 +111,7 @@ export function FolderSelector({
       {/* Icon */}
       <div className="flex justify-center">
         <div className="rounded-full bg-primary/10 p-4">
-          <Folder className="h-12 w-12 text-primary" />
+          <Icon icon={Folder} size={24} className="text-primary" />
         </div>
       </div>
 

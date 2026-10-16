@@ -79,12 +79,12 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
 
         <div className="flex items-center gap-3 ml-auto text-caption text-muted-foreground shrink-0">
           <span className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" aria-hidden="true" />
+            <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
             {t("analytics.timeline.activeDays")}: {t(totalActiveDays === 1 ? "analytics.timeline.day" : "analytics.timeline.days", { count: totalActiveDays })}
           </span>
           {currentStreak > 0 && (
             <span className="flex items-center gap-1 text-orange-500/80">
-              <Flame className="w-3 h-3" aria-hidden="true" />
+              <Flame className="w-3.5 h-3.5" aria-hidden="true" />
               {t("analytics.timeline.currentStreak")}: {t(currentStreak === 1 ? "analytics.timeline.day" : "analytics.timeline.days", { count: currentStreak })}
             </span>
           )}
@@ -100,7 +100,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
           {/* Stats row */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="inline-flex items-center gap-1 bg-muted/40 rounded-full px-2.5 py-0.5 text-caption">
-              <Flame className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
+              <Flame className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               <span className="text-muted-foreground">{t("analytics.timeline.longestStreak")}</span>
               <span className="font-medium text-foreground">
                 {t(longestStreak === 1 ? "analytics.timeline.day" : "analytics.timeline.days", { count: longestStreak })}
@@ -114,7 +114,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
                 }}
                 className="inline-flex items-center gap-0.5 bg-primary/10 rounded-full px-2.5 py-0.5 text-caption text-primary/80 hover:text-primary hover:bg-primary/15 transition-colors"
               >
-                <X className="w-3 h-3" aria-hidden="true" />
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
                 {t("analytics.timeline.clearFilter")}
               </button>
             )}

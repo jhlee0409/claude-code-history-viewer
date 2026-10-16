@@ -72,7 +72,7 @@ export function CaptureModeToolbar({
             <span className="text-list font-mono tabular-nums">
               {hiddenCount} {hiddenCount === 1 ? "block" : "blocks"} hidden
             </span>
-            <RotateCcw className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <RotateCcw className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
         )}
 

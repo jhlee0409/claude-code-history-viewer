@@ -86,7 +86,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {subagentType && (
               <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-caption uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
-                <SubIcon className="w-3 h-3" />{subagentType}
+                <SubIcon className="w-3.5 h-3.5" />{subagentType}
               </span>
             )}
             {runInBackground && (
@@ -111,7 +111,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         {/* Meta */}
         {(model || isolation) && (
           <div className={cn("mb-3 flex items-center gap-3 flex-wrap", layout.smallText)}>
-            {model && <span className="flex items-center gap-1 text-muted-foreground"><Cpu className="w-3 h-3" /><code className={layout.monoText}>{model}</code></span>}
+            {model && <span className="flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" /><code className={layout.monoText}>{model}</code></span>}
             {isolation && <span className="text-muted-foreground">{t("renderers.agentTool.isolation", { defaultValue: "Isolation" })}: <code className={cn("px-1.5 py-0.5", layout.rounded, "bg-muted/50 border border-border")}>{isolation}</code></span>}
           </div>
         )}
@@ -141,9 +141,9 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               <CircleCheck className="w-3.5 h-3.5 text-success" />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
               <div className={cn("flex items-center gap-2 ml-auto", layout.smallText)}>
-                {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3 h-3" />{formatDuration(totalDurationMs)}</span>}
-                {totalTokens != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3 h-3" />{formatTokens(totalTokens)}</span>}
-                {totalToolUseCount != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Hammer className="w-3 h-3" />{totalToolUseCount}</span>}
+                {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3.5 h-3.5" />{formatDuration(totalDurationMs)}</span>}
+                {totalTokens != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" />{formatTokens(totalTokens)}</span>}
+                {totalToolUseCount != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Hammer className="w-3.5 h-3.5" />{totalToolUseCount}</span>}
               </div>
             </button>
             {isResultOpen && <div className="px-3 py-2 border-t border-border max-h-[32rem] overflow-y-auto"><Markdown className="text-foreground/90">{resultText}</Markdown></div>}

@@ -8,6 +8,7 @@ import { getFilterEndMs } from "./useActivityData";
 import { LoadingSpinner } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { clsx } from "clsx";
 import type { ActiveBrush } from "../../types/board.types";
 
@@ -363,7 +364,7 @@ export const SessionBoard = () => {
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center max-w-sm mx-auto">
                         <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                            <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                            <Icon icon={MessageSquare} size={24} className="text-muted-foreground/50" />
                         </div>
                         <h3 className="text-title font-medium text-foreground mb-2">
                             {t("session.board.empty.title")}

@@ -109,7 +109,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             : "text-muted-foreground"
         )}
       >
-        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </span>
 
       {/* Icon */}

@@ -96,7 +96,7 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
           )}
         >
           <ChevronDown className={cn(
-            "w-3 h-3 transition-transform",
+            "w-3.5 h-3.5 transition-transform",
             isExpanded && "rotate-180"
           )} />
           <span>
@@ -231,7 +231,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               )}
             >
               <ChevronDown className={cn(
-                "w-3 h-3 transition-transform",
+                "w-3.5 h-3.5 transition-transform",
                 isExpanded && "rotate-180"
               )} />
               <span>
@@ -297,7 +297,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               )}
             >
               <ChevronDown className={cn(
-                "w-3 h-3 transition-transform",
+                "w-3.5 h-3.5 transition-transform",
                 isExpanded && "rotate-180"
               )} />
               <span>

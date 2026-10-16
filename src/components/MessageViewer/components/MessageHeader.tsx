@@ -98,7 +98,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 className="inline-flex items-center justify-center cursor-help text-muted-foreground"
                 aria-label={t("assistantMessageDetails.model")}
               >
-                <CircleQuestionMark className="w-3 h-3" />
+                <CircleQuestionMark className="w-3.5 h-3.5" />
               </button>
               <div className={cn(
                 "absolute bottom-full mb-2 right-0 w-52 bg-popover text-popover-foreground",

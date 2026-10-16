@@ -110,7 +110,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
       {/* Search + Sort */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             placeholder={t("session.filter.searchPlaceholder")}
             value={searchQuery}
@@ -123,7 +123,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
               className="absolute right-2 top-1/2 -translate-y-1/2"
               aria-label={t("session.filter.clearSearch")}
             >
-              <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+              <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
             </button>
           )}
         </div>
@@ -407,7 +407,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       >
         <span className="inline-flex items-center justify-center gap-1.5">
           {isLoadingMoreSessions && (
-            <LoaderCircle className="w-3 h-3 animate-spin" aria-hidden="true" />
+            <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
           )}
           <span>
             {isLoadingMoreSessions

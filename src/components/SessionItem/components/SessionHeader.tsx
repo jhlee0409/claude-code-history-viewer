@@ -29,7 +29,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
                 : "bg-amber-500/10 text-amber-500"
             )}
           >
-            <Archive className="w-3 h-3" />
+            <Archive className="w-3.5 h-3.5" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
@@ -52,7 +52,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
       )}
     >
       <span title={t("session.item.session")}>
-        <MessageCircle className="w-3 h-3" />
+        <MessageCircle className="w-3.5 h-3.5" />
       </span>
     </div>
   );

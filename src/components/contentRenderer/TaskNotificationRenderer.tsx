@@ -155,13 +155,13 @@ const TaskRow = memo(function TaskRow({
         <div className="w-4 flex justify-center">
           {hasExpandableContent ? (
             <ChevronDown className={cn(
-              "w-3 h-3 text-muted-foreground/50",
+              "w-3.5 h-3.5 text-muted-foreground/50",
               "transition-transform duration-200",
               isExpanded && "rotate-180"
             )} />
           ) : (
             <Icon className={cn(
-              "w-3 h-3",
+              "w-3.5 h-3.5",
               config.textClass,
               "iconClass" in config ? config.iconClass : ""
             )} />
@@ -186,7 +186,7 @@ const TaskRow = memo(function TaskRow({
               "border-b border-border/30",
               "bg-muted/30"
             )}>
-              <Terminal className="w-3 h-3 text-muted-foreground" />
+              <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                 Output
               </span>
@@ -305,7 +305,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "flex items-center gap-1 px-1.5 py-0.5 rounded",
               "bg-background/60 border border-border/50"
             )}>
-              <Hash className="w-2.5 h-2.5 text-muted-foreground" />
+              <Hash className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-caption font-mono font-medium text-foreground/80">
                 {notifications.length}
               </span>
@@ -321,7 +321,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-success/10 border border-success/20"
                 )}>
-                  <CircleCheck className="w-2.5 h-2.5 text-success" />
+                  <CircleCheck className="w-3.5 h-3.5 text-success" />
                   <span className="text-caption font-mono text-success">
                     {statusCounts.completed}
                   </span>
@@ -333,7 +333,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-info/10 border border-info/20",
                   "animate-pulse-subtle"
                 )}>
-                  <LoaderCircle className="w-2.5 h-2.5 text-info animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin" />
                   <span className="text-caption font-mono text-info">
                     {statusCounts.running}
                   </span>
@@ -344,7 +344,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-destructive/10 border border-destructive/20"
                 )}>
-                  <CircleX className="w-2.5 h-2.5 text-destructive" />
+                  <CircleX className="w-3.5 h-3.5 text-destructive" />
                   <span className="text-caption font-mono text-destructive">
                     {statusCounts.failed}
                   </span>
@@ -360,7 +360,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               hasRunning ? "bg-info/5 text-info" :
               "bg-muted/50 text-muted-foreground"
             )}>
-              <Clock className="w-3 h-3" />
+              <Clock className="w-3.5 h-3.5" />
               <span className="text-caption font-mono font-medium uppercase tracking-wider">
                 {allCompleted ? "Complete" :
                  hasFailed ? "Error" :
@@ -403,11 +403,11 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
             >
               <div className="flex items-center gap-2">
                 <ChevronDown className={cn(
-                  "w-3 h-3 text-muted-foreground",
+                  "w-3.5 h-3.5 text-muted-foreground",
                   "transition-transform duration-200",
                   !isDetailsExpanded && "-rotate-90"
                 )} />
-                <Terminal className="w-3 h-3 text-muted-foreground" />
+                <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                   {t("taskNotification.details")}
                 </span>

@@ -38,7 +38,7 @@ export function UpdateCheckingNotification({
       <div className="bg-card rounded-lg shadow-lg border border-border p-4 min-w-80 max-w-sm">
         <div className="flex items-start space-x-3">
           <div className="p-2 rounded-full bg-info/10">
-            <LoaderCircle className="w-5 h-5 text-info animate-spin" />
+            <LoaderCircle className="w-4 h-4 text-info animate-spin" />
           </div>
 
           <div className="flex-1 min-w-0">

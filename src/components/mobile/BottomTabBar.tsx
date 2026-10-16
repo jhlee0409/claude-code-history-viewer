@@ -57,7 +57,7 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
               aria-label={t(labelKey)}
               aria-current={isActive ? "page" : undefined}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-4 h-4" />
               <span className="text-caption font-medium truncate max-w-full">{t(labelKey)}</span>
               {isDisabled && (
                 <span className="text-caption text-muted-foreground/60 truncate max-w-full">

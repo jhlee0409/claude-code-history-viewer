@@ -422,7 +422,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Archive className="w-5 h-5" />
+            <Archive className="w-4 h-4" />
             {t("settingsManager.exportImport.exportAll")}
           </CardTitle>
         </CardHeader>

@@ -176,7 +176,7 @@ export function HiddenBlocksIndicator({
                     "transition-colors"
                   )}
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   <span className="font-medium">
                     {t("captureMode.restoreAll")} ({count})
                   </span>
@@ -202,7 +202,7 @@ export function HiddenBlocksIndicator({
                   <span className="font-mono text-caption truncate text-muted-foreground/70">
                     {uuid.slice(0, 8)}...
                   </span>
-                  <RotateCcw className="w-3 h-3 shrink-0" />
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                 </button>
               ))}
             </div>

@@ -352,7 +352,7 @@ export const FileContent = ({
                       onClick={() => setIsExpanded(true)}
                       className={`${layout.smallText} font-medium transition-colors text-tool-file hover:text-tool-file/80`}
                     >
-                      <FileText className="w-3 h-3 inline mr-1" />
+                      <FileText className="w-3.5 h-3.5 inline mr-1" />
                       {t("fileContent.showMoreLines", {
                         count: contentLines.length - MAX_LINES,
                       })}
@@ -368,7 +368,7 @@ export const FileContent = ({
                       onClick={() => setIsExpanded(true)}
                       className={`${layout.smallText} transition-colors text-tool-file hover:text-tool-file/80`}
                     >
-                      <FileText className="w-3 h-3 inline mr-1" />
+                      <FileText className="w-3.5 h-3.5 inline mr-1" />
                       {t("fileContent.showMoreLines", {
                         count: contentLines.length - MAX_LINES,
                       })}

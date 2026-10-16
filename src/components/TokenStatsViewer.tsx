@@ -9,6 +9,7 @@ import {
   ChevronDown,
   LoaderCircle,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import type {
   SessionTokenStats,
   ProviderId,
@@ -264,7 +265,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 className="w-11 h-11 rounded-xl flex items-center justify-center"
                 style={{ background: "color-mix(in oklch, var(--metric-green) 15%, transparent)" }}
               >
-                <Layers className="w-5 h-5" style={{ color: "var(--metric-green)" }} />
+                <Layers className="w-4 h-4" style={{ color: "var(--metric-green)" }} />
               </div>
               <div>
                 <h3 className="text-body font-semibold text-foreground">
@@ -414,7 +415,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
     return (
       <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-border/50 bg-card/30">
         <div className="relative mb-4">
-          <ChartColumn className="w-14 h-14 text-muted-foreground/30" />
+          <Icon icon={ChartColumn} size={24} className="text-muted-foreground/30" />
           <div
             className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
           />

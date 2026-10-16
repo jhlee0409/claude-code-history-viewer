@@ -136,7 +136,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
                   warningStyles.accent
                 )}
               >
-                <ChevronRight className={cn("w-3 h-3 transition-transform", showContent && "rotate-90")} />
+                <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showContent && "rotate-90")} />
                 {t("textEditorCodeExecutionToolResultRenderer.showContent")}
               </button>
               {showContent && (

@@ -143,7 +143,7 @@ export const ClaudeMessageNode = React.memo(
           title={t("captureMode.hideBlock")}
           aria-label={t("captureMode.hideBlock")}
         >
-          <X className="w-4 h-4" strokeWidth={2.5} />
+          <X className="w-4 h-4" />
         </button>
       ) : null;
 

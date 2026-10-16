@@ -56,7 +56,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
       )}
       <div className={cn(layout.rounded, "overflow-hidden")}>
         <div className={cn("px-3 py-1 flex items-center gap-1.5 bg-muted", layout.smallText, "text-muted-foreground")}>
-          <Play className="w-3 h-3" />
+          <Play className="w-3.5 h-3.5" />
           <span>{t("taskOperation.command")}</span>
         </div>
         <Highlight

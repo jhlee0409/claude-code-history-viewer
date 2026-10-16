@@ -8,6 +8,7 @@
 import { useRef, useCallback, useMemo, useState, useEffect, useLayoutEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
@@ -78,7 +79,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
         className="flex items-center gap-2 w-full text-left cursor-pointer hover:text-foreground/80"
         aria-label={label}
       >
-        <ChevronIcon className="w-3 h-3 text-muted-foreground" />
+        <ChevronIcon className="w-3.5 h-3.5 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-list font-medium text-muted-foreground">{label}</span>
         <span className="text-caption text-muted-foreground/70 bg-muted rounded-full px-1.5">
@@ -98,7 +99,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-list rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
               title={sa.summary ?? sa.agent_id}
             >
-              <Bot className="w-3 h-3 text-muted-foreground" />
+              <Bot className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="max-w-[200px] truncate">
                 {sa.summary ?? sa.agent_id}
               </span>
@@ -827,7 +828,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         emptyComponent={
           <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
             <div className="mb-4">
-              <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
+              <Icon icon={MessageCircle} size={24} className="mx-auto text-muted-foreground/50" />
             </div>
             <h3 className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noMessages")}
@@ -1189,7 +1190,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* 검색 결과 없음 */}
         {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
           <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <Icon icon={Search} size={24} className="mb-4 text-muted-foreground/50" />
             <p className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noSearchResults")}
             </p>
@@ -1328,7 +1329,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title={t("messageViewer.scrollToTop")}
               aria-label={t("messageViewer.scrollToTop")}
             >
-              <ChevronUp className="w-3 h-3" />
+              <ChevronUp className="w-3.5 h-3.5" />
             </button>
           )}
           {/* Scroll to bottom */}
@@ -1344,7 +1345,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title={t("messageViewer.scrollToBottom")}
               aria-label={t("messageViewer.scrollToBottom")}
             >
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

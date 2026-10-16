@@ -218,12 +218,12 @@ export const EnhancedDiffViewer = ({
             >
               {splitView ? (
                 <>
-                  <TextAlignStart className="w-3 h-3" />
+                  <TextAlignStart className="w-3.5 h-3.5" />
                   <span>{t("diffViewer.unified")}</span>
                 </>
               ) : (
                 <>
-                  <Columns2 className="w-3 h-3" />
+                  <Columns2 className="w-3.5 h-3.5" />
                   <span>{t("diffViewer.split")}</span>
                 </>
               )}

@@ -79,7 +79,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -292,7 +292,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -490,7 +490,7 @@ exports[`shell characterization > desktop > archive 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-archive w-5 h-5 text-accent"
+                class="lucide lucide-archive w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -664,7 +664,7 @@ exports[`shell characterization > desktop > board 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-message-square w-5 h-5 text-accent"
+                class="lucide lucide-message-square w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -1012,13 +1012,13 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -1165,13 +1165,13 @@ exports[`shell characterization > desktop > empty 1`] = `
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -1322,13 +1322,13 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -1470,7 +1470,7 @@ exports[`shell characterization > desktop > global stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-database w-5 h-5 text-accent"
+                class="lucide lucide-database w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -1683,7 +1683,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -1814,15 +1814,15 @@ exports[`shell characterization > desktop > loading stats 1`] = `
         >
           <svg
             aria-hidden="true"
-            class="lucide lucide-loader-circle lucide-loader-2 w-3 h-3 text-muted-foreground animate-spin"
+            class="lucide lucide-loader-circle lucide-loader-2 text-muted-foreground animate-spin"
             fill="none"
-            height="24"
+            height="14"
             stroke="currentColor"
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.75"
             viewBox="0 0 24 24"
-            width="24"
+            width="14"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
@@ -2066,7 +2066,7 @@ exports[`shell characterization > desktop > recent edits 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-file-pen lucide-file-edit w-5 h-5 text-accent"
+                class="lucide lucide-file-pen lucide-file-edit w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -2261,7 +2261,7 @@ exports[`shell characterization > desktop > settings 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-settings w-5 h-5 text-accent"
+                class="lucide lucide-settings w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -2430,7 +2430,7 @@ exports[`shell characterization > desktop > token stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-coins w-5 h-5 text-accent"
+                class="lucide lucide-coins w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -2634,7 +2634,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -2934,7 +2934,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -3234,7 +3234,7 @@ exports[`shell characterization > mobile > archive 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-archive w-5 h-5 text-accent"
+                class="lucide lucide-archive w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -3396,7 +3396,7 @@ exports[`shell characterization > mobile > board 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-message-square w-5 h-5 text-accent"
+                class="lucide lucide-message-square w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -3717,13 +3717,13 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -3875,13 +3875,13 @@ exports[`shell characterization > mobile > empty 1`] = `
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -4020,13 +4020,13 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
                 >
                   <svg
                     aria-hidden="true"
-                    class="lucide lucide-message-square w-10 h-10 text-muted-foreground/50"
+                    class="lucide lucide-message-square text-muted-foreground/50"
                     fill="none"
                     height="24"
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-width="1.5"
                     viewBox="0 0 24 24"
                     width="24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -4158,7 +4158,7 @@ exports[`shell characterization > mobile > global stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-database w-5 h-5 text-accent"
+                class="lucide lucide-database w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -4359,7 +4359,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-5 h-5 text-accent"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -4587,15 +4587,15 @@ exports[`shell characterization > mobile > loading stats 1`] = `
         >
           <svg
             aria-hidden="true"
-            class="lucide lucide-loader-circle lucide-loader-2 w-3 h-3 text-muted-foreground animate-spin"
+            class="lucide lucide-loader-circle lucide-loader-2 text-muted-foreground animate-spin"
             fill="none"
-            height="24"
+            height="14"
             stroke="currentColor"
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.75"
             viewBox="0 0 24 24"
-            width="24"
+            width="14"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
@@ -4817,7 +4817,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-file-pen lucide-file-edit w-5 h-5 text-accent"
+                class="lucide lucide-file-pen lucide-file-edit w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -5114,7 +5114,7 @@ exports[`shell characterization > mobile > settings 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-settings w-5 h-5 text-accent"
+                class="lucide lucide-settings w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"
@@ -5271,7 +5271,7 @@ exports[`shell characterization > mobile > token stats 1`] = `
             >
               <svg
                 aria-hidden="true"
-                class="lucide lucide-coins w-5 h-5 text-accent"
+                class="lucide lucide-coins w-4 h-4 text-accent"
                 fill="none"
                 height="24"
                 stroke="currentColor"

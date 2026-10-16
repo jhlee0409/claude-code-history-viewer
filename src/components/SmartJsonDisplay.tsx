@@ -21,22 +21,22 @@ interface SmartJsonDisplayProps {
 
 // Icon mapping for common keys
 const KEY_ICONS: Record<string, React.ReactNode> = {
-    path: <span title="Path"><FileText className="w-3 h-3 text-tool-file" /></span>,
-    file_path: <span title="File Path"><FileText className="w-3 h-3 text-tool-file" /></span>,
-    filename: <span title="Filename"><FileText className="w-3 h-3 text-tool-file" /></span>,
-    command: <span title="Command"><Terminal className="w-3 h-3 text-tool-terminal" /></span>,
-    cmd: <span title="Command"><Terminal className="w-3 h-3 text-tool-terminal" /></span>,
-    query: <span title="Query"><Search className="w-3 h-3 text-tool-search" /></span>,
-    id: <span title="ID"><Hash className="w-3 h-3 text-purple-600 dark:text-purple-400" /></span>,
-    task_id: <span title="Task ID"><Hash className="w-3 h-3 text-tool-task" /></span>,
-    uuid: <span title="UUID"><FingerprintPattern className="w-3 h-3 text-purple-600 dark:text-purple-400" /></span>,
-    list: <span title="List"><List className="w-3 h-3 text-info" /></span>,
-    prompt: <span title="Prompt"><MessageSquare className="w-3 h-3 text-muted-foreground" /></span>,
-    description: <span title="Description"><MessageSquare className="w-3 h-3 text-muted-foreground" /></span>,
-    error: <span title="Error"><CircleAlert className="w-3 h-3 text-destructive" /></span>,
-    status: <span title="Status"><CircleCheck className="w-3 h-3 text-success" /></span>,
-    code: <span title="Code"><Code className="w-3 h-3 text-tool-code" /></span>,
-    allowed_tools: <span title="Allowed Tools"><Play className="w-3 h-3 text-tool-task" /></span>
+    path: <span title="Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
+    file_path: <span title="File Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
+    filename: <span title="Filename"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
+    command: <span title="Command"><Terminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
+    cmd: <span title="Command"><Terminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
+    query: <span title="Query"><Search className="w-3.5 h-3.5 text-tool-search" /></span>,
+    id: <span title="ID"><Hash className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /></span>,
+    task_id: <span title="Task ID"><Hash className="w-3.5 h-3.5 text-tool-task" /></span>,
+    uuid: <span title="UUID"><FingerprintPattern className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /></span>,
+    list: <span title="List"><List className="w-3.5 h-3.5 text-info" /></span>,
+    prompt: <span title="Prompt"><MessageSquare className="w-3.5 h-3.5 text-muted-foreground" /></span>,
+    description: <span title="Description"><MessageSquare className="w-3.5 h-3.5 text-muted-foreground" /></span>,
+    error: <span title="Error"><CircleAlert className="w-3.5 h-3.5 text-destructive" /></span>,
+    status: <span title="Status"><CircleCheck className="w-3.5 h-3.5 text-success" /></span>,
+    code: <span title="Code"><Code className="w-3.5 h-3.5 text-tool-code" /></span>,
+    allowed_tools: <span title="Allowed Tools"><Play className="w-3.5 h-3.5 text-tool-task" /></span>
 };
 
 const formatValue = (key: string, value: unknown): React.ReactNode => {

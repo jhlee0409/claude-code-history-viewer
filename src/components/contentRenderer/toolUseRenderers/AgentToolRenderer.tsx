@@ -61,7 +61,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
                   style.border
                 )}
               >
-                <SubagentIcon className="w-3 h-3" />
+                <SubagentIcon className="w-3.5 h-3.5" />
                 {input.subagent_type}
               </span>
             )}

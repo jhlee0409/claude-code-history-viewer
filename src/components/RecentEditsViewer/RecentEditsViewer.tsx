@@ -15,6 +15,7 @@ import {
   ChevronDown,
   LoaderCircle,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
@@ -105,7 +106,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   if (selectedProject && !supportsRecentEdits(selectedProject.provider)) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+        <Icon icon={File} size={24} className="mb-4 text-muted-foreground/50" />
         <p className={`${layout.bodyText} text-muted-foreground`}>
           {t("recentEdits.unavailableForProvider", {
             provider: getProviderLabel(
@@ -130,7 +131,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         withSparkle={true}
         emptyComponent={
           <div className="flex flex-col items-center justify-center py-12">
-            <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <Icon icon={File} size={24} className="mb-4 text-muted-foreground/50" />
             <p className="text-title mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
             <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noEditsDescription")}
@@ -216,7 +217,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         {filteredFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-              <Search className="w-8 h-8 text-muted-foreground/40" />
+              <Icon icon={Search} size={24} className="text-muted-foreground/40" />
             </div>
             <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noSearchResults")}
