@@ -154,6 +154,7 @@
   "session.withCustomArguments": "包含自定义参数",
   "session.editCustomArguments": "编辑自定义参数…",
   "session.copySessionId": "复制会话ID",
+  "session.rowActions": "会话操作",
   "session.count": "会话：{{count}}个",
   "session.filter.clearSearch": "清除搜索",
   "session.filter.noResults": "没有匹配的会话",

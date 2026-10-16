@@ -14,6 +14,9 @@
 //   row (its scroll container) closes it.
 // - Phone drawer: the row menu opens inside the drawer and takes the tap
 //   (portalled to <body> the drawer covered it).
+// - Touch screen (hasTouch, pointer: coarse): every session row shows its
+//   actions button (24px); a tap opens the row menu, a tap on an item runs
+//   it. A mouse-only screen shows no such button.
 // - Toolbar location path: no separator without a readable segment before
 //   it (phone: the current place only), in ko and en.
 
@@ -30,7 +33,7 @@ import { loadTranslator } from "../lib/i18n.mjs";
 import { generateFixture } from "../fixtures/generate.mjs";
 import { STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
 
-/* global document, getComputedStyle -- functions passed to page.evaluate run in the page */
+/* global document, getComputedStyle, matchMedia -- functions passed to page.evaluate run in the page */
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SERVER_BIN = path.join(REPO, ".ui-capture", "build", "cchv-server");
@@ -76,7 +79,7 @@ afterAll(async () => {
 });
 
 /** Open a harness scenario (by id), run its steps, settle. */
-async function openScenario(id, { locale = "en" } = {}) {
+async function openScenario(id, { locale = "en", contextOptions } = {}) {
   const scenario = SCENARIOS.get(id);
   if (!scenario) throw new Error(`no scenario ${id}`);
   const session = await newScenarioPage(browser, {
@@ -86,6 +89,7 @@ async function openScenario(id, { locale = "en" } = {}) {
     fixedNow: fixture.fixedNow,
     injections: scenario.screen.inject,
     storageSeed: { ...STORAGE_SEED, ...(scenario.screen.storage ?? {}) },
+    contextOptions,
   });
   await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
   await settle(session, { label: `${id} initial` });
@@ -288,4 +292,51 @@ describe.skipIf(!ENABLED)("sidebar in WebKit", () => {
       await session.close();
     }
   }, 120_000);
+
+  it("touch screen: the row's actions button opens the row menu by tap; a mouse screen has none", async () => {
+    const { session, page, t, run } = await openScenario("sidebar-sessions--390x844--light", {
+      contextOptions: { hasTouch: true },
+    });
+    try {
+      expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+      await run({ do: "openSidebar" });
+      const drawer = page.getByRole("dialog");
+      const rows = drawer.locator('[role="treeitem"][data-tree-node="session"]');
+      const count = await rows.count();
+      expect(count).toBeGreaterThan(0);
+      const name = t("session.rowActions");
+      for (let i = 0; i < count; i += 1) {
+        const box = await rows.nth(i).getByRole("button", { name, exact: true }).boundingBox();
+        expect(box, `row ${i}`).not.toBeNull();
+        expect(box.width).toBeGreaterThanOrEqual(24);
+        expect(box.height).toBeGreaterThanOrEqual(24);
+      }
+
+      const row = rows.nth(count > 1 ? 1 : 0);
+      const openBefore = await page.evaluate(() => document.querySelector('[data-row="session"][aria-selected="true"]')?.getAttribute("data-session-path") ?? null);
+      await row.getByRole("button", { name, exact: true }).tap();
+      await settle(session, { label: "row menu by tap" });
+      const menu = drawer.getByRole("menu");
+      expect(await menu.count()).toBe(1);
+      // The tap opened the menu, not the session.
+      expect(await page.evaluate(() => document.querySelector('[data-row="session"][aria-selected="true"]')?.getAttribute("data-session-path") ?? null)).toBe(openBefore);
+      await menu.getByRole("menuitem", { name: t("session.favorite.add"), exact: true }).tap();
+      await settle(session, { label: "starred by tap" });
+      expect(await page.getByRole("menu").count()).toBe(0);
+      expect(await row.getByText(t("session.favorite.starred"), { exact: true }).count()).toBe(1);
+    } finally {
+      await session.close();
+    }
+
+    const desktop = await openScenario("sidebar-sessions--1440x900--dark");
+    try {
+      expect(await desktop.page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(false);
+      // Rendered but not shown (display: none, so not in the role tree).
+      const buttons = desktop.page.locator(`${SESSION_ROWS} button[aria-label="${desktop.t("session.rowActions")}"]`);
+      expect(await buttons.count()).toBeGreaterThan(0);
+      expect(await buttons.evaluateAll((els) => els.filter((el) => el.getBoundingClientRect().width > 0).length)).toBe(0);
+    } finally {
+      await desktop.session.close();
+    }
+  }, 180_000);
 });

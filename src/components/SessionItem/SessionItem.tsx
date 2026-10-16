@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Check, Star } from "lucide-react";
+import { Check, Ellipsis, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { NativeRenameDialog } from "@/components/NativeRenameDialog";
@@ -26,7 +26,8 @@ type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; a
  *
  * `variant="compact"` is the sidebar's one-line row: a focusable tree item
  * (Enter opens, Space toggles in selection mode, ContextMenu / Shift+F10
- * opens the row menu), name, favourite star and time.
+ * opens the row menu), name, favourite star and time. On a coarse pointer
+ * (touch) it also shows an actions button, the tap route to the row menu.
  */
 export const SessionItem: React.FC<SessionItemProps> = ({
   session,
@@ -253,6 +254,37 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
           {formatTimeAgo(session.last_modified)}
         </span>
+        {!isSelectionMode && !editing.isEditing && (
+          // The tap route to the row menu (a pointer right-clicks, the
+          // keyboard presses ContextMenu / Shift+F10, so it stays out of the
+          // tab order). 24px target. Its mousedown stops here, so a second
+          // tap closes the menu instead of closing and reopening it.
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={t("session.rowActions")}
+            title={t("session.rowActions")}
+            aria-haspopup="menu"
+            aria-expanded={contextMenu !== null}
+            className={cn(
+              "hidden pointer-coarse:inline-flex size-6 shrink-0 items-center justify-center rounded",
+              "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (contextMenu) {
+                handleContextMenuClose();
+                return;
+              }
+              const row = e.currentTarget.closest<HTMLElement>('[role="treeitem"]') ?? e.currentTarget;
+              const box = e.currentTarget.getBoundingClientRect();
+              openContextMenuAt(row, box.left, box.bottom);
+            }}
+          >
+            <Ellipsis className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
         {overlays}
       </div>
     );

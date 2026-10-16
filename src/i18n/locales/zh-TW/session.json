@@ -154,6 +154,7 @@
   "session.withCustomArguments": "含自訂參數",
   "session.editCustomArguments": "編輯自訂參數…",
   "session.copySessionId": "複製會話ID",
+  "session.rowActions": "會話操作",
   "session.count": "會話：{{count}}個",
   "session.filter.clearSearch": "清除搜尋",
   "session.filter.noResults": "沒有符合的會話",

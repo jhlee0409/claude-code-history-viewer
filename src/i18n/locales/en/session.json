@@ -154,6 +154,7 @@
   "session.withCustomArguments": "with custom arguments",
   "session.editCustomArguments": "Edit custom arguments…",
   "session.copySessionId": "Copy Session ID",
+  "session.rowActions": "Session actions",
   "session.count": "Sessions: {{count}}",
   "session.filter.clearSearch": "Clear search",
   "session.filter.noResults": "No sessions match your search",

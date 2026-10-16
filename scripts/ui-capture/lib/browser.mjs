@@ -49,8 +49,16 @@ const storageSeedScript = (seed) => `(() => {
   for (const [key, value] of Object.entries(seed)) window.localStorage.setItem(key, value);
 })();`;
 
-export async function newScenarioPage(browser, { scenario, origin, locale, fixedNow, injections, storageSeed = {} }) {
+/**
+ * `contextOptions` adds Playwright context options to the scenario's (tests
+ * only: `hasTouch` makes the page a touch screen, `(pointer: coarse)`).
+ */
+export async function newScenarioPage(
+  browser,
+  { scenario, origin, locale, fixedNow, injections, storageSeed = {}, contextOptions = {} },
+) {
   const context = await browser.newContext({
+    ...contextOptions,
     viewport: { width: scenario.viewport.width, height: scenario.viewport.height },
     deviceScaleFactor: 2,
     colorScheme: scenario.theme,

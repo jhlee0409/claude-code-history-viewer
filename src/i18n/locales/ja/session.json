@@ -154,6 +154,7 @@
   "session.withCustomArguments": "カスタム引数付き",
   "session.editCustomArguments": "カスタム引数を編集…",
   "session.copySessionId": "セッションIDをコピー",
+  "session.rowActions": "セッションの操作",
   "session.count": "セッション：{{count}}件",
   "session.filter.clearSearch": "検索をクリア",
   "session.filter.noResults": "検索に一致するセッションがありません",
