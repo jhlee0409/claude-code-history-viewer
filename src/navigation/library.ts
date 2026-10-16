@@ -62,6 +62,10 @@ export function pushRecent(
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
+/** Epoch ms a `Date` can hold (|t| <= 8.64e15); anything else throws in `toISOString`. */
+export const isDateTime = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && !Number.isNaN(new Date(v).getTime());
+
 function parseRef(value: unknown): SessionRef | null {
   if (typeof value !== "object" || value === null) return null;
   const r = value as Record<string, unknown>;
@@ -83,7 +87,7 @@ export function parseRecent(raw: unknown): RecentEntry[] {
     if (typeof item !== "object" || item === null) continue;
     const e = item as Record<string, unknown>;
     const ref = parseRef(e.ref);
-    if (!ref || typeof e.openedAt !== "number") continue;
+    if (!ref || !isDateTime(e.openedAt)) continue;
     if (out.some((o) => o.ref.filePath === ref.filePath)) continue;
     out.push({ ref, title: typeof e.title === "string" ? e.title : "", openedAt: e.openedAt });
   }

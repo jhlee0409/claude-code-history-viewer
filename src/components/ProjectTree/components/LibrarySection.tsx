@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
-import { favoritesOf, type FavoriteEntry, type RecentEntry } from "@/navigation/library";
+import { favoritesOf, isDateTime, type FavoriteEntry, type RecentEntry } from "@/navigation/library";
 import { openLegacyFavorite, openSessionRef } from "@/navigation/openSessionRef";
 import type { LibraryItem } from "@/navigation/place";
 import { formatTimeAgo } from "@/utils/time";
@@ -76,7 +76,9 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
                 key: entry.ref.filePath,
                 sessionId: entry.ref.sessionId,
                 title: entry.title,
-                caption: formatTimeAgo(new Date(entry.openedAt).toISOString()),
+                // The store's list is validated on load; a time no Date can
+                // hold still renders, without its caption.
+                caption: isDateTime(entry.openedAt) ? formatTimeAgo(new Date(entry.openedAt).toISOString()) : "",
                 open: () => openEntry(() => openSessionRef(entry.ref)),
               }))}
             />
