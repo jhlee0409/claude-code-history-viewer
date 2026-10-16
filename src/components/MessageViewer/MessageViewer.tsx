@@ -642,6 +642,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const anchorRestoringRef = useRef(false);
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
+  // The setting of the explicit target (`targetRequest`) already looked up:
+  // one lookup per setting, so a target restored after A→B→A gets its own
+  // even while the superseded one is still pending.
+  const targetLookupRef = useRef<number | null>(null);
 
   const handleLoadEarlier = useCallback(() => {
     if (pagination.isLoadingMore || !pagination.hasMore) return;
@@ -821,17 +825,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       if (index === -1) {
         // Target may live in an unloaded older page — extend the window.
         // The effect re-runs when flattenedMessages grows and then scrolls.
-        const p = useAppStore.getState().pagination;
-        if (p.hasMore && !ensureInFlightRef.current) {
-          const uuid = targetMessageUuid;
-          // The tab this target belongs to: a late answer must not clear
-          // the target of a tab opened meanwhile (plan §9b).
-          const documentId = useAppStore.getState().activeDocumentId;
-          ensureInFlightRef.current = uuid;
-          void ensureMessageLoaded(uuid).then((found) => {
-            ensureInFlightRef.current = null;
-            if (!found) useAppStore.getState().clearTargetMessageIf(uuid, documentId);
-          });
+        const { pagination: p, targetRequest, lookUpTargetMessage } = useAppStore.getState();
+        if (p.hasMore && targetLookupRef.current !== targetRequest) {
+          // The lookup clears the target it was started for only while that
+          // is still the target (plan §4.3: document id and epoch).
+          targetLookupRef.current = targetRequest;
+          void lookUpTargetMessage();
         }
         return;
       }

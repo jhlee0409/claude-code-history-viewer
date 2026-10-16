@@ -191,6 +191,7 @@ export interface AppStoreState {
   };
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
+  targetRequest: number;
   recentSessions: import("@/navigation/library").RecentEntry[];
 
   // Conversation tabs (documentSlice)
@@ -267,7 +268,7 @@ export interface AppStoreActions {
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
   ) => void;
   clearTargetMessage: () => void;
-  clearTargetMessageIf: (uuid: string, documentId: string) => void;
+  lookUpTargetMessage: () => Promise<boolean>;
   clearPendingAnchor: (anchor: import("./documentSlice").PendingAnchor) => void;
 
   // Project actions

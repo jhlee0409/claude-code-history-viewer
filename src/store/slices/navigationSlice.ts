@@ -122,6 +122,12 @@ export interface NavigationSliceState {
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
   /**
+   * Which setting of the target is current: advances whenever the target is
+   * set or cleared. Work on behalf of a target (its lookup) owns it only
+   * while this is unchanged; uuid and tab id alone repeat after A→B→A.
+   */
+  targetRequest: number;
+  /**
    * Sessions the user opened, newest first (the sidebar library's "Recent",
    * plan T7). Persisted (`library.recent.v1`), at most 12.
    */
@@ -144,11 +150,13 @@ export interface NavigationSliceActions {
   navigateToMessage: (uuid: string, options?: WebUINavigationOptions) => void;
   clearTargetMessage: () => void;
   /**
-   * Clear the target only while it is still `uuid` in tab `documentId`: a
-   * late result for a target that was replaced (or belonged to another tab)
-   * must not clear the current one (plan §9b).
+   * Page the explicit target into the loaded window (it may live in an older
+   * page) and resolve whether it is there. When it is not, the target is
+   * cleared - only while it is still the target this lookup was started for
+   * (`targetRequest`): a late answer must not clear a target set since, even
+   * the same uuid restored in the same tab after A→B→A (plan §4.3, §9b).
    */
-  clearTargetMessageIf: (uuid: string, documentId: string) => void;
+  lookUpTargetMessage: () => Promise<boolean>;
 }
 
 export type NavigationSlice = NavigationSliceState & NavigationSliceActions;
@@ -184,6 +192,7 @@ export const initialNavigationState: NavigationSliceState = {
   placeHistory: { back: [], forward: [] },
   targetMessageUuid: null,
   shouldHighlightTarget: false,
+  targetRequest: 0,
   recentSessions: [],
 };
 
@@ -373,6 +382,7 @@ export const createNavigationSlice: StateCreator<
     set({
       targetMessageUuid: uuid,
       shouldHighlightTarget: true,
+      targetRequest: get().targetRequest + 1,
       pendingAnchor: null,
     });
 
@@ -390,11 +400,17 @@ export const createNavigationSlice: StateCreator<
     set({
       targetMessageUuid: null,
       shouldHighlightTarget: false,
+      targetRequest: get().targetRequest + 1,
     }),
 
-  clearTargetMessageIf: (uuid, documentId) => {
-    const { targetMessageUuid, activeDocumentId } = get();
-    if (targetMessageUuid !== uuid || activeDocumentId !== documentId) return;
-    get().clearTargetMessage();
+  lookUpTargetMessage: async () => {
+    const uuid = get().targetMessageUuid;
+    if (!uuid) return false;
+    // Taken before the await: this lookup owns the target it was started for.
+    const request = get().targetRequest;
+    const owns = () => get().targetRequest === request;
+    const found = await get().ensureMessageLoaded(uuid);
+    if (!found && owns()) get().clearTargetMessage();
+    return found;
   },
 });

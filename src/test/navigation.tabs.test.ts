@@ -148,6 +148,14 @@ beforeEach(() => {
       }
       case "get_session_subagents":
         return [];
+      case "get_provider_message_offset": {
+        // Messages are `${path}#${i}`; the offset counts from the newest end.
+        const uuid = String(args.messageUuid);
+        await held(`offset:${uuid}`);
+        const [path, index] = uuid.split("#");
+        const total = TOTALS[path!] ?? 0;
+        return index === undefined ? null : total - 1 - Number(index);
+      }
       default:
         return null;
     }
@@ -284,15 +292,43 @@ describe("switching tabs", () => {
 
   it("a late 'target not found' from another tab does not clear this tab's target", async () => {
     await open(A, A1);
-    const tab1 = activeId();
     state().navigateToMessage("m-old");
+    hold("offset:m-old");
+    const late = state().lookUpTargetMessage();
     await openInNewTab(() => open(B, B1));
     state().navigateToMessage("m-new");
 
-    state().clearTargetMessageIf("m-old", tab1);
+    release("offset:m-old");
+    await expect(late).resolves.toBe(false);
     expect(state().targetMessageUuid).toBe("m-new");
-    state().clearTargetMessageIf("m-new", activeId());
+    // The lookup for the current target clears it when it is not there.
+    await expect(state().lookUpTargetMessage()).resolves.toBe(false);
     expect(state().targetMessageUuid).toBeNull();
+  });
+
+  it("A→B→A: the old lookup of A's target does not clear the same target restored in A (review #4)", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    const target = `${A1.file_path}#10`; // in the older page
+    state().navigateToMessage(target);
+    hold(`offset:${target}`);
+    const stale = state().lookUpTargetMessage();
+
+    await openInNewTab(() => open(B, B1));
+    await activateTab(tab1, screens);
+    // Same tab, same uuid: only the request that set it differs.
+    expect(where()).toEqual([tab1, A.path, A1.file_path]);
+    expect(state().targetMessageUuid).toBe(target);
+
+    release(`offset:${target}`);
+    // Superseded: A's window was reloaded on reopening.
+    await expect(stale).resolves.toBe(false);
+    expect(state().targetMessageUuid).toBe(target);
+
+    // The restored target's own lookup pages it in.
+    await expect(state().lookUpTargetMessage()).resolves.toBe(true);
+    expect(state().targetMessageUuid).toBe(target);
+    expect(state().messages.some((m) => m.uuid === target)).toBe(true);
   });
 
   it("saves the scroll anchor the viewer reports when the tab is left", async () => {
