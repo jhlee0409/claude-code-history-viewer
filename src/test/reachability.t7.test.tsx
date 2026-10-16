@@ -11,6 +11,9 @@
  * arrows and the sidebar's tree and menu keys for real).
  * Palette places are checked against the command registry: the command
  * exists, the palette lists it, and running it calls the right action.
+ *
+ * These are component contracts with their own spies; that the real shell
+ * wires each entry to its effect is `reachability.shell.test.tsx`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within, cleanup } from "@testing-library/react";

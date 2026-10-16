@@ -1,0 +1,377 @@
+/**
+ * Plan §6 reachability, driven through the real shell (T7 review R7).
+ *
+ * `reachability.t7.test.tsx` renders each control on its own with its own
+ * spies, so it would still pass if the shell stopped wiring a control to
+ * its action (say AppLayout dropped `onOpenSettingsManager`). Here the
+ * whole app renders - App, AppLayout, Header, ProjectTree, the command
+ * runner, the modal provider and container, the ⌘K palette and the real
+ * store - and every entry that moved in T7, plus representative gear
+ * preferences, is activated from the DOM. Each row asserts what the user
+ * would see change: the screen (`view`), the modal that opened, the store
+ * value or the event the updater listens for. Only the screens' bodies, the
+ * folder picker / feedback form bodies and the backend are stubbed.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import type { ClaudeProject, ClaudeSession } from "@/types";
+
+const apiMock = vi.hoisted(() => vi.fn());
+vi.mock("@/services/api", () => ({ api: apiMock }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() }),
+  Toaster: () => null,
+}));
+vi.mock("@/hooks/useAppInitialization", () => ({ useAppInitialization: () => {} }));
+vi.mock("@/hooks/useUpdater", () => ({
+  useUpdater: () => ({ state: { isChecking: false, currentVersion: "1.0.0", hasUpdate: false } }),
+}));
+vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
+vi.mock("@/contexts/platform", () => ({
+  usePlatform: () => ({ platform: "desktop", isDesktop: true, isMobile: false }),
+  DesktopOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
+  MobileOnly: () => null,
+}));
+vi.mock("@/hooks/useMediaQuery", () => ({
+  useMediaQuery: () => true,
+  useIsXlUp: () => false,
+  useIsLgUp: () => true,
+  XL_BREAKPOINT: 1280,
+}));
+
+/** A screen body: its name, so a row can see which screen the shell shows. */
+const { screenStub } = vi.hoisted(() => ({
+  screenStub: (name: string) => () => <div data-screen={name} />,
+}));
+vi.mock("@/components/MessageViewer", () => ({ MessageViewer: screenStub("MessageViewer") }));
+vi.mock("@/components/TokenStatsViewer", () => ({ TokenStatsViewer: screenStub("TokenStatsViewer") }));
+vi.mock("@/components/AnalyticsDashboard", () => ({ AnalyticsDashboard: screenStub("AnalyticsDashboard") }));
+vi.mock("@/components/RecentEditsViewer", () => ({ RecentEditsViewer: screenStub("RecentEditsViewer") }));
+vi.mock("@/components/SettingsManager", () => ({ SettingsManager: screenStub("SettingsManager") }));
+vi.mock("@/components/SessionBoard/SessionBoard", () => ({ SessionBoard: screenStub("SessionBoard") }));
+vi.mock("@/components/ArchiveManager", () => ({ ArchiveManager: screenStub("ArchiveManager") }));
+vi.mock("@/components/MessageNavigator", () => ({
+  MessageNavigator: (props: { asideId?: string }) => <aside id={props.asideId} data-screen="MessageNavigator" />,
+}));
+vi.mock("@/components/SimpleUpdateManager", () => ({ SimpleUpdateManager: () => null }));
+vi.mock("@/components/modals/feedback/FeedbackModal", () => ({
+  FeedbackModal: () => <div data-modal="feedback" />,
+}));
+vi.mock("@/components/modals/folderSelect/FolderSelector", () => ({
+  FolderSelector: (props: { mode?: string }) => <div data-modal="folderSelector" data-mode={props.mode} />,
+}));
+
+import i18n from "@/i18n";
+import App from "@/App";
+import { ModalProvider } from "@/contexts/modal/ModalProvider";
+import { ThemeProvider } from "@/contexts/theme";
+import { useAppStore } from "@/store/useAppStore";
+import { useLanguageStore } from "@/store/useLanguageStore";
+import { MANUAL_UPDATE_CHECK_EVENT } from "@/commands/useCommandContext";
+
+const PROJECT: ClaudeProject = {
+  name: "alpha",
+  path: "/p/alpha",
+  actual_path: "/home/alpha",
+  session_count: 2,
+  message_count: 2,
+  last_modified: "2026-01-02T00:00:00.000Z",
+  provider: "claude",
+};
+const session = (n: number): ClaudeSession => ({
+  session_id: `s${n}`,
+  actual_session_id: `s${n}`,
+  file_path: `/p/alpha/s${n}.jsonl`,
+  project_name: "alpha",
+  message_count: 2,
+  first_message_time: "",
+  last_message_time: "",
+  last_modified: `2026-01-0${3 - n}T00:00:00.000Z`,
+  has_tool_use: false,
+  has_errors: false,
+  summary: `Session number ${n}`,
+  provider: "claude",
+});
+const S1 = session(1);
+const S2 = session(2);
+
+const pristine = useAppStore.getState();
+const pristineLanguage = useLanguageStore.getState();
+const state = () => useAppStore.getState();
+const t = (key: string) => i18n.t(key);
+
+beforeEach(async () => {
+  cleanup();
+  localStorage.clear();
+  await i18n.changeLanguage("en");
+  useLanguageStore.setState(pristineLanguage, true);
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  apiMock.mockReset();
+  apiMock.mockImplementation(async (command: string) => {
+    switch (command) {
+      case "load_project_sessions":
+      case "load_provider_sessions":
+        return [S1, S2];
+      case "load_provider_sessions_page":
+        return { sessions: [S1, S2], total: 2, nextOffset: 2, hasMore: false };
+      case "load_provider_messages_paginated":
+        return { messages: [], total_count: 0, has_more: false, next_offset: 0 };
+      case "get_session_subagents":
+      case "search_messages":
+        return [];
+      default:
+        return null;
+    }
+  });
+  useAppStore.setState(pristine, true);
+  useAppStore.setState({
+    claudePath: "/home/.claude",
+    projects: [PROJECT],
+    sessions: [S1, S2],
+    sessionsTotal: 2,
+    selectedProject: PROJECT,
+    selectedSession: S1,
+    view: "conversation",
+    isMetadataLoaded: true,
+    isNavigatorOpen: false,
+    placeHistory: {
+      back: [{ view: "analytics", project: PROJECT, session: S1 }],
+      forward: [{ view: "board", project: PROJECT, session: S1 }],
+    },
+    refreshAllConversations: vi.fn(async () => {}),
+  } as never);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function renderShell() {
+  render(
+    <ThemeProvider>
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    </ThemeProvider>
+  );
+  await act(async () => {});
+}
+
+const header = () => screen.getByRole("banner");
+const sidebar = () => document.getElementById("project-explorer")!;
+const modal = (name: string) => document.querySelector(`[data-modal="${name}"]`);
+
+/** Click a control, then let the shell's async work (navigate, loads) land. */
+async function activate(element: Element) {
+  await act(async () => {
+    fireEvent.click(element);
+  });
+}
+
+/** Open the gear menu with the keyboard, as the existing §6 test does. */
+async function openGear(): Promise<HTMLElement> {
+  const trigger = document.getElementById("app-settings-button")!;
+  trigger.focus();
+  await act(async () => {
+    fireEvent.keyDown(trigger, { key: "Enter" });
+  });
+  return screen.getByRole("menu");
+}
+
+function gearItem(menu: HTMLElement, label: string): HTMLElement {
+  const item = Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')).find((el) =>
+    el.textContent?.includes(label)
+  );
+  expect(item, label).toBeDefined();
+  return item!;
+}
+
+/** Open a gear submenu (Font, Theme, Language) and pick an option in it. */
+async function pickInGearSubmenu(title: string, option: string) {
+  const menu = await openGear();
+  const trigger = gearItem(menu, title);
+  trigger.focus();
+  await act(async () => {
+    fireEvent.keyDown(trigger, { key: "ArrowRight" });
+  });
+  const sub = screen.getAllByRole("menu").find((m) => m !== menu)!;
+  expect(sub, `${title} submenu`).toBeDefined();
+  const radio = within(sub)
+    .getAllByRole("menuitemradio")
+    .find((el) => el.textContent?.includes(option))!;
+  expect(radio, option).toBeDefined();
+  await activate(radio);
+}
+
+/** Open ⌘K from the toolbar, type a command's title (as typed: no "…"), press Enter. */
+const paletteButton = () => within(header()).getAllByRole("button", { name: t("common.commandPalette") })[0]!;
+
+async function runFromPalette(labelKey: string) {
+  await activate(paletteButton());
+  const input = await screen.findByPlaceholderText(t("globalSearch.placeholder"));
+  await act(async () => {
+    fireEvent.change(input, { target: { value: t(labelKey).replace(/…$/, "") } });
+  });
+  expect(screen.getAllByRole("option")[0]?.getAttribute("aria-selected"), labelKey).toBe("true");
+  await act(async () => {
+    fireEvent.keyDown(input, { key: "Enter" });
+  });
+}
+
+const screenShown = () => document.querySelector("[data-screen]:not([data-screen=MessageNavigator])")?.getAttribute("data-screen");
+
+describe("§6 reachability through the real shell", () => {
+  describe("moved to the sidebar library", () => {
+    it.each([
+      ["globalStats", "globalStats"],
+      ["archive", "archive"],
+      ["settingsManager", "settingsManager"],
+    ] as const)("the %s row opens its screen", async (item, view) => {
+      await renderShell();
+      await activate(sidebar().querySelector(`[data-library-item="${item}"]`)!);
+      await waitFor(() => expect(state().view).toBe(view));
+    });
+
+    it("the help button opens the feedback form", async () => {
+      await renderShell();
+      expect(modal("feedback")).toBeNull();
+      await activate(within(sidebar()).getByRole("button", { name: t("common.helpMenu.feedback") }));
+      await waitFor(() => expect(modal("feedback")).not.toBeNull());
+    });
+  });
+
+  describe("moved to (or kept in) the ⌘K palette", () => {
+    it.each([
+      ["common.command.openSettingsManager", () => expect(state().view).toBe("settingsManager")],
+      ["common.command.openArchive", () => expect(state().view).toBe("archive")],
+      ["common.command.sendFeedback", () => expect(modal("feedback")).not.toBeNull()],
+      ["common.command.back", () => expect(state().view).toBe("analytics")],
+      ["common.command.toggleNavigator", () => expect(state().isNavigatorOpen).toBe(true)],
+    ] as const)("%s runs from the palette", async (labelKey, expectEffect) => {
+      await renderShell();
+      await runFromPalette(labelKey);
+      await waitFor(expectEffect);
+    });
+
+    it("check for updates runs from the palette (desktop)", async () => {
+      const heard = vi.fn();
+      window.addEventListener(MANUAL_UPDATE_CHECK_EVENT, heard);
+      try {
+        await renderShell();
+        await runFromPalette("common.command.checkForUpdates");
+        await waitFor(() => expect(heard).toHaveBeenCalledTimes(1));
+      } finally {
+        window.removeEventListener(MANUAL_UPDATE_CHECK_EVENT, heard);
+      }
+    });
+  });
+
+  describe("toolbar", () => {
+    it.each([
+      ["analytics", "conversation", "analytics"],
+      ["edits", "conversation", "edits"],
+      ["board", "conversation", "board"],
+      ["conversation", "analytics", "conversation"],
+    ] as const)("the %s tab opens its screen", async (tab, from, view) => {
+      useAppStore.setState({ view: from });
+      await renderShell();
+      await activate(document.getElementById(`view-tab-${tab}`)!);
+      await waitFor(() => expect(state().view).toBe(view));
+    });
+
+    it("back and forward move through the place history", async () => {
+      await renderShell();
+      await activate(within(header()).getByRole("button", { name: t("common.command.back") }));
+      await waitFor(() => expect(state().view).toBe("analytics"));
+      await activate(within(header()).getByRole("button", { name: t("common.command.forward") }));
+      await waitFor(() => expect(state().view).toBe("conversation"));
+    });
+
+    it("the inspector button opens and closes the message navigator", async () => {
+      await renderShell();
+      expect(document.querySelector('[data-screen="MessageNavigator"]')).toBeNull();
+      await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
+      expect(state().isNavigatorOpen).toBe(true);
+      expect(document.querySelector('[data-screen="MessageNavigator"]')).not.toBeNull();
+      await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
+      expect(state().isNavigatorOpen).toBe(false);
+    });
+
+    it("the palette button opens the palette", async () => {
+      await renderShell();
+      await activate(paletteButton());
+      expect(await screen.findByPlaceholderText(t("globalSearch.placeholder"))).toBeTruthy();
+    });
+
+    it("refresh reloads every conversation", async () => {
+      await renderShell();
+      await activate(within(header()).getByRole("button", { name: t("session.refreshAllConversations") }));
+      expect(state().refreshAllConversations).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("token stats opens from the analytics header link", async () => {
+    await renderShell();
+    await activate(document.getElementById("view-tab-analytics")!);
+    await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
+    await activate(document.querySelector('[data-related-view="tokenStats"]')!);
+    await waitFor(() => expect(state().view).toBe("tokenStats"));
+    expect(screenShown()).toBe("TokenStatsViewer");
+  });
+
+  describe("gear menu", () => {
+    it("check for updates", async () => {
+      const heard = vi.fn();
+      window.addEventListener(MANUAL_UPDATE_CHECK_EVENT, heard);
+      try {
+        await renderShell();
+        await activate(gearItem(await openGear(), t("common.settings.checkUpdate")));
+        expect(heard).toHaveBeenCalledTimes(1);
+      } finally {
+        window.removeEventListener(MANUAL_UPDATE_CHECK_EVENT, heard);
+      }
+    });
+
+    it("Claude folder opens the folder picker", async () => {
+      await renderShell();
+      await activate(gearItem(await openGear(), t("common.settings.changeFolder")));
+      await waitFor(() => expect(modal("folderSelector")?.getAttribute("data-mode")).toBe("change"));
+    });
+
+    it("message filter, minimap and high contrast toggle their setting", async () => {
+      await renderShell();
+      const before = {
+        system: state().showSystemMessages,
+        minimap: state().isMinimapOpen,
+        contrast: state().highContrast,
+      };
+      await activate(gearItem(await openGear(), t("common.settings.filter.showSystemMessages")));
+      await waitFor(() => expect(state().showSystemMessages).toBe(!before.system));
+      cleanup();
+      await renderShell();
+      await activate(gearItem(await openGear(), t("common.settings.view.showMinimap")));
+      await waitFor(() => expect(state().isMinimapOpen).toBe(!before.minimap));
+      cleanup();
+      await renderShell();
+      await activate(gearItem(await openGear(), t("common.settings.accessibility.highContrast")));
+      await waitFor(() => expect(state().highContrast).toBe(!before.contrast));
+    });
+
+    it("font size, theme and language are picked from their submenus", async () => {
+      await renderShell();
+      await pickInGearSubmenu(t("common.settings.font.title"), "(120%)");
+      await waitFor(() => expect(state().fontScale).toBe(120));
+      cleanup();
+      await renderShell();
+      await pickInGearSubmenu(t("common.settings.theme.title"), t("common.settings.theme.dark"));
+      await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
+      cleanup();
+      await renderShell();
+      await pickInGearSubmenu(t("common.settings.language.title"), "한국어");
+      await waitFor(() => expect(useLanguageStore.getState().language).toBe("ko"));
+    });
+  });
+});
