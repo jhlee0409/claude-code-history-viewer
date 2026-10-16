@@ -86,6 +86,12 @@ export interface SelectSessionOptions extends WebUINavigationOptions {
    * cache): it is opened from this instead of fetched.
    */
   cachedMessages?: ClaudeMessage[];
+  /**
+   * The subagent path to open `session` under, root first (a tab restoring
+   * its subagent transcript). Given, it replaces the current path and decides
+   * the sidechain filter: non-empty = a subagent, `[]` = top level.
+   */
+  parentStack?: ClaudeSession[];
 }
 
 export interface MessageSliceActions {
@@ -480,10 +486,13 @@ export const createMessageSlice: StateCreator<
     // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
     const isInPlaceReload = get().selectedSession?.file_path === session.file_path;
     const wasInSubagent = get().parentSessionStack.length > 0;
-    const shouldTreatAsSubagent =
-      isSubagentNav || (isInPlaceReload && wasInSubagent);
+    const explicitStack = options?.parentStack;
+    const shouldTreatAsSubagent = explicitStack
+      ? explicitStack.length > 0
+      : isSubagentNav || (isInPlaceReload && wasInSubagent);
     const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
+    if (explicitStack) set({ parentSessionStack: explicitStack });
 
     if (isInPlaceReload) {
       if (get().messages.length === 0) {
@@ -500,7 +509,7 @@ export const createMessageSlice: StateCreator<
         isLoadingMessages: true,
         subagentSessions: [],
         toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
-        ...(preserveStack ? {} : { parentSessionStack: [] }),
+        ...(preserveStack || explicitStack ? {} : { parentSessionStack: [] }),
       });
 
       // Message filters intentionally persist across session switches (see

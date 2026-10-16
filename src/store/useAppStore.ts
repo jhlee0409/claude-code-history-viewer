@@ -6,6 +6,7 @@
  */
 
 import { create } from "zustand";
+import { registerWebUITabSource } from "@/utils/webuiDeepLink";
 import {
   type ProjectSlice,
   createProjectSlice,
@@ -83,6 +84,10 @@ import {
   createServerSlice,
 } from "./slices/serverSlice";
 import {
+  type DocumentSlice,
+  createDocumentSlice,
+} from "./slices/documentSlice";
+import {
   type SessionSelectionSlice,
   createSessionSelectionSlice,
 } from "./slices/sessionSelectionSlice";
@@ -117,7 +122,8 @@ export type AppStore = ProjectSlice &
   ArchiveSlice &
   SessionPickerSlice &
   ServerSlice &
-  SessionSelectionSlice;
+  SessionSelectionSlice &
+  DocumentSlice;
 
 // ============================================================================
 // Store Creation
@@ -144,4 +150,8 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createSessionPickerSlice(...args),
   ...createServerSlice(...args),
   ...createSessionSelectionSlice(...args),
+  ...createDocumentSlice(...args),
 }));
+
+// A WebUI URL that names a session also names the tab it is open in (F1).
+registerWebUITabSource(() => useAppStore.getState().activeDocumentId);

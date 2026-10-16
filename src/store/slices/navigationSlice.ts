@@ -47,6 +47,7 @@ import {
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import type { PendingAnchor } from "./documentSlice";
 import {
   loadRecent,
   pushRecent,
@@ -73,6 +74,12 @@ export interface NavigateTarget {
   sessionMessages?: ClaudeMessage[];
   /** An explicit message target inside the session (search, deep link, CLI). */
   messageId?: string | null;
+  /**
+   * `session` is a subagent transcript opened from these parents, root first
+   * (a tab restoring its subagent path, plan §4.3). Given, it replaces the
+   * subagent path; `[]` opens `session` at top level.
+   */
+  subagentStack?: ClaudeSession[];
 }
 
 export interface NavigateOptions {
@@ -86,6 +93,11 @@ export interface NavigateOptions {
    * navigated since, the call is a no-op and resolves `false`.
    */
   epoch?: number;
+  /**
+   * The scroll position to restore once the session shows (a tab being
+   * reopened, plan §4.3). Every other navigation drops a pending one.
+   */
+  anchor?: PendingAnchor;
 }
 
 /** One back/forward history entry: the place plus its explicit target. */
@@ -131,6 +143,12 @@ export interface NavigationSliceActions {
   stepPlaceHistory: (direction: "back" | "forward") => PlaceHistoryEntry | null;
   navigateToMessage: (uuid: string, options?: WebUINavigationOptions) => void;
   clearTargetMessage: () => void;
+  /**
+   * Clear the target only while it is still `uuid` in tab `documentId`: a
+   * late result for a target that was replaced (or belonged to another tab)
+   * must not clear the current one (plan §9b).
+   */
+  clearTargetMessageIf: (uuid: string, documentId: string) => void;
 }
 
 export type NavigationSlice = NavigationSliceState & NavigationSliceActions;
@@ -196,8 +214,13 @@ export const createNavigationSlice: StateCreator<
     const history = options.history ?? "push";
     const from = entryOf(start);
 
-    // Board hover is a property of the board screen, not of a place.
-    set({ navigationEpoch: epoch, boardHoverSession: null });
+    // Board hover is a property of the board screen, not of a place. A
+    // pending scroll anchor belongs to the tab opening that set it.
+    set({
+      navigationEpoch: epoch,
+      boardHoverSession: null,
+      pendingAnchor: options.anchor ?? null,
+    });
 
     const openProject = start.selectedProject;
     const dropsProject = target.project === null && openProject !== null;
@@ -254,6 +277,7 @@ export const createNavigationSlice: StateCreator<
       await get().selectSession(target.session, {
         history: historyMode(),
         cachedMessages: target.sessionMessages,
+        parentStack: target.subagentStack,
       });
     } else if (target.session === null && get().selectedSession) {
       set({
@@ -312,6 +336,19 @@ export const createNavigationSlice: StateCreator<
         }));
       }
     }
+    // The live state is now the active tab's (plan §4.3): a snapshot taken
+    // from here on records it. A tab that could not be opened is the user's
+    // own again once they move inside it.
+    const activeId = get().activeDocumentId;
+    set(({ documents }) => ({
+      hydratedDocumentId: activeId,
+      // The user (or a hint) moved before the restored tab opened: what
+      // they chose stays, the restore is off.
+      tabsRestorePending: false,
+      documents: documents.some((d) => d.id === activeId && d.unavailable)
+        ? documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d))
+        : documents,
+    }));
     return true;
   },
 
@@ -332,9 +369,11 @@ export const createNavigationSlice: StateCreator<
   },
 
   navigateToMessage: (uuid, options) => {
+    // An explicit target outranks a saved scroll position (plan §4.3).
     set({
       targetMessageUuid: uuid,
       shouldHighlightTarget: true,
+      pendingAnchor: null,
     });
 
     const session = get().selectedSession;
@@ -352,4 +391,10 @@ export const createNavigationSlice: StateCreator<
       targetMessageUuid: null,
       shouldHighlightTarget: false,
     }),
+
+  clearTargetMessageIf: (uuid, documentId) => {
+    const { targetMessageUuid, activeDocumentId } = get();
+    if (targetMessageUuid !== uuid || activeDocumentId !== documentId) return;
+    get().clearTargetMessage();
+  },
 });

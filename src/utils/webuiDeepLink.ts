@@ -2,6 +2,8 @@ import { isWebUI } from "./platform";
 
 export const WEBUI_SESSION_PARAM = "session";
 export const WEBUI_MESSAGE_PARAM = "msg";
+/** The conversation tab the session is open in (plan §9b F1). */
+export const WEBUI_TAB_PARAM = "tab";
 
 export type WebUIHistoryMode = "push" | "replace" | "none";
 
@@ -12,6 +14,21 @@ export interface WebUINavigationOptions {
 export interface WebUIDeepLink {
   sessionId: string | null;
   messageId: string | null;
+  /**
+   * The tab the URL's session was open in. Read from the URL; a write takes
+   * it from the active tab (`registerWebUITabSource`), never from the caller.
+   */
+  tabId?: string | null;
+}
+
+let tabSource: (() => string | null) | null = null;
+
+/**
+ * Where URL writes read the active tab's id from (the store registers it).
+ * The id rides with the session: a URL without a session names no tab.
+ */
+export function registerWebUITabSource(source: (() => string | null) | null): void {
+  tabSource = source;
 }
 
 const normalizedParam = (value: string | null): string | null => {
@@ -30,9 +47,11 @@ export function readWebUIDeepLink(): WebUIDeepLink {
     return { sessionId: null, messageId: null };
   }
 
+  const tabId = normalizedParam(url.searchParams.get(WEBUI_TAB_PARAM));
   return {
     sessionId,
     messageId: normalizedParam(url.searchParams.get(WEBUI_MESSAGE_PARAM)),
+    ...(tabId ? { tabId } : {}),
   };
 }
 
@@ -45,6 +64,7 @@ export function writeWebUIDeepLink(
   const url = new URL(window.location.href);
   const sessionId = normalizedParam(deepLink.sessionId);
   const messageId = sessionId ? normalizedParam(deepLink.messageId) : null;
+  const tabId = sessionId ? normalizedParam(tabSource?.() ?? null) : null;
 
   if (sessionId) {
     url.searchParams.set(WEBUI_SESSION_PARAM, sessionId);
@@ -56,6 +76,12 @@ export function writeWebUIDeepLink(
     url.searchParams.set(WEBUI_MESSAGE_PARAM, messageId);
   } else {
     url.searchParams.delete(WEBUI_MESSAGE_PARAM);
+  }
+
+  if (tabId) {
+    url.searchParams.set(WEBUI_TAB_PARAM, tabId);
+  } else {
+    url.searchParams.delete(WEBUI_TAB_PARAM);
   }
 
   if (url.href === window.location.href) return;

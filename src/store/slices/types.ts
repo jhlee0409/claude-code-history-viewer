@@ -193,6 +193,14 @@ export interface AppStoreState {
   shouldHighlightTarget: boolean;
   recentSessions: import("@/navigation/library").RecentEntry[];
 
+  // Conversation tabs (documentSlice)
+  documents: import("@/navigation/documents").TabDocument[];
+  activeDocumentId: string;
+  hydratedDocumentId: string | null;
+  pendingAnchor: import("./documentSlice").PendingAnchor | null;
+  tabsRestorePending: boolean;
+  tabsRestoreReport: { corrupt: boolean; dropped: number };
+
   // Watcher state
   watcherEnabled: boolean;
   lastUpdateTime: Record<string, number>;
@@ -259,6 +267,8 @@ export interface AppStoreActions {
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
   ) => void;
   clearTargetMessage: () => void;
+  clearTargetMessageIf: (uuid: string, documentId: string) => void;
+  clearPendingAnchor: (anchor: import("./documentSlice").PendingAnchor) => void;
 
   // Project actions
   initializeApp: () => Promise<void>;

@@ -29,9 +29,11 @@ describe("navigationSlice WebUI history", () => {
 
     slice.navigateToMessage("message-123");
 
+    // An explicit target outranks a tab's saved scroll position (T8).
     expect(set).toHaveBeenCalledWith({
       targetMessageUuid: "message-123",
       shouldHighlightTarget: true,
+      pendingAnchor: null,
     });
     expect(readLocation()).toEqual({
       session: "canonical-session",

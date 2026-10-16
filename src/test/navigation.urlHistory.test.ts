@@ -80,7 +80,15 @@ function watchHistory() {
     },
   };
 }
-const search = () => window.location.search;
+/**
+ * The URL's session and message. The tab param (`tab=`, T8 / §9b F1) rides
+ * with the session; `navigation.tabs.webui.test.tsx` holds it.
+ */
+const search = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("tab");
+  return url.search;
+};
 
 beforeEach(() => {
   apiMock.mockReset();

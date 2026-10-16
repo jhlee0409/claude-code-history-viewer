@@ -66,7 +66,8 @@ const isString = (v: unknown): v is string => typeof v === "string" && v.length 
 export const isDateTime = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && !Number.isNaN(new Date(v).getTime());
 
-function parseRef(value: unknown): SessionRef | null {
+/** A stored `SessionRef`, validated; null when it is not one. */
+export function parseSessionRef(value: unknown): SessionRef | null {
   if (typeof value !== "object" || value === null) return null;
   const r = value as Record<string, unknown>;
   if (!isString(r.provider) || !isString(r.filePath) || !isString(r.sessionId)) return null;
@@ -86,7 +87,7 @@ export function parseRecent(raw: unknown): RecentEntry[] {
   for (const item of raw) {
     if (typeof item !== "object" || item === null) continue;
     const e = item as Record<string, unknown>;
-    const ref = parseRef(e.ref);
+    const ref = parseSessionRef(e.ref);
     if (!ref || !isDateTime(e.openedAt)) continue;
     if (out.some((o) => o.ref.filePath === ref.filePath)) continue;
     out.push({ ref, title: typeof e.title === "string" ? e.title : "", openedAt: e.openedAt });
@@ -129,7 +130,7 @@ export function favoritesOf(metadata: Pick<UserMetadata, "sessions">): FavoriteE
   const legacy: FavoriteEntry[] = [];
   for (const [sessionId, meta] of Object.entries(metadata.sessions ?? {})) {
     if (!meta?.starred) continue;
-    const ref = parseRef(meta.ref);
+    const ref = parseSessionRef(meta.ref);
     const entry: FavoriteEntry = {
       sessionId,
       ref,
@@ -150,7 +151,7 @@ export function favoritesMissingRef(
 ): ClaudeSession[] {
   return sessions.filter((s) => {
     const meta = metadata.sessions?.[s.session_id];
-    return meta?.starred === true && !parseRef(meta.ref);
+    return meta?.starred === true && !parseSessionRef(meta.ref);
   });
 }
 
