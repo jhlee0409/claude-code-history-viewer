@@ -72,14 +72,15 @@ export const SessionStatsCard = memo(({
         {/* Main Stats Row */}
         <div className="flex items-center justify-between gap-4">
           {/* Left: Total & Messages & Duration */}
-          <div className="flex items-baseline gap-4">
-            <div className="shrink-0 whitespace-nowrap">
+          {/* Items never break inside; on a narrow card they wrap as wholes. */}
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <div className="whitespace-nowrap">
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
                 {formatNumber(stats.total_tokens)}
               </span>
               <span className="text-caption text-muted-foreground ml-1">{t("analytics.tokens")}</span>
             </div>
-            <div className="text-caption text-muted-foreground">
+            <div className="text-caption text-muted-foreground whitespace-nowrap">
               <span className="font-mono tabular-nums">{stats.message_count.toLocaleString()}</span>
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
