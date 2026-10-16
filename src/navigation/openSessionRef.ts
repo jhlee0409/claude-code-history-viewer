@@ -6,7 +6,9 @@
  *
  * Where it looks, each project once and most likely first
  * (`candidateProjects`):
- * 1. the open project's list, already in the store (no load);
+ * 1. the open project's list, already in the store (no load) - proof of
+ *    absence only when it is complete; a list still loading or holding only
+ *    its first pages is followed by a direct lookup (`lookUpBeyondList`);
  * 2. the project the ref names (`projectPath`);
  * 3. the project whose storage path holds the file (Claude Code-style
  *    providers, refs saved before `projectPath` existed);
@@ -24,6 +26,7 @@
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { loadSessionsFor, matchByPath, openSessionHint } from "@/lib/preloadSession";
+import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { findProjectForSessionPath } from "./library";
@@ -37,6 +40,15 @@ interface Found {
 }
 
 const providerOf = (p: { provider?: string }) => p.provider ?? "claude";
+
+/** The open project's list as the store holds it (`projectSlice`). */
+interface OpenProjectList {
+  sessions: ClaudeSession[];
+  /** More pages exist beyond `sessions`. */
+  hasMoreSessions: boolean;
+  isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
+}
 
 /** The projects to search for `ref`, most likely first, each once. */
 export function candidateProjects(
@@ -63,29 +75,72 @@ export function candidateProjects(
 }
 
 async function findSession(ref: SessionRef, owns: () => boolean): Promise<Found | null | "superseded"> {
-  const { projects, selectedProject, sessions, excludeSidechain } = useAppStore.getState();
+  const state = useAppStore.getState();
+  const { projects, selectedProject, excludeSidechain } = state;
   let failure: unknown = null;
   for (const project of candidateProjects(ref, projects, selectedProject)) {
-    let list: ClaudeSession[];
-    if (project === selectedProject) {
-      list = sessions;
-    } else {
-      try {
-        list = await loadSessionsFor(project, excludeSidechain);
-      } catch (error) {
-        if (!owns()) return "superseded";
-        console.warn(`openSessionRef: failed to load ${project.name}:`, error);
-        failure ??= error;
-        continue;
-      }
-      if (!owns()) return "superseded";
+    const isOpen = project === selectedProject;
+    if (isOpen) {
+      // The loaded list first, without a load. A miss there settles it only
+      // when the list is complete (`isCompleteList`).
+      const cached = matchByPath(state.sessions, ref.filePath);
+      if (cached) return { project, session: cached };
+      if (isCompleteList(state)) continue;
     }
-    const session = matchByPath(list, ref.filePath);
+    let session: ClaudeSession | undefined;
+    try {
+      session = isOpen
+        ? await lookUpBeyondList(project, ref, excludeSidechain)
+        : matchByPath(await loadSessionsFor(project, excludeSidechain), ref.filePath);
+    } catch (error) {
+      if (!owns()) return "superseded";
+      console.warn(`openSessionRef: failed to load ${project.name}:`, error);
+      failure ??= error;
+      continue;
+    }
+    if (!owns()) return "superseded";
     if (session) return { project, session };
   }
   // Nothing matched and a list failed to load: an error, not "gone".
   if (failure) throw failure;
   return null;
+}
+
+/**
+ * Whether the open project's list in the store holds every session. The
+ * sidebar loads it a page at a time (`hasMoreSessions`) and holds nothing
+ * while the first page loads, so a miss in any other list says nothing.
+ */
+const isCompleteList = (list: OpenProjectList): boolean =>
+  !list.hasMoreSessions && !list.isLoadingSessions && !list.isLoadingMoreSessions;
+
+/**
+ * Find a session of the open project that its loaded list does not hold:
+ * by its file for Claude Code (`load_provider_session_by_path`, the lookup
+ * `loadProjectSessions` uses for a selection beyond the first page), else -
+ * or when that lookup fails - in the project's full list. The session then
+ * opens without being in the loaded page.
+ */
+async function lookUpBeyondList(
+  project: ClaudeProject,
+  ref: SessionRef,
+  excludeSidechain: boolean,
+): Promise<ClaudeSession | undefined> {
+  if (providerOf(project) === "claude") {
+    try {
+      const found = await api<ClaudeSession | null>("load_provider_session_by_path", {
+        provider: "claude",
+        projectPath: project.path,
+        filePath: ref.filePath,
+        excludeSidechain,
+      });
+      return found ?? undefined;
+    } catch (error) {
+      // A rejected path: the project's list still knows.
+      console.warn(`openSessionRef: single-session lookup failed in ${project.name}:`, error);
+    }
+  }
+  return matchByPath(await loadSessionsFor(project, excludeSidechain), ref.filePath);
 }
 
 export async function openSessionRef(ref: SessionRef): Promise<OpenSessionRefResult> {
