@@ -44,12 +44,13 @@ const spinnerSizes: Record<SpinnerSize, { spinner: IconSize; sparkle: IconSize; 
   xl: { spinner: 24, sparkle: 16, box: "w-6 h-6" },
 };
 
-const spinnerVariants: Record<SpinnerVariant, string> = {
+// `as const`: the icon guard resolves these literal classes (no sizes in them).
+const spinnerVariants = {
   default: "text-foreground",
   accent: "text-accent",
   muted: "text-muted-foreground",
   primary: "text-primary",
-};
+} as const satisfies Record<SpinnerVariant, string>;
 
 const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
   (

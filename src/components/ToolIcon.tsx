@@ -51,7 +51,7 @@ const VARIANT_COLORS: Record<RendererVariant, string> = {
 const SIZE_CLASSES = {
   sm: "w-3.5 h-3.5",
   default: "w-4 h-4",
-};
+} as const;
 
 import { getToolVariant } from "@/utils/toolIconUtils";
 

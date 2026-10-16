@@ -277,7 +277,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
               size="sm"
               className="flex-1"
             >
-              <GitHubMark className="h-3.5 w-3.5" />
+              <GitHubMark size={14} />
               {t("feedback.openGitHub")}
             </Button>
           </DialogFooter>
