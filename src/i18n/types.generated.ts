@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T18:30:28.332Z
- * 총 키 개수: 2132
+ * 생성 시간: 2026-10-16T21:10:29.239Z
+ * 총 키 개수: 2136
  * Namespace 수: 11
  */
 
@@ -1452,7 +1452,7 @@ export type ToolsKeys =
   | 'tools.webSearch';
 
 /**
- * error namespace의 번역 키 (38개)
+ * error namespace의 번역 키 (42개)
  * 파일: locales/{lang}/error.json
  */
 export type ErrorKeys =
@@ -1481,10 +1481,14 @@ export type ErrorKeys =
   | 'error.emailTemplate.whatWereDoing'
   | 'error.errorInfo'
   | 'error.loadBoard'
+  | 'error.refreshFailed'
   | 'error.reportDescription'
   | 'error.reportError'
   | 'error.restartApp'
   | 'error.savePresetFailed'
+  | 'error.searchFailed'
+  | 'error.sessionListLoadFailed'
+  | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'
   | 'error.troubleshootingSteps.reportPersistent'
@@ -2859,10 +2863,14 @@ export type TranslationKey =
   | 'error.emailTemplate.whatWereDoing'
   | 'error.errorInfo'
   | 'error.loadBoard'
+  | 'error.refreshFailed'
   | 'error.reportDescription'
   | 'error.reportError'
   | 'error.restartApp'
   | 'error.savePresetFailed'
+  | 'error.searchFailed'
+  | 'error.sessionListLoadFailed'
+  | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'
   | 'error.troubleshootingSteps.reportPersistent'

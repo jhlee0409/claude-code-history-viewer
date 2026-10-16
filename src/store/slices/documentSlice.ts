@@ -55,6 +55,17 @@ export interface DocumentSliceActions {
    * another session is open.
    */
   markSessionUnavailable: (sessionPath: string) => void;
+  /**
+   * The open project `projectPath`'s sessions could not be read (its folder
+   * deleted since the last scan - found out on opening a tab, moving inside
+   * one, or by the watcher's reload): the active tab shows its in-tab
+   * "project isn't available" state - never the app's error screen - and
+   * keeps naming its place: a tab still opening keeps its saved one, an open
+   * tab where it is now. Nothing of the project stays on screen, and opening
+   * the tab again looks the project up afresh. A no-op once another project
+   * is open.
+   */
+  markProjectUnavailable: (projectPath: string) => void;
 }
 
 export type DocumentSlice = DocumentSliceState & DocumentSliceActions;
@@ -117,5 +128,19 @@ export const createDocumentSlice: StateCreator<FullAppStore, [], [], DocumentSli
     });
     get().clearTargetMessage();
     get().clearSessionSearch();
+  },
+
+  markProjectUnavailable: (projectPath) => {
+    const state = get();
+    if (state.selectedProject?.path !== projectPath) return;
+    const { activeDocumentId, hydratedDocumentId } = state;
+    const opening = hydratedDocumentId !== activeDocumentId;
+    const documents = state.documents.map((doc) =>
+      doc.id === activeDocumentId
+        ? { ...(opening ? doc : documentFromLive(doc, state, null)), unavailable: "project" as const, live: undefined }
+        : doc,
+    );
+    set({ documents });
+    get().clearProjectSelection({ history: "replace" });
   },
 });

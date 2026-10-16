@@ -278,6 +278,10 @@ async function openDocument(doc: TabDocument, screens: TabScreens, options: Open
   );
   if (!arrived || !owns()) return false;
 
+  // A load in the move found the tab's project or session gone (its folder
+  // or file deleted since it was listed): the tab's notice is up, naming its
+  // place, and nothing more opens.
+  if (get().documents.some((d) => d.id === doc.id && d.unavailable)) return true;
   if (resolved.unavailable) {
     const reason = resolved.unavailable;
     set({ documents: get().documents.map((d) => (d.id === doc.id ? { ...d, unavailable: reason } : d)) });

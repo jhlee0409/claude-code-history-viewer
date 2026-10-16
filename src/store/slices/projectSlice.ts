@@ -35,6 +35,7 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import { errorDetail } from "@/utils/errorDetail";
 import { viewAfterLeavingProject } from "@/navigation/place";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import {
@@ -679,12 +680,10 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to refresh all conversations:", error);
       if (!owner.ownsFeedback()) return;
+      // A refresh reloads the open place: its failure is said once, and the
+      // tabs stay (the scan's own failure is raised by `scanProjects`).
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to refresh conversations: ${message}`);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message,
-      });
     } finally {
       set({ isRefreshingAllConversations: false });
     }
@@ -807,7 +806,10 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to load project sessions:", error);
       if (!owner.ownsFeedback()) return;
-      set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
+      // The project belongs to the tab showing it: a list that cannot be
+      // read (its folder deleted since the last scan) is that tab's in-tab
+      // notice, never the app's error screen, which would hide every tab.
+      get().markProjectUnavailable(project.path);
     } finally {
       if (owner.ownsSpinner()) {
         set({ isLoadingSessions: false });
@@ -866,7 +868,8 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to load more project sessions:", error);
       if (!owner.ownsFeedback()) return;
-      set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
+      // The rows already listed stay usable; only the next page failed.
+      toast.error(i18n.t("error.sessionListLoadFailed", { detail: errorDetail(error) }));
     } finally {
       if (owner.ownsSpinner()) {
         set({ isLoadingMoreSessions: false });

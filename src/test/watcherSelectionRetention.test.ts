@@ -70,6 +70,7 @@ const createStore = () =>
     clearTargetMessage: vi.fn(),
     exitSessionSelectionMode: vi.fn(),
     setError: vi.fn(),
+    markProjectUnavailable: vi.fn(),
   }) as unknown as FullAppStore);
 
 describe("#508 a file write must not clear the open session", () => {

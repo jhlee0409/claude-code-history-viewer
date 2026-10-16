@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { supportsRecentEdits } from "../../utils/providers";
 import {
-  AppErrorType,
   type ClaudeProject,
   type MetricMode,
   type StatsMode,
@@ -318,13 +317,9 @@ export function useAnalyticsNavigation() {
         // Project analytics never lands here: its loader records and
         // reports a failure itself (`loadProjectAnalytics`).
         toast.error(errorMessage);
-        if (screen === "tokenStats") {
-          useAppStore.getState().setError({
-            type: AppErrorType.UNKNOWN,
-            message: errorMessage,
-          });
-          return;
-        }
+        // The token stats screen is one tab's: the notification is all
+        // (never the app's error screen, which would hide every tab).
+        if (screen === "tokenStats") return;
 
         setAnalyticsProjectSummaryError(errorMessage);
       }

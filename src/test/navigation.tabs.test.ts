@@ -10,6 +10,9 @@
  * - a CLI hint during the restore, and a second launch with a session open;
  * - closing the active tab while it loads;
  * - a tab whose session was deleted or whose provider is off;
+ * - a tab whose project folder was deleted between scans;
+ * - a per-document load failing (session list, screens, find): never the
+ *   app's error screen, and the other tabs stay usable;
  * - the tab cap and the last tab;
  * - a corrupted `tabs.v1`.
  */
@@ -46,6 +49,7 @@ import {
 import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
 import { fieldsOf } from "@/navigation/stateScope";
 import { createEmptySearchState } from "@/store/slices/types";
+import { loadProjectAnalytics, loadRecentEditsScreen, loadTokenStatsScreen, reloadBoard } from "@/navigation/screenData";
 
 const project = (name: string, provider = "claude"): ClaudeProject => ({
   name,
@@ -114,6 +118,19 @@ const held = async (key: string) => {
 
 /** Session files deleted on disk: loading their messages fails. */
 const deleted = new Set<string>();
+/**
+ * Project folders deleted on disk since the last scan: the project is still
+ * listed, but its session list fails the way the backend reports it
+ * (`load.rs` canonicalizes the folder), and so do its sessions' messages.
+ */
+const deletedProjects = new Set<string>();
+const GONE = "Failed to resolve project_path: No such file or directory (os error 2)";
+const projectGone = (projectPath: unknown) => {
+  if (deletedProjects.has(String(projectPath))) throw new Error(GONE);
+};
+const underDeletedProject = (path: string) => [...deletedProjects].some((p) => path.startsWith(`${p}/`));
+/** Commands that fail outright (a per-document loader's request). */
+const failing = new Set<string>();
 
 const messageCalls = () =>
   apiMock.mock.calls
@@ -127,24 +144,31 @@ const screens: TabScreens = { openView: vi.fn(async () => undefined) };
 beforeEach(() => {
   holds.clear();
   deleted.clear();
+  deletedProjects.clear();
+  failing.clear();
   localStorage.clear();
   apiMock.mockReset();
   apiMock.mockImplementation(async (command: string, args: Record<string, unknown> = {}) => {
+    if (failing.has(command)) throw new Error(`${command} failed`);
     switch (command) {
       case "load_provider_sessions_page": {
+        projectGone(args.projectPath);
         const sessions = LISTS[String(args.projectPath)] ?? [];
         return { sessions, total: sessions.length, nextOffset: sessions.length, hasMore: false };
       }
       case "load_project_sessions":
       case "load_provider_sessions":
         await held(`list:${String(args.projectPath)}`);
+        projectGone(args.projectPath);
         return LISTS[String(args.projectPath)] ?? [];
       case "load_provider_messages_paginated": {
         const path = String(args.sessionPath);
         const offset = Number(args.offset);
         await held(`page:${path}@${offset}`);
         await held(`page:${path}`);
-        if (deleted.has(path)) throw new Error(`Failed to open ${path}: No such file or directory (os error 2)`);
+        if (deleted.has(path) || underDeletedProject(path)) {
+          throw new Error(`Failed to open ${path}: No such file or directory (os error 2)`);
+        }
         const total = TOTALS[path] ?? 0;
         const limit = Number(args.limit);
         const end = total - offset;
@@ -580,6 +604,145 @@ describe("a session deleted while its tab is open (review #6)", () => {
     await open(A, A1);
     expect(tabOf(tab1)?.unavailable).toBeNull();
     expect(state().selectedSession?.file_path).toBe(A1.file_path);
+  });
+});
+
+describe("a project folder deleted between scans (re-review #1)", () => {
+  /** The tab's own notice, and nothing of the app's error screen. */
+  const expectProjectNotice = (id: string) => {
+    expect(state().error).toBeNull();
+    expect(tabOf(id)?.unavailable).toBe("project");
+    expect(state().selectedProject).toBeNull();
+    expect(state().selectedSession).toBeNull();
+    expect(state().messages).toEqual([]);
+    expect(state().isLoadingSessions).toBe(false);
+    expect(state().isLoadingMessages).toBe(false);
+  };
+
+  it.each([
+    ["another project's tab", () => openInNewTab(() => open(B, B1))],
+    ["an empty tab", () => newTab()],
+  ])(
+    "reopening a tab whose project folder is gone (from %s): the tab's notice, no app error; the other tab still works",
+    async (_from, leave) => {
+      await open(A, A1);
+      const tab1 = activeId();
+      await leave();
+      const tab2 = activeId();
+      const tab2Place = tabOf(tab2);
+
+      deletedProjects.add(A.path);
+      apiMock.mockClear();
+      await expect(activateTab(tab1, screens)).resolves.toBe(true);
+
+      expect(activeId()).toBe(tab1);
+      expectProjectNotice(tab1);
+      // The session load that depended on the project never started.
+      expect(messageCalls().filter((c) => c.sessionPath === A1.file_path)).toEqual([]);
+      expect(toastMock.error).not.toHaveBeenCalled();
+      // The tab keeps naming what it had.
+      expect(tabOf(tab1)?.project?.path).toBe(A.path);
+      expect(tabOf(tab1)?.session?.filePath).toBe(A1.file_path);
+
+      // Every other tab is untouched and opens.
+      expect(tabOf(tab2)?.session).toEqual(tab2Place?.session);
+      await expect(activateTab(tab2, screens)).resolves.toBe(true);
+      expect(where()).toEqual([tab2, tab2Place?.project?.path ?? null, tab2Place?.session?.filePath ?? null]);
+      expect(state().error).toBeNull();
+      expect(tabOf(tab1)?.unavailable).toBe("project");
+
+      // The folder is back: the tab opens its place again from its refs.
+      deletedProjects.clear();
+      await expect(activateTab(tab1, screens)).resolves.toBe(true);
+      expect(where()).toEqual([tab1, A.path, A1.file_path]);
+      expect(tabOf(tab1)?.unavailable).toBeNull();
+    },
+  );
+
+  it("a move inside a tab to a project whose folder is gone shows the tab's notice, naming that project", async () => {
+    await open(B, B1);
+    const tab = activeId();
+    deletedProjects.add(A.path);
+    await expect(open(A, A1)).resolves.toBe(true);
+
+    expectProjectNotice(tab);
+    expect(tabOf(tab)?.project?.path).toBe(A.path);
+    expect(messageCalls().filter((c) => c.sessionPath === A1.file_path)).toEqual([]);
+    // Moving on inside the tab clears it.
+    await open(B, B1);
+    expect(tabOf(tab)?.unavailable).toBeNull();
+    expect(where()).toEqual([tab, B.path, B1.file_path]);
+  });
+
+  it("the watcher's reload of the open project whose folder is gone shows the tab's notice", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    await activateTab(tab1, screens);
+
+    deletedProjects.add(A.path);
+    await state().triggerProjectRefresh(A.path);
+
+    expectProjectNotice(tab1);
+    expect(tabOf(tab1)?.session?.filePath).toBe(A1.file_path);
+  });
+
+  it("restoring a tab whose project folder is gone shows the tab's notice", async () => {
+    startWithStoredTabs([storedTab("t-a", A, A1), storedTab("t-b", B, B1)], "t-a");
+    deletedProjects.add(A.path);
+    await restoreActiveTab(screens);
+
+    expectProjectNotice("t-a");
+    expect(tabOf("t-a")?.session?.filePath).toBe(A1.file_path);
+    await expect(activateTab("t-b", screens)).resolves.toBe(true);
+    expect(where()).toEqual(["t-b", B.path, B1.file_path]);
+    expect(state().error).toBeNull();
+  });
+});
+
+/**
+ * Every loader a tab's place runs (opening it, its screens, its sidebar
+ * list, its find) fails for that document only: the app's error screen -
+ * which replaces the whole window, tabs included - never shows, and the
+ * other tab opens as before. The app-wide failures (startup, the project
+ * scan) are `globalError.invariant.test.ts`'s allow-list.
+ */
+describe("a per-document load failing never raises the app error (sweep)", () => {
+  const get = () => useAppStore.getState();
+  const rows: Array<[string, string[], () => Promise<unknown>]> = [
+    ["the session list's next page", ["load_provider_sessions_page"], async () => {
+      useAppStore.setState({ hasMoreSessions: true, sessionsOffset: 1 });
+      await state().loadMoreSessions();
+    }],
+    ["the session's token stats", ["get_session_token_stats"], () => state().loadSessionTokenStats(B1.file_path)],
+    ["the project's token stats", ["get_project_token_stats"], () => state().loadProjectTokenStats(B.path)],
+    ["the token stats screen", ["get_project_token_stats", "get_session_token_stats"], () => loadTokenStatsScreen(get, B, B1)],
+    ["the global stats screen", ["get_global_stats_summary"], async () => {
+      await state().navigate({ view: "globalStats" });
+      await state().loadGlobalStats();
+    }],
+    ["project analytics", ["get_project_stats_summary"], () => loadProjectAnalytics(get, B, B1)],
+    ["recent edits", ["get_recent_edits"], () => loadRecentEditsScreen(get, B).catch(() => undefined)],
+    ["the board", ["get_git_log", "load_provider_messages"], () => reloadBoard(get)],
+    ["subagents", ["get_session_subagents"], () => state().loadSubagents(B1.file_path, [])],
+    ["the cross-session search", ["search_messages"], () => state().searchMessages("x")],
+  ];
+
+  it.each(rows)("%s", async (_name, commands, load) => {
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+
+    commands.forEach((command) => failing.add(command));
+    await load();
+    failing.clear();
+
+    expect(state().error).toBeNull();
+    expect(activeId()).toBe(tab2);
+    await expect(activateTab(tab1, screens)).resolves.toBe(true);
+    expect(where()).toEqual([tab1, A.path, A1.file_path]);
+    expect(state().error).toBeNull();
   });
 });
 

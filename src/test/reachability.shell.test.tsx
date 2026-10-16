@@ -422,6 +422,42 @@ describe("§6 reachability through the real shell", () => {
       expect(selectedTab()?.textContent).toContain(t("common.tabs.empty"));
     });
 
+    it("a tab whose project folder was deleted between scans: its notice renders, the tabs stay and the other tab opens (re-review #1)", async () => {
+      await renderShell();
+      await activate(within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") }));
+      await waitFor(() => expect(tabs()).toHaveLength(2));
+      const blankTab = state().activeDocumentId;
+      // The folder goes; the project is still listed (no scan since).
+      apiMock.mockImplementation(async (command: string) => {
+        if (command === "load_provider_sessions_page" || command === "load_provider_sessions" || command === "load_project_sessions") {
+          throw new Error("Failed to resolve project_path: No such file or directory (os error 2)");
+        }
+        if (command === "load_provider_messages_paginated") throw new Error("No such file or directory (os error 2)");
+        return null;
+      });
+
+      await activate(tabs()[0]!);
+
+      const notice = await waitFor(() => {
+        const found = document.querySelector('[role="alert"][data-tab-unavailable="project"]');
+        expect(found).not.toBeNull();
+        return found as HTMLElement;
+      });
+      expect(notice.textContent).toContain(t("common.tabs.unavailable.project"));
+      expect(screen.queryByText(t("common.errorOccurred"))).toBeNull();
+      expect(header()).toBeTruthy();
+      expect(tabs()).toHaveLength(2);
+      expect(selectedTab()).toBe(tabs()[0]);
+      expect(selectedTab()?.textContent).toContain("Session number 1");
+
+      // The other tab opens from the strip.
+      await activate(tabs()[1]!);
+      await waitFor(() => expect(state().activeDocumentId).toBe(blankTab));
+      expect(document.querySelector("[data-tab-unavailable]")).toBeNull();
+      expect(screen.queryByText(t("common.errorOccurred"))).toBeNull();
+      expect(selectedTab()).toBe(tabs()[1]);
+    });
+
     it.each([
       ["common.command.newTab", 2],
       ["common.command.closeTab", 1],

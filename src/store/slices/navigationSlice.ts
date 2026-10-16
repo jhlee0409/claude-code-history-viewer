@@ -291,6 +291,13 @@ export const createNavigationSlice: StateCreator<
     // Every step below lands after the project load: only while this
     // navigation still owns the place.
     if (!ownsPlace()) return false;
+    // The project's sessions could not be read (its folder deleted since the
+    // last scan): its tab says so in place (`markProjectUnavailable`), and
+    // nothing of the place opens - not its session, not its target.
+    if (opensProject && get().selectedProject === null) {
+      set({ hydratedDocumentId: get().activeDocumentId, tabsRestorePending: false });
+      return true;
+    }
 
     if (target.session) {
       await get().selectSession(target.session, {

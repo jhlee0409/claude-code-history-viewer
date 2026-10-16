@@ -544,3 +544,99 @@ export const isFeedback = (write: AsyncWrite) =>
  */
 export const isStoreWrite = (write: AsyncWrite) =>
   /^\w*Store\.(?:setState$|getState\(\)\.)/.test(write.callee);
+
+/** A write of the app's error screen (`error`), wherever it is in its function. */
+export interface GlobalErrorWrite {
+  line: number;
+  fn: string;
+  callee: string;
+}
+
+/** `[x, name] = useState(…)` setters declared in `file`: a component's own state. */
+function reactStateSetters(file: ts.SourceFile): Set<string> {
+  const setters = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isArrayBindingPattern(node.name) &&
+      node.initializer &&
+      ts.isCallExpression(unwrap(node.initializer)) &&
+      /^(?:React\.)?useState$/.test((unwrap(node.initializer) as ts.CallExpression).expression.getText())
+    ) {
+      const setter = node.name.elements[1];
+      if (setter && ts.isBindingElement(setter) && ts.isIdentifier(setter.name)) setters.add(setter.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return setters;
+}
+
+/**
+ * Local names bound to the store's `setError`: `const { setError: fail } =
+ * …`, `const fail = get().setError`, `const fail = useAppStore((s) =>
+ * s.setError)`.
+ */
+function setErrorAliases(file: ts.SourceFile): Set<string> {
+  const aliases = new Set<string>();
+  const isSetError = (node: ts.Expression): boolean => {
+    const value = unwrap(node);
+    if (ts.isPropertyAccessExpression(value)) return value.name.text === "setError";
+    if (ts.isCallExpression(value)) return value.arguments.some((arg) => isSetError(arg));
+    if (ts.isArrowFunction(value) && !ts.isBlock(value.body)) return isSetError(value.body);
+    return false;
+  };
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node)) {
+      if (ts.isObjectBindingPattern(node.name)) {
+        for (const element of node.name.elements) {
+          const property = element.propertyName?.getText() ?? element.name.getText();
+          if (property === "setError" && ts.isIdentifier(element.name)) aliases.add(element.name.text);
+        }
+      } else if (ts.isIdentifier(node.name) && node.initializer && isSetError(node.initializer)) {
+        aliases.add(node.name.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return aliases;
+}
+
+/**
+ * Every write that sets the app's error screen in `source` - synchronous or
+ * not: a non-null `setError(…)` of the store (through `get()`, `getState()`,
+ * a destructured or selected alias), and a top-level `error` field written
+ * by the slice's `set(…)` or a store's `setState(…)`. A component's own
+ * `useState` setter and a class component's `this.setState` are not the
+ * store's. Nested `error` fields (`archive.error`) are a screen's.
+ */
+export function globalErrorWrites(fileName: string, source: string): GlobalErrorWrite[] {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const aliases = toastAliases(file);
+  const own = reactStateSetters(file);
+  const setErrors = setErrorAliases(file);
+  const writes: GlobalErrorWrite[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const kind = classify(node, aliases);
+      const callee = node.expression.getText();
+      const componentState = own.has(callee) || callee.startsWith("this.");
+      const viaAlias =
+        ts.isIdentifier(node.expression) &&
+        setErrors.has(callee) &&
+        !own.has(callee) &&
+        !isNullish(node.arguments[0]);
+      if ((kind?.kinds.includes("global-error") && !componentState) || viaAlias) {
+        writes.push({
+          line: file.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          fn: functionName(node),
+          callee,
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return writes;
+}

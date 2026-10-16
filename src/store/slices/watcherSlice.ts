@@ -7,7 +7,9 @@
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import { ownWork } from "@/navigation/ownership";
-import { AppErrorType } from "../../types";
+import { toast } from "sonner";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 
 // ============================================================================
 // State Interface
@@ -109,13 +111,15 @@ export const createWatcherSlice: StateCreator<
     }
   };
 
-  /** A refresh's failure is feedback: only while it still owns the place. */
+  /**
+   * A refresh's failure is feedback: only while it still owns the place, and
+   * as a notification - the place is one tab's, so never the app's error
+   * screen. (A session or project that is gone is the tab's own notice,
+   * raised by the loaders themselves.)
+   */
   const reportRefreshError = (owns: () => boolean, error: unknown) => {
     if (!owns()) return;
-    get().setError({
-      type: AppErrorType.UNKNOWN,
-      message: `Failed to refresh session: ${String(error)}`,
-    });
+    toast.error(i18n.t("error.refreshFailed", { detail: errorDetail(error) }));
   };
 
   const flushSessionRefresh = async (sessionPath: string) => {
@@ -284,12 +288,7 @@ export const createWatcherSlice: StateCreator<
           await reloadProjectSessions(selectedProject);
         }
       } catch (error) {
-        if (owner.ownsFeedback()) {
-          get().setError({
-            type: AppErrorType.UNKNOWN,
-            message: `Failed to refresh project: ${String(error)}`,
-          });
-        }
+        reportRefreshError(owner.ownsFeedback, error);
       } finally {
         // Always mark as updated regardless of success/failure
         get().markProjectUpdated(projectPath);

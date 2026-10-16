@@ -16,7 +16,8 @@ import type {
   SessionComparison,
   SubagentSession,
 } from "../../types";
-import { AppErrorType } from "../../types";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
@@ -757,7 +758,6 @@ export const createMessageSlice: StateCreator<
       isLatest: () => requestId === getRequestId("sessionTokenStats"),
     });
     try {
-      get().setError(null);
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
       const [stats, conversationStatsRaw] = await Promise.all([
@@ -789,12 +789,10 @@ export const createMessageSlice: StateCreator<
       if (!owner.ownsData()) return;
       set({ sessionTokenStats: null, sessionConversationTokenStats: null });
       if (!owner.ownsFeedback()) return;
+      // The token stats screen is one tab's: it says so there, and the
+      // tabs stay (never the app's error screen).
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load session token stats: ${message}`);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load token stats: ${error}`,
-      });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -818,7 +816,6 @@ export const createMessageSlice: StateCreator<
           ...initialMessageState.projectTokenStatsPagination,
         },
       });
-      get().setError(null);
 
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
@@ -918,10 +915,8 @@ export const createMessageSlice: StateCreator<
         projectConversationTokenStatsSummary: null,
       });
       if (!owner.ownsFeedback()) return;
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load project token stats: ${error}`,
-      });
+      // One tab's screen: a notification, never the app's error screen.
+      toast.error(i18n.t("error.tokenStatsLoadFailed", { detail: errorDetail(error) }));
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
