@@ -271,6 +271,7 @@ export interface AppStoreActions {
   clearTargetMessage: () => void;
   lookUpTargetMessage: () => Promise<boolean>;
   clearPendingAnchor: (anchor: import("./documentSlice").PendingAnchor) => void;
+  markSessionUnavailable: (sessionPath: string) => void;
 
   // Project actions
   initializeApp: () => Promise<void>;

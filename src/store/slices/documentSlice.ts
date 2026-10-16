@@ -14,10 +14,12 @@ import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import {
   blankDocument,
+  documentFromLive,
   loadStoredTabs,
   type ScrollAnchor,
   type TabDocument,
 } from "@/navigation/documents";
+import { INITIAL_PAGINATION } from "./messageSlice";
 
 /** A scroll position to restore once the tab's transcript has loaded. */
 export interface PendingAnchor {
@@ -44,6 +46,15 @@ export interface DocumentSliceState {
 export interface DocumentSliceActions {
   /** Drop `anchor` once restored - only if it is still the pending one. */
   clearPendingAnchor: (anchor: PendingAnchor) => void;
+  /**
+   * The open session `sessionPath` could not be loaded (deleted or moved
+   * while its tab was open, found out on opening the tab, by the watcher's
+   * reload, or opening it from the sidebar): the active tab shows its in-tab
+   * "no longer available" state naming that session - never the app's
+   * error screen - and the half-open session leaves the screen. A no-op once
+   * another session is open.
+   */
+  markSessionUnavailable: (sessionPath: string) => void;
 }
 
 export type DocumentSlice = DocumentSliceState & DocumentSliceActions;
@@ -77,5 +88,34 @@ export const createDocumentSlice: StateCreator<FullAppStore, [], [], DocumentSli
 
   clearPendingAnchor: (anchor) => {
     if (get().pendingAnchor === anchor) set({ pendingAnchor: null });
+  },
+
+  markSessionUnavailable: (sessionPath) => {
+    const state = get();
+    if (state.selectedSession?.file_path !== sessionPath) return;
+    const { activeDocumentId, selectedProject } = state;
+    // The tab's snapshot is the place it could not open (it keeps naming
+    // it); its live objects drop the session, so opening the tab again
+    // looks the session up instead of trusting the stale object.
+    const documents = state.documents.map((doc) =>
+      doc.id === activeDocumentId
+        ? {
+            ...documentFromLive(doc, state, null),
+            unavailable: "session" as const,
+            live: { project: selectedProject, session: null, parentStack: [] },
+          }
+        : doc,
+    );
+    set({
+      documents,
+      selectedSession: null,
+      messages: [],
+      pagination: { ...INITIAL_PAGINATION },
+      isLoadingMessages: false,
+      subagentSessions: [],
+      parentSessionStack: [],
+    });
+    get().clearTargetMessage();
+    get().clearSessionSearch();
   },
 });

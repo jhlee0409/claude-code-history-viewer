@@ -174,14 +174,17 @@ describe("a superseded navigation's loads do not take over the new screen", () =
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("a failure of the navigation still in charge is still reported", async () => {
+  it("a failure of the navigation still in charge is still reported (in its tab, T8)", async () => {
     await state().navigate({ project: A, session: A1 });
     overrides.load_provider_messages_paginated = () => {
       throw new Error("A2 is unreadable");
     };
 
     expect(await state().navigate({ session: A2 })).toBe(true);
-    expect(state().error?.message).toBe("A2 is unreadable");
+    const tab = state().documents.find((d) => d.id === state().activeDocumentId);
+    expect(tab?.unavailable).toBe("session");
+    expect(tab?.session?.filePath).toBe(A2.file_path);
+    expect(state().error).toBeNull();
   });
 });
 

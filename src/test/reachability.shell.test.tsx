@@ -394,6 +394,34 @@ describe("§6 reachability through the real shell", () => {
       expect(selectedTab()?.textContent).toContain("Session number 1");
     });
 
+    it("a session deleted while open: the tab's notice renders, never the app's error screen (review #6)", async () => {
+      await renderShell();
+      apiMock.mockImplementation(async (command: string) => {
+        if (command === "load_provider_messages_paginated") throw new Error("No such file or directory (os error 2)");
+        if (command === "load_provider_sessions_page") return { sessions: [S2], total: 1, nextOffset: 1, hasMore: false };
+        return command === "load_project_sessions" || command === "load_provider_sessions" ? [S2] : null;
+      });
+      // The watcher's reload of the open session finds the file gone.
+      await act(async () => {
+        await state().reloadCurrent("watcher");
+      });
+
+      const notice = await waitFor(() => {
+        const found = document.querySelector('[role="alert"][data-tab-unavailable="session"]');
+        expect(found).not.toBeNull();
+        return found as HTMLElement;
+      });
+      expect(notice.textContent).toContain(t("common.tabs.unavailable.session"));
+      expect(screen.queryByText(t("common.errorOccurred"))).toBeNull();
+      expect(header()).toBeTruthy();
+      expect(selectedTab()?.textContent).toContain("Session number 1");
+      // Its Close button closes the tab: one empty tab is left.
+      await activate(within(notice).getByRole("button", { name: t("common.tabs.closeThis") }));
+      await waitFor(() => expect(document.querySelector("[data-tab-unavailable]")).toBeNull());
+      expect(tabs()).toHaveLength(1);
+      expect(selectedTab()?.textContent).toContain(t("common.tabs.empty"));
+    });
+
     it.each([
       ["common.command.newTab", 2],
       ["common.command.closeTab", 1],

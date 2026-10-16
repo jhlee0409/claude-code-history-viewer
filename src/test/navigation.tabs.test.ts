@@ -110,6 +110,9 @@ const held = async (key: string) => {
   if (queue) await new Promise<void>((resume) => queue.push(resume));
 };
 
+/** Session files deleted on disk: loading their messages fails. */
+const deleted = new Set<string>();
+
 const messageCalls = () =>
   apiMock.mock.calls
     .filter(([command]) => command === "load_provider_messages_paginated")
@@ -121,6 +124,7 @@ const screens: TabScreens = { openView: vi.fn(async () => undefined) };
 
 beforeEach(() => {
   holds.clear();
+  deleted.clear();
   localStorage.clear();
   apiMock.mockReset();
   apiMock.mockImplementation(async (command: string, args: Record<string, unknown> = {}) => {
@@ -138,6 +142,7 @@ beforeEach(() => {
         const offset = Number(args.offset);
         await held(`page:${path}@${offset}`);
         await held(`page:${path}`);
+        if (deleted.has(path)) throw new Error(`Failed to open ${path}: No such file or directory (os error 2)`);
         const total = TOTALS[path] ?? 0;
         const limit = Number(args.limit);
         const end = total - offset;
@@ -381,6 +386,70 @@ describe("superseded activations write nothing (review #1)", () => {
     const enteringScreens: TabScreens = { openView: (view) => state().navigate({ view }) };
     await expect(activateTab(tab1, enteringScreens)).resolves.toBe(true);
     expect(state().view).toBe("analytics");
+  });
+});
+
+describe("a session deleted while its tab is open (review #6)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("background tab: the watcher event changes nothing; opening the tab shows the in-tab state, no app error", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    const tab2 = activeId();
+
+    deleted.add(A1.file_path);
+    await state().triggerSessionRefresh(A.path, A1.file_path);
+    expect(where()).toEqual([tab2, B.path, B1.file_path]);
+
+    await activateTab(tab1, screens);
+
+    expect(activeId()).toBe(tab1);
+    expect(tabOf(tab1)?.unavailable).toBe("session");
+    expect(state().error).toBeNull();
+    expect(toastMock.error).not.toHaveBeenCalled();
+    // The tab keeps naming what it had; nothing half-loaded stays on screen.
+    expect(tabOf(tab1)?.session?.filePath).toBe(A1.file_path);
+    expect(state().selectedSession).toBeNull();
+    expect(state().messages).toEqual([]);
+    expect(state().isLoadingMessages).toBe(false);
+    // The other tab is untouched.
+    expect(tabOf(tab2)?.session?.filePath).toBe(B1.file_path);
+  });
+
+  it("active tab: the watcher's reload shows the in-tab state, no app error", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await open(A, A1);
+    const tab1 = activeId();
+    await openInNewTab(() => open(B, B1));
+    await activateTab(tab1, screens);
+    expect(state().messages.length).toBeGreaterThan(0);
+
+    deleted.add(A1.file_path);
+    await state().triggerSessionRefresh(A.path, A1.file_path);
+    await vi.advanceTimersByTimeAsync(6000);
+
+    await waitFor(() => expect(tabOf(tab1)?.unavailable).toBe("session"));
+    expect(state().error).toBeNull();
+    expect(activeId()).toBe(tab1);
+    expect(tabOf(tab1)?.session?.filePath).toBe(A1.file_path);
+    expect(state().selectedSession).toBeNull();
+    expect(state().selectedProject?.path).toBe(A.path);
+  });
+
+  it("opening a deleted session from the sidebar inside a tab shows the in-tab state, naming it", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    deleted.add(A2.file_path);
+    await open(A, A2);
+
+    expect(tabOf(tab1)?.unavailable).toBe("session");
+    expect(tabOf(tab1)?.session?.filePath).toBe(A2.file_path);
+    expect(state().error).toBeNull();
+    // Moving on inside the tab clears it.
+    await open(A, A1);
+    expect(tabOf(tab1)?.unavailable).toBeNull();
+    expect(state().selectedSession?.file_path).toBe(A1.file_path);
   });
 });
 

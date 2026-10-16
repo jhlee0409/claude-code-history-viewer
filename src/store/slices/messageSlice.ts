@@ -627,7 +627,10 @@ export const createMessageSlice: StateCreator<
       if (shouldTreatAsSubagent) {
         toast.error(`Failed to load subagent messages: ${message}`);
       } else {
-        get().setError({ type: AppErrorType.UNKNOWN, message });
+        // The conversation lives in a tab: its failure (a session deleted
+        // or moved while open) is the tab's in-tab state, not the app's
+        // error screen (T8).
+        get().markSessionUnavailable(session.file_path);
       }
     } finally {
       // The spinner this load raised is its own to stop, abandoned or not -

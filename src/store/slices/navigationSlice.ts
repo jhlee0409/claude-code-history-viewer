@@ -282,6 +282,16 @@ export const createNavigationSlice: StateCreator<
     // navigation still owns the place.
     if (!ownsPlace()) return false;
 
+    // A tab that could not be opened is the user's own again once they
+    // move inside it - cleared before the session loads, so a session that
+    // fails to load now marks the tab again (`markSessionUnavailable`).
+    const activeId = get().activeDocumentId;
+    if (get().documents.some((d) => d.id === activeId && d.unavailable)) {
+      set(({ documents }) => ({
+        documents: documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d)),
+      }));
+    }
+
     if (target.session) {
       await get().selectSession(target.session, {
         history: historyMode(),
@@ -346,18 +356,13 @@ export const createNavigationSlice: StateCreator<
       }
     }
     // The live state is now the active tab's (plan §4.3): a snapshot taken
-    // from here on records it. A tab that could not be opened is the user's
-    // own again once they move inside it.
-    const activeId = get().activeDocumentId;
-    set(({ documents }) => ({
-      hydratedDocumentId: activeId,
+    // from here on records it.
+    set({
+      hydratedDocumentId: get().activeDocumentId,
       // The user (or a hint) moved before the restored tab opened: what
       // they chose stays, the restore is off.
       tabsRestorePending: false,
-      documents: documents.some((d) => d.id === activeId && d.unavailable)
-        ? documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d))
-        : documents,
-    }));
+    });
     return true;
   },
 
