@@ -211,5 +211,14 @@
   "analytics.trend.upDescription": "較前一天上升",
   "analytics.trend.downDescription": "較前一天下降",
   "analytics.trend.flatDescription": "與前一天持平",
-  "analytics.trend.timesDescription": "是前一天的{{value}}倍"
+  "analytics.trend.timesDescription": "是前一天的{{value}}倍",
+  "analytics.reasoning": "推理",
+  "analytics.unpricedModels": "未定價模型",
+  "analytics.mixedCostLabel": "精確 + 預估",
+  "analytics.exactCostLabel": "來源記錄的精確費用",
+  "analytics.costExact": "精確",
+  "analytics.costEstimatedShort": "預估",
+  "analytics.costUnavailable": "無",
+  "analytics.unknownProvider": "未知供應商",
+  "analytics.activeDays": "活躍天數"
 }

@@ -211,5 +211,14 @@
   "analytics.trend.upDescription": "Up from the previous day",
   "analytics.trend.downDescription": "Down from the previous day",
   "analytics.trend.flatDescription": "Unchanged from the previous day",
-  "analytics.trend.timesDescription": "{{value}} times the previous day"
+  "analytics.trend.timesDescription": "{{value}} times the previous day",
+  "analytics.reasoning": "Reasoning",
+  "analytics.unpricedModels": "Unpriced models",
+  "analytics.mixedCostLabel": "Exact + estimated",
+  "analytics.exactCostLabel": "Exact source cost",
+  "analytics.costExact": "exact",
+  "analytics.costEstimatedShort": "est.",
+  "analytics.costUnavailable": "n/a",
+  "analytics.unknownProvider": "unknown provider",
+  "analytics.activeDays": "active days"
 }

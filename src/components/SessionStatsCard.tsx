@@ -4,7 +4,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
-import { formatDateCompact } from "../utils/time";
+import { formatDateCompact, formatDurationCompact } from "../utils/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,15 +18,6 @@ const formatNumber = (num: number): string => {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
   return num.toLocaleString();
-};
-
-// Format duration in minutes to readable string
-const formatDuration = (minutes: number): string => {
-  if (minutes < 1) return "<1m";
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
 export interface SessionStatsCardProps {
@@ -86,14 +77,14 @@ export const SessionStatsCard = memo(({
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
                 {formatNumber(stats.total_tokens)}
               </span>
-              <span className="text-caption text-muted-foreground ml-1">tokens</span>
+              <span className="text-caption text-muted-foreground ml-1">{t("analytics.tokens")}</span>
             </div>
             <div className="text-caption text-muted-foreground">
               <span className="font-mono tabular-nums">{stats.message_count.toLocaleString()}</span>
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
             <div className="text-caption text-muted-foreground">
-              <span className="font-mono tabular-nums">{formatDuration(durationMinutes)}</span>
+              <span className="font-mono tabular-nums">{formatDurationCompact(durationMinutes)}</span>
             </div>
           </div>
 

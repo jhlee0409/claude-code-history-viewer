@@ -211,5 +211,14 @@
   "analytics.trend.upDescription": "前日より増加",
   "analytics.trend.downDescription": "前日より減少",
   "analytics.trend.flatDescription": "前日と変化なし",
-  "analytics.trend.timesDescription": "前日の{{value}}倍"
+  "analytics.trend.timesDescription": "前日の{{value}}倍",
+  "analytics.reasoning": "推論",
+  "analytics.unpricedModels": "価格未登録のモデル",
+  "analytics.mixedCostLabel": "実額 + 推定",
+  "analytics.exactCostLabel": "記録上の実額",
+  "analytics.costExact": "実額",
+  "analytics.costEstimatedShort": "推定",
+  "analytics.costUnavailable": "なし",
+  "analytics.unknownProvider": "不明なプロバイダ",
+  "analytics.activeDays": "活動日"
 }
