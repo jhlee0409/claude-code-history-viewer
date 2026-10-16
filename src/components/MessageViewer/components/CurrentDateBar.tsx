@@ -12,6 +12,7 @@
  */
 
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { formatDateDivider } from "../../../utils/time";
 import { findFirstVisibleRowIndex } from "../helpers/visibleMessage";
@@ -51,12 +52,15 @@ function resolveCurrentDate(
 export const CurrentDateBar: React.FC<CurrentDateBarProps> = React.memo(
   ({ virtualRows, scrollOffset, flattenedMessages }) => {
     const firstVisibleIndex = findFirstVisibleRowIndex(virtualRows, scrollOffset);
+    // Subscribed so a language switch re-renders and re-formats the label.
+    const { i18n } = useTranslation();
+    const language = i18n.language;
 
     const dateLabel = useMemo(() => {
       if (firstVisibleIndex < 0) return null;
       const timestamp = resolveCurrentDate(firstVisibleIndex, flattenedMessages);
-      return timestamp ? formatDateDivider(timestamp) : null;
-    }, [firstVisibleIndex, flattenedMessages]);
+      return timestamp ? formatDateDivider(timestamp, language) : null;
+    }, [firstVisibleIndex, flattenedMessages, language]);
 
     // The row keeps its height while the label is still unknown, so the list
     // below does not jump when the first rows are measured.

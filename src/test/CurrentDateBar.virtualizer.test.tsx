@@ -134,4 +134,21 @@ describe("CurrentDateBar with the real virtualizer", () => {
     render(<Harness initialOffset={17 * ROW_PX} sizeOf={sizeOf} />);
     expect(barText()).toBe(formatDateDivider(DAY2));
   });
+
+  it("switching the language re-formats the label without a scroll", async () => {
+    render(<Harness initialOffset={(BOUNDARY + 3) * ROW_PX} />);
+    const english = formatDateDivider(DAY2);
+    expect(barText()).toBe(english);
+    try {
+      await act(async () => {
+        await i18n.changeLanguage("ko");
+      });
+      expect(barText()).toBe(formatDateDivider(DAY2));
+      expect(barText()).not.toBe(english);
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage("en");
+      });
+    }
+  });
 });
