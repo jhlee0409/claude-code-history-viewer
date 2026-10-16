@@ -10,6 +10,7 @@ import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 
@@ -735,10 +736,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     const p = useAppStore.getState().pagination;
     if (!p.hasMore || ensureInFlightRef.current) return;
     ensureInFlightRef.current = currentMatchUuid;
-    void ensureMessageLoaded(currentMatchUuid).finally(() => {
-      ensureInFlightRef.current = null;
-    });
-  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded]);
+    ensureMessageLoaded(currentMatchUuid)
+      .catch((error: unknown) => {
+        console.error("Failed to load the page holding a search match:", error);
+        toast.error(t("common.error.unexpected"));
+      })
+      .finally(() => {
+        ensureInFlightRef.current = null;
+      });
+  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded, t]);
 
   // ─── Tab scroll anchor (T8, plan §4.3) ─────────────────────────────────
   // A tab switch saves the first visible message and its offset (null at
@@ -782,10 +788,21 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       if (p.hasMore) {
         if (!ensureInFlightRef.current) {
           ensureInFlightRef.current = saved.messageUuid;
-          void ensureMessageLoaded(saved.messageUuid).then((found) => {
-            ensureInFlightRef.current = null;
-            if (!found) useAppStore.getState().clearPendingAnchor(pending);
-          });
+          // A failed load drops the anchor as a missing message does (the
+          // view stays at the newest messages) and always frees the guard,
+          // which a search match into an older page also waits on.
+          ensureMessageLoaded(saved.messageUuid)
+            .then((found) => {
+              if (!found) useAppStore.getState().clearPendingAnchor(pending);
+            })
+            .catch((error: unknown) => {
+              console.error("Failed to restore the tab's scroll position:", error);
+              useAppStore.getState().clearPendingAnchor(pending);
+              toast.error(t("common.error.unexpected"));
+            })
+            .finally(() => {
+              ensureInFlightRef.current = null;
+            });
         }
         return;
       }
@@ -814,7 +831,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       passes.forEach(clearTimeout);
       anchorRestoringRef.current = false;
     };
-  }, [anchorHere, scrollElementReady, isLoading, flattenedMessages, targetMessageUuid, getScrollElement, virtualizer, ensureMessageLoaded]);
+  }, [anchorHere, scrollElementReady, isLoading, flattenedMessages, targetMessageUuid, getScrollElement, virtualizer, ensureMessageLoaded, t]);
 
   // Handle Deep Linking / Scrolling to Target
   useEffect(() => {
