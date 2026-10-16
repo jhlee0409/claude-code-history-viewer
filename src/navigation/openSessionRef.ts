@@ -183,11 +183,19 @@ export async function openSessionRef(ref: SessionRef): Promise<OpenSessionRefRes
 
 /**
  * A favourite starred before refs existed: only its id is known, so it is
- * found the way a CLI `--session <uuid>` is (every project scanned).
+ * found the way a CLI `--session <uuid>` is (every project scanned). Its
+ * result reads as `openSessionRef`'s, so a library entry of either kind is
+ * handled alike (a ⌘+click's new tab goes away on "notFound").
  */
-export function openLegacyFavorite(sessionId: string): Promise<{ handled: boolean; matched: boolean }> {
-  return openSessionHint(
+export async function openLegacyFavorite(sessionId: string): Promise<OpenSessionRefResult> {
+  const get = useAppStore.getState;
+  const epoch = get().beginNavigation();
+  const { matched } = await openSessionHint(
     { kind: "uuid", value: sessionId },
-    { t: (key, fallback) => i18n.t(key, { defaultValue: fallback ?? key }) },
+    { epoch, t: (key, fallback) => i18n.t(key, { defaultValue: fallback ?? key }) },
   );
+  if (matched) return "opened";
+  // Not matched while still the latest navigation: nothing was found (the
+  // hint has said so with its toast).
+  return get().navigationEpoch === epoch ? "notFound" : "superseded";
 }
