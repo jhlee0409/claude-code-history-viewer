@@ -34,7 +34,7 @@ import type { SessionRef } from "./place";
 
 export type OpenSessionRefResult = "opened" | "notFound" | "superseded";
 
-interface Found {
+export interface Found {
   project: ClaudeProject;
   session: ClaudeSession;
 }
@@ -74,7 +74,12 @@ export function candidateProjects(
   return out;
 }
 
-async function findSession(ref: SessionRef, owns: () => boolean): Promise<Found | null | "superseded"> {
+/**
+ * The project listing `ref` and its session, looked up the way `openSessionRef`
+ * opens it (a tab restoring its session uses it too). Null: gone; throws when
+ * nothing matched and a list failed to load; "superseded" once `owns` fails.
+ */
+export async function findSession(ref: SessionRef, owns: () => boolean): Promise<Found | null | "superseded"> {
   const state = useAppStore.getState();
   const { projects, selectedProject, excludeSidechain } = state;
   let failure: unknown = null;

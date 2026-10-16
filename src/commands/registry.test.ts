@@ -40,6 +40,10 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
     checkForUpdates: vi.fn(),
+    newTab: vi.fn(),
+    closeTab: vi.fn(),
+    cycleTab: vi.fn(),
+    selectTabAt: vi.fn(),
   };
   return {
     place: { view: "conversation" },
@@ -48,6 +52,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    tabCount: 1,
     ownPlace: vi.fn(() => () => true),
     actions,
     ...overrides,
@@ -125,12 +130,22 @@ describe("command manifest", () => {
   });
 
   it("keeps browser-reserved chords out of the WebUI entries", () => {
-    // ⌘T/⌘W/⌘N/⌘1-9/⌘[ ⌘] belong to the browser (plan §4.4 fallback keys).
-    const reserved = /^(CmdOrCtrl|Cmd|Ctrl)\+(T|W|N|[1-9]|\[|\])$/;
+    // ⌘T/⌘W/⌘N/⌘1-9/⌘[ ⌘] belong to the browser (plan §4.4 fallback keys),
+    // as do its tab switches: Ctrl+PageUp/PageDown and ⌘⌥←→.
+    const reserved = /^(CmdOrCtrl|Cmd|Ctrl)\+(T|W|N|[1-9]|\[|\]|PageUp|PageDown)$|^(Cmd|CmdOrCtrl)\+Alt\+Arrow(Left|Right)$/;
     for (const entry of COMMAND_MANIFEST) {
       if (!entry.shortcut) continue;
       expect(entry.shortcut.web, entry.id).not.toMatch(reserved);
     }
+  });
+
+  it("uses the owner's tab keys on the Mac app (⌘T ⌘W ⌘1-9) and ⌥ in the WebUI", () => {
+    expect(getCommand("tab.new")?.shortcut).toMatchObject({ mac: "Cmd+T", web: "Alt+T" });
+    expect(getCommand("tab.close")?.shortcut).toMatchObject({ mac: "Cmd+W", web: "Alt+W" });
+    for (let n = 1; n <= 8; n += 1) {
+      expect(getCommand(`tab.goTo${n}`)?.shortcut).toMatchObject({ mac: `Cmd+${n}`, web: `Alt+${n}` });
+    }
+    expect(getCommand("tab.goToLast")?.shortcut).toMatchObject({ mac: "Cmd+9", web: "Alt+9" });
   });
 
   it("uses the plan's keys for back/forward: ⌘[ ⌘] on the Mac app, ⌥←→ in the WebUI", () => {
@@ -140,6 +155,21 @@ describe("command manifest", () => {
 });
 
 describe("command registry", () => {
+  it("offers next/previous tab only with another tab, and ⌘n only when tab n exists", () => {
+    const one = makeContext({ tabCount: 1 });
+    expect(runCommand("tab.next", one)).toBe(false);
+    expect(runCommand("tab.goTo2", one)).toBe(false);
+    expect(runCommand("tab.goToLast", one)).toBe(true);
+    expect(one.actions.selectTabAt).toHaveBeenCalledWith(9);
+    const three = makeContext({ tabCount: 3 });
+    expect(runCommand("tab.previous", three)).toBe(true);
+    expect(three.actions.cycleTab).toHaveBeenCalledWith(-1);
+    expect(runCommand("tab.goTo3", three)).toBe(true);
+    expect(three.actions.selectTabAt).toHaveBeenCalledWith(3);
+    expect(runCommand("tab.new", one)).toBe(true);
+    expect(runCommand("tab.close", one)).toBe(true);
+  });
+
   it("refuses an unknown command", () => {
     expect(runCommand("no.such.command", makeContext())).toBe(false);
   });

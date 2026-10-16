@@ -69,6 +69,12 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     loadGlobalStats: vi.fn(async () => {}),
     view: "conversation",
     navigationEpoch: 0,
+    // Conversation tabs (T8): one tab, the live state.
+    documents: [],
+    parentSessionStack: [],
+    activeDocumentId: "t1",
+    hydratedDocumentId: "t1",
+    tabsRestoreReport: { corrupt: false, dropped: 0 },
     navigate: vi.fn(async () => true),
     beginNavigation: vi.fn(() => 1),
     reloadCurrent: vi.fn(async () => {}),
@@ -108,6 +114,7 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
   const storeMock = ((selector?: (state: typeof state) => unknown) =>
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
+  (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
   const resetStoreLoadFlags = () => {
     state.isLoadingGlobalStats = false;

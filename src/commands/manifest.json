@@ -71,6 +71,97 @@
       "shortcut": null,
       "source": "frontend",
       "menu": "app"
+    },
+    {
+      "id": "tab.new",
+      "labelKey": "common.command.newTab",
+      "shortcut": { "mac": "Cmd+T", "win": "Ctrl+T", "linux": "Ctrl+T", "web": "Alt+T" },
+      "source": "frontend",
+      "menu": "file"
+    },
+    {
+      "id": "tab.close",
+      "labelKey": "common.command.closeTab",
+      "shortcut": { "mac": "Cmd+W", "win": "Ctrl+W", "linux": "Ctrl+W", "web": "Alt+W" },
+      "source": "frontend",
+      "menu": "file"
+    },
+    {
+      "id": "tab.next",
+      "labelKey": "common.command.nextTab",
+      "shortcut": { "mac": "Cmd+Alt+ArrowRight", "win": "Ctrl+PageDown", "linux": "Ctrl+PageDown", "web": "Alt+Shift+ArrowRight" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.previous",
+      "labelKey": "common.command.previousTab",
+      "shortcut": { "mac": "Cmd+Alt+ArrowLeft", "win": "Ctrl+PageUp", "linux": "Ctrl+PageUp", "web": "Alt+Shift+ArrowLeft" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo1",
+      "labelKey": "common.command.goToTab1",
+      "shortcut": { "mac": "Cmd+1", "win": "Ctrl+1", "linux": "Ctrl+1", "web": "Alt+1" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo2",
+      "labelKey": "common.command.goToTab2",
+      "shortcut": { "mac": "Cmd+2", "win": "Ctrl+2", "linux": "Ctrl+2", "web": "Alt+2" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo3",
+      "labelKey": "common.command.goToTab3",
+      "shortcut": { "mac": "Cmd+3", "win": "Ctrl+3", "linux": "Ctrl+3", "web": "Alt+3" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo4",
+      "labelKey": "common.command.goToTab4",
+      "shortcut": { "mac": "Cmd+4", "win": "Ctrl+4", "linux": "Ctrl+4", "web": "Alt+4" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo5",
+      "labelKey": "common.command.goToTab5",
+      "shortcut": { "mac": "Cmd+5", "win": "Ctrl+5", "linux": "Ctrl+5", "web": "Alt+5" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo6",
+      "labelKey": "common.command.goToTab6",
+      "shortcut": { "mac": "Cmd+6", "win": "Ctrl+6", "linux": "Ctrl+6", "web": "Alt+6" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo7",
+      "labelKey": "common.command.goToTab7",
+      "shortcut": { "mac": "Cmd+7", "win": "Ctrl+7", "linux": "Ctrl+7", "web": "Alt+7" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goTo8",
+      "labelKey": "common.command.goToTab8",
+      "shortcut": { "mac": "Cmd+8", "win": "Ctrl+8", "linux": "Ctrl+8", "web": "Alt+8" },
+      "source": "frontend",
+      "menu": "window"
+    },
+    {
+      "id": "tab.goToLast",
+      "labelKey": "common.command.goToLastTab",
+      "shortcut": { "mac": "Cmd+9", "win": "Ctrl+9", "linux": "Ctrl+9", "web": "Alt+9" },
+      "source": "frontend",
+      "menu": "window"
     }
   ]
 }

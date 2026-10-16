@@ -57,6 +57,13 @@ describe("matchesChord", () => {
     expect(matchesChord(key({ key: "k", code: "KeyV", metaKey: true }), cmdK)).toBe(true);
   });
 
+  it("parses and writes the page keys (Ctrl+PageDown: next tab on Windows/Linux)", () => {
+    const chord = parseAccelerator("Ctrl+PageDown", "win");
+    expect(chord).toMatchObject({ ctrl: true, key: "PageDown" });
+    expect(matchesChord({ key: "PageDown", code: "PageDown", metaKey: false, ctrlKey: true, altKey: false, shiftKey: false }, chord)).toBe(true);
+    expect(formatAccelerator("Ctrl+PageUp", "win")).toBe("Ctrl+PgUp");
+  });
+
   it("matches brackets and arrows", () => {
     expect(matchesChord(key({ key: "[", code: "BracketLeft", metaKey: true }), parseAccelerator("Cmd+[", "mac"))).toBe(true);
     expect(matchesChord(key({ key: "ArrowLeft", code: "ArrowLeft", altKey: true }), parseAccelerator("Alt+ArrowLeft", "win"))).toBe(true);

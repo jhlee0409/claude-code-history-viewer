@@ -32,6 +32,16 @@ import {
   viewForProjectSwitch,
 } from "./navigation/place";
 import { projectListing } from "./navigation/library";
+import {
+  activateTab,
+  openHintInTab,
+  openInNewTab,
+  reportStoredTabsProblems,
+  restoreActiveTab,
+  startTabsPersistence,
+  type TabScreens,
+} from "./navigation/tabs";
+import { OpenSessionInNewTabContext } from "./contexts/openInNewTab";
 
 import "./App.css";
 
@@ -39,7 +49,17 @@ import "./App.css";
 interface PendingHintIntent {
   hint: SessionHint;
   messageId: string | null;
-  options: { epoch: number; record?: boolean };
+  options: HintRunOptions & { epoch: number };
+}
+
+interface HintRunOptions {
+  epoch?: number;
+  record?: boolean;
+  /**
+   * Where the session opens: its own tab (a CLI launch, startup, a URL of a
+   * closed tab - plan §4.3) or the active tab (browser back/forward).
+   */
+  target?: "tab" | "active";
 }
 
 function App() {
@@ -146,18 +166,34 @@ function App() {
   // whether it records history (a popstate never does).
   const pendingIntentRef = useRef<PendingHintIntent | null>(null);
 
+  // Opening a tab loads its screen's data the way the toolbar tabs do.
+  const openView = analyticsActions.openView;
+  const tabScreens = useMemo<TabScreens>(() => ({ openView }), [openView]);
+  const tabScreensRef = useRef(tabScreens);
+  useEffect(() => {
+    tabScreensRef.current = tabScreens;
+  }, [tabScreens]);
+
+  // Tabs are saved as they change (`tabs.v1`); a store that could not be
+  // read is reported once.
+  useEffect(() => {
+    reportStoredTabsProblems();
+    return startTabsPersistence();
+  }, []);
+
   /** Open a CLI / deep-link hint; see `openSessionHint` for the epoch rule. */
   const runPreloadWithHint = useCallback(
     (
       hint: SessionHint,
       messageId: string | null = null,
-      options: { epoch?: number; record?: boolean } = {},
+      options: HintRunOptions = {},
     ) => {
       const epoch = options.epoch ?? useAppStore.getState().beginNavigation();
       openSessionHint(hint, {
         messageId,
         epoch,
         record: options.record,
+        openMatch: options.target === "active" ? undefined : openHintInTab,
         t: (key, fallback) => t(key, fallback ?? key),
       }).catch((error) => {
         if (useAppStore.getState().navigationEpoch !== epoch) return;
@@ -187,7 +223,13 @@ function App() {
     void fetchStartupSessionHint().then((hint) => {
       // A second invocation, a deep link or the user may have navigated while
       // the startup command was resolving. The newer request owns navigation.
-      if (!hint || useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      if (useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      // Startup priority (plan §4.3): the hint first; the restored tab opens
+      // only when there is none (barrier: after the hint was asked for).
+      if (!hint) {
+        void restoreActiveTab(tabScreensRef.current);
+        return;
+      }
       runPreloadWithHint(hint, readWebUIDeepLink().messageId);
     });
   }, [isLoadingProjects, projects, runPreloadWithHint]);
@@ -233,7 +275,9 @@ function App() {
   }, [runPreloadWithHint]);
 
   // Browser back/forward (WebUI). Each popstate is a navigation that adds no
-  // history of its own: no URL write, no back/forward entry.
+  // history of its own: no URL write, no back/forward entry. A URL names the
+  // tab its session was open in (§9b F1): that tab comes forward first and
+  // the move happens inside it; a tab closed since gets a new one.
   useEffect(
     () =>
       listenForWebUIDeepLinks((deepLink) => {
@@ -251,12 +295,33 @@ function App() {
           return;
         }
 
+        const uuidHint: SessionHint = { kind: "uuid", value: deepLink.sessionId };
         if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
           pendingIntentRef.current = {
-            hint: { kind: "uuid", value: deepLink.sessionId },
+            hint: uuidHint,
             messageId: deepLink.messageId,
-            options: { epoch, record: false },
+            options: { epoch, record: false, target: "tab" },
           };
+          return;
+        }
+
+        const { documents, activeDocumentId } = useAppStore.getState();
+        const tabId = deepLink.tabId;
+        if (tabId && tabId !== activeDocumentId) {
+          if (!documents.some((doc) => doc.id === tabId)) {
+            runPreloadWithHint(uuidHint, deepLink.messageId, { epoch, record: false, target: "tab" });
+            return;
+          }
+          void activateTab(tabId, tabScreensRef.current, { epoch, history: "none" }).then((opened) => {
+            if (!opened) return;
+            const state = useAppStore.getState();
+            const shown = state.selectedSession?.actual_session_id || state.selectedSession?.session_id;
+            if (shown === deepLink.sessionId) {
+              void navigate({ view: "conversation", messageId: deepLink.messageId }, { history: "none", record: false });
+            } else {
+              runPreloadWithHint(uuidHint, deepLink.messageId, { record: false, target: "active" });
+            }
+          });
           return;
         }
 
@@ -279,11 +344,11 @@ function App() {
           { project: null, view: viewAfterLeavingProject(state.view) },
           popOptions,
         );
-        runPreloadWithHint(
-          { kind: "uuid", value: deepLink.sessionId },
-          deepLink.messageId,
-          { epoch, record: false },
-        );
+        runPreloadWithHint(uuidHint, deepLink.messageId, {
+          epoch,
+          record: false,
+          target: "active",
+        });
       }),
     [navigate, runPreloadWithHint],
   );
@@ -390,6 +455,14 @@ function App() {
     [navigate, t]
   );
 
+  // ⌘+click on a session row: the same open, in a new tab (T8).
+  const handleSessionOpenInNewTab = useCallback(
+    (session: ClaudeSession, owner?: ClaudeProject) => {
+      void openInNewTab(() => handleSessionSelect(session, owner));
+    },
+    [handleSessionSelect]
+  );
+
   const handleTokenStatClick = useCallback(
     (stats: SessionTokenStats) => {
       const session = sessions.find(
@@ -448,6 +521,7 @@ function App() {
   );
 
   return (
+    <OpenSessionInNewTabContext.Provider value={handleSessionOpenInNewTab}>
     <AppLayout
       projects={projects}
       sessions={sessions}
@@ -503,6 +577,7 @@ function App() {
       globalOverviewDescription={globalOverviewDescription}
       liveStatusMessage={liveStatusMessage}
     />
+    </OpenSessionInNewTabContext.Provider>
   );
 }
 

@@ -12,6 +12,7 @@ import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation
 import { ownPlace } from "@/navigation/ownership";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAppStore } from "@/store/useAppStore";
+import { closeTab, cycleTab, newTab, selectTabAt } from "@/navigation/tabs";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
 import type { CommandActions, CommandContext } from "./registry";
 
@@ -21,7 +22,8 @@ export const MANUAL_UPDATE_CHECK_EVENT = "manual-update-check";
 export function useCommandContext(): () => CommandContext {
   const { openModal } = useModal();
   const { isDesktop, isMobile } = usePlatform();
-  const { goBack, goForward, switchToSettings, switchToArchive } = useAnalyticsNavigation();
+  const { goBack, goForward, switchToSettings, switchToArchive, openView } = useAnalyticsNavigation();
+  const screens = { openView };
   const toggleNavigator = useAppStore((s) => s.toggleNavigator);
   const toggleMinimap = useAppStore((s) => s.toggleMinimap);
 
@@ -38,6 +40,10 @@ export function useCommandContext(): () => CommandContext {
     openArchive: switchToArchive,
     openFeedback: () => openModal("feedback"),
     checkForUpdates: () => window.dispatchEvent(new Event(MANUAL_UPDATE_CHECK_EVENT)),
+    newTab: () => newTab(),
+    closeTab: () => closeTab(useAppStore.getState().activeDocumentId, screens),
+    cycleTab: (step) => cycleTab(step, screens),
+    selectTabAt: (position) => selectTabAt(position, screens),
   };
   const latest = useRef({ actions, isDesktop, isMobile });
   useEffect(() => {
@@ -54,6 +60,7 @@ export function useCommandContext(): () => CommandContext {
       canGoBack: state.placeHistory.back.length > 0,
       canGoForward: state.placeHistory.forward.length > 0,
       hasFindTarget: hasFindTarget(),
+      tabCount: state.documents.length,
       ownPlace: () => ownPlace(useAppStore.getState),
       actions: current,
     };

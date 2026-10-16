@@ -1,0 +1,454 @@
+/**
+ * Conversation tabs: switching, opening, closing and restoring documents
+ * (plan §4.3, T8). The model is `./documents.ts`; the state is
+ * `documentSlice`.
+ *
+ * One store, many documents: the active tab IS the live store. Activating a
+ * tab is a navigation (plan §4.2) - it claims the epoch before its first
+ * await, saves the outgoing tab from the live store, then rehydrates the
+ * incoming one in the §4.3 order:
+ *
+ *   1. `navigate` (epoch) to the tab's place, with its subagent path;
+ *   2. the session loads (newest page);
+ *   3. the viewer restores the saved anchor - loading older pages first when
+ *      it lives there - once the list is measured (`pendingAnchor`);
+ *   4. a project screen loads its data (`openView`).
+ *
+ * Priority (plan §4.3): an explicit target (search result, deep link, CLI)
+ * beats the saved anchor, which beats "scroll to the bottom". Any navigation
+ * that begins meanwhile owns the screen; the activation then writes nothing.
+ */
+import { toast } from "sonner";
+import i18n from "@/i18n";
+import { useAppStore, type AppStore } from "@/store/useAppStore";
+import type { PendingAnchor } from "@/store/slices/documentSlice";
+import type { ClaudeProject, ClaudeSession } from "@/types";
+import type { WebUIHistoryMode } from "@/utils/webuiDeepLink";
+import {
+  blankDocument,
+  cycledId,
+  documentFromLive,
+  enforceTabCap,
+  idAtPosition,
+  MAX_TABS,
+  neighbourAfterClose,
+  saveStoredTabs,
+  subagentSessionOf,
+  type TabDocument,
+  type Unavailable,
+} from "./documents";
+import { findSession } from "./openSessionRef";
+import { ownPlace } from "./ownership";
+import type { View } from "./place";
+import { captureScrollAnchor } from "./scrollAnchor";
+
+/** What opening a tab needs from the screens: loading a project screen's data. */
+export interface TabScreens {
+  openView: (view: View) => Promise<unknown>;
+}
+
+const get = (): AppStore => useAppStore.getState();
+const set = (partial: Partial<AppStore>) => useAppStore.setState(partial);
+
+const providerOf = (p: { provider?: string }) => p.provider ?? "claude";
+
+/** Screens whose data loads after the place is committed. */
+const LOADS_DATA = (view: View) => view !== "conversation" && view !== "empty";
+
+// ---------------------------------------------------------------------------
+// Snapshots and persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * Every tab, the active one brought up to date from the live store - unless
+ * the live store is not that tab yet (it is still opening) or the tab could
+ * not be opened (its saved place stays, so the in-tab notice keeps naming it).
+ */
+export function currentDocuments(state: AppStore = get()): TabDocument[] {
+  const { documents, activeDocumentId, hydratedDocumentId } = state;
+  if (hydratedDocumentId !== activeDocumentId) return documents;
+  return documents.map((doc) =>
+    doc.id !== activeDocumentId || doc.unavailable
+      ? doc
+      : documentFromLive(doc, state, captureScrollAnchor(state.selectedSession?.file_path)),
+  );
+}
+
+export function persistTabs(): void {
+  const state = get();
+  saveStoredTabs({ documents: currentDocuments(state), activeId: state.activeDocumentId });
+}
+
+const PERSIST_DELAY_MS = 400;
+
+/**
+ * Save `tabs.v1` whenever the tabs or the active tab's place change
+ * (debounced), and right away when the page goes away. Returns the stop
+ * function.
+ */
+export function startTabsPersistence(): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    persistTabs();
+  };
+  const key = (s: AppStore) =>
+    [
+      s.documents,
+      s.activeDocumentId,
+      s.hydratedDocumentId,
+      s.view,
+      s.selectedProject?.path,
+      s.selectedSession?.file_path,
+      s.parentSessionStack.length,
+      s.placeHistory,
+    ] as const;
+  let last = key(get());
+  const unsubscribe = useAppStore.subscribe((state) => {
+    const next = key(state);
+    if (next.every((value, i) => value === last[i])) return;
+    last = next;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, PERSIST_DELAY_MS);
+  });
+  window.addEventListener("pagehide", flush);
+  window.addEventListener("beforeunload", flush);
+  return () => {
+    unsubscribe();
+    window.removeEventListener("pagehide", flush);
+    window.removeEventListener("beforeunload", flush);
+    if (timer) clearTimeout(timer);
+  };
+}
+
+/** Say once, at startup, that stored tabs could not all be read. */
+export function reportStoredTabsProblems(): void {
+  const { corrupt, dropped } = get().tabsRestoreReport;
+  if (!corrupt && dropped === 0) return;
+  toast.warning(corrupt ? i18n.t("common.tabs.restoreCorrupt") : i18n.t("common.tabs.restoreDropped", { count: dropped }));
+  set({ tabsRestoreReport: { corrupt: false, dropped: 0 } });
+}
+
+// ---------------------------------------------------------------------------
+// Opening a document
+// ---------------------------------------------------------------------------
+
+interface Resolved {
+  view: View;
+  project: ClaudeProject | null;
+  session: ClaudeSession | null;
+  parentStack: ClaudeSession[];
+  unavailable: Unavailable | null;
+}
+
+/** The scanned project a tab names, matched by provider and path. */
+function projectFor(doc: TabDocument): ClaudeProject | null {
+  const ref = doc.project;
+  if (!ref) return null;
+  return get().projects.find((p) => providerOf(p) === ref.provider && p.path === ref.path) ?? null;
+}
+
+/**
+ * The objects a tab opens: its live objects when it was open in this run,
+ * otherwise looked up from its refs the way the library opens a session.
+ * A project that is not scanned (removed, provider turned off) or a session
+ * that is gone leaves the tab on the start / "select a session" screen with
+ * the reason (`unavailable`), rendered inside the tab.
+ */
+async function resolveDocument(doc: TabDocument, owns: () => boolean): Promise<Resolved | "superseded"> {
+  const project = doc.live?.project ?? projectFor(doc);
+  if (doc.project && (!project || !projectFor(doc))) {
+    return { view: "conversation", project: null, session: null, parentStack: [], unavailable: "project" };
+  }
+  if (!doc.session) {
+    return { view: doc.view, project, session: null, parentStack: [], unavailable: null };
+  }
+  if (doc.live?.session) {
+    return { view: doc.view, project, session: doc.live.session, parentStack: doc.live.parentStack, unavailable: null };
+  }
+
+  const rootRef = doc.subagentStack[0] ?? doc.session;
+  let found: Awaited<ReturnType<typeof findSession>>;
+  try {
+    found = await findSession({ ...rootRef, projectPath: rootRef.projectPath ?? doc.project?.path }, owns);
+  } catch (error) {
+    if (!owns()) return "superseded";
+    console.warn("tabs: could not look up the tab's session:", error);
+    found = null;
+  }
+  if (found === "superseded" || !owns()) return "superseded";
+  if (!found) {
+    return {
+      view: doc.view,
+      project,
+      session: null,
+      parentStack: [],
+      unavailable: doc.view === "conversation" ? "session" : null,
+    };
+  }
+  if (doc.subagentStack.length === 0) {
+    return { view: doc.view, project: found.project, session: found.session, parentStack: [], unavailable: null };
+  }
+  // A subagent transcript: its parents again from the root, so the sidechain
+  // filter and the way back are what they were (plan §4.3).
+  const parents: ClaudeSession[] = [found.session];
+  for (const ref of doc.subagentStack.slice(1)) parents.push(subagentSessionOf(ref, parents[parents.length - 1]!));
+  return {
+    view: doc.view,
+    project: found.project,
+    session: subagentSessionOf(doc.session, parents[parents.length - 1]!, doc.title),
+    parentStack: parents,
+    unavailable: null,
+  };
+}
+
+const sameStack = (a: readonly ClaudeSession[], b: readonly ClaudeSession[]) =>
+  a.length === b.length && a.every((s, i) => s.file_path === b[i]?.file_path);
+
+interface OpenOptions {
+  epoch: number;
+  history: WebUIHistoryMode;
+}
+
+/** Rehydrate `doc` into the live store (see the file comment for the order). */
+async function openDocument(doc: TabDocument, screens: TabScreens, options: OpenOptions): Promise<boolean> {
+  const { epoch } = options;
+  const owns = () => get().navigationEpoch === epoch;
+  const resolved = await resolveDocument(doc, owns);
+  if (resolved === "superseded" || !owns()) return false;
+
+  const { session, parentStack } = resolved;
+  const live = get();
+  // The session already on screen (two tabs on one conversation) is kept,
+  // not reloaded; only its scroll position and target change.
+  const keepsSession =
+    session != null &&
+    live.selectedSession?.file_path === session.file_path &&
+    sameStack(live.parentSessionStack, parentStack);
+  const anchor: PendingAnchor | undefined =
+    resolved.view === "conversation" && session && !doc.targetMessageUuid
+      ? { documentId: doc.id, sessionPath: session.file_path, anchor: doc.anchor }
+      : undefined;
+
+  const arrived = await get().navigate(
+    {
+      view: resolved.view,
+      project: resolved.project,
+      ...(keepsSession ? {} : { session, subagentStack: parentStack }),
+      messageId: doc.targetMessageUuid ?? null,
+    },
+    { epoch, record: false, history: options.history, anchor },
+  );
+  if (!arrived || !owns()) return false;
+
+  if (resolved.unavailable) {
+    const reason = resolved.unavailable;
+    set({ documents: get().documents.map((d) => (d.id === doc.id ? { ...d, unavailable: reason } : d)) });
+    return true;
+  }
+  if (LOADS_DATA(resolved.view)) await screens.openView(resolved.view);
+  return true;
+}
+
+export interface ActivateOptions {
+  /** WebUI URL history for this switch (default "push"; a popstate passes "none"). */
+  history?: WebUIHistoryMode;
+  /** An epoch claimed earlier (a CLI hint); superseded meanwhile, nothing happens. */
+  epoch?: number;
+}
+
+/**
+ * Make tab `id` the active one: save the outgoing tab, then open `id`.
+ * Resolves whether the tab opened (false when superseded or unknown).
+ */
+export async function activateTab(id: string, screens: TabScreens, options: ActivateOptions = {}): Promise<boolean> {
+  const state = get();
+  if (!state.documents.some((d) => d.id === id)) return false;
+  if (state.activeDocumentId === id && state.hydratedDocumentId === id) return true;
+  if (options.epoch !== undefined && options.epoch !== state.navigationEpoch) return false;
+
+  const now = Date.now();
+  const documents = currentDocuments(state).map((d) => (d.id === id ? { ...d, lastActiveAt: now } : d));
+  const doc = documents.find((d) => d.id === id)!;
+  // The switch is a navigation from here on (plan §4.2).
+  const epoch = options.epoch ?? state.beginNavigation();
+  set({
+    documents,
+    activeDocumentId: id,
+    hydratedDocumentId: null,
+    placeHistory: doc.history,
+    tabsRestorePending: false,
+  });
+  return openDocument(doc, screens, { epoch, history: options.history ?? "push" });
+}
+
+/** Insert `doc` right after the active tab, or at the end; keep the cap. */
+function withDocument(documents: TabDocument[], doc: TabDocument, afterActive: boolean): TabDocument[] {
+  const at = afterActive ? documents.findIndex((d) => d.id === get().activeDocumentId) + 1 : documents.length;
+  const next = [...documents.slice(0, at || documents.length), doc, ...documents.slice(at || documents.length)];
+  const capped = enforceTabCap({ documents: next, activeId: doc.id }).documents;
+  if (capped.length < next.length) toast.info(i18n.t("common.tabs.limitReached", { max: MAX_TABS }));
+  return capped;
+}
+
+/** ⌘T: a new, empty tab at the end. */
+export async function newTab(): Promise<boolean> {
+  const state = get();
+  const blank = blankDocument();
+  const documents = withDocument(currentDocuments(state), blank, false);
+  const epoch = state.beginNavigation();
+  set({
+    documents,
+    activeDocumentId: blank.id,
+    hydratedDocumentId: null,
+    placeHistory: { back: [], forward: [] },
+    tabsRestorePending: false,
+  });
+  return get().navigate({ view: "conversation", project: null, session: null }, { epoch, record: false });
+}
+
+/**
+ * ⌘+click: open something in a new tab, right after the current one, and
+ * show it. `open` navigates the way a plain click does; the new tab starts
+ * as a copy of the current place, so the move is the tab's own first step.
+ */
+export async function openInNewTab<T>(
+  open: () => Promise<T>,
+  options: {
+    /**
+     * A result that means nothing opened (a library entry whose session is
+     * gone): the new tab goes away again and the previous one is back as it
+     * was - nothing navigated.
+     */
+    discardIf?: (result: T) => boolean;
+  } = {},
+): Promise<T> {
+  const state = get();
+  const previousId = state.activeDocumentId;
+  const previousHistory = state.placeHistory;
+  const doc = { ...blankDocument(), view: state.view };
+  const documents = withDocument(currentDocuments(state), doc, true);
+  set({
+    documents,
+    activeDocumentId: doc.id,
+    hydratedDocumentId: doc.id,
+    placeHistory: { back: [], forward: [] },
+    tabsRestorePending: false,
+  });
+  const opening = open();
+  // `open` claims its navigation before its first await; anything after it
+  // owns the tab list.
+  const owns = ownPlace(get);
+  const result = await opening;
+  if (owns() && options.discardIf?.(result) && get().activeDocumentId === doc.id) {
+    set({
+      documents: get().documents.filter((d) => d.id !== doc.id),
+      activeDocumentId: previousId,
+      hydratedDocumentId: previousId,
+      placeHistory: previousHistory,
+    });
+  }
+  return result;
+}
+
+/**
+ * Close tab `id`. Closing the active tab shows its right neighbour, else its
+ * left one; closing the last tab leaves one empty tab (plan §4.3).
+ */
+export async function closeTab(id: string, screens: TabScreens): Promise<boolean> {
+  const state = get();
+  const documents = currentDocuments(state);
+  if (!documents.some((d) => d.id === id)) return false;
+  if (id !== state.activeDocumentId) {
+    set({ documents: documents.filter((d) => d.id !== id) });
+    return true;
+  }
+  const next = neighbourAfterClose(documents, id);
+  if (!next) {
+    const blank = blankDocument();
+    set({ documents: [blank], activeDocumentId: blank.id, hydratedDocumentId: null, placeHistory: { back: [], forward: [] } });
+    return get().navigate({ view: "conversation", project: null, session: null }, { record: false });
+  }
+  // The closed tab is not saved on the way out.
+  set({ documents: documents.filter((d) => d.id !== id), hydratedDocumentId: null });
+  return activateTab(next, screens);
+}
+
+/** Next / previous tab, wrapping around. */
+export function cycleTab(step: 1 | -1, screens: TabScreens): Promise<boolean> {
+  const { activeDocumentId } = get();
+  const id = cycledId({ documents: get().documents, activeId: activeDocumentId }, step);
+  return id ? activateTab(id, screens) : Promise.resolve(false);
+}
+
+/** ⌘1-⌘8: that tab; ⌘9: the last one. */
+export function selectTabAt(position: number, screens: TabScreens): Promise<boolean> {
+  const id = idAtPosition(get().documents, position);
+  return id ? activateTab(id, screens) : Promise.resolve(false);
+}
+
+/**
+ * Startup, after any CLI / deep-link hint has been handled (plan §4.3
+ * barrier): open the tab that was active, if tabs were restored and no hint
+ * took over.
+ */
+export function restoreActiveTab(screens: TabScreens): Promise<boolean> {
+  const { tabsRestorePending, activeDocumentId } = get();
+  if (!tabsRestorePending) return Promise.resolve(false);
+  return activateTab(activeDocumentId, screens, { history: "replace" });
+}
+
+export interface HintMatch {
+  project: ClaudeProject;
+  session: ClaudeSession;
+}
+
+export interface HintOpenOptions {
+  epoch: number;
+  messageId: string | null;
+  record?: boolean;
+}
+
+const NO_SCREENS: TabScreens = { openView: async () => undefined };
+
+/**
+ * A CLI / deep-link hint (plan §4.3): its session becomes the active tab. A
+ * tab already showing it is reused; an empty active tab takes it; otherwise
+ * it opens in a new tab. The hint always wins - over restored tabs and over a
+ * session open before a second launch (§9b F4).
+ */
+export async function openHintInTab(match: HintMatch, options: HintOpenOptions): Promise<boolean> {
+  const state = get();
+  if (state.navigationEpoch !== options.epoch) return false;
+  const documents = currentDocuments(state);
+  const existing = documents.find((d) => d.session?.filePath === match.session.file_path && d.subagentStack.length === 0);
+  const hydrated = state.hydratedDocumentId === state.activeDocumentId;
+  const navigateHere = () =>
+    get().navigate(
+      { view: "conversation", project: match.project, session: match.session, messageId: options.messageId },
+      { history: "none", epoch: options.epoch, record: options.record },
+    );
+
+  if (existing && existing.id !== state.activeDocumentId) {
+    set({
+      documents: documents.map((d) =>
+        d.id === existing.id ? { ...d, view: "conversation", targetMessageUuid: options.messageId } : d,
+      ),
+    });
+    return activateTab(existing.id, NO_SCREENS, { epoch: options.epoch, history: "none" });
+  }
+  const active = documents.find((d) => d.id === state.activeDocumentId);
+  const activeIsBlank = hydrated && state.selectedProject == null && !active?.unavailable;
+  if ((existing && hydrated) || activeIsBlank) return navigateHere();
+
+  const doc = blankDocument();
+  set({
+    documents: withDocument(documents, doc, true),
+    activeDocumentId: doc.id,
+    hydratedDocumentId: null,
+    placeHistory: { back: [], forward: [] },
+    tabsRestorePending: false,
+  });
+  return navigateHere();
+}

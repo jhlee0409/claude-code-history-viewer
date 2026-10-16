@@ -8,7 +8,8 @@
  * - modifiers: `Cmd` (⌘), `Ctrl`, `Alt` (⌥), `Shift`, and `CmdOrCtrl` - ⌘ on
  *   macOS, Ctrl elsewhere. Desktop entries name the real key per OS; the
  *   WebUI entry runs on any OS, so it uses `CmdOrCtrl`.
- * - key: one letter or digit, `[`, `]`, or `ArrowLeft/Right/Up/Down`.
+ * - key: one letter or digit, `[`, `]`, `ArrowLeft/Right/Up/Down`, or
+ *   `PageUp/PageDown`.
  *
  * Which entry applies: the WebUI always uses `web` (browser-reserved keys
  * such as ⌘[ ⌘] get a fallback there); the desktop app uses its OS's entry.
@@ -42,6 +43,8 @@ export interface Chord {
 }
 
 const ARROWS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"] as const;
+/** Page keys: Ctrl+PageUp/PageDown switch tabs on Windows and Linux. */
+const PAGE_KEYS = ["PageUp", "PageDown"] as const;
 const PUNCTUATION_CODES: Readonly<Record<string, string>> = {
   "[": "BracketLeft",
   "]": "BracketRight",
@@ -84,6 +87,7 @@ export function parseAccelerator(accelerator: string, os: Os): Chord {
   if (/^[A-Za-z0-9]$/.test(keyToken)) chord.key = keyToken.toLowerCase();
   else if (keyToken in PUNCTUATION_CODES) chord.key = keyToken;
   else if ((ARROWS as readonly string[]).includes(keyToken)) chord.key = keyToken;
+  else if ((PAGE_KEYS as readonly string[]).includes(keyToken)) chord.key = keyToken;
   else throw new Error(`Unknown key "${keyToken}" in "${accelerator}"`);
   return chord;
 }
@@ -127,6 +131,8 @@ const KEY_LABELS: Readonly<Record<string, string>> = {
   ArrowRight: "→",
   ArrowUp: "↑",
   ArrowDown: "↓",
+  PageUp: "PgUp",
+  PageDown: "PgDn",
 };
 
 /** How a shortcut is written on `os`: `⌘⇧F` on macOS, `Ctrl+Shift+F` elsewhere. */

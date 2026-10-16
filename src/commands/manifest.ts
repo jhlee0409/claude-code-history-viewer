@@ -21,6 +21,19 @@ export const COMMAND_IDS = [
   "go.archive",
   "help.feedback",
   "app.checkForUpdates",
+  "tab.new",
+  "tab.close",
+  "tab.next",
+  "tab.previous",
+  "tab.goTo1",
+  "tab.goTo2",
+  "tab.goTo3",
+  "tab.goTo4",
+  "tab.goTo5",
+  "tab.goTo6",
+  "tab.goTo7",
+  "tab.goTo8",
+  "tab.goToLast",
 ] as const;
 
 export type CommandId = (typeof COMMAND_IDS)[number];

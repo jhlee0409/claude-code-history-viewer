@@ -12,11 +12,16 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Map as MinimapGlyph,
   MessageSquare,
+  Plus,
   RefreshCw,
   Search,
+  SquareArrowRight,
   TextSearch,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +41,8 @@ export interface CommandContext {
   canGoForward: boolean;
   /** A conversation screen with its find field is mounted (`findTarget.ts`). */
   hasFindTarget: boolean;
+  /** Open conversation tabs (T8). */
+  tabCount: number;
   /**
    * Take ownership of the current place (`src/navigation/ownership.ts`): the
    * owner stays true until the next navigation begins.
@@ -55,6 +62,11 @@ export interface CommandActions {
   openArchive: () => unknown;
   openFeedback: () => void;
   checkForUpdates: () => void;
+  newTab: () => unknown;
+  closeTab: () => unknown;
+  cycleTab: (step: 1 | -1) => unknown;
+  /** ⌘1-⌘8 by position; 9 is the last tab. */
+  selectTabAt: (position: number) => unknown;
 }
 
 interface CommandHandler {
@@ -73,6 +85,20 @@ interface CommandHandler {
 
 /** The archive belongs to Claude Code; another provider's project disables it. */
 const isClaudeContext = (place: Place): boolean => (place.project?.provider ?? "claude") === "claude";
+
+/**
+ * Tab shortcuts work from a text field too (the sidebar filter, the find
+ * field), as they do in a browser; behind a modal dialog they do not.
+ */
+const TAB_KEYS = { inFields: true } as const;
+
+/** ⌘n: tab n exists. */
+const goToTab = (position: number): CommandHandler => ({
+  icon: SquareArrowRight,
+  enabled: (ctx) => ctx.tabCount >= (position === 9 ? 1 : position),
+  run: (ctx) => ctx.actions.selectTabAt(position),
+  keys: TAB_KEYS,
+});
 
 /**
  * One handler per manifest id. Typed as a total record, so a manifest
@@ -132,6 +158,37 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     available: (ctx) => ctx.runtime === "desktop",
     run: (ctx) => ctx.actions.checkForUpdates(),
   },
+  "tab.new": {
+    icon: Plus,
+    run: (ctx) => ctx.actions.newTab(),
+    keys: TAB_KEYS,
+  },
+  "tab.close": {
+    icon: X,
+    run: (ctx) => ctx.actions.closeTab(),
+    keys: TAB_KEYS,
+  },
+  "tab.next": {
+    icon: ChevronRight,
+    enabled: (ctx) => ctx.tabCount > 1,
+    run: (ctx) => ctx.actions.cycleTab(1),
+    keys: TAB_KEYS,
+  },
+  "tab.previous": {
+    icon: ChevronLeft,
+    enabled: (ctx) => ctx.tabCount > 1,
+    run: (ctx) => ctx.actions.cycleTab(-1),
+    keys: TAB_KEYS,
+  },
+  "tab.goTo1": goToTab(1),
+  "tab.goTo2": goToTab(2),
+  "tab.goTo3": goToTab(3),
+  "tab.goTo4": goToTab(4),
+  "tab.goTo5": goToTab(5),
+  "tab.goTo6": goToTab(6),
+  "tab.goTo7": goToTab(7),
+  "tab.goTo8": goToTab(8),
+  "tab.goToLast": goToTab(9),
 };
 
 export type AppCommand = CommandManifestEntry & CommandHandler;

@@ -25,6 +25,8 @@ const {
     selectedProject: null as unknown,
     selectedSession: null as unknown,
     placeHistory: { back: [] as unknown[], forward: [] as unknown[] },
+    documents: [{ id: "t1" }] as unknown[],
+    activeDocumentId: "t1",
   },
 }));
 
