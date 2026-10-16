@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
+import i18n from "@/i18n";
+import { COMMAND_MANIFEST } from "./manifest";
 import { matchesCommandQuery } from "./paletteQuery";
+
+const LANGUAGES = ["en", "ko", "ja", "zh-CN", "zh-TW"] as const;
+
+describe("a pasted command title finds its command (T7 re-review F3)", () => {
+  it("a title ending in an ellipsis matches itself", () => {
+    expect(matchesCommandQuery("Send Feedback…", "Send Feedback…", "help.feedback")).toBe(true);
+    expect(matchesCommandQuery("Check for Updates…", "Check for Updates…", "app.checkForUpdates")).toBe(true);
+    expect(matchesCommandQuery("Send Feedback...", "Send Feedback…", "help.feedback")).toBe(true);
+    expect(matchesCommandQuery("feedback…", "Send Feedback…", "help.feedback")).toBe(true);
+  });
+
+  it("a mixed-case word matches the same word in the title", () => {
+    expect(matchesCommandQuery("macOS", "Open in macOS Finder", "file.reveal")).toBe(true);
+    expect(matchesCommandQuery("macos", "Open in macOS Finder", "file.reveal")).toBe(true);
+  });
+
+  it.each(LANGUAGES)("%s: every palette command's full title matches that command", (lng) => {
+    const t = i18n.getFixedT(lng);
+    const misses = COMMAND_MANIFEST.filter((entry) => entry.palette !== false)
+      .map((entry) => ({ id: entry.id, title: t(entry.labelKey) }))
+      .filter(({ id, title }) => !matchesCommandQuery(title, title, id));
+    expect(misses).toEqual([]);
+  });
+});
 
 describe("matchesCommandQuery", () => {
   it("matches every query word against the start of a title word", () => {

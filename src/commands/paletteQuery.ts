@@ -18,20 +18,28 @@ export const commandItemValue = (id: CommandId): string => `command:${id}`;
 const CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
 
 /**
+ * The words of a title or a query, lowercased: split at whitespace, `/` and
+ * an ellipsis (`…` or `...`), plus each camelCase word's parts, so a title
+ * pasted whole ("Send Feedback…", "macOS") finds itself.
+ */
+function wordsOf(text: string): string[] {
+  const words = text.split(/[\s/…]+|\.{3,}/).filter(Boolean);
+  const parts = words.flatMap((word) => word.replace(/([a-z])([A-Z])/g, "$1 $2").split(" "));
+  return [...new Set([...words, ...parts].map((word) => word.toLocaleLowerCase()))];
+}
+
+/**
  * Whether `query` picks this title: every word of the query starts a word of
  * the title (or of the id), so "set" finds "Open Settings Manager" but a
  * message search for "et" does not drag in every title containing "et".
  * Japanese and Chinese titles have no spaces, so a CJK word matches anywhere
- * in the title.
+ * in the title. Query and title are split into words the same way
+ * (`wordsOf`).
  */
 export function matchesCommandQuery(query: string, title: string, id: string): boolean {
-  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const words = query.trim().split(/[\s/…]+|\.{3,}/).filter(Boolean).map((word) => word.toLocaleLowerCase());
   if (words.length === 0) return true;
-  const haystack = `${title} ${id.replace(/[.]/g, " ")}`
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .toLocaleLowerCase()
-    .split(/[\s/…]+/)
-    .filter(Boolean);
+  const haystack = wordsOf(`${title} ${id.replace(/[.]/g, " ")}`);
   const lowerTitle = title.toLocaleLowerCase();
   return words.every((word) =>
     CJK.test(word) ? lowerTitle.includes(word) : haystack.some((candidate) => candidate.startsWith(word)),
