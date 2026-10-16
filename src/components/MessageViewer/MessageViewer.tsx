@@ -205,6 +205,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const navigatorViewMode = useAppStore((s) => s.navigatorViewMode);
   // A tab being reopened brings its scroll position (T8, plan §4.3).
   const pendingAnchor = useAppStore((s) => s.pendingAnchor) ?? null;
+  // The tab on screen: switching tabs starts the find field empty.
+  const activeDocumentId = useAppStore((s) => s.activeDocumentId);
   const sessionPath = selectedSession?.file_path ?? null;
   const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
   const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
@@ -255,7 +257,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     handleClearSearch: handleClearSearchState,
   } = useSearchState({
     onSearchChange,
-    sessionId: selectedSession?.session_id,
+    resetKey: `${activeDocumentId ?? ""}:${selectedSession?.session_id ?? ""}`,
   });
 
   // 매치된 메시지 UUID Set (효율적인 조회용)

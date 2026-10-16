@@ -32,6 +32,7 @@ import {
   idAtPosition,
   MAX_TABS,
   neighbourAfterClose,
+  NO_CAPTURE,
   saveStoredTabs,
   subagentSessionOf,
   type TabDocument,
@@ -51,6 +52,18 @@ const get = (): AppStore => useAppStore.getState();
 const set = (partial: Partial<AppStore>) => useAppStore.setState(partial);
 
 const providerOf = (p: { provider?: string }) => p.provider ?? "claude";
+
+/**
+ * Make `doc` the active tab in the store: what it keeps besides its place
+ * comes with it (`stateScope.ts`) - its capture mode (a new tab: none) - and
+ * the transcript's find starts empty (its matches are another transcript's;
+ * a search still running for the tab left behind lands nowhere). The place
+ * itself opens through `navigate` afterwards.
+ */
+function enterTab(doc: TabDocument, partial: Partial<AppStore>): void {
+  set({ ...partial, ...(doc.capture ?? NO_CAPTURE), activeDocumentId: doc.id });
+  get().clearSessionSearch();
+}
 
 /** Screens whose data loads after the place is committed. */
 const LOADS_DATA = (view: View) => view !== "conversation" && view !== "empty";
@@ -305,9 +318,8 @@ export async function activateTab(id: string, screens: TabScreens, options: Acti
   const epoch = options.epoch ?? state.beginNavigation();
   const history = options.history ?? "push";
   const historyStep = beginHistoryStep(history);
-  set({
+  enterTab(doc, {
     documents,
-    activeDocumentId: id,
     hydratedDocumentId: null,
     placeHistory: doc.history,
     tabsRestorePending: false,
@@ -334,9 +346,8 @@ export async function newTab(): Promise<boolean> {
   const documents = withDocument(currentDocuments(state), blank, false);
   const epoch = state.beginNavigation();
   const historyStep = beginHistoryStep("push");
-  set({
+  enterTab(blank, {
     documents,
-    activeDocumentId: blank.id,
     hydratedDocumentId: null,
     placeHistory: { back: [], forward: [] },
     tabsRestorePending: false,
@@ -368,9 +379,8 @@ export async function openInNewTab<T>(
   const previousHistory = state.placeHistory;
   const doc = { ...blankDocument(), view: state.view };
   const documents = withDocument(currentDocuments(state), doc, true);
-  set({
+  enterTab(doc, {
     documents,
-    activeDocumentId: doc.id,
     hydratedDocumentId: doc.id,
     placeHistory: { back: [], forward: [] },
     tabsRestorePending: false,
@@ -380,10 +390,10 @@ export async function openInNewTab<T>(
   // owns the tab list.
   const owns = ownPlace(get);
   const result = await opening;
-  if (owns() && options.discardIf?.(result) && get().activeDocumentId === doc.id) {
-    set({
+  const previous = documents.find((d) => d.id === previousId);
+  if (owns() && options.discardIf?.(result) && get().activeDocumentId === doc.id && previous) {
+    enterTab(previous, {
       documents: get().documents.filter((d) => d.id !== doc.id),
-      activeDocumentId: previousId,
       hydratedDocumentId: previousId,
       placeHistory: previousHistory,
     });
@@ -407,7 +417,7 @@ export async function closeTab(id: string, screens: TabScreens): Promise<boolean
   if (!next) {
     const blank = blankDocument();
     const historyStep = beginHistoryStep("push");
-    set({ documents: [blank], activeDocumentId: blank.id, hydratedDocumentId: null, placeHistory: { back: [], forward: [] } });
+    enterTab(blank, { documents: [blank], hydratedDocumentId: null, placeHistory: { back: [], forward: [] } });
     const arrived = await get().navigate({ view: "conversation", project: null, session: null }, { record: false });
     if (!arrived) return false;
     writeActiveTabUrl(historyStep());
@@ -631,9 +641,8 @@ export async function openHintInTab(match: HintMatch, options: HintOpenOptions):
   if ((existing && hydrated) || activeIsBlank) return navigateHere();
 
   const doc = blankDocument();
-  set({
+  enterTab(doc, {
     documents: withDocument(documents, doc, true),
-    activeDocumentId: doc.id,
     hydratedDocumentId: null,
     placeHistory: { back: [], forward: [] },
     tabsRestorePending: false,

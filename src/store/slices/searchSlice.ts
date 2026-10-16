@@ -318,13 +318,16 @@ export const createSearchSlice: StateCreator<
     });
   },
 
+  // A clear is the latest request too: a search still running lands nothing.
   clearSessionSearch: () => {
+    sessionSearchRequestId += 1;
     set((state) => ({
       sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
     }));
   },
 
   setSearchFilterType: (filterType: SearchFilterType) => {
+    sessionSearchRequestId += 1;
     set(() => ({
       sessionSearch: createEmptySearchState(filterType),
     }));

@@ -44,6 +44,8 @@ import {
   type TabDocument,
 } from "@/navigation/documents";
 import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
+import { fieldsOf } from "@/navigation/stateScope";
+import { createEmptySearchState } from "@/store/slices/types";
 
 const project = (name: string, provider = "claude"): ClaudeProject => ({
   name,
@@ -153,6 +155,11 @@ beforeEach(() => {
       }
       case "get_session_subagents":
         return [];
+      case "load_provider_messages": {
+        const path = String(args.sessionPath);
+        await held(`full:${path}`);
+        return Array.from({ length: TOTALS[path] ?? 0 }, (_, i) => message(path, i));
+      }
       case "get_provider_message_offset": {
         // Messages are `${path}#${i}`; the offset counts from the newest end.
         const uuid = String(args.messageUuid);
@@ -349,6 +356,129 @@ describe("switching tabs", () => {
       unregister();
     }
     expect(tabOf(tab1)?.anchor).toEqual({ messageUuid: `${A1.file_path}#42`, offset: -6 });
+  });
+});
+
+describe("a tab's transcript state: search and capture (review #5)", () => {
+  const capture = () => ({
+    isCaptureMode: state().isCaptureMode,
+    hidden: state().hiddenMessageIds,
+    selected: state().selectedMessageIds,
+    anchor: state().selectionAnchor,
+  });
+  const NONE = { isCaptureMode: false, hidden: [], selected: [], anchor: null };
+
+  it("another conversation in the same project starts with no search and no capture selection", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    // Tab 1's find: a query and a match in its own transcript.
+    useAppStore.setState({
+      sessionSearch: {
+        query: "x",
+        matches: [{ messageUuid: `${A1.file_path}#290`, messageIndex: 190, matchIndex: 0, matchCount: 1 }],
+        currentMatchIndex: 0,
+        isSearching: false,
+        filterType: "content",
+        results: [],
+      },
+    });
+    state().enterCaptureMode();
+    const shown = [`${A1.file_path}#290`, `${A1.file_path}#291`];
+    state().handleSelectionClick(shown[0]!, shown, { shift: false, cmdOrCtrl: false });
+    state().hideMessage(`${A1.file_path}#299`);
+    const tab1Capture = capture();
+
+    await openInNewTab(() => open(A, A2));
+    expect(state().sessionSearch.query).toBe("");
+    expect(state().sessionSearch.matches).toEqual([]);
+    expect(capture()).toEqual(NONE);
+
+    // Back in tab 1: its capture state is its own again; the search was
+    // left behind with the tab (the find field starts empty on every switch).
+    await activateTab(tab1, screens);
+    expect(capture()).toEqual(tab1Capture);
+    expect(state().sessionSearch.query).toBe("");
+    expect(state().sessionSearch.matches).toEqual([]);
+  });
+
+  it("two tabs on one conversation keep separate hidden rows", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    state().enterCaptureMode();
+    state().hideMessage(`${A1.file_path}#299`);
+
+    await openInNewTab(() => open(A, A1));
+    const tab2 = activeId();
+    expect(capture()).toEqual(NONE);
+    state().enterCaptureMode();
+    state().hideMessage(`${A1.file_path}#250`);
+
+    await activateTab(tab1, screens);
+    expect(state().hiddenMessageIds).toEqual([`${A1.file_path}#299`]);
+    await activateTab(tab2, screens);
+    expect(state().hiddenMessageIds).toEqual([`${A1.file_path}#250`]);
+  });
+
+  it("a new tab and a hint's new tab start with no search and no capture state", async () => {
+    await open(A, A1);
+    state().enterCaptureMode();
+    state().hideMessage(`${A1.file_path}#299`);
+    await newTab();
+    expect(capture()).toEqual(NONE);
+
+    await activateTab(state().documents[0]!.id, screens);
+    expect(state().isCaptureMode).toBe(true);
+    await openHintInTab({ project: B, session: B1 }, { epoch: state().beginNavigation(), messageId: null });
+    expect(capture()).toEqual(NONE);
+  });
+
+  it("every `document` field is the tab's own and every `reset` field starts empty (stateScope)", async () => {
+    // Tab 1 with every per-tab field away from its default: a subagent
+    // transcript, a target, history, another screen, capture rows, a find.
+    await open(A, A1);
+    const tab1 = activeId();
+    await state().navigateToSubagent(SUBAGENT);
+    state().navigateToMessage(`${SUBAGENT.file_path}#1`);
+    await state().navigate({ view: "analytics" });
+    state().enterCaptureMode();
+    state().hideMessage(`${SUBAGENT.file_path}#2`);
+    const rows = [`${SUBAGENT.file_path}#0`, `${SUBAGENT.file_path}#1`];
+    state().handleSelectionClick(rows[0]!, rows, { shift: false, cmdOrCtrl: false });
+    useAppStore.setState({
+      sessionSearch: { ...state().sessionSearch, query: "q", currentMatchIndex: 0, matches: [{ messageUuid: rows[0]!, messageIndex: 0, matchIndex: 0, matchCount: 1 }] },
+    });
+    const pick = (fields: string[]) =>
+      Object.fromEntries(fields.map((f) => [f, (state() as unknown as Record<string, unknown>)[f]]));
+    const documentFields = fieldsOf("document");
+    const tab1Values = pick(documentFields);
+    // The only `reset` field today; a new one needs its empty value here.
+    expect(fieldsOf("reset")).toEqual(["sessionSearch"]);
+    const resetDefaults = { sessionSearch: createEmptySearchState(state().sessionSearch.filterType) };
+
+    await newTab();
+    const fresh = pick(documentFields);
+    const leaked = documentFields.filter((f) => JSON.stringify(fresh[f]) === JSON.stringify(tab1Values[f]));
+    expect(leaked, "per-tab fields that showed tab 1's value in a new tab").toEqual([]);
+    expect(pick(fieldsOf("reset"))).toEqual(resetDefaults);
+
+    await activateTab(tab1, screens);
+    const back = pick(documentFields);
+    const lost = documentFields.filter((f) => JSON.stringify(back[f]) !== JSON.stringify(tab1Values[f]));
+    expect(lost, "per-tab fields tab 1 did not get back").toEqual([]);
+    expect(pick(fieldsOf("reset"))).toEqual(resetDefaults);
+  });
+
+  it("a search still running for tab 1 does not land in tab 2 on the same conversation", async () => {
+    await open(A, A1);
+    hold(`full:${A1.file_path}`);
+    const searching = state().setSessionSearchQuery("x");
+    await openInNewTab(() => open(A, A1));
+
+    release(`full:${A1.file_path}`);
+    await searching;
+    expect(state().sessionSearch.query).toBe("");
+    expect(state().sessionSearch.matches).toEqual([]);
+    expect(state().sessionSearch.isSearching).toBe(false);
   });
 });
 

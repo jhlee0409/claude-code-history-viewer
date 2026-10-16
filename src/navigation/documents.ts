@@ -41,6 +41,26 @@ export interface ScrollAnchor {
 /** Why a tab could not be opened; shown inside the tab (§4.1 fallback). */
 export type Unavailable = "session" | "project";
 
+/**
+ * A tab's capture mode: whether it is on and the transcript rows hidden or
+ * selected for the image. The tab's own (`stateScope.ts`): another tab -
+ * even on the same conversation - has its own, and it comes back with the
+ * tab. Not stored in `tabs.v1`.
+ */
+export interface CaptureState {
+  isCaptureMode: boolean;
+  hiddenMessageIds: string[];
+  selectedMessageIds: string[];
+  selectionAnchor: string | null;
+}
+
+export const NO_CAPTURE: CaptureState = {
+  isCaptureMode: false,
+  hiddenMessageIds: [],
+  selectedMessageIds: [],
+  selectionAnchor: null,
+};
+
 /** The loaded objects of a tab opened in this run; absent after a restore. */
 export interface LiveObjects {
   project: ClaudeProject | null;
@@ -67,6 +87,8 @@ export interface TabDocument {
   history: { back: PlaceHistoryEntry[]; forward: PlaceHistoryEntry[] };
   unavailable: Unavailable | null;
   live?: LiveObjects;
+  /** Its capture mode; absent: off, nothing hidden or selected. */
+  capture?: CaptureState;
 }
 
 let idCounter = 0;
@@ -95,14 +117,28 @@ export function blankDocument(id: string = newDocumentId(), now: number = Date.n
   };
 }
 
-/** The part of the live store a document is taken from. */
-export interface LiveState {
+/**
+ * The part of the live store a document is taken from. Without the capture
+ * fields (a place built for a tab that is not open), the tab keeps its own.
+ */
+export interface LiveState extends Partial<CaptureState> {
   view: View;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   parentSessionStack: ClaudeSession[];
   targetMessageUuid: string | null;
   placeHistory: { back: PlaceHistoryEntry[]; forward: PlaceHistoryEntry[] };
+}
+
+/** The capture state the live store holds, or null when `live` names none. */
+function captureOf(live: Partial<CaptureState>): CaptureState | null {
+  if (live.isCaptureMode === undefined) return null;
+  return {
+    isCaptureMode: live.isCaptureMode,
+    hiddenMessageIds: live.hiddenMessageIds ?? [],
+    selectedMessageIds: live.selectedMessageIds ?? [],
+    selectionAnchor: live.selectionAnchor ?? null,
+  };
 }
 
 /** `base` updated to what the live store shows (the active tab's snapshot). */
@@ -127,6 +163,7 @@ export function documentFromLive(
     history: live.placeHistory,
     unavailable: null,
     live: { project, session, parentStack: stack },
+    capture: captureOf(live) ?? base.capture,
   };
 }
 
