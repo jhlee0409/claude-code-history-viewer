@@ -19,6 +19,13 @@ import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
 
+/**
+ * The search / source / sort controls show from this many sessions on. The
+ * sidebar offers the full list ("Show all") from here too, so they stay
+ * reachable for a small project (`ProjectSessions`).
+ */
+export const SESSION_CONTROLS_MIN = 3;
+
 // Virtual scroll을 적용할 최소 세션 수
 const VIRTUALIZATION_THRESHOLD = 20;
 // Virtual list의 최대 표시 높이
@@ -290,7 +297,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   }, [sessions, sessionSortOrder, sessionEntrypointFilter, searchQuery, getSessionDisplayName]);
 
   // Show controls only if we have enough sessions
-  const showControls = sessions.length >= 3 || sessionsTotal >= 3;
+  const showControls = sessions.length >= SESSION_CONTROLS_MIN || sessionsTotal >= SESSION_CONTROLS_MIN;
 
   // Ordered IDs of the currently visible (filtered + sorted) sessions — the
   // basis for Shift range selection and "Select all".

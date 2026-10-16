@@ -6,7 +6,7 @@ import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { SessionItem } from "../../SessionItem";
-import { SessionList } from "./SessionList";
+import { SESSION_CONTROLS_MIN, SessionList } from "./SessionList";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 
 /** Sessions an expanded project shows before "Show all" (plan T7). */
@@ -84,7 +84,10 @@ interface ProjectSessionsProps {
  * What an expanded project row lists under it (plan T7, decision (나)):
  * its newest five sessions and "Show all · N". "Show all", the selection
  * mode and the open project's search/sort/source controls use the full list
- * (`SessionList`), which belongs to the open project.
+ * (`SessionList`), which belongs to the open project. The open project
+ * offers "Show all" whenever the list has those controls, even when the
+ * preview already shows every session: it is their only route outside the
+ * selection mode.
  */
 export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   project,
@@ -132,7 +135,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           formatTimeAgo={formatTimeAgo}
           density="compact"
         />
-        {showAll && !isSelectionMode && sessionsTotal > SESSION_PREVIEW_COUNT && (
+        {showAll && !isSelectionMode && (
           <ShowMoreRow label={t("project.sessions.showFewer")} onClick={() => onShowAll(project, false)} />
         )}
       </div>
@@ -186,7 +189,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           onModifierSelect={() => (isOpen ? startSelection(session) : onSessionSelect(session))}
         />
       ))}
-      {total > rows.length && (
+      {(total > rows.length || (isOpen && total >= SESSION_CONTROLS_MIN)) && (
         <ShowMoreRow
           label={t("project.sessions.showAll", { count: total })}
           onClick={() => onShowAll(project, true)}
