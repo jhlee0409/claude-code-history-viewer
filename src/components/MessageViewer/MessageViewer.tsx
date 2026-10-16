@@ -1114,6 +1114,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       {flattenedMessages.length > 0 && (
         <CurrentDateBar
           virtualRows={virtualRows}
+          scrollOffset={virtualizer.scrollOffset ?? 0}
           flattenedMessages={flattenedMessages}
         />
       )}

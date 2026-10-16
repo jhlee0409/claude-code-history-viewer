@@ -14,7 +14,8 @@
 //   discovery (first launch) both say "no Claude Code projects" and the main
 //   area offers "Find other providers".
 // - Transcript: the current-date label never sits on top of the message
-//   list (it gets its own row).
+//   list (it gets its own row), and names the day of the first visible row,
+//   not of an overscanned row above the viewport.
 // - Transcript search: the placeholder fits the input in every locale, at a
 //   narrow desktop main pane (navigator open) and on a phone.
 
@@ -172,6 +173,63 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
       }
     }, 120_000);
   }
+
+  it("transcript: the date bar names the day of the first visible row at a day boundary", async () => {
+    // The large session crosses midnight in the pinned timezone (Asia/Seoul):
+    // one divider ("Today") between the two days, a few pages up.
+    const { session, page } = await openScenario("transcript--1440x900--light", { locale: "en" });
+    try {
+      const viewport = await page.evaluateHandle(() => {
+        const row = document.querySelector("[data-index]");
+        for (let el = row?.parentElement; el; el = el.parentElement) {
+          const overflowY = getComputedStyle(el).overflowY;
+          if (overflowY === "auto" || overflowY === "scroll") return el;
+        }
+        return null;
+      });
+      // Scroll up (loading earlier pages at the top) until a divider with
+      // enough rows above it for overscan to render some of the previous day.
+      let label = null;
+      for (let step = 0; step < 600 && !label; step += 1) {
+        const state = await viewport.evaluate((vp) => {
+          for (const sep of vp.querySelectorAll("[data-index] [role=separator][aria-label]")) {
+            if (Number(sep.closest("[data-index]").dataset.index) >= 20) return { label: sep.getAttribute("aria-label") };
+          }
+          vp.scrollTop = Math.max(0, vp.scrollTop - vp.clientHeight * 0.9);
+          return { top: vp.scrollTop };
+        });
+        if (state.label) label = state.label;
+        else if (state.top === 0) await settle(session, { label: "load earlier" });
+        else await page.clock.runFor(50);
+      }
+      expect(label, "no day divider in the large transcript").not.toBeNull();
+      // Put the divider row's top at `rowTop` px from the viewport top. Rows
+      // are measured as they render, so re-align until the position holds.
+      const barWithDividerAt = async (rowTop) => {
+        for (let i = 0; i < 8; i += 1) {
+          const delta = await viewport.evaluate((vp, { label, rowTop }) => {
+            const sep = [...vp.querySelectorAll("[role=separator]")].find((s) => s.getAttribute("aria-label") === label);
+            const top = sep.closest("[data-index]").getBoundingClientRect().top - vp.getBoundingClientRect().top;
+            const d = top - rowTop;
+            if (Math.abs(d) >= 1) vp.scrollTop += d;
+            return d;
+          }, { label, rowTop });
+          if (Math.abs(delta) < 1) break;
+          await settle(session, { label: "align divider" });
+        }
+        return page.locator("[data-current-date]").innerText();
+      };
+      // The divider at the top edge: its day (overscan renders the previous
+      // day's rows above it, which the bar used to read).
+      expect(await barWithDividerAt(-2)).toBe(label);
+      // Scrolled into the new day's first message: still that day.
+      expect(await barWithDividerAt(-40)).toBe(label);
+      // The previous day's last row still showing 20px: the previous day.
+      expect(await barWithDividerAt(20)).not.toBe(label);
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
 
   const transcriptCases = [
     ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: { "navigator-open": "true" } })),

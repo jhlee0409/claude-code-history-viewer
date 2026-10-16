@@ -7,15 +7,20 @@
  *
  * @tanstack/react-virtual positions rows absolutely, so CSS sticky does not
  * work; the label is derived from the first visible virtual item instead.
+ * The rendered rows include overscan above the viewport, so "first visible"
+ * is the first row that ends below the scroll offset, not the first row.
  */
 
 import React, { useMemo } from "react";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { formatDateDivider } from "../../../utils/time";
+import { findFirstVisibleRowIndex } from "../helpers/visibleMessage";
 import type { FlattenedMessage } from "../types";
 
 type CurrentDateBarProps = {
   virtualRows: VirtualItem[];
+  /** The virtualizer's scroll offset, in the same coordinates as `row.start`. */
+  scrollOffset: number;
   flattenedMessages: FlattenedMessage[];
 };
 
@@ -44,8 +49,8 @@ function resolveCurrentDate(
 }
 
 export const CurrentDateBar: React.FC<CurrentDateBarProps> = React.memo(
-  ({ virtualRows, flattenedMessages }) => {
-    const firstVisibleIndex = virtualRows.length > 0 ? virtualRows[0]!.index : -1;
+  ({ virtualRows, scrollOffset, flattenedMessages }) => {
+    const firstVisibleIndex = findFirstVisibleRowIndex(virtualRows, scrollOffset);
 
     const dateLabel = useMemo(() => {
       if (firstVisibleIndex < 0) return null;
