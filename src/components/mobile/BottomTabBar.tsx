@@ -1,5 +1,6 @@
 import { FolderOpen } from "lucide-react";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import { Icon as AppIcon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/navigation/place";
@@ -58,7 +59,8 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
               aria-label={t(labelKey)}
               aria-current={isActive ? "page" : undefined}
             >
-              <Icon className="w-4 h-4" />
+              {/* Mobile tab bar: 24 px, the platform convention for bottom tabs. */}
+              <AppIcon icon={Icon} size={24} aria-hidden="true" />
               <span className="text-caption font-medium truncate max-w-full">{t(labelKey)}</span>
               {isDisabled && (
                 <span className="text-caption text-muted-foreground/60 truncate max-w-full">

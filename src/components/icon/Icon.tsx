@@ -5,7 +5,7 @@
  * |-----------------------------------------|------|--------|
  * | toolbar, sidebar, tabs (default)        | 16   | 1.75   |
  * | small icons inside lists (close, chevron)| 14  | 1.75   |
- * | empty states and guidance               | 24   | 1.5    |
+ * | empty states, guidance, mobile tab bar  | 24   | 1.5    |
  *
  * `IconProvider` (mounted once at the root) gives every lucide icon the
  * 16 / 1.75 default, so an icon sized 14 or 16 by its classes needs nothing
