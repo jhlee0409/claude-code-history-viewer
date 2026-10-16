@@ -313,13 +313,16 @@ export function createActions({ session, scenario, manifest, t }) {
         return;
       }
       // A tab scrolled half out of the strip: WebKit's scrollIntoViewIfNeeded
-      // leaves it there, so bring it fully into view before the click.
+      // leaves it there, and under the paused clock hit testing keeps the old
+      // scroll position until the next rendering update. Scroll it into view
+      // and click it as the DOM element (no hit test, no focus ring).
       const tab = page.locator('[data-slot="tabs"] [role="tab"]').nth(index);
-      // The paused clock holds WebKit's next rendering update, so hit testing
-      // still sees the old scroll position until the page settles.
-      await tab.evaluate((el) => el.scrollIntoView({ block: "nearest", inline: "nearest" }));
-      await settled(`scroll tab ${index} into view`);
-      await click(tab, `tab ${index}`);
+      await tab.evaluate((el) => {
+        el.scrollIntoView({ block: "nearest", inline: "nearest" });
+        el.click();
+      });
+      await parkPointer(page);
+      await settled(`tab ${index}`);
     },
 
     /** The phone toolbar's tab count: opens the list of tabs. */
