@@ -8,6 +8,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { SessionItem } from "../../SessionItem";
 import { SESSION_CONTROLS_MIN, SessionList } from "./SessionList";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
+import type { SessionSelectHandler } from "../types";
 
 /** Sessions an expanded project shows before "Show all" (plan T7). */
 export const SESSION_PREVIEW_COUNT = 5;
@@ -74,7 +75,8 @@ interface ProjectSessionsProps {
   /** "Show all" was asked for on this project. */
   showAll: boolean;
   onShowAll: (project: ClaudeProject, showAll: boolean) => void;
-  onSessionSelect: (session: ClaudeSession) => void;
+  /** Called with this row's `project` as the session's owner. */
+  onSessionSelect: SessionSelectHandler;
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions: () => void;
   formatTimeAgo: (date: string) => string;
@@ -129,7 +131,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           selectedSession={selectedSession}
           isLoading={isLoading}
           isLoadingMoreSessions={isLoadingMoreSessions}
-          onSessionSelect={onSessionSelect}
+          onSessionSelect={(session) => onSessionSelect(session, project)}
           onSessionHover={onSessionHover}
           onLoadMoreSessions={onLoadMoreSessions}
           formatTimeAgo={formatTimeAgo}
@@ -183,10 +185,10 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           project={project}
           variant="compact"
           isSelected={selectedSession?.file_path === session.file_path}
-          onSelect={() => onSessionSelect(session)}
+          onSelect={() => onSessionSelect(session, project)}
           onHover={() => onSessionHover?.(session)}
           formatTimeAgo={formatTimeAgo}
-          onModifierSelect={() => (isOpen ? startSelection(session) : onSessionSelect(session))}
+          onModifierSelect={() => (isOpen ? startSelection(session) : onSessionSelect(session, project))}
         />
       ))}
       {(total > rows.length || (isOpen && total >= SESSION_CONTROLS_MIN)) && (

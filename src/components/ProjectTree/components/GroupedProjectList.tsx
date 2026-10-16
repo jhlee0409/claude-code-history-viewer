@@ -9,7 +9,7 @@ import {
   type DirectoryGroup,
   type TimeGroup,
 } from "../../../utils/worktreeUtils";
-import type { GroupingStrategy } from "../types";
+import type { GroupingStrategy, SessionSelectHandler } from "../types";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { ProjectItem } from "./ProjectItem";
@@ -37,7 +37,7 @@ interface GroupedProjectListProps {
   isProjectExpanded: (path: string) => boolean;
   handleProjectClick: (project: ClaudeProject) => void;
   handleContextMenu: (e: React.MouseEvent, project: ClaudeProject, providerSiblings?: ClaudeProject[]) => void;
-  onSessionSelect: (session: ClaudeSession) => void;
+  onSessionSelect: SessionSelectHandler;
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;

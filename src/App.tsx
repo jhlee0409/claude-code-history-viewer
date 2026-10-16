@@ -31,7 +31,7 @@ import {
   viewAfterLeavingProject,
   viewForProjectSwitch,
 } from "./navigation/place";
-import { findProjectForSessionPath } from "./navigation/library";
+import { projectListing } from "./navigation/library";
 
 import "./App.css";
 
@@ -362,21 +362,20 @@ function App() {
   );
 
   const handleSessionSelect = useCallback(
-    async (session: ClaudeSession) => {
+    async (session: ClaudeSession, owner?: ClaudeProject) => {
       try {
-        // The project a session belongs to is the one whose storage path
-        // holds its file (`findProjectForSessionPath`): stable across
-        // providers, unlike the provider-specific display names. The name
-        // is only a fallback for a session without a file path.
-        const findProjectForSession = (s: ClaudeSession) =>
-          (s.file_path ? findProjectForSessionPath(projects, s.file_path, s.provider) : undefined) ??
-          projects.find((p) => p.name === s.project_name);
+        // The project a session belongs to is the one that lists it: the
+        // row's own project when the sidebar passes it, else the open
+        // project when its list holds it, else the project whose storage
+        // path holds the file (`projectListing`). Never a project found by
+        // name: Codex calls `/work/a/repo` and `/work/b/repo` both "repo".
+        const project = projectListing(useAppStore.getState(), session, owner);
 
         // One navigation: the conversation screen, the session's project (a
         // no-op when it is already open) and the session.
         await navigate({
           view: "conversation",
-          project: findProjectForSession(session),
+          project,
           session,
         });
       } catch (error) {
@@ -388,7 +387,7 @@ function App() {
         toast.error(`${t("session.selectError")}: ${message}`);
       }
     },
-    [projects, navigate, t]
+    [navigate, t]
   );
 
   const handleTokenStatClick = useCallback(

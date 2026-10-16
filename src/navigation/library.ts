@@ -155,10 +155,13 @@ export function favoritesMissingRef(
 }
 
 /**
- * The project that lists `session`, for recording it in a ref: the open
- * project when its loaded list holds the session, else the project whose
- * storage path holds the file. Undefined when neither knows (a provider
- * with virtual project paths, the session not in the open list).
+ * The project that lists `session`: `owner` when the caller knows it (the
+ * sidebar row's own project) and it is the session's provider, else the
+ * open project when its loaded list holds the session, else the project
+ * whose storage path holds the file. Undefined when none knows (a provider
+ * with virtual project paths, the session not in the open list). Never
+ * guessed from a name: Codex names projects after the last directory
+ * segment, so `/work/a/repo` and `/work/b/repo` are both "repo".
  */
 export function projectListing(
   state: {
@@ -167,10 +170,12 @@ export function projectListing(
     sessions: readonly ClaudeSession[];
   },
   session: ClaudeSession,
+  owner?: ClaudeProject | null,
 ): ClaudeProject | undefined {
   const { selectedProject, sessions, projects } = state;
-  if (selectedProject && sessions.some((s) => s.file_path === session.file_path)) return selectedProject;
   const provider = session.provider ?? "claude";
+  if (owner && (owner.provider ?? "claude") === provider) return owner;
+  if (selectedProject && sessions.some((s) => s.file_path === session.file_path)) return selectedProject;
   const byPath = findProjectForSessionPath(projects, session.file_path, provider);
   return byPath && (byPath.provider ?? "claude") === provider ? byPath : undefined;
 }

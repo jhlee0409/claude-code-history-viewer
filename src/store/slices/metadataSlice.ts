@@ -195,7 +195,7 @@ export const createMetadataSlice: StateCreator<
 
   // It toggles what the record holds when the write's turn comes.
   toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => {
-    const ref = libraryRefOf(session, project ?? projectListing(get(), session));
+    const ref = libraryRefOf(session, projectListing(get(), session, project));
     return inTurn(async function toggleSessionFavorite() {
       const existing = get().userMetadata.sessions[session.session_id] ?? {};
       const update: SessionMetadata = existing.starred

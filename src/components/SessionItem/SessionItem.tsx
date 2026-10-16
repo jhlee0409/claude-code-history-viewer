@@ -44,7 +44,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   ariaLevel = 2,
 }) => {
   const { t } = useTranslation();
-  const editing = useSessionEditing(session);
+  const editing = useSessionEditing(session, project);
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null);
   const isFavorite = useAppStore((s) => s.userMetadata.sessions[session.session_id]?.starred === true);
   const toggleSessionFavorite = useAppStore((s) => s.toggleSessionFavorite);

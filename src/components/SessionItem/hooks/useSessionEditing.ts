@@ -15,10 +15,16 @@ import {
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
 import { parseResumeArgs } from "@/utils/resumeArgs";
-import type { ClaudeSession } from "@/types";
+import type { ClaudeProject, ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { projectListing } from "@/navigation/library";
 
-export function useSessionEditing(session: ClaudeSession) {
+/**
+ * A session row's editing and context-menu actions. `owner` is the project
+ * the row is listed under, when the caller knows it (the sidebar's project
+ * preview); it gives the resume command its working directory.
+ */
+export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -184,27 +190,13 @@ export function useSessionEditing(session: ClaudeSession) {
     [handleCopyToClipboard, session.actual_session_id, t]
   );
 
-  const projectForSession = useMemo(() => {
-    const isLoadedInSelectedProject =
-      !!selectedProject &&
-      loadedSessions.some(
-        (loadedSession) =>
-          loadedSession.session_id === session.session_id ||
-          loadedSession.file_path === session.file_path
-      );
-
-    if (isLoadedInSelectedProject) {
-      return selectedProject;
-    }
-
-    return (
-      projects.find(
-        (project) =>
-          (project.provider ?? "claude") === providerId &&
-          project.name === session.project_name
-      ) ?? projects.find((project) => project.name === session.project_name)
-    );
-  }, [loadedSessions, projects, providerId, selectedProject, session.file_path, session.project_name, session.session_id]);
+  const projectForSession = useMemo(
+    // The row's own project, else the open project when its list holds the
+    // session, else the one whose storage holds the file - never a project
+    // that only shares the name (`projectListing`).
+    () => projectListing({ projects, selectedProject, sessions: loadedSessions }, session, owner),
+    [loadedSessions, owner, projects, selectedProject, session]
+  );
 
   const projectPathUnavailable = projectForSession?.path_status === "unavailable";
   const projectCwd = projectPathUnavailable ? undefined : projectForSession?.actual_path;

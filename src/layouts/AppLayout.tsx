@@ -122,7 +122,7 @@ export interface AppLayoutProps {
   // Callbacks
   handleProjectSelect: (project: ClaudeProject) => void;
   loadMoreSessions: () => void;
-  handleSessionSelect: (session: ClaudeSession) => void;
+  handleSessionSelect: (session: ClaudeSession, owner?: ClaudeProject) => void;
   handleSessionHover: (session: ClaudeSession) => void;
   handleGlobalStatsClick: () => void;
   handleToggleSidebar: () => void;

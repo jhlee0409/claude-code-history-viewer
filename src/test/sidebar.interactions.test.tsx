@@ -115,21 +115,22 @@ describe("sidebar sessions (plan T7)", () => {
   it("click, touch tap, Enter and ⌘/Ctrl+click open a session (in this tab before T8)", () => {
     const { onSessionSelect } = renderSidebar();
 
+    // Each row passes the project it is listed under (T7 re-review F2).
     fireEvent.click(sessionRow(1));
-    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[0]);
+    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[0], ALPHA);
 
     fireEvent.pointerDown(sessionRow(2), { pointerType: "touch" });
     fireEvent.pointerUp(sessionRow(2), { pointerType: "touch" });
     fireEvent.click(sessionRow(2));
-    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[1]);
+    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[1], ALPHA);
 
     fireEvent.keyDown(sessionRow(3), { key: "Enter" });
-    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[2]);
+    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[2], ALPHA);
 
     fireEvent.click(sessionRow(1), { metaKey: true });
-    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[0]);
+    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[0], ALPHA);
     fireEvent.click(sessionRow(2), { ctrlKey: true });
-    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[1]);
+    expect(onSessionSelect).toHaveBeenLastCalledWith(SESSIONS[1], ALPHA);
 
     expect(onSessionSelect).toHaveBeenCalledTimes(5);
     expect(useAppStore.getState().isSessionSelectionMode).toBe(false);

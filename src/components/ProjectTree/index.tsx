@@ -22,8 +22,8 @@ import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
 import { LibrarySection } from "./components/LibrarySection";
 import { ProjectListMenu, type ProjectSort } from "./components/ProjectListMenu";
-import type { ProjectTreeProps } from "./types";
-import type { ProviderId, ClaudeProject, ClaudeSession } from "../../types";
+import type { ProjectTreeProps, SessionSelectHandler } from "./types";
+import type { ProviderId, ClaudeProject } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import {
@@ -137,9 +137,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   }, [projectSort]);
 
   // Wrap session select to also close mobile drawer
-  const handleSessionSelect = useCallback(
-    (session: ClaudeSession) => {
-      onSessionSelect(session);
+  const handleSessionSelect = useCallback<SessionSelectHandler>(
+    (session, owner) => {
+      onSessionSelect(session, owner);
       onClose?.();
     },
     [onSessionSelect, onClose]

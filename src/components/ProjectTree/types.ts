@@ -11,6 +11,13 @@ export interface ContextMenuState {
   providerSiblings?: ClaudeProject[];
 }
 
+/**
+ * Open a session row. `owner` is the project the row is listed under, so the
+ * session opens there and not in another project of the same name (Codex
+ * names projects after the last directory segment).
+ */
+export type SessionSelectHandler = (session: ClaudeSession, owner?: ClaudeProject) => void;
+
 export interface ProjectTreeProps {
   projects: ClaudeProject[];
   sessions: ClaudeSession[];
@@ -19,7 +26,7 @@ export interface ProjectTreeProps {
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   onProjectSelect: (project: ClaudeProject) => void;
-  onSessionSelect: (session: ClaudeSession) => void;
+  onSessionSelect: SessionSelectHandler;
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
   onGlobalStatsClick: () => void;
