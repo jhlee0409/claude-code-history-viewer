@@ -264,5 +264,8 @@
   "project.temporaryGroup": "一時的な場所",
   "project.switchProvider": "{{provider}} のセッションを開く（{{count}}）",
   "project.kind.main": "プロジェクト",
-  "project.kind.worktree": "ワークツリー"
+  "project.kind.worktree": "ワークツリー",
+  "session.noProjects.title": "プロジェクトが見つかりません",
+  "session.noProjects.description": "会話履歴が見つかりませんでした。Claude Code の履歴は次の場所から読み込みます:",
+  "session.noProjects.hint": "他のアシスタントの履歴は、それぞれの既定フォルダから読み込みます。対応するアシスタントでセッションを開始してから更新するか、{{settings}} → {{section}} で別のフォルダを追加してください。"
 }

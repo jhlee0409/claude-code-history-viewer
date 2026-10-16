@@ -264,5 +264,8 @@
   "project.temporaryGroup": "임시 위치",
   "project.switchProvider": "{{provider}} 세션 열기 ({{count}})",
   "project.kind.main": "프로젝트",
-  "project.kind.worktree": "워크트리"
+  "project.kind.worktree": "워크트리",
+  "session.noProjects.title": "프로젝트를 찾을 수 없습니다",
+  "session.noProjects.description": "대화 기록을 찾지 못했습니다. Claude Code 기록은 다음 위치에서 읽어옵니다:",
+  "session.noProjects.hint": "다른 도구의 기록은 각 도구의 기본 폴더에서 읽어옵니다. 지원되는 도구에서 세션을 시작한 뒤 새로고침하거나, {{settings}} → {{section}}에서 다른 폴더를 추가하세요."
 }

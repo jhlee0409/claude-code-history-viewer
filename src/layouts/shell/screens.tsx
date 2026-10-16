@@ -11,8 +11,9 @@
 import type { ReactNode } from "react";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare } from "lucide-react";
+import { FolderSearch, MessageSquare } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
@@ -64,25 +65,69 @@ export const BareFrame = ({ children }: { children: ReactNode }) => <>{children}
 // Screens
 // ---------------------------------------------------------------------------
 
-/** "Select a session": the empty screen, and a conversation without one. */
-export const EmptyScreen = () => {
-  const { t } = useTranslation();
-  return (
-    <div className="h-full flex">
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center max-w-sm mx-auto">
-          <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-            <Icon icon={MessageSquare} size={24} className="text-muted-foreground/50" />
-          </div>
-          <h3 className="text-title font-medium text-foreground mb-2">
-            {t("session.select")}
-          </h3>
-          <p className="text-body text-muted-foreground">
-            {t("session.selectDescription")}
-          </p>
+/** Centered icon + title + body, the shape of every empty main area. */
+const EmptyState = ({
+  icon,
+  title,
+  children,
+  className,
+}: {
+  icon: typeof MessageSquare;
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) => (
+  <div className="h-full flex">
+    <div className="flex-1 flex items-center justify-center">
+      <div className={cn("text-center max-w-sm mx-auto", className)}>
+        <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+          <Icon icon={icon} size={24} className="text-muted-foreground/50" />
         </div>
+        <h3 className="text-title font-medium text-foreground mb-2">{title}</h3>
+        {children}
       </div>
     </div>
+  </div>
+);
+
+/**
+ * No history at all: says so (in the sidebar's words) and where the app
+ * looked, instead of asking for a session the user cannot pick.
+ */
+const NoProjectsState = () => {
+  const { t } = useTranslation();
+  const claudePath = useAppStore((s) => s.claudePath);
+  return (
+    <EmptyState icon={FolderSearch} title={t("session.noProjects.title")} className="px-4">
+      <p className="text-body text-muted-foreground">{t("session.noProjects.description")}</p>
+      <code className="mt-2 mb-3 inline-block max-w-full break-all rounded-md bg-muted px-2 py-1 text-code text-foreground/80">
+        {claudePath || "~/.claude"}
+      </code>
+      <p className="text-list text-muted-foreground">
+        {t("session.noProjects.hint", {
+          settings: t("settingsManager.title"),
+          section: t("settings.customDirectories"),
+        })}
+      </p>
+    </EmptyState>
+  );
+};
+
+/**
+ * The empty screen, and a conversation without a session: "select a
+ * session", or - once loading is over and there are no projects at all -
+ * the no-history state.
+ */
+export const EmptyScreen = () => {
+  const { t } = useTranslation();
+  const hasNoProjects = useAppStore(
+    (s) => !s.isLoading && !s.isLoadingProjects && s.projects.length === 0
+  );
+  if (hasNoProjects) return <NoProjectsState />;
+  return (
+    <EmptyState icon={MessageSquare} title={t("session.select")}>
+      <p className="text-body text-muted-foreground">{t("session.selectDescription")}</p>
+    </EmptyState>
   );
 };
 

@@ -264,5 +264,8 @@
   "project.temporaryGroup": "Temporary locations",
   "project.switchProvider": "Open {{provider}} sessions ({{count}})",
   "project.kind.main": "Project",
-  "project.kind.worktree": "Worktree"
+  "project.kind.worktree": "Worktree",
+  "session.noProjects.title": "No projects found",
+  "session.noProjects.description": "No conversation history was found. Claude Code history is read from:",
+  "session.noProjects.hint": "Other assistants are read from their own default folders. Start a session in a supported assistant and refresh, or add another folder in {{settings}} → {{section}}."
 }

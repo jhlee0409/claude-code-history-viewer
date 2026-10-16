@@ -264,5 +264,8 @@
   "project.temporaryGroup": "暫存位置",
   "project.switchProvider": "開啟 {{provider}} 會話（{{count}}）",
   "project.kind.main": "專案",
-  "project.kind.worktree": "工作樹"
+  "project.kind.worktree": "工作樹",
+  "session.noProjects.title": "未找到專案",
+  "session.noProjects.description": "找不到對話歷史。Claude Code 的歷史記錄從以下位置讀取：",
+  "session.noProjects.hint": "其他助理的歷史記錄從各自的預設資料夾讀取。請在支援的助理中開始會話後重新整理，或在 {{settings}} → {{section}} 中新增其他資料夾。"
 }

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T09:14:41.366Z
- * 총 키 개수: 2056
+ * 생성 시간: 2026-10-16T09:17:32.883Z
+ * 총 키 개수: 2059
  * Namespace 수: 11
  */
 
@@ -470,7 +470,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (266개)
+ * session namespace의 번역 키 (269개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -683,6 +683,9 @@ export type SessionKeys =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.noProjects.description'
+  | 'session.noProjects.hint'
+  | 'session.noProjects.title'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
@@ -3359,6 +3362,9 @@ export type TranslationKey =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.noProjects.description'
+  | 'session.noProjects.hint'
+  | 'session.noProjects.title'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
