@@ -11,6 +11,8 @@
 //   above the bottom tab bar.
 // - Transcript: the current-date label never sits on top of the message
 //   list (it gets its own row).
+// - Transcript search: the placeholder fits the input in every locale, at a
+//   narrow desktop main pane (navigator open) and on a phone.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -139,9 +141,20 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
 
   for (const { id, locale, storage } of transcriptCases) {
     const label = `${id} ${locale}${storage["navigator-open"] === "true" ? " (navigator open)" : ""}`;
-    it(`${label}: date label sits outside the message list`, async () => {
-      const { session, page } = await openScenario(id, { locale, storage });
+    it(`${label}: search placeholder fits, date label sits outside the message list`, async () => {
+      const { session, page, t } = await openScenario(id, { locale, storage });
       try {
+        const search = page.getByRole("textbox", { name: t("messageViewer.searchPlaceholder"), exact: true });
+        const fit = await search.evaluate((input) => {
+          const style = getComputedStyle(input);
+          const ctx = document.createElement("canvas").getContext("2d");
+          ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+          const text = ctx.measureText(input.placeholder).width;
+          const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          return { text, room, placeholder: input.placeholder };
+        });
+        expect.soft(fit.text, `"${fit.placeholder}" ${fit.text.toFixed(1)}px in ${fit.room.toFixed(1)}px`).toBeLessThanOrEqual(fit.room);
+
         // The scroll viewport of the message list holds the virtual rows.
         const list = await page.evaluate(() => {
           const row = document.querySelector("[data-index]");

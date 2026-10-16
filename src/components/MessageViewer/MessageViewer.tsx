@@ -853,7 +853,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       <div
         role="search"
         className={cn(
-          "flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
+          // A size container: the pane's width (sidebar, sessions column and
+          // navigator all take from it), not the viewport's, decides when the
+          // button labels show. The search keeps a readable minimum width and
+          // moves to its own line, with the buttons, when the row is too narrow.
+          "@container flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
           "flex-wrap",
           "bg-card/95 backdrop-blur-sm border-border"
         )}
@@ -876,7 +880,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         )}
 
         {/* Filter Toggle - Segmented control style */}
-        <div className="shrink-0 flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/60 order-2 lg:order-none">
+        <div className="shrink-0 flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/60">
           <button
             type="button"
             onClick={() => onFilterTypeChange("content")}
@@ -906,7 +910,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
 
         {/* Search Input - Glass morphism */}
-        <div className="relative flex-1 group order-1 lg:order-none w-full lg:w-auto">
+        <div className="relative grow basis-60 min-w-0 group">
           <Search className={cn(
             "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
             "text-muted-foreground group-focus-within:text-foreground transition-colors"
@@ -920,7 +924,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             placeholder={t("messageViewer.searchPlaceholder")}
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
-              "w-full pl-9 pr-9 py-2 rounded-lg text-body",
+              "w-full pl-9 py-2 rounded-lg text-body",
+              // Room on the right only for the clear button / spinner.
+              searchQuery ? "pr-9" : "pr-3",
               "bg-muted/50 border border-border/60",
               "text-foreground placeholder:text-muted-foreground",
               "focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring/70",
@@ -952,7 +958,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         {/* Match Navigation - Enhanced touch targets */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-          <div className="shrink-0 flex items-center gap-1.5 order-3 lg:order-none">
+          <div className="shrink-0 flex items-center gap-1.5">
             <span className="whitespace-nowrap text-list font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
@@ -1007,7 +1013,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               aria-label={t("captureMode.enter")}
             >
               <Camera className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline font-medium">{t("captureMode.enter")}</span>
+              <span className="hidden @3xl:inline font-medium">{t("captureMode.enter")}</span>
             </button>
 
             <DropdownMenu>
@@ -1028,7 +1034,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   aria-label={t("session.export.button")}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline font-medium">
+                  <span className="hidden @3xl:inline font-medium">
                     {isExporting ? t("session.export.exporting") : t("session.export.button")}
                   </span>
                 </button>
