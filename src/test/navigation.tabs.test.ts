@@ -129,6 +129,11 @@ const projectGone = (projectPath: unknown) => {
   if (deletedProjects.has(String(projectPath))) throw new Error(GONE);
 };
 const underDeletedProject = (path: string) => [...deletedProjects].some((p) => path.startsWith(`${p}/`));
+/**
+ * Session lists failing for a reason other than a missing folder (a busy
+ * file on Windows, a dropped WebUI connection), by project path.
+ */
+const listFailures = new Map<string, string>();
 /** Commands that fail outright (a per-document loader's request). */
 const failing = new Set<string>();
 
@@ -145,6 +150,7 @@ beforeEach(() => {
   holds.clear();
   deleted.clear();
   deletedProjects.clear();
+  listFailures.clear();
   failing.clear();
   localStorage.clear();
   apiMock.mockReset();
@@ -153,6 +159,8 @@ beforeEach(() => {
     switch (command) {
       case "load_provider_sessions_page": {
         projectGone(args.projectPath);
+        const listFailure = listFailures.get(String(args.projectPath));
+        if (listFailure) throw new Error(listFailure);
         const sessions = LISTS[String(args.projectPath)] ?? [];
         return { sessions, total: sessions.length, nextOffset: sessions.length, hasMore: false };
       }
@@ -828,6 +836,43 @@ describe("a project folder deleted between scans (re-review #1)", () => {
     expectProjectNotice(tab1);
     expect(tabOf(tab1)?.session?.filePath).toBe(A1.file_path);
   });
+
+  it.each([
+    ["a busy file (Windows)", "Failed to read session: The process cannot access the file because it is being used by another process. (os error 32)"],
+    ["a dropped connection (WebUI)", "Failed to fetch"],
+    ["a permission error", "Failed to resolve project_path: Permission denied (os error 13)"],
+  ])(
+    "a watcher reload failing for another reason (%s) keeps the tab as it is, tells the user once, and recovers",
+    async (_why, failure) => {
+      await open(A, A1);
+      const tab1 = activeId();
+      const rows = state().sessions;
+      const listFailedToasts = () =>
+        toastMock.error.mock.calls.filter(([text]) => String(text).includes(failure)).length;
+
+      listFailures.set(A.path, failure);
+      await state().triggerProjectRefresh(A.path);
+      await state().triggerProjectRefresh(A.path);
+      await state().triggerProjectRefresh(A.path);
+
+      expect(state().error).toBeNull();
+      expect(tabOf(tab1)?.unavailable).toBeNull();
+      expect(where()).toEqual([tab1, A.path, A1.file_path]);
+      expect(state().sessions).toEqual(rows);
+      expect(state().isLoadingSessions).toBe(false);
+      // One notice for the whole run of failing ticks, not one per tick.
+      expect(listFailedToasts()).toBe(1);
+
+      // The next tick reads the list again; a later failure is news again.
+      listFailures.clear();
+      await state().triggerProjectRefresh(A.path);
+      expect(where()).toEqual([tab1, A.path, A1.file_path]);
+      listFailures.set(A.path, failure);
+      await state().triggerProjectRefresh(A.path);
+      expect(listFailedToasts()).toBe(2);
+      expect(tabOf(tab1)?.unavailable).toBeNull();
+    },
+  );
 
   it("restoring a tab whose project folder is gone shows the tab's notice", async () => {
     startWithStoredTabs([storedTab("t-a", A, A1), storedTab("t-b", B, B1)], "t-a");

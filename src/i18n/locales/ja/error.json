@@ -31,6 +31,7 @@
   "error.savePresetFailed": "プリセットの保存に失敗: {{detail}}",
   "error.searchFailed": "検索に失敗しました: {{detail}}",
   "error.sessionListLoadFailed": "会話をさらに読み込めませんでした: {{detail}}",
+  "error.sessionListReloadFailed": "会話リストを読み込めませんでした: {{detail}}",
   "error.tokenStatsLoadFailed": "トークン統計を読み込めませんでした: {{detail}}",
   "error.toolExecutionError": "ツール実行エラー",
   "error.troubleshooting": "トラブルシューティング",

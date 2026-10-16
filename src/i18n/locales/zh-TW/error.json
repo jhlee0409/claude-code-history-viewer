@@ -31,6 +31,7 @@
   "error.savePresetFailed": "儲存預設失敗: {{detail}}",
   "error.searchFailed": "搜尋失敗：{{detail}}",
   "error.sessionListLoadFailed": "無法載入更多對話：{{detail}}",
+  "error.sessionListReloadFailed": "無法載入對話列表：{{detail}}",
   "error.tokenStatsLoadFailed": "無法載入權杖統計：{{detail}}",
   "error.toolExecutionError": "工具執行錯誤",
   "error.troubleshooting": "故障排除方法",

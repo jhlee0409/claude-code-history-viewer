@@ -31,6 +31,7 @@
   "error.savePresetFailed": "프리셋 저장 실패: {{detail}}",
   "error.searchFailed": "검색에 실패했습니다: {{detail}}",
   "error.sessionListLoadFailed": "대화를 더 불러오지 못했습니다: {{detail}}",
+  "error.sessionListReloadFailed": "대화 목록을 불러오지 못했습니다: {{detail}}",
   "error.tokenStatsLoadFailed": "토큰 통계를 불러오지 못했습니다: {{detail}}",
   "error.toolExecutionError": "도구 실행 오류",
   "error.troubleshooting": "문제 해결 방법",

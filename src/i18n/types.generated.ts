@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T21:10:29.239Z
- * 총 키 개수: 2136
+ * 생성 시간: 2026-10-16T22:23:58.219Z
+ * 총 키 개수: 2138
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (256개)
+ * common namespace의 번역 키 (257개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -231,6 +231,7 @@ export type CommonKeys =
   | 'common.tabs.empty'
   | 'common.tabs.label'
   | 'common.tabs.limitReached'
+  | 'common.tabs.openScreenFailed'
   | 'common.tabs.restoreCorrupt'
   | 'common.tabs.restoreDropped_one'
   | 'common.tabs.restoreDropped_other'
@@ -1452,7 +1453,7 @@ export type ToolsKeys =
   | 'tools.webSearch';
 
 /**
- * error namespace의 번역 키 (42개)
+ * error namespace의 번역 키 (43개)
  * 파일: locales/{lang}/error.json
  */
 export type ErrorKeys =
@@ -1488,6 +1489,7 @@ export type ErrorKeys =
   | 'error.savePresetFailed'
   | 'error.searchFailed'
   | 'error.sessionListLoadFailed'
+  | 'error.sessionListReloadFailed'
   | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'
@@ -2759,6 +2761,7 @@ export type TranslationKey =
   | 'common.tabs.empty'
   | 'common.tabs.label'
   | 'common.tabs.limitReached'
+  | 'common.tabs.openScreenFailed'
   | 'common.tabs.restoreCorrupt'
   | 'common.tabs.restoreDropped_one'
   | 'common.tabs.restoreDropped_other'
@@ -2870,6 +2873,7 @@ export type TranslationKey =
   | 'error.savePresetFailed'
   | 'error.searchFailed'
   | 'error.sessionListLoadFailed'
+  | 'error.sessionListReloadFailed'
   | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'

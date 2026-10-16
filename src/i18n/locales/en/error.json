@@ -31,6 +31,7 @@
   "error.savePresetFailed": "Failed to save preset: {{detail}}",
   "error.searchFailed": "Search failed: {{detail}}",
   "error.sessionListLoadFailed": "Couldn't load more conversations: {{detail}}",
+  "error.sessionListReloadFailed": "Couldn't load the conversation list: {{detail}}",
   "error.tokenStatsLoadFailed": "Couldn't load token stats: {{detail}}",
   "error.toolExecutionError": "Tool Execution Error",
   "error.troubleshooting": "Troubleshooting",

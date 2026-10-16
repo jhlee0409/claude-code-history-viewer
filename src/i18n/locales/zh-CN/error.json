@@ -31,6 +31,7 @@
   "error.savePresetFailed": "保存预设失败: {{detail}}",
   "error.searchFailed": "搜索失败：{{detail}}",
   "error.sessionListLoadFailed": "无法加载更多对话：{{detail}}",
+  "error.sessionListReloadFailed": "无法加载对话列表：{{detail}}",
   "error.tokenStatsLoadFailed": "无法加载令牌统计：{{detail}}",
   "error.toolExecutionError": "工具执行错误",
   "error.troubleshooting": "故障排除方法",
