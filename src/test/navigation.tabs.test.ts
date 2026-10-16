@@ -412,6 +412,17 @@ describe("restoring tabs at startup", () => {
     expect(tabOf("t-a")?.session?.filePath).toBe(A1.file_path);
   });
 
+  it("a hint naming the restored active tab's session reopens that tab, with its anchor (WebUI reload)", async () => {
+    startWithStoredTabs(
+      [storedTab("t-a", A, A1, { anchor: { messageUuid: `${A1.file_path}#130`, offset: 3 } }), storedTab("t-b", B, B1)],
+      "t-a",
+    );
+    await openHintInTab({ project: A, session: A1 }, { epoch: state().beginNavigation(), messageId: null });
+    expect(state().documents.map((d) => d.id)).toEqual(["t-a", "t-b"]);
+    expect(where()).toEqual(["t-a", A.path, A1.file_path]);
+    expect(state().pendingAnchor?.anchor).toEqual({ messageUuid: `${A1.file_path}#130`, offset: 3 });
+  });
+
   it("a second launch with a session open: the hint gets a new tab, and reuses a tab that shows it", async () => {
     await open(A, A1);
     const tab1 = activeId();

@@ -430,7 +430,9 @@ export async function openHintInTab(match: HintMatch, options: HintOpenOptions):
       { history: "none", epoch: options.epoch, record: options.record },
     );
 
-  if (existing && existing.id !== state.activeDocumentId) {
+  // A tab showing it is reused - including the restored active tab not
+  // opened yet (a WebUI reload whose URL names that tab's session).
+  if (existing && !(existing.id === state.activeDocumentId && hydrated)) {
     set({
       documents: documents.map((d) =>
         d.id === existing.id ? { ...d, view: "conversation", targetMessageUuid: options.messageId } : d,
