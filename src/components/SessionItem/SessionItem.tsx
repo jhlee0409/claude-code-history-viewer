@@ -13,7 +13,7 @@ import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
 import type { Boundary } from "@/utils/contextMenu";
 
-type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null };
+type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; anchor?: HTMLElement | null };
 
 /**
  * One session row.
@@ -82,7 +82,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       if (isSelectionMode) return;
       editing.setIsContextMenuOpen(false);
       const boundary = target.closest<HTMLElement>("[data-menu-boundary]")?.getBoundingClientRect() ?? null;
-      setContextMenu({ x, y, boundary });
+      setContextMenu({ x, y, boundary, anchor: target });
     },
     [isSelectionMode, editing]
   );

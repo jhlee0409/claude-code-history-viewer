@@ -17,7 +17,12 @@ import { cn } from "@/lib/utils";
 import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
 
 interface SessionContextMenuProps {
-  position: { x: number; y: number; boundary?: Boundary | null };
+  /**
+   * `anchor` is the row the menu was opened on. With it, the menu stays in
+   * the modal dialog holding the row, and only a scroll that
+   * can move that row closes the menu; without it, any scroll does.
+   */
+  position: { x: number; y: number; boundary?: Boundary | null; anchor?: HTMLElement | null };
   hasCustomName: boolean;
   readOnly: boolean;
   supportsNativeRename: boolean;
@@ -92,14 +97,24 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   // synchronous scroll burst during the click-to-open sequence can't close
   // the menu immediately. Capture phase on scroll catches scroll on any
   // descendant (scroll events don't bubble, but capture flows root → target).
+  // Only a scroll of the page or of a container holding the anchor row moves
+  // the row away from the menu: the transcript scrolling beside the sidebar
+  // (loading more, keeping its scroll anchor) must not close it.
   // removeEventListener must match the capture flag or the listener leaks.
+  const anchor = position.anchor ?? null;
+  // A row inside a modal dialog (the phone's sidebar drawer) keeps its menu
+  // inside that dialog: portalled to <body> the menu sits under the drawer,
+  // outside its focus trap, and the drawer takes every tap meant for it.
+  const portalTarget = anchor?.closest<HTMLElement>('[role="dialog"]') ?? document.body;
   useEffect(() => {
     let armed = false;
     const raf = requestAnimationFrame(() => {
       armed = true;
     });
-    const handleScroll = () => {
-      if (armed) onClose();
+    const handleScroll = (e: Event) => {
+      if (!armed) return;
+      if (anchor && e.target instanceof Node && !e.target.contains(anchor)) return;
+      onClose();
     };
     const handleResize = () => {
       if (armed) onClose();
@@ -111,7 +126,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
       document.removeEventListener("scroll", handleScroll, { capture: true });
       window.removeEventListener("resize", handleResize);
     };
-  }, [onClose]);
+  }, [onClose, anchor]);
 
   useLayoutEffect(() => {
     if (menuRef.current) {
@@ -251,6 +266,6 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         )}
       </div>
     </div>,
-    document.body
+    portalTarget
   );
 };
