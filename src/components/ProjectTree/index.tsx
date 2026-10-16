@@ -842,14 +842,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
         {/* Sidebar Header */}
         <div className="px-4 py-3 bg-accent/5 border-b border-accent/10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
+          {/* The title gives way before the grouping controls do, so they stay
+              inside a narrow sidebar in every language: it truncates, and below
+              the width where it could show a few characters it is hidden with
+              its dot (the aside's aria-label still names the region). */}
+          <div className="@container flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-1.5">
               {/* Collapse Button (desktop) */}
               {onToggleCollapse && (
                 <button
                   onClick={onToggleCollapse}
                   className={cn(
-                    "p-1 rounded-md transition-colors",
+                    "shrink-0 p-1 rounded-md transition-colors",
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("project.collapseSidebar", "Collapse sidebar")}
@@ -863,7 +867,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 <button
                   onClick={onClose}
                   className={cn(
-                    "p-1 rounded-md transition-colors",
+                    "shrink-0 p-1 rounded-md transition-colors",
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("common.close", "Close")}
@@ -872,12 +876,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              <span className="text-list font-semibold uppercase tracking-widest text-accent whitespace-nowrap">
+              <div className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent animate-pulse @max-[12.25rem]:hidden" />
+              <span
+                className="min-w-0 truncate text-list font-semibold uppercase tracking-widest text-accent @max-[12.25rem]:hidden"
+                title={t("project.explorer")}
+              >
                 {t("project.explorer")}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {/* Grouping Mode Tabs */}
               {onGroupingModeChange && (
                 <div className="flex items-center bg-muted/30 rounded-md p-0.5 gap-0.5">
