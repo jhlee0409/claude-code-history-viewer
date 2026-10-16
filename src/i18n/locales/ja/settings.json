@@ -550,5 +550,6 @@
   "settings.sessionResume.noProviders": "このマシンでサポートされているCLIエージェントランタイムが検出されませんでした。",
   "settings.sessionResume.saved": "再開引数を保存しました",
   "settings.sessionResume.saveFailed": "設定の保存に失敗しました",
-  "settings.sessionResume.resetSuccess": "デフォルトの引数にリセットしました"
+  "settings.sessionResume.resetSuccess": "デフォルトの引数にリセットしました",
+  "settingsManager.unified.mcp.goToSourceOf": "{{source}} で編集"
 }

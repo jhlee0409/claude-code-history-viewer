@@ -391,5 +391,21 @@
   "webSearchResultRenderer.noResults": "无结果",
   "webSearchResultRenderer.results": "条结果",
   "webSearchResultRenderer.title": "网页搜索结果",
-  "globalSearch.resultsCapped": "仅显示前 {{count}} 条结果 — 缩小查询范围以查看更多"
+  "globalSearch.resultsCapped": "仅显示前 {{count}} 条结果 — 缩小查询范围以查看更多",
+  "smartJsonDisplay.noData": "无结构化数据",
+  "smartJsonDisplay.keys.path": "路径",
+  "smartJsonDisplay.keys.filePath": "文件路径",
+  "smartJsonDisplay.keys.filename": "文件名",
+  "smartJsonDisplay.keys.command": "命令",
+  "smartJsonDisplay.keys.query": "查询",
+  "smartJsonDisplay.keys.id": "ID",
+  "smartJsonDisplay.keys.taskId": "任务 ID",
+  "smartJsonDisplay.keys.uuid": "UUID",
+  "smartJsonDisplay.keys.list": "列表",
+  "smartJsonDisplay.keys.prompt": "提示词",
+  "smartJsonDisplay.keys.description": "描述",
+  "smartJsonDisplay.keys.error": "错误",
+  "smartJsonDisplay.keys.status": "状态",
+  "smartJsonDisplay.keys.code": "代码",
+  "smartJsonDisplay.keys.allowedTools": "允许的工具"
 }

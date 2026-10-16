@@ -262,5 +262,7 @@
   "sessionPicker.cancelled": "启动会话提示已取消",
   "session.pane.title": "会话",
   "project.temporaryGroup": "临时位置",
-  "project.switchProvider": "打开 {{provider}} 会话（{{count}}）"
+  "project.switchProvider": "打开 {{provider}} 会话（{{count}}）",
+  "project.kind.main": "项目",
+  "project.kind.worktree": "工作树"
 }

@@ -207,5 +207,8 @@
   "header.views": "表示",
   "common.dateFilter.start": "開始日",
   "common.dateFilter.end": "終了日",
-  "common.a11y.skipToSessions": "セッション一覧へスキップ"
+  "common.a11y.skipToSessions": "セッション一覧へスキップ",
+  "common.search": "検索",
+  "common.showMore": "さらに表示",
+  "common.a11y.navigation": "ナビゲーション"
 }

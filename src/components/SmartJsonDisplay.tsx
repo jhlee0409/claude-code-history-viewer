@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   SquareTerminal,
   FileText,
@@ -11,32 +12,41 @@ import {
   Play,
   Code,
   FingerprintPattern,
+  type LucideIcon,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import type { TranslationKey } from '@/i18n/types.generated';
 
 interface SmartJsonDisplayProps {
     data: Record<string, unknown> | null | undefined;
     className?: string;
 }
 
+interface KeyIcon {
+    icon: LucideIcon;
+    className: string;
+    /** Tooltip, translated at render time. */
+    titleKey: TranslationKey;
+}
+
 // Icon mapping for common keys
-const KEY_ICONS: Record<string, React.ReactNode> = {
-    path: <span title="Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
-    file_path: <span title="File Path"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
-    filename: <span title="Filename"><FileText className="w-3.5 h-3.5 text-tool-file" /></span>,
-    command: <span title="Command"><SquareTerminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
-    cmd: <span title="Command"><SquareTerminal className="w-3.5 h-3.5 text-tool-terminal" /></span>,
-    query: <span title="Query"><Search className="w-3.5 h-3.5 text-tool-search" /></span>,
-    id: <span title="ID"><Hash className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /></span>,
-    task_id: <span title="Task ID"><Hash className="w-3.5 h-3.5 text-tool-task" /></span>,
-    uuid: <span title="UUID"><FingerprintPattern className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /></span>,
-    list: <span title="List"><List className="w-3.5 h-3.5 text-info" /></span>,
-    prompt: <span title="Prompt"><MessageSquare className="w-3.5 h-3.5 text-muted-foreground" /></span>,
-    description: <span title="Description"><MessageSquare className="w-3.5 h-3.5 text-muted-foreground" /></span>,
-    error: <span title="Error"><CircleAlert className="w-3.5 h-3.5 text-destructive" /></span>,
-    status: <span title="Status"><CircleCheck className="w-3.5 h-3.5 text-success" /></span>,
-    code: <span title="Code"><Code className="w-3.5 h-3.5 text-tool-code" /></span>,
-    allowed_tools: <span title="Allowed Tools"><Play className="w-3.5 h-3.5 text-tool-task" /></span>
+const KEY_ICONS: Record<string, KeyIcon> = {
+    path: { icon: FileText, className: "text-tool-file", titleKey: "smartJsonDisplay.keys.path" },
+    file_path: { icon: FileText, className: "text-tool-file", titleKey: "smartJsonDisplay.keys.filePath" },
+    filename: { icon: FileText, className: "text-tool-file", titleKey: "smartJsonDisplay.keys.filename" },
+    command: { icon: SquareTerminal, className: "text-tool-terminal", titleKey: "smartJsonDisplay.keys.command" },
+    cmd: { icon: SquareTerminal, className: "text-tool-terminal", titleKey: "smartJsonDisplay.keys.command" },
+    query: { icon: Search, className: "text-tool-search", titleKey: "smartJsonDisplay.keys.query" },
+    id: { icon: Hash, className: "text-purple-600 dark:text-purple-400", titleKey: "smartJsonDisplay.keys.id" },
+    task_id: { icon: Hash, className: "text-tool-task", titleKey: "smartJsonDisplay.keys.taskId" },
+    uuid: { icon: FingerprintPattern, className: "text-purple-600 dark:text-purple-400", titleKey: "smartJsonDisplay.keys.uuid" },
+    list: { icon: List, className: "text-info", titleKey: "smartJsonDisplay.keys.list" },
+    prompt: { icon: MessageSquare, className: "text-muted-foreground", titleKey: "smartJsonDisplay.keys.prompt" },
+    description: { icon: MessageSquare, className: "text-muted-foreground", titleKey: "smartJsonDisplay.keys.description" },
+    error: { icon: CircleAlert, className: "text-destructive", titleKey: "smartJsonDisplay.keys.error" },
+    status: { icon: CircleCheck, className: "text-success", titleKey: "smartJsonDisplay.keys.status" },
+    code: { icon: Code, className: "text-tool-code", titleKey: "smartJsonDisplay.keys.code" },
+    allowed_tools: { icon: Play, className: "text-tool-task", titleKey: "smartJsonDisplay.keys.allowedTools" },
 };
 
 const formatValue = (key: string, value: unknown): React.ReactNode => {
@@ -76,8 +86,10 @@ const formatValue = (key: string, value: unknown): React.ReactNode => {
 };
 
 export const SmartJsonDisplay = ({ data, className }: SmartJsonDisplayProps) => {
+    const { t } = useTranslation();
+
     if (!data || typeof data !== 'object') {
-        return <div className="text-muted-foreground italic">No structured data</div>;
+        return <div className="text-muted-foreground italic">{t('smartJsonDisplay.noData')}</div>;
     }
 
     // Prioritize keys: description/prompt first, then specific params, then others
@@ -104,7 +116,10 @@ export const SmartJsonDisplay = ({ data, className }: SmartJsonDisplayProps) => 
     return (
         <div className={clsx("text-list flex flex-col gap-2", className)}>
             {sortedKeys.map(key => {
-                const icon = KEY_ICONS[key.toLowerCase()] || <div className="w-3 h-3 opacity-20 bg-current rounded-full" />; // Dot fallback
+                const keyIcon = KEY_ICONS[key.toLowerCase()];
+                const icon = keyIcon
+                    ? <span title={t(keyIcon.titleKey)}><keyIcon.icon className={clsx("w-3.5 h-3.5", keyIcon.className)} /></span>
+                    : <div className="w-3 h-3 opacity-20 bg-current rounded-full" />; // Dot fallback
                 const value = (data as Record<string, unknown>)[key];
 
                 // Special layout for 'description' or 'prompt' - full width block

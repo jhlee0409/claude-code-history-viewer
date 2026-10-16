@@ -391,5 +391,21 @@
   "webSearchResultRenderer.noResults": "結果がありません",
   "webSearchResultRenderer.results": "件",
   "webSearchResultRenderer.title": "ウェブ検索結果",
-  "globalSearch.resultsCapped": "最初の{{count}}件のみ表示 — さらに見るには検索語を絞ってください"
+  "globalSearch.resultsCapped": "最初の{{count}}件のみ表示 — さらに見るには検索語を絞ってください",
+  "smartJsonDisplay.noData": "構造化データがありません",
+  "smartJsonDisplay.keys.path": "パス",
+  "smartJsonDisplay.keys.filePath": "ファイルパス",
+  "smartJsonDisplay.keys.filename": "ファイル名",
+  "smartJsonDisplay.keys.command": "コマンド",
+  "smartJsonDisplay.keys.query": "クエリ",
+  "smartJsonDisplay.keys.id": "ID",
+  "smartJsonDisplay.keys.taskId": "タスク ID",
+  "smartJsonDisplay.keys.uuid": "UUID",
+  "smartJsonDisplay.keys.list": "リスト",
+  "smartJsonDisplay.keys.prompt": "プロンプト",
+  "smartJsonDisplay.keys.description": "説明",
+  "smartJsonDisplay.keys.error": "エラー",
+  "smartJsonDisplay.keys.status": "ステータス",
+  "smartJsonDisplay.keys.code": "コード",
+  "smartJsonDisplay.keys.allowedTools": "許可されたツール"
 }

@@ -207,5 +207,8 @@
   "header.views": "보기",
   "common.dateFilter.start": "시작일",
   "common.dateFilter.end": "종료일",
-  "common.a11y.skipToSessions": "세션 목록으로 건너뛰기"
+  "common.a11y.skipToSessions": "세션 목록으로 건너뛰기",
+  "common.search": "검색",
+  "common.showMore": "더 보기",
+  "common.a11y.navigation": "탐색"
 }

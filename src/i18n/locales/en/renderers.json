@@ -391,5 +391,21 @@
   "webSearchResultRenderer.noResults": "No results",
   "webSearchResultRenderer.results": "results",
   "webSearchResultRenderer.title": "Web Search Results",
-  "globalSearch.resultsCapped": "Showing first {{count}} results — narrow the query to see more"
+  "globalSearch.resultsCapped": "Showing first {{count}} results — narrow the query to see more",
+  "smartJsonDisplay.noData": "No structured data",
+  "smartJsonDisplay.keys.path": "Path",
+  "smartJsonDisplay.keys.filePath": "File path",
+  "smartJsonDisplay.keys.filename": "Filename",
+  "smartJsonDisplay.keys.command": "Command",
+  "smartJsonDisplay.keys.query": "Query",
+  "smartJsonDisplay.keys.id": "ID",
+  "smartJsonDisplay.keys.taskId": "Task ID",
+  "smartJsonDisplay.keys.uuid": "UUID",
+  "smartJsonDisplay.keys.list": "List",
+  "smartJsonDisplay.keys.prompt": "Prompt",
+  "smartJsonDisplay.keys.description": "Description",
+  "smartJsonDisplay.keys.error": "Error",
+  "smartJsonDisplay.keys.status": "Status",
+  "smartJsonDisplay.keys.code": "Code",
+  "smartJsonDisplay.keys.allowedTools": "Allowed tools"
 }

@@ -550,5 +550,6 @@
   "settings.sessionResume.noProviders": "No supported CLI agent runtimes detected on this machine.",
   "settings.sessionResume.saved": "Resume arguments saved",
   "settings.sessionResume.saveFailed": "Failed to save settings",
-  "settings.sessionResume.resetSuccess": "Reset to default arguments"
+  "settings.sessionResume.resetSuccess": "Reset to default arguments",
+  "settingsManager.unified.mcp.goToSourceOf": "Edit in {{source}}"
 }

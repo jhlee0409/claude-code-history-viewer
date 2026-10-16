@@ -550,5 +550,6 @@
   "settings.sessionResume.noProviders": "在此裝置上未偵測到支援的 CLI Agent 執行階段。",
   "settings.sessionResume.saved": "恢復參數已儲存",
   "settings.sessionResume.saveFailed": "儲存設定失敗",
-  "settings.sessionResume.resetSuccess": "已重設為預設參數"
+  "settings.sessionResume.resetSuccess": "已重設為預設參數",
+  "settingsManager.unified.mcp.goToSourceOf": "在 {{source}} 中編輯"
 }

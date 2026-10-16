@@ -123,5 +123,8 @@
   "filter.content.parallelTasks": "並行任務",
   "filter.reset": "重設篩選",
   "filter.active": "篩選已啟用",
-  "filter.showing": "{{filtered}} / {{total}}"
+  "filter.showing": "{{filtered}} / {{total}}",
+  "messageViewer.clearSearch": "清除搜尋",
+  "messageViewer.prevMatch": "上一個符合項目 (Shift+Enter)",
+  "messageViewer.nextMatch": "下一個符合項目 (Enter)"
 }

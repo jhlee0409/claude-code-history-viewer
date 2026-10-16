@@ -149,6 +149,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
                   "text-muted-foreground hover:text-foreground"
                 )}
                 title={t("agentTaskGroup.copyPath")}
+                aria-label={t("agentTaskGroup.copyPath")}
               >
                 {copied ? (
                   <Check className="w-3.5 h-3.5 text-success" />

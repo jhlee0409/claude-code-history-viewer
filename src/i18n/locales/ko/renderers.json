@@ -391,5 +391,21 @@
   "webSearchResultRenderer.noResults": "결과 없음",
   "webSearchResultRenderer.results": "개 결과",
   "webSearchResultRenderer.title": "웹 검색 결과",
-  "globalSearch.resultsCapped": "처음 {{count}}개만 표시 — 더 보려면 검색어를 좁히세요"
+  "globalSearch.resultsCapped": "처음 {{count}}개만 표시 — 더 보려면 검색어를 좁히세요",
+  "smartJsonDisplay.noData": "구조화된 데이터 없음",
+  "smartJsonDisplay.keys.path": "경로",
+  "smartJsonDisplay.keys.filePath": "파일 경로",
+  "smartJsonDisplay.keys.filename": "파일 이름",
+  "smartJsonDisplay.keys.command": "명령어",
+  "smartJsonDisplay.keys.query": "쿼리",
+  "smartJsonDisplay.keys.id": "ID",
+  "smartJsonDisplay.keys.taskId": "작업 ID",
+  "smartJsonDisplay.keys.uuid": "UUID",
+  "smartJsonDisplay.keys.list": "목록",
+  "smartJsonDisplay.keys.prompt": "프롬프트",
+  "smartJsonDisplay.keys.description": "설명",
+  "smartJsonDisplay.keys.error": "오류",
+  "smartJsonDisplay.keys.status": "상태",
+  "smartJsonDisplay.keys.code": "코드",
+  "smartJsonDisplay.keys.allowedTools": "허용된 도구"
 }

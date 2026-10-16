@@ -262,5 +262,7 @@
   "sessionPicker.cancelled": "啟動時的工作階段提示已取消",
   "session.pane.title": "會話",
   "project.temporaryGroup": "暫存位置",
-  "project.switchProvider": "開啟 {{provider}} 會話（{{count}}）"
+  "project.switchProvider": "開啟 {{provider}} 會話（{{count}}）",
+  "project.kind.main": "專案",
+  "project.kind.worktree": "工作樹"
 }

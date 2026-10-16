@@ -370,6 +370,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             // than leaving tests to match on an icon's class names.
             data-testid={copied ? "file-edit-copied" : "file-edit-copy"}
             title={t("recentEdits.copyContent")}
+            aria-label={t("recentEdits.copyContent")}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
           </button>
@@ -394,6 +395,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                     : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
             title={t("recentEdits.restoreFile")}
+            aria-label={t("recentEdits.restoreFile")}
           >
             {restoreStatus === "loading" ? (
               <LoaderCircle className="w-4 h-4 animate-spin" />

@@ -200,7 +200,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         {/* Search bar */}
         <div className="relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
-            <span title="Search"><Search className="w-4 h-4 text-muted-foreground" /></span>
+            <span title={t("common.search")}><Search className="w-4 h-4 text-muted-foreground" /></span>
           </div>
           <input
             type="text"
@@ -250,7 +250,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
                   </>
                 ) : (
                   <>
-                    <span title="Show More"><ChevronDown className="w-4 h-4" /></span>
+                    <span title={t("common.showMore")}><ChevronDown className="w-4 h-4" /></span>
                     {t("recentEdits.showMore", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                     <span className="text-muted-foreground/70">
                       ({remainingCount} {t("analytics.remaining")})

@@ -51,8 +51,16 @@ export function createActions({ session, scenario, manifest, t }) {
     await settled(label);
   };
 
+  // The tab bar is the navigation landmark that holds the tabs. Found by its
+  // tabs, not by its own label: that label is translated, and a base build
+  // older than the translation has no key for it.
+  const tabButton = (key) => page.getByRole("button", { name: t(MOBILE_TAB_KEYS[key]), exact: true });
   const mobileTab = (key) =>
-    page.locator('nav[aria-label="Navigation"]').getByRole("button", { name: t(MOBILE_TAB_KEYS[key]), exact: true });
+    page
+      .getByRole("navigation")
+      .filter({ has: tabButton("projects") })
+      .filter({ has: tabButton("settings") })
+      .getByRole("button", { name: t(MOBILE_TAB_KEYS[key]), exact: true });
 
   const drawerOpen = async () => (await page.getByRole("dialog").count()) > 0;
 

@@ -115,7 +115,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       {/* Icon */}
       {isGrouped ? (
         isMain ? (
-          <span title="Project">
+          <span title={t("project.kind.main")}>
             <Folder
               className={cn(
                 "w-3.5 h-3.5 transition-colors",
@@ -124,7 +124,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             />
           </span>
         ) : (
-          <span title="Worktree">
+          <span title={t("project.kind.worktree")}>
             <GitBranch
               className={cn(
                 "w-3.5 h-3.5 transition-colors",

@@ -869,6 +869,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               "border border-border/60 hover:border-border"
             )}
             title={t("common.back")}
+            aria-label={t("common.back")}
           >
             <ChevronDown className="w-4 h-4 rotate-90" />
           </button>
@@ -935,7 +936,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <button
                 type="button"
                 onClick={handleClearSearch}
-                aria-label="Clear search"
+                aria-label={t("messageViewer.clearSearch")}
                 className={cn(
                   "absolute right-2.5 top-1/2 transform -translate-y-1/2",
                   "p-1 rounded-md text-muted-foreground",
@@ -960,7 +961,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 type="button"
                 onClick={onPrevMatch}
                 disabled={sessionSearch.matches.length === 0}
-                aria-label="Previous match (Shift+Enter)"
+                aria-label={t("messageViewer.prevMatch")}
                 title="Shift+Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",
@@ -974,7 +975,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 type="button"
                 onClick={onNextMatch}
                 disabled={sessionSearch.matches.length === 0}
-                aria-label="Next match (Enter)"
+                aria-label={t("messageViewer.nextMatch")}
                 title="Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",

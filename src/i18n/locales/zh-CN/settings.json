@@ -550,5 +550,6 @@
   "settings.sessionResume.noProviders": "在此设备上未检测到受支持的 CLI Agent 运行时。",
   "settings.sessionResume.saved": "恢复参数已保存",
   "settings.sessionResume.saveFailed": "保存设置失败",
-  "settings.sessionResume.resetSuccess": "已重置为默认参数"
+  "settings.sessionResume.resetSuccess": "已重置为默认参数",
+  "settingsManager.unified.mcp.goToSourceOf": "在 {{source}} 中编辑"
 }

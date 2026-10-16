@@ -207,5 +207,8 @@
   "header.views": "Views",
   "common.dateFilter.start": "Start date",
   "common.dateFilter.end": "End date",
-  "common.a11y.skipToSessions": "Skip to sessions"
+  "common.a11y.skipToSessions": "Skip to sessions",
+  "common.search": "Search",
+  "common.showMore": "Show more",
+  "common.a11y.navigation": "Navigation"
 }

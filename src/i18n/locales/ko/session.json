@@ -262,5 +262,7 @@
   "sessionPicker.cancelled": "시작 세션 힌트가 취소됨",
   "session.pane.title": "세션",
   "project.temporaryGroup": "임시 위치",
-  "project.switchProvider": "{{provider}} 세션 열기 ({{count}})"
+  "project.switchProvider": "{{provider}} 세션 열기 ({{count}})",
+  "project.kind.main": "프로젝트",
+  "project.kind.worktree": "워크트리"
 }

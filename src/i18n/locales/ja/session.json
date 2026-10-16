@@ -262,5 +262,7 @@
   "sessionPicker.cancelled": "起動時のセッションヒントをキャンセルしました",
   "session.pane.title": "セッション",
   "project.temporaryGroup": "一時的な場所",
-  "project.switchProvider": "{{provider}} のセッションを開く（{{count}}）"
+  "project.switchProvider": "{{provider}} のセッションを開く（{{count}}）",
+  "project.kind.main": "プロジェクト",
+  "project.kind.worktree": "ワークツリー"
 }

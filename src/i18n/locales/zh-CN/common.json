@@ -207,5 +207,8 @@
   "header.views": "视图",
   "common.dateFilter.start": "开始日期",
   "common.dateFilter.end": "结束日期",
-  "common.a11y.skipToSessions": "跳转到会话列表"
+  "common.a11y.skipToSessions": "跳转到会话列表",
+  "common.search": "搜索",
+  "common.showMore": "显示更多",
+  "common.a11y.navigation": "导航"
 }

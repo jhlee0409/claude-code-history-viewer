@@ -27,7 +27,7 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
   return (
     <nav
       className="fixed bottom-0 inset-x-0 z-40 md:hidden h-14 bg-sidebar border-t border-border/50 pb-[env(safe-area-inset-bottom)]"
-      aria-label="Navigation"
+      aria-label={t("common.a11y.navigation")}
     >
       <div className="flex items-center justify-around h-full px-2">
         {tabs.map(({ id, icon: Icon, labelKey, alwaysEnabled }) => {

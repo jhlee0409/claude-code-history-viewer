@@ -391,5 +391,21 @@
   "webSearchResultRenderer.noResults": "無結果",
   "webSearchResultRenderer.results": "筆結果",
   "webSearchResultRenderer.title": "網頁搜尋結果",
-  "globalSearch.resultsCapped": "僅顯示前 {{count}} 筆結果 — 縮小查詢範圍以查看更多"
+  "globalSearch.resultsCapped": "僅顯示前 {{count}} 筆結果 — 縮小查詢範圍以查看更多",
+  "smartJsonDisplay.noData": "無結構化資料",
+  "smartJsonDisplay.keys.path": "路徑",
+  "smartJsonDisplay.keys.filePath": "檔案路徑",
+  "smartJsonDisplay.keys.filename": "檔案名稱",
+  "smartJsonDisplay.keys.command": "指令",
+  "smartJsonDisplay.keys.query": "查詢",
+  "smartJsonDisplay.keys.id": "ID",
+  "smartJsonDisplay.keys.taskId": "任務 ID",
+  "smartJsonDisplay.keys.uuid": "UUID",
+  "smartJsonDisplay.keys.list": "清單",
+  "smartJsonDisplay.keys.prompt": "提示詞",
+  "smartJsonDisplay.keys.description": "描述",
+  "smartJsonDisplay.keys.error": "錯誤",
+  "smartJsonDisplay.keys.status": "狀態",
+  "smartJsonDisplay.keys.code": "程式碼",
+  "smartJsonDisplay.keys.allowedTools": "允許的工具"
 }

@@ -207,5 +207,8 @@
   "header.views": "檢視",
   "common.dateFilter.start": "開始日期",
   "common.dateFilter.end": "結束日期",
-  "common.a11y.skipToSessions": "跳至會話列表"
+  "common.a11y.skipToSessions": "跳至會話列表",
+  "common.search": "搜尋",
+  "common.showMore": "顯示更多",
+  "common.a11y.navigation": "導覽"
 }

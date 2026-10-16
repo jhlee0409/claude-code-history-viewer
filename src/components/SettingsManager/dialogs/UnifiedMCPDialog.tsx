@@ -246,6 +246,8 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                                 size="sm"
                                 className="h-5 text-list px-1"
                                 onClick={() => handleNavigateToSource(server.source)}
+                                aria-label={t("settingsManager.unified.mcp.goToSourceOf", { source: server.sourceLabel })}
+                                title={t("settingsManager.unified.mcp.goToSourceOf", { source: server.sourceLabel })}
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                               </Button>

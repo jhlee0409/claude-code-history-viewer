@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-14T13:48:31.681Z
- * 총 키 개수: 2022
+ * 생성 시간: 2026-10-16T08:29:26.940Z
+ * 총 키 개수: 2047
  * Namespace 수: 11
  */
 
@@ -40,10 +40,11 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (209개)
+ * common namespace의 번역 키 (212개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
+  | 'common.a11y.navigation'
   | 'common.a11y.skipNavigation'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToNavigator'
@@ -162,6 +163,7 @@ export type CommonKeys =
   | 'common.retry'
   | 'common.save'
   | 'common.saving'
+  | 'common.search'
   | 'common.selectFolder'
   | 'common.settings.accessibility.highContrast'
   | 'common.settings.accessibility.title'
@@ -193,6 +195,7 @@ export type CommonKeys =
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
+  | 'common.showMore'
   | 'common.time.daysAgo_one'
   | 'common.time.daysAgo_other'
   | 'common.time.duration'
@@ -458,7 +461,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (264개)
+ * session namespace의 번역 키 (266개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -488,6 +491,8 @@ export type SessionKeys =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
+  | 'project.kind.main'
+  | 'project.kind.worktree'
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
@@ -728,7 +733,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (552개)
+ * settings namespace의 번역 키 (553개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -1222,6 +1227,7 @@ export type SettingsKeys =
   | 'settingsManager.unified.mcp.allServers'
   | 'settingsManager.unified.mcp.conflictHint'
   | 'settingsManager.unified.mcp.goToSource'
+  | 'settingsManager.unified.mcp.goToSourceOf'
   | 'settingsManager.unified.mcp.viewAllSources'
   | 'settingsManager.unified.model.description'
   | 'settingsManager.unified.model.haiku'
@@ -1405,7 +1411,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (125개)
+ * message namespace의 번역 키 (128개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1448,6 +1454,7 @@ export type MessageKeys =
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'
+  | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
@@ -1472,10 +1479,12 @@ export type MessageKeys =
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
   | 'messageViewer.messagesShort'
+  | 'messageViewer.nextMatch'
   | 'messageViewer.noMessages'
   | 'messageViewer.noMessagesDescription'
   | 'messageViewer.noSearchResults'
   | 'messageViewer.opencode'
+  | 'messageViewer.prevMatch'
   | 'messageViewer.priorContext'
   | 'messageViewer.refresh'
   | 'messageViewer.renderError'
@@ -1536,7 +1545,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (393개)
+ * renderers namespace의 번역 키 (409개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1841,6 +1850,22 @@ export type RenderersKeys =
   | 'sizeGuard.highlightDisabled'
   | 'sizeGuard.showAll'
   | 'sizeGuard.truncated'
+  | 'smartJsonDisplay.keys.allowedTools'
+  | 'smartJsonDisplay.keys.code'
+  | 'smartJsonDisplay.keys.command'
+  | 'smartJsonDisplay.keys.description'
+  | 'smartJsonDisplay.keys.error'
+  | 'smartJsonDisplay.keys.filePath'
+  | 'smartJsonDisplay.keys.filename'
+  | 'smartJsonDisplay.keys.id'
+  | 'smartJsonDisplay.keys.list'
+  | 'smartJsonDisplay.keys.path'
+  | 'smartJsonDisplay.keys.prompt'
+  | 'smartJsonDisplay.keys.query'
+  | 'smartJsonDisplay.keys.status'
+  | 'smartJsonDisplay.keys.taskId'
+  | 'smartJsonDisplay.keys.uuid'
+  | 'smartJsonDisplay.noData'
   | 'structuredPatch.areasChanged'
   | 'structuredPatch.changeStats'
   | 'structuredPatch.fileChanges'
@@ -2449,6 +2474,7 @@ export type TranslationKey =
   | 'commandRenderer.status'
   | 'commandRenderer.systemNote'
   | 'commandRenderer.unknownContentType'
+  | 'common.a11y.navigation'
   | 'common.a11y.skipNavigation'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToNavigator'
@@ -2567,6 +2593,7 @@ export type TranslationKey =
   | 'common.retry'
   | 'common.save'
   | 'common.saving'
+  | 'common.search'
   | 'common.selectFolder'
   | 'common.settings.accessibility.highContrast'
   | 'common.settings.accessibility.title'
@@ -2598,6 +2625,7 @@ export type TranslationKey =
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
+  | 'common.showMore'
   | 'common.time.daysAgo_one'
   | 'common.time.daysAgo_other'
   | 'common.time.duration'
@@ -2868,6 +2896,7 @@ export type TranslationKey =
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'
+  | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
@@ -2892,10 +2921,12 @@ export type TranslationKey =
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
   | 'messageViewer.messagesShort'
+  | 'messageViewer.nextMatch'
   | 'messageViewer.noMessages'
   | 'messageViewer.noMessagesDescription'
   | 'messageViewer.noSearchResults'
   | 'messageViewer.opencode'
+  | 'messageViewer.prevMatch'
   | 'messageViewer.priorContext'
   | 'messageViewer.refresh'
   | 'messageViewer.renderError'
@@ -2991,6 +3022,8 @@ export type TranslationKey =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
+  | 'project.kind.main'
+  | 'project.kind.worktree'
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
@@ -3837,6 +3870,7 @@ export type TranslationKey =
   | 'settingsManager.unified.mcp.allServers'
   | 'settingsManager.unified.mcp.conflictHint'
   | 'settingsManager.unified.mcp.goToSource'
+  | 'settingsManager.unified.mcp.goToSourceOf'
   | 'settingsManager.unified.mcp.viewAllSources'
   | 'settingsManager.unified.model.description'
   | 'settingsManager.unified.model.haiku'
@@ -3928,6 +3962,22 @@ export type TranslationKey =
   | 'sizeGuard.highlightDisabled'
   | 'sizeGuard.showAll'
   | 'sizeGuard.truncated'
+  | 'smartJsonDisplay.keys.allowedTools'
+  | 'smartJsonDisplay.keys.code'
+  | 'smartJsonDisplay.keys.command'
+  | 'smartJsonDisplay.keys.description'
+  | 'smartJsonDisplay.keys.error'
+  | 'smartJsonDisplay.keys.filePath'
+  | 'smartJsonDisplay.keys.filename'
+  | 'smartJsonDisplay.keys.id'
+  | 'smartJsonDisplay.keys.list'
+  | 'smartJsonDisplay.keys.path'
+  | 'smartJsonDisplay.keys.prompt'
+  | 'smartJsonDisplay.keys.query'
+  | 'smartJsonDisplay.keys.status'
+  | 'smartJsonDisplay.keys.taskId'
+  | 'smartJsonDisplay.keys.uuid'
+  | 'smartJsonDisplay.noData'
   | 'status.checking'
   | 'status.initializing'
   | 'status.loadingMessages'
@@ -4215,6 +4265,7 @@ export type TranslationPrefix =
   | 'settingsManager'
   | 'simpleUpdateModal'
   | 'sizeGuard'
+  | 'smartJsonDisplay'
   | 'status'
   | 'structuredPatch'
   | 'summaryMessageRenderer'
