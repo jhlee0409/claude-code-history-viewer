@@ -207,7 +207,6 @@
   "header.views": "表示",
   "common.dateFilter.start": "開始日",
   "common.dateFilter.end": "終了日",
-  "common.a11y.skipToSessions": "セッション一覧へスキップ",
   "common.search": "検索",
   "common.showMore": "さらに表示",
   "common.a11y.navigation": "ナビゲーション",
@@ -222,5 +221,10 @@
   "common.command.openArchive": "アーカイブマネージャーを開く",
   "common.command.sendFeedback": "フィードバックを送る…",
   "common.command.checkForUpdates": "アップデートを確認…",
-  "common.command.failed": "コマンドを実行できませんでした: {{command}}"
+  "common.command.failed": "コマンドを実行できませんでした: {{command}}",
+  "common.toolbar.location": "現在の場所",
+  "common.toolbar.search": "検索",
+  "common.toolbar.inspector": "インスペクタ",
+  "common.helpMenu.title": "ヘルプ",
+  "common.helpMenu.feedback": "ヘルプとフィードバック"
 }

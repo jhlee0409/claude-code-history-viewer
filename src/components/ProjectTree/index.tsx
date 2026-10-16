@@ -1,18 +1,13 @@
 // src/components/ProjectTree/index.tsx
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CircleQuestionMark,
   Folder,
-  ChevronDown,
-  ChevronRight,
-  List,
-  FolderTree,
-  GitBranch,
-  Clock,
   PanelLeftClose,
   PanelLeft,
-  RotateCcw,
   Search,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { Icon } from "@/components/icon/Icon";
@@ -20,18 +15,15 @@ import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { formatTimeAgo as formatTimeAgoUtil } from "../../utils/time";
 import { isProjectTemporary } from "../../utils/pathUtils";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
+import { LibrarySection } from "./components/LibrarySection";
+import { ProjectListMenu, type ProjectSort } from "./components/ProjectListMenu";
 import type { ProjectTreeProps } from "./types";
-import type { ProviderId, ClaudeSession } from "../../types";
+import type { ProviderId, ClaudeProject, ClaudeSession } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import {
@@ -48,19 +40,25 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 
-const GlobalStatsIcon = SCREEN_ICONS.globalStats;
-
 type ProviderTabId = "all" | ProviderId;
 
-const PROVIDER_FILTERS_OPEN_STORAGE_KEY = "projectTree.providerFiltersOpen";
+const PROJECT_SORT_STORAGE_KEY = "projectTree.sort";
 
-const loadProviderFiltersOpenState = () => {
+const loadProjectSort = (): ProjectSort => {
   try {
-    return localStorage.getItem(PROVIDER_FILTERS_OPEN_STORAGE_KEY) === "true";
+    return localStorage.getItem(PROJECT_SORT_STORAGE_KEY) === "name" ? "name" : "recent";
   } catch {
-    return false;
+    return "recent";
   }
 };
+
+/** Most recent activity first (plan T7), or by name. */
+const sortProjects = (list: ClaudeProject[], sort: ProjectSort): ClaudeProject[] =>
+  [...list].sort((a, b) =>
+    sort === "name"
+      ? (a.name ?? "").localeCompare(b.name ?? "")
+      : new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime()
+  );
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
   projects,
@@ -76,7 +74,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onGlobalStatsClick,
   isLoading,
   isLoadingMoreSessions = false,
-  isGlobalStatsActive,
+  libraryItem = null,
   isSelectionRetained = false,
   inlineSessions = true,
   width,
@@ -95,9 +93,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onToggleCollapse,
   asideId = "project-explorer",
   onClose,
+  onOpenArchive,
+  isArchiveDisabled = false,
+  onOpenSettingsManager,
+  onOpenHelp,
 }) => {
   const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
+  const projectsHeadingId = `${asideId}-projects-heading`;
+  const isGlobalStatsActive = libraryItem === "globalStats";
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
@@ -121,21 +125,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   } = useProjectTreeState(groupingMode);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [areProviderFiltersOpen, setAreProviderFiltersOpen] = useState(
-    loadProviderFiltersOpenState
-  );
+  const [projectSort, setProjectSort] = useState<ProjectSort>(loadProjectSort);
   const searchInputId = React.useId();
 
   useEffect(() => {
     try {
-      localStorage.setItem(
-        PROVIDER_FILTERS_OPEN_STORAGE_KEY,
-        String(areProviderFiltersOpen)
-      );
+      localStorage.setItem(PROJECT_SORT_STORAGE_KEY, projectSort);
     } catch {
-      // localStorage may be unavailable; the collapsed default still works.
+      // localStorage may be unavailable; the default order still works.
     }
-  }, [areProviderFiltersOpen]);
+  }, [projectSort]);
 
   // Wrap session select to also close mobile drawer
   const handleSessionSelect = useCallback(
@@ -219,34 +218,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     ? selectableProviderIds.length > 1
     : selectedProviderFilters.length !== 1;
 
-  const providerFilterSummary = useMemo(() => {
-    if (isAllProvidersSelected) {
-      return t("session.board.controls.all", "ALL");
-    }
-
-    const labels = selectedProviderFilters
-      .slice(0, 2)
-      .map((providerId) =>
-        getProviderLabel((key, fallback) => t(key, fallback), providerId)
-      );
-    const remainingCount = selectedProviderFilters.length - labels.length;
-
-    return remainingCount > 0
-      ? `${labels.join(", ")} +${remainingCount}`
-      : labels.join(", ");
-  }, [isAllProvidersSelected, selectedProviderFilters, t]);
-
-  const providerFilterCount = useMemo(
-    () =>
-      isAllProvidersSelected
-        ? providerCounts.all
-        : selectedProviderFilters.reduce(
-            (count, providerId) => count + providerCounts[providerId],
-            0
-          ),
-    [isAllProvidersSelected, providerCounts, selectedProviderFilters]
-  );
-
   const matchesProviderFilter = useCallback(
     (project: (typeof projects)[number]) =>
       isAllProvidersSelected || selectedProviderFilters.includes(getProviderId(project.provider)),
@@ -305,31 +276,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     ]
   );
 
-  const handleProviderTabClick = useCallback(async (provider: ProviderTabId) => {
-    if (provider === "all") {
-      await applyProviderSelection(selectableProviderIds);
-      return;
-    }
-
-    if (isAllProvidersSelected) {
-      await applyProviderSelection([provider]);
-      return;
-    }
-
-    if (selectedProviderFilters.includes(provider)) {
-      const next = selectedProviderFilters.filter((id) => id !== provider);
-      if (next.length === 0) {
-        await applyProviderSelection(selectableProviderIds);
-        return;
-      }
-      await applyProviderSelection(next);
-      return;
-    }
-
-    const next = PROVIDER_IDS.filter(
-      (id) => selectableProviderIds.includes(id) && (selectedProviderFilters.includes(id) || id === provider)
-    );
-    await applyProviderSelection(next.length > 0 ? next : [provider]);
+  // Checkbox semantics: unchecking removes a provider (the last one resets
+  // to all), checking adds it.
+  const toggleProviderFilter = useCallback(async (provider: ProviderId) => {
+    const current = isAllProvidersSelected ? selectableProviderIds : selectedProviderFilters;
+    const next = current.includes(provider)
+      ? current.filter((id) => id !== provider)
+      : PROVIDER_IDS.filter((id) => selectableProviderIds.includes(id) && (current.includes(id) || id === provider));
+    await applyProviderSelection(next.length > 0 ? next : selectableProviderIds);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
   // Defer the filtering work: the input echoes each keystroke immediately
@@ -434,62 +388,45 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     };
   }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter, matchesSearch, normalizedSearchTerm]);
 
-  const providerTabs = useMemo(
-    () => {
-      const base = [
-        {
-          id: "all" as const,
-          label: t("session.board.controls.all", "ALL"),
-          count: providerCounts.all,
-        },
-      ];
-
-      const providerTabs = PROVIDER_IDS.map((id) => ({
+  const providerOptions = useMemo(
+    () =>
+      selectableProviderIds.map((id) => ({
         id,
         label: getProviderLabel((key, fallback) => t(key, fallback), id),
         count: providerCounts[id],
-      }));
+        checked: isAllProvidersSelected || selectedProviderFilters.includes(id),
+      })),
+    [isAllProvidersSelected, providerCounts, selectableProviderIds, selectedProviderFilters, t]
+  );
 
-      return [...base, ...providerTabs];
-    },
-    [providerCounts, t]
+  const sortedProjects = useMemo(() => sortProjects(filteredProjects, projectSort), [filteredProjects, projectSort]);
+  const sortedUngroupedProjects = useMemo(
+    () => sortProjects(filteredUngroupedProjects, projectSort),
+    [filteredUngroupedProjects, projectSort]
   );
 
   // Re-created per render so the label follows the active language.
   const formatTimeAgo = (dateStr: string) => formatTimeAgoUtil(dateStr);
 
-  // Unified project click handler: syncs expand state with selection + accordion behavior
+  // Open a project (the context menu's provider switch; the rows decide
+  // between opening and expanding themselves, see GroupedProjectList). The
+  // opened project is the one expanded row.
   const handleProjectClick = useCallback(
     (project: typeof selectedProject) => {
       if (!project) return;
-
-      const isCurrentlySelected = selectedProject?.path === project.path;
-
-      if (isCurrentlySelected) {
-        // Deselecting: also collapse
-        setExpandedProjects((prev) => {
-          const next = new Set(prev);
-          next.delete(project.path);
-          return next;
-        });
-      } else {
-        // Selecting new project: collapse all other projects (accordion), expand this one
-        setExpandedProjects((prev) => {
-          const next = new Set<string>();
-          // Preserve group-level expansions (dir:, group: prefixed keys)
-          for (const key of prev) {
-            if (key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:")) {
-              next.add(key);
-            }
+      setExpandedProjects((prev) => {
+        const next = new Set<string>();
+        for (const key of prev) {
+          if (key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:")) {
+            next.add(key);
           }
-          next.add(project.path);
-          return next;
-        });
-      }
-
+        }
+        next.add(project.path);
+        return next;
+      });
       onProjectSelect(project);
     },
-    [selectedProject, onProjectSelect, setExpandedProjects]
+    [onProjectSelect, setExpandedProjects]
   );
 
   const selectedProjectGroupKey = useMemo(() => {
@@ -544,28 +481,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     selectedSession?.file_path,
   ]);
 
-  const handleGlobalStatsClick = useCallback(() => {
-    // Global stats 진입 시 현재 열려 있는 프로젝트 확장을 닫는다.
-    setExpandedProjects((prev) => {
-      if (prev.size === 0) {
-        return prev;
-      }
-
-      let changed = false;
-      const next = new Set<string>();
-      for (const key of prev) {
-        if (key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:")) {
-          next.add(key);
-          continue;
-        }
-        changed = true;
-      }
-
-      return changed ? next : prev;
-    });
-
-    onGlobalStatsClick();
-  }, [onGlobalStatsClick, setExpandedProjects]);
+  const handleGlobalStatsClick = onGlobalStatsClick;
 
   const sidebarStyle = isCollapsed ? { width: "48px" } : width ? { width: `${width}px` } : undefined;
   const treeRef = useRef<HTMLDivElement>(null);
@@ -766,7 +682,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     );
   }, [announceTree, describeTreeItem, isGlobalStatsActive, selectedProject?.path, t]);
 
-  // Collapsed View
+  const libraryProps = {
+    activeItem: libraryItem,
+    onGlobalStatsClick: handleGlobalStatsClick,
+    onOpenArchive,
+    isArchiveDisabled,
+    onOpenSettingsManager,
+    onNavigate: onClose,
+  };
+
+  // Collapsed View: a rail with the library's screens.
   if (isCollapsed) {
     return (
       <aside
@@ -774,49 +699,45 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         aria-label={t("project.explorer")}
         tabIndex={-1}
         data-menu-boundary
-        className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", isResizing && "select-none")}
+        className={cn("flex-shrink-0 bg-sidebar border-r border-border/50 flex h-full", isResizing && "select-none")}
         style={sidebarStyle}
       >
-        <div className="flex-1 flex flex-col items-center py-3 gap-2 relative">
-          {/* Right accent border */}
-          <div className="absolute right-0 inset-y-0 w-[2px] bg-gradient-to-b from-accent/40 via-accent/60 to-accent/40" />
-
-          {/* Expand Button */}
+        <div className="flex-1 flex flex-col items-center py-2 gap-1">
           {onToggleCollapse && (
-            <button
+            <RailButton
+              icon={PanelLeft}
+              label={t("project.expandSidebar", "Expand sidebar")}
               onClick={onToggleCollapse}
-              className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center",
-                "bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-              )}
-              title={t("project.expandSidebar", "Expand sidebar")}
-              aria-label={t("project.expandSidebar", "Expand sidebar")}
-            >
-              <PanelLeft className="w-4 h-4" />
-            </button>
+            />
           )}
-
-          <div className="w-6 h-px bg-accent/20" />
-
-          {/* Global Stats Icon */}
-          <button
+          <div className="w-6 h-px bg-border my-1" />
+          <RailButton
+            icon={SCREEN_ICONS.globalStats}
+            label={t("project.globalStats")}
+            active={libraryItem === "globalStats"}
             onClick={handleGlobalStatsClick}
-            className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-              isGlobalStatsActive ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
-            )}
-            aria-label={t("project.globalStats")}
-            title={t("project.globalStats")}
-          >
-            <GlobalStatsIcon className="w-4 h-4" />
-          </button>
-
-          <div className="w-6 h-px bg-accent/20" />
-
-          {/* Projects Count */}
-          <div className="flex flex-col items-center gap-1">
-            <Folder className="w-4 h-4 text-muted-foreground" />
-            <span className="text-caption font-mono text-muted-foreground">{filteredProjects.length}</span>
+          />
+          {onOpenArchive && (
+            <RailButton
+              icon={SCREEN_ICONS.archive}
+              label={t("project.library.archive")}
+              active={libraryItem === "archive"}
+              disabled={isArchiveDisabled}
+              onClick={onOpenArchive}
+            />
+          )}
+          {onOpenSettingsManager && (
+            <RailButton
+              icon={SCREEN_ICONS.settings}
+              label={t("project.library.claudeSettings")}
+              active={libraryItem === "settingsManager"}
+              onClick={onOpenSettingsManager}
+            />
+          )}
+          <div className="w-6 h-px bg-border my-1" />
+          <div className="flex flex-col items-center gap-1" title={t("project.projects")}>
+            <Folder className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>
           </div>
         </div>
       </aside>
@@ -829,271 +750,20 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       aria-label={t("project.explorer")}
       tabIndex={-1}
       data-menu-boundary
-      className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", !width && (!onToggleCollapse && onClose ? "w-full" : "w-64"), isResizing && "select-none")}
+      className={cn(
+        "flex-shrink-0 bg-sidebar border-r border-border/50 flex h-full",
+        !width && (!onToggleCollapse && onClose ? "w-full" : "w-64"),
+        isResizing && "select-none"
+      )}
       style={sidebarStyle}
     >
-      {/* Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Right accent border */}
-        <div className="absolute right-0 inset-y-0 w-[2px] bg-gradient-to-b from-accent/40 via-accent/60 to-accent/40" />
-
-        {/* Sidebar Header */}
-        <div className="px-4 py-3 bg-accent/5 border-b border-accent/10">
-          {/* The title gives way before the grouping controls do, so they stay
-              inside a narrow sidebar in every language: it truncates, and below
-              the width where it could show a few characters it is hidden with
-              its dot (the aside's aria-label still names the region). */}
-          <div className="@container flex items-center justify-between">
-            <div className="flex min-w-0 items-center gap-1.5">
-              {/* Collapse Button (desktop) */}
-              {onToggleCollapse && (
-                <button
-                  onClick={onToggleCollapse}
-                  className={cn(
-                    "shrink-0 p-1 rounded-md transition-colors",
-                    "text-muted-foreground hover:text-accent hover:bg-accent/10"
-                  )}
-                  title={t("project.collapseSidebar", "Collapse sidebar")}
-                  aria-label={t("project.collapseSidebar", "Collapse sidebar")}
-                >
-                  <PanelLeftClose className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {/* Close Button (mobile drawer) */}
-              {!onToggleCollapse && onClose && (
-                <button
-                  onClick={onClose}
-                  className={cn(
-                    "shrink-0 p-1 rounded-md transition-colors",
-                    "text-muted-foreground hover:text-accent hover:bg-accent/10"
-                  )}
-                  title={t("common.close", "Close")}
-                  aria-label={t("common.close", "Close")}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <div className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent animate-pulse @max-[12.25rem]:hidden" />
-              <span
-                className="min-w-0 truncate text-list font-semibold uppercase tracking-widest text-accent @max-[12.25rem]:hidden"
-                title={t("project.explorer")}
-              >
-                {t("project.explorer")}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {/* Grouping Mode Tabs */}
-              {onGroupingModeChange && (
-                <div className="flex items-center bg-muted/30 rounded-md p-0.5 gap-0.5">
-                  {/* Flat (No Grouping) */}
-                  <button
-                    onClick={() => onGroupingModeChange("none")}
-                    className={cn(
-                      "p-1 rounded transition-all duration-200",
-                      groupingMode === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-accent hover:bg-accent/10"
-                    )}
-                    title={t("project.groupingNone", "Flat list")}
-                    aria-label={t("project.groupingNone", "Flat list")}
-                  >
-                    <List className="w-3.5 h-3.5" />
-                  </button>
-                  {/* Directory Grouping */}
-                  <button
-                    onClick={() => onGroupingModeChange("directory")}
-                    className={cn(
-                      "p-1 rounded transition-all duration-200",
-                      groupingMode === "directory"
-                        ? "bg-blue-500/20 text-blue-500"
-                        : "text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10"
-                    )}
-                    title={t("project.groupingDirectory", "Group by directory")}
-                    aria-label={t("project.groupingDirectory", "Group by directory")}
-                  >
-                    <FolderTree className="w-3.5 h-3.5" />
-                  </button>
-                  {/* Worktree Grouping */}
-                  <button
-                    onClick={() => onGroupingModeChange("worktree")}
-                    className={cn(
-                      "p-1 rounded transition-all duration-200",
-                      groupingMode === "worktree"
-                        ? "bg-emerald-500/20 text-emerald-500"
-                        : "text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
-                    )}
-                    title={t("project.groupingWorktree", "Group by worktree")}
-                    aria-label={t("project.groupingWorktree", "Group by worktree")}
-                  >
-                    <GitBranch className="w-3.5 h-3.5" />
-                  </button>
-                  {/* Time (Session Recency) Grouping */}
-                  <button
-                    onClick={() => onGroupingModeChange("time")}
-                    className={cn(
-                      "p-1 rounded transition-all duration-200",
-                      groupingMode === "time"
-                        ? "bg-violet-500/20 text-violet-500"
-                        : "text-muted-foreground hover:text-violet-500 hover:bg-violet-500/10"
-                    )}
-                    title={t("project.groupingTime", "Group by time")}
-                    aria-label={t("project.groupingTime", "Group by time")}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-              <span className="text-list font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
-                {filteredProjects.length}
-              </span>
-            </div>
-          </div>
-          <Collapsible
-            open={areProviderFiltersOpen}
-            onOpenChange={setAreProviderFiltersOpen}
-            className="mt-2"
-          >
-            <div className="flex items-center gap-1.5">
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-1.5 rounded-md border px-2 py-1",
-                    "bg-muted/30 text-left text-caption font-medium text-muted-foreground transition-colors",
-                    "hover:bg-accent/8 hover:text-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
-                  )}
-                  title={providerFilterSummary}
-                  aria-label={`${areProviderFiltersOpen
-                    ? t("common.collapse", "Collapse")
-                    : t("common.expand", "Expand")}: ${providerFilterSummary} (${providerFilterCount})`}
-                >
-                  {areProviderFiltersOpen ? (
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">
-                    {providerFilterSummary}
-                  </span>
-                  <span className="rounded bg-accent/15 px-1 py-0.5 font-mono text-caption leading-none text-accent">
-                    {providerFilterCount}
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <button
-                onClick={() => {
-                  void applyProviderSelection(selectableProviderIds);
-                }}
-                disabled={isAllProvidersSelected}
-                className={cn(
-                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
-                  isAllProvidersSelected
-                    ? "border-transparent bg-muted/20 text-muted-foreground/50 cursor-not-allowed"
-                    : "border-transparent bg-muted/30 hover:bg-accent/8 hover:text-accent"
-                )}
-                title={t("project.resetProviderFilters", "Reset")}
-                aria-label={t("project.resetProviderFilters", "Reset")}
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <CollapsibleContent>
-              <div className="mt-2 space-y-2 max-h-52 overflow-y-auto pr-1">
-                <button
-                  type="button"
-                  onClick={handleDiscoverProviders}
-                  disabled={isDetectingProviders || isLoadingProjects}
-                  className={cn(
-                    "inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-caption font-medium transition-colors",
-                    isDetectingProviders || isLoadingProjects
-                      ? "cursor-not-allowed border-transparent bg-muted/20 text-muted-foreground/50"
-                      : "border-accent/20 bg-accent/5 text-accent hover:bg-accent/10"
-                  )}
-                  title={t("project.discoverProviders", "Find other providers")}
-                  aria-label={t("project.discoverProviders", "Find other providers")}
-                >
-                  <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>
-                    {isDetectingProviders || isLoadingProjects
-                      ? t("project.discoveringProviders", "Searching for providers...")
-                      : t("project.discoverProviders", "Find other providers")}
-                  </span>
-                </button>
-                <div className="flex flex-wrap items-center gap-1">
-                  {providerTabs.map((tab) => {
-                    const isActive = tab.id === "all"
-                      ? isAllProvidersSelected
-                      : !isAllProvidersSelected && selectedProviderFilters.includes(tab.id);
-                    const isDisabled = tab.id !== "all" && !selectableProviderIds.includes(tab.id);
-
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => {
-                          void handleProviderTabClick(tab.id);
-                        }}
-                        disabled={isDisabled}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-caption font-medium transition-colors",
-                          isDisabled
-                            ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-not-allowed"
-                            : isActive
-                            ? "bg-accent/15 text-accent border-accent/30"
-                            : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
-                        )}
-                        title={tab.label}
-                      >
-                        <span>{tab.label}</span>
-                        <span
-                          className={cn(
-                            "px-1 py-0.5 rounded text-caption font-mono leading-none",
-                            isActive ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 py-2 border-b border-accent/10">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" aria-hidden="true" focusable="false" />
-            <label htmlFor={searchInputId} className="sr-only">
-              {t("project.searchPlaceholder", "Search projects...")}
-            </label>
-            <input
-              id={searchInputId}
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t("project.searchPlaceholder", "Search projects...")}
-              className="w-full pl-8 pr-8 py-1.5 text-list bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                aria-label={t("common.clear", "Clear")}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Projects List */}
+      <div className="flex-1 flex flex-col min-w-0">
         <OverlayScrollbarsComponent
           // min-h-0 lets this flex child shrink to its basis instead of growing
           // to full content height (default min-height:auto). Without it,
           // OverlayScrollbars measures a skewed content/viewport ratio and the
           // thumb never reaches the bottom on long project lists (issue #101).
-          className="relative flex-1 min-h-0 py-2"
+          className="relative flex-1 min-h-0"
           options={{
             scrollbars: {
               theme: "os-theme-custom",
@@ -1101,112 +771,153 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               autoHideDelay: 400,
             },
             overflow: {
-              x: "scroll",
+              x: "hidden",
             },
           }}
         >
-          {filteredProjects.length === 0 ? (
-            <div className="px-4 py-12 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
-                <Icon icon={Folder} size={24} className="text-muted-foreground/40" />
-              </div>
-              {/* No projects at all reads the same as the main area's empty
-                  state; a search or provider filter with no match keeps
-                  "not found". */}
-              <p className="text-body text-muted-foreground [&:lang(ko)]:break-keep">
-                {projects.length === 0
-                  ? t(hasSearchedOtherProviders ? "session.noProjects.title" : "session.noProjects.claudeTitle")
-                  : t("project.notFound")}
-              </p>
+          <LibrarySection {...libraryProps} />
+
+          <section aria-labelledby={projectsHeadingId} className="px-2 pb-2">
+            <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
+              <h2 id={projectsHeadingId} className="text-caption font-medium text-muted-foreground">
+                {t("project.projects")}
+              </h2>
+              <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>
             </div>
-          ) : (
-            <div
-              ref={treeRef}
-              role="tree"
-              data-selection={isSelectionRetained ? "retained" : "active"}
-              aria-label={t("project.explorer")}
-              aria-describedby={keyboardHelpId}
-              onKeyDown={handleTreeKeyDown}
-              onFocusCapture={(event) => {
-                const target = event.target as HTMLElement;
-                const treeItem = target.closest<HTMLElement>('[role="treeitem"]');
-                if (treeItem) {
-                  syncRovingTabIndex(treeItem);
-                  announceTree(describeTreeItem(treeItem));
-                }
-              }}
-              className="space-y-0.5 animate-stagger"
-            >
-              {/* Global Stats Button */}
-              <button
-                onClick={handleGlobalStatsClick}
-                role="treeitem"
-                data-tree-node="global"
-                aria-level={1}
-                aria-selected={isGlobalStatsActive}
-                tabIndex={-1}
-                className={cn(
-                  "sidebar-item w-full flex items-center gap-3 mx-2 group",
-                  "text-left transition-all duration-300",
-                  isGlobalStatsActive && "active"
+            <div className="flex items-center gap-1 pb-1">
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <label htmlFor={searchInputId} className="sr-only">
+                  {t("project.filterPlaceholder")}
+                </label>
+                <input
+                  id={searchInputId}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={t("project.filterPlaceholder")}
+                  className="w-full h-7 pl-7 pr-7 text-list bg-muted/40 border border-transparent rounded-md placeholder:text-muted-foreground focus:outline-none focus:border-accent/40 focus:bg-muted/60 transition-colors"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={t("common.clear", "Clear")}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
-                style={{ width: "calc(100% - 16px)" }}
-              >
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
-                    "bg-accent/10 text-accent",
-                    "group-hover:bg-accent/20 group-hover:shadow-sm group-hover:shadow-accent/20",
-                    isGlobalStatsActive && "bg-accent/20"
-                  )}
-                >
-                  <span title={t("project.globalStats")}>
-                    <GlobalStatsIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-body font-medium text-sidebar-foreground">
-                    {t("project.globalStats")}
-                  </div>
-                  <div className="text-caption text-muted-foreground">
-                    {t("project.globalStatsDescription")}
-                  </div>
-                </div>
-              </button>
-
-              {/* Divider */}
-              <div className="my-2 mx-4 h-px bg-sidebar-border" />
-
-              {/* Grouped Project List */}
-              <GroupedProjectList
+              </div>
+              <ProjectListMenu
+                sort={projectSort}
+                onSortChange={setProjectSort}
                 groupingMode={groupingMode}
-                projects={filteredProjects}
-                directoryGroups={filteredDirectoryGroups}
-                timeGroups={filteredTimeGroups}
-                worktreeGroups={filteredWorktreeGroups}
-                ungroupedProjects={filteredUngroupedProjects}
-                showProviderBadge={showProviderBadge}
-                sessions={sessions}
-                sessionsTotal={sessionsTotal}
-                hasMoreSessions={hasMoreSessions}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-                isLoading={isLoading}
-                isLoadingMoreSessions={isLoadingMoreSessions}
-                expandedProjects={expandedProjects}
-                setExpandedProjects={setExpandedProjects}
-                isProjectExpanded={isProjectExpanded}
-                handleProjectClick={handleProjectClick}
-                handleContextMenu={handleContextMenu}
-                onSessionSelect={handleSessionSelect}
-                onSessionHover={onSessionHover}
-                onLoadMoreSessions={onLoadMoreSessions}
-                formatTimeAgo={formatTimeAgo}
-                inlineSessions={inlineSessions}
+                onGroupingModeChange={onGroupingModeChange}
+                providers={providerOptions}
+                isAllProvidersSelected={isAllProvidersSelected}
+                onToggleProvider={(id) => void toggleProviderFilter(id)}
+                onResetProviders={() => void applyProviderSelection(selectableProviderIds)}
+                onDiscoverProviders={handleDiscoverProviders}
+                isDiscovering={isDetectingProviders || isLoadingProjects}
               />
             </div>
-          )}
+
+            {filteredProjects.length === 0 ? (
+              <div className="px-4 py-10 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
+                  <Icon icon={Folder} size={24} className="text-muted-foreground/40" />
+                </div>
+                {/* No projects at all reads the same as the main area's empty
+                    state; a filter with no match keeps "not found". */}
+                <p className="text-body text-muted-foreground [&:lang(ko)]:break-keep">
+                  {projects.length === 0
+                    ? t(hasSearchedOtherProviders ? "session.noProjects.title" : "session.noProjects.claudeTitle")
+                    : t("project.notFound")}
+                </p>
+              </div>
+            ) : (
+              <div
+                ref={treeRef}
+                role="tree"
+                data-selection={isSelectionRetained ? "retained" : "active"}
+                aria-labelledby={projectsHeadingId}
+                aria-describedby={keyboardHelpId}
+                onKeyDown={handleTreeKeyDown}
+                onFocusCapture={(event) => {
+                  const target = event.target as HTMLElement;
+                  const treeItem = target.closest<HTMLElement>('[role="treeitem"]');
+                  if (treeItem) {
+                    syncRovingTabIndex(treeItem);
+                    announceTree(describeTreeItem(treeItem));
+                  }
+                }}
+              >
+                <GroupedProjectList
+                  groupingMode={groupingMode}
+                  projects={sortedProjects}
+                  directoryGroups={filteredDirectoryGroups}
+                  timeGroups={filteredTimeGroups}
+                  worktreeGroups={filteredWorktreeGroups}
+                  ungroupedProjects={sortedUngroupedProjects}
+                  showProviderBadge={showProviderBadge}
+                  sessions={sessions}
+                  sessionsTotal={sessionsTotal}
+                  hasMoreSessions={hasMoreSessions}
+                  selectedProject={selectedProject}
+                  selectedSession={selectedSession}
+                  isLoading={isLoading}
+                  isLoadingMoreSessions={isLoadingMoreSessions}
+                  expandedProjects={expandedProjects}
+                  setExpandedProjects={setExpandedProjects}
+                  isProjectExpanded={isProjectExpanded}
+                  handleProjectClick={handleProjectClick}
+                  handleContextMenu={handleContextMenu}
+                  onSessionSelect={handleSessionSelect}
+                  onSessionHover={onSessionHover}
+                  onLoadMoreSessions={onLoadMoreSessions}
+                  formatTimeAgo={formatTimeAgo}
+                  inlineSessions={inlineSessions}
+                  isSelectionRetained={isSelectionRetained}
+                />
+              </div>
+            )}
+          </section>
         </OverlayScrollbarsComponent>
+
+        {/* Footer: help (feedback) and the sidebar's own toggle. */}
+        <div className="h-8 shrink-0 flex items-center justify-between gap-1 px-2 border-t border-border/50">
+          {onOpenHelp ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenHelp();
+                onClose?.();
+              }}
+              className="h-7 min-w-0 flex items-center gap-1.5 px-2 rounded-md text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label={t("common.helpMenu.feedback")}
+              title={t("common.helpMenu.feedback")}
+            >
+              <CircleQuestionMark className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">{t("common.helpMenu.title")}</span>
+            </button>
+          ) : (
+            <span />
+          )}
+          {onToggleCollapse && (
+            <RailButton
+              icon={PanelLeftClose}
+              label={t("project.collapseSidebar", "Collapse sidebar")}
+              onClick={onToggleCollapse}
+            />
+          )}
+          {!onToggleCollapse && onClose && (
+            <RailButton icon={X} label={t("common.close", "Close")} onClick={onClose} />
+          )}
+        </div>
 
         <p id={keyboardHelpId} className="sr-only">
           {t(
@@ -1224,9 +935,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       {onResizeStart && (
         <div
           className={cn(
-            "w-3 cursor-col-resize flex-shrink-0",
-            "hover:bg-accent/20 active:bg-accent/30 transition-colors",
-            isResizing && "bg-accent/30"
+            "w-1 -ml-1 cursor-col-resize flex-shrink-0 relative z-10",
+            "hover:bg-accent/30 active:bg-accent/40 transition-colors",
+            isResizing && "bg-accent/40"
           )}
           onMouseDown={onResizeStart}
         />
@@ -1248,3 +959,34 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     </aside>
   );
 };
+
+/** A 28px icon button with its label as tooltip and accessible name. */
+const RailButton = ({
+  icon: Glyph,
+  label,
+  onClick,
+  active = false,
+  disabled = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    aria-current={active ? "page" : undefined}
+    title={label}
+    className={cn(
+      "w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition-colors",
+      active ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      disabled && "opacity-50 cursor-not-allowed"
+    )}
+  >
+    <Glyph className="w-4 h-4" />
+  </button>
+);

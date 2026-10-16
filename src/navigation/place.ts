@@ -183,30 +183,32 @@ export function samePlace(a: Place, b: Place): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Header view tabs. `tokenStats` keeps its tab until T9b (plan C1).
+ * The toolbar's screen tabs (plan T7). Token stats has no tab of its own
+ * (plan C1): it opens from inside analytics until it becomes an analytics
+ * sub-tab (T9b), so while it shows, the analytics tab is the selected one.
  */
-export type ToolbarView = "conversation" | "analytics" | "tokenStats" | "edits" | "board";
+export type ToolbarView = "conversation" | "analytics" | "edits" | "board";
 
 const TOOLBAR_VIEWS: ReadonlySet<View> = new Set<ToolbarView>([
   "conversation",
   "analytics",
-  "tokenStats",
   "edits",
   "board",
 ]);
 
 /**
- * The header tab to show as selected: the current view when it is a project
+ * The toolbar tab to show as selected: the current view when it is a project
  * screen with a project in context, otherwise none. Global stats, the archive
  * and the Settings Manager have no tab, so none is selected while they are
  * open.
  */
 export function activeToolbarView(place: Place): ToolbarView | null {
   if (!place.project) return null;
+  if (place.view === "tokenStats") return "analytics";
   return TOOLBAR_VIEWS.has(place.view) ? (place.view as ToolbarView) : null;
 }
 
-/** App-level rows: global stats lives in the sidebar, the rest in the app menu. */
+/** The sidebar library rows of the app-level screens (plan T7). */
 export type LibraryItem = "globalStats" | "archive" | "settingsManager";
 
 export function activeLibraryItem(place: Place): LibraryItem | null {

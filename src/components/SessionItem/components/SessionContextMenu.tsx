@@ -8,6 +8,8 @@ import {
   FileText,
   FolderOpen,
   Play,
+  Star,
+  StarOff,
   Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +34,9 @@ interface SessionContextMenuProps {
   onCopyFilePath: (e: React.MouseEvent) => void;
   onRevealInFinder: (e: React.MouseEvent) => void;
   onDeleteSession: (e: React.MouseEvent) => void;
+  /** Starred (the sidebar's favourites). Omitted: no favourite item. */
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
@@ -52,9 +57,17 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   onCopyFilePath,
   onRevealInFinder,
   onDeleteSession,
+  isFavorite = false,
+  onToggleFavorite,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Opened from the keyboard (ContextMenu / Shift+F10) or the pointer, the
+  // menu takes focus so its items are reachable without a mouse.
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, []);
   const [adjustedPosition, setAdjustedPosition] = useState({ x: position.x, y: position.y });
 
   useEffect(() => {
@@ -140,7 +153,29 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
       )}
       style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
     >
-      <div className="p-1">
+      <div
+        className="p-1"
+        onKeyDown={(e) => {
+          // Arrow keys move between the items (menu pattern).
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          const items = Array.from(
+            menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
+          );
+          const at = items.indexOf(document.activeElement as HTMLElement);
+          const next = e.key === "ArrowDown" ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+          items[next]?.focus();
+        }}
+      >
+        {!readOnly && onToggleFavorite && (
+          <>
+            <button type="button" role="menuitem" onClick={handleAction(onToggleFavorite)} className={menuItemClass}>
+              {isFavorite ? <StarOff className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
+              <span>{isFavorite ? t("session.favorite.remove") : t("session.favorite.add")}</span>
+            </button>
+            <div className="my-1 border-t border-border/50" />
+          </>
+        )}
         {!readOnly && (
           <button type="button" role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
             <Pencil className="w-3.5 h-3.5" />

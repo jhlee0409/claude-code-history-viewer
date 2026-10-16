@@ -207,7 +207,6 @@
   "header.views": "Views",
   "common.dateFilter.start": "Start date",
   "common.dateFilter.end": "End date",
-  "common.a11y.skipToSessions": "Skip to sessions",
   "common.search": "Search",
   "common.showMore": "Show more",
   "common.a11y.navigation": "Navigation",
@@ -222,5 +221,10 @@
   "common.command.openArchive": "Open Archive Manager",
   "common.command.sendFeedback": "Send Feedback…",
   "common.command.checkForUpdates": "Check for Updates…",
-  "common.command.failed": "Command failed: {{command}}"
+  "common.command.failed": "Command failed: {{command}}",
+  "common.toolbar.location": "Location",
+  "common.toolbar.search": "Search",
+  "common.toolbar.inspector": "Inspector",
+  "common.helpMenu.title": "Help",
+  "common.helpMenu.feedback": "Help and feedback"
 }

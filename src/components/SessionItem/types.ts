@@ -16,10 +16,15 @@ export interface SessionItemProps {
    */
   onToggleSelect?: (e: React.MouseEvent | React.KeyboardEvent) => void;
   /**
-   * Start/extend a selection from normal mode via a modifier click
-   * (Cmd/Ctrl+click or Shift+click). Enters selection mode.
+   * Start/extend a selection from normal mode via Shift+click (or Shift+Enter
+   * on a compact row). Enters selection mode. ⌘/Ctrl+click opens the session
+   * instead (plan T7, decision (나)).
    */
-  onModifierSelect?: (e: React.MouseEvent) => void;
+  onModifierSelect?: (e: React.MouseEvent | React.KeyboardEvent) => void;
+  /** `compact`: the sidebar's one-line tree row. */
+  variant?: "default" | "compact";
+  /** Tree level of a compact row (its project is one above). */
+  ariaLevel?: number;
 }
 
 export interface SessionHeaderProps {

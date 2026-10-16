@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T12:39:01.330Z
- * 총 키 개수: 2079
+ * 생성 시간: 2026-10-16T12:51:54.787Z
+ * 총 키 개수: 2103
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (224개)
+ * common namespace의 번역 키 (228개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -50,7 +50,6 @@ export type CommonKeys =
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
-  | 'common.a11y.skipToSessions'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -101,6 +100,8 @@ export type CommonKeys =
   | 'common.errorOccurred'
   | 'common.expand'
   | 'common.help'
+  | 'common.helpMenu.feedback'
+  | 'common.helpMenu.title'
   | 'common.hide'
   | 'common.hooks.githubApiError'
   | 'common.hooks.networkError'
@@ -222,6 +223,9 @@ export type CommonKeys =
   | 'common.time.start'
   | 'common.time.startTime'
   | 'common.toolId'
+  | 'common.toolbar.inspector'
+  | 'common.toolbar.location'
+  | 'common.toolbar.search'
   | 'common.undo'
   | 'common.unknown'
   | 'common.update.available'
@@ -482,7 +486,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (277개)
+ * session namespace의 번역 키 (297개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -504,8 +508,10 @@ export type SessionKeys =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filterPlaceholder'
   | 'project.globalStats'
   | 'project.globalStatsDescription'
+  | 'project.grouping'
   | 'project.groupingDirectory'
   | 'project.groupingNone'
   | 'project.groupingTime'
@@ -514,6 +520,15 @@ export type SessionKeys =
   | 'project.hide'
   | 'project.kind.main'
   | 'project.kind.worktree'
+  | 'project.library.archive'
+  | 'project.library.claudeSettings'
+  | 'project.library.favorites'
+  | 'project.library.favoritesEmpty'
+  | 'project.library.locationUnknown'
+  | 'project.library.recent'
+  | 'project.library.recentEmpty'
+  | 'project.library.title'
+  | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
@@ -521,10 +536,20 @@ export type SessionKeys =
   | 'project.pathUnavailableDescription'
   | 'project.pathUnavailableGroup'
   | 'project.pathUnavailablePath'
+  | 'project.projects'
+  | 'project.providers'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
+  | 'project.select'
   | 'project.selectToView'
+  | 'project.sessions.empty'
+  | 'project.sessions.loadError'
+  | 'project.sessions.showAll'
+  | 'project.sessions.showFewer'
+  | 'project.sort.label'
+  | 'project.sort.name'
+  | 'project.sort.recent'
   | 'project.switchProvider'
   | 'project.temporaryGroup'
   | 'project.title'
@@ -706,7 +731,6 @@ export type SessionKeys =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
-  | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
@@ -2521,7 +2545,6 @@ export type TranslationKey =
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
-  | 'common.a11y.skipToSessions'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -2572,6 +2595,8 @@ export type TranslationKey =
   | 'common.errorOccurred'
   | 'common.expand'
   | 'common.help'
+  | 'common.helpMenu.feedback'
+  | 'common.helpMenu.title'
   | 'common.hide'
   | 'common.hooks.githubApiError'
   | 'common.hooks.networkError'
@@ -2693,6 +2718,9 @@ export type TranslationKey =
   | 'common.time.start'
   | 'common.time.startTime'
   | 'common.toolId'
+  | 'common.toolbar.inspector'
+  | 'common.toolbar.location'
+  | 'common.toolbar.search'
   | 'common.undo'
   | 'common.unknown'
   | 'common.update.available'
@@ -3067,8 +3095,10 @@ export type TranslationKey =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filterPlaceholder'
   | 'project.globalStats'
   | 'project.globalStatsDescription'
+  | 'project.grouping'
   | 'project.groupingDirectory'
   | 'project.groupingNone'
   | 'project.groupingTime'
@@ -3077,6 +3107,15 @@ export type TranslationKey =
   | 'project.hide'
   | 'project.kind.main'
   | 'project.kind.worktree'
+  | 'project.library.archive'
+  | 'project.library.claudeSettings'
+  | 'project.library.favorites'
+  | 'project.library.favoritesEmpty'
+  | 'project.library.locationUnknown'
+  | 'project.library.recent'
+  | 'project.library.recentEmpty'
+  | 'project.library.title'
+  | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
@@ -3084,10 +3123,20 @@ export type TranslationKey =
   | 'project.pathUnavailableDescription'
   | 'project.pathUnavailableGroup'
   | 'project.pathUnavailablePath'
+  | 'project.projects'
+  | 'project.providers'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
+  | 'project.select'
   | 'project.selectToView'
+  | 'project.sessions.empty'
+  | 'project.sessions.loadError'
+  | 'project.sessions.showAll'
+  | 'project.sessions.showFewer'
+  | 'project.sort.label'
+  | 'project.sort.name'
+  | 'project.sort.recent'
   | 'project.switchProvider'
   | 'project.temporaryGroup'
   | 'project.title'
@@ -3405,7 +3454,6 @@ export type TranslationKey =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
-  | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'

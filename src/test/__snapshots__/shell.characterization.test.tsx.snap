@@ -10,25 +10,19 @@ exports[`shell characterization > desktop > analytics 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -47,21 +41,12 @@ exports[`shell characterization > desktop > analytics 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -104,7 +89,9 @@ exports[`shell characterization > desktop > analytics 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -116,6 +103,41 @@ exports[`shell characterization > desktop > analytics 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -223,25 +245,19 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -260,21 +276,12 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -317,7 +324,9 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -329,6 +338,41 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
                 Session summary not found.
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -436,19 +480,19 @@ exports[`shell characterization > desktop > archive 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -467,8 +511,8 @@ exports[`shell characterization > desktop > archive 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":true,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -516,7 +560,9 @@ exports[`shell characterization > desktop > archive 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -595,25 +641,19 @@ exports[`shell characterization > desktop > board 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -632,21 +672,12 @@ exports[`shell characterization > desktop > board 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -693,7 +724,9 @@ exports[`shell characterization > desktop > board 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -768,37 +801,31 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#message-navigator"
       >
         Skip to message navigator
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -817,21 +844,12 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -941,31 +959,25 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -984,21 +996,12 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -1117,19 +1120,19 @@ exports[`shell characterization > desktop > empty 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1148,8 +1151,8 @@ exports[`shell characterization > desktop > empty 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":null,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":true,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":null,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -1257,25 +1260,19 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1294,21 +1291,12 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -1414,25 +1402,19 @@ exports[`shell characterization > desktop > global stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1451,21 +1433,12 @@ exports[`shell characterization > desktop > global stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -1502,7 +1475,9 @@ exports[`shell characterization > desktop > global stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -1621,25 +1596,19 @@ exports[`shell characterization > desktop > loading stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1658,21 +1627,12 @@ exports[`shell characterization > desktop > loading stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -1715,7 +1675,9 @@ exports[`shell characterization > desktop > loading stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -1727,6 +1689,41 @@ exports[`shell characterization > desktop > loading stats 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -1864,25 +1861,25 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        href="#message-navigator"
+      >
+        Skip to message navigator
+      </a>
+      <a
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -1901,21 +1898,12 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -2004,25 +1992,19 @@ exports[`shell characterization > desktop > recent edits 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2041,21 +2023,12 @@ exports[`shell characterization > desktop > recent edits 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -2098,7 +2071,9 @@ exports[`shell characterization > desktop > recent edits 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -2217,19 +2192,19 @@ exports[`shell characterization > desktop > settings 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2248,8 +2223,8 @@ exports[`shell characterization > desktop > settings 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":true,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -2292,7 +2267,9 @@ exports[`shell characterization > desktop > settings 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -2371,25 +2348,19 @@ exports[`shell characterization > desktop > token stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#project-explorer"
       >
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
-        href="#sessions-pane"
-      >
-        Skip to sessions
-      </a>
-      <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2408,21 +2379,12 @@ exports[`shell characterization > desktop > token stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"inlineSessions":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onResizeStart,onSessionHover,onSessionSelect,onToggleCollapse,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"width":280,"isResizing":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"isCollapsed":false,"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
       </div>
-      <aside
-        id="sessions-pane"
-      >
-        <div
-          data-handlers="formatTimeAgo,onLoadMoreSessions,onResizeStart,onSessionHover,onSessionSelect"
-          data-props="{"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"width":280,"isResizing":false}"
-          data-stub="SessionsPane"
-        />
-      </aside>
       <main
         class="flex-1 flex flex-col min-w-0 bg-background pb-[var(--mobile-bottom-inset)] md:pb-0"
         data-slot="main"
@@ -2467,7 +2429,9 @@ exports[`shell characterization > desktop > token stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -2479,6 +2443,39 @@ exports[`shell characterization > desktop > token stats 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="analytics"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Analytics Dashboard
+            </button>
           </div>
         </div>
         <div
@@ -2590,13 +2587,13 @@ exports[`shell characterization > mobile > analytics 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2617,8 +2614,8 @@ exports[`shell characterization > mobile > analytics 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -2669,7 +2666,9 @@ exports[`shell characterization > mobile > analytics 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -2681,6 +2680,41 @@ exports[`shell characterization > mobile > analytics 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -2893,13 +2927,13 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -2920,8 +2954,8 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -2972,7 +3006,9 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -2984,6 +3020,41 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
                 Session summary not found.
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -3196,13 +3267,13 @@ exports[`shell characterization > mobile > archive 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3223,8 +3294,8 @@ exports[`shell characterization > mobile > archive 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -3276,7 +3347,9 @@ exports[`shell characterization > mobile > archive 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -3358,13 +3431,13 @@ exports[`shell characterization > mobile > board 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3385,8 +3458,8 @@ exports[`shell characterization > mobile > board 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -3441,7 +3514,9 @@ exports[`shell characterization > mobile > board 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -3519,19 +3594,19 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3552,8 +3627,8 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -3679,19 +3754,19 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2 xl:block"
+        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
         href="#recent-edits-dock"
       >
         Skip to recent edits
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3712,8 +3787,8 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -3843,13 +3918,13 @@ exports[`shell characterization > mobile > empty 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -3870,8 +3945,8 @@ exports[`shell characterization > mobile > empty 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":null,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":null,"selectedSession":null,"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -3988,13 +4063,13 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4015,8 +4090,8 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -4133,13 +4208,13 @@ exports[`shell characterization > mobile > global stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4160,8 +4235,8 @@ exports[`shell characterization > mobile > global stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -4206,7 +4281,9 @@ exports[`shell characterization > mobile > global stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -4328,13 +4405,13 @@ exports[`shell characterization > mobile > loading stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4355,8 +4432,8 @@ exports[`shell characterization > mobile > loading stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -4407,7 +4484,9 @@ exports[`shell characterization > mobile > loading stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -4419,6 +4498,41 @@ exports[`shell characterization > mobile > loading stats 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="tokenStats"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Token Statistics
+            </button>
           </div>
         </div>
         <div
@@ -4661,13 +4775,13 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4688,8 +4802,8 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -4789,13 +4903,13 @@ exports[`shell characterization > mobile > recent edits 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -4816,8 +4930,8 @@ exports[`shell characterization > mobile > recent edits 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -4868,7 +4982,9 @@ exports[`shell characterization > mobile > recent edits 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -5092,13 +5208,13 @@ exports[`shell characterization > mobile > settings 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -5119,8 +5235,8 @@ exports[`shell characterization > mobile > settings 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -5167,7 +5283,9 @@ exports[`shell characterization > mobile > settings 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -5249,13 +5367,13 @@ exports[`shell characterization > mobile > token stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-all focus:top-2"
+        class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
         Skip to settings
@@ -5276,8 +5394,8 @@ exports[`shell characterization > mobile > token stats 1`] = `
           id="project-explorer"
         >
           <div
-            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
-            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"isGlobalStatsActive":false,"isSelectionRetained":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
+            data-handlers="isProjectHidden,onClose,onGlobalStatsClick,onGroupingModeChange,onHideProject,onLoadMoreSessions,onOpenArchive,onOpenHelp,onOpenSettingsManager,onProjectSelect,onSessionHover,onSessionSelect,onUnhideProject"
+            data-props="{"projects":[{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"}],"sessions":[{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false}],"sessionsTotal":1,"hasMoreSessions":false,"selectedProject":{"name":"project-1","path":"/tmp/project","actual_path":"/tmp/project-actual","provider":"claude"},"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"isLoading":false,"isLoadingMoreSessions":false,"libraryItem":null,"isSelectionRetained":false,"isArchiveDisabled":false,"groupingMode":"none","worktreeGroups":[],"directoryGroups":[],"timeGroups":[],"ungroupedProjects":[],"asideId":"project-explorer"}"
             data-stub="ProjectTree"
           />
         </aside>
@@ -5330,7 +5448,9 @@ exports[`shell characterization > mobile > token stats 1`] = `
                 />
               </svg>
             </div>
-            <div>
+            <div
+              class="min-w-0 flex-1"
+            >
               <h2
                 class="text-body font-semibold text-foreground"
               >
@@ -5342,6 +5462,39 @@ exports[`shell characterization > mobile > token stats 1`] = `
                 session summary
               </p>
             </div>
+            <button
+              class="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md border border-border/60 text-list text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              data-related-view="analytics"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Analytics Dashboard
+            </button>
           </div>
         </div>
         <div

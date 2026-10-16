@@ -42,10 +42,11 @@ export const createNavigatorSlice: StateCreator<
 > = (set, get) => ({
     isNavigatorOpen: (() => {
         try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored === null ? true : stored === "true";
+            // Closed until the user opens it (plan decision 5); then the
+            // last choice is kept.
+            return localStorage.getItem(STORAGE_KEY) === "true";
         } catch {
-            return true;
+            return false;
         }
     })(),
 

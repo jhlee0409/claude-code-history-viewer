@@ -12,10 +12,11 @@ import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
-import { useIsLgUp, useIsXlUp } from "@/hooks/useMediaQuery";
-import { useResizablePanel } from "@/hooks/useResizablePanel";
-import { SessionsPane } from "@/components/SessionsPane/SessionsPane";
-import { formatTimeAgo } from "@/utils/time";
+import { useIsXlUp } from "@/hooks/useMediaQuery";
+import { CommandRunnerContext } from "@/commands/CommandRunner";
+import { useCommandContext } from "@/commands/useCommandContext";
+import { runCommand } from "@/commands/registry";
+import { useFavoriteRefBackfill } from "@/hooks/useFavoriteRefBackfill";
 import {
   AppErrorType,
   type ClaudeMessage,
@@ -204,26 +205,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   // Called before the early returns below, as hook order must not vary.
   const isXlUp = useIsXlUp();
-  // Sessions get their own column from `lg` up; below that they stay inline in
-  // the explorer so narrow windows keep a usable transcript width. The column
-  // only exists for a selected project, and not on app-level views (Settings,
-  // Archive) where it would just steal width.
-  const showSessionsPane =
-    useIsLgUp() &&
-    !isMobile &&
-    selectedProject != null &&
-    !computed.isSettingsView &&
-    !computed.isArchiveView;
-  const {
-    width: sessionsPaneWidth,
-    isResizing: isSessionsPaneResizing,
-    handleMouseDown: handleSessionsPaneResizeStart,
-  } = useResizablePanel({
-    defaultWidth: 300,
-    minWidth: 220,
-    maxWidth: 520,
-    storageKey: "sessions-pane-width",
-  });
+  // Toolbar and sidebar controls run registry commands (`CommandRunner`).
+  const getCommandContext = useCommandContext();
+  const run = (id: Parameters<typeof runCommand>[0]) => runCommand(id, getCommandContext());
+  // Legacy favourites learn where they live once their project is open.
+  useFavoriteRefBackfill();
   // Highlights are projections of the place (plan C3); primitives only, so
   // the selectors stay stable between renders.
   const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
@@ -311,7 +297,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     screen is exactly the transcript.
   */
   const isTranscriptView = computed.isMessagesView;
-  const showMessageNavigator = entry.inspector && selectedSession != null;
+  // The inspector (today the message navigator) is closed by default and
+  // opens from the toolbar's inspector button or ⌘⇧M (plan T7, decision 5);
+  // closed, it takes no width at all.
+  const showMessageNavigator = entry.inspector && selectedSession != null && isNavigatorOpen;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
@@ -345,8 +334,14 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     onGlobalStatsClick: handleGlobalStatsClick,
     isLoading: isLoadingProjects || isLoadingSessions,
     isLoadingMoreSessions,
-    isGlobalStatsActive: libraryItem === "globalStats",
+    libraryItem,
     isSelectionRetained: libraryItem !== null,
+    // The library's app-level rows and the help button run the same
+    // commands as the palette (plan §6).
+    onOpenArchive: () => run("go.archive"),
+    isArchiveDisabled: (selectedProject?.provider ?? "claude") !== "claude",
+    onOpenSettingsManager: () => run("go.settingsManager"),
+    onOpenHelp: () => run("help.feedback"),
   };
   const groupingProps = {
     groupingMode,
@@ -361,16 +356,14 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   };
 
   return (
+    <CommandRunnerContext.Provider value={getCommandContext}>
     <ShellLayout
       ready={isSettled}
       skipLinks={
         <SkipLinks
           hasProjectExplorer={!isMobile}
-          hasSessionsPane={showSessionsPane}
           hasRecentEditsDock={showRecentEditsDock}
-          hasMessageNavigator={
-            !isMobile && isTranscriptView && isNavigatorOpen && selectedSession != null
-          }
+          hasMessageNavigator={!isMobile && showMessageNavigator}
         />
       }
       header={
@@ -406,7 +399,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           <div className="hidden md:block">
             <ProjectTree
               {...projectTreeProps}
-              inlineSessions={!showSessionsPane}
               width={isSidebarCollapsed ? undefined : sidebarWidth}
               isResizing={isSidebarResizing}
               onResizeStart={handleSidebarResizeStart}
@@ -418,32 +410,13 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           </div>
         )
       }
-      list={
-        showSessionsPane && (
-          <SessionsPane
-            selectedProject={selectedProject}
-            sessions={sessions}
-            sessionsTotal={sessionsTotal}
-            hasMoreSessions={hasMoreSessions}
-            selectedSession={selectedSession}
-            isLoading={isLoadingSessions}
-            isLoadingMoreSessions={isLoadingMoreSessions}
-            onSessionSelect={handleSessionSelect}
-            onSessionHover={handleSessionHover}
-            onLoadMoreSessions={loadMoreSessions}
-            formatTimeAgo={formatTimeAgo}
-            width={sessionsPaneWidth}
-            isResizing={isSessionsPaneResizing}
-            onResizeStart={handleSessionsPaneResizeStart}
-          />
-        )
-      }
       mainHeader={
         <>
           <ContentHeader
             view={screen}
             selectedSession={selectedSession}
             globalOverviewDescription={globalOverviewDescription}
+            onOpenView={(view) => void analyticsActions.openView(view)}
           />
           {isMobile && selectedProject && isMobileAnalyticsView(screen) && (
             <MobileAnalyticsSubNav view={screen} analyticsActions={analyticsActions} />
@@ -470,7 +443,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 width={navigatorWidth}
                 isResizing={isNavigatorResizing}
                 onResizeStart={handleNavigatorResizeStart}
-                isCollapsed={!isNavigatorOpen}
+                isCollapsed={false}
                 onToggleCollapse={toggleNavigator}
                 asideId="message-navigator"
               />
@@ -548,5 +521,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       }
       modals={<ModalContainer />}
     />
+    </CommandRunnerContext.Provider>
   );
 };

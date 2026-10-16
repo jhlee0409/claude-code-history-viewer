@@ -7,8 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, LoaderCircle } from "lucide-react";
-import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import { Settings, RefreshCw, Folder, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,23 +22,18 @@ import { ViewMenuGroup } from "./ViewMenuGroup";
 import { FontMenuGroup } from "./FontMenuGroup";
 import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
 
-const SettingsManagerIcon = SCREEN_ICONS.settings;
-const ArchiveIcon = SCREEN_ICONS.archive;
-
 interface SettingDropdownProps {
   updater: UseUpdaterReturn;
-  /** Claude-only tool; disabled for other providers. */
-  onOpenArchive?: () => void;
-  archiveDisabled?: boolean;
-  onOpenSettingsManager?: () => void;
 }
 
-export const SettingDropdown = ({
-  updater,
-  onOpenArchive,
-  archiveDisabled = false,
-  onOpenSettingsManager,
-}: SettingDropdownProps) => {
+/**
+ * The gear menu: app preferences only (plan T7, D8) - the Claude folder,
+ * message filters, view, font, accessibility, theme, language, and on the
+ * desktop the app's own update check. The Claude Code tools (Settings
+ * Manager, Archive) live in the sidebar library and the ⌘K palette; feedback
+ * is the sidebar's help button and a palette command (§6).
+ */
+export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
   const { t } = useTranslation();
   const { openModal } = useModal();
 
@@ -51,39 +45,16 @@ export const SettingDropdown = ({
         <DropdownMenuTrigger asChild>
           <button
             id="app-settings-button"
-            className="p-2 rounded-lg transition-colors cursor-pointer relative text-muted-foreground/50 hover:text-foreground/80 hover:bg-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer relative text-muted-foreground hover:text-foreground hover:bg-muted"
             aria-label={t("common.settings.title")}
           >
-            <Settings className="w-4 h-4 text-foreground" />
+            <Settings className="w-4 h-4" />
             {isCheckingForUpdates && (
               <LoaderCircle className="absolute -top-1 -right-1 w-3.5 h-3.5 animate-spin text-info" />
             )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
-          {(onOpenSettingsManager || onOpenArchive) && (
-            <>
-              <DropdownMenuLabel>{t("common.settings.tools", "Claude Code")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {onOpenSettingsManager && (
-                <DropdownMenuItem onClick={onOpenSettingsManager}>
-                  <SettingsManagerIcon className="mr-2 h-4 w-4 text-foreground" />
-                  <span>{t("settingsManager.title")}</span>
-                </DropdownMenuItem>
-              )}
-              {onOpenArchive && (
-                <DropdownMenuItem onClick={onOpenArchive} disabled={archiveDisabled}>
-                  <ArchiveIcon className="mr-2 h-4 w-4 text-foreground" />
-                  <span>
-                    {archiveDisabled
-                      ? t("common.settings.claudeOnly", { name: t("archive.title") })
-                      : t("archive.title")}
-                  </span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-            </>
-          )}
           <DropdownMenuLabel>{t('common.settings.title')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -91,10 +62,6 @@ export const SettingDropdown = ({
           >
             <Folder className="mr-2 h-4 w-4 text-foreground" />
             <span>{t('common.settings.changeFolder')}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => openModal("feedback")}>
-            <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
-            <span>{t("feedback.title")}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />

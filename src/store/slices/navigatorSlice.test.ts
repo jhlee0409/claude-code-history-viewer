@@ -32,7 +32,8 @@ describe("navigatorSlice", () => {
   it("applies the documented defaults when localStorage is empty", () => {
     const s = makeStore().getState();
 
-    expect(s.isNavigatorOpen).toBe(true);
+    // Closed by default (plan decision 5: the inspector starts closed).
+    expect(s.isNavigatorOpen).toBe(false);
     expect(s.navigatorViewMode).toBe("list");
     expect(s.visibleMessageUuid).toBeNull();
   });
@@ -104,7 +105,7 @@ describe("navigatorSlice", () => {
     expect(() => {
       const store = makeStore();
       expect(store.getState().navigatorViewMode).toBe("list");
-      expect(store.getState().isNavigatorOpen).toBe(true);
+      expect(store.getState().isNavigatorOpen).toBe(false);
     }).not.toThrow();
 
     getItemSpy.mockRestore();

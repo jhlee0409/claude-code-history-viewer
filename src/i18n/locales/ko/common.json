@@ -207,7 +207,6 @@
   "header.views": "보기",
   "common.dateFilter.start": "시작일",
   "common.dateFilter.end": "종료일",
-  "common.a11y.skipToSessions": "세션 목록으로 건너뛰기",
   "common.search": "검색",
   "common.showMore": "더 보기",
   "common.a11y.navigation": "탐색",
@@ -222,5 +221,10 @@
   "common.command.openArchive": "아카이브 관리자 열기",
   "common.command.sendFeedback": "피드백 보내기…",
   "common.command.checkForUpdates": "업데이트 확인…",
-  "common.command.failed": "명령 실행 실패: {{command}}"
+  "common.command.failed": "명령 실행 실패: {{command}}",
+  "common.toolbar.location": "현재 위치",
+  "common.toolbar.search": "검색",
+  "common.toolbar.inspector": "인스펙터",
+  "common.helpMenu.title": "도움말",
+  "common.helpMenu.feedback": "도움말 및 피드백"
 }

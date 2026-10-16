@@ -207,7 +207,6 @@
   "header.views": "视图",
   "common.dateFilter.start": "开始日期",
   "common.dateFilter.end": "结束日期",
-  "common.a11y.skipToSessions": "跳转到会话列表",
   "common.search": "搜索",
   "common.showMore": "显示更多",
   "common.a11y.navigation": "导航",
@@ -222,5 +221,10 @@
   "common.command.openArchive": "打开归档管理器",
   "common.command.sendFeedback": "发送反馈…",
   "common.command.checkForUpdates": "检查更新…",
-  "common.command.failed": "命令执行失败：{{command}}"
+  "common.command.failed": "命令执行失败：{{command}}",
+  "common.toolbar.location": "当前位置",
+  "common.toolbar.search": "搜索",
+  "common.toolbar.inspector": "检查器",
+  "common.helpMenu.title": "帮助",
+  "common.helpMenu.feedback": "帮助与反馈"
 }

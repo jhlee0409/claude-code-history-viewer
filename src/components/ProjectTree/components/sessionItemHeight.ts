@@ -36,3 +36,10 @@ export function sessionItemHeight(fontScalePercent: number): number {
   const scale = Number.isFinite(fontScalePercent) ? fontScalePercent / 100 : 1;
   return Math.ceil(sessionItemContentHeight(scale) + SESSION_ROW.safety);
 }
+
+/**
+ * Row height (px) of the sidebar's one-line session row (`SessionItem`
+ * `variant="compact"`, `h-7`). Rem-sized, so it does not follow the font
+ * scale: one line of text-list (13px × 1.4) fits it up to 150 %.
+ */
+export const COMPACT_SESSION_ROW_HEIGHT = 28;

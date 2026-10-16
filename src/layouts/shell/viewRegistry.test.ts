@@ -64,7 +64,6 @@ const VIEWS = Object.keys(ALL_VIEWS) as View[];
 const TOOLBAR: Record<ToolbarView, true> = {
   conversation: true,
   analytics: true,
-  tokenStats: true,
   edits: true,
   board: true,
 };

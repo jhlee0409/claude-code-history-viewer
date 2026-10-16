@@ -170,11 +170,18 @@ describe("highlight projections", () => {
     }
   );
 
-  it.each(["conversation", "analytics", "tokenStats", "edits", "board"] as const)(
-    "%s selects its header tab and no library row",
-    (view) => {
+  it.each([
+    ["conversation", "conversation"],
+    ["analytics", "analytics"],
+    // No tab of its own until T9b (plan C1): it opens from analytics.
+    ["tokenStats", "analytics"],
+    ["edits", "edits"],
+    ["board", "board"],
+  ] as const)(
+    "%s selects the %s toolbar tab and no library row",
+    (view, tab) => {
       const place = at(view, "session");
-      expect(activeToolbarView(place)).toBe(view);
+      expect(activeToolbarView(place)).toBe(tab);
       expect(activeLibraryItem(place)).toBeNull();
       expect(treeSelection(place).retained).toBe(false);
     }

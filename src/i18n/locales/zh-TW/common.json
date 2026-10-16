@@ -207,7 +207,6 @@
   "header.views": "檢視",
   "common.dateFilter.start": "開始日期",
   "common.dateFilter.end": "結束日期",
-  "common.a11y.skipToSessions": "跳至會話列表",
   "common.search": "搜尋",
   "common.showMore": "顯示更多",
   "common.a11y.navigation": "導覽",
@@ -222,5 +221,10 @@
   "common.command.openArchive": "開啟封存管理器",
   "common.command.sendFeedback": "發送意見回饋…",
   "common.command.checkForUpdates": "檢查更新…",
-  "common.command.failed": "命令執行失敗：{{command}}"
+  "common.command.failed": "命令執行失敗：{{command}}",
+  "common.toolbar.location": "目前位置",
+  "common.toolbar.search": "搜尋",
+  "common.toolbar.inspector": "檢閱器",
+  "common.helpMenu.title": "說明",
+  "common.helpMenu.feedback": "說明與意見回饋"
 }

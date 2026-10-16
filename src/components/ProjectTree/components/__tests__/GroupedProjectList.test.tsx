@@ -5,7 +5,8 @@ import type { ClaudeProject } from "../../../../types";
 import type { DirectoryGroup, WorktreeGroup, TimeGroup } from "../../../../utils/worktreeUtils";
 import { GroupedProjectList } from "../GroupedProjectList";
 
-vi.mock("react-i18next", () => ({
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
     t: (
       key: string,
@@ -67,6 +68,7 @@ describe("GroupedProjectList", () => {
     worktreeGroups?: WorktreeGroup[];
     expandedProjects?: Set<string>;
   }) {
+    const setExpandedProjects = vi.fn();
     render(
       <GroupedProjectList
         groupingMode={options.groupingMode}
@@ -79,7 +81,7 @@ describe("GroupedProjectList", () => {
         selectedSession={null}
         isLoading={false}
         expandedProjects={options.expandedProjects ?? new Set<string>()}
-        setExpandedProjects={vi.fn()}
+        setExpandedProjects={setExpandedProjects}
         isProjectExpanded={() => false}
         handleProjectClick={options.handleProjectClick}
         handleContextMenu={vi.fn()}
@@ -87,25 +89,43 @@ describe("GroupedProjectList", () => {
         formatTimeAgo={(date) => date}
       />
     );
+    return { setExpandedProjects };
   }
 
-  it("routes chevron toggle through project click handler in flat mode", () => {
+  /**
+   * Plan §9b F3 (T7): the chevron is tree state only - it never opens the
+   * project; a click on the row opens it (and expands it).
+   */
+  function expectChevronExpandsAndRowOpens(
+    project: ClaudeProject,
+    handleProjectClick: ReturnType<typeof vi.fn>,
+    setExpandedProjects: ReturnType<typeof vi.fn>
+  ) {
+    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
+    expect(handleProjectClick).not.toHaveBeenCalled();
+    expect(setExpandedProjects).toHaveBeenCalledTimes(1);
+    const expand = setExpandedProjects.mock.calls[0]![0] as (prev: Set<string>) => Set<string>;
+    expect(expand(new Set(["dir:/x", "/other"]))).toEqual(new Set(["dir:/x", project.path]));
+
+    fireEvent.click(screen.getByTestId(`project-row-${project.path}`));
+    expect(handleProjectClick).toHaveBeenCalledTimes(1);
+    expect(handleProjectClick).toHaveBeenCalledWith(project);
+  }
+
+  it("chevron expands without opening; the row opens (flat mode)", () => {
     const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
 
-    renderList({
+    const { setExpandedProjects } = renderList({
       groupingMode: "none",
       project,
       handleProjectClick,
     });
 
-    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
-
-    expect(handleProjectClick).toHaveBeenCalledTimes(1);
-    expect(handleProjectClick).toHaveBeenCalledWith(project);
+    expectChevronExpandsAndRowOpens(project, handleProjectClick, setExpandedProjects);
   });
 
-  it("routes chevron toggle through project click handler in directory mode", () => {
+  it("chevron expands without opening; the row opens (directory mode)", () => {
     const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
     const directoryGroup: DirectoryGroup = {
@@ -115,7 +135,7 @@ describe("GroupedProjectList", () => {
       projects: [project],
     };
 
-    renderList({
+    const { setExpandedProjects } = renderList({
       groupingMode: "directory",
       project,
       handleProjectClick,
@@ -124,13 +144,10 @@ describe("GroupedProjectList", () => {
       expandedProjects: new Set<string>([`dir:${directoryGroup.path}`]),
     });
 
-    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
-
-    expect(handleProjectClick).toHaveBeenCalledTimes(1);
-    expect(handleProjectClick).toHaveBeenCalledWith(project);
+    expectChevronExpandsAndRowOpens(project, handleProjectClick, setExpandedProjects);
   });
 
-  it("routes chevron toggle through project click handler in worktree mode", () => {
+  it("chevron expands without opening; the row opens (worktree mode)", () => {
     const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
     const worktreeGroup: WorktreeGroup = {
@@ -138,7 +155,7 @@ describe("GroupedProjectList", () => {
       children: [],
     };
 
-    renderList({
+    const { setExpandedProjects } = renderList({
       groupingMode: "worktree",
       project,
       handleProjectClick,
@@ -147,10 +164,7 @@ describe("GroupedProjectList", () => {
       expandedProjects: new Set<string>([`group:${project.path}`]),
     });
 
-    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
-
-    expect(handleProjectClick).toHaveBeenCalledTimes(1);
-    expect(handleProjectClick).toHaveBeenCalledWith(project);
+    expectChevronExpandsAndRowOpens(project, handleProjectClick, setExpandedProjects);
   });
 
   it("renders a recency bucket that expands to reveal its projects in time mode", () => {
@@ -185,8 +199,8 @@ describe("GroupedProjectList", () => {
 
     unmount();
 
-    // Expanded bucket: project row rendered and its toggle routes through the handler.
-    renderList({
+    // Expanded bucket: project row rendered; chevron expands, row opens.
+    const { setExpandedProjects } = renderList({
       groupingMode: "time",
       project,
       handleProjectClick,
@@ -195,9 +209,7 @@ describe("GroupedProjectList", () => {
       expandedProjects: new Set<string>([`time:${timeGroup.bucket}`]),
     });
 
-    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
-
-    expect(handleProjectClick).toHaveBeenCalledWith(project);
+    expectChevronExpandsAndRowOpens(project, handleProjectClick, setExpandedProjects);
   });
 
   it("keeps unavailable projects in a collapsed, expandable group", () => {

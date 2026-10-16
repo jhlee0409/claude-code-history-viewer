@@ -413,11 +413,9 @@ function App() {
       const { selectedProject: currentProject, view: screenBefore } =
         useAppStore.getState();
 
-      // Re-clicking the open project leaves it (collapse-only is T7, F3).
-      if (currentProject?.path === project.path) {
-        await navigate({ project: null });
-        return;
-      }
+      // Opening the open project again changes nothing: a re-click on its
+      // sidebar row only expands or collapses it (plan §9b F3).
+      if (currentProject?.path === project.path) return;
 
       // The screen follows the user into the new project (global stats
       // becomes its analytics); its data is reloaded for that project.

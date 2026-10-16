@@ -60,6 +60,12 @@ export interface ViewEntry {
   header: { subtitle: (context: HeaderContext) => string } | null;
   /** Whether the right-hand inspector (message navigator, edits dock) shows. */
   inspector: boolean;
+  /**
+   * A related screen the content header links to (desktop; the mobile
+   * sub-nav lists them). Token stats has no toolbar tab until it becomes an
+   * analytics sub-tab (plan C1, T9b), so analytics links to it.
+   */
+  related?: { view: View; labelKey: string };
 }
 
 /** A header view tab: its label (which may differ from the title). It draws the entry's icon. */
@@ -102,6 +108,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
     header: { subtitle: sessionSummary },
     inspector: false,
     tab: { labelKey: "analytics.dashboard" },
+    related: { view: "tokenStats", labelKey: "messages.tokenStats.title" },
   },
   tokenStats: {
     component: TokenStatsScreen,
@@ -110,7 +117,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
     titleKey: "messages.tokenStats.title",
     header: { subtitle: sessionSummary },
     inspector: false,
-    tab: { labelKey: "messages.tokenStats.existing" },
+    related: { view: "analytics", labelKey: "analytics.dashboard" },
   },
   edits: {
     component: RecentEditsScreen,
@@ -159,11 +166,10 @@ export const VIEW_REGISTRY: ViewRegistry = {
   },
 };
 
-/** The header's view tabs, in display order. */
+/** The toolbar's screen tabs, in display order. */
 export const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
   "conversation",
   "analytics",
-  "tokenStats",
   "edits",
   "board",
 ];

@@ -1,12 +1,12 @@
 /**
  * ShellLayout: the app's frame, as named slots (plan T3).
  *
- *   ┌──────────────────────── header ────────────────────────┐
- *   │ sidebar │ list │ main (mainHeader + view panel) │ inspector │
- *   └────────────────────── statusBar ───────────────────────┘
+ *   ┌───────────────────── header (toolbar) ─────────────────────┐
+ *   │ sidebar │ main (mainHeader + view panel) │ inspector │
+ *   └───────────────────────── statusBar ────────────────────────┘
  *
- * - `sidebar`: the project explorer.
- * - `list`: the sessions column (stays a slot until T7 removes it).
+ * - `sidebar`: the library and the projects, with the expanded project's
+ *   sessions inside it (plan T7; the sessions column is gone).
  * - `main`: the `<main>` landmark; `mainHeader` sits above the view panel,
  *   `main` fills the panel. The panel is the header tabs' tabpanel while a
  *   tab labels it (`mainLabelledBy`).
@@ -27,7 +27,6 @@ export interface ShellLayoutProps {
   /** Off-canvas navigation (the mobile drawer). */
   drawer?: ReactNode;
   sidebar?: ReactNode;
-  list?: ReactNode;
   mainHeader?: ReactNode;
   main: ReactNode;
   /** Id of the tab that labels the view panel; the panel is a tabpanel only then. */
@@ -46,7 +45,6 @@ export const ShellLayout = ({
   header,
   drawer,
   sidebar,
-  list,
   mainHeader,
   main,
   mainLabelledBy,
@@ -62,7 +60,6 @@ export const ShellLayout = ({
       {drawer}
       <div className="flex-1 flex overflow-hidden">
         {sidebar}
-        {list}
         <main
           id="main-content"
           data-slot="main"

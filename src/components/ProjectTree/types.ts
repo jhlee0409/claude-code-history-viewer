@@ -25,18 +25,16 @@ export interface ProjectTreeProps {
   onGlobalStatsClick: () => void;
   isLoading: boolean;
   isLoadingMoreSessions?: boolean;
-  /** The global stats row is the open screen (library highlight, plan C3). */
-  isGlobalStatsActive: boolean;
+  /** The library row the open screen is (library highlight, plan C3). */
+  libraryItem?: import("@/navigation/place").LibraryItem | null;
   /**
    * An app-level screen is open, so the selected project/session are kept
    * context rather than what the main area shows (plan C3 tree projection).
-   * Exposed as `data-selection="retained"` on the tree; not styled yet (T7).
+   * Exposed as `data-selection="retained"` on the tree; the open project's
+   * row is drawn dimmed.
    */
   isSelectionRetained?: boolean;
-  /**
-   * Render the selected project's sessions inline under its row. Off when the
-   * layout shows them in a dedicated SessionsPane column.
-   */
+  /** List the expanded project's sessions under its row (default on). */
   inlineSessions?: boolean;
   width?: number;
   isResizing?: boolean;
@@ -58,6 +56,12 @@ export interface ProjectTreeProps {
   asideId?: string;
   // Mobile drawer close callback
   onClose?: () => void;
+  /** Library rows for the app-level screens (plan T7, §6). */
+  onOpenArchive?: () => void;
+  isArchiveDisabled?: boolean;
+  onOpenSettingsManager?: () => void;
+  /** The footer's help button (feedback). */
+  onOpenHelp?: () => void;
 }
 
 export type GroupingStrategy = "none" | "directory" | "worktree" | "time";
@@ -65,7 +69,13 @@ export type GroupingStrategy = "none" | "directory" | "worktree" | "time";
 export interface ProjectItemProps {
   project: ClaudeProject;
   isExpanded: boolean;
+  /** The open project (the place's project context). */
   isSelected: boolean;
+  /**
+   * The open project is kept context while an app-level screen shows (plan
+   * C3): highlighted, but dimmed.
+   */
+  isRetained?: boolean;
   ariaLevel?: number;
   onToggle: () => void;
   onClick: () => void;
@@ -77,9 +87,10 @@ export interface ProjectItemProps {
    * next to this row's own provider so one folder is one row.
    */
   providerSiblings?: ClaudeProject[];
-  onSelectSibling?: (project: ClaudeProject) => void;
-  /** False when sessions render in the SessionsPane rather than under the row. */
+  /** False when the row has nothing to expand (no sessions listed under it). */
   hasInlineChildren?: boolean;
+  /** Leave room at the right end for a control drawn over the row ("Select"). */
+  reserveTrailingSpace?: boolean;
 }
 
 export interface SessionListProps {
@@ -97,6 +108,8 @@ export interface SessionListProps {
   variant?: "default" | "main" | "worktree" | "pane";
   /** Available height for the virtual list when `variant="pane"`. */
   listHeight?: number;
+  /** `compact`: one-line tree rows (the sidebar, plan T7). */
+  density?: "default" | "compact";
 }
 
 export interface GroupHeaderProps {

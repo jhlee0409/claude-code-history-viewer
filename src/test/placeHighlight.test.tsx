@@ -131,16 +131,19 @@ describe("header view tabs follow the place", () => {
     at("analytics", true);
     renderHeader("analytics");
     const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
-    expect(tabs).toHaveLength(5);
+    // Token stats has no tab of its own since T7 (plan C1).
+    expect(tabs).toHaveLength(4);
     for (const tab of tabs) {
       expect(["true", "false"]).toContain(tab.getAttribute("aria-selected"));
     }
   });
 
-  it("empty start: no tablist at all", () => {
+  it("empty start: the tabs stay in place, disabled, none selected", () => {
     at("conversation", false);
     renderHeader("conversation");
-    expect(screen.queryByRole("tablist")).toBeNull();
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    expect(tabs.every((tab) => (tab as HTMLButtonElement).disabled)).toBe(true);
+    expect(selectedTabs()).toEqual([]);
   });
 
   it.each(["globalStats", "archive", "settingsManager"] as const)(
@@ -155,10 +158,11 @@ describe("header view tabs follow the place", () => {
   it.each([
     ["conversation", "message.view"],
     ["analytics", "analytics.dashboard"],
-    ["tokenStats", "messages.tokenStats.existing"],
+    // Opened from analytics; analytics stays the selected tab (plan C1).
+    ["tokenStats", "analytics.dashboard"],
     ["edits", "recentEdits.title"],
     ["board", "session.board.title"],
-  ] as const)("%s selects exactly its own tab", (view, label) => {
+  ] as const)("%s selects exactly the %s tab", (view, label) => {
     at(view, true);
     renderHeader(view);
     expect(selectedTabs()).toEqual([label]);

@@ -14,7 +14,7 @@ import {
 import { SessionItem } from "../../SessionItem";
 import { SessionSelectionBar } from "../../SessionItem/components/SessionSelectionBar";
 import { useAppStore } from "@/store/useAppStore";
-import { sessionItemHeight } from "./sessionItemHeight";
+import { COMPACT_SESSION_ROW_HEIGHT, sessionItemHeight } from "./sessionItemHeight";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
@@ -34,6 +34,7 @@ interface SessionRowData {
   selectedIds: Set<string>;
   onSessionCheck: (session: ClaudeSession, e: React.MouseEvent | React.KeyboardEvent | React.KeyboardEvent) => void;
   onSessionModifierSelect: (session: ClaudeSession, e: React.MouseEvent | React.KeyboardEvent) => void;
+  compact: boolean;
 }
 
 interface SessionRowProps {
@@ -53,6 +54,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
     selectedIds,
     onSessionCheck,
     onSessionModifierSelect,
+    compact,
   } = data;
   const session = sessions[index];
 
@@ -72,6 +74,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
         isChecked={selectedIds.has(session.session_id)}
         onToggleSelect={(e) => onSessionCheck(session, e)}
         onModifierSelect={(e) => onSessionModifierSelect(session, e)}
+        variant={compact ? "compact" : "default"}
       />
     </div>
   );
@@ -218,7 +221,9 @@ export const SessionList: React.FC<SessionListProps> = ({
   formatTimeAgo,
   variant = "default",
   listHeight: paneListHeight,
+  density = "default",
 }) => {
+  const compact = density === "compact";
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const lastAutoLoadLengthRef = useRef(0);
@@ -230,7 +235,8 @@ export const SessionList: React.FC<SessionListProps> = ({
     getSessionDisplayName,
   } = useAppStore();
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
-  const itemHeight = sessionItemHeight(useAppStore((s) => s.fontScale));
+  const fontScale = useAppStore((s) => s.fontScale);
+  const itemHeight = compact ? COMPACT_SESSION_ROW_HEIGHT : sessionItemHeight(fontScale);
   const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
@@ -239,7 +245,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
   const isPane = variant === "pane";
-  const borderClass = isPane
+  const borderClass = isPane || compact
     ? ""
     : isWorktree
       ? "border-l border-success/30"
@@ -247,7 +253,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         ? "border-l border-accent/30"
         : "border-l-2 border-accent/20";
 
-  const containerClass = isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
+  const containerClass = compact ? "" : isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
 
   // Filter and sort sessions
   const filteredAndSortedSessions = useMemo(() => {
@@ -434,6 +440,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       selectedIds: selectedIdSet,
       onSessionCheck: handleSessionCheck,
       onSessionModifierSelect: handleModifierSelect,
+      compact,
     }),
     [
       filteredAndSortedSessions,
@@ -445,6 +452,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       selectedIdSet,
       handleSessionCheck,
       handleModifierSelect,
+      compact,
     ]
   );
 
@@ -489,7 +497,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         {selectionBar}
 
         {/* Session List */}
-        <div className="space-y-1 py-2">
+        <div className={compact ? "py-0.5" : "space-y-1 py-2"}>
           {filteredAndSortedSessions.length === 0 ? (
             <div className="py-2 text-caption text-muted-foreground text-center">
               {t("session.filter.noResults", "No matching sessions")}
@@ -507,6 +515,7 @@ export const SessionList: React.FC<SessionListProps> = ({
                 isChecked={selectedIdSet.has(session.session_id)}
                 onToggleSelect={(e) => handleSessionCheck(session, e)}
                 onModifierSelect={(e) => handleModifierSelect(session, e)}
+                variant={compact ? "compact" : "default"}
               />
             ))
           )}
@@ -523,7 +532,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       {selectionBar}
 
       {/* Virtual Scroll List */}
-      <div className="py-2">
+      <div className={compact ? "py-0.5" : "py-2"}>
         {filteredAndSortedSessions.length === 0 ? (
           <div className="py-2 text-caption text-muted-foreground text-center">
             {t("session.filter.noResults", "No matching sessions")}

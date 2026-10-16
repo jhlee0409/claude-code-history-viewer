@@ -3,14 +3,14 @@
 exports[`header view tabs characterization > claude project, analytics selected 1`] = `
 <div
   aria-label="header.views"
-  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  class="relative z-10 hidden md:flex shrink-0 items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
   role="tablist"
 >
   <button
     aria-controls="view-panel"
     aria-label="message.view"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-conversation"
@@ -45,7 +45,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       message.view
     </span>
@@ -54,7 +54,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
     aria-controls="view-panel"
     aria-label="analytics.dashboard"
     aria-selected="true"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-analytics"
@@ -89,62 +89,16 @@ exports[`header view tabs characterization > claude project, analytics selected 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       analytics.dashboard
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="messages.tokenStats.existing"
-    aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
-    data-slot="tooltip-trigger"
-    data-state="closed"
-    id="view-tab-tokenStats"
-    role="tab"
-    tabindex="-1"
-    type="button"
-  >
-    <svg
-      aria-hidden="true"
-      class="lucide lucide-coins w-4 h-4"
-      fill="none"
-      height="24"
-      stroke="currentColor"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      viewBox="0 0 24 24"
-      width="24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-      />
-      <path
-        d="M15 6h1v4"
-      />
-      <path
-        d="m6.134 14.768.866-.5 2 3.464"
-      />
-      <circle
-        cx="16"
-        cy="8"
-        r="6"
-      />
-    </svg>
-    <span
-      class="hidden xl:inline"
-    >
-      messages.tokenStats.existing
-    </span>
-  </button>
-  <button
-    aria-controls="view-panel"
     aria-label="recentEdits.title"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-edits"
@@ -179,7 +133,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       recentEdits.title
     </span>
@@ -188,7 +142,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
     aria-controls="view-panel"
     aria-label="session.board.title"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-board"
@@ -227,7 +181,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       session.board.title
     </span>
@@ -238,14 +192,14 @@ exports[`header view tabs characterization > claude project, analytics selected 
 exports[`header view tabs characterization > loading analytics, token stats and recent edits 1`] = `
 <div
   aria-label="header.views"
-  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  class="relative z-10 hidden md:flex shrink-0 items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
   role="tablist"
 >
   <button
     aria-controls="view-panel"
     aria-label="message.view"
     aria-selected="true"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-conversation"
@@ -280,7 +234,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       message.view
     </span>
@@ -289,7 +243,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     aria-controls="view-panel"
     aria-label="analytics.dashboard"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
     data-state="closed"
     disabled=""
@@ -316,52 +270,16 @@ exports[`header view tabs characterization > loading analytics, token stats and 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       analytics.dashboard
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="messages.tokenStats.existing"
-    aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
-    data-slot="tooltip-trigger"
-    data-state="closed"
-    disabled=""
-    id="view-tab-tokenStats"
-    role="tab"
-    tabindex="-1"
-    type="button"
-  >
-    <svg
-      aria-hidden="true"
-      class="lucide lucide-loader-circle lucide-loader-2 w-4 h-4 animate-spin"
-      fill="none"
-      height="24"
-      stroke="currentColor"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      viewBox="0 0 24 24"
-      width="24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M21 12a9 9 0 1 1-6.219-8.56"
-      />
-    </svg>
-    <span
-      class="hidden xl:inline"
-    >
-      messages.tokenStats.existing
-    </span>
-  </button>
-  <button
-    aria-controls="view-panel"
     aria-label="recentEdits.title"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
     data-state="closed"
     disabled=""
@@ -388,7 +306,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       recentEdits.title
     </span>
@@ -397,7 +315,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     aria-controls="view-panel"
     aria-label="session.board.title"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-board"
@@ -436,7 +354,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       session.board.title
     </span>
@@ -447,14 +365,14 @@ exports[`header view tabs characterization > loading analytics, token stats and 
 exports[`header view tabs characterization > non-claude project: board is disabled with the claude-only label 1`] = `
 <div
   aria-label="header.views"
-  class="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+  class="relative z-10 hidden md:flex shrink-0 items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
   role="tablist"
 >
   <button
     aria-controls="view-panel"
     aria-label="message.view"
     aria-selected="true"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-conversation"
@@ -489,7 +407,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       message.view
     </span>
@@ -498,7 +416,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     aria-controls="view-panel"
     aria-label="analytics.dashboard"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-analytics"
@@ -533,62 +451,16 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       analytics.dashboard
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="messages.tokenStats.existing"
-    aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
-    data-slot="tooltip-trigger"
-    data-state="closed"
-    id="view-tab-tokenStats"
-    role="tab"
-    tabindex="-1"
-    type="button"
-  >
-    <svg
-      aria-hidden="true"
-      class="lucide lucide-coins w-4 h-4"
-      fill="none"
-      height="24"
-      stroke="currentColor"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      viewBox="0 0 24 24"
-      width="24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-      />
-      <path
-        d="M15 6h1v4"
-      />
-      <path
-        d="m6.134 14.768.866-.5 2 3.464"
-      />
-      <circle
-        cx="16"
-        cy="8"
-        r="6"
-      />
-    </svg>
-    <span
-      class="hidden xl:inline"
-    >
-      messages.tokenStats.existing
-    </span>
-  </button>
-  <button
-    aria-controls="view-panel"
     aria-label="recentEdits.title"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
     data-state="closed"
     id="view-tab-edits"
@@ -623,7 +495,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       recentEdits.title
     </span>
@@ -632,7 +504,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     aria-controls="view-panel"
     aria-label="common.settings.claudeOnly(session.board.title)"
     aria-selected="false"
-    class="flex items-center gap-1.5 px-2 py-1 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
+    class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
     data-state="closed"
     disabled=""
@@ -672,7 +544,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
       />
     </svg>
     <span
-      class="hidden xl:inline"
+      class="hidden lg:inline"
     >
       common.settings.claudeOnly(session.board.title)
     </span>

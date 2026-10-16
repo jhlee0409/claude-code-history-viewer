@@ -135,17 +135,17 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
 vi.mock("@/components/ProjectTree", () => ({
   ProjectTree: ({
     asideId,
-    isGlobalStatsActive,
+    libraryItem,
     isSelectionRetained,
   }: {
     asideId?: string;
-    isGlobalStatsActive?: boolean;
+    libraryItem?: string | null;
     isSelectionRetained?: boolean;
   }) => (
     <aside
       id={asideId ?? "project-explorer"}
       tabIndex={-1}
-      data-global-stats-active={String(isGlobalStatsActive)}
+      data-library-item={String(libraryItem)}
       data-selection={isSelectionRetained ? "retained" : "active"}
     >
       project-tree
@@ -435,24 +435,24 @@ describe("App accessibility smoke", () => {
   });
 
   /**
-   * Plan §9b C3 (audit capture 12): the sidebar's global stats row is
-   * selected only while global stats is the open screen, and on any app-level
-   * screen the tree marks its selection as kept context.
+   * Plan §9b C3 (audit capture 12): the sidebar's library row is the open
+   * app-level screen only (global stats, archive, Claude Code settings), and
+   * on any app-level screen the tree marks its selection as kept context.
    */
   it.each([
-    ["globalStats", "true", "retained"],
-    ["archive", "false", "retained"],
-    ["settingsManager", "false", "retained"],
-    ["conversation", "false", "active"],
-    ["analytics", "false", "active"],
+    ["globalStats", "globalStats", "retained"],
+    ["archive", "archive", "retained"],
+    ["settingsManager", "settingsManager", "retained"],
+    ["conversation", "null", "active"],
+    ["analytics", "null", "active"],
   ] as const)(
     "derives the sidebar highlight from the place: %s",
-    (view, globalActive, selection) => {
+    (view, libraryItem, selection) => {
       appStoreState.view = view;
       try {
         render(<App />);
         const tree = document.getElementById("project-explorer");
-        expect(tree?.getAttribute("data-global-stats-active")).toBe(globalActive);
+        expect(tree?.getAttribute("data-library-item")).toBe(libraryItem);
         expect(tree?.getAttribute("data-selection")).toBe(selection);
       } finally {
         appStoreState.view = "conversation";
