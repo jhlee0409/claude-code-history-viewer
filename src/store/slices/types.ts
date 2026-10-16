@@ -191,6 +191,7 @@ export interface AppStoreState {
   };
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
+  recentSessions: import("@/navigation/library").RecentEntry[];
 
   // Watcher state
   watcherEnabled: boolean;
@@ -373,6 +374,8 @@ export interface AppStoreActions {
     sessionId: string,
     update: Partial<SessionMetadata>
   ) => Promise<void>;
+  toggleSessionFavorite: (session: ClaudeSession) => Promise<void>;
+  backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
   updateProjectMetadata: (
     projectPath: string,
     update: Partial<ProjectMetadata>

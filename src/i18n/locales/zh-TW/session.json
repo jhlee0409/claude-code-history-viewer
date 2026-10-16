@@ -270,5 +270,10 @@
   "session.noProjects.hint": "請在支援的助理中開始會話後重新搜尋，或在 {{settings}} → {{section}} 中新增其他資料夾。",
   "session.noProjects.claudeTitle": "未找到 Claude Code 專案",
   "session.noProjects.claudeDescription": "在以下位置找不到 Claude Code 的歷史記錄：",
-  "session.noProjects.claudeHint": "其他助理（Codex CLI、OpenCode 等）的歷史記錄只會在你要求時搜尋。可使用下方按鈕尋找，或在 {{settings}} → {{section}} 中新增其他 Claude 資料夾。"
+  "session.noProjects.claudeHint": "其他助理（Codex CLI、OpenCode 等）的歷史記錄只會在你要求時搜尋。可使用下方按鈕尋找，或在 {{settings}} → {{section}} 中新增其他 Claude 資料夾。",
+  "session.favorite.add": "加入收藏",
+  "session.favorite.remove": "從收藏中移除",
+  "session.favorite.starred": "已收藏",
+  "session.favorite.saveError": "無法儲存收藏",
+  "session.openError": "無法開啟工作階段"
 }

@@ -47,6 +47,13 @@ import {
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import {
+  loadRecent,
+  pushRecent,
+  recentEntryOf,
+  saveRecent,
+  type RecentEntry,
+} from "@/navigation/library";
 
 /** Where a navigation goes. Omitted fields keep the current context. */
 export interface NavigateTarget {
@@ -102,6 +109,11 @@ export interface NavigationSliceState {
   placeHistory: { back: PlaceHistoryEntry[]; forward: PlaceHistoryEntry[] };
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
+  /**
+   * Sessions the user opened, newest first (the sidebar library's "Recent",
+   * plan T7). Persisted (`library.recent.v1`), at most 12.
+   */
+  recentSessions: RecentEntry[];
 }
 
 export interface NavigationSliceActions {
@@ -154,6 +166,7 @@ export const initialNavigationState: NavigationSliceState = {
   placeHistory: { back: [], forward: [] },
   targetMessageUuid: null,
   shouldHighlightTarget: false,
+  recentSessions: [],
 };
 
 export const createNavigationSlice: StateCreator<
@@ -163,6 +176,7 @@ export const createNavigationSlice: StateCreator<
   NavigationSlice
 > = (set, get) => ({
   ...initialNavigationState,
+  recentSessions: loadRecent(),
 
   beginNavigation: () => {
     const epoch = get().navigationEpoch + 1;
@@ -275,6 +289,16 @@ export const createNavigationSlice: StateCreator<
           historyMode(),
         );
       }
+    }
+
+    // A session the user arrived at joins the library's recent list. A
+    // subagent's transcript is a synthetic session inside its parent, not a
+    // place of its own.
+    const opened = get().selectedSession;
+    if (changedSession && opened && get().parentSessionStack.length === 0) {
+      const recentSessions = pushRecent(get().recentSessions, recentEntryOf(opened, Date.now()));
+      set({ recentSessions });
+      saveRecent(recentSessions);
     }
 
     if (options.record !== false) {

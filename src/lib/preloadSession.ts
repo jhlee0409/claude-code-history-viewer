@@ -120,7 +120,7 @@ function normalizePath(path: string): string {
   return unified;
 }
 
-function matchByPath(sessions: ClaudeSession[], absPath: string): ClaudeSession | undefined {
+export function matchByPath(sessions: ClaudeSession[], absPath: string): ClaudeSession | undefined {
   const target = normalizePath(absPath);
   return sessions.find((s) => normalizePath(s.file_path ?? "") === target);
 }
@@ -155,7 +155,7 @@ function matchByTitle(sessions: ClaudeSession[], substring: string): ClaudeSessi
 
 type ProjectSessionsPair = { project: ClaudeProject; sessions: ClaudeSession[] };
 
-async function loadSessionsFor(
+export async function loadSessionsFor(
   project: ClaudeProject,
   excludeSidechain: boolean,
 ): Promise<ClaudeSession[]> {

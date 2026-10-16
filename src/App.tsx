@@ -31,6 +31,7 @@ import {
   viewAfterLeavingProject,
   viewForProjectSwitch,
 } from "./navigation/place";
+import { findProjectForSessionPath } from "./navigation/library";
 
 import "./App.css";
 
@@ -363,39 +364,13 @@ function App() {
   const handleSessionSelect = useCallback(
     async (session: ClaudeSession) => {
       try {
-        // Find the project this session belongs to.
-        //
-        // Comparing `project.name === session.project_name` is unreliable
-        // across providers: each provider picks its own way to turn a raw
-        // on-disk directory (e.g. "Users-foo-Projects-bar") into a sidebar
-        // display label, and `session.project_name` is set by the loader,
-        // not by the sidebar. CodeBuddy in particular shortens
-        // `dir_name.rsplit('-').next()` for its sidebar label while the
-        // session loader keeps the encoded form — the two never match,
-        // so the previous equality check failed to switch to the right
-        // project when a session was selected.
-        //
-        // The path prefix is the one signal that's stable everywhere:
-        // a session's `file_path` always lives under its project's `path`.
-        // Match on that first, fall back to the name equality only when
-        // `file_path` is unavailable.
-        //
-        // The prefix match must respect the path-segment boundary so
-        // sibling projects sharing a parent dir don't collide — without
-        // this, `/a/proj` would also match a session under `/a/proj2`.
-        const findProjectForSession = (s: ClaudeSession) => {
-          if (s.file_path) {
-            const fp = s.file_path;
-            const byPath = projects.find((p) => {
-              if (!fp.startsWith(p.path)) return false;
-              if (fp.length === p.path.length) return true;
-              const next = fp.charAt(p.path.length);
-              return next === "/" || next === "\\";
-            });
-            if (byPath) return byPath;
-          }
-          return projects.find((p) => p.name === s.project_name);
-        };
+        // The project a session belongs to is the one whose storage path
+        // holds its file (`findProjectForSessionPath`): stable across
+        // providers, unlike the provider-specific display names. The name
+        // is only a fallback for a session without a file path.
+        const findProjectForSession = (s: ClaudeSession) =>
+          (s.file_path ? findProjectForSessionPath(projects, s.file_path, s.provider) : undefined) ??
+          projects.find((p) => p.name === s.project_name);
 
         // One navigation: the conversation screen, the session's project (a
         // no-op when it is already open) and the session.

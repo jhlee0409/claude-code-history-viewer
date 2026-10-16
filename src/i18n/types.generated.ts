@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T12:19:05.107Z
- * 총 키 개수: 2074
+ * 생성 시간: 2026-10-16T12:39:01.330Z
+ * 총 키 개수: 2079
  * Namespace 수: 11
  */
 
@@ -482,7 +482,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (272개)
+ * session namespace의 번역 키 (277개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -615,6 +615,10 @@ export type SessionKeys =
   | 'session.export.json'
   | 'session.export.markdown'
   | 'session.export.success'
+  | 'session.favorite.add'
+  | 'session.favorite.remove'
+  | 'session.favorite.saveError'
+  | 'session.favorite.starred'
   | 'session.filter.clearSearch'
   | 'session.filter.noResults'
   | 'session.filter.searchPlaceholder'
@@ -701,6 +705,7 @@ export type SessionKeys =
   | 'session.noProjects.description'
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
+  | 'session.openError'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
@@ -3309,6 +3314,10 @@ export type TranslationKey =
   | 'session.export.json'
   | 'session.export.markdown'
   | 'session.export.success'
+  | 'session.favorite.add'
+  | 'session.favorite.remove'
+  | 'session.favorite.saveError'
+  | 'session.favorite.starred'
   | 'session.filter.clearSearch'
   | 'session.filter.noResults'
   | 'session.filter.searchPlaceholder'
@@ -3395,6 +3404,7 @@ export type TranslationKey =
   | 'session.noProjects.description'
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
+  | 'session.openError'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'

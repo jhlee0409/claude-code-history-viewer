@@ -270,5 +270,10 @@
   "session.noProjects.hint": "Start a session in a supported assistant and search again, or add another folder in {{settings}} → {{section}}.",
   "session.noProjects.claudeTitle": "No Claude Code projects found",
   "session.noProjects.claudeDescription": "No Claude Code history was found in:",
-  "session.noProjects.claudeHint": "Other assistants (Codex CLI, OpenCode and more) are searched only when you ask. Find them with the button below, or add another Claude folder in {{settings}} → {{section}}."
+  "session.noProjects.claudeHint": "Other assistants (Codex CLI, OpenCode and more) are searched only when you ask. Find them with the button below, or add another Claude folder in {{settings}} → {{section}}.",
+  "session.favorite.add": "Add to Favorites",
+  "session.favorite.remove": "Remove from Favorites",
+  "session.favorite.starred": "Favorite",
+  "session.favorite.saveError": "Couldn't save the favorite",
+  "session.openError": "Couldn't open the session"
 }

@@ -84,6 +84,8 @@ const EXEMPT: Record<string, string> = {
   "store/slices/settingsSlice.ts#setSessionEntrypointFilter:toast":
     "user action: a preference failed to save",
   "store/useLanguageStore.ts#setLanguage:toast": "user action: a preference failed to save",
+  "store/slices/metadataSlice.ts#toggleSessionFavorite:toast":
+    "user action: starring or unstarring a session failed to save",
   "store/slices/projectSlice.ts#reloadProjectSessions:place":
     "the open session's own record refreshed in place (same file_path, list counts): data, gated by ownsData - a reload must refresh it on any screen",
 };

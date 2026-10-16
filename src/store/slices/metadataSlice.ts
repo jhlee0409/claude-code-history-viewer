@@ -17,6 +17,11 @@ import type {
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
 import type { FullAppStore } from "./types";
+import type { ClaudeSession } from "../../types";
+import { toast } from "sonner";
+import i18n from "@/i18n";
+import { sessionRefOf } from "@/navigation/place";
+import { favoritesMissingRef } from "@/navigation/library";
 
 // ============================================================================
 // State Interface
@@ -47,6 +52,17 @@ export interface MetadataSliceActions {
     sessionId: string,
     update: Partial<SessionMetadata>
   ) => Promise<void>;
+  /**
+   * Star or unstar a session (the sidebar's favourites, plan T7). Starring
+   * records where the session lives (`ref`); unstarring drops both. A failed
+   * save is reported with a toast.
+   */
+  toggleSessionFavorite: (session: ClaudeSession) => Promise<void>;
+  /**
+   * Give the stars among `sessions` that predate `ref` the location they
+   * lack. Called when a project's sessions load.
+   */
+  backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
   /** Update metadata for a specific project */
   updateProjectMetadata: (
     projectPath: string,
@@ -160,6 +176,33 @@ export const createMetadataSlice: StateCreator<
     } catch (error) {
       console.error("Failed to update session metadata:", error);
       set({ metadataError: String(error) });
+    }
+  },
+
+  toggleSessionFavorite: async (session: ClaudeSession) => {
+    const { userMetadata } = get();
+    const existing = userMetadata.sessions[session.session_id] ?? {};
+    const starring = !existing.starred;
+    const update: SessionMetadata = starring
+      ? { ...existing, starred: true, ref: sessionRefOf(session) }
+      : { ...existing, starred: undefined, ref: undefined };
+    try {
+      const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+        sessionId: session.session_id,
+        update,
+      });
+      set({ userMetadata: updatedMetadata });
+    } catch (error) {
+      console.error("Failed to update favourite:", error);
+      set({ metadataError: String(error) });
+      toast.error(i18n.t("session.favorite.saveError"));
+    }
+  },
+
+  backfillFavoriteRefs: async (sessions: ClaudeSession[]) => {
+    for (const session of favoritesMissingRef(get().userMetadata, sessions)) {
+      const ref = sessionRefOf(session);
+      if (ref) await get().updateSessionMetadata(session.session_id, { ref });
     }
   },
 

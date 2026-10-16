@@ -270,5 +270,10 @@
   "session.noProjects.hint": "対応するアシスタントでセッションを開始してから再検索するか、{{settings}} → {{section}} で別のフォルダを追加してください。",
   "session.noProjects.claudeTitle": "Claude Code のプロジェクトが見つかりません",
   "session.noProjects.claudeDescription": "次の場所に Claude Code の履歴が見つかりませんでした:",
-  "session.noProjects.claudeHint": "他のアシスタント（Codex CLI、OpenCode など）の履歴は、指示があったときだけ検索します。下のボタンで検索するか、{{settings}} → {{section}} で別の Claude フォルダを追加してください。"
+  "session.noProjects.claudeHint": "他のアシスタント（Codex CLI、OpenCode など）の履歴は、指示があったときだけ検索します。下のボタンで検索するか、{{settings}} → {{section}} で別の Claude フォルダを追加してください。",
+  "session.favorite.add": "お気に入りに追加",
+  "session.favorite.remove": "お気に入りから削除",
+  "session.favorite.starred": "お気に入り",
+  "session.favorite.saveError": "お気に入りを保存できませんでした",
+  "session.openError": "セッションを開けませんでした"
 }
