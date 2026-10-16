@@ -13,7 +13,11 @@
  *   command twice: the first run prevents the event;
  * - an IME is composing (`isComposing`, or keyCode 229 from WebKit);
  * - focus is in a text field or a modal dialog, unless the command says its
- *   shortcut works there (`keys.inFields` / `keys.inDialogs`);
+ *   shortcut works there (`keys.inFields` / `keys.inDialogs`). In a text
+ *   field only a ⌘ / Ctrl chord can: a chord of ⌥ (and ⇧) alone is typing
+ *   there - macOS ⌥+letter types a character or starts a dead key (⌥W `∑`,
+ *   ⌥E accent), ⌥⇧←→ select by word - so the WebUI's ⌥ tab keys never fire
+ *   in a field, whatever the command says;
  * - the command cannot run here, so the browser keeps its default (⌘F stays
  *   the browser's find outside a conversation).
  */
@@ -54,6 +58,12 @@ interface Binding {
   chord: Chord;
 }
 
+/** A chord a text field may give up: one with ⌘ or Ctrl. ⌥ / ⇧ alone type there. */
+const isCommandChord = (chord: Chord): boolean => chord.meta || chord.ctrl;
+
+/** Whether `binding` may run while focus is in a text field. */
+const runsInFields = ({ command, chord }: Binding): boolean => Boolean(command.keys?.inFields) && isCommandChord(chord);
+
 /** The chord each command is bound to in `env`. */
 export function bindingsFor(commands: readonly AppCommand[], env: KeyEnvironment): Binding[] {
   return commands.flatMap((command) => {
@@ -75,7 +85,7 @@ export function createShortcutHandler({
     if (!binding) return;
     const { command } = binding;
     if (nativeOwned?.has(command.id)) return;
-    if (!command.keys?.inFields && isEditableTarget(event.target)) return;
+    if (!runsInFields(binding) && isEditableTarget(event.target)) return;
     if (!command.keys?.inDialogs && isInDialog(event.target)) return;
     const ctx = getContext();
     if (!isCommandEnabled(command, ctx)) return;

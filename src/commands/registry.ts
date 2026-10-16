@@ -88,7 +88,9 @@ const isClaudeContext = (place: Place): boolean => (place.project?.provider ?? "
 
 /**
  * Tab shortcuts work from a text field too (the sidebar filter, the find
- * field), as they do in a browser; behind a modal dialog they do not.
+ * field), as they do in a browser; behind a modal dialog they do not. Only
+ * their ⌘ / Ctrl chords do: the WebUI's ⌥ chords type characters in a field
+ * on macOS, so the shortcut listener leaves them to it (`shortcuts.ts`).
  */
 const TAB_KEYS = { inFields: true } as const;
 

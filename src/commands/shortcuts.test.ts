@@ -16,6 +16,10 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
     checkForUpdates: vi.fn(),
+    newTab: vi.fn(),
+    closeTab: vi.fn(),
+    cycleTab: vi.fn(),
+    selectTabAt: vi.fn(),
   };
   return {
     place: {
@@ -28,6 +32,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
+    tabCount: 3,
     ownPlace: () => () => true,
     actions,
     ...overrides,
@@ -142,6 +147,82 @@ describe("shortcut handler", () => {
       press({ key: "f", code: "KeyF", metaKey: true }, button);
       expect(ctx.actions.goBack).not.toHaveBeenCalled();
       expect(ctx.actions.focusFind).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The WebUI's tab keys are ⌥+letter/digit. On macOS ⌥ types a character
+   * (⌥W `∑`, ⌥T `†`, ⌥1 `¡`) or starts a dead key (⌥E, ⌥U), and ⌥⇧← → select
+   * by word: in a text field these are typing, never tab commands. Outside
+   * text fields the physical key still runs the command.
+   */
+  describe("WebUI ⌥ tab keys and text entry (T8 review #3)", () => {
+    const fields = () => {
+      const input = document.body.appendChild(document.createElement("input"));
+      const area = document.body.appendChild(document.createElement("textarea"));
+      const editable = document.body.appendChild(document.createElement("div"));
+      editable.setAttribute("contenteditable", "true");
+      const inner = editable.appendChild(document.createElement("span"));
+      return [input, area, editable, inner];
+    };
+
+    it("leaves ⌥W ⌥T ⌥1 and ⌥⇧→ to an input, a textarea and contenteditable", () => {
+      const ctx = setup(MAC_WEB);
+      for (const field of fields()) {
+        const events = [
+          press({ key: "∑", code: "KeyW", altKey: true }, field),
+          press({ key: "†", code: "KeyT", altKey: true }, field),
+          press({ key: "¡", code: "Digit1", altKey: true }, field),
+          press({ key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true }, field),
+        ];
+        expect(events.map((e) => e.defaultPrevented)).toEqual([false, false, false, false]);
+      }
+      expect(ctx.actions.closeTab).not.toHaveBeenCalled();
+      expect(ctx.actions.newTab).not.toHaveBeenCalled();
+      expect(ctx.actions.selectTabAt).not.toHaveBeenCalled();
+      expect(ctx.actions.cycleTab).not.toHaveBeenCalled();
+    });
+
+    it("dead keys ⌥E and ⌥U and the composed letter after them run nothing, in a field or not", () => {
+      const ctx = setup(MAC_WEB);
+      const [input] = fields();
+      for (const target of [input!, window]) {
+        for (const code of ["KeyE", "KeyU"]) {
+          const dead = press({ key: "Dead", code, altKey: true }, target);
+          const composed = press({ key: "é", code: "KeyE", isComposing: true }, target);
+          expect([dead.defaultPrevented, composed.defaultPrevented]).toEqual([false, false]);
+        }
+      }
+      const calls = Object.values(ctx.actions).reduce((n, fn) => n + (fn as ReturnType<typeof vi.fn>).mock.calls.length, 0);
+      expect(calls).toBe(0);
+    });
+
+    it("composing ⌥W does not close the tab", () => {
+      const ctx = setup(MAC_WEB);
+      press({ key: "∑", code: "KeyW", altKey: true, isComposing: true });
+      expect(ctx.actions.closeTab).not.toHaveBeenCalled();
+    });
+
+    it("outside text fields ⌥W ⌥T ⌥2 still run by their physical key", () => {
+      const ctx = setup(MAC_WEB);
+      const button = document.body.appendChild(document.createElement("button"));
+      expect(press({ key: "∑", code: "KeyW", altKey: true }, button).defaultPrevented).toBe(true);
+      press({ key: "†", code: "KeyT", altKey: true }, button);
+      press({ key: "™", code: "Digit2", altKey: true });
+      expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
+      expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
+      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(2);
+    });
+
+    it("the desktop's ⌘W ⌘T ⌘1 still work from a text field, as in a browser", () => {
+      const ctx = setup(MAC_DESKTOP);
+      const [input] = fields();
+      press({ key: "w", code: "KeyW", metaKey: true }, input);
+      press({ key: "t", code: "KeyT", metaKey: true }, input);
+      press({ key: "1", code: "Digit1", metaKey: true }, input);
+      expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
+      expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
+      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(1);
     });
   });
 
