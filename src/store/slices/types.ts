@@ -224,6 +224,7 @@ export interface AppStoreState {
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
   isDetectingProviders: boolean;
+  hasDetectedProviders: boolean;
 
   // Archive state
   archive: import('../slices/archiveSlice').ArchiveSliceState['archive'];

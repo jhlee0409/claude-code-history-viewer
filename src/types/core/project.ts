@@ -89,6 +89,8 @@ export interface UserSettings {
   wsl?: WslSettings;
   /** Providers explicitly discovered by the user and allowed to scan on startup */
   discoveredProviderIds?: ProviderId[];
+  /** An explicit provider discovery completed (even one that found nothing) */
+  providersDiscovered?: boolean;
   /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
   resumeCliArgs?: Record<string, string>;
 }

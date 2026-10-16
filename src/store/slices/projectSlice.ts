@@ -409,7 +409,9 @@ export const createProjectSlice: StateCreator<
         .map((provider) => provider.id as ProviderId)
     );
     try {
-      await get().updateUserSettings({ discoveredProviderIds });
+      // `providersDiscovered` is saved separately: a discovery that found
+      // nothing saves no IDs, but it still searched the other providers.
+      await get().updateUserSettings({ discoveredProviderIds, providersDiscovered: true });
     } catch (error) {
       // Provider discovery should still show the current result if metadata
       // persistence is unavailable; the next explicit discovery can retry it.

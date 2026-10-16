@@ -448,11 +448,30 @@ describe("projectSlice scanProjects", () => {
 
     expect(updateUserSettings).toHaveBeenCalledWith({
       discoveredProviderIds: ["codex"],
+      providersDiscovered: true,
     });
     expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
       "codex",
     ]);
     expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("saves that discovery completed even when it found no provider", async () => {
+    const store = createTestStore();
+    const updateUserSettings = vi.fn().mockResolvedValue(undefined);
+    store.setState({ claudePath: "", providers: [], updateUserSettings });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") return Promise.resolve(null);
+      if (command === "scan_all_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).toHaveBeenCalledWith({
+      discoveredProviderIds: [],
+      providersDiscovered: true,
+    });
   });
 
   it("preserves persisted provider IDs when explicit discovery fails", async () => {

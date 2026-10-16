@@ -249,6 +249,10 @@ pub struct UserSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub discovered_provider_ids: Vec<String>,
 
+    /// An explicit provider discovery completed, even one that found nothing
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub providers_discovered: Option<bool>,
+
     /// Custom CLI arguments per provider for session resumption
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub resume_cli_args: std::collections::HashMap<String, String>,
@@ -379,5 +383,30 @@ mod tests {
             deserialized.settings.discovered_provider_ids,
             vec!["codex", "gemini"]
         );
+    }
+
+    #[test]
+    fn test_providers_discovered_survives_a_zero_result_discovery() {
+        // A discovery that found nothing saves no provider IDs (the empty Vec
+        // is skipped), so completion is its own field.
+        let mut metadata = UserMetadata::new();
+        metadata.settings.providers_discovered = Some(true);
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(json.contains("\"providersDiscovered\":true"));
+        assert!(!json.contains("discoveredProviderIds"));
+
+        let deserialized: UserMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.settings.providers_discovered, Some(true));
+    }
+
+    #[test]
+    fn test_providers_discovered_absent_by_default() {
+        let json = r#"{"sessions":{},"projects":{},"settings":{}}"#;
+        let metadata: UserMetadata = serde_json::from_str(json).unwrap();
+        assert!(metadata.settings.providers_discovered.is_none());
+        assert!(!serde_json::to_string(&metadata)
+            .unwrap()
+            .contains("providersDiscovered"));
     }
 }
