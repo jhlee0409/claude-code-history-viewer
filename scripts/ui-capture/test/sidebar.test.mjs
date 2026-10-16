@@ -14,6 +14,8 @@
 //   row (its scroll container) closes it.
 // - Phone drawer: the row menu opens inside the drawer and takes the tap
 //   (portalled to <body> the drawer covered it).
+// - Toolbar location path: no separator without a readable segment before
+//   it (phone: the current place only), in ko and en.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -176,6 +178,46 @@ describe.skipIf(!ENABLED)("sidebar in WebKit", () => {
       await session.close();
     }
   }, 120_000);
+
+  // The toolbar's location path ("project > session") shrinks with the window.
+  // A parent segment squeezed to nothing left its separator chevron alone,
+  // reading as a third history arrow on a phone ("< > > Virtualize the…").
+  for (const [id, locale] of [
+    ["transcript--390x844--dark", "ko"],
+    ["transcript--390x844--dark", "en"],
+    ["transcript--1180x760--dark", "en"],
+    ["transcript--1440x900--dark", "en"],
+  ]) {
+    it(`toolbar location (${id}, ${locale}): no separator without a readable segment before it`, async () => {
+      const { session, page } = await openScenario(id, { locale });
+      try {
+        const nav = page.locator("#app-header nav");
+        const segments = await nav.locator("li").evaluateAll((items) =>
+          items
+            .filter((li) => getComputedStyle(li).display !== "none")
+            .map((li) => {
+              const text = li.querySelector("span[title]");
+              return { text: text?.textContent ?? "", width: text?.getBoundingClientRect().width ?? 0 };
+            }),
+        );
+        expect(segments.length).toBeGreaterThan(0);
+        // Every separator shown has a segment before it.
+        const separators = await nav.locator("li > svg").evaluateAll((icons) =>
+          icons.filter((icon) => getComputedStyle(icon).display !== "none").length,
+        );
+        expect(separators).toBe(segments.length - 1);
+        for (const segment of segments) {
+          // Wide enough for a letter and the ellipsis.
+          expect(segment.width, `"${segment.text}" ${segment.width.toFixed(1)}px`).toBeGreaterThanOrEqual(16);
+        }
+        // On a phone the current place has the whole path to itself.
+        const last = segments.at(-1);
+        if (id.includes("390x844")) expect(last.width).toBeGreaterThanOrEqual(100);
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
+  }
 
   it("row menu stays open while the transcript scrolls; closes when the row's container scrolls", async () => {
     const { session, page } = await openScenario("sidebar-sessions--1440x900--dark");

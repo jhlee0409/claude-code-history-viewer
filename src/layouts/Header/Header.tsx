@@ -251,17 +251,21 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             {location.map((segment, index) => {
               const isLast = index === location.length - 1;
               return (
+                // Parent segments give way first, but never to nothing: a
+                // segment squeezed to zero left its separator alone, reading
+                // as a third history arrow. A phone shows the current place
+                // only (its tab bar and drawer carry the rest).
                 <li
                   key={`${index}:${segment}`}
-                  className={cn("flex min-w-0 items-center gap-1", !isLast && "shrink-[2]")}
+                  className={cn("flex min-w-0 items-center gap-1", !isLast && "hidden md:flex shrink-[2]")}
                 >
                   {index > 0 && (
-                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <ChevronRight className="hidden md:block w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   )}
                   <span
                     className={cn(
                       "truncate pointer-events-auto",
-                      isLast ? "font-semibold text-foreground" : "text-muted-foreground"
+                      isLast ? "font-semibold text-foreground" : "min-w-6 text-muted-foreground"
                     )}
                     title={segment}
                     aria-current={isLast ? "location" : undefined}
