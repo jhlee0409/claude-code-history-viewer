@@ -7,7 +7,8 @@
  * header). Each place is rendered and the entry is run from it with the
  * pointer, a touch tap and - for menus, whose keyboard handling jsdom can
  * run - the keyboard; buttons must be in the tab order (the WebKit run in
- * `scripts/ui-capture/test/sidebar.test.mjs` presses the keys for real).
+ * `scripts/ui-capture/test/sidebar.test.mjs` presses Option+Tab, the toolbar
+ * arrows and the sidebar's tree and menu keys for real).
  * Palette places are checked against the command registry: the command
  * exists, the palette lists it, and running it calls the right action.
  */

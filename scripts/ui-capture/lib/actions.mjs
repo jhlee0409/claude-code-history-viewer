@@ -48,8 +48,13 @@ export function createActions({ session, scenario, manifest, t }) {
 
   const settled = (label) => settle(session, { label });
   const click = async (locator, label) => {
-    await locator.scrollIntoViewIfNeeded();
-    await locator.click();
+    try {
+      await locator.scrollIntoViewIfNeeded();
+      await locator.click();
+    } catch (error) {
+      // Name the step: a bare locator timeout does not say which one.
+      throw new Error(`${label}: ${String(error?.message ?? error).split("\n")[0]}`);
+    }
     await parkPointer(page);
     await settled(label);
   };
