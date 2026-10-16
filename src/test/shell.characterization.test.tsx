@@ -107,6 +107,12 @@ const {
     loadMoreSessions: vi.fn(async () => {}),
     view: "conversation",
     navigationEpoch: 0,
+    // Conversation tabs (T8): one tab, the live state.
+    documents: [],
+    parentSessionStack: [],
+    activeDocumentId: "t1",
+    hydratedDocumentId: "t1",
+    tabsRestoreReport: { corrupt: false, dropped: 0 },
     navigate: vi.fn(async () => true),
     beginNavigation: vi.fn(() => 1),
     reloadCurrent: vi.fn(async () => {}),
@@ -148,6 +154,7 @@ const {
   const storeMock = ((selector?: (s: typeof state) => unknown) =>
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
+  (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
   const analytics = {
     recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
@@ -250,6 +257,8 @@ vi.mock("@/components/SettingsManager", () => ({ SettingsManager: stub("Settings
 vi.mock("@/components/SessionBoard/SessionBoard", () => ({ SessionBoard: stub("SessionBoard") }));
 vi.mock("@/components/ArchiveManager", () => ({ ArchiveManager: stub("ArchiveManager") }));
 vi.mock("@/components/mobile/BottomTabBar", () => ({ BottomTabBar: stub("BottomTabBar") }));
+// The conversation tab strip (T8) has its own tests (navigation.tabs.*).
+vi.mock("@/layouts/shell/TabStrip", () => ({ TabStrip: stub("TabStrip") }));
 vi.mock("@/components/mobile/MobileNavigatorSheet", () => ({
   MobileNavigatorSheet: stub("MobileNavigatorSheet"),
 }));

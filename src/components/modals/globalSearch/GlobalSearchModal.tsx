@@ -36,6 +36,8 @@ import { runCommand, type CommandContext } from "@/commands/registry";
 import { commandItemValue, paletteEntries, paletteValue } from "@/commands/paletteQuery";
 import { PaletteCommandGroup } from "./PaletteCommandGroup";
 import { PaletteComboboxLink } from "./PaletteComboboxLink";
+import { openInNewTab } from "@/navigation/tabs";
+import { isActionModifier } from "@/utils/platform";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -347,9 +349,17 @@ export const GlobalSearchModal = ({
         [performSearch],
     );
 
-    // Navigate to selected result
-    const handleSelectResult = useCallback(
-        async (result: GlobalSearchResult) => {
+    // ⌘+click / ⌘+Enter on a result opens it in a new tab (T8). cmdk's
+    // `onSelect` carries no event, so the modifier of the pointer or key that
+    // picked it is noted on the way down.
+    const newTabModifierRef = useRef(false);
+    const noteModifier = (event: { metaKey: boolean; ctrlKey: boolean }) => {
+        newTabModifierRef.current = isActionModifier(event);
+    };
+
+    // Navigate to selected result. Resolves whether it opened the session.
+    const openResult = useCallback(
+        async (result: GlobalSearchResult): Promise<boolean> => {
             try {
                 const targetSession = sessions.find(
                     (s) =>
@@ -367,7 +377,7 @@ export const GlobalSearchModal = ({
                         messageId: result.uuid ?? null,
                     });
                     onClose();
-                    return;
+                    return true;
                 }
 
                 // Snapshot excludeSidechain once to keep requests consistent
@@ -426,12 +436,12 @@ export const GlobalSearchModal = ({
 
                 const BATCH_SIZE = 4;
                 for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-                    if (token !== resolveTokenRef.current) return; // cancelled
+                    if (token !== resolveTokenRef.current) return false; // cancelled
                     const batch = candidates.slice(i, i + BATCH_SIZE);
                     const found = (await Promise.all(batch.map(findInProject))).find(
                         (hit): hit is NonNullable<typeof hit> => hit !== null,
                     );
-                    if (token !== resolveTokenRef.current) return; // cancelled
+                    if (token !== resolveTokenRef.current) return false; // cancelled
                     if (found) {
                         await navigate({
                             view: "conversation",
@@ -440,7 +450,7 @@ export const GlobalSearchModal = ({
                             messageId: result.uuid ?? null,
                         });
                         onClose();
-                        return;
+                        return true;
                     }
                 }
 
@@ -448,14 +458,27 @@ export const GlobalSearchModal = ({
                 clearTargetMessage();
                 toast.error(t("globalSearch.sessionNotFound"));
                 onClose();
+                return false;
             } catch (error) {
                 clearTargetMessage();
                 console.error("Failed to navigate to search result:", error);
                 toast.error(t("globalSearch.navigationFailed"));
                 onClose();
+                return false;
             }
         },
         [projects, sessions, navigate, clearTargetMessage, onClose, t],
+    );
+
+    const handleSelectResult = useCallback(
+        (result: GlobalSearchResult) => {
+            const inNewTab = newTabModifierRef.current;
+            newTabModifierRef.current = false;
+            return inNewTab
+                ? openInNewTab(() => openResult(result), { discardIf: (opened) => !opened })
+                : openResult(result);
+        },
+        [openResult],
     );
 
     // The palette's items: matching commands first, then the message results.
@@ -634,6 +657,8 @@ export const GlobalSearchModal = ({
             <DialogContent
                 className="sm:max-w-2xl p-0 gap-0 overflow-hidden"
                 onKeyDown={handleKeyDown}
+                onKeyDownCapture={noteModifier}
+                onPointerDownCapture={noteModifier}
                 onCloseAutoFocus={handleCloseAutoFocus}
                 showCloseButton={false}
                 aria-label={t("globalSearch.title")}

@@ -9,6 +9,8 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
 import { favoritesOf, isDateTime, type FavoriteEntry, type RecentEntry } from "@/navigation/library";
 import { openLegacyFavorite, openSessionRef } from "@/navigation/openSessionRef";
+import { openInNewTab } from "@/navigation/tabs";
+import { isActionModifier } from "@/utils/platform";
 import type { LibraryItem } from "@/navigation/place";
 import { formatTimeAgo } from "@/utils/time";
 
@@ -46,9 +48,13 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
   const favorites = favoritesOf(userMetadata);
   const [open, setOpen] = useState<{ recent: boolean; favorites: boolean }>({ recent: false, favorites: false });
 
-  const openEntry = (run: () => Promise<unknown>) => {
+  /** Open an entry here, or (⌘+click) in a new tab (T8). */
+  const openEntry = (run: () => Promise<unknown>, inNewTab = false) => {
     onNavigate?.();
-    run().catch((error: unknown) => {
+    const opening = inNewTab
+      ? openInNewTab(run, { discardIf: (result) => result === "notFound" })
+      : run();
+    opening.catch((error: unknown) => {
       console.error("Failed to open a library entry:", error);
       toast.error(t("session.openError"));
     });
@@ -79,7 +85,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
                 // The store's list is validated on load; a time no Date can
                 // hold still renders, without its caption.
                 caption: isDateTime(entry.openedAt) ? formatTimeAgo(new Date(entry.openedAt).toISOString()) : "",
-                open: () => openEntry(() => openSessionRef(entry.ref)),
+                open: (inNewTab) => openEntry(() => openSessionRef(entry.ref), inNewTab),
               }))}
             />
           )}
@@ -161,7 +167,8 @@ interface Entry {
   caption: string;
   /** Shown instead of the caption, as a warning (a legacy favourite). */
   warning?: string;
-  open: () => void;
+  /** `inNewTab`: ⌘+click (Ctrl+click elsewhere) opens it in a new tab. */
+  open: (inNewTab: boolean) => void;
 }
 
 /**
@@ -172,7 +179,7 @@ interface Entry {
 function favoriteEntry(
   favorite: FavoriteEntry,
   known: { recent: readonly RecentEntry[]; loadedSessions: readonly ClaudeSession[] },
-  openEntry: (run: () => Promise<unknown>) => void,
+  openEntry: (run: () => Promise<unknown>, inNewTab?: boolean) => void,
   t: (key: string) => string
 ): Entry {
   const loaded = known.loadedSessions.find((s) => s.session_id === favorite.sessionId);
@@ -189,7 +196,7 @@ function favoriteEntry(
       title,
       caption: "",
       warning: t("project.library.locationUnknown"),
-      open: () => openEntry(() => openLegacyFavorite(favorite.sessionId)),
+      open: (inNewTab) => openEntry(() => openLegacyFavorite(favorite.sessionId), inNewTab),
     };
   }
   const ref = favorite.ref;
@@ -198,7 +205,7 @@ function favoriteEntry(
     sessionId: favorite.sessionId,
     title,
     caption: "",
-    open: () => openEntry(() => openSessionRef(ref)),
+    open: (inNewTab) => openEntry(() => openSessionRef(ref), inNewTab),
   };
 }
 
@@ -293,7 +300,7 @@ const EntryList = ({ entries, emptyLabel }: { entries: Entry[]; emptyLabel: stri
             <button
               type="button"
               data-library-entry
-              onClick={entry.open}
+              onClick={(event) => entry.open(isActionModifier(event))}
               title={entry.warning ? `${name}\n${entry.warning}` : name}
               className={cn(rowClass(false), "pl-8")}
             >

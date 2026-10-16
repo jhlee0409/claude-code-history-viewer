@@ -14,7 +14,9 @@ import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { isMacOS, isTauri } from "@/utils/platform";
+import { isActionModifier, isMacOS, isTauri } from "@/utils/platform";
+import { openInNewTab } from "@/navigation/tabs";
+import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
 import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
@@ -299,7 +301,15 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               onFocus={roveTo}
               isActive={activeTab === tabView}
               isLoading={tab.isLoading}
-              onClick={tab.onClick}
+              onClick={(event) => {
+                // ⌘+click (Ctrl+click elsewhere): this screen in a new tab
+                // (decision page §2).
+                if (isActionModifier(event)) {
+                  void openInNewTab(() => analyticsActions.openView(tabView));
+                  return;
+                }
+                tab.onClick();
+              }}
               disabled={tabDisabled[tabView]}
             />
           );
@@ -325,6 +335,8 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             {SHORTCUT_LABEL}
           </kbd>
         </button>
+        {/* Phones have no tab strip: the open tabs are a sheet away. */}
+        <MobileTabsButton screens={{ openView: analyticsActions.openView }} />
         <ToolbarIconButton
           className="md:hidden"
           icon={Search}
@@ -445,7 +457,7 @@ interface ViewTabProps {
   label: string;
   isActive?: boolean;
   isLoading?: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   disabled?: boolean;
 }
 

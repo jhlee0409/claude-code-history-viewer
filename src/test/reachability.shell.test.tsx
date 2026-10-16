@@ -104,6 +104,9 @@ const t = (key: string) => i18n.t(key);
 beforeEach(async () => {
   cleanup();
   localStorage.clear();
+  // jsdom keeps the URL between tests; a session left in it would reopen
+  // on start (a WebUI deep link) in the next test's shell.
+  window.history.replaceState(null, "", "/");
   await i18n.changeLanguage("en");
   useLanguageStore.setState(pristineLanguage, true);
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -372,6 +375,122 @@ describe("§6 reachability through the real shell", () => {
       await renderShell();
       await pickInGearSubmenu(t("common.settings.language.title"), "한국어");
       await waitFor(() => expect(useLanguageStore.getState().language).toBe("ko"));
+    });
+  });
+
+  describe("conversation tabs (T8)", () => {
+    const strip = () => screen.getByRole("tablist", { name: t("common.tabs.label") });
+    const tabs = () => within(strip()).getAllByRole("tab");
+    const selectedTab = () => tabs().find((tab) => tab.getAttribute("aria-selected") === "true");
+    const key = async (init: KeyboardEventInit) => {
+      await act(async () => {
+        fireEvent.keyDown(window, { bubbles: true, cancelable: true, ...init });
+      });
+    };
+
+    it("the strip shows the open tab, selected and named after its session", async () => {
+      await renderShell();
+      expect(tabs()).toHaveLength(1);
+      expect(selectedTab()?.textContent).toContain("Session number 1");
+    });
+
+    it.each([
+      ["common.command.newTab", 2],
+      ["common.command.closeTab", 1],
+    ] as const)("%s runs from the palette", async (labelKey, count) => {
+      await renderShell();
+      await runFromPalette(labelKey);
+      await waitFor(() => expect(state().documents).toHaveLength(count));
+    });
+
+    it("next / previous tab run from the palette", async () => {
+      await renderShell();
+      await activate(within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") }));
+      const second = state().activeDocumentId;
+      await runFromPalette("common.command.previousTab");
+      await waitFor(() => expect(state().activeDocumentId).not.toBe(second));
+      await runFromPalette("common.command.nextTab");
+      await waitFor(() => expect(state().activeDocumentId).toBe(second));
+    });
+
+    it("the + button opens an empty tab; clicking the first tab goes back to its session", async () => {
+      await renderShell();
+      await activate(within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") }));
+      await waitFor(() => expect(tabs()).toHaveLength(2));
+      expect(state().selectedSession).toBeNull();
+      expect(selectedTab()?.textContent).toContain(t("common.tabs.empty"));
+      await activate(tabs()[0]!);
+      await waitFor(() => expect(state().selectedSession?.file_path).toBe(S1.file_path));
+      expect(selectedTab()).toBe(tabs()[0]);
+    });
+
+    it("Ctrl+click on a sidebar session opens it in a new tab and keeps the first", async () => {
+      await renderShell();
+      const row = within(sidebar()).getByText("Session number 2");
+      await act(async () => {
+        fireEvent.click(row, { ctrlKey: true });
+      });
+      await waitFor(() => expect(state().selectedSession?.file_path).toBe(S2.file_path));
+      expect(tabs()).toHaveLength(2);
+      expect(tabs()[0]?.textContent).toContain("Session number 1");
+      expect(selectedTab()).toBe(tabs()[1]);
+    });
+
+    it("Ctrl+click on a toolbar screen tab opens that screen in a new tab", async () => {
+      await renderShell();
+      await act(async () => {
+        fireEvent.click(document.getElementById("view-tab-analytics")!, { ctrlKey: true });
+      });
+      await waitFor(() => expect(state().view).toBe("analytics"));
+      expect(tabs()).toHaveLength(2);
+      expect(tabs()[0]?.textContent).toContain("Session number 1");
+    });
+
+    // jsdom is a browser, not the desktop app: the WebUI keys apply, since
+    // the browser keeps ⌘T ⌘W ⌘1-9 for itself (plan §4.4).
+    it("the WebUI shortcuts open, switch and close tabs (⌥T, ⌥1, ⌥⇧→, ⌥W)", async () => {
+      await renderShell();
+      await key({ key: "t", code: "KeyT", altKey: true });
+      await waitFor(() => expect(state().documents).toHaveLength(2));
+      const second = state().activeDocumentId;
+      await key({ key: "1", code: "Digit1", altKey: true });
+      await waitFor(() => expect(state().activeDocumentId).not.toBe(second));
+      await key({ key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true });
+      await waitFor(() => expect(state().activeDocumentId).toBe(second));
+      await key({ key: "w", code: "KeyW", altKey: true });
+      await waitFor(() => expect(state().documents).toHaveLength(1));
+      expect(state().selectedSession?.file_path).toBe(S1.file_path);
+    });
+
+    it("keyboard in the strip: one tab stop, arrows move focus, Enter opens, Delete closes", async () => {
+      await renderShell();
+      await activate(within(document.querySelector('[data-slot="tabs"]')!).getByRole("button", { name: t("common.command.newTab") }));
+      await waitFor(() => expect(tabs()).toHaveLength(2));
+      expect(tabs().map((tab) => tab.tabIndex)).toEqual([-1, 0]);
+      tabs()[1]!.focus();
+      await act(async () => {
+        fireEvent.keyDown(tabs()[1]!, { key: "ArrowRight" });
+      });
+      expect(document.activeElement).toBe(tabs()[0]);
+      expect(tabs().map((tab) => tab.tabIndex)).toEqual([0, -1]);
+      await activate(tabs()[0]!);
+      await waitFor(() => expect(state().selectedSession?.file_path).toBe(S1.file_path));
+      await act(async () => {
+        fireEvent.keyDown(tabs()[1]!, { key: "Delete" });
+      });
+      await waitFor(() => expect(tabs()).toHaveLength(1));
+    });
+
+    it("a tab that cannot open says why inside the tab, and closes from there", async () => {
+      useAppStore.setState({
+        documents: [{ ...state().documents[0]!, unavailable: "session" }],
+      });
+      await renderShell();
+      const notice = screen.getByRole("alert");
+      expect(notice.textContent).toContain(t("common.tabs.unavailable.session"));
+      await activate(within(notice).getByRole("button", { name: t("common.tabs.closeThis") }));
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(state().selectedProject).toBeNull();
     });
   });
 });

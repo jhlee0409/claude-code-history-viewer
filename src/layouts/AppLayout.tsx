@@ -45,6 +45,8 @@ import { ContentHeader } from "@/layouts/shell/ContentHeader";
 import { MobileAnalyticsSubNav } from "@/layouts/shell/MobileAnalyticsSubNav";
 import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
 import { StatusBar } from "@/layouts/shell/StatusBar";
+import { TabStrip } from "@/layouts/shell/TabStrip";
+import { TabUnavailableNotice } from "@/layouts/shell/TabUnavailableNotice";
 import {
   VIEW_REGISTRY,
   isMobileAnalyticsView,
@@ -208,6 +210,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // Toolbar and sidebar controls run registry commands (`CommandRunner`).
   const getCommandContext = useCommandContext();
   const run = (id: Parameters<typeof runCommand>[0]) => runCommand(id, getCommandContext());
+  // Opening a tab loads its screen's data the way the toolbar tabs do.
+  const tabScreens = { openView: analyticsActions.openView };
   // Legacy favourites learn where they live once their project is open.
   useFavoriteRefBackfill();
   // Highlights are projections of the place (plan C3); primitives only, so
@@ -373,6 +377,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           updater={updater}
         />
       }
+      tabs={!isMobile && <TabStrip screens={tabScreens} />}
       drawer={
         isMobile && (
           <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
@@ -412,6 +417,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       }
       mainHeader={
         <>
+          <TabUnavailableNotice screens={tabScreens} />
           <ContentHeader
             view={screen}
             selectedSession={selectedSession}

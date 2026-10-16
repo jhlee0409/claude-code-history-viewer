@@ -11,6 +11,8 @@ import { SessionContextMenu } from "./components/SessionContextMenu";
 import { SessionDeleteDialog } from "./components/SessionDeleteDialog";
 import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
+import { useOpenSessionInNewTab } from "@/contexts/openInNewTab";
+import { isActionModifier } from "@/utils/platform";
 import type { Boundary } from "@/utils/contextMenu";
 
 type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; anchor?: HTMLElement | null };
@@ -49,6 +51,8 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const isFavorite = useAppStore((s) => s.userMetadata.sessions[session.session_id]?.starred === true);
   const toggleSessionFavorite = useAppStore((s) => s.toggleSessionFavorite);
 
+  const openInNewTab = useOpenSessionInNewTab();
+
   const activate = useCallback(
     (e: React.MouseEvent | React.KeyboardEvent) => {
       if (editing.isEditing) return;
@@ -60,11 +64,16 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         onModifierSelect?.(e);
         return;
       }
+      // ⌘+click / ⌘+Enter: this session in a new tab (T8), even the open one.
+      if (openInNewTab && isActionModifier(e)) {
+        openInNewTab(session, project);
+        return;
+      }
       if (!isSelected) {
         onSelect();
       }
     },
-    [editing.isEditing, isSelectionMode, onToggleSelect, onModifierSelect, isSelected, onSelect]
+    [editing.isEditing, isSelectionMode, onToggleSelect, onModifierSelect, isSelected, onSelect, openInNewTab, session, project]
   );
 
   const handleMouseDown = useCallback(

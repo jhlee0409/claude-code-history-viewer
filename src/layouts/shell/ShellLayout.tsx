@@ -2,6 +2,7 @@
  * ShellLayout: the app's frame, as named slots (plan T3).
  *
  *   ┌───────────────────── header (toolbar) ─────────────────────┐
+ *   ├───────────────────── tabs (conversation tabs) ─────────────┤
  *   │ sidebar │ main (mainHeader + view panel) │ inspector │
  *   └───────────────────────── statusBar ────────────────────────┘
  *
@@ -24,6 +25,8 @@ export interface ShellLayoutProps {
   ready: boolean;
   skipLinks: ReactNode;
   header: ReactNode;
+  /** The conversation tab strip, under the toolbar (T8). */
+  tabs?: ReactNode;
   /** Off-canvas navigation (the mobile drawer). */
   drawer?: ReactNode;
   sidebar?: ReactNode;
@@ -43,6 +46,7 @@ export const ShellLayout = ({
   ready,
   skipLinks,
   header,
+  tabs,
   drawer,
   sidebar,
   mainHeader,
@@ -57,6 +61,7 @@ export const ShellLayout = ({
     <div className="h-screen flex flex-col bg-background" data-ready={String(ready)}>
       {skipLinks}
       {header}
+      {tabs}
       {drawer}
       <div className="flex-1 flex overflow-hidden">
         {sidebar}
