@@ -140,6 +140,25 @@ describe("restoring tabs waits for the project scan (review #7)", () => {
     expect(activeDoc()?.unavailable).toBeNull();
   });
 
+  it("a tab the user has moved on in is not reopened when the project arrives", async () => {
+    render(<App />);
+    await act(async () => {
+      useAppStore.setState({ projectsScanned: true });
+    });
+    await waitFor(() => expect(activeDoc()?.unavailable).toBe("project"));
+    await act(async () => {
+      await state().navigate({ view: "globalStats" });
+    });
+    expect(activeDoc()?.unavailable).toBeNull();
+
+    await act(async () => {
+      useAppStore.setState({ projects: [A] });
+    });
+    await settleAll();
+    expect(state().view).toBe("globalStats");
+    expect(state().selectedSession).toBeNull();
+  });
+
   it("a project that arrives with a later scan opens the tab that could not find it", async () => {
     render(<App />);
     await act(async () => {

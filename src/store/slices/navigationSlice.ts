@@ -230,6 +230,16 @@ export const createNavigationSlice: StateCreator<
       boardHoverSession: null,
       pendingAnchor: options.anchor ?? null,
     });
+    // A tab that could not be opened is the user's own again once they
+    // move inside it: cleared as the move begins, so nothing retries the
+    // tab meanwhile, and a session that fails to load in this move marks
+    // it again (`markSessionUnavailable`).
+    const activeId = start.activeDocumentId;
+    if (start.documents.some((d) => d.id === activeId && d.unavailable)) {
+      set(({ documents }) => ({
+        documents: documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d)),
+      }));
+    }
 
     const openProject = start.selectedProject;
     const dropsProject = target.project === null && openProject !== null;
@@ -281,16 +291,6 @@ export const createNavigationSlice: StateCreator<
     // Every step below lands after the project load: only while this
     // navigation still owns the place.
     if (!ownsPlace()) return false;
-
-    // A tab that could not be opened is the user's own again once they
-    // move inside it - cleared before the session loads, so a session that
-    // fails to load now marks the tab again (`markSessionUnavailable`).
-    const activeId = get().activeDocumentId;
-    if (get().documents.some((d) => d.id === activeId && d.unavailable)) {
-      set(({ documents }) => ({
-        documents: documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d)),
-      }));
-    }
 
     if (target.session) {
       await get().selectSession(target.session, {
