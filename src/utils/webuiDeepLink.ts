@@ -15,7 +15,8 @@ export interface WebUIDeepLink {
   sessionId: string | null;
   messageId: string | null;
   /**
-   * The tab the URL's session was open in. Read from the URL; a write takes
+   * The tab the entry belongs to - with or without a session (plan §9b F1:
+   * back/forward brings that tab forward). Read from the URL; a write takes
    * it from the active tab (`registerWebUITabSource`), never from the caller.
    */
   tabId?: string | null;
@@ -25,7 +26,8 @@ let tabSource: (() => string | null) | null = null;
 
 /**
  * Where URL writes read the active tab's id from (the store registers it).
- * The id rides with the session: a URL without a session names no tab.
+ * Every URL the app writes names its tab, a session or not, so a history
+ * entry of a blank or app-screen tab still says which tab it was.
  */
 export function registerWebUITabSource(source: (() => string | null) | null): void {
   tabSource = source;
@@ -43,16 +45,27 @@ export function readWebUIDeepLink(): WebUIDeepLink {
 
   const url = new URL(window.location.href);
   const sessionId = normalizedParam(url.searchParams.get(WEBUI_SESSION_PARAM));
-  if (!sessionId) {
-    return { sessionId: null, messageId: null };
-  }
-
   const tabId = normalizedParam(url.searchParams.get(WEBUI_TAB_PARAM));
   return {
     sessionId,
-    messageId: normalizedParam(url.searchParams.get(WEBUI_MESSAGE_PARAM)),
+    messageId: sessionId ? normalizedParam(url.searchParams.get(WEBUI_MESSAGE_PARAM)) : null,
     ...(tabId ? { tabId } : {}),
   };
+}
+
+/**
+ * The page's first history entry names its tab too (startup: the URL names
+ * no session and no tab yet), so browser back to it brings that tab
+ * forward instead of meaning "no tab". Replaces the entry; adds none.
+ */
+export function stampWebUITab(): void {
+  if (!isWebUI()) return;
+  const url = new URL(window.location.href);
+  if (url.searchParams.has(WEBUI_SESSION_PARAM) || url.searchParams.has(WEBUI_TAB_PARAM)) return;
+  const tabId = normalizedParam(tabSource?.() ?? null);
+  if (!tabId) return;
+  url.searchParams.set(WEBUI_TAB_PARAM, tabId);
+  window.history.replaceState(window.history.state, "", url);
 }
 
 export function writeWebUIDeepLink(
@@ -64,7 +77,7 @@ export function writeWebUIDeepLink(
   const url = new URL(window.location.href);
   const sessionId = normalizedParam(deepLink.sessionId);
   const messageId = sessionId ? normalizedParam(deepLink.messageId) : null;
-  const tabId = sessionId ? normalizedParam(tabSource?.() ?? null) : null;
+  const tabId = normalizedParam(tabSource?.() ?? null);
 
   if (sessionId) {
     url.searchParams.set(WEBUI_SESSION_PARAM, sessionId);

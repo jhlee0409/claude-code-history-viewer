@@ -23,7 +23,7 @@ import i18n from "@/i18n";
 import { useAppStore, type AppStore } from "@/store/useAppStore";
 import type { PendingAnchor } from "@/store/slices/documentSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
-import type { WebUIHistoryMode } from "@/utils/webuiDeepLink";
+import { beginHistoryStep, writeWebUIDeepLink, type WebUIHistoryMode } from "@/utils/webuiDeepLink";
 import {
   blankDocument,
   cycledId,
@@ -54,6 +54,23 @@ const providerOf = (p: { provider?: string }) => p.provider ?? "claude";
 
 /** Screens whose data loads after the place is committed. */
 const LOADS_DATA = (view: View) => view !== "conversation" && view !== "empty";
+
+/**
+ * Point the WebUI URL at the active tab as it is now (its session, target
+ * and tab id) - for a tab switch the session writes did not cover (two tabs
+ * without a session, or on the same one). `history` comes from the move's
+ * history step, so a move that already wrote its entry only refines it.
+ */
+function writeActiveTabUrl(history: WebUIHistoryMode): void {
+  const { selectedSession, targetMessageUuid } = get();
+  writeWebUIDeepLink(
+    {
+      sessionId: selectedSession ? selectedSession.actual_session_id || selectedSession.session_id : null,
+      messageId: targetMessageUuid,
+    },
+    history,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Snapshots and persistence
@@ -286,6 +303,8 @@ export async function activateTab(id: string, screens: TabScreens, options: Acti
   const doc = documents.find((d) => d.id === id)!;
   // The switch is a navigation from here on (plan §4.2).
   const epoch = options.epoch ?? state.beginNavigation();
+  const history = options.history ?? "push";
+  const historyStep = beginHistoryStep(history);
   set({
     documents,
     activeDocumentId: id,
@@ -293,7 +312,10 @@ export async function activateTab(id: string, screens: TabScreens, options: Acti
     placeHistory: doc.history,
     tabsRestorePending: false,
   });
-  return openDocument(doc, screens, { epoch, history: options.history ?? "push" });
+  const arrived = await openDocument(doc, screens, { epoch, history });
+  if (!arrived) return false;
+  writeActiveTabUrl(historyStep());
+  return true;
 }
 
 /** Insert `doc` right after the active tab, or at the end; keep the cap. */
@@ -311,6 +333,7 @@ export async function newTab(): Promise<boolean> {
   const blank = blankDocument();
   const documents = withDocument(currentDocuments(state), blank, false);
   const epoch = state.beginNavigation();
+  const historyStep = beginHistoryStep("push");
   set({
     documents,
     activeDocumentId: blank.id,
@@ -318,7 +341,10 @@ export async function newTab(): Promise<boolean> {
     placeHistory: { back: [], forward: [] },
     tabsRestorePending: false,
   });
-  return get().navigate({ view: "conversation", project: null, session: null }, { epoch, record: false });
+  const arrived = await get().navigate({ view: "conversation", project: null, session: null }, { epoch, record: false });
+  if (!arrived) return false;
+  writeActiveTabUrl(historyStep());
+  return true;
 }
 
 /**
@@ -380,8 +406,12 @@ export async function closeTab(id: string, screens: TabScreens): Promise<boolean
   const next = neighbourAfterClose(documents, id);
   if (!next) {
     const blank = blankDocument();
+    const historyStep = beginHistoryStep("push");
     set({ documents: [blank], activeDocumentId: blank.id, hydratedDocumentId: null, placeHistory: { back: [], forward: [] } });
-    return get().navigate({ view: "conversation", project: null, session: null }, { record: false });
+    const arrived = await get().navigate({ view: "conversation", project: null, session: null }, { record: false });
+    if (!arrived) return false;
+    writeActiveTabUrl(historyStep());
+    return true;
   }
   // The closed tab is not saved on the way out.
   set({ documents: documents.filter((d) => d.id !== id), hydratedDocumentId: null });
@@ -429,14 +459,19 @@ export interface UrlPlace {
 }
 
 /**
- * What a popstate does, decided before anything awaits:
+ * What a popstate does, decided before anything awaits (plan §9b F1):
+ * - `stay`: the URL names no session and no open tab (the bare start URL of
+ *   an old page, a closed blank tab) - nothing to apply, and the open tab
+ *   keeps everything it has;
  * - `here`: the active tab already shows the URL's session - move inside it;
- * - `tab`: tab `tabId` shows it - that tab comes forward, at the URL's place;
+ * - `tab`: tab `tabId` shows the URL's session, or the URL names that tab
+ *   and no session - that tab comes forward, at the URL's place;
  * - `resolve`: the URL's session has to be looked up first, then opens in
  *   tab `tabId` (the tab it names), the active tab (an old URL naming no
  *   tab), or a tab of its own (the tab it names was closed).
  */
 export type UrlMove =
+  | { kind: "stay" }
   | { kind: "here" }
   | { kind: "tab"; tabId: string }
   | { kind: "resolve"; into: "newTab" | "active" | { tabId: string } };
@@ -448,13 +483,14 @@ const showsSessionId = (doc: TabDocument, sessionId: string): boolean =>
 const liveSessionId = (state: AppStore): string | null =>
   state.selectedSession?.actual_session_id || state.selectedSession?.session_id || null;
 
-/** How the popstate for `url` moves (see `UrlMove`); `url` names a session. */
-export function planUrlMove(url: UrlPlace & { sessionId: string }, state: AppStore = get()): UrlMove {
+/** How the popstate for `url` moves (see `UrlMove`). */
+export function planUrlMove(url: UrlPlace, state: AppStore = get()): UrlMove {
   const { activeDocumentId } = state;
   const tabId = url.tabId ?? null;
-  if ((tabId === null || tabId === activeDocumentId) && liveSessionId(state) === url.sessionId) return { kind: "here" };
   const documents = currentDocuments(state);
   const named = tabId ? documents.find((d) => d.id === tabId) : undefined;
+  if (url.sessionId === null) return named ? { kind: "tab", tabId: named.id } : { kind: "stay" };
+  if ((tabId === null || tabId === activeDocumentId) && liveSessionId(state) === url.sessionId) return { kind: "here" };
   if (tabId && !named) return { kind: "resolve", into: "newTab" };
   if (named && showsSessionId(named, url.sessionId)) return { kind: "tab", tabId: named.id };
   return { kind: "resolve", into: named ? { tabId: named.id } : "active" };
@@ -462,10 +498,27 @@ export function planUrlMove(url: UrlPlace & { sessionId: string }, state: AppSto
 
 const POP = { history: "none", record: false } as const;
 
+/** `doc` without its session: the tab as it was before one was opened in it. */
+const withoutSession = (doc: TabDocument): TabDocument => ({
+  ...doc,
+  session: null,
+  subagentStack: [],
+  anchor: null,
+  targetMessageUuid: null,
+  title: null,
+  unavailable: doc.unavailable === "session" ? null : doc.unavailable,
+  live: doc.live ? { ...doc.live, session: null, parentStack: [] } : undefined,
+});
+
 /**
  * Bring tab `tabId` forward at the URL's place, as one navigation under the
  * popstate's `epoch`: the URL's place becomes the tab's before it opens, so
  * activating it is the whole move. Superseded, it writes nothing.
+ *
+ * A URL naming the tab and no session is an entry from before a session was
+ * opened in it: the tab comes forward without its session, on its project
+ * and screen (back again in history: forward reopens it). Nothing else of
+ * the tab - or of any other tab - changes.
  */
 export async function openTabAtUrl(
   tabId: string,
@@ -475,13 +528,19 @@ export async function openTabAtUrl(
 ): Promise<boolean> {
   const state = get();
   if (state.navigationEpoch !== epoch) return false;
+  if (state.activeDocumentId === tabId && state.hydratedDocumentId === tabId) {
+    if (url.sessionId !== null) return get().navigate({ view: "conversation", messageId: url.messageId }, { ...POP, epoch });
+    return state.selectedSession ? get().navigate({ session: null }, { ...POP, epoch }) : true;
+  }
   const documents = currentDocuments(state);
   if (!documents.some((d) => d.id === tabId)) return false;
-  set({
-    documents: documents.map((d) =>
-      d.id === tabId ? { ...d, view: "conversation", targetMessageUuid: url.messageId } : d,
-    ),
-  });
+  const atUrl = (d: TabDocument): TabDocument =>
+    url.sessionId === null
+      ? d.session
+        ? withoutSession(d)
+        : d
+      : { ...d, view: "conversation", targetMessageUuid: url.messageId };
+  set({ documents: documents.map((d) => (d.id === tabId ? atUrl(d) : d)) });
   return activateTab(tabId, screens, { epoch, history: "none" });
 }
 

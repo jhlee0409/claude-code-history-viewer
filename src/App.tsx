@@ -26,9 +26,9 @@ import {
 import {
   listenForWebUIDeepLinks,
   readWebUIDeepLink,
+  stampWebUITab,
 } from "./utils/webuiDeepLink";
 import {
-  viewAfterLeavingProject,
   viewForProjectSwitch,
 } from "./navigation/place";
 import { projectListing } from "./navigation/library";
@@ -191,6 +191,7 @@ function App() {
   // read is reported once.
   useEffect(() => {
     reportStoredTabsProblems();
+    stampWebUITab();
     return startTabsPersistence();
   }, []);
 
@@ -299,30 +300,24 @@ function App() {
       listenForWebUIDeepLinks((deepLink) => {
         const epoch = useAppStore.getState().beginNavigation();
         const popOptions = { history: "none", record: false, epoch } as const;
-        if (!deepLink.sessionId) {
-          pendingIntentRef.current = null;
-          void navigate(
-            {
-              project: null,
-              view: viewAfterLeavingProject(useAppStore.getState().view),
-            },
-            popOptions,
-          );
-          return;
-        }
-
-        const uuidHint: SessionHint = { kind: "uuid", value: deepLink.sessionId };
+        const sessionId = deepLink.sessionId;
         if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-          pendingIntentRef.current = {
-            hint: uuidHint,
-            messageId: deepLink.messageId,
-            options: { epoch, record: false, target: "tab" },
-          };
+          // Before startup has opened anything, the latest URL with a session
+          // is kept for it; one without a session leaves the restore alone.
+          pendingIntentRef.current = sessionId
+            ? {
+                hint: { kind: "uuid", value: sessionId },
+                messageId: deepLink.messageId,
+                options: { epoch, record: false, target: "tab" },
+              }
+            : null;
           return;
         }
 
-        const move = planUrlMove({ ...deepLink, sessionId: deepLink.sessionId });
+        const move = planUrlMove(deepLink);
         switch (move.kind) {
+          case "stay":
+            return;
           case "here":
             // The URL names a conversation, so the screen is the
             // conversation, and its target is exactly the URL's (none
@@ -333,7 +328,8 @@ function App() {
             void openTabAtUrl(move.tabId, deepLink, tabScreensRef.current, epoch);
             return;
           case "resolve":
-            runPreloadWithHint(uuidHint, deepLink.messageId, {
+            if (!sessionId) return;
+            runPreloadWithHint({ kind: "uuid", value: sessionId }, deepLink.messageId, {
               epoch,
               record: false,
               target: move.into === "newTab" ? "tab" : move.into,

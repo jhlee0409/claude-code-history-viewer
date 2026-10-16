@@ -35,7 +35,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 
 import App from "@/App";
 import { useAppStore } from "@/store/useAppStore";
-import { activateTab, currentDocuments, openInNewTab } from "@/navigation/tabs";
+import { activateTab, currentDocuments, newTab, openInNewTab } from "@/navigation/tabs";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -206,6 +206,146 @@ describe("WebUI back/forward with tabs (§9b F1)", () => {
     expect(state().activeDocumentId).toBe(tabB);
     expect(state().selectedSession?.file_path).toBe(S2.file_path);
     expect(currentDocuments().find((d) => d.id === tabA)?.session?.filePath).toBe(S1.file_path);
+  });
+
+  it("back to the blank tab's URL brings the blank tab forward; the new tab keeps its session (review #2)", async () => {
+    render(<App />);
+    const blank = state().activeDocumentId;
+    // The start page's history entry names its tab too.
+    const startUrl = window.location.href;
+    await act(async () => {
+      await openInNewTab(() => state().navigate({ view: "conversation", project: A, session: S1 }));
+    });
+    const tabB = state().activeDocumentId;
+    expect(tabB).not.toBe(blank);
+
+    await popTo(startUrl);
+    await settleAll();
+
+    expect(state().activeDocumentId).toBe(blank);
+    expect(state().selectedSession).toBeNull();
+    expect(currentDocuments().find((d) => d.id === tabB)?.session?.filePath).toBe(S1.file_path);
+  });
+
+  it("a URL naming neither a tab nor a session leaves the open tab's session alone", async () => {
+    render(<App />);
+    await act(async () => {
+      await state().navigate({ view: "conversation", project: A, session: S1 });
+    });
+    const tab = state().activeDocumentId;
+
+    await popTo("/");
+    await settleAll();
+
+    expect(state().activeDocumentId).toBe(tab);
+    expect(state().selectedSession?.file_path).toBe(S1.file_path);
+    expect(state().selectedProject?.path).toBe(A.path);
+  });
+
+  it("an old URL naming no tab and a session that is gone leaves the open tab alone", async () => {
+    render(<App />);
+    await act(async () => {
+      await state().navigate({ view: "conversation", project: A, session: S1 });
+    });
+
+    await popTo("/?session=gone");
+    await settleAll();
+
+    expect(state().selectedSession?.file_path).toBe(S1.file_path);
+    expect(state().selectedProject?.path).toBe(A.path);
+  });
+
+  it("back/forward through mixed session and sessionless entries of three tabs", async () => {
+    render(<App />);
+    const tabA = state().activeDocumentId;
+    const entries: string[] = [window.location.href]; // A, blank
+    await act(async () => {
+      await state().navigate({ view: "conversation", project: A, session: S1 });
+    });
+    entries.push(window.location.href); // A, S1
+    await act(async () => {
+      await openInNewTab(() => state().navigate({ view: "conversation", project: B, session: S2 }));
+    });
+    const tabB = state().activeDocumentId;
+    entries.push(window.location.href); // B, S2
+    await act(async () => {
+      await state().navigate({ view: "globalStats" });
+    });
+    await act(async () => {
+      await newTab();
+    });
+    const tabC = state().activeDocumentId;
+    entries.push(window.location.href); // C, blank
+    expect(new Set(entries).size).toBe(4);
+    expect(new URL(entries[3]!).searchParams.get("tab")).toBe(tabC);
+
+    const at = () => [state().activeDocumentId, state().selectedSession?.file_path ?? null];
+    const tabSession = (id: string) => currentDocuments().find((d) => d.id === id)?.session?.filePath ?? null;
+
+    // Back: B (its session, on the conversation the URL names).
+    await popTo(entries[2]!);
+    await settleAll();
+    expect(at()).toEqual([tabB, S2.file_path]);
+    // Back: A at S1.
+    await popTo(entries[1]!);
+    await settleAll();
+    expect(at()).toEqual([tabA, S1.file_path]);
+    // Back: A before it had a session - A's session closes, its project stays; B keeps S2.
+    await popTo(entries[0]!);
+    await settleAll();
+    expect(at()).toEqual([tabA, null]);
+    expect(state().selectedProject?.path).toBe(A.path);
+    expect(tabSession(tabB)).toBe(S2.file_path);
+    // Forward: A at S1 again, in tab A.
+    await popTo(entries[1]!);
+    await settleAll();
+    expect(at()).toEqual([tabA, S1.file_path]);
+    // Forward: B; forward: the blank C. Nothing else changed.
+    await popTo(entries[2]!);
+    await settleAll();
+    expect(at()).toEqual([tabB, S2.file_path]);
+    await popTo(entries[3]!);
+    await settleAll();
+    expect(at()).toEqual([tabC, null]);
+    expect(tabSession(tabA)).toBe(S1.file_path);
+    expect(tabSession(tabB)).toBe(S2.file_path);
+    expect(state().documents.map((d) => d.id)).toEqual([tabA, tabB, tabC]);
+  });
+
+  it("back to an app-screen tab's URL brings it forward on its screen and loads it", async () => {
+    render(<App />);
+    const tabA = state().activeDocumentId;
+    await act(async () => {
+      await state().navigate({ view: "globalStats" });
+    });
+    const tabAUrl = window.location.href;
+    await act(async () => {
+      await openInNewTab(() => state().navigate({ view: "conversation", project: B, session: S2 }));
+    });
+    const tabB = state().activeDocumentId;
+    openViewMock.mockClear();
+
+    await popTo(tabAUrl);
+    await settleAll();
+
+    expect(state().activeDocumentId).toBe(tabA);
+    expect(state().view).toBe("globalStats");
+    expect(openViewMock).toHaveBeenCalledWith("globalStats");
+    expect(currentDocuments().find((d) => d.id === tabB)?.session?.filePath).toBe(S2.file_path);
+  });
+
+  it("switching between two tabs on no session still names the tab in the URL", async () => {
+    render(<App />);
+    const tabA = state().activeDocumentId;
+    await act(async () => {
+      await newTab();
+    });
+    const tabB = state().activeDocumentId;
+    expect(url().get("tab")).toBe(tabB);
+    await act(async () => {
+      await activateTab(tabA, screens);
+    });
+    expect(url().get("tab")).toBe(tabA);
   });
 
   it("a URL whose tab was closed opens its session in a new tab", async () => {
