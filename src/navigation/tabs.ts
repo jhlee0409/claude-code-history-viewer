@@ -401,7 +401,14 @@ export async function openInNewTab<T>(
     placeHistory: { back: [], forward: [] },
     tabsRestorePending: false,
   });
-  const opening = open();
+  // A synchronous throw from `open` is a failure like a rejection: it must
+  // reach the same cleanup, so turn it into a rejected promise here.
+  let opening: Promise<T>;
+  try {
+    opening = Promise.resolve(open());
+  } catch (error) {
+    opening = Promise.reject(error);
+  }
   // `open` claims its navigation before its first await; anything after it
   // owns the tab list.
   const owns = ownPlace(get);

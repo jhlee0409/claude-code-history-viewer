@@ -933,6 +933,25 @@ describe("a per-document load failing never raises the app error (sweep)", () =>
   });
 });
 
+describe("opening in a new tab fails", () => {
+  it("a synchronous throw from open removes the new tab, restores the previous one, and rethrows", async () => {
+    await open(A, A1);
+    const tab1 = activeId();
+    const count = state().documents.length;
+    const boom = new Error("sync boom");
+
+    await expect(
+      openInNewTab(() => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+
+    expect(activeId()).toBe(tab1);
+    expect(state().documents).toHaveLength(count);
+    expect(where()).toEqual([tab1, A.path, A1.file_path]);
+  });
+});
+
 describe("closing tabs", () => {
   it("closing the active tab while it loads: the neighbour opens and the abandoned load lands nowhere", async () => {
     await open(A, A1);
