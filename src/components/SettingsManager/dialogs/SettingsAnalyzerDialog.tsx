@@ -29,20 +29,20 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  FileJson,
+  TriangleAlert,
+  CircleCheck,
+  FileBraces,
   FolderTree,
-  Home,
+  House,
   Server,
   Shield,
   Zap,
-  HelpCircle,
+  CircleQuestionMark,
   ChevronRight,
   Package,
   Info,
   ExternalLink,
-  XCircle,
+  CircleX,
 } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import { useUnifiedPresets } from "@/hooks/useUnifiedPresets";
@@ -102,7 +102,7 @@ const FileCard = React.memo<{
     return (
       <div className="relative p-3 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50">
         <div className="flex items-start gap-3">
-          <FileJson aria-hidden className="w-4 h-4 text-muted-foreground/50 mt-0.5 shrink-0" />
+          <FileBraces aria-hidden className="w-4 h-4 text-muted-foreground/50 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <code className="text-list text-muted-foreground/60 font-mono break-all">
               {analysis.path}
@@ -133,7 +133,7 @@ const FileCard = React.memo<{
       </Badge>
 
       <div className="flex items-start gap-3">
-        <FileJson aria-hidden className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+        <FileBraces aria-hidden className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <code className="text-list text-foreground/80 font-mono break-all">
             {analysis.path}
@@ -178,9 +178,9 @@ const FileCard = React.memo<{
 
 FileCard.displayName = "FileCard";
 
-const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof XCircle; className: string }> = {
-  error: { Icon: XCircle, className: "text-destructive" },
-  warning: { Icon: AlertTriangle, className: "text-warning" },
+const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof CircleX; className: string }> = {
+  error: { Icon: CircleX, className: "text-destructive" },
+  warning: { Icon: TriangleAlert, className: "text-warning" },
   info: { Icon: Info, className: "text-info" },
 };
 
@@ -488,11 +488,11 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 }`}
               >
                 {issueCounts.total === 0 ? (
-                  <CheckCircle2 aria-hidden className="w-5 h-5 text-success shrink-0" />
+                  <CircleCheck aria-hidden className="w-5 h-5 text-success shrink-0" />
                 ) : issueCounts.errors > 0 ? (
-                  <XCircle aria-hidden className="w-5 h-5 text-destructive shrink-0" />
+                  <CircleX aria-hidden className="w-5 h-5 text-destructive shrink-0" />
                 ) : (
-                  <AlertTriangle aria-hidden className="w-5 h-5 text-warning shrink-0" />
+                  <TriangleAlert aria-hidden className="w-5 h-5 text-warning shrink-0" />
                 )}
                 <div>
                   <p className="text-body font-medium">
@@ -522,7 +522,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* File List */}
             <div className="space-y-3">
               <h3 className="text-body font-medium flex items-center gap-2">
-                <FileJson aria-hidden className="w-4 h-4" />
+                <FileBraces aria-hidden className="w-4 h-4" />
                 {t("settingsManager.analyzer.fileList")}
               </h3>
               <div className="space-y-3">
@@ -546,7 +546,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               >
                 {saveResult?.type === "success" ? (
                   <>
-                    <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-success" />
+                    <CircleCheck aria-hidden className="w-4 h-4 mr-2 text-success" />
                     {saveResult.message}
                   </>
                 ) : (
@@ -560,7 +560,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               </Button>
               {saveResult?.type === "error" && (
                 <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 text-destructive text-list">
-                  <XCircle aria-hidden className="w-3.5 h-3.5 shrink-0" />
+                  <CircleX aria-hidden className="w-3.5 h-3.5 shrink-0" />
                   <span>{saveResult.message}</span>
                 </div>
               )}
@@ -578,7 +578,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Why Complex Section */}
             <div className="space-y-3">
               <h3 className="text-body font-medium flex items-center gap-2">
-                <HelpCircle aria-hidden className="w-4 h-4 text-warning" />
+                <CircleQuestionMark aria-hidden className="w-4 h-4 text-warning" />
                 {t("settingsManager.analyzer.whyComplex.title")}
               </h3>
               <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-body text-muted-foreground">
@@ -692,7 +692,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Live warning if MCP in settings.json */}
             {summary.hasMcpInSettings && (
               <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-                <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
                 <div>
                   <p className="text-body font-medium text-destructive">
                     {t("settingsManager.analyzer.status.mcpInSettings")}
@@ -709,7 +709,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               </h3>
               <div className="space-y-2 text-body">
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
-                  <Home aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                  <House aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                   <div>
                     <code className="text-list font-mono">~/.claude.json</code>
                     <p className="text-list text-muted-foreground mt-1">
@@ -731,7 +731,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
 
             {/* Important Note */}
             <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-              <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
               <div>
                 <p className="text-body font-medium text-destructive">
                   {t("settingsManager.analyzer.mcp.warning.title")}

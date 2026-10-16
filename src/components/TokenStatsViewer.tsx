@@ -3,11 +3,11 @@
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  BarChart3,
+  ChartColumn,
   MessageSquare,
   Layers,
   ChevronDown,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
 import type {
   SessionTokenStats,
@@ -387,7 +387,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
                     {t("common.loading")}
                   </>
                 ) : (
@@ -414,7 +414,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
     return (
       <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-border/50 bg-card/30">
         <div className="relative mb-4">
-          <BarChart3 className="w-14 h-14 text-muted-foreground/30" />
+          <ChartColumn className="w-14 h-14 text-muted-foreground/30" />
           <div
             className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
           />

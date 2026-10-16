@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
-import { Search, X, SortDesc, SortAsc, Loader2, ListChecks } from "lucide-react";
+import { Search, X, ArrowDownWideNarrow, ArrowUpNarrowWide, LoaderCircle, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -164,9 +164,9 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
           }
         >
           {sessionSortOrder === "newest" ? (
-            <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
+            <ArrowDownWideNarrow className="w-3.5 h-3.5 text-muted-foreground" />
           ) : (
-            <SortAsc className="w-3.5 h-3.5 text-accent" />
+            <ArrowUpNarrowWide className="w-3.5 h-3.5 text-accent" />
           )}
         </button>
       </div>
@@ -407,7 +407,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       >
         <span className="inline-flex items-center justify-center gap-1.5">
           {isLoadingMoreSessions && (
-            <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+            <LoaderCircle className="w-3 h-3 animate-spin" aria-hidden="true" />
           )}
           <span>
             {isLoadingMoreSessions

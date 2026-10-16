@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, XCircle } from "lucide-react";
+import { Calendar, CircleX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +126,7 @@ export const DatePickerHeader = ({
                     title={t("common.dateFilter.clear")}
                     className="ml-1 p-1 hover:bg-destructive/10 hover:text-destructive text-muted-foreground rounded-full transition-colors"
                 >
-                    <XCircle className="w-3.5 h-3.5" />
+                    <CircleX className="w-3.5 h-3.5" />
                 </button>
             )}
         </div >

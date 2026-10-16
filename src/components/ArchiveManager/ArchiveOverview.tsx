@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, HardDrive, Clock, Archive, Info, Settings2, Loader2, ShieldCheck } from 'lucide-react';
+import { TriangleAlert, HardDrive, Clock, Archive, Info, Settings2, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -335,7 +335,7 @@ export const ArchiveOverview: React.FC = () => {
       {/* Error display */}
       {archive.expiringError && (
         <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
+          <TriangleAlert className="h-4 w-4" />
           <AlertTitle>{t('archive.error.loadExpiringFailed')}</AlertTitle>
           <AlertDescription>{archive.expiringError}</AlertDescription>
         </Alert>
@@ -343,7 +343,7 @@ export const ArchiveOverview: React.FC = () => {
 
       {/* Cleanup Warning + Settings button */}
       <Alert>
-        <AlertTriangle className="h-4 w-4" />
+        <TriangleAlert className="h-4 w-4" />
         <AlertTitle className="flex items-center justify-between">
           {t('archive.overview.cleanupWarning.title')}
           <Button
@@ -379,7 +379,7 @@ export const ArchiveOverview: React.FC = () => {
           </p>
           {backupProgress ? (
             <div className="flex items-center gap-2 py-1">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
               <p className="text-list text-muted-foreground">
                 {t('archive.overview.fullBackup.progress', {
                   current: backupProgress.current,
@@ -455,7 +455,7 @@ export const ArchiveOverview: React.FC = () => {
             </div>
           ) : archive.isLoadingDiskUsage ? (
             <div className="flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+              <LoaderCircle className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
               <p className="text-list text-muted-foreground">{t('common.loading')}</p>
             </div>
           ) : (
@@ -485,7 +485,7 @@ export const ArchiveOverview: React.FC = () => {
                 disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 ) : (
                   <Archive className="w-3.5 h-3.5 mr-1.5" />
                 )}
@@ -498,7 +498,7 @@ export const ArchiveOverview: React.FC = () => {
                 disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || subagentExpiring.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 ) : (
                   <Archive className="w-3.5 h-3.5 mr-1.5" />
                 )}
@@ -552,7 +552,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
             ) : archive.isLoadingExpiring ? (
               <div className="flex items-center justify-center gap-2 py-6">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
                 <p className="text-body text-muted-foreground">{t('common.loading')}</p>
               </div>
             ) : archive.expiringSessions.length === 0 ? (
@@ -738,7 +738,7 @@ export const ArchiveOverview: React.FC = () => {
 
             {thresholdExceedsCleanup && (
               <Alert variant="destructive" className="py-2 flex items-center gap-2 [&>svg]:static [&>svg]:translate-y-0 [&>svg~*]:pl-0">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
                 <AlertDescription className="text-list">
                   {t('archive.overview.settings.thresholdExceedsCleanup')}
                 </AlertDescription>

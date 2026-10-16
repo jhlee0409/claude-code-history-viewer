@@ -30,23 +30,23 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  AlertTriangle,
+  TriangleAlert,
   ArrowLeft,
-  CheckCircle2,
+  CircleCheck,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileJson,
+  FileBraces,
   FolderTree,
-  HelpCircle,
-  Home,
+  CircleQuestionMark,
+  House,
   Info,
-  Loader2,
+  LoaderCircle,
   Package,
   RefreshCw,
   Server,
   Shield,
-  XCircle,
+  CircleX,
   Zap,
 } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
@@ -182,7 +182,7 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
       return (
         <div className="relative px-2.5 py-1.5 rounded-md border border-dashed border-border/50 bg-muted/20 opacity-50">
           <div className="flex items-center gap-2">
-            <FileJson aria-hidden className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+            <FileBraces aria-hidden className="w-3 h-3 text-muted-foreground/50 shrink-0" />
             <code className="text-caption text-muted-foreground/60 font-mono break-all">{analysis.path}</code>
             <span className="text-caption text-muted-foreground/40">{t("settingsManager.analyzer.fileNotFound")}</span>
           </div>
@@ -196,7 +196,7 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
           {t(`settingsManager.analyzer.scope.${analysis.scope}`)}
         </Badge>
         <div className="flex items-center gap-2">
-          <FileJson aria-hidden className="w-3 h-3 text-muted-foreground shrink-0" />
+          <FileBraces aria-hidden className="w-3 h-3 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <code className="text-caption text-foreground/80 font-mono break-all">{analysis.path}</code>
@@ -237,9 +237,9 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
 );
 FileCard.displayName = "FileCard";
 
-const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof XCircle; className: string }> = {
-  error: { Icon: XCircle, className: "text-destructive" },
-  warning: { Icon: AlertTriangle, className: "text-warning" },
+const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof CircleX; className: string }> = {
+  error: { Icon: CircleX, className: "text-destructive" },
+  warning: { Icon: TriangleAlert, className: "text-warning" },
   info: { Icon: Info, className: "text-info" },
 };
 
@@ -343,13 +343,13 @@ const HealthBar: React.FC<{
     <div className="flex items-center gap-3 px-4 py-2 border-b border-border/50 bg-muted/20 shrink-0">
       <div className="flex items-center gap-2 flex-1">
         {isScanning ? (
-          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
         ) : total === 0 ? (
-          <CheckCircle2 className="w-4 h-4 text-success" />
+          <CircleCheck className="w-4 h-4 text-success" />
         ) : errors > 0 ? (
-          <XCircle className="w-4 h-4 text-destructive" />
+          <CircleX className="w-4 h-4 text-destructive" />
         ) : (
-          <AlertTriangle className="w-4 h-4 text-warning" />
+          <TriangleAlert className="w-4 h-4 text-warning" />
         )}
         <div className="flex items-center gap-1.5">
           {errors > 0 && (
@@ -658,7 +658,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* All clean */}
           {!isScanning && issueCounts.total === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <CheckCircle2 className="w-10 h-10 text-success mb-3" />
+              <CircleCheck className="w-10 h-10 text-success mb-3" />
               <p className="text-body font-medium">{t("settingsManager.analyzer.issues.noIssues")}</p>
             </div>
           )}
@@ -666,7 +666,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Scanning state */}
           {isScanning && (
             <div className="flex items-center justify-center py-12 gap-3 text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <LoaderCircle className="w-5 h-5 animate-spin" />
               <span className="text-body">{t("common.loading")}</span>
             </div>
           )}
@@ -708,7 +708,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           {isScanning && (
             <div className="flex items-center justify-center py-8 gap-3 text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <LoaderCircle className="w-5 h-5 animate-spin" />
               <span className="text-body">{t("common.loading")}</span>
             </div>
           )}
@@ -723,7 +723,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             >
               {saveResult?.type === "success" ? (
                 <>
-                  <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-success" />
+                  <CircleCheck aria-hidden className="w-4 h-4 mr-2 text-success" />
                   {saveResult.message}
                 </>
               ) : (
@@ -735,7 +735,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             </Button>
             {saveResult?.type === "error" && (
               <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 text-destructive text-list">
-                <XCircle aria-hidden className="w-3.5 h-3.5 shrink-0" />
+                <CircleX aria-hidden className="w-3.5 h-3.5 shrink-0" />
                 <span>{saveResult.message}</span>
               </div>
             )}
@@ -750,7 +750,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Why Complex */}
           <div className="space-y-3">
             <h3 className="text-body font-medium flex items-center gap-2">
-              <HelpCircle aria-hidden className="w-4 h-4 text-warning" />
+              <CircleQuestionMark aria-hidden className="w-4 h-4 text-warning" />
               {t("settingsManager.analyzer.whyComplex.title")}
             </h3>
             <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-body text-muted-foreground">
@@ -824,7 +824,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* MCP Guide */}
           {summary.hasMcpInSettings && (
             <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-              <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
               <p className="text-body font-medium text-destructive">{t("settingsManager.analyzer.status.mcpInSettings")}</p>
             </div>
           )}
@@ -836,7 +836,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             </h3>
             <div className="space-y-2 text-body">
               <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
-                <Home aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                <House aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                 <div>
                   <code className="text-list font-mono">~/.claude.json</code>
                   <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.global")}</p>
@@ -853,7 +853,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           </div>
 
           <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-            <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <TriangleAlert aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
             <div>
               <p className="text-body font-medium text-destructive">{t("settingsManager.analyzer.mcp.warning.title")}</p>
               <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.warning.description")}</p>

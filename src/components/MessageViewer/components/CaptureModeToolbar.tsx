@@ -5,7 +5,7 @@
  * Shows range selection info and screenshot capture button.
  */
 
-import { Camera, Loader2, RotateCcw, X, XCircle } from "lucide-react";
+import { Camera, LoaderCircle, RotateCcw, X, CircleX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -90,7 +90,7 @@ export function CaptureModeToolbar({
                 title={t("captureMode.clearSelection")}
                 aria-label={t("captureMode.clearSelection")}
               >
-                <XCircle className="w-3.5 h-3.5" />
+                <CircleX className="w-3.5 h-3.5" />
               </button>
             </div>
           </>
@@ -127,7 +127,7 @@ export function CaptureModeToolbar({
           >
             {isCapturing ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                 <span>{t("captureMode.capturing")}</span>
               </>
             ) : (

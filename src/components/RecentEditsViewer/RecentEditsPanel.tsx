@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, FileEdit, FolderOpen, Loader2 } from "lucide-react";
+import { ChevronDown, FilePen, FolderOpen, LoaderCircle } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
 import { useAppStore } from "@/store/useAppStore";
 import {
@@ -189,7 +189,7 @@ export const RecentEditsPanel: React.FC = () => {
           </div>
         ) : isUnavailable ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-            <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
+            <FilePen className="h-6 w-6 opacity-40" aria-hidden="true" />
             <p className="px-4 text-center text-caption">
               {t("recentEdits.unavailableForProvider", {
                 provider: getProviderLabel(
@@ -205,13 +205,13 @@ export const RecentEditsPanel: React.FC = () => {
           </p>
         ) : isLoading && files.length === 0 ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <LoaderCircle className="h-4 w-4 animate-spin" />
           </div>
         ) : (
           <>
             {files.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-                <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
+                <FilePen className="h-6 w-6 opacity-40" aria-hidden="true" />
                 <p className="px-4 text-center text-caption">
                   {recentEditsMissingOnly
                     ? t("recentEdits.noMissingFiles", "No missing files")
@@ -258,7 +258,7 @@ export const RecentEditsPanel: React.FC = () => {
                 className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2 text-caption text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
               >
                 {isLoadingMore ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <LoaderCircle className="h-3 w-3 animate-spin" />
                 ) : (
                   <ChevronDown className="h-3 w-3" aria-hidden="true" />
                 )}

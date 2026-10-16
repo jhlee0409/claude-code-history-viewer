@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { TriangleAlert, LoaderCircle } from "lucide-react";
 import { api } from "@/services/api";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
@@ -103,7 +103,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
   if (state.kind === "loading") {
     return (
       <div className="flex items-center gap-2 py-2 text-caption text-muted-foreground">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden="true" />
         {t("recentEdits.restorePreviewLoading", "Reading the file on disk...")}
       </div>
     );
@@ -134,7 +134,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
   if (state.kind === "unreadable") {
     return (
       <div className="flex items-start gap-2 rounded bg-destructive/10 px-2 py-1.5 text-caption text-destructive">
-        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+        <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
         <span>
           {t(
             "recentEdits.restorePreviewUnreadable",

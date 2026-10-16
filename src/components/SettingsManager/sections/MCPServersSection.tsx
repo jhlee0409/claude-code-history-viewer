@@ -36,7 +36,7 @@ import {
 import {
   Server,
   Plus,
-  Trash2,
+  Trash,
   Pencil,
   Check,
   X,
@@ -196,7 +196,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
               aria-label={t("common.delete")}
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash className="w-3 h-3" />
             </button>
           </div>
         )}
@@ -558,7 +558,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" />
+              <Trash className="w-5 h-5" />
               {t("settingsManager.mcp.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>

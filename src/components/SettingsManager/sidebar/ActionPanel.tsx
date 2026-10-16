@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, AlertCircle } from "lucide-react";
+import { Download, Upload, CircleAlert } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { ClaudeCodeSettings, SettingsScope } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -228,7 +228,7 @@ export const ActionPanel: React.FC = () => {
           </div>
           {exportError && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <CircleAlert className="h-4 w-4" />
               <AlertDescription className="text-list">{exportError}</AlertDescription>
             </Alert>
           )}
@@ -286,7 +286,7 @@ export const ActionPanel: React.FC = () => {
           </div>
           {importError && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <CircleAlert className="h-4 w-4" />
               <AlertDescription className="text-list">{importError}</AlertDescription>
             </Alert>
           )}

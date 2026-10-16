@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, Loader2, Archive, SlidersHorizontal } from "lucide-react";
+import { Settings, RefreshCw, MessageSquare, Folder, LoaderCircle, Archive, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ export const SettingDropdown = ({
           >
             <Settings className="w-5 h-5 text-foreground" />
             {isCheckingForUpdates && (
-              <Loader2 className="absolute -top-1 -right-1 w-3 h-3 animate-spin text-info" />
+              <LoaderCircle className="absolute -top-1 -right-1 w-3 h-3 animate-spin text-info" />
             )}
           </button>
         </DropdownMenuTrigger>

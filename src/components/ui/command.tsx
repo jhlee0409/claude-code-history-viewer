@@ -3,7 +3,7 @@
 import * as React from "react";
 import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
-import { SearchIcon } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -64,7 +64,7 @@ function CommandInput({
       className="flex items-center border-b px-3"
       data-slot="command-input-wrapper"
     >
-      <SearchIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+      <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(

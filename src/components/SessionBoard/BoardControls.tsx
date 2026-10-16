@@ -1,11 +1,11 @@
 import type { ZoomLevel, DateFilter } from "../../types/board.types";
 import type { ActiveBrush } from "@/utils/brushMatchers";
 import {
-    Layout,
-    Layers,
-    Eye,
-    Filter,
-    Lock
+  PanelsTopLeft,
+  Layers,
+  Eye,
+  Funnel,
+  Lock,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
@@ -72,7 +72,7 @@ export const BoardControls = ({
                         title={t("session.board.controls.pixelView")}
                         aria-label={t("session.board.controls.pixelView")}
                     >
-                        <Layout className="w-3.5 h-3.5" />
+                        <PanelsTopLeft className="w-3.5 h-3.5" />
                     </button>
                     <button
                         onClick={() => onZoomChange(1)}
@@ -102,7 +102,7 @@ export const BoardControls = ({
             <div className="flex items-center gap-4">
                 {/* Brushing Dropdowns */}
                 <div className="hidden lg:flex items-center gap-1.5">
-                    <Filter className="w-3 h-3 text-muted-foreground mr-0.5" />
+                    <Funnel className="w-3 h-3 text-muted-foreground mr-0.5" />
                     
                     <Select
                         value={activeBrush?.type === 'tool' ? activeBrush.value : ""}

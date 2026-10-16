@@ -1,8 +1,13 @@
 import { memo, useState } from "react";
 import {
-  CheckCircle2,
+  CircleCheck,
   Bot,
-  ChevronDown, ChevronRight, PlayCircle, Timer, Cpu, Hammer,
+  ChevronDown,
+  ChevronRight,
+  CirclePlay,
+  Timer,
+  Cpu,
+  Hammer,
   ExternalLink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -118,7 +123,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors bg-muted/20")}
               aria-label={t("renderers.agentTool.togglePrompt", { defaultValue: "Toggle prompt" })}>
               {isPromptOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <PlayCircle className={cn("w-3.5 h-3.5", taskStyles.icon)} />
+              <CirclePlay className={cn("w-3.5 h-3.5", taskStyles.icon)} />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.prompt", { defaultValue: "Prompt" })}</span>
               {!isPromptOpen && <span className={cn(layout.smallText, "text-muted-foreground truncate flex-1")}>— {prompt.split("\n")[0]?.slice(0, 80)}{(prompt.split("\n")[0]?.length ?? 0) > 80 ? "…" : ""}</span>}
             </button>
@@ -133,7 +138,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors bg-muted/20")}
               aria-label={t("renderers.agentTool.toggleResult", { defaultValue: "Toggle result" })}>
               {isResultOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+              <CircleCheck className="w-3.5 h-3.5 text-success" />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
               <div className={cn("flex items-center gap-2 ml-auto", layout.smallText)}>
                 {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3 h-3" />{formatDuration(totalDurationMs)}</span>}

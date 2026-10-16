@@ -11,7 +11,7 @@ import { memo } from "react";
  * - Generic tool results (text/array/object)
  */
 
-import { Check, FileText, AlertTriangle, Folder, File, Wrench } from "lucide-react";
+import { Check, FileText, TriangleAlert, Folder, File, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -87,7 +87,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
         {messages.map((msg, idx) => (
           <div key={idx} className={cn("p-2", layout.rounded, "border", warningStyles.container)}>
             <div className={cn("flex items-center mb-1", layout.iconSpacing)}>
-              <AlertTriangle className={cn(layout.iconSize, warningStyles.icon)} />
+              <TriangleAlert className={cn(layout.iconSize, warningStyles.icon)} />
               <span className={cn(layout.titleText, warningStyles.title)}>
                 {msg.type?.replace("-", " ") || "System Message"}
               </span>

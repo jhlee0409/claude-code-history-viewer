@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -296,7 +296,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
               return (
                 <ViewTab
                   key={view}
-                  icon={tab.isLoading ? Loader2 : icon}
+                  icon={tab.isLoading ? LoaderCircle : icon}
                   label={tab.label ?? t(labelKey)}
                   view={view}
                   tabStop={tabStop === view}

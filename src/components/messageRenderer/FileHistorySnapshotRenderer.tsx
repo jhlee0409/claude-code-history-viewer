@@ -15,7 +15,7 @@
  */
 
 import { memo } from "react";
-import { History, FileArchive, Clock, Link2, FolderArchive } from "lucide-react";
+import { RotateCcwClock, FileArchive, Clock, Link2, FolderArchive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,7 @@ export const FileHistorySnapshotRenderer = memo(
       <div className={cn("border", layout.rounded, layout.containerPadding, styles.container)}>
         {/* Header */}
         <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-          <History className={cn(layout.iconSize, styles.icon)} />
+          <RotateCcwClock className={cn(layout.iconSize, styles.icon)} />
           <span className={cn(`${layout.smallText} font-medium`, styles.title)}>
             {isSnapshotUpdate
               ? t("fileHistorySnapshotRenderer.update", {

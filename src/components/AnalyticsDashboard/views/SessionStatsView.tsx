@@ -6,7 +6,7 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
+import { ChartColumn, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
 import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
@@ -191,7 +191,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
       />
 
       {/* Token Distribution */}
-      <SectionCard title={t("analytics.tokenAnalysis")} icon={BarChart3} colorVariant="purple">
+      <SectionCard title={t("analytics.tokenAnalysis")} icon={ChartColumn} colorVariant="purple">
         <TokenDistributionChart distribution={distribution} total={sessionStats.total_tokens} />
       </SectionCard>
 

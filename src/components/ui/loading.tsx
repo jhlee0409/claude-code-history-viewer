@@ -7,7 +7,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Loader2, Sparkles } from "lucide-react";
+import { LoaderCircle, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton, SkeletonText } from "./skeleton";
 import i18n from "@/i18n";
@@ -52,7 +52,7 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
       size = "md",
       variant = "accent",
       withSparkle = false,
-      icon: Icon = Loader2,
+      icon: Icon = LoaderCircle,
       ...props
     },
     ref

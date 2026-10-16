@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AdvancedTextDiff } from "./AdvancedTextDiff";
-import { AlignLeft, Columns } from "lucide-react";
+import { TextAlignStart, Columns2 } from "lucide-react";
 import ReactDiffViewer from "react-diff-viewer-continued";
 import * as Prism from "prismjs";
 import { useCopyButton } from "../hooks/useCopyButton";
@@ -218,12 +218,12 @@ export const EnhancedDiffViewer = ({
             >
               {splitView ? (
                 <>
-                  <AlignLeft className="w-3 h-3" />
+                  <TextAlignStart className="w-3 h-3" />
                   <span>{t("diffViewer.unified")}</span>
                 </>
               ) : (
                 <>
-                  <Columns className="w-3 h-3" />
+                  <Columns2 className="w-3 h-3" />
                   <span>{t("diffViewer.split")}</span>
                 </>
               )}

@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, Mail, Copy, RefreshCw, CheckCircle2, HelpCircle } from "lucide-react";
+import { TriangleAlert, Mail, Copy, RefreshCw, CircleCheck, CircleQuestionMark } from "lucide-react";
 import { withTranslation, type WithTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -136,7 +136,7 @@ ${t("error.emailTemplate.thanks", {
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-4">
                   <div className="rounded-full bg-destructive/10 p-4">
-                    <AlertTriangle className="h-12 w-12 text-destructive" />
+                    <TriangleAlert className="h-12 w-12 text-destructive" />
                   </div>
                 </div>
                 <h1 className="text-title font-bold mb-2 text-foreground">
@@ -154,7 +154,7 @@ ${t("error.emailTemplate.thanks", {
 
               {/* Error Details */}
               <Alert variant="destructive" className="mb-6">
-                <AlertTriangle className="h-4 w-4" />
+                <TriangleAlert className="h-4 w-4" />
                 <AlertTitle>
                   {t("error.errorInfo", {
                     defaultValue: "Error Information",
@@ -208,7 +208,7 @@ ${t("error.emailTemplate.thanks", {
                       className="w-fit"
                     >
                       {this.state.copied ? (
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CircleCheck className="h-4 w-4" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -238,7 +238,7 @@ ${t("error.emailTemplate.thanks", {
               <Card variant="outline" className="bg-muted/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-body font-semibold flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4" />
+                    <CircleQuestionMark className="h-4 w-4" />
                     {t("error.troubleshooting", {
                       defaultValue: "Troubleshooting",
                     })}

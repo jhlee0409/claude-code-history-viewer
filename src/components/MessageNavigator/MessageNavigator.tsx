@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Indent, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
+import { ListIndentIncrease, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -363,7 +363,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           aria-pressed={isOutline}
           title={t("navigator.viewMode.toggle")}
         >
-          <Indent className="w-3.5 h-3.5" />
+          <ListIndentIncrease className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handlePersonButtonClick}

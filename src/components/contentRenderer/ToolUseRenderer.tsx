@@ -18,7 +18,7 @@ import {
   FileText,
   MessageSquare,
   Hash,
-  CheckCircle,
+  CircleCheckBig,
   FilePlus,
 } from "lucide-react";
 import { ToolIcon } from "../ToolIcon";
@@ -221,7 +221,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
           {/* File content */}
           <div>
             <div className={cn(layout.titleText, "mb-2 flex items-center space-x-1 text-success")}>
-              <CheckCircle className={layout.iconSize} />
+              <CircleCheckBig className={layout.iconSize} />
               <span>{t("toolUseRenderer.createdContent")}</span>
             </div>
             <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { CheckCircle, X } from "lucide-react";
+import { CircleCheckBig, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
 import { SUCCESS_NOTIFICATION_DURATION_MS } from "@/config/update.config";
@@ -40,7 +40,7 @@ export function UpToDateNotification({
       <div className="bg-card rounded-lg shadow-lg border border-border p-4 min-w-80 max-w-sm">
         <div className="flex items-start space-x-3">
           <div className="p-2 rounded-full bg-success/10">
-            <CheckCircle className="w-5 h-5 text-success" />
+            <CircleCheckBig className="w-5 h-5 text-success" />
           </div>
 
           <div className="flex-1 min-w-0">

@@ -7,7 +7,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Save, RotateCcw, Code, Eye, Loader2 } from "lucide-react";
+import { Save, RotateCcw, Code, Eye, LoaderCircle } from "lucide-react";
 import type { EditorMode } from "./SettingsEditorPane";
 
 // ============================================================================
@@ -91,7 +91,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           disabled={!hasUnsavedChanges || readOnly || isSaving || hasJsonError}
         >
           {isSaving ? (
-            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            <LoaderCircle className="w-4 h-4 mr-1.5 animate-spin" />
           ) : (
             <Save className="w-4 h-4 mr-1.5" />
           )}

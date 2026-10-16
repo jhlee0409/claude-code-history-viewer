@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { memo } from "react";
-import { CheckCircle, AlertCircle } from "lucide-react";
+import { CircleCheckBig, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout, type RendererVariant } from "../renderers";
@@ -50,7 +50,7 @@ export const TerminalExecutionResultRenderer = memo(function TerminalExecutionRe
     return (
       <ToolResultCard
         title={errorTitle}
-        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
         variant="error"
         toolUseId={toolUseId}
       >
@@ -71,9 +71,9 @@ export const TerminalExecutionResultRenderer = memo(function TerminalExecutionRe
         <span className={cn("flex items-center", layout.iconGap)}>
           {icon}
           {isSuccess ? (
-            <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
+            <CircleCheckBig className={cn(layout.iconSizeSmall, "text-success")} />
           ) : (
-            <AlertCircle className={cn(layout.iconSizeSmall, "text-warning")} />
+            <CircleAlert className={cn(layout.iconSizeSmall, "text-warning")} />
           )}
         </span>
       }

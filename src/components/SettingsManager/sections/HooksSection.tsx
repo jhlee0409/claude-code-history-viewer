@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Zap, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Zap, Plus, Trash, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, HookCommand } from "@/types";
 
@@ -119,7 +119,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                 onClick={() => setIsDeleteConfirm(true)}
                 aria-label={t("common.delete")}
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash className="w-3 h-3" />
               </Button>
             )}
           </div>

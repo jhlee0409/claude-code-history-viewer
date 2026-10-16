@@ -7,9 +7,9 @@
  */
 import { useMemo, memo, useCallback } from "react";
 import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
+  CircleCheck,
+  CircleX,
+  LoaderCircle,
   ChevronDown,
   Terminal,
   Zap,
@@ -35,14 +35,14 @@ type Props = {
 
 const STATUS_CONFIG = {
   completed: {
-    icon: CheckCircle2,
+    icon: CircleCheck,
     label: "DONE",
     dotClass: "bg-success",
     textClass: "text-success",
     pulseClass: "",
   },
   running: {
-    icon: Loader2,
+    icon: LoaderCircle,
     label: "ACTIVE",
     dotClass: "bg-info",
     textClass: "text-info",
@@ -50,7 +50,7 @@ const STATUS_CONFIG = {
     iconClass: "animate-spin",
   },
   failed: {
-    icon: XCircle,
+    icon: CircleX,
     label: "FAIL",
     dotClass: "bg-destructive",
     textClass: "text-destructive",
@@ -321,7 +321,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-success/10 border border-success/20"
                 )}>
-                  <CheckCircle2 className="w-2.5 h-2.5 text-success" />
+                  <CircleCheck className="w-2.5 h-2.5 text-success" />
                   <span className="text-caption font-mono text-success">
                     {statusCounts.completed}
                   </span>
@@ -333,7 +333,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-info/10 border border-info/20",
                   "animate-pulse-subtle"
                 )}>
-                  <Loader2 className="w-2.5 h-2.5 text-info animate-spin" />
+                  <LoaderCircle className="w-2.5 h-2.5 text-info animate-spin" />
                   <span className="text-caption font-mono text-info">
                     {statusCounts.running}
                   </span>
@@ -344,7 +344,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-destructive/10 border border-destructive/20"
                 )}>
-                  <XCircle className="w-2.5 h-2.5 text-destructive" />
+                  <CircleX className="w-2.5 h-2.5 text-destructive" />
                   <span className="text-caption font-mono text-destructive">
                     {statusCounts.failed}
                   </span>

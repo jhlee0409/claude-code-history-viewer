@@ -8,7 +8,7 @@
 
 import { memo } from "react";
 import { Markdown } from "../common";
-import { Globe, FileText, Clock, AlertCircle, ExternalLink } from "lucide-react";
+import { Globe, FileText, Clock, CircleAlert, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
@@ -78,7 +78,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
     return (
       <ToolResultCard
         title={t("webFetchToolResultRenderer.error")}
-        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
         variant="error"
         toolUseId={toolUseId}
       >

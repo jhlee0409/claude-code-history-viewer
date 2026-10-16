@@ -13,11 +13,11 @@ import {
   Wrench,
   Cpu,
   Layers,
-  BarChart3,
+  ChartColumn,
   Server,
   Sparkles,
   Bot,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react";
 import type { GlobalStatsSummary, MetricMode } from "../../../types";
 import { formatDurationCompact } from "../../../utils/time";
@@ -318,7 +318,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       {retirementImpact.length > 0 && (
         <SectionCard
           title={t("analytics.retirementImpactTitle", "Retiring models")}
-          icon={AlertTriangle}
+          icon={TriangleAlert}
           colorVariant="amber"
         >
           <p className="text-caption text-muted-foreground mb-3">
@@ -399,7 +399,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         </SectionCard>
 
         {globalSummary.top_projects.length > 0 && (
-          <SectionCard title={t("analytics.topProjects")} icon={BarChart3} colorVariant="purple">
+          <SectionCard title={t("analytics.topProjects")} icon={ChartColumn} colorVariant="purple">
             <div className="space-y-2">
               {globalSummary.top_projects.slice(0, 8).map((project, index) => {
                 const medal = getRankMedal(index);

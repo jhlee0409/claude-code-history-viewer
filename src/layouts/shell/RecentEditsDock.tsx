@@ -8,7 +8,7 @@
  * width this layout was actually reviewed at.
  */
 import { useTranslation } from "react-i18next";
-import { FileEdit } from "lucide-react";
+import { FilePen } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PanelDock } from "@/components/PanelDock";
 import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
@@ -63,7 +63,7 @@ export const RecentEditsDock = ({ width, isResizing, onResizeStart }: RecentEdit
             */
             icon: (
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/20">
-                <FileEdit className="h-4 w-4 text-accent" aria-hidden="true" />
+                <FilePen className="h-4 w-4 text-accent" aria-hidden="true" />
               </span>
             ),
             /*

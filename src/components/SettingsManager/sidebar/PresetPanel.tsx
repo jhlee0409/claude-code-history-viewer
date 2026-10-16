@@ -60,13 +60,13 @@ import {
   User,
   FolderOpen,
   FileCode,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
-  Trash2,
+  Trash,
   Copy,
-  FileJson,
-  AlertTriangle,
-  Loader2,
+  FileBraces,
+  TriangleAlert,
+  LoaderCircle,
   Check,
   Server,
   Shield,
@@ -158,7 +158,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       aria-label={t("settingsManager.presets.moreOptions")}
                     >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
+                      <Ellipsis className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-36">
@@ -175,7 +175,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       onClick={onDelete}
                       className="text-destructive focus:text-destructive"
                     >
-                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      <Trash className="w-3.5 h-3.5 mr-2" />
                       {t("common.delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -751,7 +751,7 @@ export const PresetPanel: React.FC = () => {
                   />
                   {formNameError && (
                     <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <TriangleAlert className="w-3 h-3" />
                       {formNameError}
                     </p>
                   )}
@@ -776,7 +776,7 @@ export const PresetPanel: React.FC = () => {
               {/* Right column: JSON editor */}
               <div className="flex-1 flex flex-col min-w-0">
                 <Label className="mb-1.5 flex items-center gap-2">
-                  <FileJson className="w-4 h-4" />
+                  <FileBraces className="w-4 h-4" />
                   {t("settingsManager.presets.jsonLabel")}
                 </Label>
                 <Textarea
@@ -790,7 +790,7 @@ export const PresetPanel: React.FC = () => {
                 />
                 {formJsonError && (
                   <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
+                    <TriangleAlert className="w-3 h-3" />
                     {formJsonError}
                   </p>
                 )}
@@ -856,7 +856,7 @@ export const PresetPanel: React.FC = () => {
                   />
                   {formNameError && (
                     <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <TriangleAlert className="w-3 h-3" />
                       {formNameError}
                     </p>
                   )}
@@ -891,7 +891,7 @@ export const PresetPanel: React.FC = () => {
                       className="w-full justify-between px-3 h-9"
                     >
                       <span className="flex items-center gap-2 text-muted-foreground">
-                        <FileJson className="w-4 h-4" />
+                        <FileBraces className="w-4 h-4" />
                         {t("settingsManager.presets.viewJson")}
                       </span>
                       <ChevronDown
@@ -1098,7 +1098,7 @@ export const PresetPanel: React.FC = () => {
                 </>
               ) : isApplying ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-4 h-4 mr-1.5 animate-spin" />
                   {t("settingsManager.presets.applying")}
                 </>
               ) : (
@@ -1119,7 +1119,7 @@ export const PresetPanel: React.FC = () => {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" />
+              <Trash className="w-5 h-5" />
               {t("settingsManager.presets.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>

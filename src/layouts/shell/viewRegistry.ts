@@ -18,11 +18,11 @@ import type { TFunction } from "i18next";
 import {
   Activity,
   Archive,
-  BarChart3,
+  ChartColumn,
   Coins,
-  Columns,
+  Columns2,
   Database,
-  FileEdit,
+  FilePen,
   MessageSquare,
   Settings,
   type LucideIcon,
@@ -108,11 +108,11 @@ export const VIEW_REGISTRY: ViewRegistry = {
   analytics: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
-    icon: BarChart3,
+    icon: ChartColumn,
     titleKey: "analytics.dashboard",
     header: { subtitle: sessionSummary },
     inspector: false,
-    tab: { icon: BarChart3, labelKey: "analytics.dashboard" },
+    tab: { icon: ChartColumn, labelKey: "analytics.dashboard" },
   },
   tokenStats: {
     component: TokenStatsScreen,
@@ -126,11 +126,11 @@ export const VIEW_REGISTRY: ViewRegistry = {
   edits: {
     component: RecentEditsScreen,
     frame: ScrollFrame,
-    icon: FileEdit,
+    icon: FilePen,
     titleKey: "recentEdits.title",
     header: { subtitle: ({ t }) => t("recentEdits.description") },
     inspector: false,
-    tab: { icon: FileEdit, labelKey: "recentEdits.title" },
+    tab: { icon: FilePen, labelKey: "recentEdits.title" },
   },
   board: {
     component: BoardScreen,
@@ -142,7 +142,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
         t("session.board.description", "Comparative overview of different sessions"),
     },
     inspector: false,
-    tab: { icon: Columns, labelKey: "session.board.title" },
+    tab: { icon: Columns2, labelKey: "session.board.title" },
   },
   globalStats: {
     component: AnalyticsScreen,

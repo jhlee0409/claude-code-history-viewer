@@ -13,7 +13,7 @@ import {
   Search,
   File,
   ChevronDown,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
@@ -244,7 +244,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
                     {t("common.loading")}
                   </>
                 ) : (

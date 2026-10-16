@@ -10,7 +10,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
 import {
-  FileEdit,
+  FilePen,
   FileDiff,
   FilePlus,
   Clock,
@@ -18,7 +18,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Loader2,
+  LoaderCircle,
   RotateCcw,
   FolderOpen,
 } from "lucide-react";
@@ -213,7 +213,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               {edit.operation_type === "write" ? (
                 <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
               ) : (
-                <span title={t("recentEdits.edited", "Edited")}><FileEdit className="w-4 h-4" /></span>
+                <span title={t("recentEdits.edited", "Edited")}><FilePen className="w-4 h-4" /></span>
               )}
             </div>
           )}
@@ -396,7 +396,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             title={t("recentEdits.restoreFile")}
           >
             {restoreStatus === "loading" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <LoaderCircle className="w-4 h-4 animate-spin" />
             ) : restoreStatus === "success" ? (
               <Check className="w-4 h-4" />
             ) : (

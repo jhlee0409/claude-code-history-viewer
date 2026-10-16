@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { AlertTriangle, ExternalLink, Server } from "lucide-react";
+import { TriangleAlert, ExternalLink, Server } from "lucide-react";
 import { maskValue } from "@/utils/securityUtils";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { MCPServerConfig, MCPSource, SettingsScope } from "@/types";
@@ -163,7 +163,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
             </span>
             {conflicts.size > 0 && (
               <Badge variant="outline" className="text-warning border-warning/40">
-                <AlertTriangle className="w-3 h-3 mr-1" />
+                <TriangleAlert className="w-3 h-3 mr-1" />
                 {conflicts.size} {t("settingsManager.overview.conflicts")}
               </Badge>
             )}
@@ -199,7 +199,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                               className="inline-flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                               aria-label={t("settingsManager.unified.mcp.conflictHint")}
                             >
-                              <AlertTriangle className="w-4 h-4 text-warning" />
+                              <TriangleAlert className="w-4 h-4 text-warning" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>

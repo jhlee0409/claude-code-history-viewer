@@ -6,7 +6,7 @@
  */
 
 import { memo } from "react";
-import { FileEdit, CheckCircle, AlertCircle, Eye, FilePlus, Trash2, ChevronRight } from "lucide-react";
+import { FilePen, CircleCheckBig, CircleAlert, Eye, FilePlus, Trash, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { TextEditorResult, TextEditorError } from "../../types";
@@ -45,7 +45,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
       return (
         <ToolResultCard
           title={t("textEditorCodeExecutionToolResultRenderer.error")}
-          icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+          icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
           variant="error"
           toolUseId={toolUseId}
         >
@@ -69,10 +69,10 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
         case "create":
           return <FilePlus className={cn(layout.iconSize, successStyles.icon)} />;
         case "delete":
-          return <Trash2 className={cn(layout.iconSize, errorStyles.icon)} />;
+          return <Trash className={cn(layout.iconSize, errorStyles.icon)} />;
         case "edit":
         default:
-          return <FileEdit className={cn(layout.iconSize, warningStyles.icon)} />;
+          return <FilePen className={cn(layout.iconSize, warningStyles.icon)} />;
       }
     };
 
@@ -103,9 +103,9 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
           <span className={cn("flex items-center", layout.iconGap)}>
             {getOperationIcon()}
             {success !== false ? (
-              <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
+              <CircleCheckBig className={cn(layout.iconSizeSmall, "text-success")} />
             ) : (
-              <AlertCircle className={cn(layout.iconSizeSmall, warningStyles.icon)} />
+              <CircleAlert className={cn(layout.iconSizeSmall, warningStyles.icon)} />
             )}
           </span>
         }

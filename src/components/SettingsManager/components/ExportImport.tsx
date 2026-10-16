@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Download, Upload, Archive, FolderOpen, ShieldAlert } from "lucide-react";
+import { TriangleAlert, Download, Upload, Archive, FolderOpen, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -534,7 +534,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-hidden">
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <TriangleAlert className="h-4 w-4" />
               <AlertDescription>
                 {t("settingsManager.exportImport.importAllConfirm")}
               </AlertDescription>

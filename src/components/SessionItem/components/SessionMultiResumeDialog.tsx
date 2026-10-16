@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, Loader2, TerminalSquare as SquareTerminal } from "lucide-react";
+import { TriangleAlert, LoaderCircle, SquareTerminal as SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -116,7 +116,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
         {hasDangerousFlags && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <TriangleAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div className="text-list leading-relaxed">
                 <p className="font-semibold">
                   {t("session.selection.resumeDangerousTitle", "Permission checks disabled")}
@@ -147,7 +147,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
             disabled={isResuming || count === 0}
           >
             {isResuming ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : (
               <SquareTerminal className="h-3.5 w-3.5" aria-hidden="true" />
             )}

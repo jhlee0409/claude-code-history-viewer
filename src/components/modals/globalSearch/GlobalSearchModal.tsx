@@ -2,17 +2,17 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import {
-    Search,
-    ArrowUp,
-    ArrowDown,
-    CornerDownLeft,
-    X,
-    Loader2,
-    Filter,
-    User,
-    Bot,
-    MessageSquare,
-    Lightbulb,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  CornerDownLeft,
+  X,
+  LoaderCircle,
+  Funnel,
+  User,
+  Bot,
+  MessageSquare,
+  Lightbulb,
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -618,7 +618,7 @@ export const GlobalSearchModal = ({
                         spellCheck={false}
                     />
                     {isSearching && (
-                        <Loader2 className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
+                        <LoaderCircle className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
                     )}
                     {query && !isSearching && (
                         <button
@@ -667,7 +667,7 @@ export const GlobalSearchModal = ({
                     {/* Project Filter */}
                     {projects.length > 1 && (
                         <>
-                            <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <Funnel className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
                                 <SelectTrigger className="h-7 text-list border-border w-40">
                                     <SelectValue placeholder={t("globalSearch.allProjects")} />

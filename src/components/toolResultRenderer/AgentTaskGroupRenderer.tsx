@@ -9,9 +9,9 @@ import { memo, useState } from "react";
 import {
   ChevronRight,
   Bot,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
+  CircleCheck,
+  LoaderCircle,
+  CircleAlert,
   Copy,
   Check,
   FileText,
@@ -36,25 +36,25 @@ interface AgentTaskGroupRendererProps {
 
 const STATUS_CONFIG = {
   async_launched: {
-    icon: Loader2,
+    icon: LoaderCircle,
     color: "text-info",
     animate: true,
     label: "running",
   },
   running: {
-    icon: Loader2,
+    icon: LoaderCircle,
     color: "text-info",
     animate: true,
     label: "running",
   },
   completed: {
-    icon: CheckCircle2,
+    icon: CircleCheck,
     color: "text-success",
     animate: false,
     label: "completed",
   },
   error: {
-    icon: AlertCircle,
+    icon: CircleAlert,
     color: "text-destructive",
     animate: false,
     label: "error",
@@ -301,13 +301,13 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
 
         {/* Running indicator */}
         {isRunning && (
-          <Loader2 className="w-3.5 h-3.5 text-info animate-spin ml-auto" />
+          <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin ml-auto" />
         )}
         {allCompleted && (
-          <CheckCircle2 className="w-3.5 h-3.5 text-success ml-auto" />
+          <CircleCheck className="w-3.5 h-3.5 text-success ml-auto" />
         )}
         {hasErrors && !isRunning && (
-          <AlertCircle className="w-3.5 h-3.5 text-destructive ml-auto" />
+          <CircleAlert className="w-3.5 h-3.5 text-destructive ml-auto" />
         )}
       </button>
 

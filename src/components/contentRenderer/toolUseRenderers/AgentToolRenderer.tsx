@@ -3,7 +3,7 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  PlayCircle,
+  CirclePlay,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -170,7 +170,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
               ) : (
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
               )}
-              <PlayCircle
+              <CirclePlay
                 className={cn("w-3.5 h-3.5", style.text)}
               />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>

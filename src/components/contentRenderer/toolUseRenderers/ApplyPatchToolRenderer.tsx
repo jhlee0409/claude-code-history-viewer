@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { FileCode2, PencilLine } from "lucide-react";
+import { FileCodeCorner, PencilLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ export const ApplyPatchToolRenderer = memo(function ApplyPatchToolRenderer({
   return (
     <ToolUseCard
       title={t("tools.fileEdit")}
-      icon={<FileCode2 className={cn(layout.iconSize, styles.icon)} />}
+      icon={<FileCodeCorner className={cn(layout.iconSize, styles.icon)} />}
       variant="code"
       toolId={toolId}
       rightContent={

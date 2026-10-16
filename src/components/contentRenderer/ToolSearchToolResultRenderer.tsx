@@ -7,7 +7,7 @@
  */
 
 import { memo } from "react";
-import { Search, Wrench, AlertCircle, Server } from "lucide-react";
+import { Search, Wrench, CircleAlert, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
@@ -56,7 +56,7 @@ export const ToolSearchToolResultRenderer = memo(
       return (
         <ToolResultCard
           title={t("toolSearchToolResultRenderer.error")}
-          icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+          icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
           variant="error"
           toolUseId={toolUseId}
         >

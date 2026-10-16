@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ListTodo, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { ListTodo, CircleCheck, Circle, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -24,9 +24,9 @@ interface Props {
 const StatusIcon = ({ status }: { status?: string }) => {
   switch (status) {
     case "completed":
-      return <CheckCircle2 className={cn(layout.iconSizeSmall, "text-success shrink-0")} />;
+      return <CircleCheck className={cn(layout.iconSizeSmall, "text-success shrink-0")} />;
     case "in_progress":
-      return <Loader2 className={cn(layout.iconSizeSmall, "text-info shrink-0")} />;
+      return <LoaderCircle className={cn(layout.iconSizeSmall, "text-info shrink-0")} />;
     default:
       return <Circle className={cn(layout.iconSizeSmall, "text-muted-foreground shrink-0")} />;
   }

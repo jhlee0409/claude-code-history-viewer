@@ -1,7 +1,7 @@
 import {
   Bot,
   Code,
-  Edit,
+  SquarePen,
   FileSearch,
   FileText,
   FolderSearch,
@@ -72,7 +72,7 @@ const getIcon = (name: string) => {
 
   // File writing/editing
   if (lower.includes("edit") || lower.includes("write") || lower.includes("notebook")) {
-    return Edit;
+    return SquarePen;
   }
 
   // Code/LSP

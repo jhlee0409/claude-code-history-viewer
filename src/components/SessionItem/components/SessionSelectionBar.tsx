@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCheck,
   Copy,
-  DownloadCloud,
-  Loader2,
-  TerminalSquare as SquareTerminal,
-  Trash2,
+  CloudDownload,
+  LoaderCircle,
+  SquareTerminal as SquareTerminal,
+  Trash,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -282,9 +282,9 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
           >
             {isLoadingAll ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <LoaderCircle className="h-3 w-3 animate-spin" />
             ) : (
-              <DownloadCloud className="h-3 w-3" />
+              <CloudDownload className="h-3 w-3" />
             )}
             <span>
               {isLoadingAll
@@ -335,7 +335,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             disabled={deletableCount === 0}
             className={cn(actionButtonClass, "text-destructive hover:bg-destructive/10")}
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash className="h-3 w-3" />
             <span>
               {t("session.selection.delete", {
                 count: deletableCount,

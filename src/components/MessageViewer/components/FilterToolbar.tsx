@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal, Zap } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -57,7 +57,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
     >
       {/* Filter icon + count */}
       <div className="flex items-center gap-1 shrink-0">
-        <Filter className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
+        <Funnel className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
         <span className={cn("text-caption tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
           {isActive
             ? t("filter.showing", { filtered: filteredCount, total: totalCount })

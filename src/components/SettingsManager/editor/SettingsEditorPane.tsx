@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Braces, Undo2, Redo2 } from "lucide-react";
+import { CircleCheckBig, CircleX, Braces, Undo2, Redo2 } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import { EffectiveSummaryBanner } from "./EffectiveSummaryBanner";
 import { EditorFooter } from "./EditorFooter";
@@ -420,9 +420,9 @@ export const SettingsEditorPane: React.FC = () => {
               className={saveResult.type === "success" ? "border-success bg-success/10" : ""}
             >
               {saveResult.type === "success" ? (
-                <CheckCircle className="h-4 w-4 text-success" />
+                <CircleCheckBig className="h-4 w-4 text-success" />
               ) : (
-                <XCircle className="h-4 w-4" />
+                <CircleX className="h-4 w-4" />
               )}
               <AlertDescription className="text-body">
                 {saveResult.message}

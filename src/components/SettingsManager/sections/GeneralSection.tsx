@@ -35,10 +35,10 @@ import {
   Settings2,
   Brain,
   RefreshCw,
-  GitCommit,
+  GitCommitHorizontal,
   Eye,
   FolderOpen,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
@@ -257,7 +257,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                       : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
                   )}
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <TriangleAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <span className="flex-1">
                     {modelLifecycle.status === "retired"
                       ? t("settingsManager.general.modelRetired", {
@@ -534,7 +534,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           {/* ============================================================= */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-list font-medium text-muted-foreground uppercase tracking-wide">
-              <GitCommit className="w-3.5 h-3.5" />
+              <GitCommitHorizontal className="w-3.5 h-3.5" />
               {t("settingsManager.general.attribution")}
             </div>
 

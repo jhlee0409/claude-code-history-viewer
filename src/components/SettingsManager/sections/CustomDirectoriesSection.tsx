@@ -20,7 +20,7 @@ import {
   ChevronDown,
   ChevronRight,
   FolderPlus,
-  Trash2,
+  Trash,
   Pencil,
   Check,
   X,
@@ -288,7 +288,7 @@ export function CustomDirectoriesSection({
                     onClick={() => handleRemove(cp.path)}
                     aria-label={t("settings.customDirectories.remove")}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash className="h-3 w-3" />
                   </Button>
                 </div>
               )}

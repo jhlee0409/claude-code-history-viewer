@@ -21,7 +21,7 @@ import {
   ChevronRight,
   Copy,
   FolderOpen,
-  Loader2,
+  LoaderCircle,
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -398,7 +398,7 @@ const RestoreButton: React.FC<{
     title={label}
   >
     {actions.restoreStatus === "loading" ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
     ) : actions.restoreStatus === "success" ? (
       <Check className="h-3.5 w-3.5" />
     ) : (

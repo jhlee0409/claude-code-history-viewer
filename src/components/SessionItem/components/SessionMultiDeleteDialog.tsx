@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { LoaderCircle, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -50,7 +50,7 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              <Trash className="h-4 w-4" aria-hidden="true" />
             </span>
             {t("session.selection.deleteTitle", {
               count,
@@ -118,9 +118,9 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
             disabled={isDeleting || count === 0}
           >
             {isDeleting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : (
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <Trash className="h-3.5 w-3.5" aria-hidden="true" />
             )}
             {t("session.selection.deleteConfirmButton", {
               count,

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Terminal } from "lucide-react";
+import { TriangleAlert, Terminal } from "lucide-react";
 import { useNativeRename } from "@/hooks/useNativeRename";
 import type { ProviderId } from "@/types";
 
@@ -118,7 +118,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <TriangleAlert className="h-4 w-4" />
               <AlertDescription>
                 {isOpenCode
                   ? t(

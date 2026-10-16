@@ -9,7 +9,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-import { User, FolderOpen, FileCode, Building2 } from "lucide-react";
+import { User, FolderOpen, FileCode, BuildingComplex } from "lucide-react";
 import type { SettingsScope } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +55,7 @@ const scopeConfig: Record<
     bgColor: "bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800",
   },
   managed: {
-    icon: <Building2 className="w-3 h-3" />,
+    icon: <BuildingComplex className="w-3 h-3" />,
     color: "text-purple-600 dark:text-purple-400",
     bgColor: "bg-purple-100 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800",
   },

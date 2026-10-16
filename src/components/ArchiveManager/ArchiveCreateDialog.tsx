@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   ChevronRight,
   FolderOpen,
-  Loader2,
+  LoaderCircle,
   Search,
 } from 'lucide-react';
 import {
@@ -323,7 +323,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                 <div className="max-h-48 overflow-y-auto border rounded-md p-1 space-y-0.5">
                   {isLoadingSessions ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : mainSessions.length === 0 ? (
                     <p className="text-list text-muted-foreground p-3 text-center">
@@ -390,7 +390,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
             >
               {archive.isCreatingArchive ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   {t('archive.create.creating')}
                 </>
               ) : (

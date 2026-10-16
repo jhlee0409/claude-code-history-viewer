@@ -13,7 +13,7 @@
 
 import React from "react";
 import { Highlight, themes } from "prism-react-renderer";
-import { Terminal, Package, TestTube, Hammer, BarChart3 } from "lucide-react";
+import { Terminal, Package, TestTube, Hammer, ChartColumn } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -216,7 +216,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
             neutralStyles.badgeText
           )}
         >
-          <BarChart3 className={layout.iconSize} />
+          <ChartColumn className={layout.iconSize} />
           <span>
             {t("commandOutputDisplay.tableOutput", {
               defaultValue: "Table Output",

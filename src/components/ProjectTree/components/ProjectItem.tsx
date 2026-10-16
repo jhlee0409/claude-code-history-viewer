@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/ProjectItem.tsx
 import React from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
+import { CircleAlert, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
@@ -241,7 +241,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           })}
           className="flex-shrink-0 text-warning"
         >
-          <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          <CircleAlert className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}
 

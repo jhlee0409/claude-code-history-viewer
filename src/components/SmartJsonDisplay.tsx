@@ -1,8 +1,16 @@
 import React from 'react';
 import {
-    Terminal, FileText, Search, Hash,
-    List, MessageSquare, AlertCircle,
-    CheckCircle2, Play, Code, Fingerprint
+  Terminal,
+  FileText,
+  Search,
+  Hash,
+  List,
+  MessageSquare,
+  CircleAlert,
+  CircleCheck,
+  Play,
+  Code,
+  FingerprintPattern,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -21,12 +29,12 @@ const KEY_ICONS: Record<string, React.ReactNode> = {
     query: <span title="Query"><Search className="w-3 h-3 text-tool-search" /></span>,
     id: <span title="ID"><Hash className="w-3 h-3 text-purple-600 dark:text-purple-400" /></span>,
     task_id: <span title="Task ID"><Hash className="w-3 h-3 text-tool-task" /></span>,
-    uuid: <span title="UUID"><Fingerprint className="w-3 h-3 text-purple-600 dark:text-purple-400" /></span>,
+    uuid: <span title="UUID"><FingerprintPattern className="w-3 h-3 text-purple-600 dark:text-purple-400" /></span>,
     list: <span title="List"><List className="w-3 h-3 text-info" /></span>,
     prompt: <span title="Prompt"><MessageSquare className="w-3 h-3 text-muted-foreground" /></span>,
     description: <span title="Description"><MessageSquare className="w-3 h-3 text-muted-foreground" /></span>,
-    error: <span title="Error"><AlertCircle className="w-3 h-3 text-destructive" /></span>,
-    status: <span title="Status"><CheckCircle2 className="w-3 h-3 text-success" /></span>,
+    error: <span title="Error"><CircleAlert className="w-3 h-3 text-destructive" /></span>,
+    status: <span title="Status"><CircleCheck className="w-3 h-3 text-success" /></span>,
     code: <span title="Code"><Code className="w-3 h-3 text-tool-code" /></span>,
     allowed_tools: <span title="Allowed Tools"><Play className="w-3 h-3 text-tool-task" /></span>
 };

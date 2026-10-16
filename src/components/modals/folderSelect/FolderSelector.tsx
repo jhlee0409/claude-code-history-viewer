@@ -1,10 +1,10 @@
 import { useState } from "react";
 import {
   Folder,
-  AlertCircle,
+  CircleAlert,
   ArrowLeft,
-  CheckCircle2,
-  HelpCircle,
+  CircleCheck,
+  CircleQuestionMark,
   Search,
 } from "lucide-react";
 import { isTauri } from "@/utils/platform";
@@ -159,7 +159,7 @@ export function FolderSelector({
       {/* Selected Path */}
       {selectedPath && (
         <Alert variant="default" className="text-left overflow-hidden">
-          <CheckCircle2 className="h-4 w-4" />
+          <CircleCheck className="h-4 w-4" />
           <AlertDescription className="truncate min-w-0" title={selectedPath}>
             {t("folderPicker.selectedPath")} {selectedPath}
           </AlertDescription>
@@ -169,7 +169,7 @@ export function FolderSelector({
       {/* Validation Error */}
       {validationError && (
         <Alert variant="destructive" className="text-left">
-          <AlertCircle className="h-4 w-4" />
+          <CircleAlert className="h-4 w-4" />
           <AlertDescription>{validationError}</AlertDescription>
         </Alert>
       )}
@@ -178,7 +178,7 @@ export function FolderSelector({
       <Card variant="outline" className="text-left">
         <CardHeader className="pb-2">
           <CardTitle className="text-body font-semibold flex items-center gap-2">
-            <HelpCircle className="h-4 w-4" />
+            <CircleQuestionMark className="h-4 w-4" />
             {t("folderPicker.help")}
           </CardTitle>
         </CardHeader>

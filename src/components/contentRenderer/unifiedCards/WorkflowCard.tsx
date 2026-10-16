@@ -2,8 +2,10 @@ import { memo, useState } from "react";
 import {
   Workflow as WorkflowIcon,
   Bot,
-  CheckCircle2,
-  ChevronDown, ChevronRight, ScrollText,
+  CircleCheck,
+  ChevronDown,
+  ChevronRight,
+  ScrollText,
   ExternalLink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -99,7 +101,7 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults }:
               className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors bg-muted/20")}
               aria-label={t("renderers.agentTool.toggleResult", { defaultValue: "Toggle result" })}>
               {isResultOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+              <CircleCheck className="w-3.5 h-3.5 text-success" />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
             </button>
             {isResultOpen && <div className="px-3 py-2 border-t border-border max-h-[32rem] overflow-y-auto"><Markdown className="text-foreground/90">{resultText}</Markdown></div>}

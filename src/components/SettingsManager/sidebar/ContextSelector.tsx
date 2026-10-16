@@ -45,7 +45,7 @@ import {
   Folder,
   Globe,
   Lock,
-  AlertTriangle,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -323,7 +323,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                   {activeScope === "user" && <Globe className="w-4 h-4 text-info" />}
                   {activeScope === "project" && <FolderOpen className="w-4 h-4 text-success" />}
                   {activeScope === "local" && <Lock className="w-4 h-4 text-warning" />}
-                  {activeScope === "managed" && <AlertTriangle className="w-4 h-4 text-destructive" />}
+                  {activeScope === "managed" && <TriangleAlert className="w-4 h-4 text-destructive" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -532,7 +532,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-warning" />
+                <TriangleAlert className="w-5 h-5 text-warning" />
                 {t("settingsManager.unsavedChanges.title")}
               </DialogTitle>
               <DialogDescription>

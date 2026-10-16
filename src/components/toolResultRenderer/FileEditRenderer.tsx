@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { useTranslation } from 'react-i18next';
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
@@ -51,7 +51,7 @@ export const FileEditRenderer = ({ toolResult, searchQuery }: Props) => {
     <Renderer className="bg-tool-code/10 border-tool-code/30">
       <Renderer.Header
         title={t('fileEditRenderer.fileEditResult')}
-        icon={<Edit className={cn(layout.iconSize, "text-tool-code")} />}
+        icon={<SquarePen className={cn(layout.iconSize, "text-tool-code")} />}
         titleClassName="text-foreground"
         rightContent={
           <div className={cn("flex items-center", layout.iconGap)}>

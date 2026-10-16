@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpCircle, DollarSign, Clock } from 'lucide-react';
+import { CircleQuestionMark, DollarSign, Clock } from 'lucide-react';
 import type { ClaudeMessage } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { layout } from '@/components/renderers';
@@ -136,7 +136,7 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             aria-label={t('assistantMessageDetails.tokenUsageLabel', { defaultValue: 'View token usage details' })}
             aria-describedby="token-usage-tooltip"
           >
-            <HelpCircle className={layout.iconSize} aria-hidden="true" />
+            <CircleQuestionMark className={layout.iconSize} aria-hidden="true" />
           </button>
           <div
             id="token-usage-tooltip"

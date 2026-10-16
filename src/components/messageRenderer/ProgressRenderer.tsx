@@ -14,9 +14,9 @@ import {
   Search,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
+  CircleCheck,
+  LoaderCircle,
+  CircleAlert,
   Bot,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -44,11 +44,11 @@ const PROGRESS_CONFIG: Record<
   waiting_for_task: { icon: Clock, variant: "neutral" },
 };
 
-const STATUS_ICON: Record<string, typeof CheckCircle2> = {
-  completed: CheckCircle2,
-  started: Loader2,
-  running: Loader2,
-  error: AlertCircle,
+const STATUS_ICON: Record<string, typeof CircleCheck> = {
+  completed: CircleCheck,
+  started: LoaderCircle,
+  running: LoaderCircle,
+  error: CircleAlert,
 };
 
 const STATUS_COLORS: Record<string, string> = {

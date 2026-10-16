@@ -7,7 +7,7 @@
  */
 
 import { memo } from "react";
-import { Lightbulb, AlertCircle } from "lucide-react";
+import { Lightbulb, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
@@ -36,7 +36,7 @@ export const AdvisorToolResultRenderer = memo(function AdvisorToolResultRenderer
     return (
       <ToolResultCard
         title={t("advisorToolResultRenderer.error")}
-        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
         variant="error"
         toolUseId={toolUseId}
       >

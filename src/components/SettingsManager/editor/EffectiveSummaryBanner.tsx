@@ -9,7 +9,7 @@ import * as React from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-import { Info, AlertTriangle } from "lucide-react";
+import { Info, TriangleAlert } from "lucide-react";
 import type { AllSettingsResponse } from "@/types";
 import {
   mergeSettings,
@@ -84,7 +84,7 @@ export const EffectiveSummaryBanner: React.FC<EffectiveSummaryBannerProps> = ({
             <Badge variant="secondary" className="text-list">
               {serverCount} MCP
               {conflicts.length > 0 && (
-                <AlertTriangle className="w-3 h-3 ml-1 text-warning" />
+                <TriangleAlert className="w-3 h-3 ml-1 text-warning" />
               )}
             </Badge>
           )}

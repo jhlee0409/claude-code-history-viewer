@@ -1,4 +1,4 @@
-import { FolderOpen, MessageSquare, Columns, BarChart3, SlidersHorizontal } from "lucide-react";
+import { FolderOpen, MessageSquare, Columns2, ChartColumn, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/navigation/place";
@@ -14,8 +14,8 @@ interface BottomTabBarProps {
 const tabs = [
   { id: "projects", icon: FolderOpen, labelKey: "common.mobile.tab.projects", alwaysEnabled: true },
   { id: "messages", icon: MessageSquare, labelKey: "common.mobile.tab.messages", alwaysEnabled: true },
-  { id: "board", icon: Columns, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
-  { id: "analytics", icon: BarChart3, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
+  { id: "board", icon: Columns2, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
+  { id: "analytics", icon: ChartColumn, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
   { id: "settings", icon: SlidersHorizontal, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
 ] as const;
 

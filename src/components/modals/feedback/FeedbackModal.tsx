@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/services/api";
 import { isWebUI, openExternalUrl } from "@/utils/platform";
 import { useTranslation } from "react-i18next";
-import { GithubIcon, MailIcon, InfoIcon } from "lucide-react";
+import { Mail, Info } from "lucide-react";
+import { GitHubMark } from "@/components/icon/GitHubMark";
 import type { FeedbackPrefill, FeedbackType } from "@/contexts/modal/context";
 import {
   Dialog,
@@ -246,7 +247,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
           {includeSystemInfo && systemInfo && (
             <div className="rounded-md border border-border bg-muted/50 p-2.5 text-list">
               <div className="flex items-center gap-1.5 font-medium text-foreground mb-1.5">
-                <InfoIcon className="h-3 w-3" />
+                <Info className="h-3 w-3" />
                 {t("feedback.systemInfoPreview")}
               </div>
               <div className="space-y-0.5 text-muted-foreground text-caption">
@@ -265,7 +266,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
               size="sm"
               className="flex-1"
             >
-              <MailIcon className="h-3.5 w-3.5" />
+              <Mail className="h-3.5 w-3.5" />
               {isSubmitting ? t("feedback.sendingEmail") : t("feedback.sendEmail")}
             </Button>
 
@@ -276,7 +277,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
               size="sm"
               className="flex-1"
             >
-              <GithubIcon className="h-3.5 w-3.5" />
+              <GitHubMark className="h-3.5 w-3.5" />
               {t("feedback.openGitHub")}
             </Button>
           </DialogFooter>

@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { AlertCircle, Clock, FolderTree, GitBranch, Timer } from "lucide-react";
+import { CircleAlert, Clock, FolderTree, GitBranch, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 import {
@@ -202,7 +202,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
               : t("project.pathUnavailableGroup", "Unavailable locations")
           }
           icon={
-            isTemporary ? <Timer className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />
+            isTemporary ? <Timer className="w-3.5 h-3.5" /> : <CircleAlert className="w-3.5 h-3.5" />
           }
           count={bucketProjects.length}
           isExpanded={isGroupExpanded}

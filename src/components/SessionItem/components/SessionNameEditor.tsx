@@ -10,8 +10,8 @@ import {
   FileText,
   FolderOpen,
   Play,
-  Trash2,
-  MoreHorizontal,
+  Trash,
+  Ellipsis,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -195,7 +195,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             title={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
             aria-label={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
           >
-            {readOnly ? <MoreHorizontal className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+            {readOnly ? <Ellipsis className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
@@ -266,7 +266,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                 onClick={onDeleteSession}
                 className="text-destructive focus:text-destructive"
               >
-                <Trash2 className="w-3 h-3 mr-2" />
+                <Trash className="w-3 h-3 mr-2" />
                 {t("session.deleteSession", "Delete Session")}
               </DropdownMenuItem>
             </>

@@ -8,7 +8,7 @@ import {
   Button,
 } from "@/components/ui";
 import { LoadingSpinner, LoadingProgress } from "@/components/ui/loading";
-import { Download, AlertTriangle, CheckCircle, X, RotateCw } from 'lucide-react';
+import { Download, TriangleAlert, CircleCheckBig, X, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import type { UseUpdaterReturn } from '@/hooks/useUpdater';
@@ -244,7 +244,7 @@ export function SimpleUpdateModal({
           {shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
               <div className="flex items-center gap-2 text-list text-emerald-600 dark:text-emerald-400 font-medium">
-                <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <CircleCheckBig className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>{t('common.error.updateDownloadCompleteRestart')}</span>
               </div>
               <p className="mt-1.5 text-caption text-muted-foreground ml-5.5">
@@ -257,7 +257,7 @@ export function SimpleUpdateModal({
           {localizedError && !updater.state.isRestarting && !shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
               <div className="flex items-center gap-2 text-list text-destructive">
-                <AlertTriangle className="w-3.5 h-3.5" />
+                <TriangleAlert className="w-3.5 h-3.5" />
                 <span>{t('simpleUpdateModal.errorOccurred', { error: localizedError })}</span>
               </div>
               <p className="mt-2 text-caption text-muted-foreground">

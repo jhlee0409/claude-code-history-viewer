@@ -12,7 +12,7 @@ import {
     isClaudeUserMessage
 } from "../../utils/messageUtils";
 import { clsx } from "clsx";
-import { FileText, X, Bot, User, Ban, GitCommit as GitIcon, PencilLine, CheckCircle2, Link2, Layers, Timer, Scissors, AlertTriangle, Zap, Plug, Terminal } from "lucide-react";
+import { FileText, X, Bot, User, Ban, GitCommitHorizontal as GitIcon, PencilLine, CircleCheck, Link2, Layers, Timer, Scissors, TriangleAlert, Zap, Plug, Terminal } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
 import { getNaturalLanguageSummary, getAgentName } from "../../utils/toolSummaries";
@@ -67,7 +67,7 @@ const ExitCodeDisplay = ({ message }: { message: ClaudeMessage }) => {
         <div className={clsx("flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded border self-start",
             codeNum === 0 ? "text-success bg-success/5 border-success/20" : "text-destructive bg-destructive/5 border-destructive/20"
         )} title={t("session.interaction.exitCode", { code: codeNum })}>
-            {codeNum === 0 ? <CheckCircle2 className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
+            {codeNum === 0 ? <CircleCheck className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
             <span className="font-bold">{t("session.interaction.exit", { code: codeNum })}</span>
         </div>
     );
@@ -157,14 +157,14 @@ export const InteractionCard = memo(({
                 <span title={t("session.interaction.gitCommit")}><GitIcon className="w-3.5 h-3.5 text-tool-git" /></span>
                 {verifiedCommit && (
                     <div className="absolute -top-1 -right-1">
-                        <span title={t("session.interaction.verifiedCommit")}><CheckCircle2 className="w-2 h-2 text-info fill-background" /></span>
+                        <span title={t("session.interaction.verifiedCommit")}><CircleCheck className="w-2 h-2 text-info fill-background" /></span>
                     </div>
                 )}
             </div>
         );
 
         // Error takes precedence
-        if (isRawError) return <span title={t("session.interaction.errorDetectedIcon")}><AlertTriangle className="w-3.5 h-3.5 text-destructive" /></span>;
+        if (isRawError) return <span title={t("session.interaction.errorDetectedIcon")}><TriangleAlert className="w-3.5 h-3.5 text-destructive" /></span>;
 
         // Generic Git (non-commit)
         if (isGit) return <span title={t("session.interaction.gitOperation")}><GitIcon className="w-3.5 h-3.5 text-tool-git" /></span>;
@@ -291,7 +291,7 @@ export const InteractionCard = memo(({
                 {/* Content Icon Overlay (Pixel View) */}
                 {!isExpanded && (
                     <div className="absolute top-0.5 right-0.5 pointer-events-none opacity-40">
-                        {isError && <AlertTriangle className="w-2.5 h-2.5 text-destructive" />}
+                        {isError && <TriangleAlert className="w-2.5 h-2.5 text-destructive" />}
                         {isCancelled && <Ban className="w-2.5 h-2.5 text-warning" />}
                     </div>
                 )}
@@ -600,7 +600,7 @@ export const InteractionCard = memo(({
 
                 {isError && (
                     <div className="mt-1 p-1 bg-destructive/10 rounded text-caption text-destructive border border-destructive/20 font-mono italic flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
+                        <TriangleAlert className="w-3 h-3" />
                         <span>{t("session.interaction.errorDetected")}</span>
                     </div>
                 )}

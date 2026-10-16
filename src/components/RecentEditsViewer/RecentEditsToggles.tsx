@@ -10,10 +10,7 @@
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-// `Rows` is this lucide version's name for the two-row glyph the design calls
-// `Rows2`. The rename to `Rows2` landed after lucide-react 0.300, which is what
-// the project pins, so importing `Rows2` here resolves to undefined.
-import { AlignJustify, Rows } from "lucide-react";
+import { TextAlignJustify, Rows2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   RecentEditsDensity,
@@ -135,19 +132,19 @@ const DENSITIES: Array<{
   id: RecentEditsDensity;
   labelKey: string;
   fallback: string;
-  Icon: typeof AlignJustify;
+  Icon: typeof TextAlignJustify;
 }> = [
   {
     id: "compact",
     labelKey: "recentEdits.densityCompact",
     fallback: "Compact rows",
-    Icon: AlignJustify,
+    Icon: TextAlignJustify,
   },
   {
     id: "standard",
     labelKey: "recentEdits.densityFull",
     fallback: "Full cards",
-    Icon: Rows,
+    Icon: Rows2,
   },
 ];
 

@@ -9,7 +9,7 @@
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +55,7 @@ export const RecentEditsOptionsMenu: React.FC<RecentEditsOptionsMenuProps> = ({
             className
           )}
         >
-          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          <Ellipsis className="h-4 w-4" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
 

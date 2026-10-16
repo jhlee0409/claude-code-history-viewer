@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
+import { Terminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -191,7 +191,7 @@ export const CommandRenderer = ({
       {/* Output Tags */}
       {outputTags.map((output, index) => {
         const isError = output.type === "stderr";
-        const Icon = isError ? AlertCircle : CheckCircle;
+        const Icon = isError ? CircleAlert : CircleCheckBig;
         const label = isError
           ? t("commandRenderer.errorOutput")
           : t("commandRenderer.executionResult");

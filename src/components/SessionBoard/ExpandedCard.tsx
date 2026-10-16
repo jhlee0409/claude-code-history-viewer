@@ -2,7 +2,7 @@ import { memo, useMemo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClaudeMessage } from "../../types";
 import { clsx } from "clsx";
-import { FileText, X, FileCode, AlignLeft, Bot, User, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { FileText, X, FileCode, TextAlignStart, Bot, User, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Markdown } from "../common";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
@@ -241,7 +241,7 @@ export const ExpandedCard = memo(({
                                 title={t("session.board.rawText")}
                                 aria-label={t("session.board.rawText")}
                             >
-                                <AlignLeft className="w-3 h-3" />
+                                <TextAlignStart className="w-3 h-3" />
                             </button>
                             <button
                                 onClick={() => setMarkdownPretty(true)}

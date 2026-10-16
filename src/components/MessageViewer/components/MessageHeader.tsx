@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { HelpCircle } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -98,7 +98,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 className="inline-flex items-center justify-center cursor-help text-muted-foreground"
                 aria-label={t("assistantMessageDetails.model")}
               >
-                <HelpCircle className="w-3 h-3" />
+                <CircleQuestionMark className="w-3 h-3" />
               </button>
               <div className={cn(
                 "absolute bottom-full mb-2 right-0 w-52 bg-popover text-popover-foreground",
