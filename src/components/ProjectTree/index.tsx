@@ -843,7 +843,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         {/* Sidebar Header */}
         <div className="px-4 py-3 bg-accent/5 border-b border-accent/10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* Collapse Button (desktop) */}
               {onToggleCollapse && (
                 <button
@@ -873,7 +873,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 </button>
               )}
               <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              <span className="text-list font-semibold uppercase tracking-widest text-accent">
+              <span className="text-list font-semibold uppercase tracking-widest text-accent whitespace-nowrap">
                 {t("project.explorer")}
               </span>
             </div>
@@ -937,7 +937,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   </button>
                 </div>
               )}
-              <span className="text-list font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+              <span className="text-list font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
                 {filteredProjects.length}
               </span>
             </div>
