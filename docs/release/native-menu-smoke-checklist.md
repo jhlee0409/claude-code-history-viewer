@@ -49,10 +49,13 @@ Use a toggle so a double run is visible (it would cancel out):
       palette open. (WebView2's own steps; a double zoom would jump two steps.)
 - [ ] Ctrl + mouse wheel: one zoom step per notch, not two.
 - [ ] **Touch-screen pinch** and **touchpad pinch** zoom the page smoothly; the level stays after release.
-- [ ] View → Zoom In / Zoom Out / Actual Size change the zoom once per click; Actual Size returns to 100%
-      also after a pinch. Known limit (record what you see): after a pinch, Ctrl+wheel or Ctrl+= the menu's
-      Zoom In / Out step from the level the menu last set — the engine's own level cannot be read — so the
-      first menu step after a pinch may jump.
+- [ ] View → Zoom In / Zoom Out / Actual Size change the zoom once per click.
+- [ ] **Actual Size after engine zoom** returns to 100% every time: (1) Ctrl+= twice, then View → Actual
+      Size; (2) pinch in, View → Actual Size; (3) View → Actual Size, pinch (or Ctrl+wheel) again, View →
+      Actual Size again. Each must land at 100%.
+- [ ] Known limit (record what you see): after a pinch, Ctrl+wheel or Ctrl+= the menu's Zoom In / Out step
+      from the level the menu last set — Tauri cannot read WebView2's level — so the first menu step after
+      a pinch may jump (e.g. pinch to 200%, View → Zoom In → 120%).
 
 ### B-Linux. Zoom — the zoom commands own zoom input
 - [ ] Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0: one 20% step per press (Ctrl+0 → 100%), also in a text field and

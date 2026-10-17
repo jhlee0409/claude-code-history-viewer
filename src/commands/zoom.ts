@@ -9,8 +9,14 @@
  * - Windows: WebView2 itself - its zoom keys, Ctrl + wheel and pinch zoom are
  *   one switch (`zoomHotkeysEnabled: true` in `tauri.windows.conf.json`), so
  *   the page binds no zoom key and no wheel there. The menu items set the
- *   same engine zoom; they step from the level they last set, as the engine's
- *   own level cannot be read.
+ *   same engine zoom. The engine changes its level behind the controller's
+ *   back there, so the controller never trusts its copy of the applied level
+ *   between bursts (`engineChangesZoom`): every menu step writes its level,
+ *   and Actual Size always sets 100%. What it cannot do is read the engine's
+ *   level: Tauri has no getter (only `setZoom`; WebView2's own `ZoomFactor`
+ *   is reachable only from Rust through `with_webview`), so Zoom In/Out step
+ *   from the level the menu last set - after a pinch to 200%, Zoom In sets
+ *   120% (ADR 0001).
  *
  * The controller's level is the one source of truth on the page: each step
  * moves it at once, before the web view is asked, so a burst of steps (three
@@ -21,7 +27,7 @@
  * Steps are the engine's old ones: 20% per step, from 20% to 1000%, back to
  * 100% for Actual Size. The level is not saved; a new window starts at 100%.
  */
-import type { KeyEnvironment } from "./keys";
+import { currentKeyEnvironment, type KeyEnvironment } from "./keys";
 
 export type ZoomStep = "in" | "out" | "reset";
 
@@ -49,27 +55,52 @@ export interface ZoomController {
   level: () => number;
 }
 
-export function createZoomController(setZoom: (level: number) => Promise<void>): ZoomController {
+export interface ZoomControllerOptions {
+  /**
+   * Whether something else may change the web view's level (WebView2's own
+   * keys, wheel and pinch on Windows). Then the level the controller last
+   * applied is trusted only within a burst of steps, never between them: a
+   * step always writes its level, so Actual Size sets 100% after a pinch.
+   */
+  engineChangesZoom?: () => boolean;
+}
+
+export function createZoomController(
+  setZoom: (level: number) => Promise<void>,
+  { engineChangesZoom = () => false }: ZoomControllerOptions = {},
+): ZoomController {
   /** The level asked for, moved synchronously by each step. */
   let target = 1;
   /** The level the web view last applied. */
   let applied = 1;
+  /** Steps not yet settled: a burst lasts until it is back to zero. */
+  let unsettled = 0;
+  /** `applied` was written in the current burst, so nothing else has moved the level since. */
+  let appliedThisBurst = false;
   /** The web view is asked one level at a time, in step order. */
   let tail: Promise<void> = Promise.resolve();
   return {
     apply: (step) => {
       target = nextZoom(target, step);
-      const job = tail.then(async () => {
-        const wanted = target; // the newest level; an older one is never sent
-        if (wanted === applied) return;
-        try {
-          await setZoom(wanted);
-          applied = wanted;
-        } catch (error) {
-          target = applied;
-          throw error;
-        }
-      });
+      unsettled += 1;
+      const job = tail
+        .then(async () => {
+          const wanted = target; // the newest level; an older one is never sent
+          const current = !engineChangesZoom() || appliedThisBurst;
+          if (wanted === applied && current) return;
+          try {
+            await setZoom(wanted);
+            applied = wanted;
+            appliedThisBurst = true;
+          } catch (error) {
+            target = applied;
+            throw error;
+          }
+        })
+        .finally(() => {
+          unsettled -= 1;
+          if (unsettled === 0) appliedThisBurst = false;
+        });
       tail = job.catch(() => undefined);
       return job;
     },
@@ -78,10 +109,13 @@ export function createZoomController(setZoom: (level: number) => Promise<void>):
 }
 
 /** The desktop web view's zoom (needs `core:webview:allow-set-webview-zoom`). */
-export const appZoom: ZoomController = createZoomController(async (level) => {
-  const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-  await getCurrentWebview().setZoom(level);
-});
+export const appZoom: ZoomController = createZoomController(
+  async (level) => {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    await getCurrentWebview().setZoom(level);
+  },
+  { engineChangesZoom: () => engineOwnsZoomInput(currentKeyEnvironment()) },
+);
 
 /** `wheelDeltaY` of one mouse-wheel notch, in WebKit and Chromium alike. */
 const NOTCH = 120;

@@ -4,9 +4,10 @@
  * asked (review-2 F3), one step per wheel notch on every engine (review-2
  * live check), and WebView2 as the zoom input owner on Windows (review-2 F4).
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_ZOOM,
+  appZoom,
   MIN_ZOOM,
   createCtrlWheelZoom,
   createZoomController,
@@ -16,6 +17,16 @@ import {
 } from "./zoom";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const { webviewSetZoom, os } = vi.hoisted(() => ({
+  webviewSetZoom: vi.fn<(level: number) => Promise<void>>(async () => {}),
+  os: { current: "mac" as "mac" | "win" | "linux" },
+}));
+vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ setZoom: webviewSetZoom }) }));
+vi.mock("./keys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./keys")>()),
+  currentKeyEnvironment: () => ({ os: os.current, runtime: "desktop" }),
+}));
 
 describe("nextZoom", () => {
   it("steps by 20%, resets to 100%, and stays within 20%-1000% (the engine's old steps)", () => {
@@ -127,6 +138,73 @@ describe("zoom controller", () => {
     await third;
     expect(zoom.level()).toBe(1.2);
     expect(view.requested.at(-1)).toBe(1.2);
+  });
+});
+
+describe("where the engine changes zoom itself (WebView2 on Windows, review-3 F2)", () => {
+  afterEach(() => {
+    os.current = "mac";
+    webviewSetZoom.mockClear();
+  });
+
+  /** WebView2's own keys, Ctrl + wheel or a pinch: the engine's level moves, the controller's does not. */
+  function engine() {
+    let actual = 1;
+    const requested: number[] = [];
+    return {
+      setZoom: async (level: number) => {
+        requested.push(level);
+        actual = level;
+      },
+      pinch: (level: number) => {
+        actual = level;
+      },
+      actual: () => actual,
+      requested,
+    };
+  }
+
+  it("Actual Size sets 100% after an engine zoom, though the controller's own level is 100%", async () => {
+    const view = engine();
+    const zoom = createZoomController(view.setZoom, { engineChangesZoom: () => true });
+    view.pinch(2);
+    await zoom.apply("reset");
+    expect(view.actual()).toBe(1);
+    expect(view.requested).toEqual([1]);
+  });
+
+  it("Actual Size works again after a reset, another engine zoom, and a second reset", async () => {
+    const view = engine();
+    const zoom = createZoomController(view.setZoom, { engineChangesZoom: () => true });
+    await zoom.apply("in");
+    await zoom.apply("reset");
+    view.pinch(2);
+    await zoom.apply("reset");
+    expect(view.actual()).toBe(1);
+    expect(view.requested).toEqual([1.2, 1, 1]);
+  });
+
+  it("still sends a burst's newest level once: In then Out sets 100% once", async () => {
+    const view = engine();
+    const zoom = createZoomController(view.setZoom, { engineChangesZoom: () => true });
+    view.pinch(2);
+    await Promise.all([zoom.apply("in"), zoom.apply("out")]);
+    expect(view.requested).toEqual([1]);
+    expect(view.actual()).toBe(1);
+  });
+
+  it("skips a write the controller knows is in place where it is the only writer (macOS, Linux)", async () => {
+    const view = engine();
+    const zoom = createZoomController(view.setZoom);
+    await zoom.apply("reset");
+    expect(view.requested).toEqual([]);
+  });
+
+  it("is how the app's zoom behaves on Windows: View → Actual Size always reaches the web view", async () => {
+    os.current = "win";
+    await appZoom.apply("reset");
+    await appZoom.apply("reset");
+    expect(webviewSetZoom.mock.calls).toEqual([[1], [1]]);
   });
 });
 

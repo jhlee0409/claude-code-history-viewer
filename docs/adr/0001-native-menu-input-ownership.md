@@ -49,7 +49,10 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    off); one synchronous level updated before `setZoom`, set one level at a time; Ctrl+wheel
    counted in `wheelDeltaY` notches. Windows: WebView2 (`zoomHotkeysEnabled: true` in
    `tauri.windows.conf.json`, which also keeps pinch zoom); the page binds no zoom key or
-   wheel there, and the View menu sets the same engine zoom.
+   wheel there, and the View menu sets the same engine zoom. As the engine moves its level
+   behind the zoom controller's back there, the controller trusts its copy of the applied
+   level only within one burst of steps: every menu step writes its level, and Actual Size
+   always calls `setZoom(1)`.
 
 ## Consequences
 
@@ -64,7 +67,11 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
   (navigation keeps its own latest-wins epochs; zoom serializes its host writes).
 - A key pressed while no page listens (mid-reload) reaches the menu item and is journaled,
   so it runs once after the load; it skips the page's focus/IME rules, like a menu click.
-- On Windows the View menu steps from the level it last set; a pinch in between is not seen
-  (the engine's level is not readable through Tauri).
+- On Windows the View menu steps from the level it last set; a pinch in between is not seen.
+  Tauri exposes no zoom getter (JS or Rust: `setZoom` only). WebView2's
+  `ICoreWebView2Controller::ZoomFactor` (and its `ZoomFactorChanged` event) is reachable from
+  Rust through `Webview::with_webview` + `controller()`, which would need the `webview2-com`
+  crate and Windows-only code that cannot be built or checked from this repo's macOS
+  workflow; that is the follow-up if the jump matters. Actual Size is exact regardless.
 - Flipping `menuAccelerators` on for Windows or Linux requires repeating the key-order
   measurement there (`docs/release/native-menu-smoke-checklist.md`).
