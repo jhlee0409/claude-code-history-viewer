@@ -70,7 +70,11 @@ export interface MenuJournalDeps {
   pull: () => Promise<MenuJournalSnapshot>;
   /** Tell the host every event up to `seq` ran. */
   ack: (epoch: string, seq: number) => Promise<void>;
-  run: (id: string) => void;
+  /**
+   * Issue command `id` - its target is recorded now, as the page hands the
+   * event to the queue (`issueCommand`) - and return its run.
+   */
+  issue: (id: string) => () => void;
   cursor: MenuCursorStore;
   /** The one command queue the keys and the palette use too. */
   queue: CommandQueue;
@@ -190,13 +194,14 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
 
   /** Hand one event to the command queue: at the hold's place while holding. */
   const execute = (runEpoch: string, seq: number, id: string) => {
+    const command = deps.issue(id);
     const job = () => {
       // A stopped journal runs nothing more: the next one pulls this event again.
       if (stopped || epoch !== runEpoch) return;
       deps.cursor.write(runEpoch, seq);
       ran = Math.max(ran, seq);
       try {
-        deps.run(id);
+        command();
       } catch (error) {
         // One broken command must not hold up the events after it.
         console.error(`Menu command ${id} failed:`, error);

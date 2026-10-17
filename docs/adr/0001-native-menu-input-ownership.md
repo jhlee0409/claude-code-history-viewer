@@ -58,6 +58,45 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    its way - the controller never trusts its copy of the applied level there: every menu
    step writes the newest level and Actual Size always calls `setZoom(1)`; no cache can skip
    a write (review-4 F2). Steps still go one at a time, so an older level is never sent.
+6. **A command's target is captured when it is issued, not when it runs.** A command waits
+   in the queue (decision 3) while input outside the queue - a click on the tab strip, in
+   the sidebar, in the transcript - goes on changing which tab is in front. So when a
+   command is handed to the queue (`issueCommand` in `src/commands/registry.ts`: a key, the
+   palette, a control, or the journal handing over a menu event) it records the tabs as
+   they are then (`TabsSnapshot`: the tab in front and the tab order), and every command
+   declares what it acts on (`target` in its handler, `src/commands/commandTarget.ts`):
+   - `app`: nothing tab-bound (the window, an app-wide setting); it runs as issued;
+   - `tab`: one tab picked at issue; it acts on that tab whether or not it is in front,
+     and does nothing once the tab is closed;
+   - `shown`: the tab in front at issue (or one picked from the tab order then); it does
+     nothing once another tab is in front, or the picked tab is closed.
+
+   Commands issued *earlier* move the target, input outside the queue never does: when a
+   queued command changes the tabs (New, Close, a switch), the commands still waiting
+   behind it take the tabs as it left them (`TargetLedger`). That is what they would have
+   seen had everything run at once - a menu New chosen before ⌘W still makes ⌘W close the
+   new tab (review-3 F1) - while a click after ⌘W cannot redirect it (review-4 F1). With
+   nothing waiting, issue and run are the same moment and nothing changes.
+
+   | Command | Target captured at issue | Runs later, target gone / not in front |
+   |---|---|---|
+   | `palette.open` | `app` - the window's palette | runs |
+   | `app.preferences` | `app` - the toolbar's preferences menu | runs |
+   | `app.checkForUpdates` | `app` - the app | runs |
+   | `help.feedback` | `app` - the feedback dialog | runs |
+   | `view.toggleInspector` | `app` - its open state is app-wide (`stateScope.ts`) | runs; `enabled` is re-checked on the tab in front |
+   | `view.toggleMinimap` | `app` - its open state is app-wide | runs |
+   | `view.zoomIn` `view.zoomOut` `view.actualSize` | `app` - the window's zoom | runs |
+   | `tab.new` | `app` - a new tab at the end, whatever is in front | runs |
+   | `tab.close` | `tab` - the tab in front at issue | closes that tab, in front or not; closed already: nothing |
+   | `tab.next` `tab.previous` | `shown` - steps from the tab in front at issue | another tab in front, or it is closed: nothing |
+   | `tab.goTo1` `tab.goTo2` `tab.goTo3` `tab.goTo4` `tab.goTo5` `tab.goTo6` `tab.goTo7` `tab.goTo8` `tab.goToLast` | `shown` - and the tab at that position at issue | another tab in front, or that tab closed: nothing |
+   | `go.back` `go.forward` | `shown` - that tab's own place history | another tab in front: nothing |
+   | `edit.find` | `shown` - that tab's find field | another tab in front: nothing |
+   | `go.settingsManager` `go.archive` | `shown` - opens in that tab | another tab in front: nothing |
+
+   `registry.test.ts` checks this table against the handlers and runs every command with a
+   moved and a closed target.
 
 ## Consequences
 
@@ -70,6 +109,12 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
   while a failed pull waits to retry, keys run first and the late menu events after them.
 - The journal orders invocation, not completion: a command that awaits is not a mutex
   (navigation keeps its own latest-wins epochs; zoom serializes its host writes).
+- A waiting command can no longer be redirected by a click: ⌘W pressed on A closes A even
+  if B was clicked before ⌘W's turn came (review-4 F1); Back, Next Tab, ⌘n, Find and the
+  screen commands issued on A do nothing once B is in front. Limit: the host does not know
+  which tab was in front when a menu item was chosen, so a menu event is issued, for the
+  page, when the journal hands it to the queue - an event the page first hears of after a
+  click runs on the tab in front then.
 - A key pressed while no page listens (mid-reload) reaches the menu item and is journaled,
   so it runs once after the load; it skips the page's focus/IME rules, like a menu click.
 - On Windows the View menu steps from the level it last set; a pinch in between is not seen.

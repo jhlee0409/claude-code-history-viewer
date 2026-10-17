@@ -64,9 +64,9 @@ describe("tab list operations", () => {
     expect(cycledId({ documents: docs, activeId: "c" }, 1)).toBe("a");
     expect(cycledId({ documents: docs, activeId: "a" }, -1)).toBe("c");
     expect(cycledId({ documents: [doc("a")], activeId: "a" }, 1)).toBeNull();
-    expect(idAtPosition(docs, 2)).toBe("b");
-    expect(idAtPosition(docs, 5)).toBeNull();
-    expect(idAtPosition(docs, 9)).toBe("c");
+    expect(idAtPosition(docs.map((d) => d.id), 2)).toBe("b");
+    expect(idAtPosition(docs.map((d) => d.id), 5)).toBeNull();
+    expect(idAtPosition(docs.map((d) => d.id), 9)).toBe("c");
   });
 });
 

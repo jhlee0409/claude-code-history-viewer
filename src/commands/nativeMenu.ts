@@ -12,7 +12,10 @@
  *   through `runCommand`, the same `enabled` check the palette and the keys
  *   use; an unknown or disabled id is refused there. They share one command
  *   queue with every other input (`commandQueue.ts`): a key pressed while
- *   the journal is still fetching older menu events runs after them.
+ *   the journal is still fetching older menu events runs after them. An
+ *   event is issued (`issueCommand`: its target tab recorded) when the
+ *   journal hands it to the queue - the host does not know which tab was
+ *   in front when it was chosen.
  * - **Menu state** (shown only): each change of the app state or the language
  *   is coalesced into one `sync_menu_state` with the language and each menu
  *   command's enabled (and, for a toggle, checked) state, sent only when it
@@ -32,7 +35,7 @@ import {
   type MenuCursorStore,
   type MenuJournalSnapshot,
 } from "./menuJournal";
-import { getCommand, isCommandEnabled, runCommand, type CommandContext } from "./registry";
+import { getCommand, isCommandEnabled, issueCommand, type CommandContext } from "./registry";
 import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import type { AppStore } from "@/store/useAppStore";
 
@@ -176,15 +179,14 @@ function startMenuStateSync(deps: MenuBridgeDeps): () => void {
 }
 
 export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
+  const queue = deps.queue ?? appCommandQueue;
   const journal = startMenuJournal({
     listen: deps.listen,
     pull: deps.pullEvents,
     ack: deps.ackEvents,
     cursor: deps.cursor,
-    run: (id) => {
-      runCommand(id, deps.getContext());
-    },
-    queue: deps.queue ?? appCommandQueue,
+    issue: (id) => issueCommand(id, deps.getContext, queue),
+    queue,
     retryDelaysMs: deps.retryDelaysMs,
     onPullError: deps.onPullError,
     onListenError: deps.onListenError,

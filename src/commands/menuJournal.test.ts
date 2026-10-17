@@ -83,7 +83,7 @@ function fakeHost(epoch = "boot-1") {
     listenerCount: () => listeners.size,
     deps(run: (id: string) => void, cursor: MenuCursorStore, extra: Partial<MenuJournalDeps> = {}): MenuJournalDeps {
       return {
-        run,
+        issue: (id) => () => run(id),
         cursor,
         queue: createCommandQueue(),
         retryDelaysMs: [0, 0],
@@ -362,7 +362,7 @@ describe("menu journal", () => {
       const ran: string[] = [];
       const snapshot: MenuJournalSnapshot = { epoch: "e", floor: 5, events: [{ seq: 6, id: "tab.new" }] };
       const journal = startMenuJournal({
-        run: (id) => ran.push(id),
+        issue: (id) => () => ran.push(id),
         cursor: memoryCursorStore(),
         queue: createCommandQueue(),
         listen: async () => () => {},

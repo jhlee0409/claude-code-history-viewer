@@ -3,6 +3,9 @@ import { createShortcutHandler } from "./shortcuts";
 import { COMMANDS, isCommandEnabled, runCommand, type CommandActions, type CommandContext } from "./registry";
 import { parseAccelerator, shortcutFor, type KeyEnvironment } from "./keys";
 
+/** `n` open tabs t1…tn, the first in front. */
+const tabsOf = (n: number) => ({ activeId: "t1", ids: Array.from({ length: n }, (_, i) => `t${i + 1}`) });
+
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
     openPalette: vi.fn(),
@@ -19,7 +22,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
-    selectTabAt: vi.fn(),
+    selectTab: vi.fn(),
     zoom: vi.fn(),
   };
   return {
@@ -33,7 +36,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
-    tabCount: 3,
+    tabs: tabsOf(3),
     ownPlace: () => () => true,
     actions,
     ...overrides,
@@ -202,7 +205,7 @@ describe("shortcut handler", () => {
       }
       expect(ctx.actions.closeTab).not.toHaveBeenCalled();
       expect(ctx.actions.newTab).not.toHaveBeenCalled();
-      expect(ctx.actions.selectTabAt).not.toHaveBeenCalled();
+      expect(ctx.actions.selectTab).not.toHaveBeenCalled();
       expect(ctx.actions.cycleTab).not.toHaveBeenCalled();
     });
 
@@ -234,7 +237,7 @@ describe("shortcut handler", () => {
       press({ key: "™", code: "Digit2", altKey: true });
       expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
       expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
-      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(2);
+      expect(ctx.actions.selectTab).toHaveBeenCalledWith("t2");
     });
 
     it("the desktop's ⌘W ⌘T ⌘1 still work from a text field, as in a browser", () => {
@@ -245,7 +248,7 @@ describe("shortcut handler", () => {
       press({ key: "1", code: "Digit1", metaKey: true }, input);
       expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
       expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
-      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(1);
+      expect(ctx.actions.selectTab).toHaveBeenCalledWith("t1");
     });
   });
 
@@ -316,7 +319,7 @@ describe("shortcut handler", () => {
 
     it("leaves keys it does not run to the browser in the WebUI and to the web view on Windows/Linux", () => {
       for (const env of [MAC_WEB, WIN_DESKTOP, LINUX_DESKTOP]) {
-        const ctx = setup(env, makeContext({ canGoBack: false, canGoForward: false, tabCount: 1 }));
+        const ctx = setup(env, makeContext({ canGoBack: false, canGoForward: false, tabs: tabsOf(1 )}));
         const key = env.runtime === "web" ? { key: "ArrowLeft", code: "ArrowLeft", altKey: true } : { key: "ArrowLeft", altKey: true };
         expect(press(key).defaultPrevented, `${env.os}/${env.runtime}`).toBe(false);
         expect(actionCalls(ctx)).toBe(0);
@@ -342,7 +345,7 @@ describe("shortcut handler", () => {
               canGoBack: commandCanRun,
               canGoForward: commandCanRun,
               hasFindTarget: commandCanRun,
-              tabCount: commandCanRun ? 9 : 1,
+              tabs: tabsOf(commandCanRun ? 9 : 1),
               place: commandCanRun
                 ? makeContext().place
                 : { view: "settingsManager", project: { provider: "codex", path: "/q" }, session: null },

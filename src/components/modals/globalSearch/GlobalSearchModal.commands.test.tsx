@@ -121,6 +121,7 @@ function setUpPalette() {
         canGoBack: true,
         canGoForward: false,
         hasFindTarget: true,
+        tabs: { activeId: "t1", ids: ["t1"] },
         ownPlace: () => () => true,
     };
 }

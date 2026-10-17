@@ -14,7 +14,7 @@ How input is owned — one fixed owner per input, never switched by the menu's e
 |---|---|---|---|
 | App shortcuts (Ctrl+K, Ctrl+T…) | page key listener; it claims every app key, so the menu item's accelerator only shows it | page key listener; items show **no** accelerator (`menuAccelerators.win = false`) | page key listener; items show **no** accelerator (`menuAccelerators.linux = false`) |
 | Menu clicks | menu journal → `runCommand`, once each, in order | same | same |
-| Order across inputs | one command queue: keys, palette, toolbar and menu events run in arrival order; a key waits only while the journal fetches older menu events (≤ 1 s) | same | same |
+| Order across inputs | one command queue: keys, palette, toolbar and menu events run in arrival order; a key waits only while the journal fetches older menu events (≤ 1 s); a waiting command keeps the tab it was issued on | same | same |
 | Zoom keys (Ctrl+= Ctrl++ Ctrl+- Ctrl+0) | zoom commands (page); `zoomHotkeysEnabled: false` | **WebView2** (`zoomHotkeysEnabled: true` in `tauri.windows.conf.json`); the page binds none | zoom commands (page); `zoomHotkeysEnabled: false` |
 | Ctrl + wheel | zoom commands, one step per notch | **WebView2** | zoom commands, one step per notch |
 | Pinch zoom | not used by the app | **WebView2** (the same switch as its zoom keys) | WebKitGTK's own gesture, not affected |
@@ -44,6 +44,10 @@ Use a toggle so a double run is visible (it would cancel out):
 - [ ] Keys and menu share one order: File → New Tab, then Ctrl+W right away → the new tab opens and
       closes, the original tab stays. Reload (Ctrl+R in a dev build, or relaunch) and press Ctrl+T at once,
       several times → one tab per press, no key lost, no delay you can feel.
+- [ ] A command keeps the tab it was issued on (ADR 0001 decision 6): with tabs A and B, A in front,
+      reload and press Ctrl+W, then click tab B at once → A closes, B stays (never B closed). Likewise
+      reload, press Ctrl+PageDown (Next Tab) and click a third tab at once → the clicked tab stays in
+      front. (The window is milliseconds; record "not reproducible" rather than forcing it.)
 - [ ] No "The menu bar is not responding" toast at startup or after a language change (it would mean the
       menu event listener failed to attach; record it with the console log if it appears).
 - [ ] Disabled state: with no session open, View → Inspector and Edit → Find are greyed out; with one

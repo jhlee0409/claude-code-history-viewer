@@ -22,6 +22,9 @@ import {
 } from "./nativeMenu";
 import en from "@/i18n/locales/en/common.json";
 
+/** `n` open tabs t1…tn, the first in front. */
+const tabsOf = (n: number) => ({ activeId: "t1", ids: Array.from({ length: n }, (_, i) => `t${i + 1}`) });
+
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
     openPalette: vi.fn(),
@@ -38,7 +41,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
-    selectTabAt: vi.fn(),
+    selectTab: vi.fn(),
     zoom: vi.fn(),
   };
   return {
@@ -52,7 +55,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: false,
     hasFindTarget: true,
-    tabCount: 3,
+    tabs: tabsOf(3),
     ownPlace: () => () => true,
     actions,
     ...overrides,
@@ -409,7 +412,7 @@ describe("menu bridge", () => {
 
 /** A context whose actions log their names, in call order. */
 function loggingContext(log: string[]): CommandContext {
-  const ctx = makeContext({ tabCount: 2 });
+  const ctx = makeContext({ tabs: tabsOf(2 )});
   ctx.actions = new Proxy(ctx.actions, {
     get: (_target, name) => () => {
       log.push(String(name));

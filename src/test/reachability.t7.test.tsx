@@ -211,6 +211,7 @@ function commandContext(actions: CommandActions): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
+    tabs: { activeId: "t1", ids: ["t1"] },
     ownPlace: () => ({ isCurrent: () => true }) as unknown as ReturnType<CommandContext["ownPlace"]>,
     actions,
   } as CommandContext;

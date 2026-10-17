@@ -1,6 +1,8 @@
 /**
  * Manifest and registry invariants (plan §4.4).
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import raw from "./manifest.json";
 import { parseAccelerator, shortcutFor, type KeyEnvironment } from "./keys";
@@ -9,6 +11,7 @@ import {
   COMMANDS,
   dispatchCommand,
   getCommand,
+  issueCommand,
   paletteCommands,
   runCommand,
   type CommandActions,
@@ -18,6 +21,7 @@ import en from "@/i18n/locales/en/common.json";
 import i18n from "@/i18n";
 import { toast } from "sonner";
 import { createCommandQueue } from "./commandQueue";
+import type { TabsSnapshot, TargetScope } from "./commandTarget";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -29,6 +33,12 @@ const ENVIRONMENTS: KeyEnvironment[] = [
   { os: "win", runtime: "web" },
   { os: "linux", runtime: "web" },
 ];
+
+/** `n` open tabs t1…tn, the first in front. */
+const tabsOf = (n: number, activeId = "t1"): TabsSnapshot => ({
+  activeId,
+  ids: Array.from({ length: n }, (_, i) => `t${i + 1}`),
+});
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
@@ -46,7 +56,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
-    selectTabAt: vi.fn(),
+    selectTab: vi.fn(),
     zoom: vi.fn(),
   };
   return {
@@ -56,7 +66,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
-    tabCount: 1,
+    tabs: tabsOf(1),
     ownPlace: vi.fn(() => () => true),
     actions,
     ...overrides,
@@ -161,18 +171,21 @@ describe("command manifest", () => {
 
 describe("command registry", () => {
   it("offers next/previous tab only with another tab, and ⌘n only when tab n exists", () => {
-    const one = makeContext({ tabCount: 1 });
+    const one = makeContext({ tabs: tabsOf(1) });
     expect(runCommand("tab.next", one)).toBe(false);
     expect(runCommand("tab.goTo2", one)).toBe(false);
     expect(runCommand("tab.goToLast", one)).toBe(true);
-    expect(one.actions.selectTabAt).toHaveBeenCalledWith(9);
-    const three = makeContext({ tabCount: 3 });
+    expect(one.actions.selectTab).toHaveBeenCalledWith("t1");
+    const three = makeContext({ tabs: tabsOf(3) });
     expect(runCommand("tab.previous", three)).toBe(true);
-    expect(three.actions.cycleTab).toHaveBeenCalledWith(-1);
+    expect(three.actions.cycleTab).toHaveBeenCalledWith("t1", -1);
     expect(runCommand("tab.goTo3", three)).toBe(true);
-    expect(three.actions.selectTabAt).toHaveBeenCalledWith(3);
+    expect(three.actions.selectTab).toHaveBeenCalledWith("t3");
+    expect(runCommand("tab.goToLast", three)).toBe(true);
+    expect(three.actions.selectTab).toHaveBeenLastCalledWith("t3");
     expect(runCommand("tab.new", one)).toBe(true);
     expect(runCommand("tab.close", one)).toBe(true);
+    expect(one.actions.closeTab).toHaveBeenCalledWith("t1");
   });
 
   it("refuses an unknown command", () => {
@@ -310,11 +323,11 @@ describe("dispatchCommand: the one executor every input goes through (review-3 F
 
   it("waits behind a hold and runs with the context of the moment it runs", () => {
     const queue = createCommandQueue();
-    let ctx = makeContext({ tabCount: 1 });
+    let ctx = makeContext({ tabs: tabsOf(1) });
     const hold = queue.hold();
     expect(dispatchCommand("tab.close", () => ctx, queue)).toBe(true);
     expect(ctx.actions.closeTab).not.toHaveBeenCalled();
-    const later = makeContext({ tabCount: 2 });
+    const later = makeContext({ tabs: tabsOf(2) });
     ctx = later;
     hold.release();
     expect(later.actions.closeTab).toHaveBeenCalledTimes(1);
@@ -326,5 +339,126 @@ describe("dispatchCommand: the one executor every input goes through (review-3 F
     expect(dispatchCommand("go.back", () => ctx, queue)).toBe(false);
     expect(dispatchCommand("no.such.command", () => ctx, queue)).toBe(false);
     expect(ctx.actions.goBack).not.toHaveBeenCalled();
+  });
+});
+
+describe("command targets: captured at issue (ADR 0001 decision 6, review-4 F1)", () => {
+  /** ADR 0001's table: command id -> declared scope. */
+  function adrTargetTable(): Map<string, string> {
+    const adr = readFileSync(resolve(process.cwd(), "docs/adr/0001-native-menu-input-ownership.md"), "utf8");
+    const table = new Map<string, string>();
+    for (const line of adr.split("\n")) {
+      const cells = line.trim().split("|").map((cell) => cell.trim());
+      if (cells.length < 4 || !cells[1]?.startsWith("`")) continue;
+      const scope = /^`(app|tab|shown)`/.exec(cells[2] ?? "")?.[1];
+      if (!scope) continue;
+      for (const [, id] of cells[1].matchAll(/`([^`]+)`/g)) table.set(id!, scope);
+    }
+    return table;
+  }
+
+  it("every command declares what it acts on, exactly as ADR 0001's table lists it", () => {
+    const declared = new Map(COMMANDS.map((command) => [command.id, command.target.scope as string]));
+    expect(declared.size).toBe(COMMAND_IDS.length);
+    expect(Object.fromEntries(adrTargetTable())).toEqual(Object.fromEntries(declared));
+  });
+
+  /** Every command can run here, so a refusal can only be its target's. */
+  const live: TabsSnapshot = { activeId: "B", ids: ["B", "C", "D", "E", "F", "G", "H", "I", "J"] };
+  const runnable = () =>
+    makeContext({ place: CONVERSATION, canGoBack: true, canGoForward: true, hasFindTarget: true, tabs: live });
+  const actionsCalled = (ctx: CommandContext) =>
+    Object.values(ctx.actions).some((action) => vi.mocked(action).mock.calls.length > 0);
+
+  const CASES: Array<{ name: string; issued: TabsSnapshot; runs: Record<TargetScope, boolean> }> = [
+    { name: "nothing moved", issued: live, runs: { app: true, tab: true, shown: true } },
+    {
+      name: "another tab came in front",
+      issued: { activeId: "C", ids: live.ids },
+      runs: { app: true, tab: true, shown: false },
+    },
+    {
+      name: "the tab in front at issue is closed",
+      issued: { activeId: "A", ids: ["A", ...live.ids] },
+      runs: { app: true, tab: false, shown: false },
+    },
+  ];
+
+  for (const { name, issued, runs } of CASES) {
+    it(`census, ${name}: each command runs or does nothing as its target says`, () => {
+      for (const command of COMMANDS) {
+        const ctx = runnable();
+        const expected = runs[command.target.scope];
+        expect(runCommand(command.id, ctx, issued), command.id).toBe(expected);
+        expect(actionsCalled(ctx), command.id).toBe(expected);
+      }
+    });
+  }
+
+  it("a tab command acts on the tab it was issued on, in front or not", () => {
+    const ctx = runnable();
+    expect(runCommand("tab.close", ctx, { activeId: "C", ids: live.ids })).toBe(true);
+    expect(ctx.actions.closeTab).toHaveBeenCalledWith("C");
+  });
+
+  it("⌘n picks the tab at that position when issued, not when it runs", () => {
+    const issued: TabsSnapshot = { activeId: "B", ids: ["B", "X", "C"] };
+    const ctx = makeContext({ tabs: { activeId: "B", ids: ["B", "C", "X"] } });
+    expect(runCommand("tab.goTo2", ctx, issued)).toBe(true);
+    expect(ctx.actions.selectTab).toHaveBeenCalledWith("X");
+  });
+
+  describe("through the queue", () => {
+    /** A live context whose tabs the test moves, like the store does. */
+    function liveTabs(initial: TabsSnapshot) {
+      let tabs = initial;
+      const ctx = makeContext();
+      vi.mocked(ctx.actions.newTab).mockImplementation(() => {
+        tabs = { activeId: "new", ids: [...tabs.ids, "new"] };
+      });
+      vi.mocked(ctx.actions.closeTab).mockImplementation((id: string) => {
+        const ids = tabs.ids.filter((t) => t !== id);
+        tabs = { activeId: tabs.activeId === id ? ids[0]! : tabs.activeId, ids };
+      });
+      return {
+        ctx,
+        getContext: (): CommandContext => ({ ...ctx, tabs }),
+        click: (id: string) => {
+          tabs = { ...tabs, activeId: id };
+        },
+      };
+    }
+
+    it("a click after a queued ⌘W does not redirect it", () => {
+      const queue = createCommandQueue();
+      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
+      const hold = queue.hold();
+      dispatchCommand("tab.close", app.getContext, queue);
+      app.click("B");
+      hold.release();
+      expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("A");
+    });
+
+    it("a command queued earlier that moves the tabs moves the target: New then ⌘W closes the new tab", () => {
+      const queue = createCommandQueue();
+      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
+      const hold = queue.hold();
+      dispatchCommand("tab.close", app.getContext, queue); // waits behind the hold
+      app.click("B"); // after ⌘W: changes nothing for it
+      hold.run(issueCommand("tab.new", app.getContext, queue)); // a menu New chosen earlier, at the hold's place
+      hold.release();
+      expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("new");
+    });
+
+    it("a command queued earlier that leaves the tabs alone does not undo a click's effect on its target", () => {
+      const queue = createCommandQueue();
+      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
+      const hold = queue.hold();
+      dispatchCommand("tab.close", app.getContext, queue);
+      app.click("B");
+      hold.run(issueCommand("help.feedback", app.getContext, queue));
+      hold.release();
+      expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("A");
+    });
   });
 });

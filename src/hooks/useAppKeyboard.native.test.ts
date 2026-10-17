@@ -109,7 +109,7 @@ vi.mock("@/navigation/tabs", () => ({
   newTab: newTabMock,
   closeTab: closeTabMock,
   cycleTab: vi.fn(),
-  selectTabAt: vi.fn(),
+  activateTab: vi.fn(),
 }));
 vi.mock("@/contexts/modal", () => ({ useModal: () => ({ openModal: openModalMock }) }));
 vi.mock("@/contexts/platform", () => ({ usePlatform: () => ({ isMobile: false, isDesktop: true }) }));

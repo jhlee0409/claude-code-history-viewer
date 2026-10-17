@@ -29,7 +29,6 @@ import {
   cycledId,
   documentFromLive,
   enforceTabCap,
-  idAtPosition,
   MAX_TABS,
   neighbourAfterClose,
   NO_CAPTURE,
@@ -464,16 +463,9 @@ export async function closeTab(id: string, screens: TabScreens): Promise<boolean
   return activateTab(next, screens);
 }
 
-/** Next / previous tab, wrapping around. */
-export function cycleTab(step: 1 | -1, screens: TabScreens): Promise<boolean> {
-  const { activeDocumentId } = get();
-  const id = cycledId({ documents: get().documents, activeId: activeDocumentId }, step);
-  return id ? activateTab(id, screens) : Promise.resolve(false);
-}
-
-/** ⌘1-⌘8: that tab; ⌘9: the last one. */
-export function selectTabAt(position: number, screens: TabScreens): Promise<boolean> {
-  const id = idAtPosition(get().documents, position);
+/** The tab after / before tab `from`, wrapping around. */
+export function cycleTab(from: string, step: 1 | -1, screens: TabScreens): Promise<boolean> {
+  const id = cycledId({ documents: get().documents, activeId: from }, step);
   return id ? activateTab(id, screens) : Promise.resolve(false);
 }
 
