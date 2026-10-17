@@ -89,9 +89,15 @@ Use a toggle so a double run is visible (it would cancel out):
 
 ## D. Lifecycle
 - [ ] Second launch (run the binary again) focuses the existing window; no second menu bar/window.
-- [ ] Reload the page (Ctrl+R in dev builds only) and, while it reloads, click File → New Tab twice and
-      File → Close Tab once: after the load there are exactly two tabs, the original first (the menu
-      journal runs each event once, in order).
+- [ ] With one tab open (call it O; open a session in it so you can recognise it), reload the page
+      (Ctrl+R in dev builds only) and, while it reloads, click File → New Tab twice and File → Close Tab
+      once: after the load there are **exactly two tabs** - the journal runs each menu event once, in
+      order (none lost, none run twice). Close closes the tab that was in front when you chose it (ADR
+      0001 decision 6, WYSIWYG: the event is stamped with the tab the page last reported), so which two
+      remain depends on timing: usually O and one new tab (a New had already run - in the old page,
+      which keeps running events until the new one replaces it, or in the new page - and its tab was
+      in front); two new tabs only if O was still the reported front tab when you chose Close. One or
+      three tabs is a failure.
 
 ## After both platforms pass
 1. Flip `menuAccelerators.<os>` to `true` in a follow-up PR **only** if native accelerator text is wanted
