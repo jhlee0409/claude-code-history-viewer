@@ -63,7 +63,7 @@ export const AnalyticsSubTabs = ({ value, onChange }: AnalyticsSubTabsProps) => 
         role="tablist"
         aria-label={t("analytics.subTab.label")}
         onKeyDown={onKeyDown}
-        className="flex w-fit items-center gap-1 rounded-lg bg-muted/40 p-1"
+        className="segmented w-fit"
       >
         {ANALYTICS_TABS.map((tab) => {
           const selected = tab === value;
@@ -82,11 +82,8 @@ export const AnalyticsSubTabs = ({ value, onChange }: AnalyticsSubTabsProps) => 
               data-analytics-tab={tab}
               onClick={() => select(tab)}
               className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-1.5 text-list font-medium transition-colors whitespace-nowrap",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-                selected
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                "segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               )}
             >
               <Icon

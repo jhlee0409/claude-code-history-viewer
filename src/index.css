@@ -113,6 +113,15 @@
   --input: oklch(0.92 0.005 240);
   --ring: oklch(0.60 0.06 275);
 
+  /* === Segmented control (shared: .segmented / .segmented-item) ===
+     The selected item is told apart by its accent outline, ≥3:1 against both
+     its own surface and the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  --segmented-track: oklch(0.94 0.005 240);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.145 0.02 260);
+  --segmented-selected-border: oklch(0.50 0.16 275);
+
   /* === Semantic Status Colors === */
   --success: oklch(0.45 0.12 145);
   --success-foreground: oklch(0.98 0 0);
@@ -238,6 +247,15 @@
   --input: oklch(0.22 0.015 260);
   --ring: oklch(0.50 0.06 275);
 
+  /* === Segmented control (Dark) ===
+     The card on the old muted/30 track measured ~1.1:1, so the selected item
+     read as unselected; it now has an indigo-tinted surface and the accent
+     outline (#9AA0F0-ish). */
+  --segmented-track: oklch(0.19 0.015 260);
+  --segmented-selected: oklch(0.30 0.06 278);
+  --segmented-selected-foreground: oklch(0.97 0.01 240);
+  --segmented-selected-border: oklch(0.73 0.12 279);
+
   /* === Semantic Status Colors (Dark) ===
      Fills are bright in dark mode, so their foregrounds must be dark (like
      --accent-foreground / --destructive-foreground); the old near-white
@@ -362,6 +380,10 @@
   --ring: oklch(0.25 0 0);
   --accent: oklch(0.25 0 0);
   --accent-foreground: oklch(1 0 0);
+  --segmented-track: oklch(0.95 0 0);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.06 0 0);
+  --segmented-selected-border: oklch(0.25 0 0);
   --destructive: oklch(0.4 0.16 25);
   --destructive-foreground: oklch(1 0 0);
   /* Status / tool hues: keep hue for meaning, push lightness to ≥7:1 on white. */
@@ -399,6 +421,10 @@
   --ring: oklch(0.95 0 0);
   --accent: oklch(0.9 0 0);
   --accent-foreground: oklch(0.08 0 0);
+  --segmented-track: oklch(0.11 0 0);
+  --segmented-selected: oklch(0.22 0 0);
+  --segmented-selected-foreground: oklch(0.98 0 0);
+  --segmented-selected-border: oklch(0.9 0 0);
   --destructive: oklch(0.78 0.18 25);
   --destructive-foreground: oklch(0.08 0 0);
   --success: oklch(0.85 0.18 145);
@@ -946,6 +972,34 @@
   .brush-match:hover {
     @apply scale-[1.03] ring-accent/50;
     box-shadow: 0 0 25px color-mix(in oklch, var(--accent), transparent 60%);
+  }
+
+  /* === Segmented control (one shared style) ===
+     Session/Project, row density, analytics Overview/Tokens, Project
+     overview/Session details, metric mode. The track holds the items; the
+     selected one (aria-pressed or aria-selected) gets its own surface and an
+     accent outline (tokens --segmented-*). Padding and type size stay on each
+     control. */
+  .segmented {
+    @apply flex items-center gap-1 p-1 rounded-lg;
+    background-color: var(--segmented-track);
+  }
+
+  .segmented-item {
+    @apply rounded-md font-medium text-muted-foreground transition-colors duration-200;
+  }
+
+  .segmented-item:not(:disabled):hover {
+    @apply text-foreground;
+  }
+
+  .segmented-item[aria-pressed="true"],
+  .segmented-item[aria-selected="true"] {
+    background-color: var(--segmented-selected);
+    color: var(--segmented-selected-foreground);
+    box-shadow:
+      inset 0 0 0 1px var(--segmented-selected-border),
+      0 1px 2px oklch(0 0 0 / 0.08);
   }
 
   /* === Elevated Surface (Card with depth) === */

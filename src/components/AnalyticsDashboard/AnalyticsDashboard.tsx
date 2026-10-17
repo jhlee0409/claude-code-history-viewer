@@ -145,17 +145,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           {/* Tab Selector */}
           {hasSessionData && (
-            <div role="tablist" className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
+            <div role="tablist" className="segmented w-fit">
               <button
                 role="tab"
                 aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-caption font-medium rounded-md transition-all duration-200",
-                  activeTab === "project"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                className="segmented-item flex items-center gap-2 px-4 py-2 text-caption"
               >
                 <Layers
                   className={cn(
@@ -169,12 +164,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 role="tab"
                 aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-caption font-medium rounded-md transition-all duration-200",
-                  activeTab === "session"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                className="segmented-item flex items-center gap-2 px-4 py-2 text-caption"
               >
                 <Activity
                   className={cn(
