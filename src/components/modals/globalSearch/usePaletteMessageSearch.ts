@@ -11,7 +11,7 @@
  * key it belongs to; until the current key's answer lands it shows loading,
  * never the previous query's rows.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject } from "@/types";
@@ -139,8 +139,6 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
   const requestKey = request ? JSON.stringify([request.command, request.args, attempt]) : null;
 
   const [settled, setSettled] = useState<Settled | null>(null);
-  // Request identity: bumped by every new key and by cleanup (close, unmount).
-  const generation = useRef(0);
 
   // Keyed on the request's text alone: `request` is rebuilt every render, and
   // the one this effect closes over is the one `requestKey` was made from.
@@ -148,8 +146,10 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
     if (!requestKey || !request) return;
     const { command, args } = request;
     const query = String(args.query ?? "");
-    const mine = ++generation.current;
-    const ownsData = () => generation.current === mine;
+    // This request's ownership: lost when its key changes, the palette
+    // closes or it unmounts (the cleanup below).
+    let owned = true;
+    const ownsData = () => owned;
     const timer = setTimeout(() => {
       api<ClaudeMessage[]>(command, args).then(
         (results) => {
@@ -164,7 +164,7 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
-      generation.current++;
+      owned = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestKey]);

@@ -1,47 +1,75 @@
+/**
+ * The ⌘K palette (plans T6b, T10): one cmdk list with four groups, in this
+ * order - Commands, Projects, Sessions, Messages.
+ *
+ * - Commands, Projects and Sessions are matched synchronously from what the
+ *   app holds (`paletteEntries`, `paletteSources`), so they follow every
+ *   keystroke, IME composition included.
+ * - Messages come from the backend search (`usePaletteMessageSearch`),
+ *   debounced, owned by the query + scope + filter it was asked for, and
+ *   never sent mid IME composition. The group shows its own loading / error
+ *   / empty state and never holds up the others; a live region reports its
+ *   outcome to screen readers.
+ * - The scope chip ("This project" / "All projects") scopes Sessions and
+ *   Messages; Projects always lists every project.
+ * - Picking a row closes the palette and moves there with `navigate`
+ *   (`navigation/paletteOpen.ts`): a project or session as its sidebar row
+ *   opens it, a message as its session with the message as the explicit
+ *   target. ⌘/Ctrl+Enter or ⌘/Ctrl+click opens it in a new tab (T8).
+ */
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import {
-  Search,
-  ArrowUp,
-  ArrowDown,
-  CornerDownLeft,
-  X,
-  LoaderCircle,
-  Funnel,
-  User,
-  Bot,
-  MessageSquare,
-  Lightbulb,
+    Search,
+    ArrowUp,
+    ArrowDown,
+    CornerDownLeft,
+    X,
+    User,
+    Bot,
+    MessageSquare,
+    Lightbulb,
 } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { Dialog, DialogContent, Input } from "@/components/ui";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeMessage, ClaudeProject, ClaudeSession, ContentItem } from "@/types";
-import {
-    getProviderLabel,
-    getWslSearchableProviderIds,
-    hasNonDefaultProvider,
-    getProviderBadgeStyle,
-} from "@/utils/providers";
+import type { ClaudeMessage } from "@/types";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
-import { getLocale } from "@/utils/time";
 import type { CommandId } from "@/commands/manifest";
 import { runCommand, type CommandContext } from "@/commands/registry";
-import { commandItemValue, paletteEntries, paletteValue } from "@/commands/paletteQuery";
+import { commandItemValue, paletteEntries } from "@/commands/paletteQuery";
+import {
+    GROUP_LIMIT,
+    matchProjects,
+    matchSessions,
+    MESSAGE_PREVIEW_LIMIT,
+    MIN_MESSAGE_QUERY,
+    MORE_PROJECTS_VALUE,
+    MORE_SESSIONS_VALUE,
+    projectItemValue,
+    sessionCandidates,
+    sessionItemValue,
+    unsearchableProviders,
+    type PaletteScope,
+    type ProjectHit,
+    type SessionCandidate,
+} from "@/commands/paletteSources";
+import { favoritesOf } from "@/navigation/library";
+import { openMessageResult, openSessionTarget, runPaletteOpen } from "@/navigation/paletteOpen";
+import { usePlaceOpeners } from "@/contexts/placeOpeners";
+import { isActionModifier, isMacOS } from "@/utils/platform";
+import { getProjectDisplayName } from "@/utils/pathUtils";
 import { PaletteCommandGroup } from "./PaletteCommandGroup";
 import { PaletteComboboxLink } from "./PaletteComboboxLink";
-import { openInNewTab } from "@/navigation/tabs";
-import { isActionModifier } from "@/utils/platform";
-
-type GlobalSearchResult = ClaudeMessage;
-
-type MessageTypeFilter = "all" | "user" | "assistant";
+import { PaletteProjectGroup, PaletteSessionGroup } from "./PalettePlaceGroups";
+import { PaletteMessageGroup } from "./PaletteMessageGroup";
+import { messageGroupValues } from "./paletteMessageValues";
+import {
+    MAX_MESSAGE_RESULTS,
+    usePaletteMessageSearch,
+    type MessageTypeFilter,
+} from "./usePaletteMessageSearch";
 
 interface GlobalSearchModalProps {
     isOpen: boolean;
@@ -50,70 +78,10 @@ interface GlobalSearchModalProps {
     getCommandContext: () => CommandContext;
 }
 
-// Backend has no offset paging; results are truncated at this count and the
-// footer says so, so the user knows to narrow the query.
-const MAX_RESULTS = 250;
-
-// Conversation titles per project, shared across modal opens. Keyed by
-// path + last_modified so a rescan that touched the project refetches.
-const sessionTitleCache = new Map<string, Record<string, string>>();
-const titleCacheKey = (project: ClaudeProject) => `${project.path}@${project.last_modified}`;
-const TITLE_FETCH_CONCURRENCY = 3;
-/**
- * Every string a result can be matched on, in display order. Mirrors the
- * backend scope (`search_in_value` walks message content, toolUse and
- * toolUseResult), so a hit inside a tool payload still gets a snippet
- * instead of "No preview available".
- */
-const collectSearchableText = (message: GlobalSearchResult): string => {
-    const parts: string[] = [];
-    const pushStrings = (value: unknown, depth = 0) => {
-        if (depth > 4 || value == null) return;
-        if (typeof value === "string") {
-            if (value.trim()) parts.push(value);
-        } else if (Array.isArray(value)) {
-            for (const v of value) pushStrings(v, depth + 1);
-        } else if (typeof value === "object") {
-            for (const v of Object.values(value as Record<string, unknown>)) pushStrings(v, depth + 1);
-        }
-    };
-
-    const content = message.content;
-    if (typeof content === "string") {
-        parts.push(content);
-    } else if (Array.isArray(content)) {
-        for (const item of content as ContentItem[]) {
-            switch (item.type) {
-                case "text":
-                    if ("text" in item) parts.push(item.text as string);
-                    break;
-                case "thinking":
-                    if ("thinking" in item) parts.push((item as { thinking: string }).thinking);
-                    break;
-                case "tool_use": {
-                    const tool = item as { name?: string; input?: unknown };
-                    if (tool.name) parts.push(tool.name);
-                    pushStrings(tool.input);
-                    break;
-                }
-                case "tool_result":
-                    pushStrings((item as { content?: unknown }).content);
-                    break;
-                default:
-                    pushStrings(item);
-            }
-        }
-    }
-    const extra = message as { toolUse?: unknown; toolUseResult?: unknown };
-    pushStrings(extra.toolUse);
-    pushStrings(extra.toolUseResult);
-    return parts.join(" ").replace(/\s+/g, " ");
-};
-
 /**
  * The keys cmdk's root acts on: move the highlight, pick the highlighted
  * item. Typed in the search field they drive the list; pressed on another
- * control in the palette (a type filter, the project picker, clear) they
+ * control in the palette (a type filter, the scope chip, clear) they
  * belong to that control alone, so they must not reach the root. Stopping
  * propagation, not the default, keeps the browser's own activation.
  */
@@ -122,234 +90,122 @@ const keepKeysFromList = (e: React.KeyboardEvent) => {
     if (LIST_KEYS.has(e.key)) e.stopPropagation();
 };
 
-type SearchResultGroup = {
-    label: string;
-    provider?: string;
-    pathUnavailable: boolean;
-    project?: ClaudeProject;
-    items: GlobalSearchResult[];
-};
+type ExpandableGroup = "projects" | "sessions" | "messages";
 
 export const GlobalSearchModal = ({
     isOpen,
     onClose,
     getCommandContext,
 }: GlobalSearchModalProps) => {
-    const { t, i18n } = useTranslation();
-    // The search reads `t` only to word its failure toast. Through a ref, a
-    // new `t` neither re-creates `performSearch` nor, through the filter
-    // effect below, sends the query again. (react-i18next's `t` is stable
-    // until the language changes; a test double need not be.)
-    const tRef = useRef(t);
-    useEffect(() => {
-        tRef.current = t;
-    }, [t]);
+    const { t } = useTranslation();
+    // What the field shows, and what the message search runs on: the latter
+    // only changes outside an IME composition, so a half-composed syllable
+    // (Hangul, kana) never goes to the backend.
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<GlobalSearchResult[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-    // sessionId / actual_session_id → summary, filled lazily per project so
-    // results can show the conversation title instead of an id prefix.
-    const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
-    // Bumped when the modal closes or results change; abandons a title sweep.
-    const titleSweepTokenRef = useRef(0);
+    const [searchQuery, setSearchQuery] = useState("");
+    const composingRef = useRef(false);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
+    const [scope, setScope] = useState<PaletteScope>("all");
+    // "Show more" opens a group for the query it was asked under.
+    const [expanded, setExpanded] = useState<{ query: string; groups: ExpandableGroup[] }>({ query: "", groups: [] });
+    const isExpanded = (group: ExpandableGroup) => expanded.query === query && expanded.groups.includes(group);
     const inputRef = useRef<HTMLInputElement>(null);
     // A command picked in the palette runs once the palette has closed and
     // released focus (`onCloseAutoFocus`), so ⌘F's find field keeps it.
     const pendingCommandRef = useRef<CommandId | null>(null);
-    const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Bumped on every result click and on close — cancels an in-flight
-    // session-resolution sweep so it stops issuing project requests.
-    const resolveTokenRef = useRef(0);
+    const openers = usePlaceOpeners();
 
-    const { claudePath, projects, navigate, sessions, getSessionDisplayName, activeProviders, clearTargetMessage, userMetadata } =
-        useAppStore();
-    const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
+    const {
+        projects,
+        sessions,
+        selectedProject,
+        recentSessions,
+        userMetadata,
+        getSessionDisplayName,
+        isProjectHidden,
+    } = useAppStore();
+    // Scope "project" needs an open project; without one the chip is "all".
+    const effectiveScope: PaletteScope = selectedProject ? scope : "all";
 
-    // Group results by project name
-    const groupedResults = useMemo(() => {
-        const groups = new Map<string, SearchResultGroup>();
+    const { view: messageView, retry: retryMessages } = usePaletteMessageSearch({
+        query: searchQuery,
+        scope: effectiveScope,
+        messageType: messageTypeFilter,
+        project: selectedProject ?? null,
+        enabled: isOpen,
+    });
 
-        for (const result of results) {
-            const projectName =
-                result.projectName || t("globalSearch.unknownProject");
-            const resultProvider = result.provider ?? "claude";
-            // The backend labels results with the store directory name; the
-            // project list may carry a decoded display name instead.
-            const matchingProject = projects.find(
-                (project) =>
-                    (project.provider ?? "claude") === resultProvider &&
-                    (project.name === projectName || getPathLeaf(project.path) === projectName)
-            );
-            const providerLabel = getProviderLabel(
-                (key, fallback) => t(key, fallback),
-                result.provider,
-            );
-            const groupKey = `${resultProvider}::${projectName}`;
-            const displayName = matchingProject ? getProjectDisplayName(matchingProject) : projectName;
-            const groupLabel = `${displayName} (${providerLabel})`;
-
-            if (!groups.has(groupKey)) {
-                groups.set(groupKey, {
-                    label: groupLabel,
-                    provider: result.provider,
-                    pathUnavailable: matchingProject?.path_status === "unavailable",
-                    project: matchingProject,
-                    items: [],
-                });
-            }
-            groups.get(groupKey)!.items.push(result);
-        }
-
-        return groups;
-    }, [projects, results, t]);
-
-    // Resolve conversation titles for the projects that have results.
-    // Sessions are fetched per project at most once per project version
-    // (module cache keyed by path + last_modified), a few at a time, and the
-    // sweep is abandoned when the modal closes or the result set changes.
-    useEffect(() => {
-        const token = ++titleSweepTokenRef.current;
-        const { excludeSidechain } = useAppStore.getState();
-        const pending: ClaudeProject[] = [];
-        const cached: Record<string, string> = {};
-        for (const group of groupedResults.values()) {
-            const project = group.project;
-            if (!project) continue;
-            const hit = sessionTitleCache.get(titleCacheKey(project));
-            if (hit) Object.assign(cached, hit);
-            else if (!pending.some((p) => p.path === project.path)) pending.push(project);
-        }
-        if (Object.keys(cached).length > 0) {
-            setSessionTitles((prev) => ({ ...prev, ...cached }));
-        }
-        if (pending.length === 0) return;
-
-        const loadOne = async (project: ClaudeProject) => {
-            const provider = project.provider ?? "claude";
-            const projectSessions = await api<ClaudeSession[]>(
-                provider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
-                provider !== "claude"
-                    ? { provider, projectPath: project.path, excludeSidechain }
-                    : { projectPath: project.path, excludeSidechain },
-            );
-            const titles: Record<string, string> = {};
-            for (const s of projectSessions) {
-                const title = s.summary?.trim();
-                if (!title) continue;
-                titles[s.session_id] = title;
-                if (s.actual_session_id) titles[s.actual_session_id] = title;
-            }
-            sessionTitleCache.set(titleCacheKey(project), titles);
-            return titles;
-        };
-
-        void (async () => {
-            for (let i = 0; i < pending.length; i += TITLE_FETCH_CONCURRENCY) {
-                if (token !== titleSweepTokenRef.current) return;
-                const batch = pending.slice(i, i + TITLE_FETCH_CONCURRENCY);
-                const settled = await Promise.allSettled(batch.map(loadOne));
-                if (token !== titleSweepTokenRef.current) return;
-                const merged: Record<string, string> = {};
-                settled.forEach((outcome, idx) => {
-                    if (outcome.status === "fulfilled") Object.assign(merged, outcome.value);
-                    else console.error(`Failed to load session titles for ${batch[idx]!.name}:`, outcome.reason);
-                });
-                if (Object.keys(merged).length > 0) {
-                    setSessionTitles((prev) => ({ ...prev, ...merged }));
-                }
-            }
-        })();
-    }, [groupedResults]);
-
-    // Get session display name for a search result
-    const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
-        if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
-        const name = getSessionDisplayName(result.sessionId) ?? sessionTitles[result.sessionId];
-        if (name) return name;
-        // No custom/known name: show a short, stable conversation handle so results
-        // from different conversations are still distinguishable (#420).
-        return t("globalSearch.conversationId", { id: result.sessionId.slice(0, 8) });
-    }, [getSessionDisplayName, sessionTitles, t]);
-
-    // Debounced search
-    const performSearch = useCallback(
-        async (searchQuery: string) => {
-            const trimmedQuery = searchQuery.trim();
-
-            const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
-            const customClaudePaths = userMetadata?.settings?.customClaudePaths;
-            const hasCustomPaths = (customClaudePaths?.length ?? 0) > 0;
-            const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
-            const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
-            const nativeClaudePath = claudePath || undefined;
-            const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
-
-            if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource)) {
-                setResults([]);
-                setIsSearching(false);
-                return;
-            }
-
-            setIsSearching(true);
-            try {
-                const filters: Record<string, unknown> = {};
-                if (selectedProjectPath !== "all") {
-                    // Backend matches by directory name (last path segment), not full path
-                    const dirName = selectedProjectPath.split(/[\\/]/).pop() || selectedProjectPath;
-                    filters.projects = [dirName];
-                }
-                if (messageTypeFilter !== "all") {
-                    filters.messageType = messageTypeFilter;
-                }
-                const wslExcludedDistros = userMetadata?.settings?.wsl?.excludedDistros ?? [];
-                const useAllProvidersSearch = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
-                const searchResults = await api<GlobalSearchResult[]>(
-                    useAllProvidersSearch ? "search_all_providers" : "search_messages",
-                    useAllProvidersSearch
-                        ? {
-                              claudePath: nativeClaudePath,
-                              query: trimmedQuery,
-                              activeProviders,
-                              filters,
-                              limit: MAX_RESULTS,
-                              customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
-                              wslEnabled,
-                              wslProviders,
-                              wslExcludedDistros,
-                          }
-                        : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
-                );
-                setResults(searchResults);
-            } catch (error) {
-                console.error("Global search failed:", error);
-                setResults([]);
-                toast.error(tRef.current("globalSearch.searchFailed"));
-            } finally {
-                setIsSearching(false);
-            }
-        },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata],
+    // ---- the synchronous sources -------------------------------------------
+    const commandEntries = paletteEntries(query, getCommandContext(), t);
+    // Hidden projects stay out, as in the sidebar (flag or hidden pattern).
+    const projectHits = useMemo(
+        () => matchProjects(query, projects ?? [], (p) => isProjectHidden?.(p.path) === true),
+        // `userMetadata`: the hidden flags and patterns `isProjectHidden` reads.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [query, projects, isProjectHidden, userMetadata],
     );
-
-    // Handle input change with debounce
-    const handleInputChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const value = e.target.value;
-            setQuery(value);
-
-            if (debounceTimeoutRef.current) {
-                clearTimeout(debounceTimeoutRef.current);
-            }
-
-            debounceTimeoutRef.current = setTimeout(() => {
-                performSearch(value);
-            }, 300);
-        },
-        [performSearch],
+    const candidates = useMemo(
+        () =>
+            sessionCandidates({
+                scope: effectiveScope,
+                sessions: sessions ?? [],
+                selectedProject: selectedProject ?? null,
+                recent: recentSessions ?? [],
+                favorites: userMetadata ? favoritesOf(userMetadata) : [],
+                projects: projects ?? [],
+                titleOf: (id, fallback) => getSessionDisplayName?.(id, fallback) ?? fallback,
+            }),
+        [effectiveScope, sessions, selectedProject, recentSessions, userMetadata, projects, getSessionDisplayName],
     );
+    const sessionHits = useMemo(() => matchSessions(query, candidates), [query, candidates]);
+    const notSearched = useMemo(() => unsearchableProviders(projects ?? []), [projects]);
 
-    // ⌘+click / ⌘+Enter on a result opens it in a new tab (T8). cmdk's
+    // ---- the highlighted item ------------------------------------------------
+    const shownValues = (hits: readonly unknown[], group: ExpandableGroup, value: (i: number) => string, more: string) => {
+        const open = isExpanded(group);
+        const shown = open ? hits.length : Math.min(hits.length, GROUP_LIMIT);
+        const values = Array.from({ length: shown }, (_, i) => value(i));
+        if (!open && hits.length > GROUP_LIMIT) values.push(more);
+        return values;
+    };
+    const itemValues = [
+        ...commandEntries.filter((entry) => entry.enabled).map((entry) => commandItemValue(entry.command.id)),
+        ...shownValues(projectHits, "projects", (i) => projectItemValue(projectHits[i]!.project), MORE_PROJECTS_VALUE),
+        ...shownValues(sessionHits, "sessions", (i) => sessionItemValue(sessionHits[i]!), MORE_SESSIONS_VALUE),
+        ...messageGroupValues(messageView, isExpanded("messages")),
+    ];
+    // The highlight belongs to its query: a new query starts again at the
+    // first item. Rows arriving later (messages) leave it where it is, as
+    // long as the highlighted row is still listed.
+    const [selection, setSelection] = useState<{ query: string; value: string } | null>(null);
+    const selectedValue =
+        selection && selection.query === query && itemValues.includes(selection.value)
+            ? selection.value
+            : (itemValues[0] ?? "");
+    const handleSelectionChange = useCallback((value: string) => setSelection({ query, value }), [query]);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    // ---- input -------------------------------------------------------------
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setQuery(value);
+        const composing = composingRef.current || (e.nativeEvent as InputEvent).isComposing === true;
+        if (!composing) setSearchQuery(value);
+    }, []);
+    const handleCompositionStart = useCallback(() => {
+        composingRef.current = true;
+    }, []);
+    const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
+        composingRef.current = false;
+        setSearchQuery(e.currentTarget.value);
+    }, []);
+    const clearQuery = () => {
+        setQuery("");
+        setSearchQuery("");
+        inputRef.current?.focus();
+    };
+
+    // ⌘+click / ⌘+Enter on a row opens it in a new tab (T8). cmdk's
     // `onSelect` carries no event, so the modifier of the pointer or key that
     // picked it is noted on the way down.
     const newTabModifierRef = useRef(false);
@@ -357,161 +213,31 @@ export const GlobalSearchModal = ({
         newTabModifierRef.current = isActionModifier(event);
     };
 
-    // Navigate to selected result. Resolves whether it opened the session.
-    const openResult = useCallback(
-        async (result: GlobalSearchResult): Promise<boolean> => {
-            try {
-                const targetSession = sessions.find(
-                    (s) =>
-                        s.session_id === result.sessionId ||
-                        s.actual_session_id === result.sessionId,
-                );
-
-                if (targetSession) {
-                    // One navigation: the conversation screen (from any other
-                    // screen, issue #390), the session, and the result as the
-                    // explicit message target.
-                    await navigate({
-                        view: "conversation",
-                        session: targetSession,
-                        messageId: result.uuid ?? null,
-                    });
-                    onClose();
-                    return true;
-                }
-
-                // Snapshot excludeSidechain once to keep requests consistent
-                // across the scan and avoid repeated getState() calls. The
-                // setting is user-configurable; taking a snapshot is intentional
-                // so a mid-scan toggle does not change half the requests.
-                const { excludeSidechain } = useAppStore.getState();
-                const token = ++resolveTokenRef.current;
-
-                // The search result carries the project name and provider —
-                // rank matching projects first so the common case resolves in
-                // ONE request instead of sweeping every project. The rest are
-                // still tried (defensively) but in parallel batches with an
-                // early exit, not one serial await per project.
-                const resultProvider = result.provider ?? "claude";
-                const rank = (project: (typeof projects)[number]): number => {
-                    const projectProvider = project.provider ?? "claude";
-                    if (projectProvider !== resultProvider) return 3;
-                    if (result.projectName && project.name === result.projectName) return 0;
-                    if (
-                        result.projectName &&
-                        (project.name.includes(result.projectName) ||
-                            project.actual_path?.endsWith(result.projectName))
-                    ) {
-                        return 1;
-                    }
-                    return 2;
-                };
-                const candidates = [...projects].sort((a, b) => rank(a) - rank(b));
-
-                const findInProject = async (
-                    project: (typeof projects)[number],
-                ): Promise<{ project: typeof project; session: ClaudeSession } | null> => {
-                    try {
-                        const projectProvider = project.provider ?? "claude";
-                        const projectSessions = await api<ClaudeSession[]>(
-                            projectProvider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
-                            projectProvider !== "claude"
-                                ? { provider: projectProvider, projectPath: project.path, excludeSidechain }
-                                : { projectPath: project.path, excludeSidechain },
-                        );
-                        const session = projectSessions.find(
-                            (s) =>
-                                s.session_id === result.sessionId ||
-                                s.actual_session_id === result.sessionId,
-                        );
-                        return session ? { project, session } : null;
-                    } catch (error) {
-                        console.error(
-                            `Failed to load sessions for project ${project.name}:`,
-                            error,
-                        );
-                        return null;
-                    }
-                };
-
-                const BATCH_SIZE = 4;
-                for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-                    if (token !== resolveTokenRef.current) return false; // cancelled
-                    const batch = candidates.slice(i, i + BATCH_SIZE);
-                    const found = (await Promise.all(batch.map(findInProject))).find(
-                        (hit): hit is NonNullable<typeof hit> => hit !== null,
-                    );
-                    if (token !== resolveTokenRef.current) return false; // cancelled
-                    if (found) {
-                        await navigate({
-                            view: "conversation",
-                            project: found.project,
-                            session: found.session,
-                            messageId: result.uuid ?? null,
-                        });
-                        onClose();
-                        return true;
-                    }
-                }
-
-                // Session not found in any project
-                clearTargetMessage();
-                toast.error(t("globalSearch.sessionNotFound"));
-                onClose();
-                return false;
-            } catch (error) {
-                clearTargetMessage();
-                console.error("Failed to navigate to search result:", error);
-                toast.error(t("globalSearch.navigationFailed"));
-                onClose();
-                return false;
-            }
-        },
-        [projects, sessions, navigate, clearTargetMessage, onClose, t],
-    );
-
-    const handleSelectResult = useCallback(
-        (result: GlobalSearchResult) => {
+    /** Close the palette and run the pick (a navigation of its own). */
+    const pick = useCallback(
+        (open: () => Promise<boolean>) => {
             const inNewTab = newTabModifierRef.current;
             newTabModifierRef.current = false;
-            return inNewTab
-                ? openInNewTab(() => openResult(result), { discardIf: (opened) => !opened })
-                : openResult(result);
+            onClose();
+            void runPaletteOpen(open, inNewTab);
         },
-        [openResult],
+        [onClose],
     );
-
-    // The palette's items: matching commands first, then the message results.
-    const commandEntries = paletteEntries(query, getCommandContext(), t);
-    const messageItemValue = (groupKey: string, index: number, result: GlobalSearchResult) =>
-        paletteValue(`message:${groupKey}:${index}:${result.uuid}`);
-    const firstItemValue = (() => {
-        const command = commandEntries.find((entry) => entry.enabled);
-        if (command) return commandItemValue(command.command.id);
-        const [first] = groupedResults.entries();
-        const firstResult = first?.[1].items[0];
-        return first && firstResult ? messageItemValue(first[0], 0, firstResult) : "";
-    })();
-    // The highlighted item. It belongs to one query and result set: when
-    // either changes, the highlight starts again at the first item, as the
-    // message list's did before it moved into cmdk.
-    const [selection, setSelection] = useState<{
-        query: string;
-        results: GlobalSearchResult[];
-        value: string;
-    } | null>(null);
-    const selectedValue =
-        selection && selection.query === query && selection.results === results
-            ? selection.value
-            : firstItemValue;
-    const handleSelectionChange = useCallback(
-        (value: string) => setSelection({ query, results, value }),
-        [query, results],
+    const openProject = useCallback((hit: ProjectHit) => pick(() => openers.openProject(hit.project)), [pick, openers]);
+    const openSession = useCallback(
+        (hit: SessionCandidate) => pick(() => openSessionTarget(hit.target, openers)),
+        [pick, openers],
     );
-    const listRef = useRef<HTMLDivElement>(null);
+    const openMessage = useCallback((result: ClaudeMessage) => pick(() => openMessageResult(result)), [pick]);
 
-    // Arrow keys and Enter belong to the cmdk list (commands and results
-    // alike); cmdk ignores Enter while an IME is composing.
+    const expand = (group: ExpandableGroup, firstNew?: string) => {
+        setExpanded((prev) => ({
+            query,
+            groups: prev.query === query ? [...prev.groups, group] : [group],
+        }));
+        if (firstNew) setSelection({ query, value: firstNew });
+    };
+
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -541,116 +267,39 @@ export const GlobalSearchModal = ({
         [getCommandContext],
     );
 
-    // Focus input when modal opens
+    // Focus the field when the palette opens; start over when it closes.
     useEffect(() => {
         if (isOpen) {
-            setTimeout(() => inputRef.current?.focus(), 0);
-        } else {
-            // Cancel any in-flight result-resolution sweep.
-            resolveTokenRef.current++;
-            setQuery("");
-            setResults([]);
-            setSelectedProjectPath("all");
-            setMessageTypeFilter("all");
-            setSessionTitles({});
-            titleSweepTokenRef.current++;
+            const timer = setTimeout(() => inputRef.current?.focus(), 0);
+            return () => clearTimeout(timer);
         }
+        setQuery("");
+        setSearchQuery("");
+        setScope("all");
+        setMessageTypeFilter("all");
+        setExpanded({ query: "", groups: [] });
+        return undefined;
     }, [isOpen]);
 
-    // Re-search when filters change. `query` is intentionally omitted —
-    // keystroke-driven searches go through handleInputChange's debounce.
-    // This effect only fires when performSearch identity changes (i.e., filter deps).
-    useEffect(() => {
-        if (query.trim().length >= 2) {
-            performSearch(query);
+    // What the Messages group says, for screen readers (it changes with no
+    // focus move). Silent below the search's minimum length.
+    const liveText = (() => {
+        switch (messageView.status) {
+            case "loading":
+                return t("globalSearch.messages.searching");
+            case "error":
+                return t("globalSearch.messages.failed");
+            case "done":
+                return messageView.results.length > 0
+                    ? t("globalSearch.live.found", { count: messageView.results.length })
+                    : t("globalSearch.messages.none");
+            default:
+                return "";
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [performSearch]);
-
-    // Cleanup debounce on unmount
-    useEffect(() => {
-        return () => {
-            if (debounceTimeoutRef.current) {
-                clearTimeout(debounceTimeoutRef.current);
-            }
-        };
-    }, []);
-
-    // Searchable text per result, computed once per result set rather than on
-    // every keystroke/arrow re-render (250 rows × deep tool payload walks).
-    const searchableTextByResult = useMemo(() => {
-        const map = new WeakMap<GlobalSearchResult, string>();
-        for (const result of results) map.set(result, collectSearchableText(result));
-        return map;
-    }, [results]);
-
-    // Get preview text centered around the search term
-    const getPreviewText = (message: GlobalSearchResult): string => {
-        const fullText = searchableTextByResult.get(message) ?? collectSearchableText(message);
-        if (!fullText) return t("globalSearch.noPreview");
-
-
-        // Find search term position and show surrounding context
-        const trimmedQuery = query.trim().toLowerCase();
-        if (trimmedQuery.length >= 2) {
-            const lowerText = fullText.toLowerCase();
-            const matchIndex = lowerText.indexOf(trimmedQuery);
-            if (matchIndex !== -1) {
-                const contextRadius = 60;
-                const start = Math.max(0, matchIndex - contextRadius);
-                const end = Math.min(fullText.length, matchIndex + trimmedQuery.length + contextRadius);
-                const slice = fullText.slice(start, end);
-                const prefix = start > 0 ? "..." : "";
-                const suffix = end < fullText.length ? "..." : "";
-                return prefix + slice + suffix;
-            }
-        }
-
-        return fullText.slice(0, 150) + (fullText.length > 150 ? "..." : "");
-    };
-
-    // Format timestamp
-    const formatTimestamp = (timestamp: string): string => {
-        try {
-            const date = new Date(timestamp);
-            return date.toLocaleDateString(getLocale(i18n.language || "en"), {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-            });
-        } catch {
-            return "";
-        }
-    };
-
-    // Memoize regex to avoid re-creation per result item
-    const highlightRegex = useMemo(() => {
-        const trimmed = query.trim();
-        if (!trimmed) return null;
-        return new RegExp(
-            `(${trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-            "i",
-        );
-    }, [query]);
-
-    const highlightText = (text: string): React.ReactNode => {
-        if (!highlightRegex) return text;
-
-        const parts = text.split(highlightRegex);
-        return parts.map((part, index) =>
-            highlightRegex.test(part) ? (
-                <mark
-                    key={index}
-                    className="bg-highlight text-highlight-foreground rounded-sm px-0.5"
-                >
-                    {part}
-                </mark>
-            ) : (
-                part
-            ),
-        );
-    };
+    })();
+    const messageCount = messageView.status === "done" ? messageView.results.length : 0;
+    const trimmed = query.trim();
+    const scopeProjectLabel = selectedProject ? getProjectDisplayName(selectedProject) : undefined;
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -685,6 +334,8 @@ export const GlobalSearchModal = ({
                         type="text"
                         value={query}
                         onChange={handleInputChange}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
                         placeholder={t("globalSearch.placeholder")}
                         className="border-0 shadow-none focus-visible:ring-0 px-0 h-auto text-body"
                         autoComplete="off"
@@ -692,18 +343,11 @@ export const GlobalSearchModal = ({
                         autoCapitalize="off"
                         spellCheck={false}
                     />
-                    {isSearching && (
-                        <LoaderCircle className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
-                    )}
-                    {query && !isSearching && (
+                    {query && (
                         <button
                             type="button"
                             onKeyDown={keepKeysFromList}
-                            onClick={() => {
-                                setQuery("");
-                                setResults([]);
-                                inputRef.current?.focus();
-                            }}
+                            onClick={clearQuery}
                             className="p-1 hover:bg-muted rounded"
                             aria-label={t("globalSearch.clearSearch")}
                         >
@@ -714,7 +358,7 @@ export const GlobalSearchModal = ({
 
                 {/* Filters Bar: its keys work its own controls, never the list */}
                 <div
-                    className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 border-b border-border bg-muted/20"
                     onKeyDown={keepKeysFromList}
                 >
                     {/* Message Type Filter */}
@@ -741,61 +385,61 @@ export const GlobalSearchModal = ({
                         ))}
                     </div>
 
-                    {/* Divider */}
-                    {projects.length > 1 && (
-                        <div className="w-px h-4 bg-border" />
-                    )}
-
-                    {/* Project Filter */}
-                    {projects.length > 1 && (
-                        <>
-                            <Funnel className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                            <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
-                                <SelectTrigger className="h-7 text-list border-border w-40">
-                                    <SelectValue placeholder={t("globalSearch.allProjects")} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">{t("globalSearch.allProjects")}</SelectItem>
-                                    {projects.map((project) => (
-                                        <SelectItem key={project.path} value={project.path}>
-                                            {project.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </>
-                    )}
+                    {/* Scope chip: Sessions and Messages search the open project or everything */}
+                    <div className="segmented" role="group" aria-label={t("globalSearch.scope.label")}>
+                        <button
+                            type="button"
+                            className="segmented-item text-caption"
+                            aria-pressed={effectiveScope === "project"}
+                            disabled={!selectedProject}
+                            title={selectedProject ? scopeProjectLabel : t("globalSearch.scope.projectUnavailable")}
+                            onClick={() => setScope("project")}
+                        >
+                            {t("globalSearch.scope.project")}
+                        </button>
+                        <button
+                            type="button"
+                            className="segmented-item text-caption"
+                            aria-pressed={effectiveScope === "all"}
+                            onClick={() => setScope("all")}
+                        >
+                            {t("globalSearch.scope.all")}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Commands, then message results: one cmdk list */}
+                {/* Commands, Projects, Sessions, Messages: one cmdk list */}
                 <CommandPrimitive.List
                     ref={listRef}
                     label={t("globalSearch.title")}
                     className="max-h-100 overflow-y-auto"
                 >
                     <PaletteCommandGroup entries={commandEntries} onRun={handleRunCommand} />
-
-                    {/* Loading skeleton */}
-                    {isSearching && results.length === 0 && (
-                        <div className="py-4 space-y-3 px-4">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <div key={i} className="animate-pulse">
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <div className="h-4 w-12 bg-muted rounded" />
-                                        <div className="h-3 w-20 bg-muted rounded" />
-                                    </div>
-                                    <div className="h-4 w-full bg-muted rounded mb-1" />
-                                    <div className="h-4 w-3/4 bg-muted rounded" />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {!isSearching && query.trim().length >= 2 && results.length === 0 && (
-                        <div className="px-4 py-8 text-center text-body text-muted-foreground">
-                            {t("globalSearch.noResults")}
-                        </div>
-                    )}
+                    <PaletteProjectGroup
+                        hits={projectHits}
+                        query={query}
+                        expanded={isExpanded("projects")}
+                        onExpand={() =>
+                            expand("projects", projectHits[GROUP_LIMIT] && projectItemValue(projectHits[GROUP_LIMIT].project))
+                        }
+                        onOpen={openProject}
+                    />
+                    <PaletteSessionGroup
+                        hits={sessionHits}
+                        query={query}
+                        expanded={isExpanded("sessions")}
+                        onExpand={() => expand("sessions", sessionHits[GROUP_LIMIT] && sessionItemValue(sessionHits[GROUP_LIMIT]))}
+                        onOpen={openSession}
+                    />
+                    <PaletteMessageGroup
+                        view={messageView}
+                        expanded={isExpanded("messages")}
+                        onExpand={() => expand("messages", messageGroupValues(messageView, true)[MESSAGE_PREVIEW_LIMIT])}
+                        onOpen={openMessage}
+                        onRetry={retryMessages}
+                        notSearched={notSearched}
+                        scopeProvider={selectedProject?.provider}
+                    />
 
                     {/* Empty state with search tips */}
                     {!query && (
@@ -823,99 +467,17 @@ export const GlobalSearchModal = ({
                         </div>
                     )}
 
-                    {/* Typing but not enough chars */}
-                    {query && query.trim().length < 2 && !isSearching && (
-                        <div className="px-4 py-8 text-center text-body text-muted-foreground">
-                            {t("globalSearch.tips.minChars")}
-                        </div>
-                    )}
-
-                    {results.length > 0 && (
-                        <div className="py-2">
-                            {Array.from(groupedResults.entries()).map(
-                                ([groupKey, group]) => (
-                                    <div key={groupKey}>
-                                        {/* Project Header */}
-                                        <div className="px-4 py-1.5 text-list font-medium text-muted-foreground bg-muted sticky top-0 truncate flex items-center gap-2">
-                                            {group.provider && group.provider !== "claude" && (
-                                                <Badge
-                                                    size="sm"
-                                                    className={cn(
-                                                        "rounded px-1 py-0 text-caption",
-                                                        getProviderBadgeStyle(group.provider)
-                                                    )}
-                                                >
-                                                    {getProviderLabel((key, fallback) => t(key, fallback), group.provider)}
-                                                </Badge>
-                                            )}
-                                            {group.pathUnavailable && (
-                                                <Badge
-                                                    size="sm"
-                                                    className="rounded px-1 py-0 text-caption bg-warning/15 text-warning"
-                                                    title={t("project.pathUnavailableDescription", {
-                                                        defaultValue: "Last-known location is unavailable",
-                                                    })}
-                                                >
-                                                    {t("project.pathUnavailable", "Location unavailable")}
-                                                </Badge>
-                                            )}
-                                            <span className="truncate">{group.label}</span>
-                                        </div>
-
-                                        {/* Results in this project */}
-                                        {group.items.map((result, index) => {
-                                            return (
-                                                <CommandPrimitive.Item
-                                                    key={result.uuid}
-                                                    value={messageItemValue(groupKey, index, result)}
-                                                    onSelect={() => handleSelectResult(result)}
-                                                    className="w-full text-left px-4 py-2.5 cursor-pointer transition-colors data-[selected=true]:bg-muted"
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span
-                                                                    className={cn(
-                                                                        "inline-flex items-center gap-1 text-list px-1.5 py-0.5 rounded font-medium",
-                                                                        result.type === "user"
-                                                                            ? "bg-info/10 text-info"
-                                                                            : result.type === "assistant"
-                                                                              ? "bg-warning/10 text-warning"
-                                                                              : "bg-muted text-muted-foreground"
-                                                                    )}
-                                                                >
-                                                                    {result.type === "user" && <User className="w-3.5 h-3.5" />}
-                                                                    {result.type === "assistant" && <Bot className="w-3.5 h-3.5" />}
-                                                                    {result.type}
-                                                                </span>
-                                                                <span className="text-list text-muted-foreground">
-                                                                    {formatTimestamp(result.timestamp)}
-                                                                </span>
-                                                            </div>
-                                                            {(() => {
-                                                                const sessionName = getSessionName(result);
-                                                                return sessionName ? (
-                                                                    <p className="flex items-center gap-1 text-list text-muted-foreground/70 mb-0.5">
-                                                                        <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                                                                        <span className="truncate">{sessionName}</span>
-                                                                    </p>
-                                                                ) : null;
-                                                            })()}
-                                                            <p className="text-body text-foreground line-clamp-2">
-                                                                {highlightText(getPreviewText(result))}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </CommandPrimitive.Item>
-                                            );
-                                        })}
-                                    </div>
-                                ),
-                            )}
+                    {/* Typing, but too short for the message search */}
+                    {trimmed.length > 0 && trimmed.length < MIN_MESSAGE_QUERY && (
+                        <div className="px-4 py-3 text-list text-muted-foreground">
+                            {t("globalSearch.messages.minChars")}
                         </div>
                     )}
                 </CommandPrimitive.List>
                 <PaletteComboboxLink inputRef={inputRef} listRef={listRef} selectedValue={selectedValue} />
+                <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+                    {liveText}
+                </div>
 
                 {/* Footer with keyboard hints */}
                 <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground">
@@ -939,6 +501,18 @@ export const GlobalSearchModal = ({
                                 {t("globalSearch.select")}
                             </span>
                         </div>
+                        {/* Phones have no ⌘ / Ctrl key to hold. */}
+                        <div className="hidden sm:flex items-center gap-1">
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-caption">
+                                {isMacOS() ? "⌘" : "Ctrl"}
+                            </kbd>
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
+                                <CornerDownLeft className="w-3.5 h-3.5 inline" />
+                            </kbd>
+                            <span className="ml-1">
+                                {t("globalSearch.openInNewTab")}
+                            </span>
+                        </div>
                         <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-caption">
                                 esc
@@ -948,11 +522,11 @@ export const GlobalSearchModal = ({
                             </span>
                         </div>
                     </div>
-                    {results.length > 0 && (
+                    {messageCount > 0 && (
                         <span>
-                            {results.length >= MAX_RESULTS
-                                ? t("globalSearch.resultsCapped", { count: MAX_RESULTS })
-                                : t("globalSearch.results", { count: results.length })}
+                            {messageCount >= MAX_MESSAGE_RESULTS
+                                ? t("globalSearch.resultsCapped", { count: MAX_MESSAGE_RESULTS })
+                                : t("globalSearch.results", { count: messageCount })}
                         </span>
                     )}
                 </div>

@@ -24,6 +24,10 @@ const { mockApi, storeState, i18nMock } = vi.hoisted(() => {
         activeProviders: ["claude"],
         clearTargetMessage: vi.fn(),
         userMetadata: { settings: { wsl: { enabled: false, excludedDistros: [] } } },
+        // A message pick is a navigation: it claims the epoch first (T10).
+        navigationEpoch: 0,
+        beginNavigation: () => ++state.navigationEpoch,
+        excludeSidechain: false,
     };
     return { mockApi: vi.fn(), storeState: state, i18nMock: { unstable: false } };
 });
@@ -219,11 +223,10 @@ describe("⌘K palette: Commands group", () => {
         expect(screen.getByRole("option", { name: /hello world/ })).toHaveAttribute("aria-selected", "true");
         fireEvent.keyDown(input(), { key: "Enter" });
         await waitFor(() =>
-            expect(storeState.navigate).toHaveBeenCalledWith({
-                view: "conversation",
-                session,
-                messageId: "m1",
-            }),
+            expect(storeState.navigate).toHaveBeenCalledWith(
+                { view: "conversation", session, messageId: "m1" },
+                { epoch: storeState.navigationEpoch },
+            ),
         );
         storeState.sessions = [];
     });

@@ -46,6 +46,7 @@ import {
   type TabScreens,
 } from "./navigation/tabs";
 import { OpenSessionInNewTabContext } from "./contexts/openInNewTab";
+import { PlaceOpenersContext } from "./contexts/placeOpeners";
 
 import "./App.css";
 
@@ -406,7 +407,7 @@ function App() {
   );
 
   const handleSessionSelect = useCallback(
-    async (session: ClaudeSession, owner?: ClaudeProject) => {
+    async (session: ClaudeSession, owner?: ClaudeProject): Promise<boolean> => {
       try {
         // The project a session belongs to is the one that lists it: the
         // row's own project when the sidebar passes it, else the open
@@ -417,7 +418,7 @@ function App() {
 
         // One navigation: the conversation screen, the session's project (a
         // no-op when it is already open) and the session.
-        await navigate({
+        return await navigate({
           view: "conversation",
           project,
           session,
@@ -429,6 +430,7 @@ function App() {
         console.error("Failed to select session:", error);
         const message = error instanceof Error ? error.message : String(error);
         toast.error(`${t("session.selectError")}: ${message}`);
+        return false;
       }
     },
     [navigate, t]
@@ -460,13 +462,13 @@ function App() {
   );
 
   const handleProjectSelect = useCallback(
-    async (project: ClaudeProject) => {
+    async (project: ClaudeProject): Promise<boolean> => {
       const { selectedProject: currentProject, view: screenBefore } =
         useAppStore.getState();
 
       // Opening the open project again changes nothing: a re-click on its
       // sidebar row only expands or collapses it (plan §9b F3).
-      if (currentProject?.path === project.path) return;
+      if (currentProject?.path === project.path) return true;
 
       // The screen follows the user into the new project (global stats
       // becomes its analytics); its data is reloaded for that project.
@@ -476,15 +478,22 @@ function App() {
       setDateFilter({ start: null, end: null });
 
       const arrived = await navigate({ view, project });
-      if (!arrived) return;
+      if (!arrived) return false;
 
       try {
         await analyticsActions.openView(view);
       } catch (error) {
         console.error(`Failed to auto-load ${view} view:`, error);
       }
+      return true;
     },
     [navigate, analyticsActions, setDateFilter]
+  );
+
+  // The palette opens projects and sessions as their sidebar rows do (T10).
+  const placeOpeners = useMemo(
+    () => ({ openProject: handleProjectSelect, openSession: handleSessionSelect }),
+    [handleProjectSelect, handleSessionSelect]
   );
 
   // Hovering a session in the sidebar while the board is open brings its lane
@@ -501,6 +510,7 @@ function App() {
 
   return (
     <OpenSessionInNewTabContext.Provider value={handleSessionOpenInNewTab}>
+    <PlaceOpenersContext.Provider value={placeOpeners}>
     <AppLayout
       projects={projects}
       sessions={sessions}
@@ -552,6 +562,7 @@ function App() {
       globalOverviewDescription={globalOverviewDescription}
       liveStatusMessage={liveStatusMessage}
     />
+    </PlaceOpenersContext.Provider>
     </OpenSessionInNewTabContext.Provider>
   );
 }
