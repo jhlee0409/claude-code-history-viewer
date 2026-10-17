@@ -16,6 +16,7 @@ const getCommandContext = (): CommandContext => ({
     ownPlace: () => () => true,
     actions: {
         openPalette: vi.fn(),
+        openPreferences: vi.fn(),
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),

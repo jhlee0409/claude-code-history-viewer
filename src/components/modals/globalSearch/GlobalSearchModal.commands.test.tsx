@@ -99,6 +99,7 @@ function setUpPalette() {
     mockApi.mockResolvedValue([]);
     actions = {
         openPalette: vi.fn(),
+        openPreferences: vi.fn(),
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),

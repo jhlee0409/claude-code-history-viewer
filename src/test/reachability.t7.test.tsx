@@ -190,6 +190,7 @@ const REACHABILITY: { feature: string; before: string; after: Place[] }[] = [
 function fakeActions(): CommandActions {
   return {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),

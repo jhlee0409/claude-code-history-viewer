@@ -81,6 +81,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 
 const actions: CommandActions = {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),

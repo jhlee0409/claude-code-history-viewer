@@ -4,8 +4,8 @@
  * now, and how it runs.
  *
  * Every route to a command - a DOM shortcut (`shortcuts.ts`), the ⌘K palette
- * and, from T11a, the native menu - goes through `runCommand`, so they share
- * one `enabled` check. A command runs through the app's own actions
+ * and the desktop's native menu (`nativeMenu.ts`) - goes through
+ * `runCommand`, so they share one `enabled` check. A command runs through the app's own actions
  * (`navigate` via the screen switches, the store's toggles, the modal
  * context); the registry holds no state of its own.
  */
@@ -19,6 +19,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   SquareArrowRight,
   TextSearch,
   X,
@@ -54,6 +55,8 @@ export interface CommandContext {
 
 export interface CommandActions {
   openPalette: () => void;
+  /** Open the app's preferences: the toolbar's gear menu. */
+  openPreferences: () => void;
   goBack: () => unknown;
   goForward: () => unknown;
   focusFind: () => void;
@@ -195,6 +198,10 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
   "tab.goTo7": goToTab(7),
   "tab.goTo8": goToTab(8),
   "tab.goToLast": goToTab(9),
+  "app.preferences": {
+    icon: SlidersHorizontal,
+    run: (ctx) => ctx.actions.openPreferences(),
+  },
 };
 
 export type AppCommand = CommandManifestEntry & CommandHandler;

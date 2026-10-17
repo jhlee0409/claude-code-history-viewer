@@ -7,6 +7,7 @@ import type { CommandId } from "./manifest";
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),

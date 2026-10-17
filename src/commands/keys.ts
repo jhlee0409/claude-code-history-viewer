@@ -8,7 +8,7 @@
  * - modifiers: `Cmd` (⌘), `Ctrl`, `Alt` (⌥), `Shift`, and `CmdOrCtrl` - ⌘ on
  *   macOS, Ctrl elsewhere. Desktop entries name the real key per OS; the
  *   WebUI entry runs on any OS, so it uses `CmdOrCtrl`.
- * - key: one letter or digit, `[`, `]`, `ArrowLeft/Right/Up/Down`, or
+ * - key: one letter or digit, `[`, `]`, `,`, `ArrowLeft/Right/Up/Down`, or
  *   `PageUp/PageDown`.
  *
  * Which entry applies: the WebUI always uses `web` (browser-reserved keys
@@ -38,7 +38,7 @@ export interface Chord {
   ctrl: boolean;
   alt: boolean;
   shift: boolean;
-  /** Normalized key: lower-case letter/digit, `[`, `]`, or `ArrowLeft`... */
+  /** Normalized key: lower-case letter/digit, `[`, `]`, `,`, or `ArrowLeft`... */
   key: string;
 }
 
@@ -48,6 +48,7 @@ const PAGE_KEYS = ["PageUp", "PageDown"] as const;
 const PUNCTUATION_CODES: Readonly<Record<string, string>> = {
   "[": "BracketLeft",
   "]": "BracketRight",
+  ",": "Comma",
 };
 
 /** The entry that applies in `env`, or null for a command without one. */

@@ -14,11 +14,11 @@ import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAppStore } from "@/store/useAppStore";
 import { closeTab, cycleTab, newTab, selectTabAt } from "@/navigation/tabs";
 import { toggleInspector } from "@/components/Inspector/inspectorFocus";
+import { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT } from "./appEvents";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
 import type { CommandActions, CommandContext } from "./registry";
 
-/** The event the desktop updater listens for (`SimpleUpdateManager`). */
-export const MANUAL_UPDATE_CHECK_EVENT = "manual-update-check";
+export { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT };
 
 export function useCommandContext(): () => CommandContext {
   const { openModal } = useModal();
@@ -29,6 +29,7 @@ export function useCommandContext(): () => CommandContext {
 
   const actions: CommandActions = {
     openPalette: () => openModal("globalSearch"),
+    openPreferences: () => window.dispatchEvent(new Event(OPEN_PREFERENCES_EVENT)),
     goBack,
     goForward,
     focusFind: () => {

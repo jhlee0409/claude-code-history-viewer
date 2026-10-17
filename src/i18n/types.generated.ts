@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T13:56:07.587Z
- * 총 키 개수: 2182
+ * 생성 시간: 2026-10-17T15:02:17.824Z
+ * 총 키 개수: 2208
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (277개)
+ * common namespace의 번역 키 (303개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -78,6 +78,7 @@ export type CommonKeys =
   | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
+  | 'common.command.openPreferences'
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
@@ -150,6 +151,31 @@ export type CommonKeys =
   | 'common.inspector.tokens.error'
   | 'common.inspector.tokens.loading'
   | 'common.loading'
+  | 'common.menu.about'
+  | 'common.menu.bringAllToFront'
+  | 'common.menu.copy'
+  | 'common.menu.cut'
+  | 'common.menu.edit'
+  | 'common.menu.file'
+  | 'common.menu.fullscreen'
+  | 'common.menu.go'
+  | 'common.menu.help'
+  | 'common.menu.hide'
+  | 'common.menu.hideOthers'
+  | 'common.menu.inspector'
+  | 'common.menu.maximize'
+  | 'common.menu.minimap'
+  | 'common.menu.minimize'
+  | 'common.menu.paste'
+  | 'common.menu.quit'
+  | 'common.menu.redo'
+  | 'common.menu.selectAll'
+  | 'common.menu.services'
+  | 'common.menu.showAll'
+  | 'common.menu.undo'
+  | 'common.menu.view'
+  | 'common.menu.window'
+  | 'common.menu.zoom'
   | 'common.mobile.closeSidebar'
   | 'common.mobile.openNavigator'
   | 'common.mobile.openSidebar'
@@ -2655,6 +2681,7 @@ export type TranslationKey =
   | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
+  | 'common.command.openPreferences'
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
@@ -2727,6 +2754,31 @@ export type TranslationKey =
   | 'common.inspector.tokens.error'
   | 'common.inspector.tokens.loading'
   | 'common.loading'
+  | 'common.menu.about'
+  | 'common.menu.bringAllToFront'
+  | 'common.menu.copy'
+  | 'common.menu.cut'
+  | 'common.menu.edit'
+  | 'common.menu.file'
+  | 'common.menu.fullscreen'
+  | 'common.menu.go'
+  | 'common.menu.help'
+  | 'common.menu.hide'
+  | 'common.menu.hideOthers'
+  | 'common.menu.inspector'
+  | 'common.menu.maximize'
+  | 'common.menu.minimap'
+  | 'common.menu.minimize'
+  | 'common.menu.paste'
+  | 'common.menu.quit'
+  | 'common.menu.redo'
+  | 'common.menu.selectAll'
+  | 'common.menu.services'
+  | 'common.menu.showAll'
+  | 'common.menu.undo'
+  | 'common.menu.view'
+  | 'common.menu.window'
+  | 'common.menu.zoom'
   | 'common.mobile.closeSidebar'
   | 'common.mobile.openNavigator'
   | 'common.mobile.openSidebar'

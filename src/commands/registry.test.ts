@@ -31,6 +31,7 @@ const ENVIRONMENTS: KeyEnvironment[] = [
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
@@ -69,7 +70,8 @@ describe("command manifest", () => {
   it("lists exactly the typed command ids, each once", () => {
     const ids = raw.commands.map((entry) => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect([...ids].sort()).toEqual([...COMMAND_IDS].sort());
+    const frontend = raw.commands.filter((entry) => entry.source === "frontend").map((entry) => entry.id);
+    expect([...frontend].sort()).toEqual([...COMMAND_IDS].sort());
   });
 
   it("has a handler for every frontend command", () => {
