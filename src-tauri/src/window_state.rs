@@ -7,7 +7,7 @@
 //!   the window's normal (un-maximized) OUTER frame in physical pixels, the
 //!   scale factor and the monitor (name + physical rectangle) it was on, and
 //!   whether it was maximized. Written atomically by [`save`] (temp file in
-//!   the same folder, fsync, rename) when the window closes, when the app
+//!   the same folder, fsync, one rename) when the window closes, when the app
 //!   exits, and [`SAVE_DEBOUNCE`] after the last move or resize — never on
 //!   every event ([`Debouncer`]). A file that does not parse, has another
 //!   version or implausible values is ignored ([`parse`]): the window opens
@@ -531,8 +531,15 @@ fn temp_path(path: &Path) -> PathBuf {
 }
 
 /// Writes `record` to `path` atomically: a temp file in the same folder,
-/// fsynced, then renamed over the target (on Windows the target is removed
-/// first). A failed write leaves the previous file as it was.
+/// fsynced, then renamed over the target in one step. A write or rename
+/// that fails leaves the previous file as it was.
+///
+/// `fs::rename` replaces an existing target on every platform — on Windows
+/// it is `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` / `FileRenameInfoEx`
+/// with `REPLACE_IF_EXISTS` (std `sys/fs/windows.rs`, `rename`) — so
+/// `fs_utils::atomic_rename`'s remove-the-target-first step (the CLAUDE.md
+/// rule) is not needed, and skipping it closes the gap in which neither
+/// file exists.
 pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     let json = serde_json::to_vec_pretty(record).map_err(|e| format!("not serialized: {e}"))?;
     if let Some(dir) = path.parent() {
@@ -540,7 +547,10 @@ pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     }
     let temp = temp_path(path);
     crate::commands::fs_utils::write_fresh_temp_file(&temp, &json)?;
-    crate::commands::fs_utils::atomic_rename(&temp, path)
+    fs::rename(&temp, path).map_err(|e| {
+        let _ = fs::remove_file(&temp);
+        format!("{} not replaced: {e}", path.display())
+    })
 }
 
 // ---------------------------------------------------------------------------
