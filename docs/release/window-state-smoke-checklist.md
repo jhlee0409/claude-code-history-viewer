@@ -22,7 +22,7 @@ State file (delete it to reset):
 
 The file is versioned JSON: `frame` is the window's normal (un-maximized) OUTER frame (title bar
 and borders included) in physical pixels, with the `scale_factor` and `monitor` it was on, and
-`maximized`. It is written atomically (temp file + rename) about 0.5 s after the last move or
+`maximized`. It is written atomically (temp file + one replacing rename) about 0.5 s after the last move or
 resize, when the window is closed and when the app quits. A file that does not parse or has
 another `version` is ignored: the window opens at the default 1200×800, centered.
 
@@ -36,6 +36,9 @@ Artifact / SHA: ____________________  Tester / date: ____________________
       position (the exit save, not only the delayed one).
 - [ ] Maximize, quit, relaunch: the window opens maximized; un-maximizing returns to the size and
       position it had before maximizing.
+- [ ] Delete the state file, launch, maximize **without moving or resizing first**, quit,
+      relaunch: the window opens maximized; un-maximizing returns to the default 1200×800,
+      centered (not a work-area-sized window).
 - [ ] Enter fullscreen (F11 if available), quit, relaunch: the window opens as a normal window at
       its last non-fullscreen frame.
 - [ ] Minimize, quit from the taskbar, relaunch: the window opens at its last normal frame
@@ -62,6 +65,12 @@ fits the monitor it overlaps most; otherwise its outer frame is fitted to that m
       was.
 - [ ] Mixed DPI (e.g. 100 % + 150 %): save on the 150 % monitor, unplug it, relaunch: the window
       keeps its logical size on the 100 % monitor (not 1.5× too large). Note any offset.
+- [ ] Mixed DPI, window opening on the other monitor: with a 200 % primary and a 100 % second
+      monitor (Linux: per-monitor scaling), move the window onto the 100 % monitor, quit,
+      relaunch (the new window is created on the 200 % primary): it comes back on the 100 %
+      monitor at the same place and size — not at half its position and half its size on the
+      primary. On Wayland only the size is checked (the compositor places the window). Linux treats tao values as per-item scaled like macOS; Windows as global
+      pixels.
 - [ ] Edit the file to `{"version":1,"frame":` (corrupt), relaunch: the window opens at the
       default and is shown.
 
