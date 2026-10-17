@@ -18,11 +18,13 @@
 //!   frame comes from the pure [`restore_plan`] / [`place`].
 //!
 //! **Coordinates.** tao reports physical pixels, but they mean different
-//! things per platform. On Windows and Linux they are global desktop pixels.
-//! On macOS every value is that item's logical points times *its own* scale
-//! factor, so on a mixed-DPI desktop two monitors' physical rectangles can
-//! overlap although the screens do not. [`place`] therefore maps every
-//! rectangle into one desktop space first ([`DesktopSpace`]) and judges
+//! things per platform; [`DesktopSpace::of`] holds the one rule per platform
+//! and the tao lines it rests on. On Windows they are global desktop pixels.
+//! On macOS and GTK (Linux, X11 and Wayland) every value is that item's
+//! logical position/size times *its own* scale factor, so on a mixed-DPI
+//! desktop two monitors' physical rectangles can overlap although the
+//! screens do not, and a window's values change with its scale. [`place`]
+//! therefore maps every rectangle into one desktop space first and judges
 //! monitors one at a time: the chosen monitor is the one with the largest
 //! overlap; overlaps are never added up.
 //!
@@ -175,24 +177,66 @@ fn scale_rect(rect: Rect, factor: f64) -> Rect {
     )
 }
 
+/// The desktop backends tao has: what decides how its numbers read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Platform {
+    MacOs,
+    /// Every GTK target (Linux, the BSDs), X11 and Wayland alike.
+    Gtk,
+    Windows,
+}
+
+impl Platform {
+    /// The backend this build runs on.
+    pub const CURRENT: Self = if cfg!(target_os = "macos") {
+        Self::MacOs
+    } else if cfg!(target_os = "windows") {
+        Self::Windows
+    } else {
+        Self::Gtk
+    };
+}
+
 /// One coordinate space for every rectangle on the desktop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DesktopSpace {
-    /// Windows, Linux: tao's physical pixels are global desktop pixels.
+    /// tao's physical pixels are global desktop pixels.
     Physical,
-    /// macOS: an item's physical values are its logical points times its own
-    /// scale factor; the desktop space is logical points.
+    /// An item's physical values are its logical position/size times its
+    /// own scale factor; the desktop space is the logical one.
     ScaledPerItem,
 }
 
 impl DesktopSpace {
+    /// The one rule per platform, read from tao 0.35.3 (`platform_impl/`)
+    /// and tauri-runtime-wry 2.11.2 (`monitor/`, work areas):
+    ///
+    /// - macOS — `ScaledPerItem`: monitor `position`/`size`
+    ///   (`macos/monitor.rs:216,225`) and work area (`macos.rs:8`) are
+    ///   points × that screen's `backingScaleFactor`; window
+    ///   `outer_position`/`outer_size` (`macos/window.rs:706,746`) are points
+    ///   × the window's scale; `set_outer_position`/`set_inner_size`
+    ///   (`:728,755`) divide by the window's current scale.
+    /// - GTK — `ScaledPerItem`, the same shape: monitor `size`/`position`
+    ///   (`linux/monitor.rs:29,39`) and work area (`linux.rs:10`) are GDK
+    ///   geometry × that monitor's scale; window `outer_position`/
+    ///   `outer_size` (`linux/window.rs:449,501`) are GTK units × the
+    ///   window's scale; the setters (`:457,490`) divide by it.
+    /// - Windows — `Physical`: monitor rectangles and work areas are
+    ///   `GetMonitorInfoW` pixels (`windows/monitor.rs:199,215`,
+    ///   `windows.rs:9`), `outer_position`/`outer_size` are `GetWindowRect`
+    ///   (`windows/window.rs:213,264`) and the setters pass physical values
+    ///   through (`:229,273`): one global pixel space.
+    pub const fn of(platform: Platform) -> Self {
+        match platform {
+            Platform::MacOs | Platform::Gtk => Self::ScaledPerItem,
+            Platform::Windows => Self::Physical,
+        }
+    }
+
     /// The space of the platform this build runs on.
     pub const fn current() -> Self {
-        if cfg!(target_os = "macos") {
-            Self::ScaledPerItem
-        } else {
-            Self::Physical
-        }
+        Self::of(Platform::CURRENT)
     }
 
     /// Desktop units per logical pixel on a monitor of `scale_factor`.
@@ -1222,6 +1266,145 @@ mod placement_tests {
         );
         assert_eq!(plan.position, Some((100, 100)));
         assert_eq!(plan.inner_size, (1000, 700));
+    }
+
+    /// What tao does with the plan's physical values, per the setter lines
+    /// cited on [`DesktopSpace::of`]: macOS and GTK divide them by the
+    /// window's current scale (points / GTK units), Windows passes them on.
+    /// Returns the native (x, y, inner width, inner height).
+    fn native_frame(platform: Platform, plan: &RestorePlan, window_scale: f64) -> [f64; 4] {
+        let divisor = match platform {
+            Platform::MacOs | Platform::Gtk => window_scale,
+            Platform::Windows => 1.0,
+        };
+        let (x, y) = plan.position.expect("a position");
+        let (width, height) = plan.inner_size;
+        [
+            f64::from(x),
+            f64::from(y),
+            f64::from(width),
+            f64::from(height),
+        ]
+        .map(|value| value / divisor)
+    }
+
+    #[test]
+    fn each_platform_has_one_desktop_space() {
+        assert_eq!(DesktopSpace::of(Platform::MacOs), ScaledPerItem);
+        assert_eq!(DesktopSpace::of(Platform::Gtk), ScaledPerItem);
+        assert_eq!(DesktopSpace::of(Platform::Windows), Physical);
+        let expected = if cfg!(target_os = "macos") {
+            Platform::MacOs
+        } else if cfg!(target_os = "windows") {
+            Platform::Windows
+        } else {
+            Platform::Gtk
+        };
+        assert_eq!(Platform::CURRENT, expected);
+        assert_eq!(DesktopSpace::current(), DesktopSpace::of(expected));
+    }
+
+    /// A 2x primary (1440x900 logical, work area below a 25 px bar) and a
+    /// 1x 2560x1440 monitor to its right, as tao reports them on macOS and
+    /// GTK: each rectangle is its logical one times its own scale.
+    fn mixed_scale_per_item() -> [MonitorInfo; 2] {
+        [
+            MonitorInfo {
+                name: Some("primary".into()),
+                ..monitor(rect(0, 0, 2880, 1800), rect(0, 50, 2880, 1750), 2.0, true)
+            },
+            MonitorInfo {
+                name: Some("side".into()),
+                ..monitor(
+                    rect(1440, 0, 2560, 1440),
+                    rect(1440, 0, 2560, 1440),
+                    1.0,
+                    false,
+                )
+            },
+        ]
+    }
+
+    /// Review-2 F1 (probe 7): saved on the 1x side monitor at (1600,100)
+    /// 1000x600; the new window is created at 2x on the primary. GTK must
+    /// get back the saved GTK units, not half of them.
+    #[test]
+    fn gtk_mixed_scale_restores_the_saved_frame_into_a_window_of_another_scale() {
+        let monitors = mixed_scale_per_item();
+        let record = SavedWindow::new(
+            rect(1600, 100, 1000, 600),
+            1.0,
+            Some(SavedMonitor {
+                name: monitors[1].name.clone(),
+                bounds: monitors[1].bounds,
+            }),
+            false,
+        );
+        let window = metrics(2.0, (0, 0));
+        let plan = restore_plan(&record, &monitors, DesktopSpace::of(Platform::Gtk), window);
+        assert_eq!(
+            native_frame(Platform::Gtk, &plan, 2.0),
+            [1600.0, 100.0, 1000.0, 600.0]
+        );
+    }
+
+    /// GTK: the side monitor is gone; the frame moves onto the 2x primary
+    /// keeping its logical size (1000x600 GTK units).
+    #[test]
+    fn gtk_a_frame_from_a_removed_1x_monitor_keeps_its_logical_size_on_a_2x_one() {
+        let [primary, _] = mixed_scale_per_item();
+        let record = saved(rect(1600, 100, 1000, 600), 1.0);
+        let plan = restore_plan(
+            &record,
+            &[primary],
+            DesktopSpace::of(Platform::Gtk),
+            metrics(2.0, (0, 0)),
+        );
+        assert_eq!(
+            native_frame(Platform::Gtk, &plan, 2.0),
+            [440.0, 100.0, 1000.0, 600.0]
+        );
+    }
+
+    /// The same desktop on macOS: the saved points come back.
+    #[test]
+    fn macos_mixed_scale_restores_the_saved_frame_into_a_window_of_another_scale() {
+        let monitors = mixed_scale_per_item();
+        let record = saved(rect(1600, 100, 1000, 600), 1.0);
+        let plan = restore_plan(
+            &record,
+            &monitors,
+            DesktopSpace::of(Platform::MacOs),
+            metrics(2.0, (0, 0)),
+        );
+        assert_eq!(
+            native_frame(Platform::MacOs, &plan, 2.0),
+            [1600.0, 100.0, 1000.0, 600.0]
+        );
+    }
+
+    /// Windows: one global pixel space (the 1x monitor starts where the
+    /// 2x one's 2880 pixels end); the values pass through unchanged.
+    #[test]
+    fn windows_mixed_dpi_restores_the_saved_pixels_into_a_window_of_another_scale() {
+        let primary = monitor(rect(0, 0, 2880, 1800), rect(0, 0, 2880, 1720), 2.0, true);
+        let side = monitor(
+            rect(2880, 0, 2560, 1440),
+            rect(2880, 0, 2560, 1400),
+            1.0,
+            false,
+        );
+        let record = saved(rect(3000, 100, 1016, 639), 1.0);
+        let plan = restore_plan(
+            &record,
+            &[primary, side],
+            DesktopSpace::of(Platform::Windows),
+            metrics(2.0, (16, 39)),
+        );
+        assert_eq!(
+            native_frame(Platform::Windows, &plan, 2.0),
+            [3000.0, 100.0, 1000.0, 600.0]
+        );
     }
 
     #[test]
