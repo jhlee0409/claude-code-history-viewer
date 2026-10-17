@@ -129,6 +129,12 @@ describe("zoom controller", () => {
     await flush();
     const second = zoom.apply("in");
     view.fail(new Error("denied"));
+    await first.catch(() => undefined);
+    await flush();
+    // Nothing was ever applied, so the level the web view shows is unknown: the
+    // second step writes the fallback 100% rather than assume it is in place.
+    expect(view.requested).toEqual([1.2, 1]);
+    view.answer();
     const results = await Promise.allSettled([first, second]);
     expect(results.map((r) => r.status)).toEqual(["rejected", "fulfilled"]);
     expect(zoom.level()).toBe(1);
@@ -250,7 +256,20 @@ describe("where the engine changes zoom itself (WebView2 on Windows, review-3 F2
     const view = engine();
     const zoom = createZoomController(view.setZoom);
     await zoom.apply("reset");
-    expect(view.requested).toEqual([]);
+    await zoom.apply("reset");
+    expect(view.requested).toEqual([1]); // the first one: the level is not known yet
+  });
+
+  it("Actual Size after a page reload reaches the web view, which may have kept its zoom (macOS, Linux)", async () => {
+    const view = engine();
+    const beforeReload = createZoomController(view.setZoom);
+    await Promise.all([beforeReload.apply("in"), beforeReload.apply("in"), beforeReload.apply("in")]);
+    expect(view.actual()).toBe(1.6);
+    // WKWebView keeps its pageZoom across a page reload; the new page's controller starts unaware of it.
+    const afterReload = createZoomController(view.setZoom);
+    await afterReload.apply("reset");
+    expect(view.actual()).toBe(1);
+    expect(afterReload.level()).toBe(1);
   });
 
   it("is how the app's zoom behaves on Windows: View → Actual Size always reaches the web view", async () => {

@@ -73,8 +73,12 @@ export function createZoomController(
 ): ZoomController {
   /** The level asked for, moved synchronously by each step. */
   let target = 1;
-  /** The level the web view last applied (what it shows, where nothing else writes it). */
-  let applied = 1;
+  /**
+   * The level the web view last applied (what it shows, where nothing else
+   * writes it). Unknown until the first write: a page reload keeps the web
+   * view's zoom (WKWebView pageZoom) while this page starts at 100%.
+   */
+  let applied = Number.NaN;
   /** The web view is asked one level at a time, in step order. */
   let tail: Promise<void> = Promise.resolve();
   return {
@@ -89,7 +93,7 @@ export function createZoomController(
           await setZoom(wanted);
           applied = wanted;
         } catch (error) {
-          target = applied;
+          target = Number.isNaN(applied) ? 1 : applied;
           throw error;
         }
       });
