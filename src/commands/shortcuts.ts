@@ -22,6 +22,11 @@
  *   in a field, whatever the command says;
  * - the command cannot run here, so the browser keeps its default (⌘F stays
  *   the browser's find outside a conversation).
+ *
+ * One exception: a key the native menu owns, pressed in a field or dialog
+ * its command does not work in, is prevented (run by no one). Left alone it
+ * would reach the menu item, which does not know where focus is - ⌘[ would
+ * go back from the sidebar filter, ⌘T open a tab behind the palette.
  */
 import { matchesChord, parseAccelerator, shortcutFor, type Chord, type KeyEnvironment } from "./keys";
 import type { CommandId } from "./manifest";
@@ -89,9 +94,16 @@ export function createShortcutHandler({
     const binding = bindings.find(({ chord }) => matchesChord(event, chord));
     if (!binding) return;
     const { command } = binding;
-    if (binding.menuKey && ownedByNativeMenu?.(command.id)) return;
-    if (!runsInFields(binding) && isEditableTarget(event.target)) return;
-    if (!command.keys?.inDialogs && isInDialog(event.target)) return;
+    const notHere =
+      (!runsInFields(binding) && isEditableTarget(event.target)) ||
+      (!command.keys?.inDialogs && isInDialog(event.target));
+    if (binding.menuKey && ownedByNativeMenu?.(command.id)) {
+      // The menu item does not know where focus is: keep the key from it
+      // where the command does not work (⌘[ in a field, ⌘T behind a dialog).
+      if (notHere) event.preventDefault();
+      return;
+    }
+    if (notHere) return;
     const ctx = getContext();
     if (!isCommandEnabled(command, ctx)) return;
     event.preventDefault();

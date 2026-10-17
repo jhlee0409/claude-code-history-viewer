@@ -258,5 +258,32 @@ describe("shortcut handler", () => {
       press({ key: "]", code: "BracketRight", metaKey: true });
       expect(ctx.actions.goForward).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * The native menu does not know where focus is: a key the listener leaves
+     * alone reaches the menu item, which would run it from a field or behind
+     * a modal dialog the command does not work in (⌘[ from the sidebar
+     * filter, ⌘T behind the palette). The listener keeps such a key from the
+     * menu - prevented, run by no one - as the DOM owner does elsewhere.
+     */
+    it("keeps a native-menu key from the menu in a field or dialog the command does not work in", () => {
+      const owned = new Set<CommandId>(["go.back", "tab.new", "view.zoomIn"]);
+      const ctx = setup(MAC_DESKTOP, makeContext(), owned);
+      const input = document.body.appendChild(document.createElement("input"));
+      const dialog = document.body.appendChild(document.createElement("div"));
+      dialog.setAttribute("role", "dialog");
+      const dialogInput = dialog.appendChild(document.createElement("input"));
+
+      expect(press({ key: "[", code: "BracketLeft", metaKey: true }, input).defaultPrevented).toBe(true);
+      expect(press({ key: "t", code: "KeyT", metaKey: true }, dialogInput).defaultPrevented).toBe(true);
+      expect(ctx.actions.goBack).not.toHaveBeenCalled();
+      expect(ctx.actions.newTab).not.toHaveBeenCalled();
+
+      // Where the command does work, the menu still gets the key.
+      expect(press({ key: "t", code: "KeyT", metaKey: true }, input).defaultPrevented).toBe(false);
+      expect(press({ key: "=", code: "Equal", metaKey: true }, dialogInput).defaultPrevented).toBe(false);
+      expect(ctx.actions.newTab).not.toHaveBeenCalled();
+      expect(ctx.actions.zoom).not.toHaveBeenCalled();
+    });
   });
 });
