@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { useTranslation } from "react-i18next";
-import { Bot, LoaderCircle, MessageSquare, RotateCw, TriangleAlert, User } from "lucide-react";
+import { Bot, LoaderCircle, MessageSquare, User } from "lucide-react";
 import { api } from "@/services/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
 import { getLocale } from "@/utils/time";
 import { MESSAGE_PREVIEW_LIMIT, MORE_MESSAGES_VALUE, RETRY_MESSAGES_VALUE } from "@/commands/paletteSources";
 import { messageItemValue } from "./paletteMessageValues";
-import { PALETTE_GROUP_CLASS, PALETTE_ROW_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
+import { FailedLoad, PALETTE_GROUP_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
 import type { MessageSearchView } from "./usePaletteMessageSearch";
 
 // Conversation titles per project, shared across palette opens. Keyed by
@@ -277,15 +277,8 @@ export function PaletteMessageGroup({
 
   if (view.status === "idle") return null;
 
-  const note = (children: React.ReactNode, tone: "muted" | "error" = "muted") => (
-    <div
-      className={cn(
-        "flex items-center gap-2 px-4 py-2 text-list",
-        tone === "error" ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      {children}
-    </div>
+  const note = (children: React.ReactNode) => (
+    <div className="flex items-center gap-2 px-4 py-2 text-list text-muted-foreground">{children}</div>
   );
 
   return (
@@ -305,19 +298,7 @@ export function PaletteMessageGroup({
           </span>,
         )}
       {view.status === "error" && (
-        <>
-          {note(
-            <>
-              <TriangleAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>{t("globalSearch.messages.failed")}</span>
-            </>,
-            "error",
-          )}
-          <CommandPrimitive.Item value={RETRY_MESSAGES_VALUE} onSelect={onRetry} className={PALETTE_ROW_CLASS}>
-            <RotateCw className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>{t("globalSearch.messages.retry")}</span>
-          </CommandPrimitive.Item>
-        </>
+        <FailedLoad message={t("globalSearch.messages.failed")} retryValue={RETRY_MESSAGES_VALUE} onRetry={onRetry} />
       )}
       {view.status === "done" && view.results.length === 0 && note(<span>{t("globalSearch.messages.none")}</span>)}
       {Array.from(groups.entries()).map(([key, group]) => (

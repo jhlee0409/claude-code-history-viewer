@@ -306,3 +306,4 @@ export const MORE_PROJECTS_VALUE = "more:projects";
 export const MORE_SESSIONS_VALUE = "more:sessions";
 export const MORE_MESSAGES_VALUE = "more:messages";
 export const RETRY_MESSAGES_VALUE = "retry:messages";
+export const RETRY_SESSIONS_VALUE = "retry:sessions";

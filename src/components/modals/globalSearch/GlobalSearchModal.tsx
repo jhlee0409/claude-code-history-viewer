@@ -13,6 +13,10 @@
  *   others; a live region reports its outcome to screen readers.
  * - The scope chip ("This project" / "All projects") scopes Sessions and
  *   Messages; Projects always lists every project.
+ * - Scoped with Tab to a project that is not open, Sessions reads its list
+ *   (`useScopedProjectSessions`). If that fails the group says so - its
+ *   rows are then only the sessions the app already knew of - with a "Try
+ *   again" item, and the scope's live region reports it.
  * - Tab on a highlighted Projects row scopes Sessions and Messages to that
  *   project without opening it (phones: the row's "Search in this project"
  *   button). A pill naming the project stands in for the chip until it is
@@ -57,6 +61,7 @@ import {
     MORE_PROJECTS_VALUE,
     MORE_SESSIONS_VALUE,
     projectItemValue,
+    RETRY_SESSIONS_VALUE,
     sessionCandidates,
     sessionItemValue,
     unsearchableProviders,
@@ -163,7 +168,11 @@ export const GlobalSearchModal = ({
         project: scopedProject,
         enabled: isOpen,
     });
-    const pinnedSessions = useScopedProjectSessions(pinned, selectedProject ?? null, sessions ?? []);
+    const {
+        sessions: pinnedSessions,
+        failed: pinnedSessionsFailed,
+        retry: retryPinnedSessions,
+    } = useScopedProjectSessions(pinned, selectedProject ?? null, sessions ?? []);
 
     // ---- the synchronous sources -------------------------------------------
     const commandEntries = paletteEntries(query, getCommandContext(), t);
@@ -201,6 +210,7 @@ export const GlobalSearchModal = ({
     const itemValues = [
         ...commandEntries.filter((entry) => entry.enabled).map((entry) => commandItemValue(entry.command.id)),
         ...shownValues(projectHits, "projects", (i) => projectItemValue(projectHits[i]!.project), MORE_PROJECTS_VALUE),
+        ...(pinnedSessionsFailed ? [RETRY_SESSIONS_VALUE] : []),
         ...shownValues(sessionHits, "sessions", (i) => sessionItemValue(sessionHits[i]!), MORE_SESSIONS_VALUE),
         ...messageGroupValues(messageView, isExpanded("messages")),
     ];
@@ -361,6 +371,7 @@ export const GlobalSearchModal = ({
     const trimmed = query.trim();
     const scopeProjectLabel = selectedProject ? getProjectDisplayName(selectedProject) : undefined;
     const pinnedLabel = pinned ? getProjectDisplayName(pinned) : "";
+    const sessionsFailedText = pinnedSessionsFailed ? t("globalSearch.sessions.failed", { project: pinnedLabel }) : "";
     // The pill's text around the project name, which alone may shorten.
     const [pillBefore = "", pillAfter = ""] = pinned
         ? String(t("globalSearch.scope.pinned", { project: NAME_SLOT })).split(NAME_SLOT)
@@ -521,6 +532,7 @@ export const GlobalSearchModal = ({
                         expanded={isExpanded("sessions")}
                         onExpand={() => expand("sessions", sessionHits[GROUP_LIMIT] && sessionItemValue(sessionHits[GROUP_LIMIT]))}
                         onOpen={openSession}
+                        failed={pinnedSessionsFailed ? { project: pinnedLabel, onRetry: retryPinnedSessions } : undefined}
                     />
                     <PaletteMessageGroup
                         view={messageView}
@@ -571,9 +583,10 @@ export const GlobalSearchModal = ({
                 <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
                     {liveText}
                 </div>
-                {/* The scope's own region: its change is not the search's outcome. */}
+                {/* The scope's own region: its change is not the search's outcome;
+                    nor is its session list failing, which it reports too. */}
                 <div data-palette-scope-live aria-live="polite" aria-atomic="true" className="sr-only">
-                    {scopeNotice}
+                    {sessionsFailedText || scopeNotice}
                 </div>
 
                 {/* Footer: keyboard hints (not on phones, which have no

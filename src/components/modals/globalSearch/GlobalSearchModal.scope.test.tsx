@@ -143,10 +143,12 @@ const hit = (uuid: string, text: string, projectName = "alpha") => ({
 });
 function held() {
     let resolve!: (value: unknown) => void;
-    const promise = new Promise((res) => {
+    let reject!: (error: unknown) => void;
+    const promise = new Promise((res, rej) => {
         resolve = res;
+        reject = rej;
     });
-    return { promise, resolve };
+    return { promise, resolve, reject };
 }
 const searches = () => mockApi.mock.calls.filter(([command]) => String(command).startsWith("search"));
 const pill = () => screen.queryByRole("button", { name: /^globalSearch\.scope\.pinnedAria:/ });
@@ -410,6 +412,110 @@ describe("⌘K palette: a scoped search is owned by its project", () => {
         expect(pill()).toHaveAccessibleName("globalSearch.scope.pinnedAria:alpha");
         await sleep(20);
         expect(mockApi.mock.calls.filter(([c]) => String(c).startsWith("load_"))).toEqual([]);
+    });
+});
+
+describe("⌘K palette: the scoped project's session list fails", () => {
+    const failedText = "globalSearch.sessions.failed:beta-login";
+    const BETA_RECENT = {
+        ref: { provider: "claude", filePath: "/store/beta-login/r1.jsonl", sessionId: "r1", projectPath: BETA.path },
+        title: "Login recent work",
+        openedAt: 1,
+    };
+    const betaListCalls = () =>
+        mockApi.mock.calls.filter(([command, args]) => command === "load_project_sessions" && args?.projectPath === BETA.path);
+    /** BETA's list answers with `answer()`; every other request as usual. */
+    const betaListAnswers = (answer: () => Promise<unknown>) =>
+        mockApi.mockImplementation((command: string, args: { projectPath?: string }) => {
+            if (command === "load_project_sessions") {
+                return args.projectPath === BETA.path ? answer() : Promise.resolve([session("gamma", "g1", "Gamma login")]);
+            }
+            return Promise.resolve([]);
+        });
+
+    beforeEach(() => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    it("says so in the Sessions group, with 'Try again', and keeps the project's recent sessions", async () => {
+        storeState.recentSessions = [BETA_RECENT];
+        betaListAnswers(() => Promise.reject(new Error("list unavailable")));
+        render(<Harness />);
+        pinBeta();
+        fireEvent.change(input(), { target: { value: "login" } });
+        const sessions = await waitFor(() => {
+            const g = group("globalSearch.group.sessions");
+            expect(g).toBeDefined();
+            expect(within(g!).getByText(failedText)).toBeInTheDocument();
+            return g!;
+        });
+        expect(within(sessions).getByRole("option", { name: /globalSearch\.messages\.retry/ })).toBeInTheDocument();
+        expect(within(sessions).getByRole("option", { name: /Login recent work/ })).toBeInTheDocument();
+        // Announced politely, in the scope's own live region.
+        expect(liveScope()).toHaveTextContent(failedText);
+    });
+
+    it("says so with nothing typed too (no recent sessions to fall back on)", async () => {
+        betaListAnswers(() => Promise.reject(new Error("list unavailable")));
+        render(<Harness />);
+        pinBeta();
+        fireEvent.change(input(), { target: { value: "" } });
+        await waitFor(() => expect(within(group("globalSearch.group.sessions")!).getByText(failedText)).toBeInTheDocument());
+    });
+
+    it("'Try again' asks for the list again; its answer replaces the failure", async () => {
+        const answers = [() => Promise.reject(new Error("list unavailable")), () => Promise.resolve(BETA_SESSIONS)];
+        betaListAnswers(() => answers.shift()!());
+        render(<Harness />);
+        pinBeta();
+        fireEvent.change(input(), { target: { value: "login" } });
+        const retry = await screen.findByRole("option", { name: /globalSearch\.messages\.retry/ });
+        fireEvent.click(retry);
+        await waitFor(() => expect(screen.getByRole("option", { name: /Login flow rewrite/ })).toBeInTheDocument());
+        expect(betaListCalls()).toHaveLength(2);
+        expect(screen.queryByText(failedText)).toBeNull();
+        expect(screen.queryByRole("option", { name: /globalSearch\.messages\.retry/ })).toBeNull();
+        expect(liveScope()).not.toHaveTextContent(failedText);
+    });
+
+    it("a failure of a project the scope has left never shows", async () => {
+        const betaList = held();
+        betaListAnswers(() => betaList.promise);
+        render(<Harness />);
+        pinBeta();
+        fireEvent.change(input(), { target: { value: "gamma" } });
+        pressTab();
+        fireEvent.change(input(), { target: { value: "login" } });
+        await act(async () => betaList.reject(new Error("late")));
+        await waitFor(() => expect(screen.getByRole("option", { name: /Gamma login/ })).toBeInTheDocument());
+        expect(screen.queryByText(failedText)).toBeNull();
+        expect(screen.queryByRole("option", { name: /globalSearch\.messages\.retry/ })).toBeNull();
+        expect(liveScope()).not.toHaveTextContent(/globalSearch\.sessions\.failed/);
+    });
+
+    it("clearing the scope drops its failure", async () => {
+        betaListAnswers(() => Promise.reject(new Error("list unavailable")));
+        render(<Harness />);
+        pinBeta();
+        await waitFor(() => expect(within(group("globalSearch.group.sessions")!).getByText(failedText)).toBeInTheDocument());
+        fireEvent.click(pill()!);
+        expect(screen.queryByText(failedText)).toBeNull();
+        expect(liveScope()).toHaveTextContent("globalSearch.live.scopeCleared:globalSearch.scope.all");
+    });
+
+    it("a failure landing after the palette closed shows nothing, then or on reopening", async () => {
+        const betaList = held();
+        betaListAnswers(() => betaList.promise);
+        const { unmount } = render(<Harness />);
+        pinBeta();
+        fireEvent.keyDown(input(), { key: "Escape" });
+        expect(screen.getByTestId("closed")).toBeInTheDocument();
+        await act(async () => betaList.reject(new Error("late")));
+        unmount();
+        render(<Harness />);
+        await sleep(20);
+        expect(screen.queryByText(failedText)).toBeNull();
+        expect(console.error).not.toHaveBeenCalled();
     });
 });
 

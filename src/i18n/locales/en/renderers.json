@@ -429,6 +429,7 @@
   "globalSearch.messages.unsearchable": "Messages in {{providers}} conversations can't be searched",
   "globalSearch.messages.notSearched": "Not searched: {{providers}}",
   "globalSearch.messages.minChars": "Type at least 2 characters to search messages",
+  "globalSearch.sessions.failed": "Couldn't load every session in {{project}}",
   "globalSearch.live.found": "Messages found: {{count}}",
   "globalSearch.live.scopePinned": "Searching in {{project}}",
   "globalSearch.live.scopeCleared": "Search scope: {{scope}}",

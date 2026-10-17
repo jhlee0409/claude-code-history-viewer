@@ -429,6 +429,7 @@
   "globalSearch.messages.unsearchable": "{{providers}} 대화의 메시지는 검색할 수 없습니다",
   "globalSearch.messages.notSearched": "검색하지 않음: {{providers}}",
   "globalSearch.messages.minChars": "메시지를 검색하려면 2자 이상 입력하세요",
+  "globalSearch.sessions.failed": "{{project}}의 세션을 모두 불러오지 못했습니다",
   "globalSearch.live.found": "찾은 메시지: {{count}}개",
   "globalSearch.live.scopePinned": "{{project}}에서 검색합니다",
   "globalSearch.live.scopeCleared": "검색 범위: {{scope}}",

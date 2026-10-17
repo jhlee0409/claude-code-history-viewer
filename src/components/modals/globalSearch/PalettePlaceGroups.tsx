@@ -1,12 +1,13 @@
 /**
  * The ⌘K palette's Projects and Sessions groups (plan T10), and the pieces
  * every palette group shares: the heading style, the matched-text
- * highlight and the "Show N more" item. Each row is a cmdk item; picking it
+ * highlight, the "Show N more" item and the failed-load row with its
+ * "Try again" item. Each row is a cmdk item; picking it
  * opens the place (`onOpen`), ⌘/Ctrl held: in a new tab (the palette notes
  * the modifier).
  */
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronDown, Folder, FolderSearch, MessageSquare } from "lucide-react";
+import { ChevronDown, Folder, FolderSearch, MessageSquare, RotateCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   MORE_PROJECTS_VALUE,
   MORE_SESSIONS_VALUE,
   projectItemValue,
+  RETRY_SESSIONS_VALUE,
   sessionItemValue,
   type ProjectHit,
   type SessionCandidate,
@@ -74,6 +76,26 @@ export function ShowMoreItem({ value, label, onSelect }: { value: string; label:
       <ChevronDown className="w-4 h-4 shrink-0" aria-hidden="true" />
       <span className="truncate">{label}</span>
     </CommandPrimitive.Item>
+  );
+}
+
+/**
+ * A group's load failed: what failed (`message`, in the destructive tone)
+ * and a "Try again" item that asks again.
+ */
+export function FailedLoad({ message, retryValue, onRetry }: { message: string; retryValue: string; onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="flex items-center gap-2 px-4 py-2 text-list text-destructive">
+        <TriangleAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
+        <span>{message}</span>
+      </div>
+      <CommandPrimitive.Item value={retryValue} onSelect={onRetry} className={PALETTE_ROW_CLASS}>
+        <RotateCw className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span>{t("globalSearch.messages.retry")}</span>
+      </CommandPrimitive.Item>
+    </>
   );
 }
 
@@ -170,12 +192,28 @@ function ScopeRowButton({ onScope }: { onScope: () => void }) {
   );
 }
 
-export function PaletteSessionGroup({ hits, query, expanded, onExpand, onOpen }: GroupProps<SessionCandidate>) {
+interface SessionGroupProps extends GroupProps<SessionCandidate> {
+  /**
+   * The scoped project's session list failed (`project`: its name): the
+   * group says it is incomplete - the hits are only the sessions the app
+   * already knew of - and offers to ask again. Shown with no hits too.
+   */
+  failed?: { project: string; onRetry: () => void };
+}
+
+export function PaletteSessionGroup({ hits, query, expanded, onExpand, onOpen, failed }: SessionGroupProps) {
   const { t } = useTranslation();
-  if (hits.length === 0) return null;
+  if (hits.length === 0 && !failed) return null;
   const shown = expanded ? hits : hits.slice(0, GROUP_LIMIT);
   return (
     <CommandPrimitive.Group heading={t("globalSearch.group.sessions")} className={PALETTE_GROUP_CLASS}>
+      {failed && (
+        <FailedLoad
+          message={t("globalSearch.sessions.failed", { project: failed.project })}
+          retryValue={RETRY_SESSIONS_VALUE}
+          onRetry={failed.onRetry}
+        />
+      )}
       {shown.map((hit) => (
         <CommandPrimitive.Item
           key={hit.key}

@@ -429,6 +429,7 @@
   "globalSearch.messages.unsearchable": "无法搜索 {{providers}} 对话中的消息",
   "globalSearch.messages.notSearched": "未搜索：{{providers}}",
   "globalSearch.messages.minChars": "输入至少 2 个字符以搜索消息",
+  "globalSearch.sessions.failed": "无法加载 {{project}} 的全部会话",
   "globalSearch.live.found": "找到的消息：{{count}} 条",
   "globalSearch.live.scopePinned": "正在 {{project}} 中搜索",
   "globalSearch.live.scopeCleared": "搜索范围：{{scope}}",

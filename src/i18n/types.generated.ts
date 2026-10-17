@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T13:05:47.969Z
- * 총 키 개수: 2181
+ * 생성 시간: 2026-10-17T13:56:07.587Z
+ * 총 키 개수: 2182
  * Namespace 수: 11
  */
 
@@ -1659,7 +1659,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (434개)
+ * renderers namespace의 번역 키 (435개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1886,6 +1886,7 @@ export type RenderersKeys =
   | 'globalSearch.searching'
   | 'globalSearch.select'
   | 'globalSearch.sessionNotFound'
+  | 'globalSearch.sessions.failed'
   | 'globalSearch.shortcutHint'
   | 'globalSearch.showAllMessages'
   | 'globalSearch.showMore'
@@ -3087,6 +3088,7 @@ export type TranslationKey =
   | 'globalSearch.searching'
   | 'globalSearch.select'
   | 'globalSearch.sessionNotFound'
+  | 'globalSearch.sessions.failed'
   | 'globalSearch.shortcutHint'
   | 'globalSearch.showAllMessages'
   | 'globalSearch.showMore'

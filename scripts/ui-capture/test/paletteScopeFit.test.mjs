@@ -10,6 +10,9 @@
 // - Desktop (1440, and 640 - the narrowest width that shows the keyboard
 //   hints): the footer's hints, "Tab" included, stay on one line inside the
 //   footer; the row button is not shown; Tab scopes and the pill fits.
+// - The scoped project's session list fails: the Sessions group shows a
+//   failure row (inside the dialog, every locale on the narrowest phone)
+//   and "Try again", which asks again and lists the sessions.
 //
 // Real WebKit, the real app and the harness scenario's own steps, like
 // `paletteFit.test.mjs`. Skipped without WebKit or a built server.
@@ -184,6 +187,89 @@ describe.skipIf(!ENABLED)("⌘K palette Tab-to-scope on a phone", () => {
         }
       }, 120_000);
     }
+  }
+});
+
+// The scoped project's session list fails (a 500 from the server): the
+// Sessions group says so inside the dialog, the scope's live region reports
+// it, and "Try again" asks again - its answer lists the project's sessions.
+// The review's repro: before the fix the group simply had no rows.
+describe.skipIf(!ENABLED)("⌘K palette Tab-to-scope: the project's session list fails", () => {
+  const cases = [
+    { scenario: () => DESKTOP, locale: "en", width: 1440 },
+    ...SUPPORTED_LOCALES.map((locale) => ({ scenario: () => PHONE, locale, width: 360, touch: true })),
+  ];
+  for (const { scenario, locale, width, touch } of cases) {
+    it(`${locale} @${width}: a failure row and "Try again" in Sessions; retry lists the sessions`, async () => {
+      const { session, t } = await openPalette({
+        scenario: scenario(),
+        locale,
+        width,
+        contextOptions: touch ? { hasTouch: true } : {},
+      });
+      const { page } = session;
+      try {
+        let failing = true;
+        let asked = 0;
+        await page.route(`${server.origin}/api/load_project_sessions`, (route) => {
+          const body = route.request().postDataJSON() ?? {};
+          if (!String(body.projectPath ?? "").includes(PROJECT)) return route.fallback();
+          asked += 1;
+          if (!failing) return route.fallback();
+          return route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "review list unavailable" }),
+          });
+        });
+
+        const dialog = page.getByRole("dialog");
+        const field = dialog.locator("input[role=combobox]");
+        if (touch) {
+          await dialog
+            .locator("[cmdk-item]")
+            .filter({ hasText: PROJECT })
+            .getByRole("button", { name: t("globalSearch.scope.pinAction"), exact: true })
+            .tap();
+        } else {
+          await field.press("Tab");
+        }
+        await dialog.getByRole("button", { name: pillName(t, PROJECT), exact: true }).waitFor();
+        await field.fill("state");
+
+        const failedText = t("globalSearch.sessions.failed").replace("{{project}}", PROJECT);
+        const sessions = dialog
+          .locator("[cmdk-group]")
+          .filter({ has: page.locator("[cmdk-group-heading]", { hasText: t("globalSearch.group.sessions") }) });
+        const failure = sessions.getByText(failedText, { exact: true });
+        await failure.waitFor();
+        const retry = sessions.getByRole("option", { name: t("globalSearch.messages.retry"), exact: true });
+        expect(await retry.isVisible()).toBe(true);
+        expect(await dialog.locator("[data-palette-scope-live]").textContent()).toBe(failedText);
+        expect(asked).toBe(1);
+
+        // Inside the dialog, its words whole (it wraps rather than clips).
+        const fit = await failure.evaluate((el) => {
+          const dialogRect = el.closest("[role=dialog]").getBoundingClientRect();
+          const r = el.getBoundingClientRect();
+          return { left: r.left, right: r.right, dialogLeft: dialogRect.left, dialogRight: dialogRect.right, clipped: el.scrollWidth > el.clientWidth + 0.5 };
+        });
+        expect(fit.left).toBeGreaterThanOrEqual(fit.dialogLeft);
+        expect(fit.right).toBeLessThanOrEqual(fit.dialogRight + 0.5);
+        expect(fit.clipped).toBe(false);
+
+        failing = false;
+        if (touch) await retry.tap();
+        else await retry.click();
+        await sessions.getByRole("option", { name: /Split the Terraform state per environment/ }).waitFor();
+        expect(asked).toBe(2);
+        expect(await failure.count()).toBe(0);
+        expect(await retry.count()).toBe(0);
+        expect(await dialog.locator("[data-palette-scope-live]").textContent()).not.toBe(failedText);
+      } finally {
+        await session.close();
+      }
+    }, 120_000);
   }
 });
 

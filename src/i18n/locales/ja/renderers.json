@@ -429,6 +429,7 @@
   "globalSearch.messages.unsearchable": "{{providers}}の会話のメッセージは検索できません",
   "globalSearch.messages.notSearched": "検索対象外: {{providers}}",
   "globalSearch.messages.minChars": "メッセージを検索するには2文字以上入力してください",
+  "globalSearch.sessions.failed": "{{project}} のセッションをすべて読み込めませんでした",
   "globalSearch.live.found": "見つかったメッセージ: {{count}}件",
   "globalSearch.live.scopePinned": "{{project}} 内を検索します",
   "globalSearch.live.scopeCleared": "検索範囲: {{scope}}",
