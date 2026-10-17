@@ -145,7 +145,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -183,7 +183,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -444,7 +444,7 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -482,7 +482,7 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -747,7 +747,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -785,7 +785,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -2257,7 +2257,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -2295,7 +2295,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -3245,7 +3245,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -3283,7 +3283,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -3610,7 +3610,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -3648,7 +3648,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -3979,7 +3979,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -4017,7 +4017,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"
@@ -5433,7 +5433,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="overview"
                     id="analytics-subtab-overview"
                     role="tab"
@@ -5471,7 +5471,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
                   <button
                     aria-controls="analytics-subtab-panel"
                     aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
                     data-analytics-tab="tokens"
                     id="analytics-subtab-tokens"
                     role="tab"

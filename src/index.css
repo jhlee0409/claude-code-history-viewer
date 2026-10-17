@@ -1002,6 +1002,17 @@
       0 1px 2px oklch(0 0 0 / 0.08);
   }
 
+  /* Keyboard focus, for every segmented control (the base layer removes the
+     browser outline). A 2px accent ring outside the item, with a 1px gap of
+     track: it reads apart from the selected item's inset 1px border, takes no
+     layout space, fits inside the track's padding, and outlines survive
+     forced-colors mode. ≥3:1 against the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  .segmented-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
   /* === Elevated Surface (Card with depth) === */
   .surface-elevated {
     @apply bg-card border border-border;

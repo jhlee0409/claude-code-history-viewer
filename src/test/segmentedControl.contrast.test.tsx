@@ -65,6 +65,32 @@ describe("segmented control contrast (selected vs unselected)", () => {
     });
   }
 
+  for (const [label, selector] of Object.entries(THEMES)) {
+    it(`${label}: the keyboard-focus ring stands out from the track it sits on (${NON_TEXT}:1)`, () => {
+      // The ring is drawn outside the item (outline + offset), over the track.
+      const r = contrast(oklch(block(selector), "accent"), oklch(block(selector), "segmented-track"));
+      expect(r, `${label}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+    });
+  }
+
+  it("keyboard focus has its own shared ring: an outline outside the item, no layout shift", () => {
+    // The global `:focus-visible` rule removes the browser outline, so every
+    // segmented control needs this one; the selected state (an inset 1px
+    // border) is not a focus indicator.
+    const focus = CSS.match(/\.segmented-item:focus-visible\s*\{([^}]*)\}/);
+    expect(focus, "no shared .segmented-item:focus-visible rule in index.css").not.toBeNull();
+    const body = focus![1]!;
+    expect(body).toMatch(/outline:\s*2px\s+solid\s+var\(--accent\)/);
+    expect(body).toMatch(/outline-offset:\s*1px/);
+    // An outline takes no space; anything that does would move the row.
+    expect(body).not.toMatch(/\b(border|padding|margin|width|height)\s*:/);
+    // Inside the components layer, so it beats the base layer's outline reset.
+    const components = CSS.indexOf("@layer components {");
+    const at = CSS.indexOf(".segmented-item:focus-visible");
+    expect(at).toBeGreaterThan(components);
+    expect(at).toBeLessThan(CSS.indexOf("@layer utilities {", components));
+  });
+
   it("the selected state is drawn from those tokens, for both aria-pressed and aria-selected", () => {
     const selected = CSS.match(
       /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\]\s*\{([^}]*)\}/
@@ -118,6 +144,45 @@ describe("every segmented control uses the shared style", () => {
   it("metric mode (Tokens / Cost)", () => {
     render(<MetricModeToggle value="tokens" onChange={() => {}} />);
     expectShared();
+  });
+
+  it("every segmented item relies on the shared focus ring (no per-control focus utilities)", () => {
+    // A per-site ring would draw a second, different indicator on one control
+    // and hide that the shared rule is missing elsewhere.
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        if (fs.statSync(full).isDirectory()) walk(full);
+        else if (/\.tsx$/.test(entry) && !/\.test\.tsx$/.test(entry)) {
+          const text = fs.readFileSync(full, "utf8");
+          // Each class string (or cn(...) call) that names segmented-item.
+          for (const match of text.matchAll(/(?:cn\([^)]*\)|"[^"]*")/gs)) {
+            const classes = match[0];
+            if (!/\bsegmented-item\b/.test(classes)) continue;
+            if (/focus-visible:|focus-ring-inset|\bfocus:/.test(classes)) {
+              offenders.push(path.relative(SRC, full));
+            }
+          }
+        }
+      }
+    };
+    walk(SRC);
+    expect(offenders).toEqual([]);
+  });
+
+  it.each([
+    ["Edits scope", () => <RecentEditsScopeToggle value="project" onChange={() => {}} />],
+    ["Edits density", () => <RecentEditsDensityToggle value="compact" onChange={() => {}} />],
+    ["analytics sub-tabs", () => <AnalyticsSubTabs value="tokens" onChange={() => {}} />],
+    ["metric mode", () => <MetricModeToggle value="tokens" onChange={() => {}} />],
+  ])("%s: rendered items carry only the shared focus style", (_name, ui) => {
+    const { container } = render(ui());
+    const items = container.querySelectorAll(".segmented-item");
+    expect(items.length).toBeGreaterThan(1);
+    for (const item of items) {
+      expect(item.className).not.toMatch(/focus-visible:|focus-ring-inset|\bfocus:/);
+    }
   });
 
   it("no component keeps the old faint selected style (bg-card + shadow-sm on a muted track)", () => {

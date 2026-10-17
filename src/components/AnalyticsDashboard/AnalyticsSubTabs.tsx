@@ -15,7 +15,6 @@ import { useRef, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "@/components/icon/Icon";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
-import { cn } from "@/lib/utils";
 import { ANALYTICS_TABS, type AnalyticsTab } from "@/navigation/place";
 import { ANALYTICS_SUBTAB_PANEL_ID, analyticsSubTabId } from "./analyticsSubTabIds";
 
@@ -81,10 +80,7 @@ export const AnalyticsSubTabs = ({ value, onChange }: AnalyticsSubTabsProps) => 
               tabIndex={selected ? 0 : -1}
               data-analytics-tab={tab}
               onClick={() => select(tab)}
-              className={cn(
-                "segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-              )}
+              className="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
             >
               <Icon
                 icon={ICONS[tab]}
