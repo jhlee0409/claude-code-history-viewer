@@ -12,6 +12,7 @@ import {
   dispatchCommand,
   getCommand,
   issueCommand,
+  issueMenuCommand,
   paletteCommands,
   runCommand,
   type CommandActions,
@@ -342,7 +343,7 @@ describe("dispatchCommand: the one executor every input goes through (review-3 F
   });
 });
 
-describe("command targets: captured at issue (ADR 0001 decision 6, review-4 F1)", () => {
+describe("command targets: the tab in front at issue (ADR 0001 decision 6, review-4 F1, review-5)", () => {
   /** ADR 0001's table: command id -> declared scope. */
   function adrTargetTable(): Map<string, string> {
     const adr = readFileSync(resolve(process.cwd(), "docs/adr/0001-native-menu-input-ownership.md"), "utf8");
@@ -408,27 +409,86 @@ describe("command targets: captured at issue (ADR 0001 decision 6, review-4 F1)"
     expect(ctx.actions.selectTab).toHaveBeenCalledWith("X");
   });
 
-  describe("through the queue", () => {
-    /** A live context whose tabs the test moves, like the store does. */
-    function liveTabs(initial: TabsSnapshot) {
-      let tabs = initial;
-      const ctx = makeContext();
-      vi.mocked(ctx.actions.newTab).mockImplementation(() => {
-        tabs = { activeId: "new", ids: [...tabs.ids, "new"] };
-      });
-      vi.mocked(ctx.actions.closeTab).mockImplementation((id: string) => {
-        const ids = tabs.ids.filter((t) => t !== id);
-        tabs = { activeId: tabs.activeId === id ? ids[0]! : tabs.activeId, ids };
-      });
-      return {
-        ctx,
-        getContext: (): CommandContext => ({ ...ctx, tabs }),
-        click: (id: string) => {
-          tabs = { ...tabs, activeId: id };
-        },
-      };
-    }
+  /** Live tabs the test moves like the store does: a click, New, Close. */
+  function liveTabs(initial: TabsSnapshot) {
+    let tabs = initial;
+    const ctx = runnable();
+    vi.mocked(ctx.actions.newTab).mockImplementation(() => {
+      tabs = { activeId: "new", ids: [...tabs.ids, "new"] };
+    });
+    vi.mocked(ctx.actions.closeTab).mockImplementation((id: string) => {
+      const ids = tabs.ids.filter((t) => t !== id);
+      tabs = { activeId: tabs.activeId === id ? ids[0]! : tabs.activeId, ids };
+    });
+    return {
+      ctx,
+      getContext: (): CommandContext => ({ ...ctx, tabs }),
+      click: (id: string) => {
+        tabs = { ...tabs, activeId: id };
+      },
+    };
+  }
 
+  /** Every call argument any action got, flattened. */
+  const actionArgs = (ctx: CommandContext): unknown[] =>
+    Object.values(ctx.actions).flatMap((action) => vi.mocked(action).mock.calls.flat());
+
+  describe("census: every command takes the tab in front at issue (WYSIWYG, review-5 F1)", () => {
+    it("a key/palette/control issued on A, run after a click on B: app runs, tab acts on A, shown does nothing", () => {
+      for (const command of COMMANDS) {
+        const app = liveTabs(live);
+        const job = issueCommand(command.id, app.getContext); // B in front
+        app.click("C");
+        job();
+        const scope = command.target.scope;
+        expect(actionsCalled(app.ctx), command.id).toBe(scope !== "shown");
+        if (scope === "tab") {
+          expect(actionArgs(app.ctx), command.id).toContain("B");
+          expect(actionArgs(app.ctx), command.id).not.toContain("C");
+        }
+      }
+    });
+
+    it("a menu event without a front-tab stamp runs app commands only", () => {
+      for (const command of COMMANDS) {
+        const app = liveTabs(live);
+        issueMenuCommand(command.id, null, app.getContext)();
+        expect(actionsCalled(app.ctx), command.id).toBe(command.target.scope === "app");
+      }
+    });
+
+    it("a menu event stamped with a tab closed since runs app commands only", () => {
+      for (const command of COMMANDS) {
+        const app = liveTabs(live);
+        issueMenuCommand(command.id, "gone", app.getContext)();
+        expect(actionsCalled(app.ctx), command.id).toBe(command.target.scope === "app");
+      }
+    });
+
+    it("a menu event stamped with the tab in front runs every command, a tab one on the stamped tab", () => {
+      for (const command of COMMANDS) {
+        const app = liveTabs(live);
+        issueMenuCommand(command.id, "B", app.getContext)();
+        expect(actionsCalled(app.ctx), command.id).toBe(true);
+      }
+    });
+
+    it("a menu event stamped on B, run after a click on C: app runs, tab acts on B, shown does nothing", () => {
+      for (const command of COMMANDS) {
+        const app = liveTabs(live);
+        app.click("C");
+        issueMenuCommand(command.id, "B", app.getContext)();
+        const scope = command.target.scope;
+        expect(actionsCalled(app.ctx), command.id).toBe(scope !== "shown");
+        if (scope === "tab") {
+          expect(actionArgs(app.ctx), command.id).toContain("B");
+          expect(actionArgs(app.ctx), command.id).not.toContain("C");
+        }
+      }
+    });
+  });
+
+  describe("through the queue", () => {
     it("a click after a queued ⌘W does not redirect it", () => {
       const queue = createCommandQueue();
       const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
@@ -439,25 +499,26 @@ describe("command targets: captured at issue (ADR 0001 decision 6, review-4 F1)"
       expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("A");
     });
 
-    it("a command queued earlier that moves the tabs moves the target: New then ⌘W closes the new tab", () => {
+    it("two ⌘W each followed by a click close the two tabs they were pressed on (review-5 F1)", () => {
       const queue = createCommandQueue();
-      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
-      const hold = queue.hold();
-      dispatchCommand("tab.close", app.getContext, queue); // waits behind the hold
-      app.click("B"); // after ⌘W: changes nothing for it
-      hold.run(issueCommand("tab.new", app.getContext, queue)); // a menu New chosen earlier, at the hold's place
-      hold.release();
-      expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("new");
-    });
-
-    it("a command queued earlier that leaves the tabs alone does not undo a click's effect on its target", () => {
-      const queue = createCommandQueue();
-      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
+      const app = liveTabs({ activeId: "A", ids: ["A", "B", "C"] });
       const hold = queue.hold();
       dispatchCommand("tab.close", app.getContext, queue);
       app.click("B");
-      hold.run(issueCommand("help.feedback", app.getContext, queue));
+      dispatchCommand("tab.close", app.getContext, queue);
+      app.click("C");
       hold.release();
+      expect(vi.mocked(app.ctx.actions.closeTab).mock.calls).toEqual([["A"], ["B"]]);
+    });
+
+    it("a command queued earlier that changes the tabs does not move a later one's target: New then ⌘W closes the tab seen at ⌘W", () => {
+      const queue = createCommandQueue();
+      const app = liveTabs({ activeId: "A", ids: ["A", "B"] });
+      const hold = queue.hold();
+      dispatchCommand("tab.close", app.getContext, queue); // pressed with A in front, waits behind the hold
+      hold.run(issueMenuCommand("tab.new", null, app.getContext)); // a menu New chosen earlier: runs at the hold's place
+      hold.release();
+      expect(app.ctx.actions.newTab).toHaveBeenCalledTimes(1);
       expect(app.ctx.actions.closeTab).toHaveBeenCalledWith("A");
     });
   });

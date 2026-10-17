@@ -22,11 +22,9 @@
  * inside it. A command that throws is logged and the queue goes on.
  *
  * A command waiting here keeps the target it was issued against
- * (`commandTarget.ts`): the queue carries the ledger of the tab changes its
- * own commands made, which `issueCommand` (`registry.ts`) records into.
+ * (`commandTarget.ts`): the tab the user saw in front when they issued it,
+ * whatever runs ahead of it.
  */
-import { createTargetLedger, type TargetLedger } from "./commandTarget";
-
 
 /** The longest a hold keeps later commands waiting. */
 export const HOLD_LIMIT_MS = 1000;
@@ -43,8 +41,6 @@ export interface CommandQueue {
   submit: (job: () => void) => void;
   /** Keep commands submitted from now on waiting until `release` (at most `holdLimitMs`). */
   hold: () => CommandHold;
-  /** The tab changes this queue's commands made: what moves a waiting command's target. */
-  targets: TargetLedger;
 }
 
 interface JobEntry {
@@ -136,7 +132,7 @@ export function createCommandQueue({ holdLimitMs = HOLD_LIMIT_MS }: CommandQueue
     };
   };
 
-  return { submit, hold, targets: createTargetLedger() };
+  return { submit, hold };
 }
 
 /** The app's one command queue: every input runs its commands through it. */

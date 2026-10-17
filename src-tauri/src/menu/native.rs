@@ -11,7 +11,8 @@
 //! - `sync_menu_state` takes the frontend's language and command state: a new
 //!   language rebuilds the menu; otherwise changed items are updated in place.
 //!   The state is only shown: the page owns the shortcuts and re-checks a
-//!   command when its menu event runs.
+//!   command when its menu event runs. It also carries the page's tab in
+//!   front, which the journal stamps on every event chosen after it.
 //!
 //! One app-wide menu-event handler is registered once at startup, so a
 //! rebuilt menu adds no listener.
@@ -246,8 +247,11 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
 pub async fn sync_menu_state(
     app: AppHandle,
     bridge: State<'_, MenuBridge>,
+    journal: State<'_, MenuJournal>,
     state: MenuStatePayload,
 ) -> Result<(), String> {
+    // First, whatever happens to the menu: the stamp of the next menu events.
+    journal.report_front_tab(state.front_tab_id.clone());
     let outcome = bridge.sync(manifest(), state);
     if let Err(error) = apply_outcome(&app, &outcome) {
         bridge.apply_failed();

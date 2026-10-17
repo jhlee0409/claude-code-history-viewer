@@ -1,14 +1,14 @@
 /**
- * What a command acts on, captured when it is issued
- * (docs/adr/0001-native-menu-input-ownership.md, decision 6).
+ * What a command acts on: the tab the user saw in front when they issued it
+ * (docs/adr/0001-native-menu-input-ownership.md, decision 6 - WYSIWYG).
  *
  * A command can wait in the command queue (`commandQueue.ts`) while input
  * outside the queue - a click on the tab strip, in the sidebar - changes
- * which tab is in front. A command that acts on a tab must act on the tab
- * that was in front when the user issued it, not on whatever is in front
- * when it finally runs. So each command declares its target, the tabs are
- * recorded when it is issued (`TabsSnapshot`), and it runs only while its
- * target is still there:
+ * which tab is in front, and a menu event can reach the page after such a
+ * click. A command that acts on a tab must act on the tab that was in front
+ * when the user issued it, not on whatever is in front when it finally
+ * runs. So each command declares its target, the tabs are recorded at issue
+ * (`TabsSnapshot`), and it runs only while its target is still there:
  *
  * - `app`: nothing tab-bound (the window, an app-wide setting): it runs.
  * - `tab`: one tab, picked at issue: it acts on that tab, in front or not;
@@ -17,10 +17,14 @@
  *   then): it does nothing once another tab is in front, or the picked tab
  *   is closed.
  *
- * Commands issued earlier move the target; input outside the queue does not.
- * When a queued command changes the tabs (New, Close, a switch) the commands
- * still waiting behind it take the tabs as it left them (`TargetLedger`):
- * what they would have seen had everything run at once.
+ * The target is captured once and never recomputed - not from the commands
+ * queued ahead of it either: a New queued before ⌘W leaves ⌘W closing the
+ * tab the user saw. Where the issue moment is:
+ *
+ * - a key, the palette, a control: when the key is pressed / the control
+ *   clicked (`issueCommand`, `registry.ts`);
+ * - a menu event: when the host recorded it, which stamps it with the tab
+ *   the page last reported in front (`menuIssuedTabs`). No stamp: no tab.
  */
 
 /** The tabs as they stand: the one in front, and their order. */
@@ -39,52 +43,27 @@ export interface CommandTarget {
 
 export const APP_TARGET: CommandTarget = { scope: "app" };
 
-const sameTabs = (a: TabsSnapshot, b: TabsSnapshot): boolean =>
-  a.activeId === b.activeId && a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i]);
-
 /**
  * The tab a command issued against `issued` acts on now that the tabs are
- * `live`, or null when its target is gone and it must do nothing. An `app`
- * command gets the tab in front now (it does not use it).
+ * `live`, or null when its target is gone and it must do nothing. `issued`
+ * null: which tab was in front at issue is unknown, so only an `app`
+ * command runs. An `app` command gets the tab in front now (it does not use it).
  */
-export function targetTab(target: CommandTarget, issued: TabsSnapshot, live: TabsSnapshot): string | null {
+export function targetTab(target: CommandTarget, issued: TabsSnapshot | null, live: TabsSnapshot): string | null {
   if (target.scope === "app") return live.activeId;
+  if (issued === null) return null;
   if (target.scope === "shown" && issued.activeId !== live.activeId) return null;
   const id = target.pick ? target.pick(issued) : issued.activeId;
   return id !== null && live.ids.includes(id) ? id : null;
 }
 
-/** A command's tabs as recorded at its issue, in a ledger's terms. */
-export interface IssuedTabs {
-  tabs: TabsSnapshot;
-  /** How many tab changes by queued commands the ledger had seen then. */
-  moves: number;
-}
-
 /**
- * The record of tab changes made by the queued commands themselves (one per
- * command queue). It is what lets a command issued earlier move the target
- * of the ones waiting behind it, while a click (outside the queue) cannot.
+ * The tabs a menu event was issued against: the tab the host stamped as in
+ * front when the user chose it, in the tab order as the page has it now
+ * (the host keeps no order: a ⌘n item picks its position from the order
+ * when the page hands the event over). No stamp - an older host, or no page
+ * had reported its tabs yet - is null: no tab is the target.
  */
-export interface TargetLedger {
-  /** Record the tabs a command is issued against. */
-  issue: (now: TabsSnapshot) => IssuedTabs;
-  /** The tabs it acts against: as issued, or as the queued commands that ran since left them. */
-  tabsFor: (issued: IssuedTabs) => TabsSnapshot;
-  /** A queued command ran: if it changed the tabs, the commands still waiting take them as it left them. */
-  ran: (before: TabsSnapshot, after: TabsSnapshot) => void;
-}
-
-export function createTargetLedger(): TargetLedger {
-  let moves = 0;
-  let leftBy: TabsSnapshot | null = null;
-  return {
-    issue: (now) => ({ tabs: now, moves }),
-    tabsFor: (issued) => (issued.moves === moves || leftBy === null ? issued.tabs : leftBy),
-    ran: (before, after) => {
-      if (sameTabs(before, after)) return;
-      moves += 1;
-      leftBy = after;
-    },
-  };
+export function menuIssuedTabs(frontTabId: string | null | undefined, live: TabsSnapshot): TabsSnapshot | null {
+  return frontTabId ? { activeId: frontTabId, ids: live.ids } : null;
 }

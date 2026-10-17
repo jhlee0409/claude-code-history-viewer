@@ -1474,7 +1474,7 @@ mod tests {
         for (route, body, expected) in [
             (
                 "sync_menu_state",
-                r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}}}}"#,
+                r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}},"frontTabId":"t1"}}"#,
                 serde_json::json!(null),
             ),
             (

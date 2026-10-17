@@ -32,6 +32,11 @@
  * pull answers, and during a refetch after a gap - it holds the queue: a key
  * or palette command arriving meanwhile runs after those events. A failed
  * pull lets go of the queue while it waits to retry, so keys keep working.
+ *
+ * Each event carries the tab the host stamped as in front when it was
+ * chosen (`frontTabId`, from the page's last `sync_menu_state`); the journal
+ * hands it over with the command, which acts on that tab, never on the one
+ * in front when the event arrives (ADR 0001 decision 6).
  */
 
 import type { CommandHold, CommandQueue } from "./commandQueue";
@@ -43,6 +48,11 @@ export interface MenuEvent {
   seq: number;
   /** The command id. */
   id: string;
+  /**
+   * The tab in front when it was chosen, as the page last reported it to the
+   * host. Null (or absent, from an older host): unknown - no tab is its target.
+   */
+  frontTabId?: string | null;
 }
 
 /** A live `menu-command` event: the host run it belongs to, its number, its command. */
@@ -71,10 +81,10 @@ export interface MenuJournalDeps {
   /** Tell the host every event up to `seq` ran. */
   ack: (epoch: string, seq: number) => Promise<void>;
   /**
-   * Issue command `id` - its target is recorded now, as the page hands the
-   * event to the queue (`issueCommand`) - and return its run.
+   * Issue command `id` on the tab the host stamped as in front when it was
+   * chosen (`issueMenuCommand`), and return its run.
    */
-  issue: (id: string) => () => void;
+  issue: (id: string, frontTabId: string | null) => () => void;
   cursor: MenuCursorStore;
   /** The one command queue the keys and the palette use too. */
   queue: CommandQueue;
@@ -144,7 +154,7 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
   /** The last sequence number that ran (what may be acknowledged). */
   let ran = 0;
   /** Events known but not yet run, by number. */
-  const pending = new Map<number, string>();
+  const pending = new Map<number, MenuEvent>();
   /** Live events before the first pull answered (their epoch is not known to be current yet). */
   let early: LiveMenuEvent[] = [];
   let pulling = false;
@@ -169,8 +179,8 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
     hold = null;
   };
 
-  const accept = (seq: number, id: string) => {
-    if (seq > cursor) pending.set(seq, id);
+  const accept = (event: MenuEvent) => {
+    if (event.seq > cursor) pending.set(event.seq, event);
   };
 
   const sendAck = () => {
@@ -193,8 +203,8 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
   };
 
   /** Hand one event to the command queue: at the hold's place while holding. */
-  const execute = (runEpoch: string, seq: number, id: string) => {
-    const command = deps.issue(id);
+  const execute = (runEpoch: string, { seq, id, frontTabId }: MenuEvent) => {
+    const command = deps.issue(id, frontTabId ?? null);
     const job = () => {
       // A stopped journal runs nothing more: the next one pulls this event again.
       if (stopped || epoch !== runEpoch) return;
@@ -218,11 +228,11 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
     for (;;) {
       if (stopped) return;
       const next = cursor + 1;
-      const id = pending.get(next);
-      if (id === undefined) break;
+      const event = pending.get(next);
+      if (event === undefined) break;
       pending.delete(next);
       cursor = next;
-      execute(epoch, next, id);
+      execute(epoch, event);
     }
     if (pending.size > 0 && !afterPull) pull();
   };
@@ -241,9 +251,9 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
     // to the queue but still waiting there stays the host's until it runs.
     ran = Math.max(ran, done);
     for (const seq of [...pending.keys()]) if (seq <= cursor) pending.delete(seq);
-    for (const event of early) if (event.epoch === epoch) accept(event.seq, event.id);
+    for (const event of early) if (event.epoch === epoch) accept(event);
     early = [];
-    for (const event of snapshot.events) accept(event.seq, event.id);
+    for (const event of snapshot.events) accept(event);
     drain(true);
     sendAck();
     // A held event newer than this answer leaves a gap the journal had not
@@ -308,7 +318,7 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
       if (!pulling) pull();
       return;
     }
-    accept(event.seq, event.id);
+    accept(event);
     drain(false);
   };
 

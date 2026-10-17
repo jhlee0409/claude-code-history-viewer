@@ -28,7 +28,8 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    Linux items carry no app accelerators (GTK activates window accelerators before the
    focused widget; neither is measured yet).
 2. **Every menu event goes through one journal.** Rust numbers each app-command menu event
-   (`epoch` + monotonic `seq`), keeps it until acknowledged and emits it live. The page runs
+   (`epoch` + monotonic `seq`), stamps it with the tab the page last reported in front
+   (`frontTabId`, decision 6), keeps it until acknowledged and emits it live. The page runs
    events strictly in `seq` order, writes its cursor (sessionStorage) before running, and
    acknowledges; a reload or a replacement listener pulls the unacknowledged events and skips
    those at or below the cursor. No ready state or page-load hook exists. A listener that
@@ -58,25 +59,38 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    its way - the controller never trusts its copy of the applied level there: every menu
    step writes the newest level and Actual Size always calls `setZoom(1)`; no cache can skip
    a write (review-4 F2). Steps still go one at a time, so an older level is never sent.
-6. **A command's target is captured when it is issued, not when it runs.** A command waits
-   in the queue (decision 3) while input outside the queue - a click on the tab strip, in
-   the sidebar, in the transcript - goes on changing which tab is in front. So when a
-   command is handed to the queue (`issueCommand` in `src/commands/registry.ts`: a key, the
-   palette, a control, or the journal handing over a menu event) it records the tabs as
-   they are then (`TabsSnapshot`: the tab in front and the tab order), and every command
-   declares what it acts on (`target` in its handler, `src/commands/commandTarget.ts`):
+6. **A command acts on the tab the user saw in front when they issued it (WYSIWYG).** A
+   command waits in the queue (decision 3) while input outside the queue - a click on the
+   tab strip, in the sidebar, in the transcript - goes on changing which tab is in front, and
+   a menu event can reach the page after such a click. So the target is captured once, at
+   the moment the user issued the command, and never recomputed - not from what is in front
+   when it runs, and not from the commands queued ahead of it:
+   - a key, the palette, a control: `issueCommand` (`src/commands/registry.ts`) records the
+     tabs (`TabsSnapshot`: the tab in front and the tab order) synchronously, in the
+     keydown / click handler;
+   - a menu event: the host stamps it, when it records it, with the tab the page last
+     reported in front (`frontTabId`, `src-tauri/src/menu/journal.rs`). The page reports
+     the tab in front on every `sync_menu_state`, and a change of it is sent in the same
+     task as the click (or right after the sync in flight; never coalesced away). The
+     page targets the stamped tab (`issueMenuCommand`); a ⌘n item picks its position from
+     the tab order when the page hands the event over (the host keeps no order). No stamp -
+     no page has reported yet in this run, or an older host - means no tab: tab-bound
+     commands do nothing rather than guess.
+
+   Every command declares what it acts on (`target` in its handler,
+   `src/commands/commandTarget.ts`):
    - `app`: nothing tab-bound (the window, an app-wide setting); it runs as issued;
    - `tab`: one tab picked at issue; it acts on that tab whether or not it is in front,
      and does nothing once the tab is closed;
    - `shown`: the tab in front at issue (or one picked from the tab order then); it does
      nothing once another tab is in front, or the picked tab is closed.
 
-   Commands issued *earlier* move the target, input outside the queue never does: when a
-   queued command changes the tabs (New, Close, a switch), the commands still waiting
-   behind it take the tabs as it left them (`TargetLedger`). That is what they would have
-   seen had everything run at once - a menu New chosen before ⌘W still makes ⌘W close the
-   new tab (review-3 F1) - while a click after ⌘W cannot redirect it (review-4 F1). With
-   nothing waiting, issue and run are the same moment and nothing changes.
+   A command queued earlier never moves a later one's target: two ⌘W, each followed by a
+   click, close the two tabs they were pressed on (review-5 F1), and a menu New chosen
+   before ⌘W leaves ⌘W closing the tab the user saw when pressing it - not the new tab
+   (this replaces the review-3 F1 rule that commands behind a New took the tabs as it left
+   them; its composition with clicks closed a tab picked after the keypress, review-5 F1).
+   With nothing waiting, issue and run are the same moment and nothing changes.
 
    | Command | Target captured at issue | Runs later, target gone / not in front |
    |---|---|---|
@@ -90,13 +104,14 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    | `tab.new` | `app` - a new tab at the end, whatever is in front | runs |
    | `tab.close` | `tab` - the tab in front at issue | closes that tab, in front or not; closed already: nothing |
    | `tab.next` `tab.previous` | `shown` - steps from the tab in front at issue | another tab in front, or it is closed: nothing |
-   | `tab.goTo1` `tab.goTo2` `tab.goTo3` `tab.goTo4` `tab.goTo5` `tab.goTo6` `tab.goTo7` `tab.goTo8` `tab.goToLast` | `shown` - and the tab at that position at issue | another tab in front, or that tab closed: nothing |
+   | `tab.goTo1` `tab.goTo2` `tab.goTo3` `tab.goTo4` `tab.goTo5` `tab.goTo6` `tab.goTo7` `tab.goTo8` `tab.goToLast` | `shown` - and the tab at that position at issue (a menu item: when the page hands it over) | another tab in front, or that tab closed: nothing |
    | `go.back` `go.forward` | `shown` - that tab's own place history | another tab in front: nothing |
    | `edit.find` | `shown` - that tab's find field | another tab in front: nothing |
    | `go.settingsManager` `go.archive` | `shown` - opens in that tab | another tab in front: nothing |
 
    `registry.test.ts` checks this table against the handlers and runs every command with a
-   moved and a closed target.
+   moved and a closed target, issued by a key and by a menu event (stamped on the tab in
+   front, on a tab clicked away from, on a closed tab, and unstamped).
 
 ## Consequences
 
@@ -110,11 +125,27 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
 - The journal orders invocation, not completion: a command that awaits is not a mutex
   (navigation keeps its own latest-wins epochs; zoom serializes its host writes).
 - A waiting command can no longer be redirected by a click: ⌘W pressed on A closes A even
-  if B was clicked before ⌘W's turn came (review-4 F1); Back, Next Tab, ⌘n, Find and the
-  screen commands issued on A do nothing once B is in front. Limit: the host does not know
-  which tab was in front when a menu item was chosen, so a menu event is issued, for the
-  page, when the journal hands it to the queue - an event the page first hears of after a
-  click runs on the tab in front then.
+  if B was clicked before ⌘W's turn came (review-4 F1, review-5 F1), and a menu Close
+  chosen on A closes A however late the page hears of it (review-5 F2); Back, Next Tab,
+  ⌘n, Find and the screen commands issued on A do nothing once B is in front. Two inputs
+  queued together are not chained either: ⌘W then Next Tab pressed on A, both held, closes
+  A and leaves Next doing nothing (A is gone), where at once Next would step from the tab
+  ⌘W left in front.
+- Residual window (menu events only): the stamp is the tab the host last *received*. A tab
+  click and a menu choice made within one `sync_menu_state` hop of each other - the click
+  first - stamp the menu event with the tab in front before the click. The page side adds
+  no delay (the report is sent in the same task as the click, tested), except while a sync
+  is still in flight (it follows that reply). The IPC hop itself is not measured: it needs
+  the native app, and no headless run reaches it. Reaching a menu item after a click
+  (moving to the menu bar, opening the menu, choosing) takes far longer than an IPC round
+  trip, so the window is not expected to be reachable by hand (an expectation, not a
+  measurement); a menu key equivalent only reaches the menu
+  while no page listens (mid-reload), when no click can happen either. A key, the palette
+  and controls have no such window (captured in the page's own handler). Two longer lags
+  are bounded by other rules: while syncs fail, the stamp stays at the last tab received
+  until a retry or the next tab change lands (the user is told after the retries); across a
+  reload it stays at the old page's last report until the new page's first sync, which
+  names the same tab as tab ids are restored with the tabs (`tabs.v2`).
 - A key pressed while no page listens (mid-reload) reaches the menu item and is journaled,
   so it runs once after the load; it skips the page's focus/IME rules, like a menu click.
 - On Windows the View menu steps from the level it last set; a pinch in between is not seen.

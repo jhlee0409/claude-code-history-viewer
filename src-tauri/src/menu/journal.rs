@@ -14,6 +14,11 @@
 //!   frontend skips it instead of waiting for it.
 //! - Ids outside the manifest's menu commands (OS items, unknown ids) are
 //!   not recorded.
+//! - Every event is stamped with the tab the page last reported in front
+//!   (`report_front_tab`, from each `sync_menu_state`) when it is recorded:
+//!   the tab the user saw when they chose it (ADR 0001 decision 6). The page
+//!   acts on that tab, or on none: an event with no stamp (no page reported
+//!   yet in this run) touches no tab.
 
 use super::manifest::Manifest;
 use serde::Serialize;
@@ -27,6 +32,9 @@ pub const MAX_RETAINED: usize = 256;
 pub struct MenuEvent {
     pub seq: u64,
     pub id: String,
+    /// The tab in front when it was chosen, as last reported; `null` if none was.
+    #[serde(rename = "frontTabId")]
+    pub front_tab_id: Option<String>,
 }
 
 /// A live `menu-command` event (`LiveMenuEvent` in `menuJournal.ts`).
@@ -35,6 +43,8 @@ pub struct LiveMenuEvent {
     pub epoch: String,
     pub seq: u64,
     pub id: String,
+    #[serde(rename = "frontTabId")]
+    pub front_tab_id: Option<String>,
 }
 
 /// What `menu_journal` returns (`MenuJournalSnapshot` in `menuJournal.ts`).
@@ -53,6 +63,8 @@ struct Inner {
     /// Every number at or below it is gone (acknowledged or dropped).
     floor: u64,
     retained: VecDeque<MenuEvent>,
+    /// The tab the page last reported in front; stamped on each new event.
+    front_tab_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -68,6 +80,7 @@ impl MenuJournal {
                 last_seq: 0,
                 floor: 0,
                 retained: VecDeque::new(),
+                front_tab_id: None,
             }),
         }
     }
@@ -88,7 +101,13 @@ impl MenuJournal {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// Number and keep a menu event; `None` for an id that is not an app command.
+    /// The page's tab in front (`sync_menu_state`): the stamp of the events
+    /// recorded from now on. Kept events keep the stamp they were recorded with.
+    pub fn report_front_tab(&self, front_tab_id: Option<String>) {
+        self.lock().front_tab_id = front_tab_id;
+    }
+
+    /// Number, stamp and keep a menu event; `None` for an id that is not an app command.
     pub fn record(&self, manifest: &Manifest, id: &str) -> Option<LiveMenuEvent> {
         if !manifest.is_menu_command(id) {
             return None;
@@ -102,14 +121,17 @@ impl MenuJournal {
                 inner.floor = dropped.seq;
             }
         }
+        let front_tab_id = inner.front_tab_id.clone();
         inner.retained.push_back(MenuEvent {
             seq,
             id: id.to_string(),
+            front_tab_id: front_tab_id.clone(),
         });
         Some(LiveMenuEvent {
             epoch: inner.epoch.clone(),
             seq,
             id: id.to_string(),
+            front_tab_id,
         })
     }
 
@@ -244,14 +266,78 @@ mod tests {
     #[test]
     fn serializes_as_the_frontend_reads_it() {
         let journal = MenuJournal::new("e");
+        journal.report_front_tab(Some("A".into()));
         let live = journal.record(manifest(), "tab.new").unwrap();
         assert_eq!(
             serde_json::to_value(&live).unwrap(),
-            serde_json::json!({ "epoch": "e", "seq": 1, "id": "tab.new" })
+            serde_json::json!({ "epoch": "e", "seq": 1, "id": "tab.new", "frontTabId": "A" })
         );
         assert_eq!(
             serde_json::to_value(journal.snapshot()).unwrap(),
-            serde_json::json!({ "epoch": "e", "floor": 0, "events": [{ "seq": 1, "id": "tab.new" }] })
+            serde_json::json!({ "epoch": "e", "floor": 0, "events": [{ "seq": 1, "id": "tab.new", "frontTabId": "A" }] })
+        );
+    }
+
+    #[test]
+    fn stamps_each_event_with_the_front_tab_last_reported_when_it_was_chosen() {
+        // WYSIWYG targeting (ADR 0001 decision 6, review-5 F2): the stamp is
+        // taken when the event is recorded, never when it is delivered.
+        let journal = MenuJournal::new("e");
+        let m = manifest();
+        journal.report_front_tab(Some("A".into()));
+        let first = journal.record(m, "tab.close").unwrap();
+        journal.report_front_tab(Some("B".into()));
+        let second = journal.record(m, "tab.close").unwrap();
+        assert_eq!(first.front_tab_id.as_deref(), Some("A"));
+        assert_eq!(second.front_tab_id.as_deref(), Some("B"));
+        let snapshot = journal.snapshot();
+        let stamps: Vec<Option<&str>> = snapshot
+            .events
+            .iter()
+            .map(|event| event.front_tab_id.as_deref())
+            .collect();
+        assert_eq!(
+            stamps,
+            vec![Some("A"), Some("B")],
+            "a later report never restamps a kept event"
+        );
+    }
+
+    #[test]
+    fn stamps_nothing_until_a_page_reports_its_front_tab() {
+        let journal = MenuJournal::new("e");
+        let m = manifest();
+        let unknown = journal.record(m, "tab.close").unwrap();
+        assert_eq!(unknown.front_tab_id, None);
+        assert_eq!(
+            serde_json::to_value(&unknown).unwrap()["frontTabId"],
+            serde_json::Value::Null,
+            "the page reads no stamp as: touch no tab"
+        );
+        // A page that reports none (no tab known) clears it again.
+        journal.report_front_tab(Some("A".into()));
+        journal.report_front_tab(None);
+        assert_eq!(journal.record(m, "tab.close").unwrap().front_tab_id, None);
+    }
+
+    #[test]
+    fn a_new_run_stamps_nothing_its_page_has_not_reported() {
+        // A new epoch (an app restart) knows no front tab: an id reported to
+        // the last run never stamps this run's events.
+        let old = MenuJournal::for_this_run();
+        old.report_front_tab(Some("A".into()));
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let new = MenuJournal::for_this_run();
+        let event = new.record(manifest(), "tab.close").unwrap();
+        assert_ne!(event.epoch, old.snapshot().epoch);
+        assert_eq!(event.front_tab_id, None);
+        new.report_front_tab(Some("B".into()));
+        assert_eq!(
+            new.record(manifest(), "tab.close")
+                .unwrap()
+                .front_tab_id
+                .as_deref(),
+            Some("B")
         );
     }
 }

@@ -11,6 +11,9 @@
 //!   can neither swallow nor double a key. Menu events themselves go through
 //!   the journal (`journal.rs`), not through this state.
 //! - Ids outside the manifest's menu commands are ignored.
+//! - A sync also carries the page's tab in front (`frontTabId`); it is not
+//!   menu state but the journal's stamp for the events chosen from now on
+//!   (`MenuJournal::report_front_tab`).
 
 use super::labels::resolve_language;
 use super::manifest::Manifest;
@@ -31,6 +34,9 @@ pub struct MenuStatePayload {
     pub language: String,
     #[serde(default)]
     pub items: HashMap<String, ItemState>,
+    /// The tab in front in the page; absent from an older page.
+    #[serde(default, rename = "frontTabId")]
+    pub front_tab_id: Option<String>,
 }
 
 /// What a sync asks the native menu to do.
@@ -139,6 +145,7 @@ mod tests {
 
     fn payload(language: &str, items: &[(&str, bool)]) -> MenuStatePayload {
         MenuStatePayload {
+            front_tab_id: None,
             language: language.into(),
             items: items
                 .iter()
@@ -250,5 +257,16 @@ mod tests {
             }
         );
         assert_eq!(parsed.items["go.back"].checked, None);
+        assert_eq!(
+            parsed.front_tab_id, None,
+            "an older page reports no front tab"
+        );
+    }
+
+    #[test]
+    fn parses_the_front_tab_the_page_reports() {
+        let json = r#"{"language":"en","items":{},"frontTabId":"tab-7"}"#;
+        let parsed: MenuStatePayload = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.front_tab_id.as_deref(), Some("tab-7"));
     }
 }

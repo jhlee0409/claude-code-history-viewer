@@ -92,7 +92,9 @@ function fakeHost(
   let changeHandler: (() => void) | null = null;
   let language = "en";
   let seq = 0;
-  let retained: { seq: number; id: string }[] = [];
+  let retained: { seq: number; id: string; frontTabId: string | null }[] = [];
+  /** The front tab the page last reported: what `journal.rs` stamps each event with. */
+  let front: string | null = null;
   const syncs: MenuState[] = [];
   const pending: Array<{ state: MenuState; apply: () => void; reply: () => void; resolve: () => void; reject: (e: unknown) => void }> = [];
   let native: MenuState | null = null;
@@ -109,6 +111,7 @@ function fakeHost(
     sync: (state) =>
       new Promise<void>((resolve, reject) => {
         syncs.push(state);
+        front = state.frontTabId ?? null; // taken when the host receives it, before it replies
         const entry = {
           state,
           apply: () => {
@@ -150,8 +153,8 @@ function fakeHost(
   /** A menu click or accelerator: journaled, then emitted. */
   const choose = (id: string) => {
     seq += 1;
-    retained.push({ seq, id });
-    listener?.({ epoch: "e", seq, id });
+    retained.push({ seq, id, frontTabId: front });
+    listener?.({ epoch: "e", seq, id, frontTabId: front });
   };
   const keyHandler = createShortcutHandler({ commands: COMMANDS, env: MAC_DESKTOP, getContext: () => ctx });
   /** macOS order (docs/adr/0001-native-menu-input-ownership.md): the page first; a key it leaves goes to the item, if the native item is enabled. */
@@ -280,6 +283,11 @@ describe("menu state", () => {
     expect(state.items["view.toggleInspector"]).toEqual({ enabled: true, checked: true });
     expect(state.items["view.toggleMinimap"]).toEqual({ enabled: true, checked: false });
   });
+
+  it("reports the tab in front, which the host stamps on every menu event (review-5 F2)", () => {
+    const ctx = makeContext({ tabs: { activeId: "t2", ids: ["t1", "t2"] } });
+    expect(computeMenuState(ctx, "en", {}).frontTabId).toBe("t2");
+  });
 });
 
 describe("menu bridge", () => {
@@ -396,6 +404,57 @@ describe("menu bridge", () => {
     host.change();
     await flush();
     expect(host.pending).toHaveLength(1);
+  });
+
+  it("sends a front-tab change at once, in the same task, though nothing else changed (review-5 F2)", async () => {
+    const ctx = makeContext();
+    const host = fakeHost(ctx);
+    await host.settle();
+    ctx.tabs = { ...ctx.tabs, activeId: "t2" };
+    host.change();
+    expect(host.syncs).toHaveLength(2); // no timer
+    expect(last(host.syncs)?.frontTabId).toBe("t2");
+    expect(last(host.syncs)?.items).toEqual(host.syncs[0]?.items);
+  });
+
+  it("never drops the newest front tab: a change made while a sync is in flight goes right after its reply", async () => {
+    const ctx = makeContext();
+    const host = fakeHost(ctx);
+    expect(host.pending).toHaveLength(1); // t1, in flight
+    ctx.tabs = { ...ctx.tabs, activeId: "t2" };
+    host.change();
+    ctx.tabs = { ...ctx.tabs, activeId: "t3" };
+    host.change();
+    expect(host.pending).toHaveLength(1); // one in flight at a time
+    host.pending.shift()?.resolve();
+    await flush();
+    expect(host.pending.map((p) => p.state.frontTabId)).toEqual(["t3"]);
+  });
+
+  it("a front-tab change sends again after a failed sync, without waiting for its backoff", async () => {
+    vi.useFakeTimers();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const ctx = makeContext();
+      const host = fakeHost(ctx, { retryDelaysMs: [1000] });
+      host.pending.shift()?.reject(new Error("down"));
+      await vi.advanceTimersByTimeAsync(0);
+      ctx.tabs = { ...ctx.tabs, activeId: "t2" };
+      host.change();
+      expect(last(host.syncs)?.frontTabId).toBe("t2");
+    } finally {
+      error.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("a menu event carries the front tab the host last received: a later click does not retarget it", async () => {
+    const ctx = makeContext({ tabs: { activeId: "t1", ids: ["t1", "t2"] } });
+    const host = fakeHost(ctx);
+    await host.settle();
+    host.choose("tab.close"); // chosen with t1 in front
+    await flush();
+    expect(ctx.actions.closeTab).toHaveBeenCalledWith("t1");
   });
 
   it("stops listening and syncing when stopped", async () => {

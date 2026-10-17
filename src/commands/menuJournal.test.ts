@@ -40,7 +40,9 @@ function deferred<T>(): Deferred<T> {
 function fakeHost(epoch = "boot-1") {
   let seq = 0;
   let floor = 0;
-  let retained: { seq: number; id: string }[] = [];
+  let retained: { seq: number; id: string; frontTabId?: string | null }[] = [];
+  /** The front tab the page last reported; stamped on each event. */
+  let front: string | null | undefined;
   const listeners = new Set<(event: LiveMenuEvent) => void>();
   const held: Array<{ reply: Deferred<MenuJournalSnapshot>; snapshot: MenuJournalSnapshot }> = [];
   let holding = false;
@@ -50,18 +52,21 @@ function fakeHost(epoch = "boot-1") {
   const host = {
     acks,
     pulls: 0,
+    reportFront: (id: string | null) => {
+      front = id;
+    },
     /** A menu click or accelerator: numbered, kept, emitted to whoever listens. */
     choose(id: string): LiveMenuEvent {
       seq += 1;
-      const event = { epoch, seq, id };
-      retained.push({ seq, id });
+      const event = { epoch, seq, id, frontTabId: front };
+      retained.push({ seq, id, frontTabId: front });
       listeners.forEach((listener) => listener(event));
       return event;
     },
     /** Record without delivering (the page is reloading or not listening yet). */
     chooseUnheard(id: string) {
       seq += 1;
-      retained.push({ seq, id });
+      retained.push({ seq, id, frontTabId: front });
     },
     deliver: (event: LiveMenuEvent) => listeners.forEach((listener) => listener(event)),
     hold: () => {
@@ -129,6 +134,33 @@ function start(host: ReturnType<typeof fakeHost>, ran: string[], cursor: MenuCur
 }
 
 describe("menu journal", () => {
+  it("issues each event with the front tab the host stamped on it, live or pulled (review-5 F2)", async () => {
+    const host = fakeHost();
+    const issued: Array<[string, string | null]> = [];
+    host.reportFront("A");
+    host.chooseUnheard("tab.close"); // pulled at startup
+    const journal = startMenuJournal(
+      host.deps(() => {}, memoryCursorStore(), {
+        issue: (id, frontTabId) => {
+          issued.push([id, frontTabId]);
+          return () => {};
+        },
+      }),
+    );
+    stops.push(journal.stop);
+    await flush();
+    host.reportFront("B");
+    host.choose("tab.next"); // live
+    host.reportFront(null);
+    host.choose("go.back"); // nothing reported: no stamp
+    await flush();
+    expect(issued).toEqual([
+      ["tab.close", "A"],
+      ["tab.next", "B"],
+      ["go.back", null],
+    ]);
+  });
+
   it("runs events chosen during startup (before the page listened), oldest first, then acknowledges them", async () => {
     const host = fakeHost();
     host.chooseUnheard("tab.new");

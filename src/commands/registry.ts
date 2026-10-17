@@ -12,8 +12,8 @@
  * context); the registry holds no state of its own.
  *
  * Every handler declares what it acts on (`target`, `commandTarget.ts`): a
- * command acts on the tab that was in front when it was issued, even if it
- * runs later, or does nothing (docs/adr/0001-native-menu-input-ownership.md,
+ * command acts on the tab the user saw in front when they issued it, even if
+ * it runs later, or does nothing (docs/adr/0001-native-menu-input-ownership.md,
  * decision 6).
  */
 import {
@@ -46,7 +46,7 @@ import { COMMAND_MANIFEST, type CommandId, type CommandManifestEntry } from "./m
 import { engineOwnsZoomInput, type ZoomStep } from "./zoom";
 import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import { idAtPosition } from "@/navigation/documents";
-import { APP_TARGET, targetTab, type CommandTarget, type TabsSnapshot } from "./commandTarget";
+import { APP_TARGET, menuIssuedTabs, targetTab, type CommandTarget, type TabsSnapshot } from "./commandTarget";
 
 /** What a command needs to know and do. Built per use by `useCommandContext`. */
 export interface CommandContext {
@@ -99,8 +99,9 @@ interface CommandHandler {
   enabled?: (ctx: CommandContext) => boolean;
   /**
    * What it acts on, captured when it is issued (`commandTarget.ts`). Every
-   * handler says so: a command reading the tab in front only when it runs
-   * would act on a tab chosen after it was issued (review-4 F1).
+   * handler says so, and acts on the `tab` it is handed - never on the tab in
+   * front when it runs, which may have been chosen after it was issued
+   * (review-4 F1, review-5).
    */
   target: CommandTarget;
   /** `tab`: the tab its target names (for an `app` command, the one in front). */
@@ -290,7 +291,8 @@ export const isCommandEnabled = (command: AppCommand, ctx: CommandContext): bool
  * Run a command by id. An unknown, unavailable or disabled command is
  * refused (false) and nothing runs; so is one whose target is gone: the tab
  * it was issued on is closed, or (`shown`) no longer in front. `issued`: the
- * tabs when it was issued (default: now - it runs as it is issued).
+ * tabs when it was issued (default: now - it runs as it is issued); null
+ * when that is unknown, so only an `app` command runs.
  *
  * A command that fails asynchronously is reported with a toast naming it -
  * unless another navigation has begun since, which owns the screen now
@@ -298,7 +300,7 @@ export const isCommandEnabled = (command: AppCommand, ctx: CommandContext): bool
  * first await, so ownership taken right after `run` returns is the command's
  * own navigation's.
  */
-export function runCommand(id: string, ctx: CommandContext, issued: TabsSnapshot = ctx.tabs): boolean {
+export function runCommand(id: string, ctx: CommandContext, issued: TabsSnapshot | null = ctx.tabs): boolean {
   const command = getCommand(id);
   if (!command || !isCommandEnabled(command, ctx)) return false;
   const tab = targetTab(command.target, issued, ctx.tabs);
@@ -314,26 +316,31 @@ export function runCommand(id: string, ctx: CommandContext, issued: TabsSnapshot
 }
 
 /**
- * Issue a command now, to run in its turn in `queue`: the tabs it acts on
- * are recorded now (`commandTarget.ts`). Returns the job to hand to the
- * queue (`submit`, or a hold's `run`). When it runs it checks `enabled`
- * with the context of that moment, takes the tabs as issued - or as the
- * queued commands that ran meanwhile left them - and records whether it
- * changed the tabs itself.
+ * Issue a command from a key, the palette or a control, now: the tabs it
+ * acts on are the ones the user sees now (`commandTarget.ts`), whatever
+ * runs before it. Returns the job to hand to the queue (`submit`, or a
+ * hold's `run`); it checks `enabled` with the context of the moment it runs.
  */
-export function issueCommand(
+export function issueCommand(id: string, getContext: () => CommandContext): () => void {
+  const issued = getContext().tabs;
+  return () => {
+    runCommand(id, getContext(), issued);
+  };
+}
+
+/**
+ * Issue a menu event's command: its target is the tab the host stamped as
+ * in front when the user chose it (`menuIssuedTabs`) - not the tab in front
+ * when the page hears of it. No stamp: only an `app` command runs.
+ */
+export function issueMenuCommand(
   id: string,
+  frontTabId: string | null | undefined,
   getContext: () => CommandContext,
-  queue: CommandQueue = appCommandQueue,
 ): () => void {
-  const issued = queue.targets.issue(getContext().tabs);
   return () => {
     const ctx = getContext();
-    try {
-      runCommand(id, ctx, queue.targets.tabsFor(issued));
-    } finally {
-      queue.targets.ran(ctx.tabs, getContext().tabs);
-    }
+    runCommand(id, ctx, menuIssuedTabs(frontTabId, ctx.tabs));
   };
 }
 
@@ -355,7 +362,7 @@ export function dispatchCommand(
 ): boolean {
   const command = getCommand(id);
   if (!command || !isCommandEnabled(command, getContext())) return false;
-  queue.submit(issueCommand(id, getContext, queue));
+  queue.submit(issueCommand(id, getContext));
   return true;
 }
 

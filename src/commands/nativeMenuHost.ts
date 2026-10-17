@@ -15,6 +15,7 @@ export function tauriMenuDeps(getContext: () => CommandContext): MenuBridgeDeps 
   return {
     getContext,
     getLanguage: () => i18n.resolvedLanguage ?? i18n.language ?? "en",
+    getFrontTabId: () => useAppStore.getState().activeDocumentId || null,
     getChecks: () => {
       const state = useAppStore.getState();
       return Object.fromEntries(Object.entries(MENU_CHECKS).map(([id, isOn]) => [id, isOn(state)]));

@@ -13,7 +13,7 @@ import type { LiveMenuEvent, MenuCursorStore } from "@/commands/menuJournal";
 
 const { openModalMock, toggleMinimapMock, newTabMock, closeTabMock, zoomMock, env, host } = vi.hoisted(() => {
   let seq = 0;
-  let retained: { seq: number; id: string }[] = [];
+  let retained: { seq: number; id: string; frontTabId: string | null }[] = [];
   let saved: { epoch: string; seq: number } | null = null;
   const handlers = new Set<(event: LiveMenuEvent) => void>();
   const host = {
@@ -29,10 +29,13 @@ const { openModalMock, toggleMinimapMock, newTabMock, closeTabMock, zoomMock, en
         saved = { epoch, seq: s };
       },
     },
+    /** Stamped with the front tab of the last sync, as `journal.rs` does (none before the first). */
     choose(id: string) {
       seq += 1;
-      retained.push({ seq, id });
-      handlers.forEach((handler) => handler({ epoch: "boot", seq, id }));
+      const last = host.syncs[host.syncs.length - 1] as { frontTabId?: string | null } | undefined;
+      const frontTabId = last?.frontTabId ?? null;
+      retained.push({ seq, id, frontTabId });
+      handlers.forEach((handler) => handler({ epoch: "boot", seq, id, frontTabId }));
     },
     retained: () => retained.map((e) => e.seq),
     /** Pulls wait for `release` while held (an IPC reply still on its way). */

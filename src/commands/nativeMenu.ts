@@ -12,10 +12,10 @@
  *   through `runCommand`, the same `enabled` check the palette and the keys
  *   use; an unknown or disabled id is refused there. They share one command
  *   queue with every other input (`commandQueue.ts`): a key pressed while
- *   the journal is still fetching older menu events runs after them. An
- *   event is issued (`issueCommand`: its target tab recorded) when the
- *   journal hands it to the queue - the host does not know which tab was
- *   in front when it was chosen.
+ *   the journal is still fetching older menu events runs after them. Each
+ *   event acts on the tab the host stamped on it - the one the page last
+ *   reported in front when the user chose it (`issueMenuCommand`) - however
+ *   late the page hears of it; no stamp, no tab (ADR 0001 decision 6).
  * - **Menu state** (shown only): each change of the app state or the language
  *   is coalesced into one `sync_menu_state` with the language and each menu
  *   command's enabled (and, for a toggle, checked) state, sent only when it
@@ -26,6 +26,10 @@
  *   backoff, then reports once (`onSyncError`) and tries again on the next
  *   change. A stale item can neither swallow nor double a key (the page
  *   claims its keys) nor run a command that cannot run (`runCommand`).
+ * - **The tab in front** rides on every sync (`frontTabId`): the host stamps
+ *   it on the menu events chosen after it lands. A change of the tab in front
+ *   is not coalesced: it is sent in the same task (or right after the sync
+ *   in flight), so the host's stamp trails a tab click by one IPC hop.
  */
 import { COMMAND_MANIFEST, type CommandId } from "./manifest";
 import {
@@ -35,7 +39,7 @@ import {
   type MenuCursorStore,
   type MenuJournalSnapshot,
 } from "./menuJournal";
-import { getCommand, isCommandEnabled, issueCommand, type CommandContext } from "./registry";
+import { getCommand, isCommandEnabled, issueMenuCommand, type CommandContext } from "./registry";
 import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import type { AppStore } from "@/store/useAppStore";
 
@@ -47,10 +51,12 @@ export interface MenuItemState {
   checked?: boolean;
 }
 
-/** What `sync_menu_state` sends: the UI language and each menu command's state. */
+/** What `sync_menu_state` sends: the UI language, each menu command's state, and the tab in front. */
 export interface MenuState {
   language: string;
   items: Record<string, MenuItemState>;
+  /** The tab in front: the host stamps it on each menu event chosen from now on. */
+  frontTabId: string | null;
 }
 
 const MENU_ENTRIES = COMMAND_MANIFEST.filter((entry) => entry.menu !== null);
@@ -75,7 +81,7 @@ export function computeMenuState(
     const enabled = command != null && isCommandEnabled(command, ctx);
     items[entry.id] = entry.toggle ? { enabled, checked: checks[entry.id] ?? false } : { enabled };
   }
-  return { language, items };
+  return { language, items, frontTabId: ctx.tabs.activeId || null };
 }
 
 /** What the bridge needs from the host and the app; `nativeMenuHost.ts` wires the real ones. */
@@ -83,6 +89,8 @@ export interface MenuBridgeDeps {
   getContext: () => CommandContext;
   getLanguage: () => string;
   getChecks: () => Partial<Record<string, boolean>>;
+  /** The tab in front, read on every change (cheap; default: from `getContext`). */
+  getFrontTabId?: () => string | null;
   /** Show the state in the native menu. */
   sync: (state: MenuState) => Promise<void>;
   /** Call `onChange` when the app state or the language changes. */
@@ -116,10 +124,13 @@ export interface MenuBridge {
 /** Keep the native menu's language and enabled/checked items in step with the app (shown only). */
 function startMenuStateSync(deps: MenuBridgeDeps): () => void {
   const retryDelays = deps.retryDelaysMs ?? SYNC_RETRY_DELAYS_MS;
+  const frontTabId = deps.getFrontTabId ?? (() => deps.getContext().tabs.activeId || null);
   let stopped = false;
   let scheduled = false;
   /** The state the host last applied, or "" while unknown (none yet, or a failed sync). */
   let appliedKey = "";
+  /** The tab in front in the last state handed to the host (in flight or applied). */
+  let sentFront: string | null | undefined;
   let inFlight = false;
   let failures = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -144,6 +155,7 @@ function startMenuStateSync(deps: MenuBridgeDeps): () => void {
     const key = JSON.stringify(state);
     if (key === appliedKey) return;
     inFlight = true;
+    sentFront = state.frontTabId;
     deps.sync(state).then(
       () => {
         inFlight = false;
@@ -169,7 +181,18 @@ function startMenuStateSync(deps: MenuBridgeDeps): () => void {
     }, 0);
   };
 
-  const unsubscribe = deps.subscribe(schedule);
+  /**
+   * A new tab in front is the stamp of the next menu events: send it now -
+   * or, with a sync in flight, right after its reply (`send` recomputes the
+   * newest state then). Anything else is coalesced.
+   */
+  const onChange = () => {
+    if (stopped) return;
+    if (frontTabId() !== sentFront) send();
+    else schedule();
+  };
+
+  const unsubscribe = deps.subscribe(onChange);
   send();
   return () => {
     stopped = true;
@@ -185,7 +208,7 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
     pull: deps.pullEvents,
     ack: deps.ackEvents,
     cursor: deps.cursor,
-    issue: (id) => issueCommand(id, deps.getContext, queue),
+    issue: (id, frontTabId) => issueMenuCommand(id, frontTabId, deps.getContext),
     queue,
     retryDelaysMs: deps.retryDelaysMs,
     onPullError: deps.onPullError,
