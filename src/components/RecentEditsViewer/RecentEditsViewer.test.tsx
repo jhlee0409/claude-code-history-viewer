@@ -245,6 +245,34 @@ describe("restore, the missing filter and the jump to the message", () => {
     expect(screen.getByText("recentEdits.noMissingFiles")).toBeTruthy();
   });
 
+  it("missing-only with no missing file among the loaded rows still shows more: later pages stay reachable", () => {
+    // Page one holds only files still on disk; the server has more pages.
+    const present = Array.from({ length: 20 }, (_, i) => edit(`/project/here${i}.ts`, { exists_on_disk: true }));
+    state = baseState({ recentEditsMissingOnly: true, recentEditsList: listFor(projectRequest, present, true) });
+    render(<RecentEditsViewer />);
+    // The empty message names what was checked: the loaded rows, not all of them.
+    expect(screen.getByText("recentEdits.noMissingFilesLoaded")).toBeTruthy();
+    expect(screen.queryByText("recentEdits.noMissingFiles")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "recentEdits.showMore" }));
+    expect(fn("loadMoreRecentEditsList")).toHaveBeenCalledWith(projectRequest);
+  });
+
+  it("restoring the last loaded missing row keeps show more for the pages not loaded yet", () => {
+    // The restored-row patch has turned the only missing row present again.
+    const files = [edit("/project/restored.ts", { exists_on_disk: true })];
+    state = baseState({ recentEditsMissingOnly: true, recentEditsList: listFor(projectRequest, files, true) });
+    render(<RecentEditsViewer />);
+    expect(screen.getByRole("button", { name: "recentEdits.showMore" })).toBeTruthy();
+  });
+
+  it("with every page loaded, missing-only with no match says plainly that none are missing", () => {
+    const files = [edit("/project/here.ts", { exists_on_disk: true })];
+    state = baseState({ recentEditsMissingOnly: true, recentEditsList: listFor(projectRequest, files, false) });
+    render(<RecentEditsViewer />);
+    expect(screen.getByText("recentEdits.noMissingFiles")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "recentEdits.showMore" })).toBeNull();
+  });
+
   it("compact rows jump to the edit's message in its conversation, when the session is listed", () => {
     const files = [edit("/project/a.ts"), edit("/project/b.ts", { session_id: "unlisted" })];
     state = baseState({

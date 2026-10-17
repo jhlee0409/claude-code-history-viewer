@@ -173,7 +173,35 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const total = result ? (grouping === "edit" ? result.totalEditsCount : result.uniqueFilesCount) : 0;
   const remaining = Math.max(0, total - loaded);
   const isSearching = searchQuery.trim() !== "";
+  // Server pages, not the client-side filters: the missing-only filter runs
+  // over the loaded rows only, so a file missing on a later page is reachable
+  // only through here - even while no loaded row matches. Search keeps it
+  // hidden, as the page always did: it narrows what is loaded.
   const showMore = Boolean(result?.hasMore) && !isSearching;
+  const showMoreButton = showMore && result ? (
+    <button
+      type="button"
+      onClick={handleLoadMore}
+      disabled={isLoadingMore}
+      aria-label={t("recentEdits.showMore", { count: Math.min(result.limit || 20, remaining) })}
+      className="w-full py-4 rounded-xl text-list font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {isLoadingMore ? (
+        <>
+          <LoaderCircle className="w-4 h-4 animate-spin" />
+          {t("common.loading")}
+        </>
+      ) : (
+        <>
+          <ChevronDown className="w-4 h-4" aria-hidden="true" />
+          {t("recentEdits.showMore", { count: Math.min(result.limit || 20, remaining) })}
+          <span className="text-muted-foreground/70">
+            ({remaining} {t("analytics.remaining")})
+          </span>
+        </>
+      )}
+    </button>
+  ) : null;
 
   return (
     <div className="h-full flex flex-col p-3 md:p-6">
@@ -255,18 +283,26 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             </p>
           </div>
         ) : files.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-              <Icon
-                icon={isSearching ? Search : FilePen}
-                size={24}
-                className="text-muted-foreground/40"
-              />
+          <>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+                <Icon
+                  icon={isSearching ? Search : FilePen}
+                  size={24}
+                  className="text-muted-foreground/40"
+                />
+              </div>
+              <p className={`${layout.bodyText} text-muted-foreground text-center`}>
+                {isSearching
+                  ? t("recentEdits.noSearchResults")
+                  : showMore
+                    ? // Only the loaded rows were checked: the rest may hold missing files.
+                      t("recentEdits.noMissingFilesLoaded", { loaded, total })
+                    : t("recentEdits.noMissingFiles")}
+              </p>
             </div>
-            <p className={`${layout.bodyText} text-muted-foreground`}>
-              {isSearching ? t("recentEdits.noSearchResults") : t("recentEdits.noMissingFiles")}
-            </p>
-          </div>
+            {showMoreButton}
+          </>
         ) : (
           <>
             {files.map((edit, index) =>
@@ -292,30 +328,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               )
             )}
 
-            {showMore && (
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-                aria-label={t("recentEdits.showMore", { count: Math.min(result.limit || 20, remaining) })}
-                className="w-full py-4 rounded-xl text-list font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <LoaderCircle className="w-4 h-4 animate-spin" />
-                    {t("common.loading")}
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4" aria-hidden="true" />
-                    {t("recentEdits.showMore", { count: Math.min(result.limit || 20, remaining) })}
-                    <span className="text-muted-foreground/70">
-                      ({remaining} {t("analytics.remaining")})
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
+            {showMoreButton}
           </>
         )}
       </div>

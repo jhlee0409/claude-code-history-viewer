@@ -24,6 +24,7 @@
   "recentEdits.noEditsDescription": "No file edits or creations found in this project",
   "recentEdits.noLinesToShow": "No lines to display",
   "recentEdits.noMissingFiles": "No missing files",
+  "recentEdits.noMissingFilesLoaded": "No missing files in the {{loaded}} of {{total}} rows loaded so far. Show more to check the rest.",
   "recentEdits.noProjectSelected": "Select a project to see its edits",
   "recentEdits.noSearchResults": "No files match your search",
   "recentEdits.panelOptions": "List options",

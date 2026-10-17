@@ -24,6 +24,7 @@
   "recentEdits.noEditsDescription": "このプロジェクトでファイルの編集や作成が見つかりません",
   "recentEdits.noLinesToShow": "表示する行がありません",
   "recentEdits.noMissingFiles": "見つからないファイルはありません",
+  "recentEdits.noMissingFilesLoaded": "読み込み済みの{{loaded}}件({{total}}件中)に見つからないファイルはありません。残りを確認するにはさらに表示してください。",
   "recentEdits.noProjectSelected": "プロジェクトを選択すると、その編集が表示されます",
   "recentEdits.noSearchResults": "検索に一致するファイルがありません",
   "recentEdits.panelOptions": "リストのオプション",
