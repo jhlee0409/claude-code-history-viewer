@@ -475,9 +475,11 @@ describe("View → Zoom (§9b A1)", () => {
     for (const id of ZOOM_IDS) expect(MENU_COMMAND_IDS.has(id), id).toBe(true);
   });
 
-  it("turns the engine's own zoom hotkeys off, so the commands are the only zoom owner", async () => {
+  it("keeps the engine's zoom hotkeys off on macOS/Linux and on on Windows (WebView2 pinch, review-2 F4)", async () => {
     const conf = (await import("../../src-tauri/tauri.conf.json")).default;
+    const onWindows = (await import("../../src-tauri/tauri.windows.conf.json")).default;
     expect(conf.app.windows.map((w: { zoomHotkeysEnabled?: boolean }) => w.zoomHotkeysEnabled)).toEqual([false]);
+    expect(onWindows.app.windows.map((w: { zoomHotkeysEnabled?: boolean }) => w.zoomHotkeysEnabled)).toEqual([true]);
   });
 
   function pressAll(env: KeyEnvironment, ctx = makeContext()) {
@@ -496,12 +498,24 @@ describe("View → Zoom (§9b A1)", () => {
     return { ctx, prevented };
   }
 
-  it("runs ⌘= ⌘+ ⌘- ⌘0 once each in the Mac app and Ctrl+… once each on Windows and Linux, by the page", () => {
-    for (const env of [MAC_DESKTOP, WIN_DESKTOP, LINUX_DESKTOP]) {
+  it("runs ⌘= ⌘+ ⌘- ⌘0 once each in the Mac app and Ctrl+… once each on Linux, by the page", () => {
+    for (const env of [MAC_DESKTOP, LINUX_DESKTOP]) {
       const { ctx, prevented } = pressAll(env);
       expect(prevented, env.os).toEqual([true, true, true, true]);
       expect(vi.mocked(ctx.actions.zoom).mock.calls, env.os).toEqual([["in"], ["in"], ["out"], ["reset"]]);
     }
+  });
+
+  it("leaves Ctrl+= Ctrl++ Ctrl+- Ctrl+0 to WebView2 on Windows, where the menu items still zoom", async () => {
+    const { ctx, prevented } = pressAll(WIN_DESKTOP);
+    expect(prevented).toEqual([false, false, false, false]);
+    expect(ctx.actions.zoom).not.toHaveBeenCalled();
+    const host = fakeHost(ctx);
+    await flush();
+    host.choose("view.zoomIn");
+    host.choose("view.actualSize");
+    await flush();
+    expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"], ["reset"]]);
   });
 
   it("leaves ⌘= ⌘- ⌘0 to the browser's own zoom in the WebUI", () => {

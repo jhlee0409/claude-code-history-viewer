@@ -5,7 +5,7 @@ import { tauriMenuDeps } from "@/commands/nativeMenuHost";
 import { COMMANDS, runCommand } from "@/commands/registry";
 import { createShortcutHandler } from "@/commands/shortcuts";
 import { useCommandContext } from "@/commands/useCommandContext";
-import { createCtrlWheelZoom } from "@/commands/zoom";
+import { createCtrlWheelZoom, engineOwnsZoomInput } from "@/commands/zoom";
 
 /**
  * The app's keyboard shortcuts and, in the desktop app, its native menu: the
@@ -19,7 +19,7 @@ import { createCtrlWheelZoom } from "@/commands/zoom";
  * - a menu click (or an accelerator that reached the menu while no page
  *   listened): the menu journal, oldest first, once each;
  * - zoom keys and Ctrl + wheel: the zoom commands (`src/commands/zoom.ts`),
- *   the web view's one zoom owner.
+ *   except on Windows, where WebView2 owns them along with pinch zoom.
  *
  * Mount once, at the app root. The listener and the menu bridge are bound
  * once and read the live state through the command context when a key or a
@@ -34,7 +34,7 @@ export function useAppKeyboard() {
     const handleKeyDown = createShortcutHandler({ commands: COMMANDS, env, getContext });
     window.addEventListener("keydown", handleKeyDown);
     const handleWheel =
-      env.runtime === "desktop"
+      env.runtime === "desktop" && !engineOwnsZoomInput(env)
         ? createCtrlWheelZoom((step) => runCommand(step === "in" ? "view.zoomIn" : "view.zoomOut", getContext()))
         : null;
     if (handleWheel) window.addEventListener("wheel", handleWheel, { passive: false });

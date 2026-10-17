@@ -1,7 +1,8 @@
 /**
  * `useAppKeyboard` in the desktop app (macOS by default): the page runs every
  * app key once and claims it, the menu journal runs menu clicks once in
- * order across StrictMode re-runs and a page reload.
+ * order across StrictMode re-runs and a page reload, and Ctrl + wheel zooms
+ * by notch through the zoom commands.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, createElement, type ReactNode } from "react";
@@ -130,6 +131,13 @@ function pressMenuKey(init: KeyboardEventInit, id: string) {
   return event;
 }
 
+function ctrlWheel(deltaY: number, wheelDeltaY: number) {
+  const event = new WheelEvent("wheel", { deltaY, ctrlKey: true, cancelable: true });
+  Object.defineProperty(event, "wheelDeltaY", { value: wheelDeltaY });
+  window.dispatchEvent(event);
+  return event;
+}
+
 describe("useAppKeyboard in the desktop app", () => {
   afterEach(() => {
     cleanup();
@@ -181,11 +189,36 @@ describe("useAppKeyboard in the desktop app", () => {
     expect(host.retained()).toEqual([]);
   });
 
+  it("zooms one step per Ctrl + wheel notch (WebKit's 40 px notch counts as one)", async () => {
+    renderHook(() => useAppKeyboard());
+    await flush();
+    expect(ctrlWheel(-40, 120).defaultPrevented).toBe(true);
+    ctrlWheel(-40, 120);
+    ctrlWheel(40, -120);
+    expect(zoomMock.mock.calls).toEqual([["in"], ["in"], ["out"]]);
+  });
+
   it("stops the menu bridge on unmount", async () => {
     const { unmount } = renderHook(() => useAppKeyboard());
     await flush();
     unmount();
     expect(host.unlistened).toBe(1);
     expect(host.handlers.size).toBe(0);
+  });
+
+  describe("on Windows (WebView2 owns zoom input, review-2 F4)", () => {
+    it("binds no zoom key and no Ctrl + wheel, so WebView2 zooms - and pinches - once", async () => {
+      env.os = "win";
+      renderHook(() => useAppKeyboard());
+      await flush();
+      const key = new KeyboardEvent("keydown", { key: "=", code: "Equal", ctrlKey: true, bubbles: true, cancelable: true });
+      window.dispatchEvent(key);
+      expect(key.defaultPrevented).toBe(false);
+      expect(ctrlWheel(-100, 120).defaultPrevented).toBe(false);
+      expect(zoomMock).not.toHaveBeenCalled();
+      host.choose("view.zoomIn"); // View → Zoom In still sets the engine zoom
+      await flush();
+      expect(zoomMock.mock.calls).toEqual([["in"]]);
+    });
   });
 });

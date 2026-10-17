@@ -487,17 +487,46 @@ mod tests {
         }
     }
 
-    /// §9b A1: the zoom commands are the web view's only zoom owner, so the
-    /// engine's own zoom hotkeys (`zoomHotkeysEnabled`: the macOS/Linux
-    /// polyfill, `WebView2`'s zoom control) stay off, and the frontend may set
-    /// the zoom.
+    /// §9b A1 + review-2 F4: zoom input has one owner per platform.
+    /// macOS/Linux: the zoom commands (keys, menu, Ctrl+wheel), so the
+    /// engine's zoom hotkeys (a keydown/wheel polyfill there) stay off.
+    /// Windows: `WebView2` itself (keys, Ctrl+wheel and pinch - one flag
+    /// drives `SetIsZoomControlEnabled` and `SetIsPinchZoomEnabled`), so
+    /// `tauri.windows.conf.json` turns it on and the page binds no zoom key
+    /// or wheel there; the menu items set the same engine zoom.
     #[test]
-    fn zoom_has_one_owner_the_engine_zoom_hotkeys_are_off() {
+    fn zoom_input_has_one_owner_per_platform() {
         let conf: serde_json::Value =
             serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
-        for window in conf["app"]["windows"].as_array().unwrap() {
+        let windows = conf["app"]["windows"].as_array().unwrap();
+        for window in windows {
             assert_eq!(window["zoomHotkeysEnabled"], serde_json::json!(false));
         }
+        // Tauri merges a platform file as a JSON merge patch: an array is
+        // replaced whole, so the Windows file repeats every window and may
+        // differ only in `zoomHotkeysEnabled`.
+        let on_windows: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.windows.conf.json")).unwrap();
+        let windows_windows = on_windows["app"]["windows"].as_array().unwrap();
+        assert_eq!(windows_windows.len(), windows.len());
+        for (main, win) in windows.iter().zip(windows_windows) {
+            let mut expected = main.clone();
+            expected["zoomHotkeysEnabled"] = serde_json::json!(true);
+            assert_eq!(win, &expected);
+        }
+        assert_eq!(
+            on_windows.as_object().unwrap().keys().collect::<Vec<_>>(),
+            vec!["app"],
+            "the Windows file overrides the windows and nothing else"
+        );
+        assert_eq!(
+            on_windows["app"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            vec!["windows"]
+        );
         let capability: serde_json::Value =
             serde_json::from_str(include_str!("../../capabilities/default.json")).unwrap();
         assert!(capability["permissions"]

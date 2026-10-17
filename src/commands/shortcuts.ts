@@ -29,6 +29,9 @@
  *   in a field, whatever the command says;
  * - the command cannot run here, so the browser keeps its default (⌘F stays
  *   the browser's find outside a conversation).
+ *
+ * A command whose keys the web view itself handles in this environment
+ * (`keys.byEngine`: WebView2's zoom keys on Windows) is not bound at all.
  */
 import { matchesChord, parseAccelerator, shortcutFor, type Chord, type KeyEnvironment } from "./keys";
 import { MENU_ACCELERATORS } from "./manifest";
@@ -71,6 +74,7 @@ const runsInFields = ({ command, chord }: Binding): boolean => Boolean(command.k
 /** The chords each command is bound to in `env`: its shortcut, then its alias. */
 export function bindingsFor(commands: readonly AppCommand[], env: KeyEnvironment): Binding[] {
   return commands.flatMap((command) => {
+    if (command.keys?.byEngine?.(env)) return [];
     const bindings: Binding[] = [];
     for (const set of [command.shortcut, command.shortcutAlias ?? null]) {
       const accelerator = shortcutFor(set, env);

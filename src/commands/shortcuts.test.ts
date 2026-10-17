@@ -266,6 +266,21 @@ describe("shortcut handler", () => {
       expect(ctx.actions.openPalette).not.toHaveBeenCalled();
     });
 
+    it("binds no zoom key on Windows: WebView2 zooms (and pinches) itself there", () => {
+      const ctx = setup(WIN_DESKTOP);
+      for (const init of [
+        { key: "=", code: "Equal", ctrlKey: true },
+        { key: "+", code: "Equal", ctrlKey: true, shiftKey: true },
+        { key: "-", code: "Minus", ctrlKey: true },
+        { key: "0", code: "Digit0", ctrlKey: true },
+      ]) {
+        expect(press(init).defaultPrevented, init.key).toBe(false);
+      }
+      expect(ctx.actions.zoom).not.toHaveBeenCalled();
+      press({ key: "k", code: "KeyK", ctrlKey: true });
+      expect(ctx.actions.openPalette).toHaveBeenCalledTimes(1);
+    });
+
     it("runs Ctrl+= Ctrl++ Ctrl+- Ctrl+0 once each on Linux (the zoom commands own zoom there)", () => {
       const ctx = setup(LINUX_DESKTOP);
       press({ key: "=", code: "Equal", ctrlKey: true });

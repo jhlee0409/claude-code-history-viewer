@@ -34,9 +34,9 @@ import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailabili
 import i18n from "i18next";
 import type { PlaceOwner } from "@/navigation/ownership";
 import type { Place } from "@/navigation/place";
-import type { Runtime } from "./keys";
+import type { KeyEnvironment, Runtime } from "./keys";
 import { COMMAND_MANIFEST, type CommandId, type CommandManifestEntry } from "./manifest";
-import type { ZoomStep } from "./zoom";
+import { engineOwnsZoomInput, type ZoomStep } from "./zoom";
 
 /** What a command needs to know and do. Built per use by `useCommandContext`. */
 export interface CommandContext {
@@ -88,9 +88,10 @@ interface CommandHandler {
   run: (ctx: CommandContext) => unknown;
   /**
    * Where its shortcut still fires. By default a shortcut is left alone while
-   * focus is in a text field or a modal dialog.
+   * focus is in a text field or a modal dialog. `byEngine`: where the web
+   * view itself handles the keys, so the shortcut listener does not bind them.
    */
-  keys?: { inFields?: boolean; inDialogs?: boolean };
+  keys?: { inFields?: boolean; inDialogs?: boolean; byEngine?: (env: KeyEnvironment) => boolean };
 }
 
 /** The archive belongs to Claude Code; another provider's project disables it. */
@@ -107,13 +108,14 @@ const TAB_KEYS = { inFields: true } as const;
 /**
  * Zoom is the desktop web view's (`zoom.ts`): in the WebUI the browser's own
  * zoom keeps ⌘= ⌘- ⌘0. It works from a text field and a dialog, as browser
- * zoom does.
+ * zoom does. On Windows WebView2 runs the zoom keys itself (with its pinch
+ * zoom); the menu items there set the same engine zoom.
  */
 const zoomCommand = (icon: LucideIcon, step: ZoomStep): CommandHandler => ({
   icon,
   available: (ctx) => ctx.runtime === "desktop",
   run: (ctx) => ctx.actions.zoom(step),
-  keys: { inFields: true, inDialogs: true },
+  keys: { inFields: true, inDialogs: true, byEngine: engineOwnsZoomInput },
 });
 
 /** ⌘n: tab n exists. */
