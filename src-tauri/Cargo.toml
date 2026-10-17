@@ -68,6 +68,11 @@ rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 comrak = { version = "0.49.0", default-features = false }
 
+# Window state (T11b): orders the window's first show after the restored
+# frame on the main queue. Already in the tree through tao; no new crate.
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3"
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 

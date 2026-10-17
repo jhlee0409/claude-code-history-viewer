@@ -5,6 +5,7 @@ pub mod export;
 pub mod models;
 pub mod providers;
 pub mod utils;
+pub mod window_state;
 pub mod wsl;
 
 #[cfg(feature = "webui-server")]
@@ -174,7 +175,14 @@ fn run_tauri() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        // The window opens hidden; this restores its saved frame, then shows
+        // it (T11b). Keep it last in `setup`, after anything that changes the
+        // window's decoration.
+        .setup(|app| {
+            window_state::restore_and_track(app.handle());
+            Ok(())
+        });
 
     builder
         .manage(MetadataState::default())
@@ -288,6 +296,7 @@ fn run_tauri() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            window_state::on_run_event(app, &event);
             // macOS-only: Spotlight / Dock / Finder launches don't re-exec
             // argv, so `tauri-plugin-single-instance` cannot see them. The OS
             // instead delivers the target as an Apple Event that Tauri
