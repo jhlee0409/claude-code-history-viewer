@@ -1770,8 +1770,13 @@ mod tracking_tests {
 #[cfg(test)]
 mod registration_tests {
     /// The desktop builder's source, from its first line to the app's run.
-    fn desktop_builder() -> &'static str {
-        let source = include_str!("lib.rs");
+    /// `lib.rs` with `\n` line ends: a Windows checkout (core.autocrlf) has `\r\n`.
+    fn lib_source() -> String {
+        include_str!("lib.rs").replace("\r\n", "\n")
+    }
+
+    fn desktop_builder() -> String {
+        let source = lib_source();
         let start = source
             .find("let mut builder = tauri::Builder::default()")
             .expect("desktop builder");
@@ -1779,7 +1784,7 @@ mod registration_tests {
             + source[start..]
                 .find("\n#[cfg(target_os = \"linux\")]\nfn configure_linux_ime_environment")
                 .expect("end of run_tauri");
-        &source[start..end]
+        source[start..end].to_string()
     }
 
     /// Checked on the source, as the builder cannot run headless.
@@ -1802,7 +1807,7 @@ mod registration_tests {
     /// `--serve` and `--export` return before the desktop builder exists.
     #[test]
     fn only_the_desktop_builder_uses_window_state() {
-        let source = include_str!("lib.rs");
+        let source = lib_source();
         assert_eq!(
             source.matches("window_state::restore_and_track(").count(),
             1
