@@ -28,8 +28,9 @@ vi.mock("@/hooks/useUpdater", () => ({
   useUpdater: () => ({ state: { isChecking: false, currentVersion: "1.0.0", hasUpdate: false } }),
 }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
+const platformState = vi.hoisted(() => ({ isMobile: false }));
 vi.mock("@/contexts/platform", () => ({
-  usePlatform: () => ({ platform: "desktop", isDesktop: true, isMobile: false }),
+  usePlatform: () => ({ platform: "desktop", isDesktop: true, isMobile: platformState.isMobile }),
   DesktopOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
   MobileOnly: () => null,
 }));
@@ -150,6 +151,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  platformState.isMobile = false;
 });
 
 async function renderShell() {
@@ -304,6 +306,27 @@ describe("§6 reachability through the real shell", () => {
       await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
       expect(state().isInspectorOpen).toBe(false);
       expect(document.getElementById("inspector")).toBeNull();
+    });
+
+    it("the inspector button says whether the panel is open and which element it controls", async () => {
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await activate(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-controls", "inspector");
+      expect(document.getElementById(toggle.getAttribute("aria-controls")!)).not.toBeNull();
+    });
+
+    it.each(["tokens", "info"] as const)("on a phone, a saved open %s inspector is not mounted and loads nothing", async (tab) => {
+      platformState.isMobile = true;
+      useAppStore.setState({ isInspectorOpen: true, inspectorTab: tab } as never);
+      await renderShell();
+      expect(document.getElementById("inspector")).toBeNull();
+      const commands = apiMock.mock.calls.map(([c]) => String(c));
+      expect(commands.filter((c) => /token_stats/.test(c))).toEqual([]);
+      // The preference itself is kept for the desktop.
+      expect(state().isInspectorOpen).toBe(true);
     });
 
     it("opening the inspector focuses its tab; Escape closes it and returns focus to the toolbar button", async () => {

@@ -21,7 +21,7 @@ import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
 import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
-import { INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
+import { INSPECTOR_ID, INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -219,6 +219,8 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     return [projectName, t(VIEW_REGISTRY[view].titleKey)];
   })();
   const inspectorLabel = t("common.toolbar.inspector");
+  // The screens the inspector can sit beside (AppLayout's `showInspector`).
+  const isInspectorAvailable = computed.isMessagesView && selectedSession != null;
 
   return (
     <header
@@ -366,8 +368,11 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           icon={InspectorIcon}
           label={inspectorLabel}
           id={INSPECTOR_TOGGLE_ID}
-          pressed={isInspectorOpen}
-          disabled={!computed.isMessagesView || !selectedSession}
+          // Expanded only while the panel is actually on screen: the saved
+          // preference can be "open" on a screen with no inspector.
+          expanded={isInspectorAvailable && isInspectorOpen}
+          controls={INSPECTOR_ID}
+          disabled={!isInspectorAvailable}
           onClick={() => commands.run("view.toggleInspector")}
         />
 
@@ -385,13 +390,21 @@ interface TabBehaviour {
   label?: string;
 }
 
-/** A 28px toolbar icon button; its label is the tooltip and the accessible name. */
+/**
+ * A 28px toolbar icon button; its label is the tooltip and the accessible name.
+ *
+ * `expanded`/`controls` make it a disclosure for the panel it opens (the
+ * inspector): `aria-expanded` and `aria-controls`, not `aria-pressed` - a
+ * toggle and a disclosure at once would announce two contradictory states.
+ * Buttons without a panel pass neither and stay plain buttons.
+ */
 const ToolbarIconButton = ({
   icon: Glyph,
   label,
   onClick,
   disabled = false,
-  pressed,
+  expanded,
+  controls,
   spinning = false,
   className,
   id,
@@ -400,7 +413,10 @@ const ToolbarIconButton = ({
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  pressed?: boolean;
+  /** Whether the panel this button opens is open. */
+  expanded?: boolean;
+  /** The id of that panel. */
+  controls?: string;
   spinning?: boolean;
   className?: string;
   id?: string;
@@ -410,17 +426,19 @@ const ToolbarIconButton = ({
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    aria-pressed={pressed}
+    aria-expanded={expanded}
+    // Only while the panel is in the document: it is not rendered closed.
+    aria-controls={expanded ? controls : undefined}
     className={cn(
       "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
       "text-muted-foreground hover:text-foreground hover:bg-muted",
-      pressed && "bg-muted text-foreground",
+      expanded && "bg-muted text-foreground",
       disabled && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground",
       className
     )}
     content={label}
   >
-    <Glyph className={cn("w-4 h-4", pressed && "text-accent", spinning && "animate-spin")} />
+    <Glyph className={cn("w-4 h-4", expanded && "text-accent", spinning && "animate-spin")} />
   </TooltipButton>
 );
 

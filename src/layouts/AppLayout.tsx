@@ -301,8 +301,13 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const isTranscriptView = computed.isMessagesView;
   // The inspector (outline, tokens, info) is closed by default and opens
   // from the toolbar's inspector button or ⌘⇧M (plan T9a, decision D5);
-  // closed, it takes no width at all.
-  const showInspector = entry.inspector && selectedSession != null && isInspectorOpen;
+  // closed, it takes no width at all. Gated on the desktop layout in
+  // JavaScript, not merely by `hidden md:block`: a hidden wrapper still
+  // mounts its children, so a saved open Tokens/Info tab would run its
+  // loaders on a phone for a panel nobody can see. The saved preference
+  // itself stays, so the inspector returns on a wider screen.
+  const showInspector =
+    !isMobile && entry.inspector && selectedSession != null && isInspectorOpen;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
@@ -365,7 +370,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
         <SkipLinks
           hasProjectExplorer={!isMobile}
           hasRecentEditsDock={showRecentEditsDock}
-          hasInspector={!isMobile && showInspector}
+          hasInspector={showInspector}
         />
       }
       header={
