@@ -166,6 +166,11 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   userOnlyFilter: "app",
   showParallelTasksInNavigator: "app",
   isNavigatorOpen: "app",
+  // The inspector (T9a): open state, tab and width are window-wide
+  // preferences, not a tab's - switching tabs keeps the panel as it was.
+  isInspectorOpen: "app",
+  inspectorTab: "app",
+  inspectorWidth: "app",
   navigatorViewMode: "app",
   isMinimapOpen: "app",
   isRecentEditsDockOpen: "app",

@@ -60,6 +60,10 @@ import {
   createNavigatorSlice,
 } from "./slices/navigatorSlice";
 import {
+  type InspectorSlice,
+  createInspectorSlice,
+} from "./slices/inspectorSlice";
+import {
   type MinimapSlice,
   createMinimapSlice,
 } from "./slices/minimapSlice";
@@ -116,6 +120,7 @@ export type AppStore = ProjectSlice &
   NavigationSlice &
   WatcherSlice &
   NavigatorSlice &
+  InspectorSlice &
   MinimapSlice &
   RecentEditsPanelSlice &
   ProviderSlice &
@@ -143,6 +148,7 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createNavigationSlice(...args),
   ...createWatcherSlice(...args),
   ...createNavigatorSlice(...args),
+  ...createInspectorSlice(...args),
   ...createMinimapSlice(...args),
   ...createRecentEditsPanelSlice(...args),
   ...createProviderSlice(...args),

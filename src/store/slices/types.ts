@@ -226,6 +226,11 @@ export interface AppStoreState {
   navigatorViewMode: import('./navigatorSlice').NavigatorViewMode;
   visibleMessageUuid: string | null;
 
+  // Inspector state (plan T9a; window-wide preferences)
+  isInspectorOpen: boolean;
+  inspectorTab: import('./inspectorSlice').InspectorTabId;
+  inspectorWidth: number;
+
   // Minimap state
   isMinimapOpen: boolean;
 
@@ -463,6 +468,12 @@ export interface AppStoreActions {
   triggerProjectRefresh: (projectPath: string) => Promise<void>;
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
   setActiveSessionNearBottom: (nearBottom: boolean) => void;
+
+  // Inspector actions
+  toggleInspector: () => void;
+  setInspectorOpen: (open: boolean) => void;
+  setInspectorTab: (tab: import('./inspectorSlice').InspectorTabId) => void;
+  setInspectorWidth: (width: number) => void;
 
   // Navigator actions
   toggleNavigator: () => void;
