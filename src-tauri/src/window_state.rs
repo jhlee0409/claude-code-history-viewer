@@ -28,6 +28,12 @@
 //! monitors one at a time: the chosen monitor is the one with the largest
 //! overlap; overlaps are never added up.
 //!
+//! **Tracking** starts from a normal frame: the restored one, or with
+//! nothing saved the window as created ([`tracking_start`]). A frame seen
+//! while maximized, minimized or fullscreen never becomes the normal frame,
+//! so maximizing first on a first launch still restores — and un-maximizes
+//! to — the default frame.
+//!
 //! **Outer vs inner.** The record and every check use the OUTER frame
 //! (title bar and borders included). Tauri's `set_size` sets the INNER size,
 //! so [`restore_plan`] subtracts the window's current decoration
@@ -553,6 +559,13 @@ pub struct Observation {
     pub fullscreen: bool,
 }
 
+impl Observation {
+    /// Not maximized, minimized or fullscreen: its frame is the normal frame.
+    fn is_normal(&self) -> bool {
+        !(self.maximized || self.minimized || self.fullscreen)
+    }
+}
+
 /// The record to save, kept up to date from the window's moves and resizes.
 #[derive(Debug, Default)]
 pub struct Tracker {
@@ -571,9 +584,11 @@ impl Tracker {
 
     /// Applies an observation; returns whether the record changed.
     ///
-    /// A minimized or fullscreen window is ignored (Windows reports a
-    /// minimized window at −32000; fullscreen is not restored). A maximized
-    /// window keeps the last normal frame and only sets the flag.
+    /// Only a normal window's frame becomes the normal frame. A minimized or
+    /// fullscreen window is ignored (Windows reports a minimized window at
+    /// −32000; fullscreen is not restored). A maximized window keeps the
+    /// last normal frame and only sets the flag; with no normal frame known
+    /// yet it is ignored too ([`tracking_start`] seeds one).
     pub fn observe(&mut self, observation: Observation) -> bool {
         if observation.minimized || observation.fullscreen {
             return false;
@@ -583,13 +598,12 @@ impl Tracker {
                 maximized: true,
                 ..previous.clone()
             },
-            // Maximized before any normal frame was seen: the maximized frame
-            // is the best normal frame known.
-            (None, true) | (_, false) => SavedWindow::new(
+            (None, true) => return false,
+            (_, false) => SavedWindow::new(
                 observation.frame,
                 observation.scale_factor,
                 observation.monitor,
-                observation.maximized,
+                false,
             ),
         };
         if self.record.as_ref() == Some(&next) {
@@ -613,6 +627,24 @@ impl Tracker {
     pub fn mark_dirty(&mut self) {
         self.dirty = self.record.is_some();
     }
+}
+
+/// The record tracking starts from: the frame as restored (or the saved
+/// record when the restore failed); with nothing saved, the window as it
+/// was created, if it is a normal window. Then a first move or maximize
+/// keeps a real normal frame.
+pub fn tracking_start(
+    known: Option<SavedWindow>,
+    created: Option<Observation>,
+) -> Option<SavedWindow> {
+    known.or_else(|| {
+        created
+            .filter(Observation::is_normal)
+            .map(|created| {
+                SavedWindow::new(created.frame, created.scale_factor, created.monitor, false)
+            })
+            .filter(SavedWindow::is_plausible)
+    })
 }
 
 /// Runs an action once things have been quiet for `delay` after the last
@@ -735,9 +767,13 @@ pub fn restore_and_track<R: Runtime>(app: &AppHandle<R>) {
             .inspect_err(|error| log::warn!("window-state: saved frame not restored: {error}"))
             .ok()
     });
+    let known = restored.or(saved);
+    // Nothing saved: no setter ran, so the hidden window is at its
+    // configured default frame — the normal frame until it moves.
+    let created = known.is_none().then(|| observe_created(&window)).flatten();
     show(&window);
     if let Some(path) = path {
-        track(app, &window, path, restored.or(saved));
+        track(app, &window, path, tracking_start(known, created));
     }
 }
 
@@ -853,6 +889,17 @@ fn observe_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<Observation> 
         minimized: window.is_minimized().ok()?,
         fullscreen: window.is_fullscreen().ok()?,
     })
+}
+
+/// The window as created, if its outer frame is known yet. GTK reports a
+/// window that was never mapped with its origin as its outer size (tao
+/// `linux/window.rs:314`); an outer frame smaller than the inner size is
+/// that, not a frame. GTK's first configure event on show reports the real
+/// frame anyway.
+fn observe_created<R: Runtime>(window: &WebviewWindow<R>) -> Option<Observation> {
+    let inner = window.inner_size().ok()?;
+    observe_window(window)
+        .filter(|seen| seen.frame.width >= inner.width && seen.frame.height >= inner.height)
 }
 
 fn track<R: Runtime>(
@@ -1578,6 +1625,72 @@ mod tracking_tests {
             tracker.take_dirty(),
             Some(SavedWindow::new(NORMAL, 2.0, None, false))
         );
+    }
+
+    /// Review-2 F2 (probe 8): first launch, maximized before any move.
+    /// Tracking starts from the window as created (1200x800 points at 2x,
+    /// centred), so the saved normal frame is that frame, not the zoomed
+    /// one; the relaunch applies it before maximizing, so un-maximizing
+    /// returns to it.
+    #[test]
+    fn maximizing_first_on_first_launch_saves_the_created_normal_frame() {
+        let created = Rect::new(600, 408, 2400, 1600);
+        let zoomed = Rect::new(0, 78, 3600, 2260);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let start = tracking_start(None, Some(seen(created, false)));
+        let persister = Persister::new(path.clone(), start);
+        persister.save_if_dirty();
+        assert!(!path.exists(), "launch and quit alone write nothing");
+        assert!(persister.observe(seen(zoomed, true)));
+        persister.save_if_dirty();
+        let stored = load(&path).unwrap();
+        assert_eq!(stored, SavedWindow::new(created, 2.0, None, true));
+
+        let built_in = MonitorInfo {
+            name: None,
+            bounds: Rect::new(0, 0, 3600, 2338),
+            work_area: zoomed,
+            scale_factor: 2.0,
+            primary: true,
+        };
+        let window = WindowMetrics {
+            scale_factor: 2.0,
+            decoration_width: 0,
+            decoration_height: 0,
+        };
+        let plan = restore_plan(&stored, &[built_in], DesktopSpace::ScaledPerItem, window);
+        assert_eq!(plan.position, Some((created.x, created.y)));
+        assert_eq!(plan.outer_size, (created.width, created.height));
+        assert!(plan.maximize);
+    }
+
+    #[test]
+    fn a_maximized_minimized_or_fullscreen_frame_is_never_the_normal_frame() {
+        let mut tracker = Tracker::new(None);
+        assert!(!tracker.observe(seen(ZOOMED, true)));
+        assert_eq!(tracker.take_dirty(), None);
+        let mut minimized = seen(NORMAL, false);
+        minimized.minimized = true;
+        let mut fullscreen = seen(NORMAL, false);
+        fullscreen.fullscreen = true;
+        for created in [seen(ZOOMED, true), minimized, fullscreen] {
+            assert_eq!(tracking_start(None, Some(created)), None);
+        }
+    }
+
+    #[test]
+    fn tracking_starts_from_the_restored_record_before_the_created_window() {
+        let restored = SavedWindow::new(NORMAL, 2.0, None, true);
+        assert_eq!(
+            tracking_start(Some(restored.clone()), Some(seen(ZOOMED, false))),
+            Some(restored)
+        );
+        assert_eq!(
+            tracking_start(None, Some(seen(NORMAL, false))),
+            Some(SavedWindow::new(NORMAL, 2.0, None, false))
+        );
+        assert_eq!(tracking_start(None, None), None);
     }
 
     #[test]
