@@ -41,7 +41,12 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
 }
 
 function setup(env: KeyEnvironment, ctx = makeContext(), nativeOwned?: ReadonlySet<CommandId>) {
-  const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx, nativeOwned });
+  const handler = createShortcutHandler({
+    commands: COMMANDS,
+    env,
+    getContext: () => ctx,
+    ownedByNativeMenu: nativeOwned && ((id) => nativeOwned.has(id)),
+  });
   window.addEventListener("keydown", handler);
   cleanups.push(() => window.removeEventListener("keydown", handler));
   return ctx;

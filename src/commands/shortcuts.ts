@@ -2,10 +2,11 @@
  * DOM keyboard shortcuts for manifest commands (plan §4.4).
  *
  * One window listener serves every command. A shortcut has one owner per
- * runtime: in the WebUI it is this listener; on the desktop, once the native
- * menu owns a command (T11a passes those ids as `nativeOwned`), this listener
- * skips it. Either way the command runs through `runCommand`, the same
- * `enabled` check the palette and the menu use.
+ * runtime: in the WebUI it is this listener; in the desktop app, where the
+ * native menu owns a command's shortcut (`ownedByNativeMenu`, from the menu
+ * bridge in `nativeMenu.ts`), this listener skips it and the menu item runs
+ * it. Either way the command runs through `runCommand`, the same `enabled`
+ * check the palette and the menu use.
  *
  * A key is left alone - not handled, not prevented - when:
  * - another handler already took it (`defaultPrevented`); this is also why a
@@ -29,16 +30,13 @@ export interface ShortcutHandlerOptions {
   commands: readonly AppCommand[];
   env: KeyEnvironment;
   getContext: () => CommandContext;
-  /** Commands whose shortcut the native menu owns on this runtime. */
-  nativeOwned?: ReadonlySet<CommandId>;
+  /**
+   * Whether the native menu runs this command's shortcut right now; the
+   * listener then leaves the key alone (no run, no preventDefault) so the
+   * menu item gets it - one run per key press.
+   */
+  ownedByNativeMenu?: (id: CommandId) => boolean;
 }
-
-/**
- * Commands the desktop's native menu owns, whose shortcut this listener
- * skips there. Empty until the native menu exists (T11a builds it from the
- * manifest and fills this from the menu it actually built).
- */
-export const NATIVE_MENU_COMMANDS: ReadonlySet<CommandId> = new Set<CommandId>();
 
 const FIELD_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 const DIALOG_SELECTOR = "[role='dialog'], [role='alertdialog']";
@@ -76,7 +74,7 @@ export function createShortcutHandler({
   commands,
   env,
   getContext,
-  nativeOwned,
+  ownedByNativeMenu,
 }: ShortcutHandlerOptions): (event: KeyboardEvent) => void {
   const bindings = bindingsFor(commands, env);
   return (event) => {
@@ -84,7 +82,7 @@ export function createShortcutHandler({
     const binding = bindings.find(({ chord }) => matchesChord(event, chord));
     if (!binding) return;
     const { command } = binding;
-    if (nativeOwned?.has(command.id)) return;
+    if (ownedByNativeMenu?.(command.id)) return;
     if (!runsInFields(binding) && isEditableTarget(event.target)) return;
     if (!command.keys?.inDialogs && isInDialog(event.target)) return;
     const ctx = getContext();
