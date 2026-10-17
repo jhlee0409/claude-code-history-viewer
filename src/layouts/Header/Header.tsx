@@ -6,7 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { activeLibraryItem, activeToolbarView, isAppView, type ToolbarView } from "@/navigation/place";
 import { VIEW_PANEL_ID, viewTabId } from "./viewTabIds";
-import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY } from "@/layouts/shell/viewRegistry";
+import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY, screenOf } from "@/layouts/shell/viewRegistry";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import { useCommandRunner } from "@/commands/CommandRunner";
@@ -22,6 +22,7 @@ import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
 import { INSPECTOR_ID, INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
+import { isInspectorPlace } from "@/components/Inspector/inspectorAvailability";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -219,8 +220,12 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     return [projectName, t(VIEW_REGISTRY[view].titleKey)];
   })();
   const inspectorLabel = t("common.toolbar.inspector");
-  // The screens the inspector can sit beside (AppLayout's `showInspector`).
-  const isInspectorAvailable = computed.isMessagesView && selectedSession != null;
+  // Where the inspector can show: the rule AppLayout and the command share.
+  // The desktop half is CSS here: on a phone the button is hidden.
+  const isInspectorAvailable = isInspectorPlace({
+    view: screenOf(computed),
+    hasSession: selectedSession != null,
+  });
 
   return (
     <header

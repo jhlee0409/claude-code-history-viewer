@@ -308,6 +308,30 @@ describe("§6 reachability through the real shell", () => {
       expect(document.getElementById("inspector")).toBeNull();
     });
 
+    it.each([
+      ["no session is open", { selectedSession: null }],
+      ["the screen has no inspector", { view: "analytics" }],
+    ] as const)("where %s, the inspector button is disabled and ⌘⇧M keeps the saved state", async (_, patch) => {
+      useAppStore.setState(patch as never);
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      expect(toggle).toBeDisabled();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "M", ctrlKey: true, shiftKey: true });
+      });
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+    });
+
+    it("beside an open conversation, ⌘⇧M opens the inspector (the control for the row above)", async () => {
+      await renderShell();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "M", ctrlKey: true, shiftKey: true });
+      });
+      expect(state().isInspectorOpen).toBe(true);
+      expect(document.getElementById("inspector")).not.toBeNull();
+    });
+
     it("the inspector button says whether the panel is open and which element it controls", async () => {
       await renderShell();
       const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });

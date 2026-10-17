@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
 import { Inspector } from "@/components/Inspector";
+import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailability";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
@@ -307,7 +308,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // loaders on a phone for a panel nobody can see. The saved preference
   // itself stays, so the inspector returns on a wider screen.
   const showInspector =
-    !isMobile && entry.inspector && selectedSession != null && isInspectorOpen;
+    isInspectorAvailable({ isMobile, view: screen, hasSession: selectedSession != null }) && isInspectorOpen;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so

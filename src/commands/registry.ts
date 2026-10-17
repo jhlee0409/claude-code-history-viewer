@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailability";
 import i18n from "i18next";
 import type { PlaceOwner } from "@/navigation/ownership";
 import type { Place } from "@/navigation/place";
@@ -132,7 +133,10 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
   },
   "view.toggleInspector": {
     icon: SCREEN_ICONS.inspector,
-    enabled: (ctx) => !ctx.isMobile,
+    // Only where the panel can show: elsewhere a toggle would flip the saved
+    // open state unseen, and the panel would pop open later.
+    enabled: (ctx) =>
+      isInspectorAvailable({ isMobile: ctx.isMobile, view: ctx.place.view, hasSession: ctx.place.session != null }),
     run: (ctx) => ctx.actions.toggleInspector(),
     keys: { inFields: true, inDialogs: true },
   },

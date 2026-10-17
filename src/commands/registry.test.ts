@@ -194,6 +194,19 @@ describe("command registry", () => {
     expect(ctx.actions.focusFind).toHaveBeenCalledTimes(1);
   });
 
+  it("enables the inspector toggle only where the inspector can show", () => {
+    const session = { provider: "claude", filePath: "/p/s.jsonl", sessionId: "s" };
+    // No session: the panel cannot show, so the saved open state must not flip unseen.
+    expect(runCommand("view.toggleInspector", makeContext({ place: { view: "conversation" } }))).toBe(false);
+    expect(runCommand("view.toggleInspector", makeContext({ place: { view: "analytics", session } }))).toBe(false);
+    expect(
+      runCommand("view.toggleInspector", makeContext({ place: { view: "conversation", session }, isMobile: true })),
+    ).toBe(false);
+    const ctx = makeContext({ place: { view: "conversation", session } });
+    expect(runCommand("view.toggleInspector", ctx)).toBe(true);
+    expect(ctx.actions.toggleInspector).toHaveBeenCalledTimes(1);
+  });
+
   it("disables the archive for another provider's project, like the gear menu", () => {
     const codex = { view: "conversation" as const, project: { provider: "codex", path: "/c" } };
     expect(runCommand("go.archive", makeContext({ place: codex }))).toBe(false);

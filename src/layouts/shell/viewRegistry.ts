@@ -3,10 +3,12 @@
  *
  * Every `View` of the place model has one entry. The shell reads it for the
  * main-area body (`component` inside its `frame`), the content header
- * (`icon`, `titleKey`, `header.subtitle`), the right-hand inspector, the
- * header's view tabs (`tab`) and the mobile analytics sub-nav. Nothing else in
- * `src/layouts` picks a component, title or icon per view; the registry test
- * holds that line.
+ * (`icon`, `titleKey`, `header.subtitle`), the header's view tabs (`tab`)
+ * and the mobile analytics sub-nav. Nothing else in `src/layouts` picks a
+ * component, title or icon per view; the registry test holds that line. The
+ * screens the right-hand inspector sits beside are the inspector's own rule
+ * (`components/Inspector/inspectorAvailability.ts`), shared with the command
+ * registry, which must not import the screens.
  *
  * A screen has one icon (`SCREEN_ICONS`, decision page section 7): the header
  * tab draws the entry's `icon`, so a tab and its content header cannot
@@ -58,8 +60,6 @@ export interface ViewEntry {
   titleKey: string;
   /** The content header above the body; null for screens without one. */
   header: { subtitle: (context: HeaderContext) => string } | null;
-  /** Whether the right-hand inspector (message navigator, edits dock) shows. */
-  inspector: boolean;
   /**
    * A related screen the content header links to (desktop; the mobile
    * sub-nav lists them). Token stats has no toolbar tab until it becomes an
@@ -89,7 +89,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.conversation,
     titleKey: "session.select",
     header: null,
-    inspector: false,
   },
   conversation: {
     component: ConversationScreen,
@@ -97,7 +96,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.conversation,
     titleKey: "message.view",
     header: null,
-    inspector: true,
     tab: { labelKey: "message.view" },
   },
   analytics: {
@@ -106,7 +104,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.analytics,
     titleKey: "analytics.dashboard",
     header: { subtitle: sessionSummary },
-    inspector: false,
     tab: { labelKey: "analytics.dashboard" },
     related: { view: "tokenStats", labelKey: "messages.tokenStats.title" },
   },
@@ -116,7 +113,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.tokenStats,
     titleKey: "messages.tokenStats.title",
     header: { subtitle: sessionSummary },
-    inspector: false,
     related: { view: "analytics", labelKey: "analytics.dashboard" },
   },
   edits: {
@@ -125,7 +121,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.edits,
     titleKey: "recentEdits.title",
     header: { subtitle: ({ t }) => t("recentEdits.description") },
-    inspector: false,
     tab: { labelKey: "recentEdits.title" },
   },
   board: {
@@ -137,7 +132,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
       subtitle: ({ t }) =>
         t("session.board.description", "Comparative overview of different sessions"),
     },
-    inspector: false,
     tab: { labelKey: "session.board.title" },
   },
   globalStats: {
@@ -146,7 +140,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.globalStats,
     titleKey: "analytics.globalOverview",
     header: { subtitle: ({ globalOverviewDescription }) => globalOverviewDescription },
-    inspector: false,
   },
   archive: {
     component: ArchiveScreen,
@@ -154,7 +147,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.archive,
     titleKey: "archive.title",
     header: { subtitle: ({ t }) => t("archive.description") },
-    inspector: false,
   },
   settingsManager: {
     component: SettingsScreen,
@@ -162,7 +154,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     icon: SCREEN_ICONS.settings,
     titleKey: "settingsManager.title",
     header: { subtitle: ({ t }) => t("settingsManager.description") },
-    inspector: false,
   },
 };
 

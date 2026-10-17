@@ -158,10 +158,6 @@ describe("VIEW_REGISTRY completeness", () => {
       expect(VIEW_REGISTRY[view].header, view).not.toBeNull();
     }
   });
-
-  it("shows the inspector on the conversation screen only", () => {
-    expect(VIEWS.filter((view) => VIEW_REGISTRY[view].inspector)).toEqual(["conversation"]);
-  });
 });
 
 describe("screen icons (decision page section 7, plan T5)", () => {

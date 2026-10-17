@@ -90,13 +90,34 @@ describe("useAppKeyboard", () => {
   });
 
   it("opens the inspector on Ctrl+Shift+M when not mobile", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
     renderHook(() => useAppKeyboard());
     press("M", { ctrlKey: true, shiftKey: true });
     expect(setInspectorOpenMock).toHaveBeenCalledTimes(1);
     expect(setInspectorOpenMock).toHaveBeenCalledWith(true);
   });
 
+  it.each([
+    ["no session is open", () => {}],
+    [
+      "the screen has no inspector",
+      () => {
+        storeState.view = "analytics";
+        storeState.selectedProject = PROJECT;
+        storeState.selectedSession = SESSION;
+      },
+    ],
+  ])("does not toggle the inspector on Ctrl+Shift+M when %s", (_, arrange) => {
+    arrange();
+    renderHook(() => useAppKeyboard());
+    press("M", { ctrlKey: true, shiftKey: true });
+    expect(setInspectorOpenMock).not.toHaveBeenCalled();
+  });
+
   it("does not toggle the inspector on Ctrl+Shift+M when mobile", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
     platformState.isMobile = true;
     renderHook(() => useAppKeyboard());
     press("m", { ctrlKey: true, shiftKey: true });
