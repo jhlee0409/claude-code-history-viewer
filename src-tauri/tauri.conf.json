@@ -22,7 +22,7 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "visible": true,
+        "visible": false,
         "focus": true,
         "zoomHotkeysEnabled": true
       }

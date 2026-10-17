@@ -92,4 +92,20 @@ describe("Tauri Capabilities", () => {
     ]));
     expect(capability.permissions).not.toContain("core:window:default");
   });
+
+  it("grants the page no window-state or window-geometry permission (restore runs in Rust only)", () => {
+    const capability = JSON.parse(fs.readFileSync(defaultCapabilityPath, "utf-8"));
+    const identifiers: string[] = capability.permissions.map((permission: unknown) =>
+      typeof permission === "string"
+        ? permission
+        : (permission as { identifier?: string }).identifier ?? ""
+    );
+
+    expect(identifiers.filter((id) => id.startsWith("window-state:"))).toEqual([]);
+    expect(
+      identifiers.filter((id) =>
+        /^core:window:allow-(set-position|set-size|outer-position|outer-size|show|hide|maximize)$/.test(id)
+      )
+    ).toEqual([]);
+  });
 });
