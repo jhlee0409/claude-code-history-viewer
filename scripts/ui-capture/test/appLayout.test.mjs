@@ -32,7 +32,7 @@ import { newScenarioPage, settle } from "../lib/browser.mjs";
 import { createActions } from "../lib/actions.mjs";
 import { loadTranslator, SUPPORTED_LOCALES } from "../lib/i18n.mjs";
 import { generateFixture } from "../fixtures/generate.mjs";
-import { STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
+import { STORAGE_SEED, expandScenarios, inspectorStorage } from "../scenarios.mjs";
 
 /* global document, window -- functions passed to page.evaluate run in the page */
 
@@ -285,13 +285,14 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
   }
 
   const transcriptCases = [
-    ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: { "navigator-open": "true" } })),
+    // The narrowest desktop main pane: the inspector open (its outline).
+    ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--1180x760--light", locale, storage: inspectorStorage({ open: true }) })),
     ...SUPPORTED_LOCALES.map((locale) => ({ id: "transcript--390x844--dark", locale, storage: {} })),
     { id: "transcript--1440x900--light", locale: "en", storage: {} },
   ];
 
   for (const { id, locale, storage } of transcriptCases) {
-    const label = `${id} ${locale}${storage["navigator-open"] === "true" ? " (navigator open)" : ""}`;
+    const label = `${id} ${locale}${storage["navigator-open"] === "true" ? " (inspector open)" : ""}`;
     it(`${label}: search placeholder fits, date label sits outside the message list`, async () => {
       const { session, page, t } = await openScenario(id, { locale, storage });
       try {

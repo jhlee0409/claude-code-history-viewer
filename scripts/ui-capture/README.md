@@ -179,16 +179,26 @@ five-language check run the same scenarios once per `--locale`.
 
 Every scenario starts from the C4 measurement state declared in
 `scenarios.mjs` → `MEASUREMENT_STATE`: sidebar **260 px**, scale **100 %**,
-inspector **closed**, **one tab** (font-scale scenarios: their own scale).
-`STORAGE_SEED` writes the app's own storage keys (`sidebar-width=260`,
-`navigator-open=false`) before the first app script; app defaults are
-untouched. The right-hand message navigator is today's inspector; scale 100 %
-is the default of a fresh context; the app has no tab UI yet. Each probe JSON
-records `measurementState` (measured sidebar width, root font size,
-`appFontScale` = `--app-font-scale`, stored inspector flag, sessions layout,
-selected / expanded project rows), and a scenario fails when the measured
-state differs (desktop sidebar width, inspector flag, root font size 16 px,
-`--app-font-scale` = the scenario's scale).
+inspector **closed**, **one tab** (font-scale scenarios: their own scale;
+tab and inspector scenarios: their own `tabs` / `inspectorOpen`).
+`STORAGE_SEED` writes the app's own storage keys (`sidebar-width=260`, the
+inspector's record `inspector.v1` = closed, and the message navigator's
+`navigator-open=false`, which builds before T9a read instead) before the
+first app script; app defaults are untouched. Scale 100 % is the default of
+a fresh context. Each probe JSON records `measurementState` (measured
+sidebar width, root font size, `appFontScale` = `--app-font-scale`, stored
+inspector flag - `inspector.v1`'s `open`, else `navigator-open` - sessions
+layout, selected / expanded project rows, open tabs), and a scenario fails
+when the measured state differs (desktop sidebar width, inspector flag,
+root font size 16 px, `--app-font-scale` = the scenario's scale).
+
+Inspector (T9a): `inspector-<outline|tokens|info>--<1440x900|1180x760>--<theme>`
+open the inspector on that tab beside the large transcript through stored
+state (`inspectorStorage`), as a relaunch restores it. A base build before
+T9a reads `navigator-open=true` from the same seed and shows its message
+navigator open, so each pair is the before/after of that tab.
+`inspector-outline--390x844--dark` checks that a stored open inspector does
+not show on a phone.
 
 Project-row pair (C4 D3), desktop sizes, dark:
 

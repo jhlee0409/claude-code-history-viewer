@@ -45,12 +45,13 @@ export const DEFAULT_LOCALE = "ko";
 /**
  * Measurement state (plan §9b C4) every scenario starts from: sidebar 260px,
  * scale 100%, inspector closed, one tab. Seeded into localStorage before the
- * app's first script; the app defaults are not changed. The right-hand
- * message navigator is today's inspector (the future inspector absorbs its
- * outline); scale 100% is the app default (no stored settings in a fresh
- * context); the app has no tab UI yet, so "one tab" holds by construction.
- * probes.mjs records the measured state and run.mjs fails a scenario whose
- * measured state differs.
+ * app's first script; the app defaults are not changed. The inspector (T9a:
+ * outline, tokens, info) keeps one record, `inspector.v1`; builds before T9a
+ * read the message navigator's `navigator-open` instead, so the seed sets
+ * both and a base build starts in the same state. Scale 100% is the app
+ * default (no stored settings in a fresh context). probes.mjs records the
+ * measured state and run.mjs fails a scenario whose measured state differs
+ * (a screen's `inspectorOpen` / `tabs` override the defaults).
  */
 export const MEASUREMENT_STATE = {
   sidebarWidthPx: 260,
@@ -59,10 +60,17 @@ export const MEASUREMENT_STATE = {
   tabs: 1,
 };
 
+/** The inspector's stored record (`src/store/slices/inspectorSlice.ts`). */
+export const inspectorStorage = ({ open, tab = "outline", width = 280 }) => ({
+  "inspector.v1": JSON.stringify({ open, tab, width }),
+  // Builds before T9a: the message navigator's flag.
+  "navigator-open": String(open),
+});
+
 /** localStorage seed that establishes MEASUREMENT_STATE (app storage keys). */
 export const STORAGE_SEED = {
   "sidebar-width": String(MEASUREMENT_STATE.sidebarWidthPx),
-  "navigator-open": String(MEASUREMENT_STATE.inspectorOpen),
+  ...inspectorStorage({ open: MEASUREMENT_STATE.inspectorOpen }),
 };
 
 export const DESKTOP_VIEWPORTS = [
@@ -306,6 +314,21 @@ const MOBILE_TAB_SCREENS = [
   },
 ];
 
+/**
+ * The inspector open beside the large transcript, one scenario per tab
+ * (plan T9a). Opened through stored state, as a relaunch restores it, so no
+ * focus ring from a click shows. A base build before T9a reads the
+ * navigator's flag from the same seed and shows its navigator open: the
+ * before/after pair for every tab.
+ */
+const INSPECTOR_SCREENS = ["outline", "tokens", "info"].map((tab) => ({
+  id: `inspector-${tab}`,
+  title: `Inspector open on the ${tab} tab beside the large transcript`,
+  inspectorOpen: true,
+  storage: inspectorStorage({ open: true, tab }),
+  steps: [{ do: "openSession", session: "large" }],
+}));
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -323,6 +346,14 @@ export const MATRIX = [
     screens: TAB_SCREENS,
   },
   { viewports: MOBILE_VIEWPORTS, themes: THEMES, screens: MOBILE_TAB_SCREENS },
+  {
+    viewports: DESKTOP_VIEWPORTS.filter((v) => v.id !== "1920x1080"),
+    themes: THEMES,
+    screens: INSPECTOR_SCREENS,
+  },
+  // Phones have no inspector: a stored open one must not show (or break
+  // the transcript); the outline stays in its own sheet.
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: INSPECTOR_SCREENS.slice(0, 1) },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */

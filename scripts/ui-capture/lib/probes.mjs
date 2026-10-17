@@ -62,11 +62,18 @@ const LAYOUT_PROBE = `(() => {
         const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-font-scale"));
         return Number.isFinite(value) ? value : null;
       })(),
+      // The inspector's record (T9a), else the message navigator's flag
+      // (builds before T9a); reported as "true" / "false".
       inspectorOpenStored: (() => {
         try {
+          const record = localStorage.getItem("inspector.v1");
+          if (record !== null) {
+            const open = JSON.parse(record)?.open;
+            return typeof open === "boolean" ? String(open) : null;
+          }
           return localStorage.getItem("navigator-open");
         } catch {
-          return null; // opaque origin (no storage)
+          return null; // opaque origin (no storage), or an unreadable record
         }
       })(),
       sessionsLayout: document.getElementById("sessions-pane") ? "pane" : "inline",
@@ -195,7 +202,7 @@ export function checkMeasurementState(measured, expected, { mobile }) {
     problems.push(`sidebar ${measured.sidebarWidth}px, expected ${expected.sidebarWidthPx}px`);
   }
   if (measured.inspectorOpenStored !== String(expected.inspectorOpen)) {
-    problems.push(`inspector (navigator-open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
+    problems.push(`inspector (stored open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
   }
   // The font-size setting scales the type tokens through --app-font-scale;
   // the root font size stays the browser default at every scale.
