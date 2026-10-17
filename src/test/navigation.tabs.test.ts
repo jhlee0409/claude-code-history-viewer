@@ -54,7 +54,7 @@ import {
 import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
 import { fieldsOf } from "@/navigation/stateScope";
 import { createEmptySearchState } from "@/store/slices/types";
-import { loadProjectAnalytics, loadRecentEditsScreen, loadTokenStatsScreen, reloadBoard } from "@/navigation/screenData";
+import { loadProjectAnalytics, loadRecentEditsScreen, loadRecentEditsScreen, loadTokenStatsScreen, reloadBoard } from "@/navigation/screenData";
 
 const project = (name: string, provider = "claude"): ClaudeProject => ({
   name,
@@ -609,7 +609,7 @@ describe("a tab's transcript state: search and capture (review #5)", () => {
     await loadTokenStatsScreen(get, B, B1);
     await loadProjectAnalytics(get, B, B1);
     await reloadBoard(get);
-    await state().loadRecentEditsDock({ projectPath: B.path, scope: "project", grouping: "file" });
+    await loadRecentEditsScreen(get);
     const carried = screenFields.filter((f) => same(pick([f])[f], tab1Values[f]));
     expect(carried, "screen fields still holding tab 1's value after tab 2's screens loaded").toEqual([]);
   });

@@ -3,7 +3,6 @@
   "common.a11y.skipToMain": "メインコンテンツへ移動",
   "common.a11y.skipToInspector": "インスペクタへ移動",
   "common.a11y.skipToProjects": "プロジェクト一覧へ移動",
-  "common.a11y.skipToRecentEdits": "最近の編集へスキップ",
   "common.a11y.skipToSettings": "設定へ移動",
   "common.add": "追加",
   "common.appDescription": "Claude Codeの会話履歴を探索・分析します",

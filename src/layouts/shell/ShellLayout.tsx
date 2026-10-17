@@ -11,8 +11,9 @@
  * - `main`: the `<main>` landmark; `mainHeader` sits above the view panel,
  *   `main` fills the panel. The panel is the header tabs' tabpanel while a
  *   tab labels it (`mainLabelledBy`).
- * - `inspector`: the right-hand surfaces of the current screen (today the
- *   message navigator and the recent-edits dock; T9a's inspector).
+ * - `inspector`: the right-hand surface of the current screen (T9a's
+ *   inspector: outline, tokens, info). The recent-edits dock that also sat
+ *   here is gone (T9b): the Edits screen is the one recent-edits surface.
  *
  * Layout only: the shell decides where slots go, never what fills them.
  */

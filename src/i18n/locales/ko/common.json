@@ -3,7 +3,6 @@
   "common.a11y.skipToMain": "메인 콘텐츠로 건너뛰기",
   "common.a11y.skipToInspector": "인스펙터로 건너뛰기",
   "common.a11y.skipToProjects": "프로젝트 탐색기로 건너뛰기",
-  "common.a11y.skipToRecentEdits": "최근 편집으로 건너뛰기",
   "common.a11y.skipToSettings": "설정으로 건너뛰기",
   "common.add": "추가",
   "common.appDescription": "Claude Code 대화 기록을 탐색하고 분석하세요",

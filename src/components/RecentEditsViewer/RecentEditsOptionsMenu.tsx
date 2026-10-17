@@ -1,5 +1,5 @@
 /**
- * The `...` menu in the Recent Edits panel header.
+ * The `...` menu in the Edits screen's controls row.
  *
  * Holds grouping and the missing-on-disk filter. These live here
  * rather than in `SettingsManager`, which covers MCP servers, presets and paths
@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { RecentEditsGrouping } from "@/store/slices/recentEditsPanelSlice";
+import type { RecentEditsGrouping } from "@/store/slices/recentEditsSlice";
 
 const radioItemClass =
   "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
@@ -41,7 +41,7 @@ export const RecentEditsOptionsMenu: React.FC<RecentEditsOptionsMenuProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
-  const label = t("recentEdits.panelOptions", "Panel options");
+  const label = t("recentEdits.panelOptions", "List options");
 
   return (
     <DropdownMenu>
@@ -94,15 +94,6 @@ export const RecentEditsOptionsMenu: React.FC<RecentEditsOptionsMenuProps> = ({
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
 
-        {/*
-          Undocking used to live here. It moved to the Page/Sidebar toggle in
-          the panel header, which names both destinations and is visible without
-          opening anything. Leaving a second route in this menu would mean two
-          controls for one state, in two vocabularies, only one of which showed
-          the current value.
-
-          This menu is now only about how the list is grouped and filtered.
-        */}
       </DropdownMenuContent>
     </DropdownMenu>
   );

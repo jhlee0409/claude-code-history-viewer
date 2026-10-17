@@ -18,7 +18,7 @@
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 
-/** The inspector's tabs. Separate from the dock's `PanelId` (plan C1). */
+/** The inspector's tabs. */
 export const INSPECTOR_TAB_IDS = ["outline", "tokens", "info"] as const;
 export type InspectorTabId = (typeof INSPECTOR_TAB_IDS)[number];
 

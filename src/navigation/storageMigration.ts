@@ -27,7 +27,7 @@ export const UI_STORAGE_VERSION = 2;
 /** Where T8 stored the tabs (version 1). */
 export const LEGACY_TABS_STORAGE_KEY = "tabs.v1";
 
-/** The removed recent-edits dock's keys (`recentEditsPanelSlice`, `App`). */
+/** The removed recent-edits dock's keys (its old slice and `App`'s resize width). */
 export const REMOVED_DOCK_KEYS = [
   "recent-edits-mode",
   "recent-edits-dock-open",

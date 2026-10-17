@@ -13,7 +13,6 @@ import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
-import { useIsXlUp } from "@/hooks/useMediaQuery";
 import { CommandRunnerContext } from "@/commands/CommandRunner";
 import { useCommandContext } from "@/commands/useCommandContext";
 import { runCommand } from "@/commands/registry";
@@ -44,7 +43,6 @@ import { ShellLayout } from "@/layouts/shell/ShellLayout";
 import { SkipLinks } from "@/layouts/shell/SkipLinks";
 import { ContentHeader } from "@/layouts/shell/ContentHeader";
 import { MobileAnalyticsSubNav } from "@/layouts/shell/MobileAnalyticsSubNav";
-import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
 import { StatusBar } from "@/layouts/shell/StatusBar";
 import { TabStrip } from "@/layouts/shell/TabStrip";
 import { TabUnavailableNotice } from "@/layouts/shell/TabUnavailableNotice";
@@ -108,11 +106,6 @@ export interface AppLayoutProps {
   isInspectorResizing: boolean;
   handleInspectorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
   isInspectorOpen: boolean;
-  recentEditsDockWidth: number;
-  isRecentEditsDockResizing: boolean;
-  handleRecentEditsDockResizeStart: (
-    e: React.MouseEvent<HTMLElement>
-  ) => void;
 
   // Grouping
   groupingMode: GroupingMode;
@@ -146,9 +139,6 @@ export interface AppLayoutProps {
  */
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
-  // The dock is panel state, not layout state, so it is read from the store
-  // rather than threaded through props.
-  const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
   const {
     projects,
     sessions,
@@ -181,9 +171,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     isInspectorResizing,
     handleInspectorResizeStart,
     isInspectorOpen,
-    recentEditsDockWidth,
-    isRecentEditsDockResizing,
-    handleRecentEditsDockResizeStart,
     groupingMode,
     worktreeGroups,
     directoryGroups,
@@ -204,8 +191,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     liveStatusMessage,
   } = props;
 
-  // Called before the early returns below, as hook order must not vary.
-  const isXlUp = useIsXlUp();
   // Toolbar and sidebar controls run registry commands (`CommandRunner`).
   const getCommandContext = useCommandContext();
   const run = (id: Parameters<typeof runCommand>[0]) => runCommand(id, getCommandContext());
@@ -226,7 +211,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     The non-visual `data-ready` marker on the root reads "true" only when no
     load is pending anywhere a screen can show a loader: the prop flags below,
     store-level loads the props do not carry (including incremental "load
-    more" pages and the recent-edits dock), and view-level loads components
+    more" pages and the Edits screen's rows), and view-level loads components
     keep in local state (`usePendingLoad`, e.g. the Settings Manager). The UI
     capture harness (`scripts/ui-capture`) waits on it, on top of network and
     DOM quiescence, before it photographs a screen. Attribute only; it never
@@ -238,9 +223,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       s.isLoadingBoard ||
       s.isMetadataLoading ||
       s.pagination.isLoadingMore ||
-      s.isLoadingRecentEditsDock ||
-      s.isLoadingMoreRecentEditsDock ||
-      s.analytics.recentEditsPagination.isLoadingMore ||
+      s.isLoadingRecentEdits ||
+      s.isLoadingMoreRecentEdits ||
       s.archive.isLoadingArchives ||
       s.archive.isLoadingSessions ||
       s.archive.isLoadingExpiring ||
@@ -293,13 +277,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const Screen = entry.component;
   const Frame = entry.frame;
 
-  /*
-    The transcript screen. The dock and the skip links that point into the
-    inspector track exactly this condition, so an anchor and its target cannot
-    drift apart. Global stats is a screen of its own, so the conversation
-    screen is exactly the transcript.
-  */
-  const isTranscriptView = computed.isMessagesView;
   // The inspector (outline, tokens, info) is closed by default and opens
   // from the toolbar's inspector button or ⌘⇧M (plan T9a, decision D5);
   // closed, it takes no width at all. Gated on the desktop layout in
@@ -309,25 +286,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // itself stays, so the inspector returns on a wider screen.
   const showInspector =
     isInspectorAvailable({ isMobile, view: screen, hasSession: selectedSession != null }) && isInspectorOpen;
-  /*
-    Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
-    `hidden xl:block`, but a hidden wrapper still mounts its children, so
-    between 768 and 1279 the panel used to mount, run its effect and fetch a
-    page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
-    was never the right gate for an `xl` surface.
-
-    Deliberately NOT gated on a selected session or project. It stays beside
-    the "select a session" placeholder: the panel scopes itself to the project
-    on its own (`effectiveScope` falls back to "project"), so a refresh that
-    clears the session does not blank the one surface still able to say what
-    the project had been touching. And clicking the selected project in the
-    tree collapses and deselects it; the panel is a workspace fixture, so it
-    stays put and shows its own empty state. `clearProjectSelection` drops the
-    dock's fetched page, so there is nothing of the old project to render.
-  */
-  const showRecentEditsDock =
-    isXlUp && isRecentEditsDockOpen && isTranscriptView;
-
   const projectTreeProps = {
     projects,
     sessions,
@@ -370,7 +328,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       skipLinks={
         <SkipLinks
           hasProjectExplorer={!isMobile}
-          hasRecentEditsDock={showRecentEditsDock}
           hasInspector={showInspector}
         />
       }
@@ -454,25 +411,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 onResizeStart={handleInspectorResizeStart}
               />
             </div>
-          )}
-          {/*
-            Outermost on the right, after the inspector rather than before it.
-            The inspector's outline is an outline OF the transcript, so it
-            belongs against the transcript it indexes; the dock is a separate
-            surface about the project and sits outside it.
-
-            Keyed by whether a session is open, so clearing or opening one
-            remounts the dock (fresh scroll, focus and panel state) while a
-            switch between sessions keeps it - the lifetime it had when it sat
-            inside the transcript or the "select a session" placeholder (T2).
-          */}
-          {showRecentEditsDock && (
-            <RecentEditsDock
-              key={selectedSession == null ? "beside-placeholder" : "beside-transcript"}
-              width={recentEditsDockWidth}
-              isResizing={isRecentEditsDockResizing}
-              onResizeStart={handleRecentEditsDockResizeStart}
-            />
           )}
         </>
       }

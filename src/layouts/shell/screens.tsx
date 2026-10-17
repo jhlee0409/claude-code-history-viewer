@@ -18,7 +18,7 @@ import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
-import { selectRecentEditsPage, selectTokenStats } from "@/navigation/screenOwner";
+import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
@@ -284,22 +284,14 @@ const TokenStatsPanel = ({ onTokenStatClick }: Pick<ViewScreenProps, "onTokenSta
   );
 };
 
-export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => {
-  const selectedProject = useAppStore((s) => s.selectedProject);
-  const loadMoreRecentEdits = useAppStore((s) => s.loadMoreRecentEdits);
-  // Only the open project's edits (`navigation/screenOwner.ts`).
-  const page = useAppStore(useShallow(selectRecentEditsPage));
-  return (
-    <RecentEditsViewer
-      recentEdits={page.recentEdits}
-      pagination={page.pagination}
-      onLoadMore={() => selectedProject && loadMoreRecentEdits(selectedProject.path)}
-      isLoading={page.isLoading}
-      error={page.error}
-      initialSearchQuery={analyticsState.recentEditsSearchQuery}
-    />
-  );
-};
+/**
+ * The Edits screen: the one recent-edits surface (T9b). It reads its rows
+ * from the store itself, keyed by the request they answer
+ * (`navigation/screenOwner.ts`).
+ */
+export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => (
+  <RecentEditsViewer initialSearchQuery={analyticsState.recentEditsSearchQuery} />
+);
 
 export const BoardScreen = () => <SessionBoard />;
 

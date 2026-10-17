@@ -66,9 +66,6 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     isLoadingMessages,
     isRefreshingAllConversations,
     refreshAllConversations,
-    recentEditsMode,
-    toggleRecentEditsDock,
-    setRecentEditsDockOpen,
   } = useAppStore();
   const canGoBack = useAppStore((s) => s.placeHistory.back.length > 0);
   const canGoForward = useAppStore((s) => s.placeHistory.forward.length > 0);
@@ -123,34 +120,10 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     }
   };
 
+  // The Edits screen is the one recent-edits surface (T9b): the tab always
+  // opens it, on every width.
   const handleLoadRecentEdits = async () => {
     if (!selectedProject) return;
-
-    // The button routes on mode. In "docked" mode it toggles the side panel
-    // beside the transcript; in "page" mode it keeps today's behaviour of
-    // taking over the content area.
-    // The dock is CSS-gated at the `xl` breakpoint, so a docked-mode preference
-    // carried over from a wide window (or restored on a narrow one) would
-    // otherwise toggle state that nothing can render. Read the width at click
-    // time rather than holding reactive state for it.
-    const dockCanRender =
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1280px)").matches;
-
-    if (recentEditsMode === "docked" && selectedSession && dockCanRender) {
-      // The dock only renders inside the transcript branch of the layout, so
-      // from any other view (Analytics, Board, Settings) a plain toggle just
-      // flips invisible state and looks like a dead button. Go to the
-      // transcript and open the dock instead of toggling it shut.
-      if (!analyticsComputed.isMessagesView) {
-        setRecentEditsDockOpen(true);
-        analyticsActions.switchToMessages();
-        return;
-      }
-      toggleRecentEditsDock();
-      return;
-    }
-
     try {
       await analyticsActions.switchToRecentEdits();
     } catch (error) {
@@ -184,7 +157,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     edits: {
       isLoading: computed.isLoadingRecentEdits,
       onClick: () => {
-        if (computed.isRecentEditsView && recentEditsMode !== "docked") {
+        if (computed.isRecentEditsView) {
           analyticsActions.switchToMessages();
         } else {
           handleLoadRecentEdits();

@@ -691,7 +691,8 @@ export const createProjectSlice: StateCreator<
           },
         });
       } else if (view === "edits") {
-        await loadRecentEditsScreen(get, refreshedProject, loadOptions);
+        // Read again: the refresh is the user asking for what is on disk now.
+        await loadRecentEditsScreen(get, { force: true });
       } else if (view === "board") {
         await reloadBoard(get);
       } else if (view === "archive") {
@@ -934,11 +935,8 @@ export const createProjectSlice: StateCreator<
     get().clearTokenStats();
     get().resetAnalytics();
     get().clearBoard();
-    // The docked Recent Edits panel outlives the selection - it stays open
-    // because open-ness is the user's choice - so its rows have to be dropped
-    // here. Otherwise the panel keeps rendering the deselected project's
-    // edits.
-    get().clearRecentEditsDock();
+    // The Edits screen's rows belong to the deselected project.
+    get().clearRecentEditsList();
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
     get().exitSessionSelectionMode();

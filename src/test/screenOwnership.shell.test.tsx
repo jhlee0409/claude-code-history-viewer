@@ -32,9 +32,7 @@ vi.mock("@/contexts/platform", () => ({
 }));
 vi.mock("@/hooks/useMediaQuery", () => ({
   useMediaQuery: () => true,
-  useIsXlUp: () => false,
   useIsLgUp: () => true,
-  XL_BREAKPOINT: 1280,
 }));
 vi.mock("@/components/SimpleUpdateManager", () => ({ SimpleUpdateManager: () => null }));
 // jsdom has no layout: render every board lane, each naming its session.

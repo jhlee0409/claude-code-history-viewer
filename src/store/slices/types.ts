@@ -15,7 +15,6 @@ import type {
   SessionComparison,
   GlobalStatsSummary,
   SearchFilters,
-  PaginatedRecentEdits,
   UserMetadata,
   SessionMetadata,
   ProjectMetadata,
@@ -234,20 +233,17 @@ export interface AppStoreState {
   // Minimap state
   isMinimapOpen: boolean;
 
-  // Recent Edits panel state
-  recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
-  recentEditsDensityPage: import('./recentEditsPanelSlice').RecentEditsDensity;
-  recentEditsDensityDock: import('./recentEditsPanelSlice').RecentEditsDensity;
-  recentEditsScope: import('./recentEditsPanelSlice').RecentEditsScope;
-  recentEditsGroupingProject: import('./recentEditsPanelSlice').RecentEditsGrouping;
-  recentEditsGroupingSession: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  // Recent Edits screen state (recentEditsSlice)
+  recentEditsDensity: import('./recentEditsSlice').RecentEditsDensity;
+  recentEditsScope: import('./recentEditsSlice').RecentEditsScope;
+  recentEditsGroupingProject: import('./recentEditsSlice').RecentEditsGrouping;
+  recentEditsGroupingSession: import('./recentEditsSlice').RecentEditsGrouping;
   recentEditsMissingOnly: boolean;
-  isRecentEditsDockOpen: boolean;
-  recentEditsDock: import('./recentEditsPanelSlice').RecentEditsDockResult | null;
-  recentEditsDockRequestedKey: string | null;
-  isLoadingRecentEditsDock: boolean;
-  isLoadingMoreRecentEditsDock: boolean;
-  recentEditsDockError: string | null;
+  recentEditsList: import('./recentEditsSlice').RecentEditsListResult | null;
+  recentEditsRequestedKey: string | null;
+  isLoadingRecentEdits: boolean;
+  isLoadingMoreRecentEdits: boolean;
+  recentEditsError: string | null;
 
   // Provider state
   providers: ProviderInfo[];
@@ -366,13 +362,7 @@ export interface AppStoreActions {
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
   setAnalyticsProjectSummaryError: OwnedSetter<string>;
   setAnalyticsSessionComparisonError: OwnedSetter<string>;
-  setAnalyticsRecentEdits: OwnedSetter<PaginatedRecentEdits>;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
-  setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
-  setAnalyticsRecentEditsError: OwnedSetter<string>;
-  loadRecentEdits: (projectPath: string) => Promise<import("../../types").PaginatedRecentEdits>;
-  loadMoreRecentEdits: (projectPath: string) => Promise<void>;
-  invalidateRecentEdits: (projectPath: string) => void;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 
@@ -484,28 +474,22 @@ export interface AppStoreActions {
   toggleMinimap: () => void;
   setMinimapOpen: (open: boolean) => void;
 
-  // Recent Edits panel actions
-  setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
-  setRecentEditsDensity: (
-    mode: import('./recentEditsPanelSlice').RecentEditsMode,
-    density: import('./recentEditsPanelSlice').RecentEditsDensity
-  ) => void;
-  setRecentEditsScope: (scope: import('./recentEditsPanelSlice').RecentEditsScope) => void;
+  // Recent Edits screen actions (recentEditsSlice)
+  setRecentEditsDensity: (density: import('./recentEditsSlice').RecentEditsDensity) => void;
+  setRecentEditsScope: (scope: import('./recentEditsSlice').RecentEditsScope) => void;
   setRecentEditsGrouping: (
-    scope: import('./recentEditsPanelSlice').RecentEditsScope,
-    grouping: import('./recentEditsPanelSlice').RecentEditsGrouping
+    scope: import('./recentEditsSlice').RecentEditsScope,
+    grouping: import('./recentEditsSlice').RecentEditsGrouping
   ) => void;
   setRecentEditsMissingOnly: (missingOnly: boolean) => void;
-  setRecentEditsDockOpen: (open: boolean) => void;
-  toggleRecentEditsDock: () => void;
-  loadRecentEditsDock: (
-    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  loadRecentEditsList: (
+    request: import('./recentEditsSlice').RecentEditsRequest,
+    options?: import('./recentEditsSlice').LoadRecentEditsOptions
   ) => Promise<void>;
-  loadMoreRecentEditsDock: (
-    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
-  ) => Promise<void>;
-  clearRecentEditsDock: () => void;
-  markRecentEditsDockFileRestored: (filePath: string) => void;
+  loadMoreRecentEditsList: (request: import('./recentEditsSlice').RecentEditsRequest) => Promise<void>;
+  clearRecentEditsList: () => void;
+  invalidateRecentEdits: (projectPath: string) => void;
+  markRecentEditRestored: (filePath: string) => void;
 
   // Provider actions
   detectProviders: () => Promise<boolean>;

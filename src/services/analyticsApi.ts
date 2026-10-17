@@ -219,14 +219,14 @@ export async function fetchRecentEdits(
     sessionFilePath,
     grouping,
   } = options;
-  // Every parameter that changes the response has to be in this key. The docked
-  // panel and the full page can be mounted at once, asking for different scopes;
-  // a key that omitted them would collapse those into one request and hand one
+  // Every parameter that changes the response has to be in this key: two
+  // requests in flight for different scopes or groupings (a scope switch while
+  // the first page loads) would otherwise collapse into one and hand one
   // caller the other's data.
   // Serialized, not joined: `:` is legal in a POSIX path, so a joined key can
   // collide across genuinely different requests and hand one of them the
-  // other's in-flight promise. Same defect, and same fix, as the dock's request
-  // key in `recentEditsPanelSlice`.
+  // other's in-flight promise. Same defect, and same fix, as the request key
+  // in `recentEditsSlice`.
   const key = `recentEdits:${JSON.stringify([
     projectPath,
     offset,

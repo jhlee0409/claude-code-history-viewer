@@ -239,10 +239,7 @@ export { AppErrorType } from "./error.types";
 export type { AppError } from "./error.types";
 
 // Analytics Types
-export type {
-  AnalyticsState,
-  RecentEditsPagination,
-} from "./analytics";
+export type { AnalyticsState } from "./analytics";
 
 // Board Types
 export type {

@@ -271,12 +271,11 @@ export const createWatcherSlice: StateCreator<
       try {
         const { selectedProject, reloadProjectSessions } = get();
 
-        // A session file changed, so any Recent Edits result cached for this
-        // project describes the state before that write. The reload below
-        // refreshes the session list but never touches analytics, so without
-        // this the cache — which only started actually hitting once its key
-        // was fixed — would serve pre-edit rows for as long as the project
-        // stays selected, with the header refresh button the only way out.
+        // A session file changed, so the Edits screen's rows for this project
+        // describe the state before that write. The reload below refreshes
+        // the session list but never touches them, so without this the next
+        // visit would serve pre-edit rows for as long as the project stays
+        // selected, with the header refresh button the only way out.
         get().invalidateRecentEdits(projectPath);
 
         // Reload the selected project's sessions, keeping the open session

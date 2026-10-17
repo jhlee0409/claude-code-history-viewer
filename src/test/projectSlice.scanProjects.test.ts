@@ -75,7 +75,7 @@ type TestStore = ProjectSlice & {
   clearTargetMessage: ReturnType<typeof vi.fn>;
   resetAnalytics: ReturnType<typeof vi.fn>;
   clearBoard: ReturnType<typeof vi.fn>;
-  clearRecentEditsDock: ReturnType<typeof vi.fn>;
+  clearRecentEditsList: ReturnType<typeof vi.fn>;
   setDateFilter: ReturnType<typeof vi.fn>;
 };
 
@@ -164,7 +164,7 @@ const createTestStore = () =>
     clearTargetMessage: vi.fn(),
     resetAnalytics: vi.fn(),
     clearBoard: vi.fn(),
-    clearRecentEditsDock: vi.fn(),
+    clearRecentEditsList: vi.fn(),
     setDateFilter: vi.fn(),
     ...createProjectSlice(
       set as Parameters<typeof createProjectSlice>[0],
@@ -192,15 +192,15 @@ describe("projectSlice scanProjects", () => {
     expect(url.searchParams.get("msg")).toBeNull();
   });
 
-  it("drops the docked Recent Edits rows along with the selection", () => {
-    // The dock survives deselection now - it is a workspace fixture, not a
-    // property of the selected project - so the rows have to be dropped here.
-    // Without this the panel keeps rendering the deselected project's edits.
+  it("drops the Edits screen's rows along with the selection", () => {
+    // The rows are keyed by their request, not by the selection, so they have
+    // to be dropped here; otherwise the next project's Edits screen would hold
+    // the deselected project's rows until its own answer lands.
     const store = createTestStore();
 
     store.getState().clearProjectSelection();
 
-    expect(store.getState().clearRecentEditsDock).toHaveBeenCalled();
+    expect(store.getState().clearRecentEditsList).toHaveBeenCalled();
   });
 
   it("publishes each provider as soon as that provider scan completes", async () => {

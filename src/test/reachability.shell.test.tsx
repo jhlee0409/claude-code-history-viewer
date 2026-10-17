@@ -36,9 +36,7 @@ vi.mock("@/contexts/platform", () => ({
 }));
 vi.mock("@/hooks/useMediaQuery", () => ({
   useMediaQuery: () => true,
-  useIsXlUp: () => false,
   useIsLgUp: () => true,
-  XL_BREAKPOINT: 1280,
 }));
 
 /** A screen body: its name, so a row can see which screen the shell shows. */

@@ -14,12 +14,12 @@
  * state.
  *
  * Owners:
- * - project data (the summary, token stats pages, the board, the recent
- *   edits page): the project path it was loaded for;
+ * - project data (the summary, token stats pages, the board): the project
+ *   path it was loaded for;
  * - session data (the session's comparison and token totals): the session
  *   file path;
- * - the docked Recent Edits rows: their request key (project, scope,
- *   grouping, session), which they already carried.
+ * - the Edits screen's rows: their request key (project, scope, grouping,
+ *   session), which they carry.
  *
  * App-wide parameters (the date range, the stats mode) are not part of the
  * owner: changing one reloads the screen in place, on the same project, and
@@ -28,16 +28,13 @@
  */
 import type { FullAppStore } from "@/store/slices/types";
 import type { BoardSessionData } from "@/types/board.types";
-import type { ProjectStatsSummary, RecentEditsResult, SessionComparison, SessionTokenStats } from "@/types";
-import type { RecentEditsPagination } from "@/types/analytics";
-import { initialRecentEditsPagination } from "@/types/analytics";
+import type { ProjectStatsSummary, SessionComparison, SessionTokenStats } from "@/types";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
 import {
-  recentEditsDockRequestKey,
-  selectRecentEditsGrouping,
-  type RecentEditsDockRequest,
-  type RecentEditsDockResult,
-} from "@/store/slices/recentEditsPanelSlice";
+  recentEditsRequestKey,
+  type RecentEditsListResult,
+  type RecentEditsRequest,
+} from "@/store/slices/recentEditsSlice";
 import { supportsRecentEdits } from "@/utils/providers";
 
 type State = FullAppStore;
@@ -184,34 +181,14 @@ export function selectBoard(s: State): BoardView {
 }
 
 // ---------------------------------------------------------------------------
-// Recent edits: the page and the dock
+// Recent edits (the Edits screen)
 // ---------------------------------------------------------------------------
 
-export interface RecentEditsPageView {
-  recentEdits: RecentEditsResult | null;
-  pagination: RecentEditsPagination;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export function selectRecentEditsPage(s: State): RecentEditsPageView {
-  const project = projectOwner(s);
-  const a = s.analytics;
-  const owns = isOwnedBy(a.recentEditsOwner, project);
-  const error = isOwnedBy(a.recentEditsErrorOwner, project) ? a.recentEditsError : null;
-  return {
-    recentEdits: owns ? a.recentEdits : null,
-    pagination: owns ? a.recentEditsPagination : initialRecentEditsPagination,
-    isLoading: a.isLoadingRecentEdits || (!owns && error === null),
-    error,
-  };
-}
-
 /**
- * What the dock asks for on the current place, or `null` when it asks
- * nothing (no project, or a provider without recorded edits).
+ * What the Edits screen asks for on the current place, or `null` when it
+ * asks nothing (no project, or a provider without recorded edits).
  */
-export function selectRecentEditsDockRequest(s: State): RecentEditsDockRequest | null {
+export function selectRecentEditsRequest(s: State): RecentEditsRequest | null {
   const project = s.selectedProject;
   if (!project || !supportsRecentEdits(project.provider)) return null;
   // With no session selected, session scope has nothing to point at.
@@ -219,38 +196,40 @@ export function selectRecentEditsDockRequest(s: State): RecentEditsDockRequest |
   return {
     projectPath: project.path,
     scope,
-    grouping: selectRecentEditsGrouping(s),
+    // The grouping of the scope asked for, not of the stored one.
+    grouping: scope === "session" ? s.recentEditsGroupingSession : s.recentEditsGroupingProject,
     sessionFilePath: s.selectedSession?.file_path,
   };
 }
 
-export interface RecentEditsDockView {
+export interface RecentEditsView {
   /** The rows answering the current request; `null` until they arrive. */
-  result: RecentEditsDockResult | null;
+  result: RecentEditsListResult | null;
   isLoading: boolean;
   /** The current request's failure. */
   error: string | null;
 }
 
 /**
- * The dock's rows, keyed by the request they answer: an answer to an earlier
- * request (another project, scope or session) is never shown. Its error is
- * the current request's when the slot's requested key is the current one -
- * a load writes its error only while it still owns that key.
+ * The Edits screen's rows, keyed by the request they answer: an answer to an
+ * earlier request (another project, scope or session - another tab's) is
+ * never shown. Its error is the current request's when the slot's requested
+ * key is the current one - a load writes its error only while it still owns
+ * that key.
  */
-export function selectRecentEditsDock(s: State, requestKey: string | null): RecentEditsDockView {
-  const owns = requestKey !== null && s.recentEditsDock?.requestKey === requestKey;
+export function selectRecentEdits(s: State, requestKey: string | null): RecentEditsView {
+  const owns = requestKey !== null && s.recentEditsList?.requestKey === requestKey;
   const error =
-    requestKey !== null && s.recentEditsDockRequestedKey === requestKey ? s.recentEditsDockError : null;
+    requestKey !== null && s.recentEditsRequestedKey === requestKey ? s.recentEditsError : null;
   return {
-    result: owns ? s.recentEditsDock : null,
-    isLoading: s.isLoadingRecentEditsDock || (requestKey !== null && !owns && error === null),
+    result: owns ? s.recentEditsList : null,
+    isLoading: s.isLoadingRecentEdits || (requestKey !== null && !owns && error === null),
     error,
   };
 }
 
-/** The current dock request's key (`null` when the dock asks nothing). */
-export const selectRecentEditsDockKey = (s: State): string | null => {
-  const request = selectRecentEditsDockRequest(s);
-  return request ? recentEditsDockRequestKey(request) : null;
+/** The current Edits request's key (`null` when the screen asks nothing). */
+export const selectRecentEditsKey = (s: State): string | null => {
+  const request = selectRecentEditsRequest(s);
+  return request ? recentEditsRequestKey(request) : null;
 };

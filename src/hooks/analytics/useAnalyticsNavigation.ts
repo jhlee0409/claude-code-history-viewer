@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
-import { supportsRecentEdits } from "../../utils/providers";
 import {
   type ClaudeProject,
   type MetricMode,
@@ -45,7 +44,6 @@ export function useAnalyticsNavigation() {
     setAnalyticsSessionComparison,
     setAnalyticsProjectSummaryError,
     setAnalyticsSessionComparisonError,
-    setAnalyticsRecentEdits,
     resetAnalytics,
     clearAnalyticsErrors,
     loadGlobalStats,
@@ -120,36 +118,10 @@ export function useAnalyticsNavigation() {
     [t]
   );
 
+  /** The Edits screen's rows (`recentEditsSlice`, keyed by their request). */
   const loadRecentEditsData = useCallback(
-    async (ownsPlace: PlaceOwner) => {
-      const project = useAppStore.getState().selectedProject;
-      if (!project) return;
-
-      // The view explains the gap itself; asking the backend would only error
-      // (WebUI) or read the wrong provider's files (desktop) (#643).
-      if (!supportsRecentEdits(project.provider)) {
-        return;
-      }
-
-      // Read the cache at call time rather than from the render closure.
-      // `refreshAnalytics` clears it and then loads in the same tick, so a
-      // closed-over value is a render behind and reports a hit on data that
-      // no longer exists, leaving the view empty.
-      const cached = useAppStore.getState().analytics.recentEdits;
-      // No `files.length` condition: with request identity on the entry, an
-      // empty result is a valid answer ("this project has no edits") rather
-      // than an absent one. Requiring a non-empty list made such a project
-      // miss the cache on every visit and re-walk its whole JSONL set forever.
-      if (cached && cached.requestedProjectPath === project.path) {
-        return;
-      }
-
-      await loadRecentEditsScreen(useAppStore.getState, project, {
-        ownsPlace,
-        failureText: t("common.hooks.recentEditsLoadFailed"),
-      });
-    },
-    [t]
+    (options?: { force?: boolean }) => loadRecentEditsScreen(useAppStore.getState, options),
+    []
   );
 
   const switchToMessages = useCallback(() => {
@@ -200,9 +172,9 @@ export function useAnalyticsNavigation() {
 
   const switchToRecentEdits = useCallback(async () => {
     requireProject();
-    const ownsPlace = enterScreen("edits");
+    enterScreen("edits");
     clearAnalyticsErrors();
-    await loadRecentEditsData(ownsPlace);
+    await loadRecentEditsData();
   }, [requireProject, enterScreen, clearAnalyticsErrors, loadRecentEditsData]);
 
   const switchToBoard = useCallback(async () => {
@@ -381,8 +353,7 @@ export function useAnalyticsNavigation() {
         break;
       case "edits":
         clearAnalyticsErrors();
-        setAnalyticsRecentEdits(null);
-        await loadRecentEditsData(ownsPlace);
+        await loadRecentEditsData({ force: true });
         break;
       case "board":
         await reloadBoard(useAppStore.getState);
@@ -412,7 +383,6 @@ export function useAnalyticsNavigation() {
     setAnalyticsProjectSummary,
     setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
-    setAnalyticsRecentEdits,
   ]);
 
   /** Open a screen and load its data: one entry point per `view`. */

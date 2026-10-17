@@ -11,7 +11,7 @@
  * - The store, the navigation helpers and the navigation/analytics hooks are
  *   held to it for every feedback write.
  * - Every other component / hook / layout (`src/layouts`: the header, the
- *   shell's screens and dock) that awaits is held to it for direct store
+ *   shell's screens) that awaits is held to it for direct store
  *   writes (`useAppStore.setState(...)`, `useAppStore.getState().setError(...)`,
  *   …). Its own toasts and React state report the outcome of what the user
  *   did there and are not scanned.

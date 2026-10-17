@@ -3,7 +3,6 @@
   "common.a11y.skipToMain": "Skip to main content",
   "common.a11y.skipToInspector": "Skip to inspector",
   "common.a11y.skipToProjects": "Skip to project explorer",
-  "common.a11y.skipToRecentEdits": "Skip to recent edits",
   "common.a11y.skipToSettings": "Skip to settings",
   "common.add": "Add",
   "common.appDescription": "Explore and analyze your Claude Code conversation history",

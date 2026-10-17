@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { FullAppStore } from "@/store/slices/types";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { ownPlace, ownWork, type PlaceOwner } from "./ownership";
+import { selectRecentEditsRequest } from "./screenOwner";
 
 type Get = () => FullAppStore;
 
@@ -37,7 +38,6 @@ function requestCounter() {
 
 const summaryRequests = requestCounter();
 const comparisonRequests = requestCounter();
-const recentEditsRequests = requestCounter();
 
 export interface ScreenLoadOptions {
   /** Ownership the caller took (a navigation, before its first await). */
@@ -177,41 +177,16 @@ export async function loadTokenStatsScreen(
   ]);
 }
 
-export interface RecentEditsLoadOptions extends ScreenLoadOptions {
-  failureText?: string;
-}
-
 /**
- * The project's recent edits, written as one page with its cursor (#517). A
- * failure is recorded on the screen while owned and always rethrown.
+ * The Edits screen's rows for the current place: the request its scope,
+ * grouping and session make (`selectRecentEditsRequest`). A no-op without a
+ * project or for a provider without recorded edits. The rows are owned by
+ * their request key; a failure is recorded as that request's error and
+ * never thrown.
  */
-export async function loadRecentEditsScreen(
-  get: Get,
-  project: ClaudeProject,
-  options: RecentEditsLoadOptions = {},
-): Promise<void> {
-  // The sequence is the half of ownership a project path cannot give: two
-  // requests for the *same* project (a refresh while the first load is still
-  // running) are told apart by it, so the slower cannot land last.
-  const isLatest = recentEditsRequests.begin();
-  const owns = ownerFor(get, project, isLatest, options.ownsPlace ?? ownPlace(get));
-
-  try {
-    get().setAnalyticsLoadingRecentEdits(true);
-    const result = await get().loadRecentEdits(project.path);
-    if (!owns()) return;
-    get().setAnalyticsRecentEdits(result, project.path);
-  } catch (error) {
-    if (owns()) {
-      get().setAnalyticsRecentEditsError(errorText(error, options.failureText), project.path);
-    }
-    console.error("Failed to load recent edits:", error);
-    throw error;
-  } finally {
-    // Keyed to the latest request, not the selection: a request whose project
-    // was deselected must still clear it, since nothing else does.
-    if (isLatest()) get().setAnalyticsLoadingRecentEdits(false);
-  }
+export async function loadRecentEditsScreen(get: Get, options: { force?: boolean } = {}): Promise<void> {
+  const request = selectRecentEditsRequest(get());
+  if (request) await get().loadRecentEditsList(request, options);
 }
 
 /** Reload the board for the open project's loaded sessions. */

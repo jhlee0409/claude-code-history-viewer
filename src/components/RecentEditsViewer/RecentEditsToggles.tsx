@@ -1,5 +1,5 @@
 /**
- * Segmented controls for the Recent Edits panel header.
+ * Segmented controls for the Edits screen's controls row.
  *
  * Both copy `src/components/ui/MetricModeToggle.tsx` exactly: track
  * `bg-muted/30 rounded-lg p-1 gap-1`, active `bg-card text-foreground
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import type {
   RecentEditsDensity,
   RecentEditsScope,
-} from "@/store/slices/recentEditsPanelSlice";
+} from "@/store/slices/recentEditsSlice";
 
 const TRACK_CLASS = "flex items-center gap-1 p-1 bg-muted/30 rounded-lg";
 

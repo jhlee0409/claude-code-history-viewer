@@ -22,6 +22,8 @@ export function useAnalyticsComputed() {
   const analyticsTab = useAppStore((s) => s.analyticsTab);
   const analytics = useAppStore((s) => s.analytics);
   const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
+  // The Edits screen's first page (`recentEditsSlice`).
+  const isLoadingRecentEdits = useAppStore((s) => s.isLoadingRecentEdits);
 
   return useMemo(
     () => ({
@@ -37,18 +39,17 @@ export function useAnalyticsComputed() {
       isEmptyView: view === "empty",
       hasAnyError: !!(
         analytics.projectSummaryError ||
-        analytics.sessionComparisonError ||
-        analytics.recentEditsError
+        analytics.sessionComparisonError
       ),
       isLoadingAnalytics:
         analytics.isLoadingProjectSummary ||
         analytics.isLoadingSessionComparison,
       isLoadingTokenStats,
-      isLoadingRecentEdits: analytics.isLoadingRecentEdits,
+      isLoadingRecentEdits,
       isAnyLoading:
         analytics.isLoadingProjectSummary ||
         analytics.isLoadingSessionComparison ||
-        analytics.isLoadingRecentEdits ||
+        isLoadingRecentEdits ||
         isLoadingTokenStats,
     }),
     [
@@ -56,10 +57,9 @@ export function useAnalyticsComputed() {
       analyticsTab,
       analytics.projectSummaryError,
       analytics.sessionComparisonError,
-      analytics.recentEditsError,
       analytics.isLoadingProjectSummary,
       analytics.isLoadingSessionComparison,
-      analytics.isLoadingRecentEdits,
+      isLoadingRecentEdits,
       isLoadingTokenStats,
     ]
   );

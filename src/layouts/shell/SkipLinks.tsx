@@ -11,7 +11,6 @@ interface SkipLinksProps {
    * only inside the navigation drawer, and only while it is open.
    */
   hasProjectExplorer: boolean;
-  hasRecentEditsDock: boolean;
   /**
    * The inspector renders only beside a transcript, while the selected
    * session survives switching to other screens; keyed to the session alone,
@@ -22,7 +21,6 @@ interface SkipLinksProps {
 
 export const SkipLinks = ({
   hasProjectExplorer,
-  hasRecentEditsDock,
   hasInspector,
 }: SkipLinksProps) => {
   const { t } = useTranslation();
@@ -50,16 +48,6 @@ export const SkipLinks = ({
           defaultValue: "Skip to main content",
         })}
       </a>
-      {hasRecentEditsDock && (
-        <a
-          href="#recent-edits-dock"
-          className="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
-        >
-          {t("common.a11y.skipToRecentEdits", {
-            defaultValue: "Skip to recent edits",
-          })}
-        </a>
-      )}
       {hasInspector && (
         <a
           href="#inspector"

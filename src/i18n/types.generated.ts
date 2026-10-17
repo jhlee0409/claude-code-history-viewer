@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T09:01:01.610Z
- * 총 키 개수: 2162
+ * 생성 시간: 2026-10-17T09:20:03.495Z
+ * 총 키 개수: 2155
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (278개)
+ * common namespace의 번역 키 (277개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -49,7 +49,6 @@ export type CommonKeys =
   | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToProjects'
-  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -2192,7 +2191,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (70개)
+ * recentEdits namespace의 번역 키 (64개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -2207,7 +2206,6 @@ export type RecentEditsKeys =
   | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
-  | 'recentEdits.dockToPanel'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.groupBy'
@@ -2216,7 +2214,6 @@ export type RecentEditsKeys =
   | 'recentEdits.jumpToLatestEdit'
   | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
-  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
   | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
@@ -2258,13 +2255,9 @@ export type RecentEditsKeys =
   | 'recentEdits.timestamp'
   | 'recentEdits.title'
   | 'recentEdits.unavailableForProvider'
-  | 'recentEdits.undockToPage'
   | 'recentEdits.viewAdded'
-  | 'recentEdits.viewAsPage'
-  | 'recentEdits.viewAsSidebar'
   | 'recentEdits.viewContent'
   | 'recentEdits.viewModeGroup'
-  | 'recentEdits.viewModeLabel'
   | 'recentEdits.viewRemoved';
 
 /**
@@ -2606,7 +2599,6 @@ export type TranslationKey =
   | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToProjects'
-  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -3281,7 +3273,6 @@ export type TranslationKey =
   | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
-  | 'recentEdits.dockToPanel'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.groupBy'
@@ -3290,7 +3281,6 @@ export type TranslationKey =
   | 'recentEdits.jumpToLatestEdit'
   | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
-  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
   | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
@@ -3332,13 +3322,9 @@ export type TranslationKey =
   | 'recentEdits.timestamp'
   | 'recentEdits.title'
   | 'recentEdits.unavailableForProvider'
-  | 'recentEdits.undockToPage'
   | 'recentEdits.viewAdded'
-  | 'recentEdits.viewAsPage'
-  | 'recentEdits.viewAsSidebar'
   | 'recentEdits.viewContent'
   | 'recentEdits.viewModeGroup'
-  | 'recentEdits.viewModeLabel'
   | 'recentEdits.viewRemoved'
   | 'redactedThinkingRenderer.description'
   | 'redactedThinkingRenderer.title'

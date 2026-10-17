@@ -63,8 +63,6 @@ import { activateTab, openInNewTab, type TabScreens } from "@/navigation/tabs";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { formatNumber } from "@/components/AnalyticsDashboard/utils";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
-import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
-import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
 import { AnalyticsScreen, RecentEditsScreen } from "@/layouts/shell/screens";
 import { ThemeProvider } from "@/contexts/theme";
 import type { AnalyticsTab, View } from "@/navigation/place";
@@ -457,51 +455,11 @@ describe("the board shows only its own project's sessions", () => {
   });
 });
 
-describe("recent edits shows only its own project's edits", () => {
+describe("the Edits screen shows only its own project's edits", () => {
   const xRow = () => screen.queryAllByText(/only-in-x\.ts/)[0] ?? null;
   const wrap = (node: ReactNode) => <ThemeProvider>{node}</ThemeProvider>;
-
-  it("the dock: held, B shows loading (no X rows, no X counts in the header); failed, B's error", async () => {
-    const screens = realScreens();
-    render(wrap(<RecentEditsDock width={340} isResizing={false} onResizeStart={() => {}} />));
-    // The dock beside a transcript: its own loader runs for the open project.
-    const { tabB } = await twoTabs("conversation", screens);
-    await waitFor(() => expect(xRow()).toBeInTheDocument());
-    expect(screen.getByText("recentEdits.stats")).toBeInTheDocument();
-
-    const edits = hold("get_recent_edits", Y);
-    const switching = startSwitch(tabB, screens);
-    await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
-    expect(xRow()).not.toBeInTheDocument();
-    expect(screen.queryByText("recentEdits.stats")).not.toBeInTheDocument();
-    await act(async () => void (await switching));
-    await waitFor(() => expect(arrived.has(`get_recent_edits@${Y.path}`)).toBe(true));
-    expect(xRow()).not.toBeInTheDocument();
-
-    await act(async () => edits.reject(new Error("y edits failed")));
-    await settle();
-    expect(xRow()).not.toBeInTheDocument();
-    expect(screen.getByText("y edits failed")).toBeInTheDocument();
-  });
-
-  it("the panel never shows an earlier request's rows or error under another project", async () => {
-    const screens = realScreens();
-    render(wrap(<RecentEditsPanel />));
-    const { tabB } = await twoTabs("conversation", screens);
-    await waitFor(() => expect(xRow()).toBeInTheDocument());
-
-    const list = hold("load_provider_sessions_page", Y);
-    const switching = startSwitch(tabB, screens);
-    await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
-    expect(xRow()).not.toBeInTheDocument();
-    await act(async () => list.resolve({ sessions: [Y1], total: 1, nextOffset: 1, hasMore: false }));
-    await act(async () => void (await switching));
-    await settle();
-    expect(screen.getAllByText(/only-in-y\.ts/).length).toBeGreaterThan(0);
-  });
-
-  it("the page: held, B shows loading, never X's rows; failed, B's error", async () => {
-    const screens = realScreens();
+  /** The Edits screen as the shell mounts it (T9b: the only recent-edits surface). */
+  function renderEditsScreen() {
     const { result } = renderHook(() => useAnalyticsNavigation());
     function Page() {
       return (
@@ -514,15 +472,21 @@ describe("recent edits shows only its own project's edits", () => {
       );
     }
     render(wrap(<Page />));
+  }
+
+  it("held: B shows loading (no X rows, no X counts); failed, B's own error", async () => {
+    const screens = realScreens();
+    renderEditsScreen();
     const { tabB } = await twoTabs("edits", screens);
     await waitFor(() => expect(xRow()).toBeInTheDocument());
+    expect(screen.getByText("recentEdits.stats")).toBeInTheDocument();
 
     const list = hold("load_provider_sessions_page", Y);
     const edits = hold("get_recent_edits", Y);
-    // The page's loader records its failure on the screen and rethrows it.
-    const switching = startSwitch(tabB, screens).catch(() => false);
+    const switching = startSwitch(tabB, screens);
     await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
     expect(xRow()).not.toBeInTheDocument();
+    expect(screen.queryByText("recentEdits.stats")).not.toBeInTheDocument();
     await act(async () => list.resolve({ sessions: [Y1], total: 1, nextOffset: 1, hasMore: false }));
     await waitFor(() => expect(arrived.has(`get_recent_edits@${Y.path}`)).toBe(true));
     expect(xRow()).not.toBeInTheDocument();
@@ -532,5 +496,37 @@ describe("recent edits shows only its own project's edits", () => {
     await settle();
     expect(xRow()).not.toBeInTheDocument();
     expect(screen.getByText(/y edits failed/)).toBeInTheDocument();
+  });
+
+  it("answered: B shows its own rows; switching back shows X's again without a refetch", async () => {
+    const screens = realScreens();
+    renderEditsScreen();
+    const { tabA, tabB } = await twoTabs("edits", screens);
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+
+    await act(async () => void (await activateTab(tabB, screens)));
+    await settle();
+    expect(screen.getAllByText(/only-in-y\.ts/).length).toBeGreaterThan(0);
+    expect(xRow()).not.toBeInTheDocument();
+
+    await act(async () => void (await activateTab(tabA, screens)));
+    await settle();
+    expect(xRow()).toBeInTheDocument();
+    expect(screen.queryAllByText(/only-in-y\.ts/)).toHaveLength(0);
+  });
+
+  it("session scope asks the backend for the open session's edits only", async () => {
+    const screens = realScreens();
+    useAppStore.setState({ recentEditsScope: "session" });
+    renderEditsScreen();
+    await act(async () => {
+      await state().navigate({ project: X, session: X1, view: "edits" });
+      await screens.openView("edits");
+    });
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+    const sessionCalls = apiMock.mock.calls.filter(
+      ([command, args]) => command === "get_recent_edits" && (args as Record<string, unknown>).sessionFilePath === X1.file_path
+    );
+    expect(sessionCalls.length).toBeGreaterThan(0);
   });
 });

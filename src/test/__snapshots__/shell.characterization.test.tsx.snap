@@ -1254,12 +1254,6 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
-        href="#recent-edits-dock"
-      >
-        Skip to recent edits
-      </a>
-      <a
         class="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#inspector"
       >
@@ -1432,19 +1426,6 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
           </div>
         </aside>
       </div>
-      <div
-        class="hidden xl:block"
-      >
-        <aside
-          id="recent-edits-dock"
-        >
-          <div
-            data-handlers="onResizeStart"
-            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-            data-stub="PanelDock"
-          />
-        </aside>
-      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
@@ -1511,12 +1492,6 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
         href="#main-content"
       >
         Skip to main content
-      </a>
-      <a
-        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
-        href="#recent-edits-dock"
-      >
-        Skip to recent edits
       </a>
       <a
         class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
@@ -1606,19 +1581,6 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
           </div>
         </div>
       </main>
-      <div
-        class="hidden xl:block"
-      >
-        <aside
-          id="recent-edits-dock"
-        >
-          <div
-            data-handlers="onResizeStart"
-            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-            data-stub="PanelDock"
-          />
-        </aside>
-      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
@@ -2846,8 +2808,8 @@ exports[`shell characterization > desktop > recent edits 1`] = `
               tabindex="-1"
             >
               <div
-                data-handlers="onLoadMore"
-                data-props="{"recentEdits":{"files":[],"total_edits_count":0,"unique_files_count":0},"pagination":{"hasMore":false},"isLoading":false,"error":null,"initialSearchQuery":"query"}"
+                data-handlers=""
+                data-props="{"initialSearchQuery":"query"}"
                 data-stub="RecentEditsViewer"
               />
             </div>
@@ -4519,12 +4481,6 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
         Skip to main content
       </a>
       <a
-        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
-        href="#recent-edits-dock"
-      >
-        Skip to recent edits
-      </a>
-      <a
         class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#app-settings-button"
       >
@@ -4581,19 +4537,6 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
           </div>
         </div>
       </main>
-      <div
-        class="hidden xl:block"
-      >
-        <aside
-          id="recent-edits-dock"
-        >
-          <div
-            data-handlers="onResizeStart"
-            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-            data-stub="PanelDock"
-          />
-        </aside>
-      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
@@ -4664,12 +4607,6 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
         href="#main-content"
       >
         Skip to main content
-      </a>
-      <a
-        class="absolute left-[47rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform xl:block"
-        href="#recent-edits-dock"
-      >
-        Skip to recent edits
       </a>
       <a
         class="absolute right-2 top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
@@ -4758,19 +4695,6 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
           </div>
         </div>
       </main>
-      <div
-        class="hidden xl:block"
-      >
-        <aside
-          id="recent-edits-dock"
-        >
-          <div
-            data-handlers="onResizeStart"
-            data-props="{"asideId":"recent-edits-dock","isResizing":false,"groups":[{"tabs":["recentEdits"],"activeTab":"recentEdits","size":280}],"panels":{"recentEdits":{"id":"recentEdits","title":"Recent Edits","icon":"<element>","subtitle":"3 files, 7 total edits","headerAction":"<element>"}}}"
-            data-stub="PanelDock"
-          />
-        </aside>
-      </div>
     </div>
     <footer
       class="h-7 px-4 hidden md:flex items-center justify-between bg-sidebar border-t border-border/50 text-caption text-muted-foreground"
@@ -6009,8 +5933,8 @@ exports[`shell characterization > mobile > recent edits 1`] = `
               tabindex="-1"
             >
               <div
-                data-handlers="onLoadMore"
-                data-props="{"recentEdits":{"files":[],"total_edits_count":0,"unique_files_count":0},"pagination":{"hasMore":false},"isLoading":false,"error":null,"initialSearchQuery":"query"}"
+                data-handlers=""
+                data-props="{"initialSearchQuery":"query"}"
                 data-stub="RecentEditsViewer"
               />
             </div>

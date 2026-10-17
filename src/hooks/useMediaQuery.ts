@@ -28,17 +28,6 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/**
- * Tailwind's `xl` breakpoint. Kept next to the query it wraps so the number
- * cannot drift from the `xl:` class names that depend on it.
- */
-export const XL_BREAKPOINT = 1280;
-
-/** Whether the viewport is at or above Tailwind's `xl` breakpoint. */
-export function useIsXlUp(): boolean {
-  return useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`);
-}
-
 /** Tailwind's `lg` breakpoint. */
 export const LG_BREAKPOINT = 1024;
 

@@ -27,14 +27,6 @@ export interface PaginationWithCount extends BasePaginationState {
 }
 
 /**
- * Extended pagination state for recent edits (with additional metadata)
- */
-export interface RecentEditsPaginationState extends BasePaginationState {
-  totalEditsCount: number;
-  uniqueFilesCount: number;
-}
-
-/**
  * Alias for project token stats pagination
  */
 export type ProjectTokenStatsPaginationState = PaginationWithCount;
@@ -65,17 +57,6 @@ export const createInitialPaginationWithCount = (
 ): PaginationWithCount => ({
   ...createInitialPagination(limit),
   totalCount: 0,
-});
-
-/**
- * Create initial recent edits pagination state
- */
-export const createInitialRecentEditsPagination = (
-  limit: number = DEFAULT_PAGE_SIZE
-): RecentEditsPaginationState => ({
-  ...createInitialPagination(limit),
-  totalEditsCount: 0,
-  uniqueFilesCount: 0,
 });
 
 // ============================================================================
@@ -151,10 +132,4 @@ export const isPaginationWithCount = (
   pagination: BasePaginationState
 ): pagination is PaginationWithCount => {
   return "totalCount" in pagination;
-};
-
-export const isRecentEditsPagination = (
-  pagination: BasePaginationState
-): pagination is RecentEditsPaginationState => {
-  return "totalEditsCount" in pagination && "uniqueFilesCount" in pagination;
 };

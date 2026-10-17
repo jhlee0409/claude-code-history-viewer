@@ -15,7 +15,7 @@
  * - `reloaded` - the open place's transcript and session list: the switch
  *   itself loads the incoming tab's place, so the outgoing tab's never
  *   shows in it.
- * - `screen` - a project screen's (or the docked panel's) data, written with
+ * - `screen` - a project screen's data, written with
  *   its owner: the place it was loaded for (`./screenOwner`). A switch
  *   leaves it in the store, but a screen renders a value only when its
  *   owner is the screen's current place - otherwise its loading state, or
@@ -113,12 +113,13 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   boardLoadError: "screen",
   boardOwner: "screen",
   boardLoadErrorOwner: "screen",
-  // The docked Recent Edits rows: loaded by the panel for the open project.
-  recentEditsDock: "screen",
-  recentEditsDockError: "screen",
-  recentEditsDockRequestedKey: "screen",
-  isLoadingRecentEditsDock: "screen",
-  isLoadingMoreRecentEditsDock: "screen",
+  // The Edits screen's rows, owned by their request key (project, scope,
+  // grouping, session).
+  recentEditsList: "screen",
+  recentEditsError: "screen",
+  recentEditsRequestedKey: "screen",
+  isLoadingRecentEdits: "screen",
+  isLoadingMoreRecentEdits: "screen",
 
   // --- the tabs themselves and navigation bookkeeping -----------------------
   documents: "app",
@@ -174,13 +175,11 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   inspectorWidth: "app",
   navigatorViewMode: "app",
   isMinimapOpen: "app",
-  isRecentEditsDockOpen: "app",
-  recentEditsMode: "app",
+  // The Edits screen's preferences.
   recentEditsScope: "app",
   recentEditsGroupingProject: "app",
   recentEditsGroupingSession: "app",
-  recentEditsDensityDock: "app",
-  recentEditsDensityPage: "app",
+  recentEditsDensity: "app",
   recentEditsMissingOnly: "app",
   zoomLevel: "app",
   isMarkdownPretty: "app",

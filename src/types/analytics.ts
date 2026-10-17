@@ -3,15 +3,8 @@
  * 가독성과 예측 가능성을 위한 명확한 타입 구조
  */
 
-import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
-import type { RecentEditsPaginationState } from '../utils/pagination';
+import type { ProjectStatsSummary, SessionComparison } from './index';
 import type { MetricMode, StatsMode } from "./stats.types";
-
-/**
- * Pagination state for recent edits
- * Re-exported from pagination utilities for backwards compatibility
- */
-export type RecentEditsPagination = RecentEditsPaginationState;
 
 /**
  * Analytics 상태 인터페이스
@@ -28,26 +21,20 @@ export interface AnalyticsState {
   projectSummary: ProjectStatsSummary | null;
   projectConversationSummary: ProjectStatsSummary | null;
   sessionComparison: SessionComparison | null;
-  recentEdits: RecentEditsResult | null;
-  recentEditsPagination: RecentEditsPagination;
-  /**
-   * Bumped on every write to `recentEdits`, a clear included. A page fetched
-   * against an older generation no longer continues the list on screen, so it
-   * must not be appended to it.
-   */
-  recentEditsGeneration: number;
 
+  /**
+   * The Edits screen's search box, set by the Board's file links. The
+   * screen's rows are `recentEditsSlice`'s (T9b).
+   */
   recentEditsSearchQuery: string;
 
   // 로딩 상태
   isLoadingProjectSummary: boolean;
   isLoadingSessionComparison: boolean;
-  isLoadingRecentEdits: boolean;
 
   // 에러 상태
   projectSummaryError: string | null;
   sessionComparisonError: string | null;
-  recentEditsError: string | null;
 
   /**
    * Whose each value is: the project path (or, for the session comparison,
@@ -57,10 +44,8 @@ export interface AnalyticsState {
   projectSummaryOwner: string | null;
   projectConversationSummaryOwner: string | null;
   sessionComparisonOwner: string | null;
-  recentEditsOwner: string | null;
   projectSummaryErrorOwner: string | null;
   sessionComparisonErrorOwner: string | null;
-  recentEditsErrorOwner: string | null;
 }
 
 /**
@@ -72,18 +57,15 @@ export interface AnalyticsActions {
   setProjectSummary: (summary: ProjectStatsSummary | null) => void;
   setProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
   setSessionComparison: (comparison: SessionComparison | null) => void;
-  setRecentEdits: (edits: RecentEditsResult | null) => void;
   setRecentEditsSearchQuery: (query: string) => void;
 
   // 로딩 상태 관리
   setLoadingProjectSummary: (loading: boolean) => void;
   setLoadingSessionComparison: (loading: boolean) => void;
-  setLoadingRecentEdits: (loading: boolean) => void;
 
   // 에러 상태 관리
   setProjectSummaryError: (error: string | null) => void;
   setSessionComparisonError: (error: string | null) => void;
-  setRecentEditsError: (error: string | null) => void;
 
   // 복합 액션 (비즈니스 로직)
   switchToMessages: () => void;
@@ -100,34 +82,22 @@ export interface AnalyticsActions {
 /**
  * Analytics 초기 상태
  */
-import { createInitialRecentEditsPagination } from '../utils/pagination';
-
-export const initialRecentEditsPagination: RecentEditsPagination =
-  createInitialRecentEditsPagination();
-
 export const initialAnalyticsState: AnalyticsState = {
   statsMode: "billing_total",
   metricMode: "tokens",
   projectSummary: null,
   projectConversationSummary: null,
   sessionComparison: null,
-  recentEdits: null,
-  recentEditsPagination: initialRecentEditsPagination,
-  recentEditsGeneration: 0,
   recentEditsSearchQuery: "",
   isLoadingProjectSummary: false,
   isLoadingSessionComparison: false,
-  isLoadingRecentEdits: false,
   projectSummaryError: null,
   sessionComparisonError: null,
-  recentEditsError: null,
   projectSummaryOwner: null,
   projectConversationSummaryOwner: null,
   sessionComparisonOwner: null,
-  recentEditsOwner: null,
   projectSummaryErrorOwner: null,
   sessionComparisonErrorOwner: null,
-  recentEditsErrorOwner: null,
 };
 
 /**

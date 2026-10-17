@@ -40,10 +40,9 @@ describe("RecentEditsScopeToggle", () => {
     // test asserted it but only ever explained where the tooltip lives, never
     // why Project should be unavailable.
     //
-    // It became visibly wrong once the dock started rendering without a
-    // session. Project is then the active scope, and the panel is showing its
-    // results, while the control for it sits dimmed and dead - which reads as
-    // the panel being broken rather than as one mode being unavailable.
+    // Without a session, Project is the active scope and the Edits screen is
+    // showing its results; a dimmed, dead control for it would read as the
+    // screen being broken rather than as one mode being unavailable.
     const onChange = vi.fn();
     const { container } = render(
       <RecentEditsScopeToggle
@@ -74,11 +73,10 @@ describe("RecentEditsScopeToggle", () => {
   });
 
   it("disables both buttons when there is no project either", () => {
-    // The dock outlives the project selection, so this state is reachable:
-    // collapsing the selected project in the tree deselects it while the panel
-    // stays open. Neither scope resolves without a project, and the hint has to
-    // name the project rather than the session - telling someone to pick a
-    // session is useless advice when they have not picked a project.
+    // The Edits screen itself shows "select a project" without one, so this is
+    // the control's own contract: neither scope resolves without a project,
+    // and the hint has to name the project rather than the session - telling
+    // someone to pick a session is useless advice before a project is picked.
     const onChange = vi.fn();
     const { container } = render(
       <RecentEditsScopeToggle

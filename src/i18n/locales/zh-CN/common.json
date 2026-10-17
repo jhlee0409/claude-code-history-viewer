@@ -3,7 +3,6 @@
   "common.a11y.skipToMain": "跳转到主要内容",
   "common.a11y.skipToInspector": "跳转到检查器",
   "common.a11y.skipToProjects": "跳转到项目浏览",
-  "common.a11y.skipToRecentEdits": "跳转到最近编辑",
   "common.a11y.skipToSettings": "跳转到设置",
   "common.add": "添加",
   "common.appDescription": "探索和分析您的 Claude Code 对话历史",
