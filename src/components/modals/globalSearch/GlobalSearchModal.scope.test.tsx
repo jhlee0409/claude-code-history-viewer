@@ -180,6 +180,7 @@ beforeEach(() => {
     storeState.sessions = [session("alpha", "s1", "Fix login bug"), session("alpha", "s2", "Write docs")];
     storeState.recentSessions = [];
     storeState.activeProviders = ["claude"];
+    storeState.excludeSidechain = false;
 });
 
 /** Type `query` so BETA's row is the highlighted one, then Tab. */
@@ -412,6 +413,18 @@ describe("⌘K palette: a scoped search is owned by its project", () => {
         expect(pill()).toHaveAccessibleName("globalSearch.scope.pinnedAria:alpha");
         await sleep(20);
         expect(mockApi.mock.calls.filter(([c]) => String(c).startsWith("load_"))).toEqual([]);
+    });
+
+    it("a change of the sidechain filter while scoped reads the project's list again, with the new filter", async () => {
+        const { rerender } = render(<Harness />);
+        pinBeta();
+        const betaLists = () =>
+            mockApi.mock.calls.filter(([command, args]) => command === "load_project_sessions" && args?.projectPath === BETA.path);
+        await waitFor(() => expect(betaLists()).toHaveLength(1));
+        storeState.excludeSidechain = true;
+        rerender(<Harness />);
+        await waitFor(() => expect(betaLists()).toHaveLength(2));
+        expect(betaLists().map(([, args]) => args.excludeSidechain)).toEqual([false, true]);
     });
 });
 

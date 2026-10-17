@@ -2,7 +2,8 @@
  * `useScopedProjectSessions` (plan T10): the session list of the project the
  * ⌘K palette is scoped to. A failed list is reported (`failed`), not passed
  * off as an empty one; `retry` asks for it again; a failure of a project the
- * palette is no longer scoped to is never reported.
+ * palette is no longer scoped to is never reported; a change of the
+ * sidechain filter reads the list again.
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +13,7 @@ import { useScopedProjectSessions } from "./useScopedProjectSessions";
 const { mockApi } = vi.hoisted(() => ({ mockApi: vi.fn() }));
 vi.mock("@/services/api", () => ({ api: mockApi }));
 vi.mock("@/store/useAppStore", () => ({
-    useAppStore: Object.assign(() => ({}), { getState: () => ({ excludeSidechain: false }) }),
+    useAppStore: Object.assign(() => ({}), { getState: () => ({}) }),
 }));
 
 const project = (name: string): ClaudeProject => ({
@@ -63,14 +64,14 @@ beforeEach(() => {
 describe("useScopedProjectSessions", () => {
     it("a failed list is reported as failed, with no sessions", async () => {
         mockApi.mockRejectedValue(new Error("list unavailable"));
-        const { result } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE));
+        const { result } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE, false));
         await waitFor(() => expect(result.current.failed).toBe(true));
         expect(result.current.sessions).toEqual([]);
     });
 
     it("retry asks for the list again; its answer clears the failure", async () => {
         mockApi.mockRejectedValueOnce(new Error("list unavailable")).mockResolvedValueOnce([session("b1")]);
-        const { result } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE));
+        const { result } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE, false));
         await waitFor(() => expect(result.current.failed).toBe(true));
         act(() => result.current.retry());
         // Asked again: not failed while it is.
@@ -85,7 +86,7 @@ describe("useScopedProjectSessions", () => {
         mockApi.mockImplementation((_command: string, args: { projectPath: string }) =>
             args.projectPath === BETA.path ? beta.promise : Promise.resolve([session("g1")]),
         );
-        const { result, rerender } = renderHook(({ scoped }) => useScopedProjectSessions(scoped, ALPHA, NONE), {
+        const { result, rerender } = renderHook(({ scoped }) => useScopedProjectSessions(scoped, ALPHA, NONE, false), {
             initialProps: { scoped: BETA as ClaudeProject | null },
         });
         rerender({ scoped: GAMMA });
@@ -103,7 +104,7 @@ describe("useScopedProjectSessions", () => {
         mockApi.mockImplementation((_command: string, args: { projectPath: string }) =>
             args.projectPath === BETA.path ? betaAnswers.shift() : held().promise,
         );
-        const { result, rerender } = renderHook(({ scoped }) => useScopedProjectSessions(scoped, ALPHA, NONE), {
+        const { result, rerender } = renderHook(({ scoped }) => useScopedProjectSessions(scoped, ALPHA, NONE, false), {
             initialProps: { scoped: BETA as ClaudeProject | null },
         });
         await waitFor(() => expect(result.current.failed).toBe(true));
@@ -119,15 +120,30 @@ describe("useScopedProjectSessions", () => {
     it("a failure landing after unmount is dropped", async () => {
         const beta = held();
         mockApi.mockReturnValue(beta.promise);
-        const { unmount } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE));
+        const { unmount } = renderHook(() => useScopedProjectSessions(BETA, ALPHA, NONE, false));
         unmount();
         await act(async () => beta.reject(new Error("late")));
         expect(console.error).not.toHaveBeenCalled();
     });
 
+    it("a change of the sidechain filter reads the list again; the old filter's list does not show", async () => {
+        const filtered = held();
+        mockApi.mockResolvedValueOnce([session("b1")]).mockReturnValueOnce(filtered.promise);
+        const { result, rerender } = renderHook(
+            ({ excludeSidechain }) => useScopedProjectSessions(BETA, ALPHA, NONE, excludeSidechain),
+            { initialProps: { excludeSidechain: false } },
+        );
+        await waitFor(() => expect(result.current.sessions.map((s) => s.session_id)).toEqual(["b1"]));
+        rerender({ excludeSidechain: true });
+        expect(result.current).toMatchObject({ sessions: [], failed: false });
+        expect(listCalls(BETA).map(([, args]) => args.excludeSidechain)).toEqual([false, true]);
+        await act(async () => filtered.resolve([session("b2")]));
+        expect(result.current.sessions.map((s) => s.session_id)).toEqual(["b2"]);
+    });
+
     it("the open project is never asked for, and never fails", () => {
         const open = [session("a1")];
-        const { result } = renderHook(() => useScopedProjectSessions(ALPHA, ALPHA, open));
+        const { result } = renderHook(() => useScopedProjectSessions(ALPHA, ALPHA, open, false));
         expect(result.current).toMatchObject({ sessions: open, failed: false });
         expect(mockApi).not.toHaveBeenCalled();
     });

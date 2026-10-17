@@ -152,6 +152,7 @@ export const GlobalSearchModal = ({
         userMetadata,
         getSessionDisplayName,
         isProjectHidden,
+        excludeSidechain,
     } = useAppStore();
     // Scope "project" needs an open project; without one the chip is "all".
     const effectiveScope: PaletteScope = selectedProject ? scope : "all";
@@ -172,7 +173,7 @@ export const GlobalSearchModal = ({
         sessions: pinnedSessions,
         failed: pinnedSessionsFailed,
         retry: retryPinnedSessions,
-    } = useScopedProjectSessions(pinned, selectedProject ?? null, sessions ?? []);
+    } = useScopedProjectSessions(pinned, selectedProject ?? null, sessions ?? [], excludeSidechain);
 
     // ---- the synchronous sources -------------------------------------------
     const commandEntries = paletteEntries(query, getCommandContext(), t);
