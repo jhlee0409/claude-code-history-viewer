@@ -347,6 +347,14 @@ describe("Tokens tab (owned by the open session)", () => {
     await waitFor(() => expect(loadSessionTokenStats).toHaveBeenCalledWith(S1.file_path));
   });
 
+  it("does not ask again once the session's load answered, even with nothing", () => {
+    // An answer of nothing is still an answer: keying the next load on
+    // "no totals" instead re-asked on every render, a load loop.
+    arrange({ inspectorTab: "tokens", sessionTokenStats: null, sessionTokenStatsOwner: S1.file_path });
+    renderInspector();
+    expect(loadSessionTokenStats).not.toHaveBeenCalled();
+  });
+
   it("waits for a token load already running instead of starting a second one", () => {
     arrange({ inspectorTab: "tokens", isLoadingTokenStats: true });
     renderInspector();

@@ -3,8 +3,9 @@
  *
  * Reads them through `selectSessionTokenStats` (owned by the session file,
  * `navigation/screenOwner.ts`), so another session's - or another tab's -
- * totals never show. When the open session has none yet, no load is
- * running and its own load has not failed, it asks for them once; a
+ * totals never show. When the open session has no answer yet (no totals
+ * of its own, even empty ones), no load is running and its own load has
+ * not failed, it asks for them once; a
  * failure is recorded with the session and stays until the user retries
  * (`retry`) or the session loads again elsewhere, so a failing backend is
  * not asked in a loop.
@@ -26,8 +27,11 @@ export function useSessionTokenStats(): UseSessionTokenStats {
   const isAnyTokenLoadRunning = useAppStore((s) => s.isLoadingTokenStats);
   const loadSessionTokenStats = useAppStore((s) => s.loadSessionTokenStats);
 
-  const needsLoad =
-    sessionPath !== null && view.stats === null && view.error === null && !isAnyTokenLoadRunning;
+  // `view.isLoading`: this session has no answer of its own yet - neither
+  // totals it owns nor its own failure. Keyed on the answer, not on the
+  // totals being non-null: an answer of nothing would otherwise be asked
+  // for again on every commit, an unbounded load loop.
+  const needsLoad = sessionPath !== null && view.isLoading && !isAnyTokenLoadRunning;
 
   useEffect(() => {
     if (!needsLoad || sessionPath === null) return;
