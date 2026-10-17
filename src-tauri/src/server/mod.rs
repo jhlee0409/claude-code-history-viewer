@@ -101,6 +101,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/scan_projects",
     "/search_all_providers",
     "/search_messages",
+    "/sync_menu_state",
     "/validate_claude_folder",
     "/validate_custom_claude_dir",
 ];
@@ -246,6 +247,8 @@ pub fn build_router(
         .route("/send_feedback", post(h::send_feedback))
         .route("/get_system_info", post(h::get_system_info))
         .route("/open_github_issues", post(h::open_github_issues))
+        // Native menu bridge: a no-op in the WebUI (no native menu)
+        .route("/sync_menu_state", post(h::sync_menu_state))
         // Metadata commands
         .route(
             "/get_metadata_folder_path",
@@ -1457,6 +1460,31 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(allowed.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// The `WebUI` has no native menu: `sync_menu_state` is a no-op 200 that
+    /// queues nothing, also in read-only mode (desktop/WebUI command parity).
+    #[tokio::test]
+    async fn sync_menu_state_is_a_no_op_in_the_webui() {
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/sync_menu_state")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}}}}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"[]");
     }
 
     #[tokio::test]

@@ -958,6 +958,14 @@ handler_json!(
     |p: SendFeedbackParams| async move { commands::feedback::send_feedback(p.feedback).await }
 );
 
+/// `sync_menu_state` (desktop: the native menu's language and command state).
+/// The `WebUI` has no native menu, so the route only keeps the desktop and
+/// `WebUI` command surfaces in parity: it accepts the body and replies with no
+/// queued menu events.
+pub async fn sync_menu_state() -> Result<Json<Value>, ApiError> {
+    Ok(Json(serde_json::json!([])))
+}
+
 /// Special handler: returns URL instead of opening browser on server.
 pub async fn open_github_issues() -> Result<Json<Value>, ApiError> {
     let url = "https://github.com/jhlee0409/claude-code-history-viewer/issues/new";
