@@ -417,6 +417,7 @@
   "globalSearch.scope.projectUnavailable": "プロジェクトを開くと、その中だけを検索できます",
   "globalSearch.showMore": "さらに{{count}}件を表示",
   "globalSearch.showAllMessages": "メッセージ{{count}}件をすべて表示",
+  "globalSearch.messages.composing": "入力を待っています…",
   "globalSearch.messages.searching": "メッセージを検索中…",
   "globalSearch.messages.failed": "メッセージを検索できませんでした",
   "globalSearch.messages.retry": "再試行",

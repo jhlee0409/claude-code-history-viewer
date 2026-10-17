@@ -417,6 +417,7 @@
   "globalSearch.scope.projectUnavailable": "打开项目后可只在其中搜索",
   "globalSearch.showMore": "再显示 {{count}} 项",
   "globalSearch.showAllMessages": "显示全部 {{count}} 条消息",
+  "globalSearch.messages.composing": "等待输入…",
   "globalSearch.messages.searching": "正在搜索消息…",
   "globalSearch.messages.failed": "无法搜索消息",
   "globalSearch.messages.retry": "重试",

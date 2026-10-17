@@ -6,10 +6,11 @@
  *   app holds (`paletteEntries`, `paletteSources`), so they follow every
  *   keystroke, IME composition included.
  * - Messages come from the backend search (`usePaletteMessageSearch`),
- *   debounced, owned by the query + scope + filter it was asked for, and
- *   never sent mid IME composition. The group shows its own loading / error
- *   / empty state and never holds up the others; a live region reports its
- *   outcome to screen readers.
+ *   debounced, owned by the field's text + scope + filter it was asked for,
+ *   and never sent mid IME composition: starting one ends the typed query's
+ *   search, and its end searches the composed text. The group shows its
+ *   own waiting / loading / error / empty state and never holds up the
+ *   others; a live region reports its outcome to screen readers.
  * - The scope chip ("This project" / "All projects") scopes Sessions and
  *   Messages; Projects always lists every project.
  * - Picking a row closes the palette and moves there with `navigate`
@@ -98,12 +99,11 @@ export const GlobalSearchModal = ({
     getCommandContext,
 }: GlobalSearchModalProps) => {
     const { t } = useTranslation();
-    // What the field shows, and what the message search runs on: the latter
-    // only changes outside an IME composition, so a half-composed syllable
-    // (Hangul, kana) never goes to the backend.
+    // What the field shows, and whether an IME is composing it. The message
+    // search runs on exactly these two (a half-composed syllable - Hangul,
+    // kana - never goes to the backend; see `usePaletteMessageSearch`).
     const [query, setQuery] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const composingRef = useRef(false);
+    const [composing, setComposing] = useState(false);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
     const [scope, setScope] = useState<PaletteScope>("all");
     // "Show more" opens a group for the query it was asked under.
@@ -128,7 +128,8 @@ export const GlobalSearchModal = ({
     const effectiveScope: PaletteScope = selectedProject ? scope : "all";
 
     const { view: messageView, retry: retryMessages } = usePaletteMessageSearch({
-        query: searchQuery,
+        query,
+        composing,
         scope: effectiveScope,
         messageType: messageTypeFilter,
         project: selectedProject ?? null,
@@ -187,21 +188,17 @@ export const GlobalSearchModal = ({
 
     // ---- input -------------------------------------------------------------
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setQuery(value);
-        const composing = composingRef.current || (e.nativeEvent as InputEvent).isComposing === true;
-        if (!composing) setSearchQuery(value);
+        setQuery(e.target.value);
     }, []);
-    const handleCompositionStart = useCallback(() => {
-        composingRef.current = true;
-    }, []);
+    const handleCompositionStart = useCallback(() => setComposing(true), []);
+    // The composed text is the field's value now (some engines end the
+    // composition before its last input event).
     const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
-        composingRef.current = false;
-        setSearchQuery(e.currentTarget.value);
+        setComposing(false);
+        setQuery(e.currentTarget.value);
     }, []);
     const clearQuery = () => {
         setQuery("");
-        setSearchQuery("");
         inputRef.current?.focus();
     };
 
@@ -274,7 +271,7 @@ export const GlobalSearchModal = ({
             return () => clearTimeout(timer);
         }
         setQuery("");
-        setSearchQuery("");
+        setComposing(false);
         setScope("all");
         setMessageTypeFilter("all");
         setExpanded({ query: "", groups: [] });

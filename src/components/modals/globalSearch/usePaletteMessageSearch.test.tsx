@@ -48,6 +48,7 @@ const input = (extra: Partial<MessageSearchInput> = {}): MessageSearchInput => (
   messageType: "all",
   project: null,
   enabled: true,
+  composing: false,
   ...extra,
 });
 
@@ -233,6 +234,40 @@ describe("usePaletteMessageSearch", () => {
     await flushDebounce();
     expect(result.current.view.status).toBe("unsearchable");
     expect(mockApi).not.toHaveBeenCalled();
+  });
+
+  it("composition ends the typed query's pending search: nothing is sent, the group waits", async () => {
+    const { result, rerender } = renderHook((props: MessageSearchInput) => usePaletteMessageSearch(props), {
+      initialProps: input({ query: "hello" }),
+    });
+    rerender(input({ query: "hello로", composing: true }));
+    await flushDebounce();
+    await flushDebounce();
+    expect(mockApi).not.toHaveBeenCalled();
+    expect(result.current.view.status).toBe("composing");
+    mockApi.mockResolvedValueOnce([message("m1")]);
+    rerender(input({ query: "hello로" }));
+    await flushDebounce();
+    expect(mockApi).toHaveBeenCalledTimes(1);
+    expect(mockApi.mock.calls[0]?.[1]).toMatchObject({ query: "hello로" });
+    expect(result.current.view).toMatchObject({ status: "done", query: "hello로" });
+  });
+
+  it("composition drops the typed query's answer in flight", async () => {
+    const pending = held();
+    mockApi.mockReturnValueOnce(pending.promise);
+    const { result, rerender } = renderHook((props: MessageSearchInput) => usePaletteMessageSearch(props), {
+      initialProps: input({ query: "hello" }),
+    });
+    await flushDebounce();
+    rerender(input({ query: "hello", composing: true }));
+    await act(async () => pending.resolve([message("old")]));
+    expect(result.current.view.status).toBe("composing");
+  });
+
+  it("composing text too short to search is idle, not waiting", () => {
+    const { result } = renderHook(() => usePaletteMessageSearch(input({ query: "ㄹ", composing: true })));
+    expect(result.current.view.status).toBe("idle");
   });
 
   it("does not ask again when the store hands out equal settings in new objects", async () => {

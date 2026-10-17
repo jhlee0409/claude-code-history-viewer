@@ -312,6 +312,78 @@ describe("⌘K palette: IME composition", () => {
         expect(searches()[0]?.[1]).toMatchObject({ query: "로그" });
     });
 
+    // Composition that starts over an existing query ends that query's
+    // search: its pending debounce is never sent, its answer in flight is
+    // dropped, and the Messages group waits for the composed text.
+    const messages = () => within(group("globalSearch.group.messages"));
+
+    it("composition over a typed query cancels its pending search", async () => {
+        render(<Harness />);
+        const field = input();
+        fireEvent.change(field, { target: { value: "hello" } });
+        await sleep(80);
+        fireEvent.compositionStart(field);
+        fireEvent.change(field, { target: { value: "hello로" }, nativeEvent: { isComposing: true } });
+        await sleep(400);
+        expect(searches()).toHaveLength(0);
+        expect(messages().getByText("globalSearch.messages.composing")).toBeInTheDocument();
+        fireEvent.compositionEnd(field, { target: { value: "hello로" } });
+        await sleep(400);
+        expect(searches()).toHaveLength(1);
+        expect(searches()[0]?.[1]).toMatchObject({ query: "hello로" });
+    });
+
+    it("composition over a query in flight drops its late answer: no stale, selectable row", async () => {
+        const pending = held();
+        mockApi.mockReturnValueOnce(pending.promise);
+        render(<Harness />);
+        const field = input();
+        fireEvent.change(field, { target: { value: "hello" } });
+        await sleep(300);
+        expect(searches()).toHaveLength(1);
+        fireEvent.compositionStart(field);
+        fireEvent.change(field, { target: { value: "hello로" }, nativeEvent: { isComposing: true } });
+        await act(async () => pending.resolve([hit("old", "hello stale before IME")]));
+        await sleep(50);
+        expect(screen.queryByText(/stale before IME/)).toBeNull();
+        expect(screen.queryAllByRole("option").filter((o) => o.getAttribute("data-value")?.startsWith("message:"))).toEqual([]);
+        expect(messages().getByText("globalSearch.messages.composing")).toBeInTheDocument();
+        expect(searches()).toHaveLength(1);
+    });
+
+    it("composition start alone ends the query in flight", async () => {
+        const pending = held();
+        mockApi.mockReturnValueOnce(pending.promise);
+        render(<Harness />);
+        const field = input();
+        fireEvent.change(field, { target: { value: "hello" } });
+        await sleep(300);
+        fireEvent.compositionStart(field);
+        await act(async () => pending.resolve([hit("old", "hello stale before IME")]));
+        await sleep(50);
+        expect(screen.queryByText(/stale before IME/)).toBeNull();
+        expect(screen.queryAllByRole("option").filter((o) => o.getAttribute("data-value")?.startsWith("message:"))).toEqual([]);
+        expect(messages().getByText("globalSearch.messages.composing")).toBeInTheDocument();
+    });
+
+    it("a late answer of the pre-composition query never shows after the composed one is asked", async () => {
+        const old = held();
+        mockApi.mockReturnValueOnce(old.promise);
+        mockApi.mockResolvedValueOnce([hit("new", "hello로 fresh")]);
+        render(<Harness />);
+        const field = input();
+        fireEvent.change(field, { target: { value: "hello" } });
+        await sleep(300);
+        fireEvent.compositionStart(field);
+        fireEvent.change(field, { target: { value: "hello로" }, nativeEvent: { isComposing: true } });
+        fireEvent.compositionEnd(field, { target: { value: "hello로" } });
+        await sleep(300);
+        await act(async () => old.resolve([hit("old", "hello stale before IME")]));
+        await waitFor(() => expect(screen.getByText(/fresh/)).toBeInTheDocument());
+        expect(screen.queryByText(/stale before IME/)).toBeNull();
+        expect(searches().map((call) => (call[1] as { query: string }).query)).toEqual(["hello", "hello로"]);
+    });
+
     it("keeps matching places while composing", () => {
         storeState.projects = [project("로그인")];
         render(<Harness />);

@@ -4,12 +4,19 @@
  * custom folder or WSL is in play) as an asynchronous source of the palette.
  *
  * Ownership: a request belongs to the exact query, scope, type filter and
- * search settings it was asked for (its key). Changing any of them, closing
- * the palette or unmounting abandons the debounce and the request in flight:
- * the backend has no cancel, so "cancelled" means its answer - success or
- * failure - is dropped (`ownsData`). The view only shows an answer under the
- * key it belongs to; until the current key's answer lands it shows loading,
- * never the previous query's rows.
+ * search settings it was asked for (its key), and the key is a function of
+ * what the field shows: the visible text, whether an IME is composing it,
+ * the scope and the filters. Changing any of them - starting a composition
+ * included - closing the palette or unmounting abandons the debounce and the
+ * request in flight: the backend has no cancel, so "cancelled" means its
+ * answer - success or failure - is dropped (`ownsData`). The view only shows
+ * an answer under the key it belongs to; until the current key's answer
+ * lands it shows loading, never the previous query's rows.
+ *
+ * Mid composition there is no key: a half-composed syllable (Hangul, kana)
+ * is never sent, and the query typed before the composition owns nothing.
+ * The view waits ("composing") until composition end makes the composed
+ * text the key.
  */
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/services/api";
@@ -35,8 +42,10 @@ export const MESSAGE_SEARCH_DEBOUNCE_MS = 250;
 export const MAX_MESSAGE_RESULTS = 250;
 
 export interface MessageSearchInput {
-  /** The query as committed - never mid IME composition. */
+  /** The query as the field shows it. */
   query: string;
+  /** An IME is composing `query`: nothing is searched until it ends. */
+  composing: boolean;
   scope: PaletteScope;
   messageType: MessageTypeFilter;
   /** The open project (scope "project" searches it). */
@@ -108,6 +117,8 @@ export type MessageSearchView =
   | { status: "idle" }
   /** Scope "project" on a project whose provider the search cannot reach. */
   | { status: "unsearchable" }
+  /** An IME is composing a searchable query: waiting for the composed text. */
+  | { status: "composing" }
   | { status: "loading" }
   | { status: "done"; query: string; results: ClaudeMessage[] }
   | { status: "error"; query: string };
@@ -134,7 +145,9 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
   };
   const unsearchable =
     input.enabled && input.scope === "project" && input.project != null && !isMessageSearchable(input.project);
-  const request = input.enabled && !unsearchable ? buildMessageSearchRequest(input, config) : null;
+  // What the field's text would search; asked only once nothing composes it.
+  const searchable = input.enabled && !unsearchable ? buildMessageSearchRequest(input, config) : null;
+  const request = input.composing ? null : searchable;
   const [attempt, setAttempt] = useState(0);
   const requestKey = request ? JSON.stringify([request.command, request.args, attempt]) : null;
 
@@ -173,7 +186,8 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
 
   let view: MessageSearchView;
   if (unsearchable) view = { status: "unsearchable" };
-  else if (!requestKey) view = { status: "idle" };
+  else if (!searchable) view = { status: "idle" };
+  else if (!requestKey) view = { status: "composing" };
   else if (settled?.key !== requestKey) view = { status: "loading" };
   else if ("failed" in settled) view = { status: "error", query: settled.query };
   else view = { status: "done", query: settled.query, results: settled.results };

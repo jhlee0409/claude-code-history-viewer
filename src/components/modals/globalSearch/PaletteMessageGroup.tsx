@@ -1,8 +1,9 @@
 /**
  * The ⌘K palette's Messages group (plan T10): the backend message search
  * (`usePaletteMessageSearch`) as one cmdk group with its own states -
- * searching, failed (with a retry item), no match, a scope the search cannot
- * reach - so a slow or failed search never holds up the other groups.
+ * waiting for an IME composition to end, searching, failed (with a retry
+ * item), no match, a scope the search cannot reach - so a slow or failed
+ * search never holds up the other groups.
  * Results are listed under their project, the first `MESSAGE_PREVIEW_LIMIT`
  * until "Show all N messages". Providers whose messages the search cannot
  * reach are named in the group (provider parity).
@@ -296,6 +297,7 @@ export function PaletteMessageGroup({
             <span>{t("globalSearch.messages.searching")}</span>
           </>,
         )}
+      {view.status === "composing" && note(<span>{t("globalSearch.messages.composing")}</span>)}
       {view.status === "unsearchable" &&
         note(
           <span>

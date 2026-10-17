@@ -417,6 +417,7 @@
   "globalSearch.scope.projectUnavailable": "Open a project to search only in it",
   "globalSearch.showMore": "Show {{count}} more",
   "globalSearch.showAllMessages": "Show all {{count}} messages",
+  "globalSearch.messages.composing": "Waiting for input…",
   "globalSearch.messages.searching": "Searching messages…",
   "globalSearch.messages.failed": "Couldn't search messages",
   "globalSearch.messages.retry": "Try again",
