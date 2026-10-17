@@ -6,7 +6,7 @@
  * the modifier).
  */
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronDown, Folder, MessageSquare } from "lucide-react";
+import { ChevronDown, Folder, FolderSearch, MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +86,15 @@ interface GroupProps<T> {
   onOpen: (hit: T) => void;
 }
 
-export function PaletteProjectGroup({ hits, query, expanded, onExpand, onOpen }: GroupProps<ProjectHit>) {
+interface ProjectGroupProps extends GroupProps<ProjectHit> {
+  /**
+   * Scope Sessions and Messages to the project, without opening it: what
+   * Tab does on a highlighted row, as a row button for phones (no Tab key).
+   */
+  onScope: (hit: ProjectHit) => void;
+}
+
+export function PaletteProjectGroup({ hits, query, expanded, onExpand, onOpen, onScope }: ProjectGroupProps) {
   const { t } = useTranslation();
   if (hits.length === 0) return null;
   const shown = expanded ? hits : hits.slice(0, GROUP_LIMIT);
@@ -105,6 +113,7 @@ export function PaletteProjectGroup({ hits, query, expanded, onExpand, onOpen }:
           </span>
           <ProviderBadge provider={project.provider} />
           <ProjectPath project={project} />
+          <ScopeRowButton onScope={() => onScope({ project, label })} />
         </CommandPrimitive.Item>
       ))}
       {!expanded && hits.length > GROUP_LIMIT && (
@@ -118,15 +127,46 @@ export function PaletteProjectGroup({ hits, query, expanded, onExpand, onOpen }:
   );
 }
 
-/** Where the project lives: its parent folders, short (the sidebar's secondary text). */
+/**
+ * Where the project lives: its parent folders, short (the sidebar's
+ * secondary text). Without them an empty spacer keeps what follows (the
+ * phone's row button) at the row's end.
+ */
 function ProjectPath({ project }: { project: ClaudeProject }) {
   const path = project.actual_path || project.path;
   const parent = getCompactParentPath(path);
-  if (!parent) return null;
+  if (!parent) return <span className="ml-auto" aria-hidden="true" />;
   return (
     <span className="ml-auto min-w-0 max-w-[50%] truncate text-list text-muted-foreground" title={path}>
       {parent}
     </span>
+  );
+}
+
+/**
+ * "Search in this project", the phone's Tab: phones only (`sm:hidden`, as
+ * the keyboard hints are desktop only). Its click and keys stay its own,
+ * so the row it sits in never opens the project.
+ */
+function ScopeRowButton({ onScope }: { onScope: () => void }) {
+  const { t } = useTranslation();
+  const label = t("globalSearch.scope.pinAction");
+  return (
+    <button
+      type="button"
+      className="sm:hidden shrink-0 -my-1 -mr-2 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 focus-ring-inset"
+      aria-label={label}
+      title={label}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onScope();
+      }}
+    >
+      <FolderSearch className="w-4 h-4" aria-hidden="true" />
+    </button>
   );
 }
 

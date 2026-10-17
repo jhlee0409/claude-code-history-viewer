@@ -415,6 +415,10 @@
   "globalSearch.scope.project": "This project",
   "globalSearch.scope.all": "All projects",
   "globalSearch.scope.projectUnavailable": "Open a project to search only in it",
+  "globalSearch.scope.pinned": "Search in “{{project}}”",
+  "globalSearch.scope.pinnedAria": "Search in “{{project}}”, remove scope",
+  "globalSearch.scope.pinAction": "Search in this project",
+  "globalSearch.scope.tabHint": "Search in project",
   "globalSearch.showMore": "Show {{count}} more",
   "globalSearch.showAllMessages": "Show all {{count}} messages",
   "globalSearch.messages.composing": "Waiting for input…",
@@ -426,5 +430,7 @@
   "globalSearch.messages.notSearched": "Not searched: {{providers}}",
   "globalSearch.messages.minChars": "Type at least 2 characters to search messages",
   "globalSearch.live.found": "Messages found: {{count}}",
+  "globalSearch.live.scopePinned": "Searching in {{project}}",
+  "globalSearch.live.scopeCleared": "Search scope: {{scope}}",
   "globalSearch.openInNewTab": "New tab"
 }

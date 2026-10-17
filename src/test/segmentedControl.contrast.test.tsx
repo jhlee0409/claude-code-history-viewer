@@ -93,9 +93,11 @@ describe("segmented control contrast (selected vs unselected)", () => {
     expect(at).toBeLessThan(CSS.indexOf("@layer utilities {", components));
   });
 
-  it("the selected state is drawn from those tokens, for aria-pressed, aria-selected and aria-current", () => {
+  // data-active: an item that is the current state but not a toggle (the
+  // palette's "Search in «project» ✕" pill, a button that clears it).
+  it("the selected state is drawn from those tokens, for aria-pressed, aria-selected, aria-current and data-active", () => {
     const selected = CSS.match(
-      /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\],\s*\.segmented-item\[aria-current="page"\]\s*\{([^}]*)\}/
+      /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\],\s*\.segmented-item\[aria-current="page"\],\s*\.segmented-item\[data-active="true"\]\s*\{([^}]*)\}/
     );
     expect(selected, "no shared selected rule in index.css").not.toBeNull();
     const body = selected![1]!;

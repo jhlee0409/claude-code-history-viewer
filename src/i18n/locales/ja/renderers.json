@@ -415,6 +415,10 @@
   "globalSearch.scope.project": "このプロジェクト",
   "globalSearch.scope.all": "すべてのプロジェクト",
   "globalSearch.scope.projectUnavailable": "プロジェクトを開くと、その中だけを検索できます",
+  "globalSearch.scope.pinned": "「{{project}}」内を検索",
+  "globalSearch.scope.pinnedAria": "「{{project}}」内を検索、範囲を解除",
+  "globalSearch.scope.pinAction": "このプロジェクト内を検索",
+  "globalSearch.scope.tabHint": "範囲指定",
   "globalSearch.showMore": "さらに{{count}}件を表示",
   "globalSearch.showAllMessages": "メッセージ{{count}}件をすべて表示",
   "globalSearch.messages.composing": "入力を待っています…",
@@ -426,5 +430,7 @@
   "globalSearch.messages.notSearched": "検索対象外: {{providers}}",
   "globalSearch.messages.minChars": "メッセージを検索するには2文字以上入力してください",
   "globalSearch.live.found": "見つかったメッセージ: {{count}}件",
+  "globalSearch.live.scopePinned": "{{project}} 内を検索します",
+  "globalSearch.live.scopeCleared": "検索範囲: {{scope}}",
   "globalSearch.openInNewTab": "新しいタブ"
 }

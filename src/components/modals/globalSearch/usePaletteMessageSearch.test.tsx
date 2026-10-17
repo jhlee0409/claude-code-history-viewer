@@ -189,6 +189,22 @@ describe("usePaletteMessageSearch", () => {
     expect(result.current.view).toMatchObject({ status: "done", results: [message("scoped")] });
   });
 
+  it("the scoped project is part of the key: one folder name in two places is two scopes", async () => {
+    const first = held();
+    mockApi.mockReturnValueOnce(first.promise).mockResolvedValueOnce([message("second")]);
+    const here = project();
+    const elsewhere = project({ path: "/mnt/other/.claude/projects/-Users-me-alpha" });
+    const { result, rerender } = renderHook((props: MessageSearchInput) => usePaletteMessageSearch(props), {
+      initialProps: input({ scope: "project", project: here }),
+    });
+    await flushDebounce();
+    rerender(input({ scope: "project", project: elsewhere }));
+    await flushDebounce();
+    expect(mockApi).toHaveBeenCalledTimes(2);
+    await act(async () => first.resolve([message("first, stale")]));
+    expect(result.current.view).toMatchObject({ status: "done", results: [message("second")] });
+  });
+
   it("closing cancels: no request after it, and a request in flight lands nowhere", async () => {
     const pending = held();
     mockApi.mockReturnValueOnce(pending.promise);

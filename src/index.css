@@ -996,7 +996,8 @@
 
   .segmented-item[aria-pressed="true"],
   .segmented-item[aria-selected="true"],
-  .segmented-item[aria-current="page"] {
+  .segmented-item[aria-current="page"],
+  .segmented-item[data-active="true"] {
     background-color: var(--segmented-selected);
     color: var(--segmented-selected-foreground);
     box-shadow:

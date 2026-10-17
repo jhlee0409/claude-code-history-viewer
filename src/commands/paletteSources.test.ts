@@ -151,6 +151,23 @@ describe("sessionCandidates + matchSessions", () => {
     expect(matchSessions("", candidates)).toEqual([]);
   });
 
+  it("scope 'project' on a project scoped with Tab: its loaded list, then its own recent and starred sessions", () => {
+    const betaLoaded = [{ ...session("b1", "Beta docs"), file_path: "/store/beta/b1.jsonl" }];
+    const candidates = sessionCandidates({ ...base, scope: "project", selectedProject: beta, sessions: betaLoaded });
+    expect(candidates.map((c) => c.key)).toEqual(["/store/beta/b1.jsonl", "/store/beta/r1.jsonl"]);
+    expect(candidates[0]?.target).toEqual({ kind: "loaded", session: betaLoaded[0], project: beta });
+    expect(candidates[1]?.target).toEqual({ kind: "ref", ref: recent[0]!.ref });
+    // Before its list lands, the library alone.
+    expect(sessionCandidates({ ...base, scope: "project", selectedProject: beta, sessions: [] }).map((c) => c.key)).toEqual([
+      "/store/beta/r1.jsonl",
+    ]);
+  });
+
+  it("scope 'project' matches library refs by provider and path, not by folder name", () => {
+    const codexBeta = project("beta", { provider: "codex", path: "codex:///w/beta" });
+    expect(sessionCandidates({ ...base, scope: "project", selectedProject: codexBeta, sessions: [] })).toEqual([]);
+  });
+
   it("without an open project, scope 'project' lists nothing", () => {
     expect(sessionCandidates({ ...base, selectedProject: null, sessions: [], scope: "project" })).toEqual([]);
   });

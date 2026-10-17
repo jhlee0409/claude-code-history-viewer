@@ -415,6 +415,10 @@
   "globalSearch.scope.project": "目前專案",
   "globalSearch.scope.all": "所有專案",
   "globalSearch.scope.projectUnavailable": "開啟專案後可只在其中搜尋",
+  "globalSearch.scope.pinned": "在「{{project}}」中搜尋",
+  "globalSearch.scope.pinnedAria": "在「{{project}}」中搜尋，取消範圍",
+  "globalSearch.scope.pinAction": "在此專案中搜尋",
+  "globalSearch.scope.tabHint": "限定範圍",
   "globalSearch.showMore": "再顯示 {{count}} 項",
   "globalSearch.showAllMessages": "顯示全部 {{count}} 則訊息",
   "globalSearch.messages.composing": "等待輸入…",
@@ -426,5 +430,7 @@
   "globalSearch.messages.notSearched": "未搜尋：{{providers}}",
   "globalSearch.messages.minChars": "輸入至少 2 個字元以搜尋訊息",
   "globalSearch.live.found": "找到的訊息：{{count}} 則",
+  "globalSearch.live.scopePinned": "正在 {{project}} 中搜尋",
+  "globalSearch.live.scopeCleared": "搜尋範圍：{{scope}}",
   "globalSearch.openInNewTab": "新分頁"
 }

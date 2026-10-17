@@ -415,6 +415,10 @@
   "globalSearch.scope.project": "이 프로젝트",
   "globalSearch.scope.all": "전체 프로젝트",
   "globalSearch.scope.projectUnavailable": "프로젝트를 열면 그 안에서만 검색할 수 있습니다",
+  "globalSearch.scope.pinned": "«{{project}}»에서 검색",
+  "globalSearch.scope.pinnedAria": "«{{project}}»에서 검색, 범위 해제",
+  "globalSearch.scope.pinAction": "이 프로젝트에서 검색",
+  "globalSearch.scope.tabHint": "범위 지정",
   "globalSearch.showMore": "{{count}}개 더 보기",
   "globalSearch.showAllMessages": "메시지 {{count}}개 모두 보기",
   "globalSearch.messages.composing": "입력을 기다리는 중…",
@@ -426,5 +430,7 @@
   "globalSearch.messages.notSearched": "검색하지 않음: {{providers}}",
   "globalSearch.messages.minChars": "메시지를 검색하려면 2자 이상 입력하세요",
   "globalSearch.live.found": "찾은 메시지: {{count}}개",
+  "globalSearch.live.scopePinned": "{{project}}에서 검색합니다",
+  "globalSearch.live.scopeCleared": "검색 범위: {{scope}}",
   "globalSearch.openInNewTab": "새 탭"
 }

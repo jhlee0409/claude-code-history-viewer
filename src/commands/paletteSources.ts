@@ -134,10 +134,19 @@ export interface SessionCandidate {
   target: SessionTarget;
 }
 
+/** The same project: one provider, one path (names repeat across folders). */
+export const isSameProject = (a: ClaudeProject | null | undefined, b: ClaudeProject | null | undefined): boolean =>
+  a != null && b != null && providerOf(a) === providerOf(b) && a.path === b.path;
+
 export interface SessionSources {
   scope: PaletteScope;
-  /** The open project's loaded sessions (`projectSlice.sessions`). */
+  /**
+   * `selectedProject`'s loaded sessions: the open project's list
+   * (`projectSlice.sessions`), or the list of a project the palette is
+   * scoped to (Tab on its row).
+   */
   sessions: readonly ClaudeSession[];
+  /** Scope "all": the open project. Scope "project": the project searched. */
   selectedProject: ClaudeProject | null;
   recent: readonly RecentEntry[];
   favorites: readonly FavoriteEntry[];
@@ -148,13 +157,20 @@ export interface SessionSources {
 
 /**
  * Every session the palette can offer, before matching. Scope "project":
- * the open project's loaded sessions. Scope "all": those, then the
- * library's recent and starred sessions of any project - the sessions the
- * app knows without reading every project's list. Each file once; a star
- * saved before refs existed has no place to open and is left out.
+ * the project's loaded sessions, then its recent and starred sessions the
+ * list does not hold (yet). Scope "all": the open project's loaded sessions,
+ * then the library's recent and starred sessions of any project - the
+ * sessions the app knows without reading every project's list. Each file
+ * once; a star saved before refs existed has no place to open and is left
+ * out.
  */
 export function sessionCandidates(sources: SessionSources): SessionCandidate[] {
-  const { scope, sessions, selectedProject, recent, favorites, projects, titleOf } = sources;
+  const { scope, sessions, selectedProject, projects, titleOf } = sources;
+  const inScope = (ref: SessionRef) =>
+    scope === "all" ||
+    (selectedProject != null && ref.provider === providerOf(selectedProject) && ref.projectPath === selectedProject.path);
+  const recent = sources.recent.filter((entry) => inScope(entry.ref));
+  const favorites = sources.favorites.filter((favorite) => favorite.ref && inScope(favorite.ref));
   const out: SessionCandidate[] = [];
   const seen = new Set<string>();
   const add = (candidate: SessionCandidate) => {
@@ -174,7 +190,7 @@ export function sessionCandidates(sources: SessionSources): SessionCandidate[] {
       });
     }
   }
-  if (scope === "project") return out.filter((c) => c.title);
+  if (scope === "project" && !selectedProject) return [];
 
   const labelFor = (ref: SessionRef): string | undefined => {
     const listing = ref.projectPath

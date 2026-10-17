@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T12:37:21.010Z
- * 총 키 개수: 2175
+ * 생성 시간: 2026-10-17T13:05:47.969Z
+ * 총 키 개수: 2181
  * Namespace 수: 11
  */
 
@@ -1659,7 +1659,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (428개)
+ * renderers namespace의 번역 키 (434개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1856,6 +1856,8 @@ export type RenderersKeys =
   | 'globalSearch.group.sessions'
   | 'globalSearch.hint'
   | 'globalSearch.live.found'
+  | 'globalSearch.live.scopeCleared'
+  | 'globalSearch.live.scopePinned'
   | 'globalSearch.messages.composing'
   | 'globalSearch.messages.failed'
   | 'globalSearch.messages.minChars'
@@ -1874,8 +1876,12 @@ export type RenderersKeys =
   | 'globalSearch.resultsCapped'
   | 'globalSearch.scope.all'
   | 'globalSearch.scope.label'
+  | 'globalSearch.scope.pinAction'
+  | 'globalSearch.scope.pinned'
+  | 'globalSearch.scope.pinnedAria'
   | 'globalSearch.scope.project'
   | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
@@ -3051,6 +3057,8 @@ export type TranslationKey =
   | 'globalSearch.group.sessions'
   | 'globalSearch.hint'
   | 'globalSearch.live.found'
+  | 'globalSearch.live.scopeCleared'
+  | 'globalSearch.live.scopePinned'
   | 'globalSearch.messages.composing'
   | 'globalSearch.messages.failed'
   | 'globalSearch.messages.minChars'
@@ -3069,8 +3077,12 @@ export type TranslationKey =
   | 'globalSearch.resultsCapped'
   | 'globalSearch.scope.all'
   | 'globalSearch.scope.label'
+  | 'globalSearch.scope.pinAction'
+  | 'globalSearch.scope.pinned'
+  | 'globalSearch.scope.pinnedAria'
   | 'globalSearch.scope.project'
   | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'

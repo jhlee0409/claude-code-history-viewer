@@ -415,6 +415,10 @@
   "globalSearch.scope.project": "当前项目",
   "globalSearch.scope.all": "所有项目",
   "globalSearch.scope.projectUnavailable": "打开项目后可只在其中搜索",
+  "globalSearch.scope.pinned": "在“{{project}}”中搜索",
+  "globalSearch.scope.pinnedAria": "在“{{project}}”中搜索，取消范围",
+  "globalSearch.scope.pinAction": "在此项目中搜索",
+  "globalSearch.scope.tabHint": "限定范围",
   "globalSearch.showMore": "再显示 {{count}} 项",
   "globalSearch.showAllMessages": "显示全部 {{count}} 条消息",
   "globalSearch.messages.composing": "等待输入…",
@@ -426,5 +430,7 @@
   "globalSearch.messages.notSearched": "未搜索：{{providers}}",
   "globalSearch.messages.minChars": "输入至少 2 个字符以搜索消息",
   "globalSearch.live.found": "找到的消息：{{count}} 条",
+  "globalSearch.live.scopePinned": "正在 {{project}} 中搜索",
+  "globalSearch.live.scopeCleared": "搜索范围：{{scope}}",
   "globalSearch.openInNewTab": "新标签页"
 }

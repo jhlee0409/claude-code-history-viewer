@@ -149,7 +149,11 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
   const searchable = input.enabled && !unsearchable ? buildMessageSearchRequest(input, config) : null;
   const request = input.composing ? null : searchable;
   const [attempt, setAttempt] = useState(0);
-  const requestKey = request ? JSON.stringify([request.command, request.args, attempt]) : null;
+  // The searched project is part of the key by its identity (provider and
+  // path), not only by the folder name the backend matches: two projects
+  // with one folder name are two scopes, each owning its own answer.
+  const scopedProject = input.scope === "project" && input.project ? `${input.project.provider ?? "claude"}:${input.project.path}` : null;
+  const requestKey = request ? JSON.stringify([request.command, request.args, scopedProject, attempt]) : null;
 
   const [settled, setSettled] = useState<Settled | null>(null);
 
