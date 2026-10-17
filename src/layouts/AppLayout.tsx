@@ -15,7 +15,7 @@ import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer"
 import { DesktopOnly } from "@/contexts/platform";
 import { CommandRunnerContext } from "@/commands/CommandRunner";
 import { useCommandContext } from "@/commands/useCommandContext";
-import { runCommand } from "@/commands/registry";
+import { dispatchCommand } from "@/commands/registry";
 import { useFavoriteRefBackfill } from "@/hooks/useFavoriteRefBackfill";
 import {
   AppErrorType,
@@ -193,7 +193,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   // Toolbar and sidebar controls run registry commands (`CommandRunner`).
   const getCommandContext = useCommandContext();
-  const run = (id: Parameters<typeof runCommand>[0]) => runCommand(id, getCommandContext());
+  const run = (id: Parameters<typeof dispatchCommand>[0]) => dispatchCommand(id, getCommandContext);
   // Opening a tab loads its screen's data the way the toolbar tabs do.
   const tabScreens = { openView: analyticsActions.openView };
   // Legacy favourites learn where they live once their project is open.

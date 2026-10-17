@@ -49,7 +49,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject } from "@/types";
 import { cn } from "@/lib/utils";
 import type { CommandId } from "@/commands/manifest";
-import { runCommand, type CommandContext } from "@/commands/registry";
+import { dispatchCommand, type CommandContext } from "@/commands/registry";
 import { commandItemValue, paletteEntries } from "@/commands/paletteQuery";
 import {
     GROUP_LIMIT,
@@ -331,7 +331,7 @@ export const GlobalSearchModal = ({
             if (!id) return;
             pendingCommandRef.current = null;
             event.preventDefault();
-            runCommand(id, getCommandContext());
+            dispatchCommand(id, getCommandContext);
         },
         [getCommandContext],
     );

@@ -32,8 +32,20 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    events strictly in `seq` order, writes its cursor (sessionStorage) before running, and
    acknowledges; a reload or a replacement listener pulls the unacknowledged events and skips
    those at or below the cursor. No ready state or page-load hook exists.
-3. **Menu state is shown only.** `sync_menu_state` greys/ticks items; nothing reads it back.
-4. **Zoom input has one owner per platform.** macOS/Linux: the zoom commands (engine hotkeys
+3. **One command executor for every input.** Keys, the ⌘K palette, toolbar controls and
+   menu events all hand their commands to one FIFO queue (`src/commands/commandQueue.ts`,
+   through `dispatchCommand` or the journal). With nothing waiting a command runs at once,
+   in the caller's task, so a key has no added latency. The journal **holds** the queue
+   while it may not know every menu event older than the next input: from its start
+   (listener attaching, first pull) until the first pull answers, and during a refetch
+   after a gap. It runs those events at the hold's place, then releases it, and the keys
+   and palette commands that arrived meanwhile run after them, in order. A key's
+   `preventDefault` is decided when it is pressed; its command runs in its turn and
+   `runCommand` re-checks `enabled` with the state of that moment. A failed pull lets go
+   of the queue while it waits to retry, and a hold lasts at most `HOLD_LIMIT_MS`
+   (1 s): a hung host call cannot freeze the keyboard.
+4. **Menu state is shown only.** `sync_menu_state` greys/ticks items; nothing reads it back.
+5. **Zoom input has one owner per platform.** macOS/Linux: the zoom commands (engine hotkeys
    off); one synchronous level updated before `setZoom`, set one level at a time; Ctrl+wheel
    counted in `wheelDeltaY` notches. Windows: WebView2 (`zoomHotkeysEnabled: true` in
    `tauri.windows.conf.json`, which also keeps pinch zoom); the page binds no zoom key or
@@ -43,6 +55,13 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
 
 - The ack/ownership switch, the startup queue, orphan hand-off and the page-load reset are
   gone; their race classes cannot occur.
+- Order holds across inputs, not only within the menu stream: a New Tab chosen in the menu
+  during a reload runs before a ⌘W pressed while the page was still pulling. Limits: a menu
+  event chosen *during* that pull (milliseconds) may run before a key pressed in the same
+  window, as the host's and the page's clocks are not compared; past `HOLD_LIMIT_MS`, or
+  while a failed pull waits to retry, keys run first and the late menu events after them.
+- The journal orders invocation, not completion: a command that awaits is not a mutex
+  (navigation keeps its own latest-wins epochs; zoom serializes its host writes).
 - A key pressed while no page listens (mid-reload) reaches the menu item and is journaled,
   so it runs once after the load; it skips the page's focus/IME rules, like a menu click.
 - On Windows the View menu steps from the level it last set; a pinch in between is not seen

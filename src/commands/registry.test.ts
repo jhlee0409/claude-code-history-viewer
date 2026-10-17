@@ -7,6 +7,7 @@ import { parseAccelerator, shortcutFor, type KeyEnvironment } from "./keys";
 import { COMMAND_IDS, COMMAND_MANIFEST, MENU_IDS } from "./manifest";
 import {
   COMMANDS,
+  dispatchCommand,
   getCommand,
   paletteCommands,
   runCommand,
@@ -16,6 +17,7 @@ import {
 import en from "@/i18n/locales/en/common.json";
 import i18n from "@/i18n";
 import { toast } from "sonner";
+import { createCommandQueue } from "./commandQueue";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -296,5 +298,33 @@ describe("command registry", () => {
       const [owned] = vi.mocked(ctx.ownPlace).mock.invocationCallOrder;
       expect(owned).toBeGreaterThan(ran as number);
     });
+  });
+});
+
+describe("dispatchCommand: the one executor every input goes through (review-3 F1)", () => {
+  it("runs at once in the caller's task when nothing holds the queue", () => {
+    const ctx = makeContext();
+    expect(dispatchCommand("tab.new", () => ctx, createCommandQueue())).toBe(true);
+    expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits behind a hold and runs with the context of the moment it runs", () => {
+    const queue = createCommandQueue();
+    let ctx = makeContext({ tabCount: 1 });
+    const hold = queue.hold();
+    expect(dispatchCommand("tab.close", () => ctx, queue)).toBe(true);
+    expect(ctx.actions.closeTab).not.toHaveBeenCalled();
+    const later = makeContext({ tabCount: 2 });
+    ctx = later;
+    hold.release();
+    expect(later.actions.closeTab).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an unknown or disabled command now and queues nothing", () => {
+    const queue = createCommandQueue();
+    const ctx = makeContext({ canGoBack: false });
+    expect(dispatchCommand("go.back", () => ctx, queue)).toBe(false);
+    expect(dispatchCommand("no.such.command", () => ctx, queue)).toBe(false);
+    expect(ctx.actions.goBack).not.toHaveBeenCalled();
   });
 });

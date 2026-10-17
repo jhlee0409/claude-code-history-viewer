@@ -35,7 +35,18 @@ const { openModalMock, toggleMinimapMock, newTabMock, closeTabMock, zoomMock, en
       handlers.forEach((handler) => handler({ epoch: "boot", seq, id }));
     },
     retained: () => retained.map((e) => e.seq),
-    pull: async () => ({ epoch: "boot", floor: 0, events: retained.map((e) => ({ ...e })) }),
+    /** Pulls wait for `release` while held (an IPC reply still on its way). */
+    heldPulls: [] as Array<() => void>,
+    holdingPulls: false,
+    snapshot: () => ({ epoch: "boot", floor: 0, events: retained.map((e) => ({ ...e })) }),
+    pull: () =>
+      host.holdingPulls
+        ? new Promise<ReturnType<typeof host.snapshot>>((resolve) => host.heldPulls.push(() => resolve(host.snapshot())))
+        : Promise.resolve(host.snapshot()),
+    releasePulls() {
+      host.holdingPulls = false;
+      host.heldPulls.splice(0).forEach((answer) => answer());
+    },
     ack: async (_epoch: string, upTo: number) => {
       if (host.dropAcks) return new Promise<void>(() => {});
       retained = retained.filter((e) => e.seq > upTo);
@@ -48,6 +59,8 @@ const { openModalMock, toggleMinimapMock, newTabMock, closeTabMock, zoomMock, en
       host.syncs.length = 0;
       host.unlistened = 0;
       host.dropAcks = false;
+      host.holdingPulls = false;
+      host.heldPulls.length = 0;
     },
   };
   return {
@@ -81,7 +94,7 @@ vi.mock("@/commands/nativeMenuHost", () => ({
         host.unlistened += 1;
       };
     },
-    pullEvents: host.pull,
+    pullEvents: () => host.pull(),
     ackEvents: host.ack,
     cursor: host.cursor as MenuCursorStore,
     subscribe: () => () => {},
@@ -187,6 +200,26 @@ describe("useAppKeyboard in the desktop app", () => {
     await flush();
     expect(order).toEqual(["new", "new", "new", "close"]);
     expect(host.retained()).toEqual([]);
+  });
+
+  it("runs ⌘W pressed while the startup pull is on its way after a New Tab chosen before the page loaded (review-3 F1)", async () => {
+    const order: string[] = [];
+    newTabMock.mockImplementation(() => order.push("new"));
+    closeTabMock.mockImplementation(() => order.push("close"));
+    host.choose("tab.new"); // File → New Tab while no page listened (reload)
+    host.holdingPulls = true;
+    renderHook(() => useAppKeyboard(), { wrapper: strict });
+    await flush();
+    const key = pressMenuKey({ key: "w", code: "KeyW", metaKey: true }, "tab.close");
+    expect(key.defaultPrevented).toBe(true); // claimed now, run in its turn
+    expect(order).toEqual([]);
+    host.releasePulls();
+    await flush();
+    await flush();
+    expect(order).toEqual(["new", "close"]);
+    // In step again: the next key runs at once.
+    pressMenuKey({ key: "t", code: "KeyT", metaKey: true }, "tab.new");
+    expect(order).toEqual(["new", "close", "new"]);
   });
 
   it("zooms one step per Ctrl + wheel notch (WebKit's 40 px notch counts as one)", async () => {

@@ -10,7 +10,9 @@
  *   accelerator when no page listened (mid-reload) - is numbered and kept by
  *   the host until acknowledged. The journal runs each one once, in order,
  *   through `runCommand`, the same `enabled` check the palette and the keys
- *   use; an unknown or disabled id is refused there.
+ *   use; an unknown or disabled id is refused there. They share one command
+ *   queue with every other input (`commandQueue.ts`): a key pressed while
+ *   the journal is still fetching older menu events runs after them.
  * - **Menu state** (shown only): each change of the app state or the language
  *   is coalesced into one `sync_menu_state` with the language and each menu
  *   command's enabled (and, for a toggle, checked) state, sent only when it
@@ -31,6 +33,7 @@ import {
   type MenuJournalSnapshot,
 } from "./menuJournal";
 import { getCommand, isCommandEnabled, runCommand, type CommandContext } from "./registry";
+import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import type { AppStore } from "@/store/useAppStore";
 
 export { MENU_COMMAND_EVENT };
@@ -94,6 +97,8 @@ export interface MenuBridgeDeps {
   onSyncError?: (error: unknown) => void;
   /** Pulling the menu journal failed and its retries too (once per outage). */
   onPullError?: (error: unknown) => void;
+  /** Where menu commands run (default: the app's one command queue, shared with keys and the palette). */
+  queue?: CommandQueue;
 }
 
 /** Backoff of a failed sync's retries; after the last one, the next change retries. */
@@ -177,6 +182,7 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
     run: (id) => {
       runCommand(id, deps.getContext());
     },
+    queue: deps.queue ?? appCommandQueue,
     retryDelaysMs: deps.retryDelaysMs,
     onPullError: deps.onPullError,
   });

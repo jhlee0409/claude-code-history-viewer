@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { currentKeyEnvironment } from "@/commands/keys";
 import { startMenuBridge } from "@/commands/nativeMenu";
 import { tauriMenuDeps } from "@/commands/nativeMenuHost";
-import { COMMANDS, runCommand } from "@/commands/registry";
+import { COMMANDS, dispatchCommand } from "@/commands/registry";
 import { createShortcutHandler } from "@/commands/shortcuts";
 import { useCommandContext } from "@/commands/useCommandContext";
 import { createCtrlWheelZoom, engineOwnsZoomInput } from "@/commands/zoom";
@@ -12,6 +12,12 @@ import { createCtrlWheelZoom, engineOwnsZoomInput } from "@/commands/zoom";
  * manifest commands (`src/commands/manifest.json`) reached by one window key
  * listener (`src/commands/shortcuts.ts`) and by the menu bar the Rust side
  * builds from the same manifest (`src/commands/nativeMenu.ts`).
+ *
+ * Every input's commands run through one first-in, first-out queue
+ * (`src/commands/commandQueue.ts`): a key pressed while the menu journal is
+ * still fetching menu events chosen before it (the first pull after a
+ * reload, a refetch after a gap) runs after them. The bridge starts before
+ * the key listener, so its first hold is in place before the first key.
  *
  * Each input has one fixed owner, never switched by asynchronous state:
  * - every app key: the key listener (in the Mac app it claims each one, so
@@ -35,7 +41,7 @@ export function useAppKeyboard() {
     window.addEventListener("keydown", handleKeyDown);
     const handleWheel =
       env.runtime === "desktop" && !engineOwnsZoomInput(env)
-        ? createCtrlWheelZoom((step) => runCommand(step === "in" ? "view.zoomIn" : "view.zoomOut", getContext()))
+        ? createCtrlWheelZoom((step) => dispatchCommand(step === "in" ? "view.zoomIn" : "view.zoomOut", getContext))
         : null;
     if (handleWheel) window.addEventListener("wheel", handleWheel, { passive: false });
     return () => {

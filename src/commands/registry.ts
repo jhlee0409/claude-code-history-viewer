@@ -3,9 +3,11 @@
  * knows - the icon, whether the command applies here, whether it can run
  * now, and how it runs.
  *
- * Every route to a command - a DOM shortcut (`shortcuts.ts`), the ⌘K palette
- * and the desktop's native menu (`nativeMenu.ts`) - goes through
- * `runCommand`, so they share one `enabled` check. A command runs through the app's own actions
+ * Every route to a command - a DOM shortcut (`shortcuts.ts`), the ⌘K palette,
+ * a toolbar control and the desktop's native menu (`nativeMenu.ts`) - goes
+ * through `runCommand`, so they share one `enabled` check, and through the
+ * one command queue (`commandQueue.ts`, via `dispatchCommand`), so they run
+ * in the order they arrived. A command runs through the app's own actions
  * (`navigate` via the screen switches, the store's toggles, the modal
  * context); the registry holds no state of its own.
  */
@@ -37,6 +39,7 @@ import type { Place } from "@/navigation/place";
 import type { KeyEnvironment, Runtime } from "./keys";
 import { COMMAND_MANIFEST, type CommandId, type CommandManifestEntry } from "./manifest";
 import { engineOwnsZoomInput, type ZoomStep } from "./zoom";
+import { appCommandQueue, type CommandQueue } from "./commandQueue";
 
 /** What a command needs to know and do. Built per use by `useCommandContext`. */
 export interface CommandContext {
@@ -263,6 +266,29 @@ export function runCommand(id: string, ctx: CommandContext): boolean {
     console.error(`Command ${id} failed:`, error);
     if (!ownsFeedback()) return;
     toast.error(i18n.t("common.command.failed", { command: i18n.t(command.labelKey) }));
+  });
+  return true;
+}
+
+/**
+ * Run a command from an input (a key, the palette, a control) through the
+ * one command queue (`commandQueue.ts`): at once in the steady state, or
+ * after the commands ahead of it - menu events the journal is still fetching.
+ *
+ * Returns whether the command can run now; an unknown, unavailable or
+ * disabled one is refused and nothing is queued. It then runs through
+ * `runCommand` with the context of the moment it runs, which checks
+ * `enabled` again: a command ahead of it may have changed the state.
+ */
+export function dispatchCommand(
+  id: string,
+  getContext: () => CommandContext,
+  queue: CommandQueue = appCommandQueue,
+): boolean {
+  const command = getCommand(id);
+  if (!command || !isCommandEnabled(command, getContext())) return false;
+  queue.submit(() => {
+    runCommand(id, getContext());
   });
   return true;
 }

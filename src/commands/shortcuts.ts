@@ -2,8 +2,11 @@
  * DOM keyboard shortcuts for manifest commands (plan §4.4).
  *
  * One window listener serves every command, and it is the only owner of
- * every app shortcut, in every runtime. A command runs through `runCommand`,
- * the same `enabled` check the palette and the menu use.
+ * every app shortcut, in every runtime. A command runs through
+ * `dispatchCommand`: the one command queue the palette and the menu use too
+ * (so a key waits behind menu events the journal is still fetching), and the
+ * same `enabled` check. Whether the key is taken is decided now, from the
+ * current state; the command runs in its turn, usually at once.
  *
  * The Mac app's native menu items carry the same accelerators
  * (`MENU_ACCELERATORS`). Measured in the real app
@@ -35,12 +38,15 @@
  */
 import { matchesChord, parseAccelerator, shortcutFor, type Chord, type KeyEnvironment } from "./keys";
 import { MENU_ACCELERATORS } from "./manifest";
-import { isCommandEnabled, runCommand, type AppCommand, type CommandContext } from "./registry";
+import { dispatchCommand, isCommandEnabled, type AppCommand, type CommandContext } from "./registry";
+import type { CommandQueue } from "./commandQueue";
 
 export interface ShortcutHandlerOptions {
   commands: readonly AppCommand[];
   env: KeyEnvironment;
   getContext: () => CommandContext;
+  /** Where its commands run (default: the app's one command queue). */
+  queue?: CommandQueue;
 }
 
 const FIELD_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
@@ -88,6 +94,7 @@ export function createShortcutHandler({
   commands,
   env,
   getContext,
+  queue,
 }: ShortcutHandlerOptions): (event: KeyboardEvent) => void {
   const bindings = bindingsFor(commands, env);
   const claimsMatchedKeys = menuCarriesAppKeys(env);
@@ -102,9 +109,8 @@ export function createShortcutHandler({
     const { command } = binding;
     if (!runsInFields(binding) && isEditableTarget(event.target)) return;
     if (!command.keys?.inDialogs && isInDialog(event.target)) return;
-    const ctx = getContext();
-    if (!isCommandEnabled(command, ctx)) return;
+    if (!isCommandEnabled(command, getContext())) return;
     event.preventDefault();
-    runCommand(command.id, ctx);
+    dispatchCommand(command.id, getContext, queue);
   };
 }

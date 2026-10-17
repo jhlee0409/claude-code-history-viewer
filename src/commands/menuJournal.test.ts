@@ -17,6 +17,7 @@ import {
   type MenuJournalDeps,
   type MenuJournalSnapshot,
 } from "./menuJournal";
+import { createCommandQueue, type CommandQueue } from "./commandQueue";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -84,6 +85,7 @@ function fakeHost(epoch = "boot-1") {
       return {
         run,
         cursor,
+        queue: createCommandQueue(),
         retryDelaysMs: [0, 0],
         listen: async (handler) => {
           listeners.add(handler);
@@ -121,7 +123,7 @@ afterEach(() => {
 });
 
 function start(host: ReturnType<typeof fakeHost>, ran: string[], cursor: MenuCursorStore = memoryCursorStore(), extra: Partial<MenuJournalDeps> = {}) {
-  const journal = startMenuJournal(host.deps((id) => ran.push(id), cursor, extra));
+  const journal = startMenuJournal(host.deps((id) => ran.push(id), cursor, { queue: createCommandQueue(), ...extra }));
   stops.push(journal.stop);
   return journal;
 }
@@ -362,6 +364,7 @@ describe("menu journal", () => {
       const journal = startMenuJournal({
         run: (id) => ran.push(id),
         cursor: memoryCursorStore(),
+        queue: createCommandQueue(),
         listen: async () => () => {},
         pull: async () => snapshot,
         ack: async () => {},
@@ -382,5 +385,108 @@ describe("menu journal", () => {
     host.choose("tab.new");
     await flush();
     expect(ran).toEqual([]);
+  });
+
+  describe("one executor with the keys and the palette (review-3 F1)", () => {
+    /** A key or palette command: it goes through the same queue as the journal. */
+    const press = (queue: CommandQueue, ran: string[], id: string) => queue.submit(() => ran.push(`key:${id}`));
+
+    it("runs a key pressed while the startup pull is on its way after the menu events chosen before it", async () => {
+      const host = fakeHost();
+      host.chooseUnheard("tab.new"); // chosen in the native menu while the page reloaded
+      host.hold();
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue });
+      await flush();
+      press(queue, ran, "tab.close");
+      expect(ran).toEqual([]);
+      host.release();
+      await flush();
+      expect(ran).toEqual(["tab.new", "key:tab.close"]);
+    });
+
+    it("holds a key pressed while the listener is still attaching too", () => {
+      const host = fakeHost();
+      host.chooseUnheard("tab.new");
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue });
+      press(queue, ran, "tab.close");
+      expect(ran).toEqual([]);
+      return flush().then(() => expect(ran).toEqual(["tab.new", "key:tab.close"]));
+    });
+
+    it("holds a key behind a refetch after a gap, until the missing event has run", async () => {
+      const host = fakeHost();
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue });
+      await flush();
+      host.hold();
+      host.chooseUnheard("tab.new"); // its live emit was lost
+      host.choose("go.back"); // a gap: pull again
+      press(queue, ran, "tab.close");
+      expect(ran).toEqual([]);
+      host.release();
+      await flush();
+      expect(ran).toEqual(["tab.new", "go.back", "key:tab.close"]);
+    });
+
+    it("runs a key at once while the journal is in step with the host", async () => {
+      const host = fakeHost();
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue });
+      await flush();
+      host.choose("tab.new");
+      press(queue, ran, "tab.close");
+      expect(ran).toEqual(["tab.new", "key:tab.close"]);
+    });
+
+    it("does not hold keys while a failed pull waits for its retry", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const host = fakeHost();
+      host.failPulls(1);
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue, retryDelaysMs: [60_000] });
+      await flush();
+      press(queue, ran, "tab.close");
+      expect(ran).toEqual(["key:tab.close"]);
+    });
+
+    it("acknowledges only the events that ran, not those still waiting in the queue", async () => {
+      const host = fakeHost();
+      host.chooseUnheard("tab.new");
+      host.hold();
+      const queue = createCommandQueue();
+      const ahead = queue.hold(); // something already waiting ahead of the journal
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { queue });
+      await flush();
+      host.chooseUnheard("tab.close");
+      host.choose("go.back"); // heard past a gap before the first answer: a second pull follows it
+      host.release();
+      await flush();
+      await flush();
+      expect(ran).toEqual([]);
+      expect(host.retained()).toEqual([1, 2, 3]); // still the host's until they run
+      ahead.release();
+      expect(ran).toEqual(["tab.new", "tab.close", "go.back"]);
+      await flush();
+      expect(host.retained()).toEqual([]);
+    });
+
+    it("lets the keys go when stopped while holding them", () => {
+      const host = fakeHost();
+      host.hold();
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      const journal = start(host, ran, memoryCursorStore(), { queue });
+      press(queue, ran, "tab.close");
+      journal.stop();
+      expect(ran).toEqual(["key:tab.close"]);
+    });
   });
 });
