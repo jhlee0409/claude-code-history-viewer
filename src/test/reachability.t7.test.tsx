@@ -49,6 +49,7 @@ import { ThemeProvider } from "@/contexts/theme";
 import { Header } from "@/layouts/Header/Header";
 import { ProjectTree } from "@/components/ProjectTree";
 import { ContentHeader } from "@/layouts/shell/ContentHeader";
+import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
 import { CommandRunnerContext } from "@/commands/CommandRunner";
 import {
   getCommand,
@@ -92,7 +93,7 @@ type Place =
   | { at: "sidebarHelp" }
   | { at: "gear"; label: string }
   | { at: "palette"; command: string; action: keyof CommandActions }
-  | { at: "analyticsLink"; view: "tokenStats" };
+  | { at: "analyticsSubTab"; tab: "tokens" };
 type SidebarProp = "onGlobalStatsClick" | "onOpenArchive" | "onOpenSettingsManager";
 
 /** Every former header control and gear entry, and where it lives after T7. */
@@ -148,8 +149,9 @@ const REACHABILITY: { feature: string; before: string; after: Place[] }[] = [
   {
     feature: "Token stats",
     before: "header tab",
-    // No toolbar tab until it becomes an analytics sub-tab (T9b, plan C1).
-    after: [{ at: "analyticsLink", view: "tokenStats" }],
+    // The analytics screen's Tokens sub-tab (T9b); the analytics header
+    // link it had in T7 is gone.
+    after: [{ at: "analyticsSubTab", tab: "tokens" }],
   },
   {
     feature: "Command palette",
@@ -217,7 +219,8 @@ const flagsFor = (view: string) => ({
   isMessagesView: view === "conversation",
   isAnalyticsView: view === "analytics",
   isGlobalStatsView: false,
-  isTokenStatsView: false,
+  isAnalyticsOverview: false,
+  isAnalyticsTokens: false,
   isRecentEditsView: view === "edits",
   isBoardView: view === "board",
   isSettingsView: false,
@@ -395,20 +398,24 @@ async function check(place: Place) {
       expect(entry, place.label).toBeDefined();
       return;
     }
-    case "analyticsLink": {
-      const onOpenView = vi.fn();
+    case "analyticsSubTab": {
       render(
-        <ContentHeader
-          view="analytics"
-          selectedSession={SESSION}
-          globalOverviewDescription=""
-          onOpenView={onOpenView}
-        />
+        <ContentHeader view="analytics" selectedSession={SESSION} globalOverviewDescription="" />
       );
-      const link = document.querySelector<HTMLElement>(`[data-related-view="${place.view}"]`)!;
-      expectInTabOrder(link);
-      activateByPointerAndTouch(link, () => onOpenView.mock.calls.length);
-      expect(onOpenView).toHaveBeenCalledWith(place.view);
+      expect(document.querySelector("[data-related-view]")).toBeNull();
+      cleanup();
+      const onChange = vi.fn();
+      render(<AnalyticsSubTabs value="overview" onChange={onChange} />);
+      const tab = document.querySelector<HTMLElement>(`[data-analytics-tab="${place.tab}"]`)!;
+      expect(tab.getAttribute("role")).toBe("tab");
+      activateByPointerAndTouch(tab, () => onChange.mock.calls.length);
+      expect(onChange).toHaveBeenCalledWith(place.tab);
+      // The keyboard reaches it from the selected sub-tab, the tablist's one stop.
+      const selected = document.querySelector<HTMLElement>('[data-analytics-tab="overview"]')!;
+      expectInTabOrder(selected);
+      onChange.mockClear();
+      fireEvent.keyDown(selected, { key: "ArrowRight" });
+      expect(onChange).toHaveBeenCalledWith(place.tab);
       return;
     }
   }

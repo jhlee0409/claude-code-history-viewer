@@ -22,12 +22,39 @@ export type View =
   | "board"
   | "globalStats"
   | "archive"
-  | "settingsManager"
-  /**
-   * Transitional (plan C1): stays until token stats becomes an analytics
-   * sub-tab (T9b).
-   */
-  | "tokenStats";
+  | "settingsManager";
+
+/** Every view, in no particular order (stored places are checked against it). */
+export const VIEWS: readonly View[] = [
+  "empty",
+  "conversation",
+  "analytics",
+  "edits",
+  "board",
+  "globalStats",
+  "archive",
+  "settingsManager",
+];
+
+const VIEW_SET: ReadonlySet<string> = new Set(VIEWS);
+
+export const isView = (value: unknown): value is View =>
+  typeof value === "string" && VIEW_SET.has(value);
+
+/**
+ * The sub-tabs of project analytics (plan T9b): the overview dashboard and the
+ * token statistics, which were a screen of their own (`tokenStats`) before.
+ * The selected one is part of the place: back/forward, tabs and stored tabs
+ * keep it.
+ */
+export type AnalyticsTab = "overview" | "tokens";
+
+export const ANALYTICS_TABS: readonly AnalyticsTab[] = ["overview", "tokens"];
+
+export const DEFAULT_ANALYTICS_TAB: AnalyticsTab = "overview";
+
+export const isAnalyticsTab = (value: unknown): value is AnalyticsTab =>
+  value === "overview" || value === "tokens";
 
 /** A project is identified by its provider and storage path. */
 export interface ProjectRef {
@@ -57,6 +84,8 @@ export interface SessionRef {
 
 export interface Place {
   view: View;
+  /** The analytics sub-tab; present exactly when `view` is `analytics`. */
+  analyticsTab?: AnalyticsTab;
   project?: ProjectRef;
   session?: SessionRef;
 }
@@ -81,12 +110,14 @@ export function sessionRefOf(session: ClaudeSession | null | undefined): Session
 export function placeOf(
   view: View,
   project: ClaudeProject | null | undefined,
-  session: ClaudeSession | null | undefined
+  session: ClaudeSession | null | undefined,
+  analyticsTab: AnalyticsTab = DEFAULT_ANALYTICS_TAB
 ): Place {
   const projectRef = projectRefOf(project);
   const sessionRef = sessionRefOf(session);
   return {
     view,
+    ...(view === "analytics" ? { analyticsTab } : {}),
     ...(projectRef ? { project: projectRef } : {}),
     ...(sessionRef ? { session: sessionRef } : {}),
   };
@@ -101,7 +132,6 @@ const PROJECT_VIEWS: ReadonlySet<View> = new Set([
   "analytics",
   "edits",
   "board",
-  "tokenStats",
 ]);
 
 /** Screens about the whole app; they need no context and keep whatever is held. */
@@ -123,11 +153,11 @@ export interface ResolvedPlace {
  * The validity table (plan §4.1): a screen whose context is missing renders
  * as the empty screen instead.
  *
- * | view                               | needs             | otherwise |
- * |------------------------------------|-------------------|-----------|
- * | conversation                       | project + session | empty     |
- * | analytics, edits, board, tokenStats| project           | empty     |
- * | globalStats, archive, settings, empty | –              | –         |
+ * | view                                  | needs             | otherwise |
+ * |---------------------------------------|-------------------|-----------|
+ * | conversation                          | project + session | empty     |
+ * | analytics (either sub-tab), edits, board | project        | empty     |
+ * | globalStats, archive, settings, empty | –                 | –         |
  *
  * Applied at runtime by `navigate` (a project screen without a project lands
  * on `empty`, with the reason) and by the screen flags
@@ -168,7 +198,6 @@ export function viewForProjectSwitch(view: View): View {
     case "analytics":
     case "globalStats":
       return "analytics";
-    case "tokenStats":
     case "edits":
     case "board":
     case "settingsManager":
@@ -181,6 +210,7 @@ export function viewForProjectSwitch(view: View): View {
 export function samePlace(a: Place, b: Place): boolean {
   return (
     a.view === b.view &&
+    a.analyticsTab === b.analyticsTab &&
     a.project?.path === b.project?.path &&
     a.project?.provider === b.project?.provider &&
     a.session?.filePath === b.session?.filePath
@@ -192,9 +222,8 @@ export function samePlace(a: Place, b: Place): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The toolbar's screen tabs (plan T7). Token stats has no tab of its own
- * (plan C1): it opens from inside analytics until it becomes an analytics
- * sub-tab (T9b), so while it shows, the analytics tab is the selected one.
+ * The toolbar's screen tabs (plan T7). Token stats is an analytics sub-tab
+ * (T9b), so the analytics tab stays selected on either sub-tab.
  */
 export type ToolbarView = "conversation" | "analytics" | "edits" | "board";
 
@@ -213,7 +242,6 @@ const TOOLBAR_VIEWS: ReadonlySet<View> = new Set<ToolbarView>([
  */
 export function activeToolbarView(place: Place): ToolbarView | null {
   if (!place.project) return null;
-  if (place.view === "tokenStats") return "analytics";
   return TOOLBAR_VIEWS.has(place.view) ? (place.view as ToolbarView) : null;
 }
 

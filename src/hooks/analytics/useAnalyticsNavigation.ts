@@ -11,6 +11,7 @@ import {
 import {
   projectRefOf,
   viewAfterLeavingProject,
+  type AnalyticsTab,
   type View,
 } from "../../navigation/place";
 import { ownPlace, type PlaceOwner } from "../../navigation/ownership";
@@ -59,12 +60,13 @@ export function useAnalyticsNavigation() {
   // navigating (`src/navigation/screenData.ts`).
 
   /**
-   * Commit `view` and take ownership of the navigation that did it, so the
-   * screen's data is written only while that navigation is still in charge.
+   * Commit `view` (and, on analytics, the sub-tab when one is named) and take
+   * ownership of the navigation that did it, so the screen's data is written
+   * only while that navigation is still in charge.
    */
   const enterScreen = useCallback(
-    (view: View): PlaceOwner => {
-      void navigate({ view });
+    (view: View, analyticsTab?: AnalyticsTab): PlaceOwner => {
+      void navigate(analyticsTab ? { view, analyticsTab } : { view });
       return ownPlace(useAppStore.getState);
     },
     [navigate]
@@ -176,19 +178,25 @@ export function useAnalyticsNavigation() {
     }
   }, [enterScreen, clearAnalyticsErrors]);
 
-  const switchToTokenStats = useCallback(async () => {
-    requireProject();
-    enterScreen("tokenStats");
-    clearAnalyticsErrors();
-    await loadTokenStatsData();
-  }, [requireProject, enterScreen, clearAnalyticsErrors, loadTokenStatsData]);
-
-  const switchToAnalytics = useCallback(async () => {
-    requireProject();
-    const ownsPlace = enterScreen("analytics");
-    clearAnalyticsErrors();
-    await loadAnalyticsData(ownsPlace);
-  }, [requireProject, enterScreen, clearAnalyticsErrors, loadAnalyticsData]);
+  /**
+   * Project analytics on `tab` (T9b: the overview or the token statistics,
+   * which used to be a screen of their own). Without a tab it opens the
+   * sub-tab the place already holds - the one last shown in this tab, or the
+   * one a restored tab or history entry just put there.
+   */
+  const switchToAnalytics = useCallback(
+    async (tab?: AnalyticsTab) => {
+      requireProject();
+      const ownsPlace = enterScreen("analytics", tab);
+      clearAnalyticsErrors();
+      if (useAppStore.getState().analyticsTab === "tokens") {
+        await loadTokenStatsData();
+      } else {
+        await loadAnalyticsData(ownsPlace);
+      }
+    },
+    [requireProject, enterScreen, clearAnalyticsErrors, loadTokenStatsData, loadAnalyticsData]
+  );
 
   const switchToRecentEdits = useCallback(async () => {
     requireProject();
@@ -293,6 +301,7 @@ export function useAnalyticsNavigation() {
       const state = useAppStore.getState();
       const project = state.selectedProject;
       const screen = state.view;
+      const onTokens = screen === "analytics" && state.analyticsTab === "tokens";
       const isGlobalScope =
         options?.isGlobalScope ??
         (screen === "globalStats" || (!project && screen === "analytics"));
@@ -303,7 +312,7 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (screen === "tokenStats") {
+        if (onTokens) {
           await loadTokenStatsData();
           return;
         }
@@ -320,9 +329,9 @@ export function useAnalyticsNavigation() {
         // Project analytics never lands here: its loader records and
         // reports a failure itself (`loadProjectAnalytics`).
         toast.error(errorMessage);
-        // The token stats screen is one tab's: the notification is all
+        // The token stats sub-tab is one tab's: the notification is all
         // (never the app's error screen, which would hide every tab).
-        if (screen === "tokenStats" || !project) return;
+        if (onTokens || !project) return;
 
         setAnalyticsProjectSummaryError(errorMessage, project.path);
       }
@@ -356,13 +365,14 @@ export function useAnalyticsNavigation() {
    */
   const refreshAnalytics = useCallback(async () => {
     const ownsPlace = ownPlace(useAppStore.getState);
-    const { view } = useAppStore.getState();
+    const { view, analyticsTab } = useAppStore.getState();
     switch (view) {
-      case "tokenStats":
-        clearTokenStats();
-        await loadTokenStatsData();
-        break;
       case "analytics":
+        if (analyticsTab === "tokens") {
+          clearTokenStats();
+          await loadTokenStatsData();
+          break;
+        }
         clearAnalyticsErrors();
         setAnalyticsProjectSummary(null);
         setAnalyticsProjectConversationSummary(null);
@@ -411,8 +421,6 @@ export function useAnalyticsNavigation() {
       switch (view) {
         case "analytics":
           return switchToAnalytics();
-        case "tokenStats":
-          return switchToTokenStats();
         case "edits":
           return switchToRecentEdits();
         case "board":
@@ -430,7 +438,6 @@ export function useAnalyticsNavigation() {
     },
     [
       switchToAnalytics,
-      switchToTokenStats,
       switchToRecentEdits,
       switchToBoard,
       switchToGlobalStats,
@@ -461,6 +468,7 @@ export function useAnalyticsNavigation() {
       const restored = await navigate(
         {
           view: entry.view,
+          analyticsTab: entry.analyticsTab,
           project: entry.project,
           session: entry.session,
           messageId: entry.messageId,
@@ -486,7 +494,6 @@ export function useAnalyticsNavigation() {
 
   return {
     switchToMessages,
-    switchToTokenStats,
     switchToAnalytics,
     switchToRecentEdits,
     switchToSettings,

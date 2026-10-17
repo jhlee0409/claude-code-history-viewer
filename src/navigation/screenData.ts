@@ -162,7 +162,7 @@ export async function loadProjectAnalytics(
   }
 }
 
-/** Token stats: the project's pages and the open session's totals. */
+/** Token stats (the analytics "tokens" sub-tab): the project's pages and the open session's totals. */
 export async function loadTokenStatsScreen(
   get: Get,
   project: ClaudeProject,

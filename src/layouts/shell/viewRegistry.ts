@@ -13,7 +13,10 @@
  * A screen has one icon (`SCREEN_ICONS`, decision page section 7): the header
  * tab draws the entry's `icon`, so a tab and its content header cannot
  * disagree (the board once showed a message icon in its header and columns on
- * its tab; token stats showed coins and activity).
+ * its tab).
+ *
+ * Token statistics are no entry (T9b): they are the analytics screen's
+ * "tokens" sub-tab (`AnalyticsSubTabs`, the place's `analyticsTab`).
  */
 import type { ComponentType, ReactNode } from "react";
 import type { TFunction } from "i18next";
@@ -33,7 +36,6 @@ import {
   RecentEditsScreen,
   ScrollFrame,
   SettingsScreen,
-  TokenStatsScreen,
   type ViewScreenProps,
 } from "./screens";
 
@@ -60,12 +62,6 @@ export interface ViewEntry {
   titleKey: string;
   /** The content header above the body; null for screens without one. */
   header: { subtitle: (context: HeaderContext) => string } | null;
-  /**
-   * A related screen the content header links to (desktop; the mobile
-   * sub-nav lists them). Token stats has no toolbar tab until it becomes an
-   * analytics sub-tab (plan C1, T9b), so analytics links to it.
-   */
-  related?: { view: View; labelKey: string };
 }
 
 /** A header view tab: its label (which may differ from the title). It draws the entry's icon. */
@@ -78,7 +74,7 @@ export type ViewRegistry = {
   [V in View]: ViewEntry & (V extends ToolbarView ? { tab: TabEntry } : { tab?: never });
 };
 
-/** The open session's summary, or a placeholder (project analytics and token stats). */
+/** The open session's summary, or a placeholder (project analytics). */
 const sessionSummary = ({ t, selectedSession }: HeaderContext) =>
   selectedSession?.summary || t("session.summaryNotFound");
 
@@ -105,15 +101,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     titleKey: "analytics.dashboard",
     header: { subtitle: sessionSummary },
     tab: { labelKey: "analytics.dashboard" },
-    related: { view: "tokenStats", labelKey: "messages.tokenStats.title" },
-  },
-  tokenStats: {
-    component: TokenStatsScreen,
-    frame: ScrollFrame,
-    icon: SCREEN_ICONS.tokenStats,
-    titleKey: "messages.tokenStats.title",
-    header: { subtitle: sessionSummary },
-    related: { view: "analytics", labelKey: "analytics.dashboard" },
   },
   edits: {
     component: RecentEditsScreen,
@@ -165,12 +152,14 @@ export const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
   "board",
 ];
 
-/** The project screens the mobile layout switches between under its header. */
-export type MobileAnalyticsView = "analytics" | "tokenStats" | "edits";
+/**
+ * The project screens the mobile layout switches between under its header.
+ * Token statistics are reached through analytics' own sub-tabs (T9b).
+ */
+export type MobileAnalyticsView = "analytics" | "edits";
 
 export const MOBILE_ANALYTICS_VIEWS: readonly MobileAnalyticsView[] = [
   "analytics",
-  "tokenStats",
   "edits",
 ];
 
@@ -181,7 +170,6 @@ export const isMobileAnalyticsView = (view: View): view is MobileAnalyticsView =
 export type ScreenFlags = Pick<
   UseAnalyticsReturn["computed"],
   | "isMessagesView"
-  | "isTokenStatsView"
   | "isAnalyticsView"
   | "isGlobalStatsView"
   | "isRecentEditsView"
@@ -199,7 +187,6 @@ const SCREEN_FLAGS: ReadonlyArray<readonly [keyof ScreenFlags, View]> = [
   ["isRecentEditsView", "edits"],
   ["isAnalyticsView", "analytics"],
   ["isGlobalStatsView", "globalStats"],
-  ["isTokenStatsView", "tokenStats"],
   ["isEmptyView", "empty"],
 ];
 

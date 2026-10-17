@@ -39,9 +39,11 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import {
   isProjectView,
+  DEFAULT_ANALYTICS_TAB,
   placeOf,
   samePlace,
   viewAfterLeavingProject,
+  type AnalyticsTab,
   type Place,
   type PlaceFallback,
   type View,
@@ -63,6 +65,11 @@ export interface NavigateTarget {
    * moves a project screen back to the conversation screen).
    */
   view?: View;
+  /**
+   * The analytics sub-tab to show (T9b). Omitted: keep the current one - the
+   * toolbar's analytics tab reopens the sub-tab last shown in this tab.
+   */
+  analyticsTab?: AnalyticsTab;
   /** `undefined` keeps, `null` drops, a project opens it (no-op if open). */
   project?: ClaudeProject | null;
   /** Opens this session, or `null` closes the open one and keeps the project. */
@@ -103,6 +110,8 @@ export interface NavigateOptions {
 /** One back/forward history entry: the place plus its explicit target. */
 export interface PlaceHistoryEntry {
   view: View;
+  /** The analytics sub-tab shown at the time (meaningful on `analytics` only). */
+  analyticsTab: AnalyticsTab;
   project: ClaudeProject | null;
   session: ClaudeSession | null;
   messageId: string | null;
@@ -113,6 +122,11 @@ export const PLACE_HISTORY_LIMIT = 50;
 export interface NavigationSliceState {
   /** The screen of the current place. */
   view: View;
+  /**
+   * The analytics sub-tab of the current place (T9b). Kept while another
+   * screen shows, so coming back to analytics lands on the same sub-tab.
+   */
+  analyticsTab: AnalyticsTab;
   /**
    * Advances on every navigation. Async work started by a navigation compares
    * against it and gives up once a newer one has begun.
@@ -163,11 +177,12 @@ export type NavigationSlice = NavigationSliceState & NavigationSliceActions;
 
 /** The current place: the screen plus the context the sidebar holds. */
 export function selectPlace(state: FullAppStore): Place {
-  return placeOf(state.view, state.selectedProject, state.selectedSession);
+  return placeOf(state.view, state.selectedProject, state.selectedSession, state.analyticsTab);
 }
 
 const entryOf = (state: FullAppStore): PlaceHistoryEntry => ({
   view: state.view,
+  analyticsTab: state.analyticsTab,
   project: state.selectedProject,
   session: state.selectedSession,
   messageId: state.targetMessageUuid,
@@ -184,10 +199,11 @@ export function notifyFallback(fallback: PlaceFallback): void {
 }
 
 const placeOfEntry = (entry: PlaceHistoryEntry): Place =>
-  placeOf(entry.view, entry.project, entry.session);
+  placeOf(entry.view, entry.project, entry.session, entry.analyticsTab);
 
 export const initialNavigationState: NavigationSliceState = {
   view: "conversation",
+  analyticsTab: DEFAULT_ANALYTICS_TAB,
   navigationEpoch: 0,
   placeHistory: { back: [], forward: [] },
   targetMessageUuid: null,
@@ -266,7 +282,7 @@ export const createNavigationSlice: StateCreator<
       notifyFallback("noProject");
     }
     // The screen is the user's intent; commit it before anything loads.
-    set({ view });
+    set({ view, ...(target.analyticsTab ? { analyticsTab: target.analyticsTab } : {}) });
 
     // The explicit target belongs to its session, so it leaves with it:
     // dropped together with the selection change, before the first await, so

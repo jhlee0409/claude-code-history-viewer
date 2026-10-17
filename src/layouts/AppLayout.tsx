@@ -426,7 +426,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             view={screen}
             selectedSession={selectedSession}
             globalOverviewDescription={globalOverviewDescription}
-            onOpenView={(view) => void analyticsActions.openView(view)}
           />
           {isMobile && selectedProject && isMobileAnalyticsView(screen) && (
             <MobileAnalyticsSubNav view={screen} analyticsActions={analyticsActions} />

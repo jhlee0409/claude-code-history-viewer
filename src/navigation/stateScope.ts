@@ -41,6 +41,8 @@ export type StateScope = "document" | "reset" | "reloaded" | "screen" | "app";
 export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   // --- the tab's place (navigationSlice, projectSlice, messageSlice) -------
   view: "document",
+  // The analytics sub-tab (T9b): part of the tab's place.
+  analyticsTab: "document",
   selectedProject: "document",
   selectedSession: "document",
   parentSessionStack: "document",

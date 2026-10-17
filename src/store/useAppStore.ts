@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { registerWebUITabSource } from "@/utils/webuiDeepLink";
+import { runUiStorageMigrations } from "@/navigation/storageMigration";
 import {
   type ProjectSlice,
   createProjectSlice,
@@ -134,30 +135,35 @@ export type AppStore = ProjectSlice &
 // Store Creation
 // ============================================================================
 
-export const useAppStore = create<AppStore>()((...args) => ({
-  ...createProjectSlice(...args),
-  ...createMessageSlice(...args),
-  ...createSearchSlice(...args),
-  ...createAnalyticsSlice(...args),
-  ...createSettingsSlice(...args),
-  ...createGlobalStatsSlice(...args),
-  ...createMetadataSlice(...args),
-  ...createCaptureModeSlice(...args),
-  ...createBoardSlice(...args),
-  ...createFilterSlice(...args),
-  ...createNavigationSlice(...args),
-  ...createWatcherSlice(...args),
-  ...createNavigatorSlice(...args),
-  ...createInspectorSlice(...args),
-  ...createMinimapSlice(...args),
-  ...createRecentEditsPanelSlice(...args),
-  ...createProviderSlice(...args),
-  ...createArchiveSlice(...args),
-  ...createSessionPickerSlice(...args),
-  ...createServerSlice(...args),
-  ...createSessionSelectionSlice(...args),
-  ...createDocumentSlice(...args),
-}));
+export const useAppStore = create<AppStore>()((...args) => {
+  // Stored UI state from older versions is brought up to date before any
+  // slice reads it (T9b: tabs.v1 → tabs.v2, the dock's keys removed).
+  runUiStorageMigrations();
+  return {
+    ...createProjectSlice(...args),
+    ...createMessageSlice(...args),
+    ...createSearchSlice(...args),
+    ...createAnalyticsSlice(...args),
+    ...createSettingsSlice(...args),
+    ...createGlobalStatsSlice(...args),
+    ...createMetadataSlice(...args),
+    ...createCaptureModeSlice(...args),
+    ...createBoardSlice(...args),
+    ...createFilterSlice(...args),
+    ...createNavigationSlice(...args),
+    ...createWatcherSlice(...args),
+    ...createNavigatorSlice(...args),
+    ...createInspectorSlice(...args),
+    ...createMinimapSlice(...args),
+    ...createRecentEditsPanelSlice(...args),
+    ...createProviderSlice(...args),
+    ...createArchiveSlice(...args),
+    ...createSessionPickerSlice(...args),
+    ...createServerSlice(...args),
+    ...createSessionSelectionSlice(...args),
+    ...createDocumentSlice(...args),
+  };
+});
 
 // A WebUI URL that names a session also names the tab it is open in (F1).
 registerWebUITabSource(() => useAppStore.getState().activeDocumentId);

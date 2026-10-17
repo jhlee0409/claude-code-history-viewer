@@ -145,7 +145,7 @@ describe("a superseded navigation's loads do not take over the new screen", () =
   });
 
   it("a late token-stats failure does not raise a global error after the user moved on", async () => {
-    await state().navigate({ project: A, session: A1, view: "tokenStats" });
+    await state().navigate({ project: A, session: A1, view: "analytics", analyticsTab: "tokens" });
     const load = gate<unknown>();
     overrides.get_session_token_stats = () => load.promise;
 
@@ -399,15 +399,73 @@ describe("refreshing a screen is a reload, not a navigation", () => {
       has_more: false,
     });
     const { result } = renderHook(() => useAnalyticsNavigation());
-    for (const view of ["tokenStats", "edits", "board"] as const) {
-      await state().navigate({ project: A, view });
+    const places = [
+      { view: "analytics", analyticsTab: "tokens" },
+      { view: "edits" },
+      { view: "board" },
+    ] as const;
+    for (const place of places) {
+      const { view } = place;
+      await state().navigate({ project: A, ...place });
       const epoch = state().navigationEpoch;
+      const tab = state().analyticsTab;
       await act(async () => {
         await result.current.refreshAnalytics();
       });
       expect(state().navigationEpoch, view).toBe(epoch);
       expect(state().view, view).toBe(view);
+      expect(state().analyticsTab, view).toBe(tab);
     }
+  });
+});
+
+describe("the analytics sub-tab is part of the place (T9b)", () => {
+  it("switching sub-tabs records history; back and forward restore the sub-tab and its data", async () => {
+    overrides.get_project_token_stats = () => ({ items: [], total_count: 0, offset: 0, limit: 20, has_more: false });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await state().navigate({ project: A, session: A1, view: "conversation" });
+    await act(async () => {
+      await result.current.switchToAnalytics();
+    });
+    expect([state().view, state().analyticsTab]).toEqual(["analytics", "overview"]);
+    await act(async () => {
+      await result.current.switchToAnalytics("tokens");
+    });
+    expect([state().view, state().analyticsTab]).toEqual(["analytics", "tokens"]);
+    expect(state().placeHistory.back.at(-1)).toMatchObject({ view: "analytics", analyticsTab: "overview" });
+    expect(state().projectTokenStatsOwner).toBe(A.path);
+
+    await act(async () => {
+      await result.current.goBack();
+    });
+    expect([state().view, state().analyticsTab]).toEqual(["analytics", "overview"]);
+    await act(async () => {
+      await result.current.goForward();
+    });
+    expect([state().view, state().analyticsTab]).toEqual(["analytics", "tokens"]);
+
+    // The toolbar's analytics tab (no sub-tab named) comes back to the one
+    // last shown.
+    await act(async () => {
+      await result.current.switchToMessages();
+    });
+    await act(async () => {
+      await result.current.switchToAnalytics();
+    });
+    expect(state().analyticsTab).toBe("tokens");
+  });
+
+  it("a sub-tab switch is one navigation and claims the epoch before it loads", async () => {
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await state().navigate({ project: A, view: "analytics" });
+    const epoch = state().navigationEpoch;
+    let switching!: Promise<void>;
+    act(() => {
+      switching = result.current.switchToAnalytics("tokens");
+    });
+    expect(state().navigationEpoch).toBe(epoch + 1);
+    expect(state().analyticsTab).toBe("tokens");
+    await act(async () => switching);
   });
 });
 

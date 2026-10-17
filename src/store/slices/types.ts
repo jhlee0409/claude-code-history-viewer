@@ -198,6 +198,7 @@ export interface AppStoreState {
 
   // Navigation state
   view: import("@/navigation/place").View;
+  analyticsTab: import("@/navigation/place").AnalyticsTab;
   navigationEpoch: number;
   placeHistory: {
     back: import("./navigationSlice").PlaceHistoryEntry[];

@@ -22,6 +22,11 @@ import { selectRecentEditsPage, selectTokenStats } from "@/navigation/screenOwne
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
+import {
+  ANALYTICS_SUBTAB_PANEL_ID,
+  analyticsSubTabId,
+} from "@/components/AnalyticsDashboard/analyticsSubTabIds";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
 import { SettingsManager } from "@/components/SettingsManager";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
@@ -205,16 +210,51 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
   );
 };
 
-/** Project analytics and global stats: one body, so a switch keeps it mounted. */
-export const AnalyticsScreen = ({ view, analyticsActions }: ViewScreenProps) => (
-  <AnalyticsDashboard
-    isGlobalScope={view === "globalStats"}
-    onRetry={() => void analyticsActions.refreshAnalytics()}
-  />
-);
+/**
+ * Project analytics and global stats: one body, so a switch keeps the
+ * dashboard mounted. Project analytics has two sub-tabs (T9b): the overview
+ * dashboard and the token statistics, which were a screen of their own. The
+ * selected one is the place's (`analyticsTab`); choosing one navigates.
+ */
+export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick }: ViewScreenProps) => {
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
+  const isProjectAnalytics = view === "analytics";
+  const showsTokens = isProjectAnalytics && analyticsTab === "tokens";
+  return (
+    <>
+      {isProjectAnalytics && (
+        <AnalyticsSubTabs
+          value={analyticsTab}
+          onChange={(tab) => {
+            // The sub-tab's loader records its failure on screen (its error
+            // state); the log keeps the cause.
+            analyticsActions.switchToAnalytics(tab).catch((error: unknown) => {
+              console.error("Failed to open the analytics sub-tab:", error);
+            });
+          }}
+        />
+      )}
+      {/* The same element on both screens, so the dashboard stays mounted. */}
+      <div
+        id={isProjectAnalytics ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
+        role={isProjectAnalytics ? "tabpanel" : undefined}
+        aria-labelledby={isProjectAnalytics ? analyticsSubTabId(analyticsTab) : undefined}
+      >
+        {showsTokens ? (
+          <TokenStatsPanel onTokenStatClick={onTokenStatClick} />
+        ) : (
+          <AnalyticsDashboard
+            isGlobalScope={view === "globalStats"}
+            onRetry={() => void analyticsActions.refreshAnalytics()}
+          />
+        )}
+      </div>
+    </>
+  );
+};
 
-/** Transitional (plan C1) until token stats becomes an analytics tab (T9b). */
-export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
+/** The analytics "tokens" sub-tab: the project's and session's token statistics. */
+const TokenStatsPanel = ({ onTokenStatClick }: Pick<ViewScreenProps, "onTokenStatClick">) => {
   const selectedProject = useAppStore((s) => s.selectedProject);
   // Only the open place's stats (`navigation/screenOwner.ts`).
   const stats = useAppStore(useShallow(selectTokenStats));

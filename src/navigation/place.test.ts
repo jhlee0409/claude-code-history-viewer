@@ -3,6 +3,8 @@ import {
   activeLibraryItem,
   activeMobileTab,
   activeToolbarView,
+  ANALYTICS_TABS,
+  isView,
   placeOf,
   resolvePlace,
   samePlace,
@@ -46,7 +48,6 @@ const ALL_VIEWS: View[] = [
   "globalStats",
   "archive",
   "settingsManager",
-  "tokenStats",
 ];
 
 const at = (view: View, context: "none" | "project" | "session"): Place =>
@@ -88,8 +89,6 @@ describe("resolvePlace — valid and invalid places", () => {
     ["edits", "none", "empty", "noProject"],
     ["board", "project", "board", null],
     ["board", "none", "empty", "noProject"],
-    ["tokenStats", "project", "tokenStats", null],
-    ["tokenStats", "none", "empty", "noProject"],
     ["globalStats", "none", "globalStats", null],
     ["globalStats", "session", "globalStats", null],
     ["archive", "none", "archive", null],
@@ -124,7 +123,6 @@ describe("context rules", () => {
       globalStats: "analytics",
       archive: "conversation",
       settingsManager: "settingsManager",
-      tokenStats: "tokenStats",
     });
   });
 
@@ -132,6 +130,29 @@ describe("context rules", () => {
     expect(samePlace(at("analytics", "session"), at("analytics", "session"))).toBe(true);
     expect(samePlace(at("analytics", "session"), at("analytics", "project"))).toBe(false);
     expect(samePlace(at("analytics", "project"), at("board", "project"))).toBe(false);
+  });
+
+  it("samePlace tells the analytics sub-tabs apart (T9b: the sub-tab is part of the place)", () => {
+    const overview = placeOf("analytics", PROJECT, SESSION, "overview");
+    const tokens = placeOf("analytics", PROJECT, SESSION, "tokens");
+    expect(samePlace(overview, tokens)).toBe(false);
+    expect(samePlace(tokens, placeOf("analytics", PROJECT, SESSION, "tokens"))).toBe(true);
+  });
+});
+
+describe("analytics sub-tab (T9b)", () => {
+  it("is part of an analytics place only, and defaults to the overview", () => {
+    expect(placeOf("analytics", PROJECT, null).analyticsTab).toBe("overview");
+    expect(placeOf("analytics", PROJECT, null, "tokens").analyticsTab).toBe("tokens");
+    // Any other screen carries no sub-tab, whatever the store holds.
+    expect(placeOf("board", PROJECT, null, "tokens")).not.toHaveProperty("analyticsTab");
+    expect(samePlace(placeOf("board", PROJECT, null, "tokens"), placeOf("board", PROJECT, null))).toBe(true);
+  });
+
+  it("token stats is no screen of its own", () => {
+    expect(ANALYTICS_TABS).toEqual(["overview", "tokens"]);
+    expect(isView("tokenStats")).toBe(false);
+    expect(isView("analytics")).toBe(true);
   });
 });
 
@@ -173,8 +194,6 @@ describe("highlight projections", () => {
   it.each([
     ["conversation", "conversation"],
     ["analytics", "analytics"],
-    // No tab of its own until T9b (plan C1): it opens from analytics.
-    ["tokenStats", "analytics"],
     ["edits", "edits"],
     ["board", "board"],
   ] as const)(
@@ -191,6 +210,10 @@ describe("highlight projections", () => {
     for (const view of ALL_VIEWS) {
       expect(activeToolbarView(at(view, "none"))).toBeNull();
     }
+  });
+
+  it("the tokens sub-tab selects the analytics toolbar tab", () => {
+    expect(activeToolbarView(placeOf("analytics", PROJECT, SESSION, "tokens"))).toBe("analytics");
   });
 
   it("the conversation screen with a project but no session keeps its tab", () => {
@@ -218,7 +241,8 @@ describe("highlight projections", () => {
       globalStats: null,
       archive: null,
       settingsManager: "settings",
-      tokenStats: null,
     });
+    // Token stats is analytics' sub-tab: the analytics tab stays selected.
+    expect(activeMobileTab(placeOf("analytics", PROJECT, SESSION, "tokens"))).toBe("analytics");
   });
 });

@@ -65,9 +65,9 @@ import { formatNumber } from "@/components/AnalyticsDashboard/utils";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
 import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
 import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
-import { RecentEditsScreen, TokenStatsScreen } from "@/layouts/shell/screens";
+import { AnalyticsScreen, RecentEditsScreen } from "@/layouts/shell/screens";
 import { ThemeProvider } from "@/contexts/theme";
-import type { View } from "@/navigation/place";
+import type { AnalyticsTab, View } from "@/navigation/place";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -242,15 +242,19 @@ function realScreens(): TabScreens {
  * Tab A on X's `view` (loaded), tab B on Y's (loaded once), back on A.
  * Returns B's id; the caller holds Y's requests and switches.
  */
-async function twoTabs(view: View, screens: TabScreens): Promise<{ tabA: string; tabB: string }> {
+async function twoTabs(
+  view: View,
+  screens: TabScreens,
+  analyticsTab?: AnalyticsTab,
+): Promise<{ tabA: string; tabB: string }> {
   await act(async () => {
-    await state().navigate({ project: X, view });
+    await state().navigate({ project: X, view, analyticsTab });
     await screens.openView(view);
   });
   const tabA = state().activeDocumentId!;
   await act(async () => {
     await openInNewTab(async () => {
-      await state().navigate({ project: Y, view });
+      await state().navigate({ project: Y, view, analyticsTab });
       await screens.openView(view);
     });
   });
@@ -358,11 +362,11 @@ describe("project analytics shows only its own project's summary", () => {
   });
 });
 
-describe("token stats shows only its own project's stats", () => {
+describe("the analytics tokens sub-tab shows only its own project's stats", () => {
   const renderTokenStats = () =>
     render(
-      <TokenStatsScreen
-        view="tokenStats"
+      <AnalyticsScreen
+        view="analytics"
         analyticsState={{} as never}
         analyticsActions={{} as never}
         onTokenStatClick={() => {}}
@@ -372,7 +376,7 @@ describe("token stats shows only its own project's stats", () => {
   it("held: B shows loading, never X's rows", async () => {
     const screens = realScreens();
     renderTokenStats();
-    const { tabB } = await twoTabs("tokenStats", screens);
+    const { tabB } = await twoTabs("analytics", screens, "tokens");
     expect(screen.getByText("token row only in x")).toBeInTheDocument();
 
     const list = hold("load_provider_sessions_page", Y);
@@ -395,7 +399,7 @@ describe("token stats shows only its own project's stats", () => {
   it("failed: B shows its own error, never X's rows", async () => {
     const screens = realScreens();
     renderTokenStats();
-    const { tabB } = await twoTabs("tokenStats", screens);
+    const { tabB } = await twoTabs("analytics", screens, "tokens");
 
     const stats = hold("get_project_token_stats", Y);
     const switching = startSwitch(tabB, screens);

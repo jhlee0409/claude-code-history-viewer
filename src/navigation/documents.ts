@@ -10,17 +10,31 @@
  * through `navigate` (`./tabs.ts`).
  *
  * Everything in this file is pure: the model, the tab-list operations (close,
- * cap, cycle) and the `tabs.v1` storage format.
+ * cap, cycle) and the `tabs.v2` storage format. `tabs.v1` (before the
+ * analytics sub-tabs, T9b) is converted once by `./storageMigration.ts`.
  */
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import type { PlaceHistoryEntry } from "@/store/slices/navigationSlice";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { isDateTime, libraryRefOf, parseSessionRef } from "./library";
-import { projectRefOf, type ProjectRef, type SessionRef, type View } from "./place";
+import {
+  DEFAULT_ANALYTICS_TAB,
+  isAnalyticsTab,
+  isView,
+  projectRefOf,
+  type AnalyticsTab,
+  type ProjectRef,
+  type SessionRef,
+  type View,
+} from "./place";
 
 /** localStorage key of the persisted tabs (desktop webview and WebUI alike). */
-export const TABS_STORAGE_KEY = "tabs.v1";
-export const TABS_STORAGE_VERSION = 1;
+export const TABS_STORAGE_KEY = "tabs.v2";
+/**
+ * 2: every place carries its analytics sub-tab (`analyticsTab`), and
+ * `tokenStats` is no view any more (T9b).
+ */
+export const TABS_STORAGE_VERSION = 2;
 
 /**
  * At most this many tabs (plan §4.3). Opening one more closes the inactive
@@ -45,7 +59,7 @@ export type Unavailable = "session" | "project";
  * A tab's capture mode: whether it is on and the transcript rows hidden or
  * selected for the image. The tab's own (`stateScope.ts`): another tab -
  * even on the same conversation - has its own, and it comes back with the
- * tab. Not stored in `tabs.v1`.
+ * tab. Not stored in `tabs.v2`.
  */
 export interface CaptureState {
   isCaptureMode: boolean;
@@ -72,6 +86,8 @@ export interface LiveObjects {
 export interface TabDocument {
   id: string;
   view: View;
+  /** The analytics sub-tab the tab shows (or returns to) on `analytics`. */
+  analyticsTab: AnalyticsTab;
   project: ProjectRef | null;
   /** With `projectPath`, so a restored tab finds the project listing it. */
   session: SessionRef | null;
@@ -91,7 +107,7 @@ export interface TabDocument {
   capture?: CaptureState;
   /**
    * The board's open (expanded) message - a message target of the tab's,
-   * like `targetMessageUuid`. Absent: none. Not stored in `tabs.v1`.
+   * like `targetMessageUuid`. Absent: none. Not stored in `tabs.v2`.
    */
   selectedMessageId?: string | null;
 }
@@ -109,6 +125,7 @@ export function blankDocument(id: string = newDocumentId(), now: number = Date.n
   return {
     id,
     view: "conversation",
+    analyticsTab: DEFAULT_ANALYTICS_TAB,
     project: null,
     session: null,
     subagentStack: [],
@@ -130,6 +147,8 @@ export interface LiveState extends Partial<CaptureState> {
   /** Absent (a place built for a tab that is not open): the tab keeps its own. */
   selectedMessageId?: string | null;
   view: View;
+  /** Absent (a place built for a tab that is not open): the tab keeps its own. */
+  analyticsTab?: AnalyticsTab;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   parentSessionStack: ClaudeSession[];
@@ -160,6 +179,7 @@ export function documentFromLive(
   return {
     ...base,
     view: live.view,
+    analyticsTab: live.analyticsTab ?? base.analyticsTab,
     project: projectRefOf(project) ?? null,
     session: session ? libraryRefOf(session, project) : null,
     subagentStack: stack.map((parent, i) => (i === 0 ? libraryRefOf(parent, project) : libraryRefOf(parent))),
@@ -248,11 +268,12 @@ export function idAtPosition(documents: readonly TabDocument[], position: number
 }
 
 // ---------------------------------------------------------------------------
-// Storage: tabs.v1
+// Storage: tabs.v2
 // ---------------------------------------------------------------------------
 
 interface StoredHistoryEntry {
   view: View;
+  analyticsTab: AnalyticsTab;
   project: ClaudeProject | null;
   session: ClaudeSession | null;
   messageId: string | null;
@@ -261,6 +282,7 @@ interface StoredHistoryEntry {
 interface StoredDocument {
   id: string;
   view: View;
+  analyticsTab: AnalyticsTab;
   project: ProjectRef | null;
   session: SessionRef | null;
   subagentStack: SessionRef[];
@@ -277,22 +299,10 @@ interface StoredTabs {
   documents: StoredDocument[];
 }
 
-const VIEWS: ReadonlySet<string> = new Set<View>([
-  "empty",
-  "conversation",
-  "analytics",
-  "edits",
-  "board",
-  "globalStats",
-  "archive",
-  "settingsManager",
-  "tokenStats",
-]);
-
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isText = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const textOrNull = (v: unknown): string | null => (isText(v) ? v : null);
-const isView = (v: unknown): v is View => typeof v === "string" && VIEWS.has(v);
+const analyticsTabOf = (v: unknown): AnalyticsTab => (isAnalyticsTab(v) ? v : DEFAULT_ANALYTICS_TAB);
 
 function parseProjectRef(v: unknown): ProjectRef | null {
   if (!isObject(v) || !isText(v.provider) || !isText(v.path)) return null;
@@ -320,7 +330,13 @@ function parseHistoryEntry(v: unknown): StoredHistoryEntry | null {
   const project = v.project == null ? null : parseProjectObject(v.project);
   const session = v.session == null ? null : parseSessionObject(v.session);
   if ((v.project != null && !project) || (v.session != null && !session)) return null;
-  return { view: v.view, project, session, messageId: textOrNull(v.messageId) };
+  return {
+    view: v.view,
+    analyticsTab: analyticsTabOf(v.analyticsTab),
+    project,
+    session,
+    messageId: textOrNull(v.messageId),
+  };
 }
 
 function parseHistory(v: unknown): StoredDocument["history"] {
@@ -345,6 +361,7 @@ function parseDocument(v: unknown): StoredDocument | null {
   return {
     id: v.id,
     view: v.view,
+    analyticsTab: analyticsTabOf(v.analyticsTab),
     project,
     session,
     subagentStack: session ? (stack as SessionRef[]) : [],
@@ -367,7 +384,7 @@ export type TabsParseResult =
   | { kind: "ok"; tabs: ParsedTabs };
 
 /**
- * Read stored tabs. Anything that is not `tabs.v1` - unparsable JSON, another
+ * Read stored tabs. Anything that is not `tabs.v2` - unparsable JSON, another
  * version, no valid tab - is `corrupt` (the caller starts with one empty tab
  * and says so once); a tab that does not validate is dropped and counted.
  * Duplicate ids keep their first tab; more than `MAX_TABS` keep the most
@@ -404,12 +421,13 @@ export function parseStoredTabs(raw: string | null): TabsParseResult {
 
 const storedHistoryEntry = (e: PlaceHistoryEntry): StoredHistoryEntry => ({
   view: e.view,
+  analyticsTab: e.analyticsTab,
   project: e.project,
   session: e.session,
   messageId: e.messageId,
 });
 
-/** `tabs.v1` for `list`. Live objects and explicit targets are not stored. */
+/** `tabs.v2` for `list`. Live objects and explicit targets are not stored. */
 export function serializeTabs(list: TabList): string {
   const stored: StoredTabs = {
     version: TABS_STORAGE_VERSION,
@@ -417,6 +435,7 @@ export function serializeTabs(list: TabList): string {
     documents: list.documents.map((d) => ({
       id: d.id,
       view: d.view,
+      analyticsTab: d.analyticsTab,
       project: d.project,
       session: d.session,
       subagentStack: d.subagentStack,

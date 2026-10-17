@@ -15,8 +15,10 @@ import {
  * @param computed - Computed view flags from useAnalyticsComputed
  */
 export function useAnalyticsAutoLoad(computed: {
-  isTokenStatsView: boolean;
-  isAnalyticsView: boolean;
+  /** Project analytics on the overview sub-tab. */
+  isAnalyticsOverview: boolean;
+  /** Project analytics on the token statistics sub-tab (T9b). */
+  isAnalyticsTokens: boolean;
 }) {
   const { t } = useTranslation();
   const dateFilterKeyRef = useRef<string | null>(null);
@@ -25,6 +27,9 @@ export function useAnalyticsAutoLoad(computed: {
   const tokenStatsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
 
   const view = useAppStore((s) => s.view);
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
+  const onOverview = view === "analytics" && analyticsTab === "overview";
+  const onTokens = view === "analytics" && analyticsTab === "tokens";
   const {
     analytics,
     selectedProject,
@@ -43,7 +48,7 @@ export function useAnalyticsAutoLoad(computed: {
   const selectedSessionFilePath = selectedSession?.file_path ?? null;
 
   /**
-   * Session change auto-refresh for analytics view
+   * Session change auto-refresh for the analytics overview
    */
   useEffect(() => {
     if (analytics.isLoadingSessionComparison || isLoadingTokenStats) {
@@ -51,7 +56,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      view === "analytics" &&
+      onOverview &&
       selectedProjectPath &&
       selectedSessionId &&
       selectedSessionFilePath
@@ -96,14 +101,14 @@ export function useAnalyticsAutoLoad(computed: {
     dateFilterStartMs,
     dateFilterEndMs,
     sessionTokenStats?.session_id,
-    view,
+    onOverview,
     analytics.sessionComparison?.session_id,
     analytics.isLoadingSessionComparison,
     isLoadingTokenStats,
   ]);
 
   /**
-   * Session change auto-refresh for token stats view
+   * Session change auto-refresh for the token statistics sub-tab
    */
   useEffect(() => {
     if (isLoadingTokenStats) {
@@ -111,7 +116,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      view === "tokenStats" &&
+      onTokens &&
       selectedSessionId &&
       selectedSessionFilePath
     ) {
@@ -146,7 +151,7 @@ export function useAnalyticsAutoLoad(computed: {
     selectedSessionId,
     selectedSessionFilePath,
     sessionTokenStats?.session_id,
-    view,
+    onTokens,
     isLoadingTokenStats,
     loadSessionTokenStats,
   ]);
@@ -188,7 +193,7 @@ export function useAnalyticsAutoLoad(computed: {
           return;
         }
 
-        if (computed.isTokenStatsView) {
+        if (computed.isAnalyticsTokens) {
           const promises: Promise<unknown>[] = [
             loadProjectTokenStats(selectedProjectPath),
           ];
@@ -201,7 +206,7 @@ export function useAnalyticsAutoLoad(computed: {
           if (isStaleRequest()) {
             return;
           }
-        } else if (computed.isAnalyticsView) {
+        } else if (computed.isAnalyticsOverview) {
           const { selectedProject: project, selectedSession: session } =
             useAppStore.getState();
           if (!project) return;
@@ -230,8 +235,8 @@ export function useAnalyticsAutoLoad(computed: {
 
     if (
       isGlobalScope ||
-      computed.isTokenStatsView ||
-      computed.isAnalyticsView
+      computed.isAnalyticsTokens ||
+      computed.isAnalyticsOverview
     ) {
       void update();
     }
@@ -239,8 +244,8 @@ export function useAnalyticsAutoLoad(computed: {
     dateFilterStartMs,
     dateFilterEndMs,
     view,
-    computed.isTokenStatsView,
-    computed.isAnalyticsView,
+    computed.isAnalyticsTokens,
+    computed.isAnalyticsOverview,
     selectedSessionId,
     selectedSessionFilePath,
     selectedProjectPath,

@@ -46,6 +46,11 @@ import {
   blankDocument,
   type TabDocument,
 } from "@/navigation/documents";
+import {
+  LEGACY_TABS_STORAGE_KEY,
+  runUiStorageMigrations,
+  UI_STORAGE_VERSION_KEY,
+} from "@/navigation/storageMigration";
 import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
 import { fieldsOf } from "@/navigation/stateScope";
 import { createEmptySearchState } from "@/store/slices/types";
@@ -510,12 +515,12 @@ describe("a tab's transcript state: search and capture (review #5)", () => {
   it("every `document` field is the tab's own: not in another tab, back with its tab (stateScope)", async () => {
     // Tab 1 with every per-tab field away from its default: a subagent
     // transcript, a target, history, another screen, capture rows, the
-    // board's open message.
+    // board's open message, the analytics sub-tab (T9b).
     await open(A, A1);
     const tab1 = activeId();
     await state().navigateToSubagent(SUBAGENT);
     state().navigateToMessage(`${SUBAGENT.file_path}#1`);
-    await state().navigate({ view: "analytics" });
+    await state().navigate({ view: "analytics", analyticsTab: "tokens" });
     state().enterCaptureMode();
     state().hideMessage(`${SUBAGENT.file_path}#2`);
     const rows = [`${SUBAGENT.file_path}#0`, `${SUBAGENT.file_path}#1`];
@@ -1002,6 +1007,39 @@ describe("closing tabs", () => {
 });
 
 describe("restoring tabs at startup", () => {
+  it("a tab saved on the analytics tokens sub-tab reopens on it (T9b)", async () => {
+    startWithStoredTabs(
+      [storedTab("t-a", A, A1, { view: "analytics", analyticsTab: "tokens" }), storedTab("t-b", B, B1)],
+      "t-a",
+    );
+    vi.mocked(screens.openView).mockClear();
+    await restoreActiveTab(screens);
+    expect(where()).toEqual(["t-a", A.path, A1.file_path]);
+    expect(state().view).toBe("analytics");
+    expect(state().analyticsTab).toBe("tokens");
+    expect(screens.openView).toHaveBeenCalledWith("analytics");
+  });
+
+  it("an old tabs.v1 token stats tab opens as analytics › tokens after the one-time migration (T9b)", async () => {
+    const legacyDoc = {
+      ...JSON.parse(serializeTabs({ documents: [storedTab("t-old", A, A1)], activeId: "t-old" })).documents[0],
+      view: "tokenStats",
+    };
+    delete legacyDoc.analyticsTab;
+    localStorage.removeItem(TABS_STORAGE_KEY);
+    localStorage.removeItem(UI_STORAGE_VERSION_KEY);
+    localStorage.setItem(LEGACY_TABS_STORAGE_KEY, JSON.stringify({ version: 1, activeId: "t-old", documents: [legacyDoc] }));
+    runUiStorageMigrations(localStorage);
+    useAppStore.setState(initialDocumentState());
+    expect(state().tabsRestoreReport).toEqual({ corrupt: false, dropped: 0 });
+
+    await restoreActiveTab(screens);
+    expect(where()).toEqual(["t-old", A.path, A1.file_path]);
+    expect(state().view).toBe("analytics");
+    expect(state().analyticsTab).toBe("tokens");
+    expect(localStorage.getItem(LEGACY_TABS_STORAGE_KEY)).toBeNull();
+  });
+
   it("opens the stored active tab with its anchor, after the hint step found none", async () => {
     startWithStoredTabs(
       [
@@ -1122,7 +1160,7 @@ describe("restoring tabs at startup", () => {
     await openInNewTab(() => open(B, B1));
     persistTabs();
     const stored = JSON.parse(localStorage.getItem(TABS_STORAGE_KEY)!);
-    expect(stored.version).toBe(1);
+    expect(stored.version).toBe(2);
     expect(stored.activeId).toBe(activeId());
     expect(stored.documents.map((d: TabDocument) => d.session?.projectPath)).toEqual([A.path, B.path]);
     expect(JSON.stringify(stored)).not.toContain('"live"');

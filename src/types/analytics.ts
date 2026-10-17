@@ -87,7 +87,6 @@ export interface AnalyticsActions {
 
   // 복합 액션 (비즈니스 로직)
   switchToMessages: () => void;
-  switchToTokenStats: () => void;
   switchToAnalytics: () => void;
   switchToRecentEdits: () => void;
   setStatsMode: (mode: StatsMode, options?: { isGlobalScope?: boolean }) => Promise<void>;
@@ -142,8 +141,11 @@ export interface UseAnalyticsReturn {
   // 액션 (예측 가능한 이름)
   readonly actions: {
     switchToMessages: () => void;
-    switchToTokenStats: () => Promise<void>;
-    switchToAnalytics: () => Promise<void>;
+    /**
+     * Project analytics on a sub-tab (T9b); omitted, the place's current
+     * one. Token statistics are the `tokens` sub-tab.
+     */
+    switchToAnalytics: (tab?: import("../navigation/place").AnalyticsTab) => Promise<void>;
     switchToRecentEdits: () => Promise<void>;
     switchToSettings: () => void;
     switchToBoard: () => Promise<void>;
@@ -162,9 +164,12 @@ export interface UseAnalyticsReturn {
 
   // 계산된 값들
   readonly computed: {
-    isTokenStatsView: boolean;
-    /** Project analytics; global stats is `isGlobalStatsView`. */
+    /** Project analytics, either sub-tab; global stats is `isGlobalStatsView`. */
     isAnalyticsView: boolean;
+    /** Project analytics on its overview sub-tab. */
+    isAnalyticsOverview: boolean;
+    /** Project analytics on its token statistics sub-tab. */
+    isAnalyticsTokens: boolean;
     isGlobalStatsView: boolean;
     isMessagesView: boolean;
     isRecentEditsView: boolean;

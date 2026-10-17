@@ -86,8 +86,9 @@ const flagsFor = (view: View) =>
   ({
     isMessagesView: view === "conversation",
     isAnalyticsView: view === "analytics",
+    isAnalyticsOverview: view === "analytics",
+    isAnalyticsTokens: false,
     isGlobalStatsView: view === "globalStats",
-    isTokenStatsView: view === "tokenStats",
     isRecentEditsView: view === "edits",
     isBoardView: view === "board",
     isSettingsView: view === "settingsManager",
@@ -158,14 +159,19 @@ describe("header view tabs follow the place", () => {
   it.each([
     ["conversation", "message.view"],
     ["analytics", "analytics.dashboard"],
-    // Opened from analytics; analytics stays the selected tab (plan C1).
-    ["tokenStats", "analytics.dashboard"],
     ["edits", "recentEdits.title"],
     ["board", "session.board.title"],
   ] as const)("%s selects exactly the %s tab", (view, label) => {
     at(view, true);
     renderHeader(view);
     expect(selectedTabs()).toEqual([label]);
+  });
+
+  it("the analytics tokens sub-tab keeps the analytics tab selected (T9b)", () => {
+    at("analytics", true);
+    useAppStore.setState({ analyticsTab: "tokens" });
+    renderHeader("analytics");
+    expect(selectedTabs()).toEqual(["analytics.dashboard"]);
   });
 });
 
@@ -242,7 +248,7 @@ describe("header view tabs keyboard", () => {
     renderHeader("conversation");
     focus(tabs()[0]!);
     press("ArrowRight");
-    act(() => useAppStore.setState({ view: "tokenStats" }));
+    act(() => useAppStore.setState({ view: "board" }));
     const stops = tabs().filter((tab) => tab.tabIndex === 0);
     expect(stops).toHaveLength(1);
     expect(stops[0]?.getAttribute("aria-selected")).toBe("true");

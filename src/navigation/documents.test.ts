@@ -99,7 +99,7 @@ describe("documentFromLive", () => {
   });
 });
 
-describe("tabs.v1 storage", () => {
+describe("tabs.v2 storage", () => {
   const stored = (): TabDocument => ({
     ...doc("a", 5),
     view: "conversation",
@@ -109,7 +109,10 @@ describe("tabs.v1 storage", () => {
     title: "First session",
     projectName: "alpha",
     targetMessageUuid: "transient",
-    history: { back: [{ view: "analytics", project: P, session: S, messageId: null }], forward: [] },
+    history: {
+      back: [{ view: "analytics", analyticsTab: "tokens", project: P, session: S, messageId: null }],
+      forward: [],
+    },
     live: { project: P, session: S, parentStack: [] },
   });
 
@@ -122,6 +125,7 @@ describe("tabs.v1 storage", () => {
     expect(a?.session?.filePath).toBe(S.file_path);
     expect(a?.anchor).toEqual({ messageUuid: "m1", offset: 4 });
     expect(a?.history.back).toHaveLength(1);
+    expect(a?.history.back[0]?.analyticsTab).toBe("tokens");
     expect(a?.live).toBeUndefined();
     expect(a?.targetMessageUuid).toBeNull();
     expect(parsed.tabs.dropped).toBe(0);
@@ -134,6 +138,25 @@ describe("tabs.v1 storage", () => {
     ["no valid tab", JSON.stringify({ version: TABS_STORAGE_VERSION, activeId: "a", documents: [{ id: 3 }] })],
   ])("%s is corrupt (start with one empty tab)", (_label, raw) => {
     expect(parseStoredTabs(raw).kind).toBe("corrupt");
+  });
+
+  it("keeps each tab's analytics sub-tab (T9b) and repairs a missing or unknown one to the overview", () => {
+    const onTokens = { ...stored(), view: "analytics" as const, analyticsTab: "tokens" as const };
+    const parsed = parseStoredTabs(serializeTabs({ documents: [onTokens], activeId: "a" }));
+    expect(parsed.kind === "ok" && parsed.tabs.documents[0]?.analyticsTab).toBe("tokens");
+    expect(JSON.parse(serializeTabs({ documents: [onTokens], activeId: "a" })).version).toBe(2);
+
+    const raw = JSON.parse(serializeTabs({ documents: [onTokens], activeId: "a" }));
+    raw.documents[0].analyticsTab = "bogus";
+    const repaired = parseStoredTabs(JSON.stringify(raw));
+    expect(repaired.kind === "ok" && repaired.tabs.documents[0]?.analyticsTab).toBe("overview");
+  });
+
+  it("a stored token stats screen is not a view any more: that tab is dropped (the migration moved it)", () => {
+    const raw = JSON.parse(serializeTabs({ documents: [stored(), doc("b", 3)], activeId: "a" }));
+    raw.documents[0].view = "tokenStats";
+    const parsed = parseStoredTabs(JSON.stringify(raw));
+    expect(parsed.kind === "ok" && parsed.tabs.dropped).toBe(1);
   });
 
   it("nothing stored is not an error", () => {

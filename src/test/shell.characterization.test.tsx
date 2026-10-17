@@ -122,6 +122,7 @@ const {
     loadGlobalStats: vi.fn(async () => {}),
     loadMoreSessions: vi.fn(async () => {}),
     view: "conversation",
+    analyticsTab: "overview",
     navigationEpoch: 0,
     // Conversation tabs (T8): one tab, the live state.
     documents: [],
@@ -186,7 +187,8 @@ const {
 
   const defaults = {
     isMessagesView: false,
-    isTokenStatsView: false,
+    isAnalyticsOverview: false,
+    isAnalyticsTokens: false,
     isAnalyticsView: false,
     isGlobalStatsView: false,
     isRecentEditsView: false,
@@ -308,7 +310,6 @@ vi.mock("@/hooks/useAnalytics", () => ({
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -383,7 +384,14 @@ const SCREENS: ScreenCase[] = [
     },
   ],
   ["empty with a kept session", () => Object.assign(computedMock, { isEmptyView: true })],
-  ["token stats", () => Object.assign(computedMock, { isTokenStatsView: true })],
+  [
+    // Token stats became analytics' "tokens" sub-tab (T9b).
+    "analytics tokens sub-tab",
+    () => {
+      Object.assign(computedMock, { isAnalyticsView: true, isAnalyticsTokens: true });
+      appStoreState.analyticsTab = "tokens";
+    },
+  ],
   ["analytics", () => Object.assign(computedMock, { isAnalyticsView: true })],
   [
     "analytics without a session",
@@ -415,6 +423,7 @@ describe("shell characterization", () => {
     resetComputedMock();
     appStoreState.selectedProject = initialProject;
     appStoreState.selectedSession = initialSession;
+    appStoreState.analyticsTab = "overview";
   });
 
   describe.each([

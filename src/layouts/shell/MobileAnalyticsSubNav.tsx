@@ -12,7 +12,6 @@ type Actions = UseAnalyticsReturn["actions"];
 
 const OPEN: Record<MobileAnalyticsView, (actions: Actions) => Promise<void>> = {
   analytics: (actions) => actions.switchToAnalytics(),
-  tokenStats: (actions) => actions.switchToTokenStats(),
   edits: (actions) => actions.switchToRecentEdits(),
 };
 

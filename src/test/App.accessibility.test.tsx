@@ -240,7 +240,6 @@ vi.mock("@/hooks/useAnalytics", () => ({
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -257,7 +256,8 @@ vi.mock("@/hooks/useAnalytics", () => ({
 const { computedMock, resetComputedMock } = vi.hoisted(() => {
   const defaults = {
     isMessagesView: true,
-    isTokenStatsView: false,
+    isAnalyticsOverview: false,
+    isAnalyticsTokens: false,
     isAnalyticsView: false,
     isGlobalStatsView: false,
     isRecentEditsView: false,
@@ -389,7 +389,7 @@ describe("App accessibility smoke", () => {
   it.each([
     ["settings", { isSettingsView: true }],
     ["analytics", { isAnalyticsView: true }],
-    ["token stats", { isTokenStatsView: true }],
+    ["analytics tokens sub-tab", { isAnalyticsView: true, isAnalyticsTokens: true }],
     ["board", { isBoardView: true }],
     // Archive is left out: its branch reads archive state this mock does not
     // carry, so including it would test the fixture rather than the gating.

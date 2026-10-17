@@ -11,7 +11,6 @@ const ALL_VIEWS: Record<View, true> = {
   globalStats: true,
   archive: true,
   settingsManager: true,
-  tokenStats: true,
 };
 const VIEWS = Object.keys(ALL_VIEWS) as View[];
 

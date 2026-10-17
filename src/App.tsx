@@ -183,7 +183,7 @@ function App() {
     tabScreensRef.current = tabScreens;
   }, [tabScreens]);
 
-  // Tabs are saved as they change (`tabs.v1`); a store that could not be
+  // Tabs are saved as they change (`tabs.v2`); a store that could not be
   // read is reported once.
   useEffect(() => {
     reportStoredTabsProblems();

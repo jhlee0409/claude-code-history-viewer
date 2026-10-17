@@ -57,7 +57,6 @@ const ALL_VIEWS: Record<View, true> = {
   globalStats: true,
   archive: true,
   settingsManager: true,
-  tokenStats: true,
 };
 const VIEWS = Object.keys(ALL_VIEWS) as View[];
 
@@ -153,6 +152,12 @@ describe("VIEW_REGISTRY completeness", () => {
     expect(keys.filter((key) => !EN_KEYS.has(key))).toEqual([]);
   });
 
+  it("has no token stats screen: token statistics are an analytics sub-tab (T9b)", () => {
+    expect(Object.keys(VIEW_REGISTRY)).not.toContain("tokenStats");
+    expect(MOBILE_ANALYTICS_VIEWS as readonly string[]).not.toContain("tokenStats");
+    expect(MOBILE_ANALYTICS_VIEWS).toEqual(["analytics", "edits"]);
+  });
+
   it("gives the mobile analytics chips registry entries with a content header", () => {
     for (const view of MOBILE_ANALYTICS_VIEWS) {
       expect(VIEW_REGISTRY[view].header, view).not.toBeNull();
@@ -176,7 +181,8 @@ describe("screen icons (decision page section 7, plan T5)", () => {
       agent: Bot,
       terminal: SquareTerminal,
       settings: Settings,
-      // Not in the table: token stats keeps the coins it already shows.
+      // Not in the table: token stats (the analytics sub-tab since T9b)
+      // keeps the coins it already showed.
       tokenStats: Coins,
     });
   });
@@ -186,7 +192,6 @@ describe("screen icons (decision page section 7, plan T5)", () => {
       empty: SCREEN_ICONS.conversation,
       conversation: SCREEN_ICONS.conversation,
       analytics: SCREEN_ICONS.analytics,
-      tokenStats: SCREEN_ICONS.tokenStats,
       edits: SCREEN_ICONS.edits,
       board: SCREEN_ICONS.board,
       globalStats: SCREEN_ICONS.globalStats,
@@ -225,6 +230,16 @@ describe("screenOf: the analytics flags resolve back to the place's view", () =>
     useAppStore.setState({ view, selectedProject: PROJECT });
     const { result } = renderHook(() => useAnalyticsComputed());
     expect(screenOf(result.current)).toBe(view);
+  });
+
+  it("either analytics sub-tab renders the analytics screen", () => {
+    for (const analyticsTab of ["overview", "tokens"] as const) {
+      useAppStore.setState({ view: "analytics", analyticsTab, selectedProject: PROJECT });
+      const { result } = renderHook(() => useAnalyticsComputed());
+      expect(screenOf(result.current), analyticsTab).toBe("analytics");
+      expect(result.current.isAnalyticsTokens, analyticsTab).toBe(analyticsTab === "tokens");
+      expect(result.current.isAnalyticsOverview, analyticsTab).toBe(analyticsTab === "overview");
+    }
   });
 
   it("a project screen without a project resolves to the empty screen", () => {

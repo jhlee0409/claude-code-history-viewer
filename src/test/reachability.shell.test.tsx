@@ -380,13 +380,20 @@ describe("§6 reachability through the real shell", () => {
     });
   });
 
-  it("token stats opens from the analytics header link", async () => {
+  it("token stats open as the analytics Tokens sub-tab, and Overview goes back (T9b)", async () => {
     await renderShell();
     await activate(document.getElementById("view-tab-analytics")!);
     await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
-    await activate(document.querySelector('[data-related-view="tokenStats"]')!);
-    await waitFor(() => expect(state().view).toBe("tokenStats"));
+    expect(document.querySelector('[data-related-view]')).toBeNull();
+    await activate(document.querySelector('[data-analytics-tab="tokens"]')!);
+    await waitFor(() => expect(state().analyticsTab).toBe("tokens"));
+    expect(state().view).toBe("analytics");
     expect(screenShown()).toBe("TokenStatsViewer");
+    // The toolbar's analytics tab stays the selected one.
+    expect(document.getElementById("view-tab-analytics")!.getAttribute("aria-selected")).toBe("true");
+    await activate(document.querySelector('[data-analytics-tab="overview"]')!);
+    await waitFor(() => expect(state().analyticsTab).toBe("overview"));
+    expect(screenShown()).toBe("AnalyticsDashboard");
   });
 
   describe("gear menu", () => {

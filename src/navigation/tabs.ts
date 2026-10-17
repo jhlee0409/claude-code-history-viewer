@@ -68,6 +68,7 @@ function enterTab(doc: TabDocument, partial: Partial<AppStore>): void {
     ...partial,
     ...(doc.capture ?? NO_CAPTURE),
     selectedMessageId: doc.selectedMessageId ?? null,
+    analyticsTab: doc.analyticsTab,
     boardHoverSession: null,
     visibleMessageUuid: null,
     activeSessionNearBottom: true,
@@ -124,7 +125,7 @@ export function persistTabs(): void {
 const PERSIST_DELAY_MS = 400;
 
 /**
- * Save `tabs.v1` whenever the tabs or the active tab's place change
+ * Save `tabs.v2` whenever the tabs or the active tab's place change
  * (debounced), and right away when the page goes away. Returns the stop
  * function.
  */
@@ -141,6 +142,7 @@ export function startTabsPersistence(): () => void {
       s.activeDocumentId,
       s.hydratedDocumentId,
       s.view,
+      s.analyticsTab,
       s.selectedProject?.path,
       s.selectedSession?.file_path,
       s.parentSessionStack.length,
@@ -282,6 +284,7 @@ async function openDocument(doc: TabDocument, screens: TabScreens, options: Open
   const arrived = await get().navigate(
     {
       view: resolved.view,
+      analyticsTab: doc.analyticsTab,
       project: resolved.project,
       ...(keepsSession ? {} : { session, subagentStack: parentStack }),
       messageId: doc.targetMessageUuid ?? null,
@@ -393,7 +396,7 @@ export async function openInNewTab<T>(
   const state = get();
   const previousId = state.activeDocumentId;
   const previousHistory = state.placeHistory;
-  const doc = { ...blankDocument(), view: state.view };
+  const doc = { ...blankDocument(), view: state.view, analyticsTab: state.analyticsTab };
   const documents = withDocument(currentDocuments(state), doc, true);
   enterTab(doc, {
     documents,

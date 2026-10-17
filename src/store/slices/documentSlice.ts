@@ -39,7 +39,7 @@ export interface DocumentSliceState {
    * opened (after any CLI / deep-link hint, plan §4.3).
    */
   tabsRestorePending: boolean;
-  /** What reading `tabs.v1` found, reported once at startup. */
+  /** What reading `tabs.v2` found, reported once at startup. */
   tabsRestoreReport: { corrupt: boolean; dropped: number };
 }
 
@@ -70,7 +70,7 @@ export interface DocumentSliceActions {
 
 export type DocumentSlice = DocumentSliceState & DocumentSliceActions;
 
-/** The initial tabs: those stored in `tabs.v1`, or one empty tab. */
+/** The initial tabs: those stored in `tabs.v2`, or one empty tab. */
 export function initialDocumentState(): DocumentSliceState {
   const stored = loadStoredTabs();
   if (stored.kind === "ok") {

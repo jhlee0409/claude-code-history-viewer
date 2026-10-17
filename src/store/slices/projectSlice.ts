@@ -674,11 +674,11 @@ export const createProjectSlice: StateCreator<
 
       // The open screen's data, through the loaders its navigation uses,
       // under this refresh's ownership.
-      const { view } = get();
+      const { view, analyticsTab } = get();
       const loadOptions = { ownsPlace };
       if (view === "globalStats") {
         await get().loadGlobalStats();
-      } else if (view === "tokenStats") {
+      } else if (view === "analytics" && analyticsTab === "tokens") {
         await loadTokenStatsScreen(get, refreshedProject, refreshedSession);
       } else if (view === "analytics") {
         // Reports its own failure on the screen (no app-wide error).
