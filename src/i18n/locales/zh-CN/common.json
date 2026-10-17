@@ -301,5 +301,6 @@
   "common.menu.maximize": "最大化",
   "common.menu.bringAllToFront": "前置全部窗口",
   "common.menu.inspector": "检查器",
-  "common.menu.minimap": "会话小地图"
+  "common.menu.minimap": "会话小地图",
+  "common.menu.syncFailed": "无法更新菜单栏。键盘快捷键仍可使用。"
 }

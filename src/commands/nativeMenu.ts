@@ -15,12 +15,20 @@
  * - **State**: each change of the app state or the language is coalesced into
  *   one `sync_menu_state` with the language and each menu command's enabled
  *   (and, for a toggle, checked) state, sent only when it differs from the
- *   last one. A new language makes the host rebuild the menu in it.
+ *   state the host last acknowledged. One sync is in flight at a time; a
+ *   change made meanwhile is sent after its reply, so an older state never
+ *   lands after a newer one. A new language makes the host rebuild the menu.
+ * - **Acknowledged state**: the host replies once it has applied the state to
+ *   the native menu. A failed sync leaves the native state unknown: the
+ *   bridge forgets it, retries with a short backoff, then reports the failure
+ *   once (`onSyncError`) and tries again on the next change.
  * - **Shortcut owner**: where the native menu owns shortcuts (the Mac app,
- *   `NATIVE_SHORTCUTS`) the DOM listener skips a menu command's key while its
- *   menu item is enabled - the item runs it. While the item is disabled the
- *   OS does not fire its accelerator, so the DOM listener keeps the key and a
- *   state that is briefly stale cannot leave a key dead.
+ *   `NATIVE_SHORTCUTS`) the DOM listener skips a menu command's key only
+ *   while the host has *acknowledged* its item enabled - the item runs it.
+ *   Otherwise (item disabled, not yet acknowledged, or unknown after a failed
+ *   sync) the DOM listener keeps the key; the web view sees a key before the
+ *   menu does and a key it handles never reaches the menu, so each press runs
+ *   once in every transition.
  */
 import type { KeyEnvironment } from "./keys";
 import { COMMAND_MANIFEST, NATIVE_SHORTCUTS, type CommandId } from "./manifest";
@@ -88,7 +96,14 @@ export interface MenuBridgeDeps {
   listen: (handler: (id: string) => void) => Promise<() => void>;
   /** Call `onChange` when the app state or the language changes. */
   subscribe: (onChange: () => void) => () => void;
+  /** Waits before each retry of a failed sync (default `SYNC_RETRY_DELAYS_MS`). */
+  retryDelaysMs?: readonly number[];
+  /** A sync failed and its retries too: tell the user (once per outage). */
+  onSyncError?: (error: unknown) => void;
 }
+
+/** Backoff of a failed sync's retries; after the last one, the next change retries. */
+export const SYNC_RETRY_DELAYS_MS: readonly number[] = [250, 1000, 4000];
 
 export interface MenuBridge {
   /** Whether the native menu runs this command's shortcut right now. */
@@ -98,38 +113,67 @@ export interface MenuBridge {
 
 export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
   const owning = nativeShortcutsOwned(deps.env);
+  const retryDelays = deps.retryDelaysMs ?? SYNC_RETRY_DELAYS_MS;
   let stopped = false;
   let ready = false;
   let scheduled = false;
   let unlisten: (() => void) | null = null;
-  let lastSent: MenuState | null = null;
-  let lastKey = "";
+  /** The state the host last applied, or null while unknown (none yet, or a failed sync). */
+  let acknowledged: MenuState | null = null;
+  let acknowledgedKey = "";
+  let inFlight = false;
+  let failures = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   const run = (id: string) => {
     if (!stopped) runCommand(id, deps.getContext());
   };
 
-  const send = async () => {
-    const state = computeMenuState(deps.getContext(), deps.getLanguage(), deps.getChecks());
-    const key = JSON.stringify(state);
-    if (key === lastKey) return;
-    lastKey = key;
-    lastSent = state;
-    try {
-      const queued = await deps.sync(state);
-      queued.forEach(run);
-    } catch (error) {
-      console.error("Menu state sync failed:", error);
-      lastKey = ""; // send it again on the next change
+  const retryLater = (error: unknown) => {
+    if (failures < retryDelays.length) {
+      const delay = retryDelays[failures];
+      failures += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        send();
+      }, delay);
+    } else if (failures === retryDelays.length) {
+      failures += 1; // report once; the next change tries again
+      deps.onSyncError?.(error);
     }
   };
+
+  function send(): void {
+    if (stopped || inFlight) return;
+    const state = computeMenuState(deps.getContext(), deps.getLanguage(), deps.getChecks());
+    const key = JSON.stringify(state);
+    if (key === acknowledgedKey) return;
+    inFlight = true;
+    deps.sync(state).then(
+      (queued) => {
+        inFlight = false;
+        acknowledged = state;
+        acknowledgedKey = key;
+        failures = 0;
+        queued.forEach(run);
+        send(); // the state may have moved on while this one was in flight
+      },
+      (error: unknown) => {
+        inFlight = false;
+        acknowledged = null;
+        acknowledgedKey = "";
+        console.error("Menu state sync failed:", error);
+        if (!stopped) retryLater(error);
+      },
+    );
+  }
 
   const schedule = () => {
     if (stopped || !ready || scheduled) return;
     scheduled = true;
     setTimeout(() => {
       scheduled = false;
-      if (!stopped) void send();
+      send();
     }, 0);
   };
 
@@ -144,15 +188,16 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
       }
       unlisten = stopListening;
       ready = true;
-      void send();
+      send();
     })
     .catch((error: unknown) => console.error("Menu event listener failed:", error));
 
   return {
-    owns: (id) => owning && SHORTCUT_COMMAND_IDS.has(id) && lastSent?.items[id]?.enabled !== false,
+    owns: (id) => owning && SHORTCUT_COMMAND_IDS.has(id) && acknowledged?.items[id]?.enabled === true,
     stop: () => {
       if (stopped) return;
       stopped = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
       unsubscribe();
       unlisten?.();
       unlisten = null;

@@ -301,5 +301,6 @@
   "common.menu.maximize": "最大化",
   "common.menu.bringAllToFront": "將全部移至最前",
   "common.menu.inspector": "檢閱器",
-  "common.menu.minimap": "會話小地圖"
+  "common.menu.minimap": "會話小地圖",
+  "common.menu.syncFailed": "無法更新選單列。鍵盤快速鍵仍可使用。"
 }

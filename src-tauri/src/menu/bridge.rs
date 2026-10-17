@@ -6,7 +6,9 @@
 //!   event is queued, and the queue is handed back in that sync's reply.
 //! - A sync carries the UI language and each menu command's enabled/checked
 //!   state. A new language means the menu is rebuilt in it; otherwise only
-//!   the items whose state changed are updated.
+//!   the items whose state changed are updated. When applying a sync fails
+//!   the native menu's state is unknown, so the next sync rebuilds it whole
+//!   (`apply_failed`).
 //! - Ids outside the manifest's menu commands are ignored: a menu event for
 //!   one is not forwarded, a state for one is not kept.
 
@@ -64,6 +66,8 @@ struct Inner {
     /// The language the current menu is titled in.
     language: String,
     items: HashMap<String, ItemState>,
+    /// The last sync was not applied: the native menu may differ from `items`.
+    dirty: bool,
 }
 
 #[derive(Debug)]
@@ -124,6 +128,11 @@ impl MenuBridge {
         self.lock().ready = false;
     }
 
+    /// Applying the last sync failed: the next one rebuilds the whole menu.
+    pub fn apply_failed(&self) {
+        self.lock().dirty = true;
+    }
+
     /// The checked state last synced for a toggle item.
     pub fn checked(&self, id: &str) -> Option<bool> {
         self.lock().items.get(id).and_then(|state| state.checked)
@@ -145,9 +154,10 @@ impl MenuBridge {
             }
         }
         let language = resolve_language(&payload.language);
-        let rebuild = inner.language != language;
+        let rebuild = inner.dirty || inner.language != language;
         if rebuild {
             inner.language = language.to_string();
+            inner.dirty = false;
         }
         SyncOutcome {
             rebuild,
@@ -263,6 +273,32 @@ mod tests {
             payload("ko-KR", &[("go.back", true), ("go.forward", false)]),
         );
         assert!(!same.rebuild, "ko-KR is the same app language as ko");
+    }
+
+    #[test]
+    fn a_failed_apply_makes_the_next_sync_apply_every_state_again() {
+        let bridge = MenuBridge::new("en");
+        let m = manifest();
+        bridge.sync(
+            m,
+            payload("en", &[("go.back", true), ("go.forward", false)]),
+        );
+        bridge.apply_failed();
+        let retry = bridge.sync(
+            m,
+            payload("en", &[("go.back", true), ("go.forward", false)]),
+        );
+        assert!(
+            retry.rebuild,
+            "the native menu's state is unknown: rebuild it"
+        );
+        assert_eq!(retry.items.len(), 2);
+        let next = bridge.sync(
+            m,
+            payload("en", &[("go.back", true), ("go.forward", false)]),
+        );
+        assert!(!next.rebuild);
+        assert!(next.items.is_empty());
     }
 
     #[test]

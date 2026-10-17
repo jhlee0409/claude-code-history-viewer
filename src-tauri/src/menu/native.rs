@@ -11,7 +11,7 @@
 //! One app-wide menu-event handler is registered once at startup, so a
 //! rebuilt menu adds no listener.
 
-use super::bridge::{Dispatch, ItemState, MenuBridge, MenuStatePayload};
+use super::bridge::{Dispatch, ItemState, MenuBridge, MenuStatePayload, SyncOutcome};
 use super::labels::Labels;
 use super::manifest::{manifest, MenuId, Os, PredefinedKind};
 use super::spec::{build_spec, ItemSpec, MenuSpec};
@@ -245,17 +245,27 @@ pub async fn sync_menu_state(
     state: MenuStatePayload,
 ) -> Result<Vec<String>, String> {
     let outcome = bridge.sync(manifest(), state);
+    // The menu calls run on the main thread and return once applied, so the
+    // reply tells the frontend the native menu is in this state.
+    if let Err(error) = apply_outcome(&app, &outcome) {
+        bridge.apply_failed();
+        return Err(error.to_string());
+    }
+    Ok(outcome.pending)
+}
+
+fn apply_outcome<R: Runtime>(app: &AppHandle<R>, outcome: &SyncOutcome) -> tauri::Result<()> {
     if outcome.rebuild {
-        let menu = build_for(&app, &outcome.language, &outcome.items).map_err(|e| e.to_string())?;
-        app.set_menu(menu).map_err(|e| e.to_string())?;
+        let menu = build_for(app, &outcome.language, &outcome.items)?;
+        app.set_menu(menu)?;
     } else if !outcome.items.is_empty() {
         if let Some(menu) = app.menu() {
             for item in leaf_items(&menu) {
                 if let Some(state) = outcome.items.get(item.id().as_ref()) {
-                    apply_state(&item, *state).map_err(|e| e.to_string())?;
+                    apply_state(&item, *state)?;
                 }
             }
         }
     }
-    Ok(outcome.pending)
+    Ok(())
 }

@@ -316,3 +316,190 @@ describe("menu bridge", () => {
     expect(host.syncs).toHaveLength(0);
   });
 });
+
+/**
+ * A host whose replies the test resolves or rejects, with the native menu
+ * modeled as the state the host last *applied* (a sync's reply means it is
+ * applied). A key press goes to the DOM listener first and, unhandled, to the
+ * native item - only if that item is enabled (macOS fires no accelerator of a
+ * disabled item).
+ */
+function deferredHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSyncError?: (e: unknown) => void } = {}) {
+  let menuHandler: ((id: string) => void) | null = null;
+  let changeHandler: (() => void) | null = null;
+  const pending: Array<{ state: MenuState; resolve: (queued: string[]) => void; reject: (e: unknown) => void }> = [];
+  let applied: MenuState | null = null;
+  const deps: MenuBridgeDeps = {
+    env: MAC_DESKTOP,
+    getContext: () => ctx,
+    getChecks: () => ({}),
+    getLanguage: () => "en",
+    sync: (state) =>
+      new Promise<string[]>((resolve, reject) => {
+        pending.push({
+          state,
+          resolve: (queued) => {
+            applied = state;
+            resolve(queued);
+          },
+          reject,
+        });
+      }),
+    listen: async (handler) => {
+      menuHandler = handler;
+      return () => {
+        menuHandler = null;
+      };
+    },
+    subscribe: (onChange) => {
+      changeHandler = onChange;
+      return () => {
+        changeHandler = null;
+      };
+    },
+    ...options,
+  };
+  const bridge = startMenuBridge(deps);
+  stops.push(() => bridge.stop());
+  const handler = createShortcutHandler({ commands: COMMANDS, env: MAC_DESKTOP, getContext: () => ctx, ownedByNativeMenu: bridge.owns });
+  const press = (init: KeyboardEventInit, id: string) => {
+    const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
+    handler(event);
+    if (!event.defaultPrevented && applied?.items[id]?.enabled !== false) menuHandler?.(id);
+  };
+  return {
+    bridge,
+    pending,
+    press,
+    change: () => changeHandler?.(),
+    deliver: (id: string) => menuHandler?.(id),
+    applied: () => applied,
+  };
+}
+
+const BACK_KEY: KeyboardEventInit = { key: "[", code: "BracketLeft", metaKey: true };
+
+describe("shortcut owner follows the state the host acknowledged", () => {
+  it("leaves every key to the DOM listener until the host acknowledges a state", async () => {
+    const ctx = makeContext({ canGoBack: true });
+    const host = deferredHost(ctx);
+    await flush();
+    expect(host.pending).toHaveLength(1);
+    expect(host.bridge.owns("go.back")).toBe(false);
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs a key once while an enable is still on its way to the native item (R1)", async () => {
+    const ctx = makeContext({ canGoBack: false });
+    const host = deferredHost(ctx);
+    await flush();
+    host.pending.shift()?.resolve([]);
+    await flush();
+    ctx.canGoBack = true;
+    host.change();
+    await flush();
+    expect(host.pending).toHaveLength(1);
+    expect(host.applied()?.items["go.back"]).toEqual({ enabled: false });
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+    host.pending.shift()?.resolve([]);
+    await flush();
+    expect(host.bridge.owns("go.back")).toBe(true);
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives every key back to the DOM listener when a sync fails, and retries it", async () => {
+    const ctx = makeContext({ canGoBack: true });
+    const host = deferredHost(ctx, { retryDelaysMs: [0] });
+    await flush();
+    host.pending.shift()?.resolve([]);
+    await flush();
+    expect(host.bridge.owns("go.back")).toBe(true);
+    ctx.tabCount = 1;
+    host.change();
+    await flush();
+    const failed = host.pending.shift();
+    failed?.reject(new Error("injected IPC failure"));
+    await flush();
+    expect(host.bridge.owns("go.back")).toBe(false);
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+    await flush();
+    expect(host.pending).toHaveLength(1);
+    expect(host.pending[0].state).toEqual(failed?.state);
+    host.pending.shift()?.resolve([]);
+    await flush();
+    expect(host.bridge.owns("go.back")).toBe(true);
+  });
+
+  it("stops retrying after its backoff, reports it once, and syncs again on the next change", async () => {
+    const onSyncError = vi.fn();
+    const ctx = makeContext();
+    const host = deferredHost(ctx, { retryDelaysMs: [0, 0], onSyncError });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await flush();
+      expect(host.pending, `attempt ${attempt}`).toHaveLength(1);
+      host.pending.shift()?.reject(new Error("down"));
+      await flush();
+    }
+    await flush();
+    expect(host.pending).toHaveLength(0);
+    expect(onSyncError).toHaveBeenCalledTimes(1);
+    host.change();
+    await flush();
+    expect(host.pending).toHaveLength(1);
+  });
+
+  it("keeps one sync in flight and sends the newest state after it, never an older one", async () => {
+    const ctx = makeContext({ canGoBack: false });
+    const host = deferredHost(ctx);
+    await flush();
+    ctx.canGoBack = true;
+    host.change();
+    await flush();
+    ctx.canGoBack = false;
+    ctx.canGoForward = true;
+    host.change();
+    await flush();
+    expect(host.pending).toHaveLength(1);
+    host.pending.shift()?.resolve([]);
+    await flush();
+    expect(host.pending).toHaveLength(1);
+    expect(host.pending[0].state.items["go.back"]).toEqual({ enabled: false });
+    expect(host.pending[0].state.items["go.forward"]).toEqual({ enabled: true });
+  });
+
+  it("runs every press exactly once (or not at all when disabled) across enable/disable transitions", async () => {
+    const ctx = makeContext({ canGoBack: false });
+    const host = deferredHost(ctx, { retryDelaysMs: [] });
+    const expectOnePressRuns = (label: string) => {
+      const before = vi.mocked(ctx.actions.goBack).mock.calls.length;
+      host.press(BACK_KEY, "go.back");
+      const runs = vi.mocked(ctx.actions.goBack).mock.calls.length - before;
+      expect(runs, label).toBe(ctx.canGoBack ? 1 : 0);
+    };
+    await flush();
+    expectOnePressRuns("before the first reply");
+    host.pending.shift()?.resolve([]);
+    await flush();
+    for (const enabled of [true, false, true, false]) {
+      ctx.canGoBack = enabled;
+      host.change();
+      await flush();
+      expectOnePressRuns(`pending ${enabled}`);
+      host.pending.shift()?.resolve([]);
+      await flush();
+      expectOnePressRuns(`acknowledged ${enabled}`);
+    }
+    for (const enabled of [true, false]) {
+      ctx.canGoBack = enabled;
+      host.change();
+      await flush();
+      host.pending.shift()?.reject(new Error("down"));
+      await flush();
+      expectOnePressRuns(`after a failed sync ${enabled}`);
+    }
+  });
+});

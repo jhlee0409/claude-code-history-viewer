@@ -3,6 +3,7 @@
  * channel, the `sync_menu_state` command, the app store and i18next.
  */
 import i18n from "i18next";
+import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { KeyEnvironment } from "./keys";
@@ -19,6 +20,9 @@ export function tauriMenuDeps(env: KeyEnvironment, getContext: () => CommandCont
       return Object.fromEntries(Object.entries(MENU_CHECKS).map(([id, isOn]) => [id, isOn(state)]));
     },
     sync: (state: MenuState) => api<string[]>("sync_menu_state", { state }),
+    // The keys keep working (the DOM listener takes them back); the menu's
+    // ticks and greyed items may be stale until the next change syncs.
+    onSyncError: () => toast.error(i18n.t("common.menu.syncFailed")),
     listen: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
       return listen<string>(MENU_COMMAND_EVENT, (event) => handler(event.payload));

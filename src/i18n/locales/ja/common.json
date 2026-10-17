@@ -301,5 +301,6 @@
   "common.menu.maximize": "最大化",
   "common.menu.bringAllToFront": "すべてを手前に移動",
   "common.menu.inspector": "インスペクタ",
-  "common.menu.minimap": "セッションミニマップ"
+  "common.menu.minimap": "セッションミニマップ",
+  "common.menu.syncFailed": "メニューバーを更新できませんでした。キーボードショートカットは引き続き使えます。"
 }

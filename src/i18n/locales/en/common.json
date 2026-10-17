@@ -301,5 +301,6 @@
   "common.menu.maximize": "Maximize",
   "common.menu.bringAllToFront": "Bring All to Front",
   "common.menu.inspector": "Inspector",
-  "common.menu.minimap": "Session Minimap"
+  "common.menu.minimap": "Session Minimap",
+  "common.menu.syncFailed": "The menu bar could not be updated. Keyboard shortcuts still work."
 }
