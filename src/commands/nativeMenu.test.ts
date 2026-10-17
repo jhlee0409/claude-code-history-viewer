@@ -503,3 +503,77 @@ describe("shortcut owner follows the state the host acknowledged", () => {
     }
   });
 });
+
+describe("menu events run in the order they were chosen", () => {
+  /** A context whose actions log their names, in call order. */
+  function loggingContext(log: string[]): CommandContext {
+    const ctx = makeContext({ tabCount: 2 });
+    ctx.actions = new Proxy(ctx.actions, {
+      get: (_target, name) => () => {
+        log.push(String(name));
+      },
+    }) as CommandActions;
+    return ctx;
+  }
+
+  it("runs the startup queue before a live event that arrives while the reply is on its way (R2)", async () => {
+    const log: string[] = [];
+    const host = deferredHost(loggingContext(log));
+    await flush();
+    host.deliver("tab.close");
+    expect(log).toEqual([]);
+    host.pending.shift()?.resolve(["tab.new"]);
+    await flush();
+    expect(log).toEqual(["newTab", "closeTab"]);
+    host.deliver("go.back");
+    expect(log).toEqual(["newTab", "closeTab", "goBack"]);
+  });
+
+  it("does the same after a page reload: the new page's queue first, then live events", async () => {
+    const log: string[] = [];
+    const ctx = loggingContext(log);
+    const before = deferredHost(ctx);
+    await flush();
+    before.pending.shift()?.resolve([]);
+    await flush();
+    before.bridge.stop();
+    const after = deferredHost(ctx);
+    await flush();
+    after.deliver("tab.close");
+    after.deliver("go.back");
+    after.pending.shift()?.resolve(["tab.new", "tab.next"]);
+    await flush();
+    expect(log).toEqual(["newTab", "cycleTab", "closeTab", "goBack"]);
+  });
+
+  it("keeps holding live events through a failed first sync and runs them after the retried queue", async () => {
+    const log: string[] = [];
+    const host = deferredHost(loggingContext(log), { retryDelaysMs: [0] });
+    await flush();
+    host.deliver("tab.close");
+    host.pending.shift()?.reject(new Error("down"));
+    await flush();
+    await flush();
+    expect(log).toEqual([]);
+    host.pending.shift()?.resolve(["tab.new"]);
+    await flush();
+    expect(log).toEqual(["newTab", "closeTab"]);
+  });
+
+  it("hands a reply that lands after a stop to the next bridge, ahead of its own events", async () => {
+    const log: string[] = [];
+    const ctx = loggingContext(log);
+    const first = deferredHost(ctx);
+    await flush();
+    const reply = first.pending.shift();
+    first.bridge.stop();
+    const second = deferredHost(ctx);
+    await flush();
+    reply?.resolve(["tab.new"]);
+    await flush();
+    second.deliver("tab.close");
+    second.pending.shift()?.resolve(["go.back"]);
+    await flush();
+    expect(log).toEqual(["newTab", "goBack", "closeTab"]);
+  });
+});

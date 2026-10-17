@@ -236,8 +236,9 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     }
 }
 
-/// The frontend reports its language and command state; replies with the
-/// menu events queued before it was ready.
+/// The frontend reports its language and command state; replies, once the
+/// native menu shows that state, with the menu events queued before it was
+/// ready (oldest first).
 #[tauri::command]
 pub async fn sync_menu_state(
     app: AppHandle,
@@ -251,7 +252,9 @@ pub async fn sync_menu_state(
         bridge.apply_failed();
         return Err(error.to_string());
     }
-    Ok(outcome.pending)
+    // Ready only now: an event chosen while the menu was being updated was
+    // queued, so it follows the queue the reply carries.
+    Ok(bridge.applied())
 }
 
 fn apply_outcome<R: Runtime>(app: &AppHandle<R>, outcome: &SyncOutcome) -> tauri::Result<()> {

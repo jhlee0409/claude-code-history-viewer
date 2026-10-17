@@ -8,10 +8,14 @@
  *   `menu-command` event with the command id and runs through `runCommand`,
  *   the same `enabled` check the palette and the shortcuts use. An unknown or
  *   disabled id is refused there.
- * - **Ready**: the bridge listens first, then tells the host it is ready with
- *   its first `sync_menu_state`. The host queues menu events that arrive
- *   before that (and after a page reload) and hands them back in the reply;
- *   they run then.
+ * - **Ready, in order**: the bridge listens first, then tells the host it is
+ *   ready with its first `sync_menu_state`. The host queues menu events that
+ *   arrive before that (and after a page reload) and hands them back in the
+ *   reply. A live event can reach the page before that reply does, so until
+ *   the first reply has run its queue the bridge holds live events and runs
+ *   them after it: menu events run in the order they were chosen. A reply
+ *   that lands after its bridge stopped (an unmount) is handed to the next
+ *   bridge, which runs it ahead of its own.
  * - **State**: each change of the app state or the language is coalesced into
  *   one `sync_menu_state` with the language and each menu command's enabled
  *   (and, for a toggle, checked) state, sent only when it differs from the
@@ -111,6 +115,17 @@ export interface MenuBridge {
   stop: () => void;
 }
 
+/** Menu events whose bridge stopped before they could run; the next bridge runs them first. */
+let orphaned: string[] = [];
+/** The running bridge's intake for orphaned events. */
+let adoptOrphans: ((ids: string[]) => void) | null = null;
+
+function handOff(ids: string[]): void {
+  if (ids.length === 0) return;
+  if (adoptOrphans) adoptOrphans(ids);
+  else orphaned.push(...ids);
+}
+
 export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
   const owning = nativeShortcutsOwned(deps.env);
   const retryDelays = deps.retryDelaysMs ?? SYNC_RETRY_DELAYS_MS;
@@ -124,10 +139,44 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
   let inFlight = false;
   let failures = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The host's startup queue has run; until then live events are held. */
+  let drained = false;
+  let held: string[] = [];
 
   const run = (id: string) => {
     if (!stopped) runCommand(id, deps.getContext());
   };
+
+  /** A live menu event: run it, or hold it until the startup queue has run. */
+  const receive = (id: string) => {
+    if (stopped) return;
+    if (drained) run(id);
+    else held.push(id);
+  };
+
+  /** A reply's queue: the first one runs ahead of everything held. */
+  const runQueued = (queued: string[]) => {
+    if (stopped) {
+      handOff([...queued, ...held]);
+      held = [];
+      return;
+    }
+    if (drained) {
+      queued.forEach(run);
+      return;
+    }
+    drained = true;
+    const ordered = [...orphaned, ...queued, ...held];
+    orphaned = [];
+    held = [];
+    ordered.forEach(run);
+  };
+
+  const adopt = (ids: string[]) => {
+    if (drained) ids.forEach(run);
+    else orphaned.push(...ids);
+  };
+  adoptOrphans = adopt;
 
   const retryLater = (error: unknown) => {
     if (failures < retryDelays.length) {
@@ -155,7 +204,7 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
         acknowledged = state;
         acknowledgedKey = key;
         failures = 0;
-        queued.forEach(run);
+        runQueued(queued);
         send(); // the state may have moved on while this one was in flight
       },
       (error: unknown) => {
@@ -163,7 +212,12 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
         acknowledged = null;
         acknowledgedKey = "";
         console.error("Menu state sync failed:", error);
-        if (!stopped) retryLater(error);
+        if (stopped) {
+          handOff(held);
+          held = [];
+        } else {
+          retryLater(error);
+        }
       },
     );
   }
@@ -180,7 +234,7 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
   const unsubscribe = deps.subscribe(schedule);
 
   deps
-    .listen(run)
+    .listen(receive)
     .then((stopListening) => {
       if (stopped) {
         stopListening();
@@ -197,7 +251,12 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
     stop: () => {
       if (stopped) return;
       stopped = true;
+      if (adoptOrphans === adopt) adoptOrphans = null;
       if (retryTimer !== null) clearTimeout(retryTimer);
+      if (!inFlight) {
+        handOff(held);
+        held = [];
+      }
       unsubscribe();
       unlisten?.();
       unlisten = null;
