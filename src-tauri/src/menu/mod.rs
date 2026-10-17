@@ -10,14 +10,20 @@
 //! - `manifest`: the embedded manifest.
 //! - `labels`: titles in the five UI languages.
 //! - `spec`: the menus one platform shows, as data (unit-tested).
-//! - `bridge`: the frontend handshake - ready, queue, state (unit-tested).
-//! - `native`: the Tauri menu, the event handler, `sync_menu_state`.
+//! - `bridge`: the menu state the frontend syncs - language, enabled, checked
+//!   (unit-tested).
+//! - `journal`: every menu event, numbered and kept until the frontend
+//!   acknowledges it (unit-tested).
+//! - `native`: the Tauri menu, the event handler, `sync_menu_state`,
+//!   `menu_journal`, `ack_menu_events`.
 
 pub mod bridge;
+pub mod journal;
 pub mod labels;
 pub mod manifest;
 pub mod native;
 pub mod spec;
 
 pub use bridge::MenuBridge;
+pub use journal::MenuJournal;
 pub use native::{handle_menu_event, initial_menu};

@@ -1,38 +1,77 @@
 /**
- * `useAppKeyboard` in the Mac app: the native menu owns the menu commands'
- * shortcuts, so a key press runs its command once - through the menu item -
- * and the bridge is stopped with the hook.
+ * `useAppKeyboard` in the desktop app (macOS by default): the page runs every
+ * app key once and claims it, the menu journal runs menu clicks once in
+ * order across StrictMode re-runs and a page reload.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, createElement, type ReactNode } from "react";
 import { cleanup, renderHook } from "@testing-library/react";
 import { useAppKeyboard } from "./useAppKeyboard";
 import type { MenuBridgeDeps, MenuState } from "@/commands/nativeMenu";
+import type { LiveMenuEvent, MenuCursorStore } from "@/commands/menuJournal";
 
-const { openModalMock, toggleMinimapMock, host } = vi.hoisted(() => ({
-  openModalMock: vi.fn(),
-  toggleMinimapMock: vi.fn(),
-  host: {
-    handlers: new Set<(id: string) => void>(),
-    syncs: [] as MenuState[],
+const { openModalMock, toggleMinimapMock, newTabMock, closeTabMock, zoomMock, env, host } = vi.hoisted(() => {
+  let seq = 0;
+  let retained: { seq: number; id: string }[] = [];
+  let saved: { epoch: string; seq: number } | null = null;
+  const handlers = new Set<(event: LiveMenuEvent) => void>();
+  const host = {
+    handlers,
+    syncs: [] as unknown[],
     unlistened: 0,
-  },
-}));
+    /** Acks are delivered unless the page "goes away" first. */
+    dropAcks: false,
+    /** sessionStorage: survives a reload of the page. */
+    cursor: {
+      read: (epoch: string) => (saved?.epoch === epoch ? saved.seq : null),
+      write: (epoch: string, s: number) => {
+        saved = { epoch, seq: s };
+      },
+    },
+    choose(id: string) {
+      seq += 1;
+      retained.push({ seq, id });
+      handlers.forEach((handler) => handler({ epoch: "boot", seq, id }));
+    },
+    retained: () => retained.map((e) => e.seq),
+    pull: async () => ({ epoch: "boot", floor: 0, events: retained.map((e) => ({ ...e })) }),
+    ack: async (_epoch: string, upTo: number) => {
+      if (host.dropAcks) return new Promise<void>(() => {});
+      retained = retained.filter((e) => e.seq > upTo);
+    },
+    reset() {
+      seq = 0;
+      retained = [];
+      saved = null;
+      handlers.clear();
+      host.syncs.length = 0;
+      host.unlistened = 0;
+      host.dropAcks = false;
+    },
+  };
+  return {
+    openModalMock: vi.fn(),
+    toggleMinimapMock: vi.fn(),
+    newTabMock: vi.fn(),
+    closeTabMock: vi.fn(),
+    zoomMock: vi.fn(async () => {}),
+    env: { os: "mac" as "mac" | "win" | "linux" },
+    host,
+  };
+});
 
 vi.mock("@/commands/keys", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/commands/keys")>()),
-  currentKeyEnvironment: () => ({ os: "mac", runtime: "desktop" }),
+  currentKeyEnvironment: () => ({ os: env.os, runtime: "desktop" }),
 }));
 
 vi.mock("@/commands/nativeMenuHost", () => ({
-  tauriMenuDeps: (env: MenuBridgeDeps["env"], getContext: MenuBridgeDeps["getContext"]): MenuBridgeDeps => ({
-    env,
+  tauriMenuDeps: (getContext: MenuBridgeDeps["getContext"]): MenuBridgeDeps => ({
     getContext,
     getLanguage: () => "en",
     getChecks: () => ({}),
-    sync: async (state) => {
+    sync: async (state: MenuState) => {
       host.syncs.push(state);
-      return [];
     },
     listen: async (handler) => {
       host.handlers.add(handler);
@@ -41,10 +80,23 @@ vi.mock("@/commands/nativeMenuHost", () => ({
         host.unlistened += 1;
       };
     },
+    pullEvents: host.pull,
+    ackEvents: host.ack,
+    cursor: host.cursor as MenuCursorStore,
     subscribe: () => () => {},
   }),
 }));
 
+vi.mock("@/commands/zoom", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/commands/zoom")>()),
+  appZoom: { apply: zoomMock, level: () => 1 },
+}));
+vi.mock("@/navigation/tabs", () => ({
+  newTab: newTabMock,
+  closeTab: closeTabMock,
+  cycleTab: vi.fn(),
+  selectTabAt: vi.fn(),
+}));
 vi.mock("@/contexts/modal", () => ({ useModal: () => ({ openModal: openModalMock }) }));
 vi.mock("@/contexts/platform", () => ({ usePlatform: () => ({ isMobile: false, isDesktop: true }) }));
 vi.mock("@/hooks/analytics/useAnalyticsNavigation", () => ({
@@ -68,39 +120,65 @@ vi.mock("@/store/useAppStore", () => {
 });
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const strict = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children);
 
-/** The OS's order for a menu accelerator: the web view first, then the menu if the page left it. */
+/** macOS order (docs/adr/0001-native-menu-input-ownership.md): the page first; a key it leaves reaches the menu item. */
 function pressMenuKey(init: KeyboardEventInit, id: string) {
   const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
   window.dispatchEvent(event);
-  if (!event.defaultPrevented) host.handlers.forEach((handler) => handler(id));
+  if (!event.defaultPrevented) host.choose(id);
+  return event;
 }
 
-describe("useAppKeyboard in the Mac app", () => {
+describe("useAppKeyboard in the desktop app", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
-    host.handlers.clear();
-    host.syncs.length = 0;
-    host.unlistened = 0;
+    host.reset();
+    env.os = "mac";
   });
 
-  it("runs ⌘K once: the menu item runs it and the key listener leaves it", async () => {
+  it("runs ⌘K once: the page runs it and claims it, so the menu item does not", async () => {
     renderHook(() => useAppKeyboard());
     await flush();
-    expect(host.syncs).toHaveLength(1);
-    pressMenuKey({ key: "k", code: "KeyK", metaKey: true }, "palette.open");
+    const event = pressMenuKey({ key: "k", code: "KeyK", metaKey: true }, "palette.open");
+    expect(event.defaultPrevented).toBe(true);
     expect(openModalMock).toHaveBeenCalledTimes(1);
     expect(openModalMock).toHaveBeenCalledWith("globalSearch");
   });
 
-  it("runs ⌘⇧F once under StrictMode", async () => {
-    const wrapper = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children);
-    renderHook(() => useAppKeyboard(), { wrapper });
+  it("runs ⌘⇧F and a View → Session Minimap click once each under StrictMode", async () => {
+    renderHook(() => useAppKeyboard(), { wrapper: strict });
     await flush();
     expect(host.handlers.size).toBe(1);
     pressMenuKey({ key: "f", code: "KeyF", metaKey: true, shiftKey: true }, "view.toggleMinimap");
     expect(toggleMinimapMock).toHaveBeenCalledTimes(1);
+    host.choose("view.toggleMinimap");
+    await flush();
+    expect(toggleMinimapMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs ⌘T ⌘T ⌘W chosen during a page reload once each, in order, after what the old page ran", async () => {
+    const order: string[] = [];
+    newTabMock.mockImplementation(() => order.push("new"));
+    closeTabMock.mockImplementation(() => order.push("close"));
+    const oldPage = renderHook(() => useAppKeyboard(), { wrapper: strict });
+    await flush();
+    host.dropAcks = true; // the old page's acknowledgement is lost with it
+    host.choose("tab.new");
+    await flush();
+    expect(order).toEqual(["new"]);
+    oldPage.unmount();
+    host.dropAcks = false;
+    // No page listens: the accelerators reach the menu items and are journaled.
+    host.choose("tab.new");
+    host.choose("tab.new");
+    host.choose("tab.close");
+    renderHook(() => useAppKeyboard(), { wrapper: strict });
+    await flush();
+    await flush();
+    expect(order).toEqual(["new", "new", "new", "close"]);
+    expect(host.retained()).toEqual([]);
   });
 
   it("stops the menu bridge on unmount", async () => {

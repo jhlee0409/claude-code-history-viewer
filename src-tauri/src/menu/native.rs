@@ -2,16 +2,22 @@
 //!
 //! - `initial_menu` builds the menu at startup in the saved UI language (or
 //!   the system's), every command enabled.
-//! - `handle_menu_event` forwards an app command's click or accelerator to the
-//!   frontend as one `menu-command` event, or queues it until the frontend is
-//!   ready (`MenuBridge`). OS items (copy, quit...) never reach it.
+//! - `handle_menu_event` records an app command's click or accelerator in the
+//!   menu journal (`MenuJournal`: numbered, kept until acknowledged) and emits
+//!   it to the frontend as one `menu-command` event. OS items (copy, quit...)
+//!   never reach it.
+//! - `menu_journal` / `ack_menu_events`: the frontend pulls what it has not
+//!   run (startup, a reload, a new listener) and acknowledges what it ran.
 //! - `sync_menu_state` takes the frontend's language and command state: a new
 //!   language rebuilds the menu; otherwise changed items are updated in place.
+//!   The state is only shown: the page owns the shortcuts and re-checks a
+//!   command when its menu event runs.
 //!
 //! One app-wide menu-event handler is registered once at startup, so a
 //! rebuilt menu adds no listener.
 
-use super::bridge::{Dispatch, ItemState, MenuBridge, MenuStatePayload, SyncOutcome};
+use super::bridge::{ItemState, MenuBridge, MenuStatePayload, SyncOutcome};
+use super::journal::{JournalSnapshot, MenuJournal};
 use super::labels::Labels;
 use super::manifest::{manifest, MenuId, Os, PredefinedKind};
 use super::spec::{build_spec, ItemSpec, MenuSpec};
@@ -216,13 +222,12 @@ fn apply_state<R: Runtime>(item: &MenuItemKind<R>, state: ItemState) -> tauri::R
 /// The app-wide menu-event handler (`Builder::on_menu_event`).
 pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     let bridge = app.state::<MenuBridge>();
-    match bridge.on_menu_event(manifest(), id) {
-        Dispatch::Emit => {
-            if let Err(error) = app.emit_to("main", MENU_COMMAND_EVENT, id) {
-                log::error!("menu command {id} not delivered: {error}");
-            }
+    if let Some(event) = app.state::<MenuJournal>().record(manifest(), id) {
+        // A page that is not listening (startup, a reload) pulls it from the
+        // journal instead; a failed emit loses nothing.
+        if let Err(error) = app.emit_to("main", MENU_COMMAND_EVENT, &event) {
+            log::warn!("menu event {} kept for the next pull: {error}", event.seq);
         }
-        Dispatch::Queued | Dispatch::Ignore => {}
     }
     // A checkbox item ticks itself when chosen. Put it back to the app's
     // state; the frontend's next sync ticks it if the command did toggle.
@@ -236,25 +241,31 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     }
 }
 
-/// The frontend reports its language and command state; replies, once the
-/// native menu shows that state, with the menu events queued before it was
-/// ready (oldest first).
+/// The frontend reports its language and command state; the menu shows it.
 #[tauri::command]
 pub async fn sync_menu_state(
     app: AppHandle,
     bridge: State<'_, MenuBridge>,
     state: MenuStatePayload,
-) -> Result<Vec<String>, String> {
+) -> Result<(), String> {
     let outcome = bridge.sync(manifest(), state);
-    // The menu calls run on the main thread and return once applied, so the
-    // reply tells the frontend the native menu is in this state.
     if let Err(error) = apply_outcome(&app, &outcome) {
         bridge.apply_failed();
         return Err(error.to_string());
     }
-    // Ready only now: an event chosen while the menu was being updated was
-    // queued, so it follows the queue the reply carries.
-    Ok(bridge.applied())
+    Ok(())
+}
+
+/// Every menu event the frontend has not acknowledged, oldest first.
+#[tauri::command]
+pub fn menu_journal(journal: State<'_, MenuJournal>) -> JournalSnapshot {
+    journal.snapshot()
+}
+
+/// The frontend ran every menu event up to `seq` of run `epoch`.
+#[tauri::command]
+pub fn ack_menu_events(journal: State<'_, MenuJournal>, epoch: String, seq: u64) {
+    journal.ack(&epoch, seq);
 }
 
 fn apply_outcome<R: Runtime>(app: &AppHandle<R>, outcome: &SyncOutcome) -> tauri::Result<()> {

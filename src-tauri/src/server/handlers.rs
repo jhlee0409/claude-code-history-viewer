@@ -959,11 +959,25 @@ handler_json!(
 );
 
 /// `sync_menu_state` (desktop: the native menu's language and command state).
-/// The `WebUI` has no native menu, so the route only keeps the desktop and
-/// `WebUI` command surfaces in parity: it accepts the body and replies with no
-/// queued menu events.
+/// The `WebUI` has no native menu, so the menu routes only keep the desktop
+/// and `WebUI` command surfaces in parity: this one accepts the body and
+/// does nothing.
 pub async fn sync_menu_state() -> Result<Json<Value>, ApiError> {
-    Ok(Json(serde_json::json!([])))
+    Ok(Json(Value::Null))
+}
+
+/// `menu_journal` (desktop: menu events not yet acknowledged). No native
+/// menu in the `WebUI`: an empty journal.
+pub async fn menu_journal() -> Result<Json<Value>, ApiError> {
+    Ok(Json(
+        serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+    ))
+}
+
+/// `ack_menu_events` (desktop: drop acknowledged menu events). A no-op in
+/// the `WebUI`.
+pub async fn ack_menu_events() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
 }
 
 /// Special handler: returns URL instead of opening browser on server.

@@ -208,7 +208,9 @@ impl Entry {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
-    pub native_shortcuts: PlatformFlags,
+    /// Where the native items carry the app commands' accelerators
+    /// (`MENU_ACCELERATORS` in `manifest.ts`; the page still owns the keys).
+    pub menu_accelerators: PlatformFlags,
     pub commands: Vec<Entry>,
 }
 

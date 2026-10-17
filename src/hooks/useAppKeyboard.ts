@@ -13,12 +13,13 @@ import { createCtrlWheelZoom } from "@/commands/zoom";
  * listener (`src/commands/shortcuts.ts`) and by the menu bar the Rust side
  * builds from the same manifest (`src/commands/nativeMenu.ts`).
  *
- * Each shortcut has one owner: where the native menu owns shortcuts (the Mac
- * app) the menu item runs a menu command's key and the listener skips it;
- * everywhere else the listener runs it.
- *
- * In the desktop app Ctrl + wheel zooms too, through the same zoom commands
- * (`src/commands/zoom.ts`), the web view's one zoom owner.
+ * Each input has one fixed owner, never switched by asynchronous state:
+ * - every app key: the key listener (in the Mac app it claims each one, so
+ *   the menu item carrying the same key does not run it too);
+ * - a menu click (or an accelerator that reached the menu while no page
+ *   listened): the menu journal, oldest first, once each;
+ * - zoom keys and Ctrl + wheel: the zoom commands (`src/commands/zoom.ts`),
+ *   the web view's one zoom owner.
  *
  * Mount once, at the app root. The listener and the menu bridge are bound
  * once and read the live state through the command context when a key or a
@@ -29,13 +30,8 @@ export function useAppKeyboard() {
 
   useEffect(() => {
     const env = currentKeyEnvironment();
-    const menu = env.runtime === "desktop" ? startMenuBridge(tauriMenuDeps(env, getContext)) : null;
-    const handleKeyDown = createShortcutHandler({
-      commands: COMMANDS,
-      env,
-      getContext,
-      ownedByNativeMenu: menu?.owns,
-    });
+    const menu = env.runtime === "desktop" ? startMenuBridge(tauriMenuDeps(getContext)) : null;
+    const handleKeyDown = createShortcutHandler({ commands: COMMANDS, env, getContext });
     window.addEventListener("keydown", handleKeyDown);
     const handleWheel =
       env.runtime === "desktop"

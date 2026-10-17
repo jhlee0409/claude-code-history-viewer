@@ -1,32 +1,41 @@
 /**
  * The real host for the native-menu bridge (`nativeMenu.ts`): Tauri's event
- * channel, the `sync_menu_state` command, the app store and i18next.
+ * channel, the `sync_menu_state` / `menu_journal` / `ack_menu_events`
+ * commands, the app store and i18next.
  */
 import i18n from "i18next";
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
-import type { KeyEnvironment } from "./keys";
 import { MENU_CHECKS, MENU_COMMAND_EVENT, type MenuBridgeDeps, type MenuState } from "./nativeMenu";
+import { sessionCursorStore, type LiveMenuEvent, type MenuJournalSnapshot } from "./menuJournal";
 import type { CommandContext } from "./registry";
 
-export function tauriMenuDeps(env: KeyEnvironment, getContext: () => CommandContext): MenuBridgeDeps {
+export function tauriMenuDeps(getContext: () => CommandContext): MenuBridgeDeps {
   return {
-    env,
     getContext,
     getLanguage: () => i18n.resolvedLanguage ?? i18n.language ?? "en",
     getChecks: () => {
       const state = useAppStore.getState();
       return Object.fromEntries(Object.entries(MENU_CHECKS).map(([id, isOn]) => [id, isOn(state)]));
     },
-    sync: (state: MenuState) => api<string[]>("sync_menu_state", { state }),
-    // The keys keep working (the DOM listener takes them back); the menu's
-    // ticks and greyed items may be stale until the next change syncs.
+    sync: async (state: MenuState) => {
+      await api<null>("sync_menu_state", { state });
+    },
+    // Only the menu's ticks and greyed items may be stale until the next
+    // change syncs; keys and menu events do not depend on them.
     onSyncError: () => toast.error(i18n.t("common.menu.syncFailed")),
+    // The host keeps the events; the next menu event pulls again.
+    onPullError: () => toast.error(i18n.t("common.menu.eventsFailed")),
     listen: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
-      return listen<string>(MENU_COMMAND_EVENT, (event) => handler(event.payload));
+      return listen<LiveMenuEvent>(MENU_COMMAND_EVENT, (event) => handler(event.payload));
     },
+    pullEvents: () => api<MenuJournalSnapshot>("menu_journal"),
+    ackEvents: async (epoch, seq) => {
+      await api<null>("ack_menu_events", { epoch, seq });
+    },
+    cursor: sessionCursorStore(),
     subscribe: (onChange) => {
       const unsubscribeStore = useAppStore.subscribe(onChange);
       i18n.on("languageChanged", onChange);

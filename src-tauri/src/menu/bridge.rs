@@ -1,28 +1,22 @@
-//! The menu's side of the frontend handshake (plan §4.4), kept free of Tauri
-//! types so its rules are unit-tested:
+//! The native menu's state, kept free of Tauri types so its rules are
+//! unit-tested (plan §4.4):
 //!
-//! - A menu event reaches the frontend only once it is ready. Until its first
-//!   `sync_menu_state` has been applied to the native menu (and again from a
-//!   page reload until the next one) the event is queued; `applied` marks the
-//!   frontend ready and hands the queue back, oldest first, in that sync's
-//!   reply. An event chosen while a sync is being applied is queued too, so
-//!   it follows the queue; a failed apply keeps the queue for the next sync.
 //! - A sync carries the UI language and each menu command's enabled/checked
 //!   state. A new language means the menu is rebuilt in it; otherwise only
 //!   the items whose state changed are updated. When applying a sync fails
 //!   the native menu's state is unknown, so the next sync rebuilds it whole
 //!   (`apply_failed`).
-//! - Ids outside the manifest's menu commands are ignored: a menu event for
-//!   one is not forwarded, a state for one is not kept.
+//! - The state is shown, never relied on: the page owns every shortcut and
+//!   `runCommand` re-checks a command when a menu event runs, so a stale item
+//!   can neither swallow nor double a key. Menu events themselves go through
+//!   the journal (`journal.rs`), not through this state.
+//! - Ids outside the manifest's menu commands are ignored.
 
 use super::labels::resolve_language;
 use super::manifest::Manifest;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
-
-/// The most queued events kept; older ones are dropped first.
-const MAX_PENDING: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct ItemState {
@@ -39,17 +33,6 @@ pub struct MenuStatePayload {
     pub items: HashMap<String, ItemState>,
 }
 
-/// What to do with a menu event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Dispatch {
-    /// Send it to the frontend now.
-    Emit,
-    /// The frontend is not ready; it was queued.
-    Queued,
-    /// Not an app command (an OS item, an unknown id).
-    Ignore,
-}
-
 /// What a sync asks the native menu to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncOutcome {
@@ -62,8 +45,6 @@ pub struct SyncOutcome {
 
 #[derive(Debug, Default)]
 struct Inner {
-    ready: bool,
-    pending: Vec<String>,
     /// The language the current menu is titled in.
     language: String,
     items: HashMap<String, ItemState>,
@@ -109,26 +90,6 @@ impl MenuBridge {
         self.lock().items.clone()
     }
 
-    pub fn on_menu_event(&self, manifest: &Manifest, id: &str) -> Dispatch {
-        if !manifest.is_menu_command(id) {
-            return Dispatch::Ignore;
-        }
-        let mut inner = self.lock();
-        if inner.ready {
-            return Dispatch::Emit;
-        }
-        if inner.pending.len() == MAX_PENDING {
-            inner.pending.remove(0);
-        }
-        inner.pending.push(id.to_string());
-        Dispatch::Queued
-    }
-
-    /// The page started (re)loading: hold menu events until it syncs again.
-    pub fn page_loading(&self) {
-        self.lock().ready = false;
-    }
-
     /// Applying the last sync failed: the next one rebuilds the whole menu.
     pub fn apply_failed(&self) {
         self.lock().dirty = true;
@@ -139,8 +100,7 @@ impl MenuBridge {
         self.lock().items.get(id).and_then(|state| state.checked)
     }
 
-    /// What the native menu must do for `payload`. The frontend is not ready
-    /// until that is done (`applied`).
+    /// What the native menu must do for `payload`.
     pub fn sync(&self, manifest: &Manifest, payload: MenuStatePayload) -> SyncOutcome {
         let mut inner = self.lock();
         let mut changed = HashMap::new();
@@ -170,14 +130,6 @@ impl MenuBridge {
             },
         }
     }
-
-    /// The sync is applied: the frontend is ready. Returns the queued menu
-    /// events, oldest first, for the sync's reply.
-    pub fn applied(&self) -> Vec<String> {
-        let mut inner = self.lock();
-        inner.ready = true;
-        std::mem::take(&mut inner.pending)
-    }
 }
 
 #[cfg(test)]
@@ -204,78 +156,11 @@ mod tests {
     }
 
     #[test]
-    fn queues_menu_events_until_the_frontend_syncs_then_hands_them_back() {
+    fn ignores_the_state_of_an_unknown_id() {
         let bridge = MenuBridge::new("en");
         let m = manifest();
-        assert_eq!(bridge.on_menu_event(m, "palette.open"), Dispatch::Queued);
-        assert_eq!(bridge.on_menu_event(m, "go.back"), Dispatch::Queued);
-        bridge.sync(m, payload("en", &[]));
-        assert_eq!(bridge.applied(), vec!["palette.open", "go.back"]);
-        assert_eq!(bridge.on_menu_event(m, "go.back"), Dispatch::Emit);
-        bridge.sync(m, payload("en", &[]));
-        assert_eq!(bridge.applied(), Vec::<String>::new());
-    }
-
-    #[test]
-    fn queues_again_while_the_page_reloads() {
-        let bridge = MenuBridge::new("en");
-        let m = manifest();
-        bridge.sync(m, payload("en", &[]));
-        bridge.applied();
-        bridge.page_loading();
-        assert_eq!(bridge.on_menu_event(m, "tab.new"), Dispatch::Queued);
-        bridge.sync(m, payload("en", &[]));
-        assert_eq!(bridge.applied(), vec!["tab.new"]);
-    }
-
-    #[test]
-    fn stays_unready_until_the_sync_is_applied_and_hands_back_events_queued_meanwhile() {
-        let bridge = MenuBridge::new("en");
-        let m = manifest();
-        assert_eq!(bridge.on_menu_event(m, "tab.new"), Dispatch::Queued);
-        bridge.sync(m, payload("en", &[("go.back", true)]));
-        // The native menu is being updated: not ready yet.
-        assert_eq!(bridge.on_menu_event(m, "tab.close"), Dispatch::Queued);
-        assert_eq!(bridge.applied(), vec!["tab.new", "tab.close"]);
-        assert_eq!(bridge.on_menu_event(m, "go.back"), Dispatch::Emit);
-    }
-
-    #[test]
-    fn a_failed_apply_keeps_the_queue_for_the_next_sync() {
-        let bridge = MenuBridge::new("en");
-        let m = manifest();
-        bridge.on_menu_event(m, "tab.new");
-        bridge.sync(m, payload("en", &[]));
-        bridge.apply_failed();
-        assert_eq!(bridge.on_menu_event(m, "tab.close"), Dispatch::Queued);
-        bridge.sync(m, payload("en", &[]));
-        assert_eq!(bridge.applied(), vec!["tab.new", "tab.close"]);
-    }
-
-    #[test]
-    fn ignores_os_items_and_unknown_ids() {
-        let bridge = MenuBridge::new("en");
-        let m = manifest();
-        bridge.sync(m, payload("en", &[]));
-        bridge.applied();
-        assert_eq!(bridge.on_menu_event(m, "edit.copy"), Dispatch::Ignore);
-        assert_eq!(bridge.on_menu_event(m, "no.such"), Dispatch::Ignore);
         let outcome = bridge.sync(m, payload("en", &[("no.such", true)]));
         assert!(outcome.items.is_empty());
-    }
-
-    #[test]
-    fn keeps_a_bounded_queue() {
-        let bridge = MenuBridge::new("en");
-        let m = manifest();
-        for _ in 0..(MAX_PENDING + 5) {
-            bridge.on_menu_event(m, "go.back");
-        }
-        bridge.on_menu_event(m, "go.forward");
-        bridge.sync(m, payload("en", &[]));
-        let pending = bridge.applied();
-        assert_eq!(pending.len(), MAX_PENDING);
-        assert_eq!(pending.last().map(String::as_str), Some("go.forward"));
     }
 
     #[test]

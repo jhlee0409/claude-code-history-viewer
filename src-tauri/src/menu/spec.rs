@@ -66,10 +66,10 @@ fn item_for(entry: &Entry, os: Os, manifest: &Manifest, labels: &Labels) -> Opti
     match entry.source {
         Source::Frontend => {
             let label_key = entry.menu_label_key.as_deref().unwrap_or(&entry.label_key);
-            // Where the native menu does not own shortcuts yet, the item shows
-            // none: the DOM listener runs the key (one owner per runtime).
+            // The page owns every key. Where the menu could see a key first
+            // (or is not verified yet) the item carries no accelerator.
             let accelerator = manifest
-                .native_shortcuts
+                .menu_accelerators
                 .for_os(os)
                 .then(|| entry.shortcut_on(os).map(str::to_string))
                 .flatten();
@@ -433,7 +433,7 @@ mod tests {
     #[test]
     fn windows_and_linux_items_carry_no_app_accelerators_until_their_smoke_passes() {
         for os in [Os::Win, Os::Linux] {
-            assert!(!manifest().native_shortcuts.for_os(os));
+            assert!(!manifest().menu_accelerators.for_os(os));
             for item in spec(os, "en").items() {
                 if let ItemSpec::Command {
                     id, accelerator, ..
@@ -443,7 +443,7 @@ mod tests {
                 }
             }
         }
-        assert!(manifest().native_shortcuts.for_os(Os::Mac));
+        assert!(manifest().menu_accelerators.for_os(Os::Mac));
     }
 
     #[test]

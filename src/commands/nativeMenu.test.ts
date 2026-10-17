@@ -1,19 +1,21 @@
 /**
  * The desktop's native-menu bridge (plan §4.4, T11a): the menu the Rust side
- * builds from the manifest runs the same registry commands, a shortcut has one
- * owner, and the menu follows the app's language and command state.
+ * builds from the manifest runs the same registry commands through the menu
+ * journal, and shows the app's language and command state. The state is only
+ * shown: no key and no menu event depends on it (the page owns every app key,
+ * `shortcuts.ts`; ordering and delivery are the journal's, `menuJournal.ts`).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import raw from "./manifest.json";
-import { COMMAND_MANIFEST, NATIVE_SHORTCUTS, PREDEFINED_MENU_ITEMS } from "./manifest";
+import { COMMAND_MANIFEST, MENU_ACCELERATORS, PREDEFINED_MENU_ITEMS } from "./manifest";
 import { COMMANDS, type CommandActions, type CommandContext } from "./registry";
-import { createShortcutHandler } from "./shortcuts";
+import { createShortcutHandler, menuCarriesAppKeys } from "./shortcuts";
 import type { KeyEnvironment } from "./keys";
+import { memoryCursorStore, type LiveMenuEvent, type MenuJournalSnapshot } from "./menuJournal";
 import {
   MENU_CHECKS,
   MENU_COMMAND_IDS,
   computeMenuState,
-  nativeShortcutsOwned,
   startMenuBridge,
   type MenuBridgeDeps,
   type MenuState,
@@ -59,55 +61,108 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
 
 const MAC_DESKTOP: KeyEnvironment = { os: "mac", runtime: "desktop" };
 const WIN_DESKTOP: KeyEnvironment = { os: "win", runtime: "desktop" };
+const LINUX_DESKTOP: KeyEnvironment = { os: "linux", runtime: "desktop" };
 const MAC_WEB: KeyEnvironment = { os: "mac", runtime: "web" };
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
 
-/** A fake Rust side: records syncs, delivers menu clicks, hands back a queue. */
-function fakeHost(queued: string[] = []) {
-  let menuHandler: ((id: string) => void) | null = null;
+/**
+ * A fake Rust side. `sync` replies when the test says so; the native menu is
+ * modelled as the state the host *applied*, which the test may apply before
+ * the reply is delivered (review-2 A1). Menu events go through a journal
+ * like `journal.rs`: numbered, kept until acknowledged.
+ */
+function fakeHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSyncError?: (e: unknown) => void } = {}) {
+  let listener: ((event: LiveMenuEvent) => void) | null = null;
   let changeHandler: (() => void) | null = null;
+  let language = "en";
+  let seq = 0;
+  let retained: { seq: number; id: string }[] = [];
   const syncs: MenuState[] = [];
+  const pending: Array<{ state: MenuState; apply: () => void; reply: () => void; resolve: () => void; reject: (e: unknown) => void }> = [];
+  let native: MenuState | null = null;
   const unlisten = vi.fn(() => {
-    menuHandler = null;
+    listener = null;
   });
   const unsubscribe = vi.fn(() => {
     changeHandler = null;
   });
-  let language = "en";
-  const checks: Record<string, boolean> = { "view.toggleInspector": false, "view.toggleMinimap": true };
-  const host = {
-    syncs,
-    unlisten,
-    unsubscribe,
-    setLanguage: (lng: string) => {
-      language = lng;
-      changeHandler?.();
-    },
-    change: () => changeHandler?.(),
-    click: (id: string) => menuHandler?.(id),
-    isListening: () => menuHandler !== null,
-  };
-  const deps = (ctx: CommandContext, env: KeyEnvironment = MAC_DESKTOP): MenuBridgeDeps => ({
-    env,
+  const deps: MenuBridgeDeps = {
     getContext: () => ctx,
-    getChecks: () => checks,
+    getChecks: () => ({ "view.toggleInspector": false, "view.toggleMinimap": true }),
     getLanguage: () => language,
-    sync: vi.fn(async (state: MenuState) => {
-      syncs.push(state);
-      return syncs.length === 1 ? queued : [];
-    }),
+    sync: (state) =>
+      new Promise<void>((resolve, reject) => {
+        syncs.push(state);
+        const entry = {
+          state,
+          apply: () => {
+            native = state;
+          },
+          reply: () => resolve(),
+          resolve: () => {
+            native = state;
+            resolve();
+          },
+          reject,
+        };
+        pending.push(entry);
+      }),
     listen: async (handler) => {
-      menuHandler = handler;
+      listener = handler;
       return unlisten;
     },
+    pullEvents: async (): Promise<MenuJournalSnapshot> => ({ epoch: "e", floor: 0, events: retained.map((e) => ({ ...e })) }),
+    ackEvents: async (_epoch, upTo) => {
+      retained = retained.filter((e) => e.seq > upTo);
+    },
+    cursor: memoryCursorStore(),
     subscribe: (onChange) => {
       changeHandler = onChange;
       return unsubscribe;
     },
-  });
-  return { host, deps };
+    retryDelaysMs: options.retryDelaysMs ?? [0, 0],
+    onSyncError: options.onSyncError,
+  };
+  const bridge = startMenuBridge(deps);
+  stops.push(() => bridge.stop());
+  /** A menu click or accelerator: journaled, then emitted. */
+  const choose = (id: string) => {
+    seq += 1;
+    retained.push({ seq, id });
+    listener?.({ epoch: "e", seq, id });
+  };
+  const keyHandler = createShortcutHandler({ commands: COMMANDS, env: MAC_DESKTOP, getContext: () => ctx });
+  /** macOS order (docs/adr/0001-native-menu-input-ownership.md): the page first; a key it leaves goes to the item, if the native item is enabled. */
+  const press = (init: KeyboardEventInit, id: string) => {
+    const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
+    keyHandler(event);
+    if (!event.defaultPrevented && native?.items[id]?.enabled !== false) choose(id);
+    return event;
+  };
+  return {
+    bridge,
+    syncs,
+    pending,
+    unlisten,
+    unsubscribe,
+    press,
+    choose,
+    native: () => native,
+    change: () => changeHandler?.(),
+    setLanguage: (lng: string) => {
+      language = lng;
+      changeHandler?.();
+    },
+    /** Answer every pending sync, in order. */
+    settle: async () => {
+      while (pending.length) {
+        pending.shift()?.resolve();
+        await flush();
+      }
+    },
+  };
 }
 
 const stops: Array<() => void> = [];
@@ -183,13 +238,13 @@ describe("menu manifest (D6)", () => {
   });
 });
 
-describe("shortcut owner", () => {
-  it("is the native menu in the Mac app, the DOM elsewhere until the smoke checklist passes", () => {
-    expect(NATIVE_SHORTCUTS).toEqual({ mac: true, win: false, linux: false });
-    expect(nativeShortcutsOwned(MAC_DESKTOP)).toBe(true);
-    expect(nativeShortcutsOwned(WIN_DESKTOP)).toBe(false);
-    expect(nativeShortcutsOwned({ os: "linux", runtime: "desktop" })).toBe(false);
-    expect(nativeShortcutsOwned(MAC_WEB)).toBe(false);
+describe("menu accelerators", () => {
+  it("are on the Mac app's items only; the page owns the keys everywhere and claims them where items carry them", () => {
+    expect(MENU_ACCELERATORS).toEqual({ mac: true, win: false, linux: false });
+    expect(menuCarriesAppKeys(MAC_DESKTOP)).toBe(true);
+    expect(menuCarriesAppKeys(WIN_DESKTOP)).toBe(false);
+    expect(menuCarriesAppKeys(LINUX_DESKTOP)).toBe(false);
+    expect(menuCarriesAppKeys(MAC_WEB)).toBe(false);
   });
 });
 
@@ -207,80 +262,41 @@ describe("menu state", () => {
 });
 
 describe("menu bridge", () => {
-  async function start(ctx = makeContext(), queued: string[] = [], env = MAC_DESKTOP) {
-    const { host, deps } = fakeHost(queued);
-    const bridge = startMenuBridge(deps(ctx, env));
-    stops.push(() => bridge.stop());
-    await flush();
-    return { host, bridge, ctx };
-  }
-
-  it("listens before it tells the host it is ready, then runs what the host queued", async () => {
-    const ctx = makeContext();
-    const { host } = await start(ctx, ["palette.open", "no.such.command"]);
-    expect(host.isListening()).toBe(true);
-    expect(host.syncs).toHaveLength(1);
-    expect(ctx.actions.openPalette).toHaveBeenCalledTimes(1);
-  });
-
   it("runs a menu command once, through the registry's enabled check", async () => {
-    const { host, ctx } = await start(makeContext({ canGoForward: false }));
-    host.click("go.back");
-    host.click("go.forward");
-    host.click("no.such.command");
+    const ctx = makeContext({ canGoForward: false });
+    const host = fakeHost(ctx);
+    await flush();
+    host.choose("go.back");
+    host.choose("go.forward");
+    host.choose("no.such.command");
+    await flush();
     expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
     expect(ctx.actions.goForward).not.toHaveBeenCalled();
   });
 
-  it("runs a native shortcut once: the menu runs it and the DOM listener leaves the key alone", async () => {
-    const ctx = makeContext({ canGoBack: true });
-    const { host, bridge } = await start(ctx);
-    const handler = createShortcutHandler({
-      commands: COMMANDS,
-      env: MAC_DESKTOP,
-      getContext: () => ctx,
-      ownedByNativeMenu: bridge.owns,
-    });
-    window.addEventListener("keydown", handler);
-    stops.push(() => window.removeEventListener("keydown", handler));
-    // macOS delivers ⌘[ to the web view first; unhandled, it reaches the menu.
-    const event = new KeyboardEvent("keydown", { key: "[", code: "BracketLeft", metaKey: true, cancelable: true });
-    window.dispatchEvent(event);
-    if (!event.defaultPrevented) host.click("go.back");
-    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
-  });
-
-  it("gives the key back to the DOM listener while the native item is disabled", async () => {
-    const ctx = makeContext({ canGoBack: false });
-    const { host, bridge } = await start(ctx);
-    expect(bridge.owns("go.back")).toBe(false);
-    ctx.canGoBack = true;
-    host.change();
+  it("runs menu events chosen before it started, oldest first", async () => {
+    const log: string[] = [];
+    const ctx = loggingContext(log);
+    const host = fakeHost(ctx);
+    host.choose("tab.new"); // not heard: the listener attaches asynchronously
+    host.choose("tab.close");
     await flush();
-    expect(last(host.syncs)?.items["go.back"]).toEqual({ enabled: true });
-    expect(bridge.owns("go.back")).toBe(true);
+    await flush();
+    expect(log).toEqual(["newTab", "closeTab"]);
   });
 
-  it("owns nothing outside the Mac app", async () => {
-    const { bridge } = await start(makeContext(), [], WIN_DESKTOP);
-    expect(bridge.owns("go.back")).toBe(false);
-    expect(bridge.owns("palette.open")).toBe(false);
-  });
-
-  it("owns no command without a shortcut", async () => {
-    const { bridge } = await start();
-    expect(bridge.owns("go.settingsManager")).toBe(false);
-  });
-
-  it("re-sends the state with the new language when the language changes", async () => {
-    const { host } = await start();
+  it("sends the language and state at start, and again when the language changes", async () => {
+    const host = fakeHost(makeContext());
+    expect(host.syncs).toHaveLength(1);
+    await host.settle();
     host.setLanguage("ja");
     await flush();
     expect(last(host.syncs)?.language).toBe("ja");
   });
 
   it("does not re-send an unchanged state", async () => {
-    const { host } = await start();
+    const host = fakeHost(makeContext());
+    await host.settle();
     host.change();
     host.change();
     await flush();
@@ -289,7 +305,8 @@ describe("menu bridge", () => {
 
   it("coalesces a burst of changes into one sync", async () => {
     const ctx = makeContext({ canGoBack: false });
-    const { host } = await start(ctx);
+    const host = fakeHost(ctx);
+    await host.settle();
     ctx.canGoBack = true;
     host.change();
     host.change();
@@ -298,147 +315,28 @@ describe("menu bridge", () => {
     expect(host.syncs).toHaveLength(2);
   });
 
-  it("stops listening and syncing when stopped", async () => {
-    const { host, bridge } = await start();
-    bridge.stop();
-    expect(host.unlisten).toHaveBeenCalledTimes(1);
-    expect(host.unsubscribe).toHaveBeenCalledTimes(1);
-    host.setLanguage("ko");
-    await flush();
-    expect(host.syncs).toHaveLength(1);
-  });
-
-  it("drops the listener that resolves after a stop", async () => {
-    const { host, deps } = fakeHost();
-    const bridge = startMenuBridge(deps(makeContext()));
-    bridge.stop();
-    await flush();
-    expect(host.unlisten).toHaveBeenCalledTimes(1);
-    expect(host.syncs).toHaveLength(0);
-  });
-});
-
-/**
- * A host whose replies the test resolves or rejects, with the native menu
- * modeled as the state the host last *applied* (a sync's reply means it is
- * applied). A key press goes to the DOM listener first and, unhandled, to the
- * native item - only if that item is enabled (macOS fires no accelerator of a
- * disabled item).
- */
-function deferredHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSyncError?: (e: unknown) => void } = {}) {
-  let menuHandler: ((id: string) => void) | null = null;
-  let changeHandler: (() => void) | null = null;
-  const pending: Array<{ state: MenuState; resolve: (queued: string[]) => void; reject: (e: unknown) => void }> = [];
-  let applied: MenuState | null = null;
-  const deps: MenuBridgeDeps = {
-    env: MAC_DESKTOP,
-    getContext: () => ctx,
-    getChecks: () => ({}),
-    getLanguage: () => "en",
-    sync: (state) =>
-      new Promise<string[]>((resolve, reject) => {
-        pending.push({
-          state,
-          resolve: (queued) => {
-            applied = state;
-            resolve(queued);
-          },
-          reject,
-        });
-      }),
-    listen: async (handler) => {
-      menuHandler = handler;
-      return () => {
-        menuHandler = null;
-      };
-    },
-    subscribe: (onChange) => {
-      changeHandler = onChange;
-      return () => {
-        changeHandler = null;
-      };
-    },
-    ...options,
-  };
-  const bridge = startMenuBridge(deps);
-  stops.push(() => bridge.stop());
-  const handler = createShortcutHandler({ commands: COMMANDS, env: MAC_DESKTOP, getContext: () => ctx, ownedByNativeMenu: bridge.owns });
-  const press = (init: KeyboardEventInit, id: string) => {
-    const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
-    handler(event);
-    if (!event.defaultPrevented && applied?.items[id]?.enabled !== false) menuHandler?.(id);
-  };
-  return {
-    bridge,
-    pending,
-    press,
-    change: () => changeHandler?.(),
-    deliver: (id: string) => menuHandler?.(id),
-    applied: () => applied,
-  };
-}
-
-const BACK_KEY: KeyboardEventInit = { key: "[", code: "BracketLeft", metaKey: true };
-
-describe("shortcut owner follows the state the host acknowledged", () => {
-  it("leaves every key to the DOM listener until the host acknowledges a state", async () => {
-    const ctx = makeContext({ canGoBack: true });
-    const host = deferredHost(ctx);
-    await flush();
-    expect(host.pending).toHaveLength(1);
-    expect(host.bridge.owns("go.back")).toBe(false);
-    host.press(BACK_KEY, "go.back");
-    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
-  });
-
-  it("runs a key once while an enable is still on its way to the native item (R1)", async () => {
+  it("keeps one sync in flight and sends the newest state after it, never an older one", async () => {
     const ctx = makeContext({ canGoBack: false });
-    const host = deferredHost(ctx);
-    await flush();
-    host.pending.shift()?.resolve([]);
+    const host = fakeHost(ctx);
     await flush();
     ctx.canGoBack = true;
     host.change();
     await flush();
-    expect(host.pending).toHaveLength(1);
-    expect(host.applied()?.items["go.back"]).toEqual({ enabled: false });
-    host.press(BACK_KEY, "go.back");
-    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
-    host.pending.shift()?.resolve([]);
-    await flush();
-    expect(host.bridge.owns("go.back")).toBe(true);
-    host.press(BACK_KEY, "go.back");
-    expect(ctx.actions.goBack).toHaveBeenCalledTimes(2);
-  });
-
-  it("gives every key back to the DOM listener when a sync fails, and retries it", async () => {
-    const ctx = makeContext({ canGoBack: true });
-    const host = deferredHost(ctx, { retryDelaysMs: [0] });
-    await flush();
-    host.pending.shift()?.resolve([]);
-    await flush();
-    expect(host.bridge.owns("go.back")).toBe(true);
-    ctx.tabCount = 1;
+    ctx.canGoBack = false;
+    ctx.canGoForward = true;
     host.change();
     await flush();
-    const failed = host.pending.shift();
-    failed?.reject(new Error("injected IPC failure"));
-    await flush();
-    expect(host.bridge.owns("go.back")).toBe(false);
-    host.press(BACK_KEY, "go.back");
-    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+    expect(host.pending).toHaveLength(1);
+    host.pending.shift()?.resolve();
     await flush();
     expect(host.pending).toHaveLength(1);
-    expect(host.pending[0].state).toEqual(failed?.state);
-    host.pending.shift()?.resolve([]);
-    await flush();
-    expect(host.bridge.owns("go.back")).toBe(true);
+    expect(host.pending[0]?.state.items["go.back"]).toEqual({ enabled: false });
+    expect(host.pending[0]?.state.items["go.forward"]).toEqual({ enabled: true });
   });
 
-  it("stops retrying after its backoff, reports it once, and syncs again on the next change", async () => {
+  it("retries a failed sync, then stops after its backoff, reports once, and syncs again on the next change", async () => {
     const onSyncError = vi.fn();
-    const ctx = makeContext();
-    const host = deferredHost(ctx, { retryDelaysMs: [0, 0], onSyncError });
+    const host = fakeHost(makeContext(), { retryDelaysMs: [0, 0], onSyncError });
     for (let attempt = 0; attempt < 3; attempt++) {
       await flush();
       expect(host.pending, `attempt ${attempt}`).toHaveLength(1);
@@ -453,45 +351,104 @@ describe("shortcut owner follows the state the host acknowledged", () => {
     expect(host.pending).toHaveLength(1);
   });
 
-  it("keeps one sync in flight and sends the newest state after it, never an older one", async () => {
-    const ctx = makeContext({ canGoBack: false });
-    const host = deferredHost(ctx);
+  it("stops listening and syncing when stopped", async () => {
+    const host = fakeHost(makeContext());
+    await host.settle();
+    host.bridge.stop();
+    expect(host.unlisten).toHaveBeenCalledTimes(1);
+    expect(host.unsubscribe).toHaveBeenCalledTimes(1);
+    host.setLanguage("ko");
     await flush();
+    expect(host.syncs).toHaveLength(1);
+  });
+});
+
+/** A context whose actions log their names, in call order. */
+function loggingContext(log: string[]): CommandContext {
+  const ctx = makeContext({ tabCount: 2 });
+  ctx.actions = new Proxy(ctx.actions, {
+    get: (_target, name) => () => {
+      log.push(String(name));
+    },
+  }) as CommandActions;
+  return ctx;
+}
+
+const BACK_KEY: KeyboardEventInit = { key: "[", code: "BracketLeft", metaKey: true };
+
+/**
+ * The races of the earlier "native owns the key while acknowledged enabled"
+ * design, replayed against the fixed owner: each press of an enabled command
+ * runs once, whatever the menu state is doing.
+ */
+describe("no key depends on the menu state (review R1, review-2 A1)", () => {
+  it("runs ⌘[ once while an enable is still on its way to the native item (R1)", async () => {
+    const ctx = makeContext({ canGoBack: false });
+    const host = fakeHost(ctx);
+    await host.settle();
+    expect(host.native()?.items["go.back"]).toEqual({ enabled: false });
     ctx.canGoBack = true;
     host.change();
     await flush();
-    ctx.canGoBack = false;
-    ctx.canGoForward = true;
-    host.change();
-    await flush();
-    expect(host.pending).toHaveLength(1);
-    host.pending.shift()?.resolve([]);
-    await flush();
-    expect(host.pending).toHaveLength(1);
-    expect(host.pending[0].state.items["go.back"]).toEqual({ enabled: false });
-    expect(host.pending[0].state.items["go.forward"]).toEqual({ enabled: true });
+    expect(host.pending).toHaveLength(1); // held: the native item is still disabled
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
   });
 
-  it("runs every press exactly once (or not at all when disabled) across enable/disable transitions", async () => {
+  it("runs ⌘[ once after a failed sync, with no retry yet (R1)", async () => {
     const ctx = makeContext({ canGoBack: false });
-    const host = deferredHost(ctx, { retryDelaysMs: [] });
+    const host = fakeHost(ctx, { retryDelaysMs: [] });
+    await host.settle();
+    ctx.canGoBack = true;
+    host.change();
+    await flush();
+    host.pending.shift()?.reject(new Error("injected IPC failure"));
+    await flush();
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs ⌘[ once when a disable was applied natively but its reply is still on its way, and Back is enabled again (A1)", async () => {
+    const ctx = makeContext({ canGoBack: true });
+    const host = fakeHost(ctx);
+    await host.settle();
+    ctx.canGoBack = false;
+    host.change();
+    await flush();
+    const disabling = host.pending.shift();
+    disabling?.apply(); // the native item is now disabled; the reply is held in transport
+    expect(host.native()?.items["go.back"]).toEqual({ enabled: false });
+    ctx.canGoBack = true;
+    host.change();
+    await flush();
+    host.press(BACK_KEY, "go.back");
+    expect(ctx.actions.goBack).toHaveBeenCalledTimes(1);
+    disabling?.reply();
+    await flush();
+  });
+
+  it("runs every press exactly once (or never when disabled) across enable/disable/failure transitions", async () => {
+    const ctx = makeContext({ canGoBack: false });
+    const host = fakeHost(ctx, { retryDelaysMs: [] });
     const expectOnePressRuns = (label: string) => {
       const before = vi.mocked(ctx.actions.goBack).mock.calls.length;
       host.press(BACK_KEY, "go.back");
-      const runs = vi.mocked(ctx.actions.goBack).mock.calls.length - before;
-      expect(runs, label).toBe(ctx.canGoBack ? 1 : 0);
+      expect(vi.mocked(ctx.actions.goBack).mock.calls.length - before, label).toBe(ctx.canGoBack ? 1 : 0);
     };
     await flush();
     expectOnePressRuns("before the first reply");
-    host.pending.shift()?.resolve([]);
-    await flush();
+    await host.settle();
     for (const enabled of [true, false, true, false]) {
       ctx.canGoBack = enabled;
       host.change();
       await flush();
       expectOnePressRuns(`pending ${enabled}`);
-      host.pending.shift()?.resolve([]);
-      await flush();
+      host.pending[0]?.apply();
+      expectOnePressRuns(`applied, reply pending ${enabled}`);
+      ctx.canGoBack = !enabled;
+      expectOnePressRuns(`applied, context flipped ${enabled}`);
+      ctx.canGoBack = enabled;
+      await host.settle();
       expectOnePressRuns(`acknowledged ${enabled}`);
     }
     for (const enabled of [true, false]) {
@@ -505,81 +462,7 @@ describe("shortcut owner follows the state the host acknowledged", () => {
   });
 });
 
-describe("menu events run in the order they were chosen", () => {
-  /** A context whose actions log their names, in call order. */
-  function loggingContext(log: string[]): CommandContext {
-    const ctx = makeContext({ tabCount: 2 });
-    ctx.actions = new Proxy(ctx.actions, {
-      get: (_target, name) => () => {
-        log.push(String(name));
-      },
-    }) as CommandActions;
-    return ctx;
-  }
-
-  it("runs the startup queue before a live event that arrives while the reply is on its way (R2)", async () => {
-    const log: string[] = [];
-    const host = deferredHost(loggingContext(log));
-    await flush();
-    host.deliver("tab.close");
-    expect(log).toEqual([]);
-    host.pending.shift()?.resolve(["tab.new"]);
-    await flush();
-    expect(log).toEqual(["newTab", "closeTab"]);
-    host.deliver("go.back");
-    expect(log).toEqual(["newTab", "closeTab", "goBack"]);
-  });
-
-  it("does the same after a page reload: the new page's queue first, then live events", async () => {
-    const log: string[] = [];
-    const ctx = loggingContext(log);
-    const before = deferredHost(ctx);
-    await flush();
-    before.pending.shift()?.resolve([]);
-    await flush();
-    before.bridge.stop();
-    const after = deferredHost(ctx);
-    await flush();
-    after.deliver("tab.close");
-    after.deliver("go.back");
-    after.pending.shift()?.resolve(["tab.new", "tab.next"]);
-    await flush();
-    expect(log).toEqual(["newTab", "cycleTab", "closeTab", "goBack"]);
-  });
-
-  it("keeps holding live events through a failed first sync and runs them after the retried queue", async () => {
-    const log: string[] = [];
-    const host = deferredHost(loggingContext(log), { retryDelaysMs: [0] });
-    await flush();
-    host.deliver("tab.close");
-    host.pending.shift()?.reject(new Error("down"));
-    await flush();
-    await flush();
-    expect(log).toEqual([]);
-    host.pending.shift()?.resolve(["tab.new"]);
-    await flush();
-    expect(log).toEqual(["newTab", "closeTab"]);
-  });
-
-  it("hands a reply that lands after a stop to the next bridge, ahead of its own events", async () => {
-    const log: string[] = [];
-    const ctx = loggingContext(log);
-    const first = deferredHost(ctx);
-    await flush();
-    const reply = first.pending.shift();
-    first.bridge.stop();
-    const second = deferredHost(ctx);
-    await flush();
-    reply?.resolve(["tab.new"]);
-    await flush();
-    second.deliver("tab.close");
-    second.pending.shift()?.resolve(["go.back"]);
-    await flush();
-    expect(log).toEqual(["newTab", "goBack", "closeTab"]);
-  });
-});
-
-describe("View → Zoom (§9b A1: one owner with the old zoom hotkeys)", () => {
+describe("View → Zoom (§9b A1)", () => {
   const ZOOM_IDS = ["view.zoomIn", "view.zoomOut", "view.actualSize"] as const;
 
   it("lists Zoom In ⌘=, Zoom Out ⌘- and Actual Size ⌘0 in the View menu, on every desktop", () => {
@@ -597,63 +480,33 @@ describe("View → Zoom (§9b A1: one owner with the old zoom hotkeys)", () => {
     expect(conf.app.windows.map((w: { zoomHotkeysEnabled?: boolean }) => w.zoomHotkeysEnabled)).toEqual([false]);
   });
 
-  function zoomHarness(env: KeyEnvironment, ctx = makeContext()) {
-    const { host, deps } = fakeHost();
-    const bridge = startMenuBridge(deps(ctx, env));
-    stops.push(() => bridge.stop());
-    const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx, ownedByNativeMenu: bridge.owns });
-    /** The web view first; a key it leaves goes to the native item, which exists only where the menu owns keys. */
-    const press = (init: KeyboardEventInit, nativeId: string | null) => {
-      const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
+  function pressAll(env: KeyEnvironment, ctx = makeContext()) {
+    const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx });
+    const prevented = [
+      { key: "=", code: "Equal" },
+      { key: "+", code: "Equal", shiftKey: true },
+      { key: "-", code: "Minus" },
+      { key: "0", code: "Digit0" },
+    ].map((init) => {
+      const modifier = env.os === "mac" ? { metaKey: true } : { ctrlKey: true };
+      const event = new KeyboardEvent("keydown", { ...init, ...modifier, cancelable: true });
       handler(event);
-      if (!event.defaultPrevented && nativeId && bridge.owns(nativeId as never)) host.click(nativeId);
-      return event;
-    };
-    return { ctx, press };
+      return event.defaultPrevented;
+    });
+    return { ctx, prevented };
   }
 
-  it("runs ⌘= ⌘- ⌘0 once each in the Mac app, through the menu item", async () => {
-    const { ctx, press } = zoomHarness(MAC_DESKTOP);
-    await flush();
-    expect(press({ key: "=", code: "Equal", metaKey: true }, "view.zoomIn").defaultPrevented).toBe(false);
-    press({ key: "-", code: "Minus", metaKey: true }, "view.zoomOut");
-    press({ key: "0", code: "Digit0", metaKey: true }, "view.actualSize");
-    expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"], ["out"], ["reset"]]);
-  });
-
-  it("runs ⌘+ (⇧=) once in the Mac app: the menu item cannot match it, so the DOM listener does", async () => {
-    const { ctx, press } = zoomHarness(MAC_DESKTOP);
-    await flush();
-    // The menu item's key equivalent is "=", so ⌘⇧= never reaches it: no native id.
-    const event = press({ key: "+", code: "Equal", metaKey: true, shiftKey: true }, null);
-    expect(event.defaultPrevented).toBe(true);
-    expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"]]);
-  });
-
-  it("runs Ctrl+= Ctrl+- Ctrl+0 and Ctrl++ once each on Windows and Linux, through the DOM listener", async () => {
-    for (const env of [WIN_DESKTOP, { os: "linux", runtime: "desktop" } as const]) {
-      const { ctx, press } = zoomHarness(env);
-      await flush();
-      press({ key: "=", code: "Equal", ctrlKey: true }, "view.zoomIn");
-      press({ key: "+", code: "Equal", ctrlKey: true, shiftKey: true }, "view.zoomIn");
-      press({ key: "-", code: "Minus", ctrlKey: true }, "view.zoomOut");
-      press({ key: "0", code: "Digit0", ctrlKey: true }, "view.actualSize");
+  it("runs ⌘= ⌘+ ⌘- ⌘0 once each in the Mac app and Ctrl+… once each on Windows and Linux, by the page", () => {
+    for (const env of [MAC_DESKTOP, WIN_DESKTOP, LINUX_DESKTOP]) {
+      const { ctx, prevented } = pressAll(env);
+      expect(prevented, env.os).toEqual([true, true, true, true]);
       expect(vi.mocked(ctx.actions.zoom).mock.calls, env.os).toEqual([["in"], ["in"], ["out"], ["reset"]]);
     }
   });
 
   it("leaves ⌘= ⌘- ⌘0 to the browser's own zoom in the WebUI", () => {
-    const ctx = makeContext({ runtime: "web" });
-    const handler = createShortcutHandler({ commands: COMMANDS, env: MAC_WEB, getContext: () => ctx });
-    for (const init of [
-      { key: "=", code: "Equal", metaKey: true },
-      { key: "+", code: "Equal", metaKey: true, shiftKey: true },
-      { key: "0", code: "Digit0", metaKey: true },
-    ]) {
-      const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
-      handler(event);
-      expect(event.defaultPrevented, init.key).toBe(false);
-    }
+    const { ctx, prevented } = pressAll(MAC_WEB, makeContext({ runtime: "web" }));
+    expect(prevented).toEqual([false, false, false, false]);
     expect(ctx.actions.zoom).not.toHaveBeenCalled();
   });
 });

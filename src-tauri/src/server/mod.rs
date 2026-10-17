@@ -48,6 +48,7 @@ use self::state::AppState;
 /// This list must stay in sync with the POST routes registered on `protected_api`
 /// in `build_router`; the `read_only_*` tests below pin the current classification.
 const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
+    "/ack_menu_events",
     "/detect_claude_config_dir",
     "/detect_providers",
     "/export_session",
@@ -94,6 +95,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_session_messages_paginated",
     "/load_unified_presets",
     "/load_user_metadata",
+    "/menu_journal",
     "/open_github_issues",
     "/read_restore_target",
     "/read_text_file",
@@ -247,8 +249,10 @@ pub fn build_router(
         .route("/send_feedback", post(h::send_feedback))
         .route("/get_system_info", post(h::get_system_info))
         .route("/open_github_issues", post(h::open_github_issues))
-        // Native menu bridge: a no-op in the WebUI (no native menu)
+        // Native menu bridge: no-ops in the WebUI (no native menu)
         .route("/sync_menu_state", post(h::sync_menu_state))
+        .route("/menu_journal", post(h::menu_journal))
+        .route("/ack_menu_events", post(h::ack_menu_events))
         // Metadata commands
         .route(
             "/get_metadata_folder_path",
@@ -1462,29 +1466,47 @@ mod tests {
         assert_ne!(allowed.status(), StatusCode::FORBIDDEN);
     }
 
-    /// The `WebUI` has no native menu: `sync_menu_state` is a no-op 200 that
-    /// queues nothing, also in read-only mode (desktop/WebUI command parity).
+    /// The `WebUI` has no native menu: its menu routes are read-only-allowed
+    /// no-ops - `sync_menu_state` and `ack_menu_events` do nothing,
+    /// `menu_journal` is empty (desktop/WebUI command parity).
     #[tokio::test]
-    async fn sync_menu_state_is_a_no_op_in_the_webui() {
-        let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method(Method::POST)
-                    .uri("/api/sync_menu_state")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(
-                        r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}}}}"#,
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        assert_eq!(&body[..], b"[]");
+    async fn menu_routes_are_no_ops_in_the_webui() {
+        for (route, body, expected) in [
+            (
+                "sync_menu_state",
+                r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}}}}"#,
+                serde_json::json!(null),
+            ),
+            (
+                "menu_journal",
+                "{}",
+                serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+            ),
+            (
+                "ack_menu_events",
+                r#"{"epoch":"webui","seq":3}"#,
+                serde_json::json!(null),
+            ),
+        ] {
+            let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri(format!("/api/{route}"))
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{route}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(value, expected, "{route}");
+        }
     }
 
     #[tokio::test]

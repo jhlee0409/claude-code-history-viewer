@@ -1,15 +1,22 @@
 /**
  * DOM keyboard shortcuts for manifest commands (plan §4.4).
  *
- * One window listener serves every command. A shortcut has one owner per
- * runtime: in the WebUI it is this listener; in the desktop app, where the
- * native menu owns a command's shortcut (`ownedByNativeMenu`, from the menu
- * bridge in `nativeMenu.ts`), this listener skips it and the menu item runs
- * it. A command's `shortcutAlias` (⌘+ beside ⌘=) is a key the menu cannot
- * match, so this listener always runs it. Either way the command runs through `runCommand`, the same `enabled`
- * check the palette and the menu use.
+ * One window listener serves every command, and it is the only owner of
+ * every app shortcut, in every runtime. A command runs through `runCommand`,
+ * the same `enabled` check the palette and the menu use.
  *
- * A key is left alone - not handled, not prevented - when:
+ * The Mac app's native menu items carry the same accelerators
+ * (`MENU_ACCELERATORS`). Measured in the real app
+ * (docs/adr/0001-native-menu-input-ownership.md): the web view sees a ⌘ key before the
+ * menu, and a key the page prevents never reaches the menu item. So there the
+ * listener **claims** (prevents) every app key it matches - whether it runs
+ * it or not - and the item's accelerator only shows the key. No key depends
+ * on the native item's enabled state, which is an asynchronous copy. A key
+ * reaches a menu item only when no page listens (mid-reload); the menu
+ * journal (`menuJournal.ts`) then runs it once, in order.
+ *
+ * A key is not run - and, outside the Mac app, left alone (not prevented) -
+ * when:
  * - another handler already took it (`defaultPrevented`); this is also why a
  *   second listener (a duplicated hook, StrictMode's re-run) cannot run the
  *   command twice: the first run prevents the event;
@@ -22,26 +29,15 @@
  *   in a field, whatever the command says;
  * - the command cannot run here, so the browser keeps its default (⌘F stays
  *   the browser's find outside a conversation).
- *
- * One exception: a key the native menu owns, pressed in a field or dialog
- * its command does not work in, is prevented (run by no one). Left alone it
- * would reach the menu item, which does not know where focus is - ⌘[ would
- * go back from the sidebar filter, ⌘T open a tab behind the palette.
  */
 import { matchesChord, parseAccelerator, shortcutFor, type Chord, type KeyEnvironment } from "./keys";
-import type { CommandId } from "./manifest";
+import { MENU_ACCELERATORS } from "./manifest";
 import { isCommandEnabled, runCommand, type AppCommand, type CommandContext } from "./registry";
 
 export interface ShortcutHandlerOptions {
   commands: readonly AppCommand[];
   env: KeyEnvironment;
   getContext: () => CommandContext;
-  /**
-   * Whether the native menu runs this command's shortcut right now; the
-   * listener then leaves the key alone (no run, no preventDefault) so the
-   * menu item gets it - one run per key press.
-   */
-  ownedByNativeMenu?: (id: CommandId) => boolean;
 }
 
 const FIELD_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
@@ -57,11 +53,13 @@ const isInDialog = (target: EventTarget | null): boolean =>
 
 export const isComposing = (event: KeyboardEvent): boolean => event.isComposing || event.keyCode === 229;
 
+/** Whether native menu items carry the app keys in `env`: the page then claims each key it matches. */
+export const menuCarriesAppKeys = (env: KeyEnvironment): boolean =>
+  env.runtime === "desktop" && MENU_ACCELERATORS[env.os];
+
 interface Binding {
   command: AppCommand;
   chord: Chord;
-  /** The menu item's own key (not an alias): the native menu may own it. */
-  menuKey: boolean;
 }
 
 /** A chord a text field may give up: one with ⌘ or Ctrl. ⌥ / ⇧ alone type there. */
@@ -74,10 +72,10 @@ const runsInFields = ({ command, chord }: Binding): boolean => Boolean(command.k
 export function bindingsFor(commands: readonly AppCommand[], env: KeyEnvironment): Binding[] {
   return commands.flatMap((command) => {
     const bindings: Binding[] = [];
-    const accelerator = shortcutFor(command.shortcut, env);
-    if (accelerator) bindings.push({ command, chord: parseAccelerator(accelerator, env.os), menuKey: true });
-    const alias = shortcutFor(command.shortcutAlias ?? null, env);
-    if (alias) bindings.push({ command, chord: parseAccelerator(alias, env.os), menuKey: false });
+    for (const set of [command.shortcut, command.shortcutAlias ?? null]) {
+      const accelerator = shortcutFor(set, env);
+      if (accelerator) bindings.push({ command, chord: parseAccelerator(accelerator, env.os) });
+    }
     return bindings;
   });
 }
@@ -86,24 +84,20 @@ export function createShortcutHandler({
   commands,
   env,
   getContext,
-  ownedByNativeMenu,
 }: ShortcutHandlerOptions): (event: KeyboardEvent) => void {
   const bindings = bindingsFor(commands, env);
+  const claimsMatchedKeys = menuCarriesAppKeys(env);
   return (event) => {
-    if (event.defaultPrevented || isComposing(event)) return;
+    if (event.defaultPrevented) return;
     const binding = bindings.find(({ chord }) => matchesChord(event, chord));
     if (!binding) return;
+    // In the Mac app a key left alone would go on to the menu item, which
+    // knows neither focus nor composition: claim it whether it runs or not.
+    if (claimsMatchedKeys) event.preventDefault();
+    if (isComposing(event)) return;
     const { command } = binding;
-    const notHere =
-      (!runsInFields(binding) && isEditableTarget(event.target)) ||
-      (!command.keys?.inDialogs && isInDialog(event.target));
-    if (binding.menuKey && ownedByNativeMenu?.(command.id)) {
-      // The menu item does not know where focus is: keep the key from it
-      // where the command does not work (⌘[ in a field, ⌘T behind a dialog).
-      if (notHere) event.preventDefault();
-      return;
-    }
-    if (notHere) return;
+    if (!runsInFields(binding) && isEditableTarget(event.target)) return;
+    if (!command.keys?.inDialogs && isInDialog(event.target)) return;
     const ctx = getContext();
     if (!isCommandEnabled(command, ctx)) return;
     event.preventDefault();

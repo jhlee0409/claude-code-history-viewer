@@ -117,8 +117,12 @@ export const PREDEFINED_MENU_ITEMS: readonly PredefinedMenuEntry[] = MANIFEST_EN
 );
 
 /**
- * Where the native menu owns the app commands' shortcuts (§4.4, §9b A1). Off
- * on Windows and Linux until their smoke checklist passes: there the DOM
- * listener keeps them and the menu shows its items without accelerators.
+ * Where the native menu items carry the app commands' accelerators (§4.4).
+ * The page owns every app shortcut on every platform (`shortcuts.ts`); on
+ * macOS the web view sees a key before the menu and the page claims it, so
+ * the accelerator only shows the key (and runs it when no page listens, e.g.
+ * mid-reload - through the menu journal). Off on Windows and Linux: GTK
+ * runs window accelerators before the focused web view sees the key, and
+ * neither is verified until their smoke checklist passes.
  */
-export const NATIVE_SHORTCUTS: Readonly<Record<Os, boolean>> = raw.nativeShortcuts;
+export const MENU_ACCELERATORS: Readonly<Record<Os, boolean>> = raw.menuAccelerators;

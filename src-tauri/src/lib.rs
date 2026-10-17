@@ -180,6 +180,7 @@ fn run_tauri() {
         // T11a). After the plugins: single-instance stays first. One
         // app-wide menu-event handler; a rebuilt menu adds no listener.
         .manage(menu::MenuBridge::new("en"))
+        .manage(menu::MenuJournal::for_this_run())
         // Built in `setup`: the saved UI language is read from the app data
         // folder, whose path resolver does not exist yet when `Builder::menu`
         // runs.
@@ -188,16 +189,10 @@ fn run_tauri() {
             app.set_menu(menu)?;
             Ok(())
         })
-        .on_menu_event(|app, event| menu::handle_menu_event(app, event.id().as_ref()))
-        // A (re)loading page has no menu listener yet: hold menu events until
-        // its next `sync_menu_state`.
-        .on_page_load(|webview, payload| {
-            if payload.event() == tauri::webview::PageLoadEvent::Started
-                && webview.label() == "main"
-            {
-                webview.state::<menu::MenuBridge>().page_loading();
-            }
-        });
+        // Every menu event is journaled (numbered, kept until acknowledged):
+        // a (re)loading page pulls what it has not run, so no page-load hook
+        // or ready state is needed.
+        .on_menu_event(|app, event| menu::handle_menu_event(app, event.id().as_ref()));
 
     builder
         .manage(MetadataState::default())
@@ -308,7 +303,9 @@ fn run_tauri() {
             // Updater fallback
             force_quit_and_relaunch,
             // Native menu bridge (WebUI: no-op route)
-            menu::native::sync_menu_state
+            menu::native::sync_menu_state,
+            menu::native::menu_journal,
+            menu::native::ack_menu_events
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
