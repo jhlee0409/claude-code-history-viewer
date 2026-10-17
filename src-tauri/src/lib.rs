@@ -6,6 +6,7 @@ pub mod menu;
 pub mod models;
 pub mod providers;
 pub mod utils;
+pub mod window_state;
 pub mod wsl;
 
 #[cfg(feature = "webui-server")]
@@ -184,9 +185,13 @@ fn run_tauri() {
         // Built in `setup`: the saved UI language is read from the app data
         // folder, whose path resolver does not exist yet when `Builder::menu`
         // runs.
+        // The window opens hidden; `restore_and_track` restores its saved
+        // frame, then shows it (T11b). Keep it last in `setup`, after
+        // anything that changes the window's decoration.
         .setup(|app| {
             let menu = menu::initial_menu(app.handle())?;
             app.set_menu(menu)?;
+            window_state::restore_and_track(app.handle());
             Ok(())
         })
         // Every menu event is journaled (numbered, kept until acknowledged):
@@ -310,6 +315,7 @@ fn run_tauri() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            window_state::on_run_event(app, &event);
             // macOS-only: Spotlight / Dock / Finder launches don't re-exec
             // argv, so `tauri-plugin-single-instance` cannot see them. The OS
             // instead delivers the target as an Apple Event that Tauri
