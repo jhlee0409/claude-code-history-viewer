@@ -369,6 +369,32 @@ export function createActions({ session, scenario, manifest, t }) {
       await click(page.locator("[data-mobile-tabs]"), "tab sheet");
     },
 
+    /**
+     * The ⌘K palette (T6b, T10): opened from the toolbar's palette button
+     * (desktop: the search pill, phone: the search icon), `query` typed in
+     * one go, then optionally the scope chip set to "This project" (T10).
+     */
+    async palette({ query = "", scope }) {
+      const opener = page
+        .locator("#app-header")
+        .getByRole("button", { name: t("common.commandPalette"), exact: true })
+        .filter({ visible: true })
+        .first();
+      await click(opener, "open palette");
+      // The search field (a base build before T10 also has a project picker,
+      // a Radix select that is a combobox too).
+      const field = page.getByRole("dialog").locator("input[role=combobox]");
+      await field.waitFor();
+      if (query) {
+        await field.fill(query);
+        await settled(`palette query ${query}`);
+      }
+      if (scope === "project") {
+        const chip = page.getByRole("dialog").getByRole("button", { name: t("globalSearch.scope.project"), exact: true });
+        await click(chip, "palette scope: this project");
+      }
+    },
+
     async globalStats() {
       await steps.openSidebar();
       await click(page.locator('[data-tree-node="global"]').first(), "global stats");

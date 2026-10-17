@@ -29,6 +29,9 @@
 //   { do: "newTab" }                the strip's + (desktop) / the tab sheet's button (phone)
 //   { do: "selectTab", index }      a tab from the strip / the tab sheet
 //   { do: "tabSheet" }              open the phone's tab sheet
+//   ⌘K palette (T6b, T10):
+//   { do: "palette", query?, scope? }  open it from the toolbar, type `query`;
+//                                   scope "project": the "This project" chip
 //
 // `cleanup` steps run after the capture and the probes: they undo what the
 // steps wrote to the shared fixture.
@@ -355,6 +358,33 @@ const DOCK_SCREENS = [
   },
 ];
 
+/**
+ * The ⌘K palette (plans T6b, T10) over the large transcript. "in" finds
+ * something in every group with the fixture: a command (Toggle Inspector),
+ * projects (nimbus-infra, saffron-billing), a session of the open project
+ * ("...narrow windows") and many messages, so the grouped list, the five-row
+ * limit and "Show all N messages" show at once. A base build before T10
+ * lists commands and messages only: the before/after pair. The scope chip
+ * exists from T10 on, so `palette-scope-project` is a new screen there.
+ */
+const PALETTE_SCREENS = [
+  {
+    id: "palette-empty",
+    title: "⌘K palette just opened: commands and the search tips",
+    steps: [{ do: "openSession", session: "large" }, { do: "palette" }],
+  },
+  {
+    id: "palette-all-groups",
+    title: "⌘K palette with a query that finds commands, projects, sessions and messages",
+    steps: [{ do: "openSession", session: "large" }, { do: "palette", query: "in" }],
+  },
+  {
+    id: "palette-scope-project",
+    title: "⌘K palette scoped to the open project",
+    steps: [{ do: "openSession", session: "large" }, { do: "palette", query: "sidebar", scope: "project" }],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -387,6 +417,11 @@ export const MATRIX = [
     screens: DOCK_SCREENS,
   },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: DOCK_SCREENS.slice(1) },
+  {
+    viewports: [...DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), ...MOBILE_VIEWPORTS],
+    themes: THEMES,
+    screens: PALETTE_SCREENS,
+  },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */
