@@ -373,8 +373,11 @@ export function createActions({ session, scenario, manifest, t }) {
      * The ⌘K palette (T6b, T10): opened from the toolbar's palette button
      * (desktop: the search pill, phone: the search icon), `query` typed in
      * one go, then optionally the scope chip set to "This project" (T10).
+     * `pin`: scope to that project's row as a user would - Tab with the row
+     * highlighted on desktop, the row's "Search in this project" button on
+     * a phone - then type `then` (the query searched in it).
      */
-    async palette({ query = "", scope }) {
+    async palette({ query = "", scope, pin, then }) {
       const opener = page
         .locator("#app-header")
         .getByRole("button", { name: t("common.commandPalette"), exact: true })
@@ -392,6 +395,26 @@ export function createActions({ session, scenario, manifest, t }) {
       if (scope === "project") {
         const chip = page.getByRole("dialog").getByRole("button", { name: t("globalSearch.scope.project"), exact: true });
         await click(chip, "palette scope: this project");
+      }
+      if (pin) {
+        const dialog = page.getByRole("dialog");
+        const row = dialog.locator("[cmdk-item]").filter({ hasText: pin }).first();
+        if (mobile) {
+          await click(row.getByRole("button", { name: t("globalSearch.scope.pinAction"), exact: true }), `palette pin ${pin} (row button)`);
+        } else {
+          // Walk the highlight to the row, then Tab (the row is never opened).
+          for (let i = 0; i < 20 && (await row.getAttribute("aria-selected")) !== "true"; i += 1) {
+            await field.press("ArrowDown");
+          }
+          if ((await row.getAttribute("aria-selected")) !== "true") throw new Error(`palette pin ${pin}: row never highlighted`);
+          await field.press("Tab");
+          await settled(`palette pin ${pin} (Tab)`);
+        }
+        await dialog.getByRole("button", { name: t("globalSearch.scope.pinnedAria").replace("{{project}}", pin), exact: true }).waitFor();
+      }
+      if (then !== undefined) {
+        await field.fill(then);
+        await settled(`palette query ${then}`);
       }
     },
 

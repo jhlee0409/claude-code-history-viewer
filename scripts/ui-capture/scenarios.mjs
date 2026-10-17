@@ -30,8 +30,11 @@
 //   { do: "selectTab", index }      a tab from the strip / the tab sheet
 //   { do: "tabSheet" }              open the phone's tab sheet
 //   ⌘K palette (T6b, T10):
-//   { do: "palette", query?, scope? }  open it from the toolbar, type `query`;
-//                                   scope "project": the "This project" chip
+//   { do: "palette", query?, scope?, pin?, then? }  open it from the toolbar,
+//                                   type `query`; scope "project": the "This
+//                                   project" chip; pin: scope to that project
+//                                   row (Tab / the phone's row button), then
+//                                   type `then`
 //
 // `cleanup` steps run after the capture and the probes: they undo what the
 // steps wrote to the shared fixture.
@@ -385,6 +388,29 @@ const PALETTE_SCREENS = [
   },
 ];
 
+/**
+ * Tab-to-scope (T10, owner decision): "nimbus" highlights the nimbus-infra
+ * row (`palette-scope-pin-target`: the Tab hint, the phone's row button); Tab (desktop) or its row button (phone) scopes Sessions and Messages
+ * to it without opening it, the pill replaces the scope chip, and "state"
+ * then searches that project only (its session "Split the Terraform state
+ * per environment"). New from this change: no capture on a base build.
+ */
+const PALETTE_PIN_SCREENS = [
+  {
+    id: "palette-scope-pin-target",
+    title: "⌘K palette with a project row highlighted: the footer's Tab hint (desktop), the row's scope button (phone)",
+    steps: [{ do: "openSession", session: "large" }, { do: "palette", query: "nimbus" }],
+  },
+  {
+    id: "palette-scope-pinned",
+    title: "⌘K palette scoped with Tab to a project that is not open",
+    steps: [
+      { do: "openSession", session: "large" },
+      { do: "palette", query: "nimbus", pin: "nimbus-infra", then: "state" },
+    ],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -422,6 +448,8 @@ export const MATRIX = [
     themes: THEMES,
     screens: PALETTE_SCREENS,
   },
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: PALETTE_PIN_SCREENS },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: PALETTE_PIN_SCREENS },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */
