@@ -184,13 +184,66 @@ describe("where the engine changes zoom itself (WebView2 on Windows, review-3 F2
     expect(view.requested).toEqual([1.2, 1, 1]);
   });
 
-  it("still sends a burst's newest level once: In then Out sets 100% once", async () => {
+  it("writes on every step, always the newest level: In then Out sets 100% twice, never 120%", async () => {
     const view = engine();
     const zoom = createZoomController(view.setZoom, { engineChangesZoom: () => true });
     view.pinch(2);
     await Promise.all([zoom.apply("in"), zoom.apply("out")]);
-    expect(view.requested).toEqual([1]);
+    expect(view.requested).toEqual([1, 1]);
     expect(view.actual()).toBe(1);
+  });
+
+  it("Actual Size writes 100% even while an earlier write is unsettled and the engine moved meanwhile (review-4 F2)", async () => {
+    // The reviewer's repro: the setter applies at once but answers late; an
+    // engine zoom lands before that answer; Actual Size again.
+    let actual = 2;
+    let complete: () => void = () => {};
+    const requested: number[] = [];
+    const zoom = createZoomController(
+      (level) => {
+        requested.push(level);
+        actual = level;
+        return new Promise<void>((resolve) => {
+          complete = resolve;
+        });
+      },
+      { engineChangesZoom: () => true },
+    );
+    const first = zoom.apply("reset");
+    await flush(); // the first write has applied 100%
+    actual = 2; // WebView2's own key / pinch, before that write's reply
+    const second = zoom.apply("reset");
+    complete();
+    await flush();
+    complete();
+    await Promise.all([first, second]);
+    expect(requested).toEqual([1, 1]);
+    expect(actual).toBe(1);
+  });
+
+  it("Zoom In / Out write within an unsettled burst too: an engine zoom in between is overwritten by the newest level", async () => {
+    let actual = 1;
+    const answers: Array<() => void> = [];
+    const requested: number[] = [];
+    const zoom = createZoomController(
+      (level) => {
+        requested.push(level);
+        actual = level;
+        return new Promise<void>((resolve) => answers.push(resolve));
+      },
+      { engineChangesZoom: () => true },
+    );
+    const first = zoom.apply("in");
+    await flush(); // 120% applied, its reply still on the way
+    actual = 3; // the engine moves before that reply
+    const steps = [zoom.apply("in"), zoom.apply("out")]; // back to 120%, the level the controller last applied
+    for (let reply = 0; reply < 3; reply += 1) {
+      answers.shift()?.();
+      await flush();
+    }
+    await Promise.all([first, ...steps]);
+    expect(requested).toEqual([1.2, 1.2, 1.2]);
+    expect(actual).toBe(1.2);
   });
 
   it("skips a write the controller knows is in place where it is the only writer (macOS, Linux)", async () => {

@@ -10,9 +10,10 @@
  *   one switch (`zoomHotkeysEnabled: true` in `tauri.windows.conf.json`), so
  *   the page binds no zoom key and no wheel there. The menu items set the
  *   same engine zoom. The engine changes its level behind the controller's
- *   back there, so the controller never trusts its copy of the applied level
- *   between bursts (`engineChangesZoom`): every menu step writes its level,
- *   and Actual Size always sets 100%. What it cannot do is read the engine's
+ *   back there - at any moment, also while a write's reply is on its way -
+ *   so the controller never trusts its copy of the applied level
+ *   (`engineChangesZoom`): every menu step writes, and Actual Size always
+ *   calls `setZoom(1)` (review-4 F2). What it cannot do is read the engine's
  *   level: Tauri has no getter (only `setZoom`; WebView2's own `ZoomFactor`
  *   is reachable only from Rust through `with_webview`), so Zoom In/Out step
  *   from the level the menu last set - after a pinch to 200%, Zoom In sets
@@ -59,8 +60,9 @@ export interface ZoomControllerOptions {
   /**
    * Whether something else may change the web view's level (WebView2's own
    * keys, wheel and pinch on Windows). Then the level the controller last
-   * applied is trusted only within a burst of steps, never between them: a
-   * step always writes its level, so Actual Size sets 100% after a pinch.
+   * applied is never trusted - a pending write is not a lock on the engine -
+   * and every step writes the newest level: Actual Size sets 100% after a
+   * pinch, also one landing while an earlier write is unsettled.
    */
   engineChangesZoom?: () => boolean;
 }
@@ -71,36 +73,26 @@ export function createZoomController(
 ): ZoomController {
   /** The level asked for, moved synchronously by each step. */
   let target = 1;
-  /** The level the web view last applied. */
+  /** The level the web view last applied (what it shows, where nothing else writes it). */
   let applied = 1;
-  /** Steps not yet settled: a burst lasts until it is back to zero. */
-  let unsettled = 0;
-  /** `applied` was written in the current burst, so nothing else has moved the level since. */
-  let appliedThisBurst = false;
   /** The web view is asked one level at a time, in step order. */
   let tail: Promise<void> = Promise.resolve();
   return {
     apply: (step) => {
       target = nextZoom(target, step);
-      unsettled += 1;
-      const job = tail
-        .then(async () => {
-          const wanted = target; // the newest level; an older one is never sent
-          const current = !engineChangesZoom() || appliedThisBurst;
-          if (wanted === applied && current) return;
-          try {
-            await setZoom(wanted);
-            applied = wanted;
-            appliedThisBurst = true;
-          } catch (error) {
-            target = applied;
-            throw error;
-          }
-        })
-        .finally(() => {
-          unsettled -= 1;
-          if (unsettled === 0) appliedThisBurst = false;
-        });
+      const job = tail.then(async () => {
+        const wanted = target; // the newest level; an older one is never sent
+        // Another writer (WebView2's keys, wheel, pinch) may have moved the
+        // level at any moment, an unsettled write included: every step writes.
+        if (wanted === applied && !engineChangesZoom()) return;
+        try {
+          await setZoom(wanted);
+          applied = wanted;
+        } catch (error) {
+          target = applied;
+          throw error;
+        }
+      });
       tail = job.catch(() => undefined);
       return job;
     },

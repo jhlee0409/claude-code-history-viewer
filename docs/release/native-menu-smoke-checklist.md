@@ -58,7 +58,8 @@ Use a toggle so a double run is visible (it would cancel out):
 - [ ] View → Zoom In / Zoom Out / Actual Size change the zoom once per click.
 - [ ] **Actual Size after engine zoom** returns to 100% every time: (1) Ctrl+= twice, then View → Actual
       Size; (2) pinch in, View → Actual Size; (3) View → Actual Size, pinch (or Ctrl+wheel) again, View →
-      Actual Size again. Each must land at 100%.
+      Actual Size again; (4) View → Actual Size, pinch at once, View → Actual Size again within a
+      second (the first write may still be unanswered). Each must land at 100%.
 - [ ] Known limit (record what you see): after a pinch, Ctrl+wheel or Ctrl+= the menu's Zoom In / Out step
       from the level the menu last set — Tauri cannot read WebView2's level — so the first menu step after
       a pinch may jump (e.g. pinch to 200%, View → Zoom In → 120%).

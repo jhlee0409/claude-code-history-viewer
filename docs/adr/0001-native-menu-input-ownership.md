@@ -54,9 +54,10 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    counted in `wheelDeltaY` notches. Windows: WebView2 (`zoomHotkeysEnabled: true` in
    `tauri.windows.conf.json`, which also keeps pinch zoom); the page binds no zoom key or
    wheel there, and the View menu sets the same engine zoom. As the engine moves its level
-   behind the zoom controller's back there, the controller trusts its copy of the applied
-   level only within one burst of steps: every menu step writes its level, and Actual Size
-   always calls `setZoom(1)`.
+   behind the zoom controller's back there - at any moment, also while a write's reply is on
+   its way - the controller never trusts its copy of the applied level there: every menu
+   step writes the newest level and Actual Size always calls `setZoom(1)`; no cache can skip
+   a write (review-4 F2). Steps still go one at a time, so an older level is never sent.
 
 ## Consequences
 
