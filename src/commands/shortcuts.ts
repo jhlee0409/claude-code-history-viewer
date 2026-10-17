@@ -5,7 +5,8 @@
  * runtime: in the WebUI it is this listener; in the desktop app, where the
  * native menu owns a command's shortcut (`ownedByNativeMenu`, from the menu
  * bridge in `nativeMenu.ts`), this listener skips it and the menu item runs
- * it. Either way the command runs through `runCommand`, the same `enabled`
+ * it. A command's `shortcutAlias` (⌘+ beside ⌘=) is a key the menu cannot
+ * match, so this listener always runs it. Either way the command runs through `runCommand`, the same `enabled`
  * check the palette and the menu use.
  *
  * A key is left alone - not handled, not prevented - when:
@@ -54,6 +55,8 @@ export const isComposing = (event: KeyboardEvent): boolean => event.isComposing 
 interface Binding {
   command: AppCommand;
   chord: Chord;
+  /** The menu item's own key (not an alias): the native menu may own it. */
+  menuKey: boolean;
 }
 
 /** A chord a text field may give up: one with ⌘ or Ctrl. ⌥ / ⇧ alone type there. */
@@ -62,11 +65,15 @@ const isCommandChord = (chord: Chord): boolean => chord.meta || chord.ctrl;
 /** Whether `binding` may run while focus is in a text field. */
 const runsInFields = ({ command, chord }: Binding): boolean => Boolean(command.keys?.inFields) && isCommandChord(chord);
 
-/** The chord each command is bound to in `env`. */
+/** The chords each command is bound to in `env`: its shortcut, then its alias. */
 export function bindingsFor(commands: readonly AppCommand[], env: KeyEnvironment): Binding[] {
   return commands.flatMap((command) => {
+    const bindings: Binding[] = [];
     const accelerator = shortcutFor(command.shortcut, env);
-    return accelerator ? [{ command, chord: parseAccelerator(accelerator, env.os) }] : [];
+    if (accelerator) bindings.push({ command, chord: parseAccelerator(accelerator, env.os), menuKey: true });
+    const alias = shortcutFor(command.shortcutAlias ?? null, env);
+    if (alias) bindings.push({ command, chord: parseAccelerator(alias, env.os), menuKey: false });
+    return bindings;
   });
 }
 
@@ -82,7 +89,7 @@ export function createShortcutHandler({
     const binding = bindings.find(({ chord }) => matchesChord(event, chord));
     if (!binding) return;
     const { command } = binding;
-    if (ownedByNativeMenu?.(command.id)) return;
+    if (binding.menuKey && ownedByNativeMenu?.(command.id)) return;
     if (!runsInFields(binding) && isEditableTarget(event.target)) return;
     if (!command.keys?.inDialogs && isInDialog(event.target)) return;
     const ctx = getContext();

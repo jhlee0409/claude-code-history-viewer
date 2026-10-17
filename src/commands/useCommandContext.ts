@@ -16,6 +16,7 @@ import { closeTab, cycleTab, newTab, selectTabAt } from "@/navigation/tabs";
 import { toggleInspector } from "@/components/Inspector/inspectorFocus";
 import { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT } from "./appEvents";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
+import { appZoom } from "./zoom";
 import type { CommandActions, CommandContext } from "./registry";
 
 export { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT };
@@ -47,6 +48,7 @@ export function useCommandContext(): () => CommandContext {
     closeTab: () => closeTab(useAppStore.getState().activeDocumentId, screens),
     cycleTab: (step) => cycleTab(step, screens),
     selectTabAt: (position) => selectTabAt(position, screens),
+    zoom: (step) => appZoom.apply(step),
   };
   const latest = useRef({ actions, isDesktop, isMobile });
   useEffect(() => {

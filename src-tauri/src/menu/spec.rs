@@ -447,6 +447,66 @@ mod tests {
     }
 
     #[test]
+    fn view_menu_has_zoom_in_zoom_out_and_actual_size() {
+        let built = spec(Os::Mac, "en");
+        assert_eq!(
+            ids(built.submenu(MenuId::View).unwrap()),
+            vec![
+                "view.toggleInspector",
+                "view.toggleMinimap",
+                "-",
+                "view.zoomIn",
+                "view.zoomOut",
+                "view.actualSize",
+                "-",
+                "view.fullscreen"
+            ]
+        );
+        let view = &built.submenu(MenuId::View).unwrap().items;
+        for (id, label, accelerator) in [
+            ("view.zoomIn", "Zoom In", "Cmd+="),
+            ("view.zoomOut", "Zoom Out", "Cmd+-"),
+            ("view.actualSize", "Actual Size", "Cmd+0"),
+        ] {
+            assert!(
+                view.contains(&ItemSpec::Command {
+                    id: id.into(),
+                    label: label.into(),
+                    accelerator: Some(accelerator.into()),
+                    toggle: false,
+                }),
+                "{id}"
+            );
+        }
+        for os in [Os::Win, Os::Linux] {
+            let off_mac = spec(os, "en");
+            let ids_off_mac = ids(off_mac.submenu(MenuId::View).unwrap());
+            for id in ["view.zoomIn", "view.zoomOut", "view.actualSize"] {
+                assert!(ids_off_mac.contains(&id), "{id} on {os:?}");
+            }
+        }
+    }
+
+    /// §9b A1: the zoom commands are the web view's only zoom owner, so the
+    /// engine's own zoom hotkeys (`zoomHotkeysEnabled`: the macOS/Linux
+    /// polyfill, `WebView2`'s zoom control) stay off, and the frontend may set
+    /// the zoom.
+    #[test]
+    fn zoom_has_one_owner_the_engine_zoom_hotkeys_are_off() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        for window in conf["app"]["windows"].as_array().unwrap() {
+            assert_eq!(window["zoomHotkeysEnabled"], serde_json::json!(false));
+        }
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../../capabilities/default.json")).unwrap();
+        assert!(capability["permissions"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("core:webview:allow-set-webview-zoom")));
+    }
+
+    #[test]
     fn toggles_are_checkbox_items_named_for_what_they_show() {
         let built = spec(Os::Mac, "en");
         let view = &built.submenu(MenuId::View).unwrap().items;

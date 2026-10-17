@@ -302,5 +302,8 @@
   "common.menu.bringAllToFront": "すべてを手前に移動",
   "common.menu.inspector": "インスペクタ",
   "common.menu.minimap": "セッションミニマップ",
-  "common.menu.syncFailed": "メニューバーを更新できませんでした。キーボードショートカットは引き続き使えます。"
+  "common.menu.syncFailed": "メニューバーを更新できませんでした。キーボードショートカットは引き続き使えます。",
+  "common.command.zoomIn": "拡大",
+  "common.command.zoomOut": "縮小",
+  "common.command.actualSize": "実際のサイズ"
 }

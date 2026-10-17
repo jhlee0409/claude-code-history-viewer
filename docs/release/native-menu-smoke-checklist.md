@@ -15,7 +15,7 @@ Artifact / SHA: ____________________  Tester / date: ____________________
 - [ ] Menu bar under the title bar: File, Edit, View, Go, Window, Help (no App menu).
 - [ ] File: New Tab, Close Tab | Settings… | Quit (Windows only — Linux has no Quit).
 - [ ] Edit: (Windows: Undo, Redo |) Cut, Copy, Paste, Select All | Find in Conversation.
-- [ ] View: Inspector, Session Minimap (checkbox items).
+- [ ] View: Inspector, Session Minimap (checkbox items) | Zoom In, Zoom Out, Actual Size.
 - [ ] Go: Back, Forward | Open Claude Code Settings, Open Archive Manager | Search and Commands.
 - [ ] Window: (Windows: Minimize, Maximize |) Next Tab, Previous Tab | Go to Tab 1–8, Go to Last Tab.
 - [ ] Help: Send Feedback… | Check for Updates… | About.
@@ -29,6 +29,12 @@ Use a toggle so a double run is visible (it would cancel out):
 - [ ] Ctrl+K opens the palette once; Ctrl+T opens one new tab; Ctrl+W closes one tab.
 - [ ] Alt+← / Alt+→ go back / forward one step.
 - [ ] Ctrl+, opens the gear menu.
+- [ ] Zoom (one owner: the zoom commands; the engine's `zoomHotkeysEnabled` is off): Ctrl+= zooms in
+      **one** 20% step per press (compare text size after 1 press vs 2), Ctrl++ (Shift+=, and numpad +)
+      zooms in one step, Ctrl+- zooms out one step, Ctrl+0 returns to 100%. Same from a text field and
+      with the palette open. View → Zoom In / Zoom Out / Actual Size do the same once per click.
+- [ ] Ctrl + mouse wheel: one step per wheel notch (up = in). Windows: a touchpad pinch zooms
+      smoothly, not in jumps of several steps. (Touch-screen pinch zoom is gone with the engine zoom.)
 - [ ] Clicking each menu item runs it once (same toggles as above via the menu).
 - [ ] Disabled state: with no session open, View → Inspector and Edit → Find are greyed out.
 

@@ -8,8 +8,10 @@
  * - modifiers: `Cmd` (⌘), `Ctrl`, `Alt` (⌥), `Shift`, and `CmdOrCtrl` - ⌘ on
  *   macOS, Ctrl elsewhere. Desktop entries name the real key per OS; the
  *   WebUI entry runs on any OS, so it uses `CmdOrCtrl`.
- * - key: one letter or digit, `[`, `]`, `,`, `ArrowLeft/Right/Up/Down`, or
- *   `PageUp/PageDown`.
+ * - key: one letter or digit, `[`, `]`, `,`, `=`, `-`, `ArrowLeft/Right/Up/Down`,
+ *   or `PageUp/PageDown`; `Plus` is the `+` character (a DOM-only alias:
+ *   ⇧ does not count for it, as US layouts need ⇧ to type + and others do
+ *   not; native accelerators cannot match it).
  *
  * Which entry applies: the WebUI always uses `web` (browser-reserved keys
  * such as ⌘[ ⌘] get a fallback there); the desktop app uses its OS's entry.
@@ -49,7 +51,11 @@ const PUNCTUATION_CODES: Readonly<Record<string, string>> = {
   "[": "BracketLeft",
   "]": "BracketRight",
   ",": "Comma",
+  "=": "Equal",
+  "-": "Minus",
 };
+/** The `+` character, whichever key and ⇧ state types it. */
+const PLUS = "+";
 
 /** The entry that applies in `env`, or null for a command without one. */
 export function shortcutFor(set: ShortcutSet | null, env: KeyEnvironment): string | null {
@@ -87,6 +93,7 @@ export function parseAccelerator(accelerator: string, os: Os): Chord {
   if (!keyToken) throw new Error(`Missing key in "${accelerator}"`);
   if (/^[A-Za-z0-9]$/.test(keyToken)) chord.key = keyToken.toLowerCase();
   else if (keyToken in PUNCTUATION_CODES) chord.key = keyToken;
+  else if (keyToken === "Plus") chord.key = PLUS;
   else if ((ARROWS as readonly string[]).includes(keyToken)) chord.key = keyToken;
   else if ((PAGE_KEYS as readonly string[]).includes(keyToken)) chord.key = keyToken;
   else throw new Error(`Unknown key "${keyToken}" in "${accelerator}"`);
@@ -107,7 +114,7 @@ type KeyEventLike = Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" |
 
 /**
  * Whether `event` is `chord`. Modifiers must match exactly (⌘K is not ⌘⇧K,
- * and Ctrl+K on macOS is not ⌘K). The key matches by the character typed;
+ * and Ctrl+K on macOS is not ⌘K) - but ⇧ does not count for `Plus`. The key matches by the character typed;
  * the physical key (`code`) counts only when the layout typed no ASCII
  * character - a Hangul/kana input source, or ⌥ on macOS (⌥T types `†`) - so a
  * Dvorak user's ⌘K stays the key labeled K.
@@ -117,10 +124,12 @@ export function matchesChord(event: KeyEventLike, chord: Chord): boolean {
     event.metaKey !== chord.meta ||
     event.ctrlKey !== chord.ctrl ||
     event.altKey !== chord.alt ||
-    event.shiftKey !== chord.shift
+    (chord.key !== PLUS && event.shiftKey !== chord.shift)
   ) {
     return false;
   }
+  // ⇧= is + on US layouts, whether the web view reports the key as + or =.
+  if (chord.key === PLUS) return event.key === PLUS || (event.shiftKey && event.code === "Equal");
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   if (key === chord.key) return true;
   return !isAsciiKey(event.key) && event.code === codeOf(chord.key);

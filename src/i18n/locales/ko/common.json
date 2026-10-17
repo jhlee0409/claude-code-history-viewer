@@ -302,5 +302,8 @@
   "common.menu.bringAllToFront": "모두 앞으로 가져오기",
   "common.menu.inspector": "인스펙터",
   "common.menu.minimap": "세션 미니맵",
-  "common.menu.syncFailed": "메뉴 막대를 업데이트하지 못했습니다. 키보드 단축키는 계속 작동합니다."
+  "common.menu.syncFailed": "메뉴 막대를 업데이트하지 못했습니다. 키보드 단축키는 계속 작동합니다.",
+  "common.command.zoomIn": "확대",
+  "common.command.zoomOut": "축소",
+  "common.command.actualSize": "실제 크기"
 }

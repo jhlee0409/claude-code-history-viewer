@@ -11,6 +11,9 @@ describe("Tauri Capabilities", () => {
     "core:app:allow-version",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
+    // View → Zoom sets the web view's zoom (src/commands/zoom.ts); it replaced
+    // the engine's zoom hotkeys, which needed the same permission.
+    "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     "dialog:allow-save",
     "process:allow-restart",

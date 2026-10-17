@@ -37,6 +37,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
     selectTabAt: vi.fn(),
+    zoom: vi.fn(),
   };
   return {
     place: {
@@ -575,5 +576,84 @@ describe("menu events run in the order they were chosen", () => {
     second.pending.shift()?.resolve(["go.back"]);
     await flush();
     expect(log).toEqual(["newTab", "goBack", "closeTab"]);
+  });
+});
+
+describe("View → Zoom (§9b A1: one owner with the old zoom hotkeys)", () => {
+  const ZOOM_IDS = ["view.zoomIn", "view.zoomOut", "view.actualSize"] as const;
+
+  it("lists Zoom In ⌘=, Zoom Out ⌘- and Actual Size ⌘0 in the View menu, on every desktop", () => {
+    const view = COMMAND_MANIFEST.filter((e) => e.menu === "view").map((e) => e.id);
+    expect(view).toEqual(["view.toggleInspector", "view.toggleMinimap", ...ZOOM_IDS]);
+    const where = (id: string) => COMMAND_MANIFEST.find((e) => e.id === id);
+    expect(where("view.zoomIn")).toMatchObject({ shortcut: { mac: "Cmd+=", win: "Ctrl+=", linux: "Ctrl+=" } });
+    expect(where("view.zoomOut")).toMatchObject({ shortcut: { mac: "Cmd+-", win: "Ctrl+-", linux: "Ctrl+-" } });
+    expect(where("view.actualSize")).toMatchObject({ shortcut: { mac: "Cmd+0", win: "Ctrl+0", linux: "Ctrl+0" } });
+    for (const id of ZOOM_IDS) expect(MENU_COMMAND_IDS.has(id), id).toBe(true);
+  });
+
+  it("turns the engine's own zoom hotkeys off, so the commands are the only zoom owner", async () => {
+    const conf = (await import("../../src-tauri/tauri.conf.json")).default;
+    expect(conf.app.windows.map((w: { zoomHotkeysEnabled?: boolean }) => w.zoomHotkeysEnabled)).toEqual([false]);
+  });
+
+  function zoomHarness(env: KeyEnvironment, ctx = makeContext()) {
+    const { host, deps } = fakeHost();
+    const bridge = startMenuBridge(deps(ctx, env));
+    stops.push(() => bridge.stop());
+    const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx, ownedByNativeMenu: bridge.owns });
+    /** The web view first; a key it leaves goes to the native item, which exists only where the menu owns keys. */
+    const press = (init: KeyboardEventInit, nativeId: string | null) => {
+      const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
+      handler(event);
+      if (!event.defaultPrevented && nativeId && bridge.owns(nativeId as never)) host.click(nativeId);
+      return event;
+    };
+    return { ctx, press };
+  }
+
+  it("runs ⌘= ⌘- ⌘0 once each in the Mac app, through the menu item", async () => {
+    const { ctx, press } = zoomHarness(MAC_DESKTOP);
+    await flush();
+    expect(press({ key: "=", code: "Equal", metaKey: true }, "view.zoomIn").defaultPrevented).toBe(false);
+    press({ key: "-", code: "Minus", metaKey: true }, "view.zoomOut");
+    press({ key: "0", code: "Digit0", metaKey: true }, "view.actualSize");
+    expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"], ["out"], ["reset"]]);
+  });
+
+  it("runs ⌘+ (⇧=) once in the Mac app: the menu item cannot match it, so the DOM listener does", async () => {
+    const { ctx, press } = zoomHarness(MAC_DESKTOP);
+    await flush();
+    // The menu item's key equivalent is "=", so ⌘⇧= never reaches it: no native id.
+    const event = press({ key: "+", code: "Equal", metaKey: true, shiftKey: true }, null);
+    expect(event.defaultPrevented).toBe(true);
+    expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"]]);
+  });
+
+  it("runs Ctrl+= Ctrl+- Ctrl+0 and Ctrl++ once each on Windows and Linux, through the DOM listener", async () => {
+    for (const env of [WIN_DESKTOP, { os: "linux", runtime: "desktop" } as const]) {
+      const { ctx, press } = zoomHarness(env);
+      await flush();
+      press({ key: "=", code: "Equal", ctrlKey: true }, "view.zoomIn");
+      press({ key: "+", code: "Equal", ctrlKey: true, shiftKey: true }, "view.zoomIn");
+      press({ key: "-", code: "Minus", ctrlKey: true }, "view.zoomOut");
+      press({ key: "0", code: "Digit0", ctrlKey: true }, "view.actualSize");
+      expect(vi.mocked(ctx.actions.zoom).mock.calls, env.os).toEqual([["in"], ["in"], ["out"], ["reset"]]);
+    }
+  });
+
+  it("leaves ⌘= ⌘- ⌘0 to the browser's own zoom in the WebUI", () => {
+    const ctx = makeContext({ runtime: "web" });
+    const handler = createShortcutHandler({ commands: COMMANDS, env: MAC_WEB, getContext: () => ctx });
+    for (const init of [
+      { key: "=", code: "Equal", metaKey: true },
+      { key: "+", code: "Equal", metaKey: true, shiftKey: true },
+      { key: "0", code: "Digit0", metaKey: true },
+    ]) {
+      const event = new KeyboardEvent("keydown", { ...init, cancelable: true });
+      handler(event);
+      expect(event.defaultPrevented, init.key).toBe(false);
+    }
+    expect(ctx.actions.zoom).not.toHaveBeenCalled();
   });
 });

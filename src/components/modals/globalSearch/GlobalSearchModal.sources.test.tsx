@@ -95,6 +95,7 @@ const actions: CommandActions = {
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
     selectTabAt: vi.fn(),
+    zoom: vi.fn(),
 };
 const context = (): CommandContext => ({
     place: { view: "conversation" },

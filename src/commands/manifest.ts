@@ -23,6 +23,9 @@ export const COMMAND_IDS = [
   "edit.find",
   "view.toggleInspector",
   "view.toggleMinimap",
+  "view.zoomIn",
+  "view.zoomOut",
+  "view.actualSize",
   "go.settingsManager",
   "go.archive",
   "help.feedback",
@@ -68,6 +71,11 @@ export interface CommandManifestEntry extends MenuPlacement {
   menuLabelKey?: string;
   /** Accelerators per platform (`keys.ts`), or null for a command without one. */
   shortcut: ShortcutSet | null;
+  /**
+   * A second key per platform that only the DOM listener runs - one the
+   * native menu cannot match (⌘+ beside Zoom In's ⌘=). The menu shows `shortcut`.
+   */
+  shortcutAlias?: ShortcutSet;
   /** `frontend`: the registry runs it. */
   source: "frontend";
   /** A menu checkbox: the item is ticked while the thing it toggles is on. */

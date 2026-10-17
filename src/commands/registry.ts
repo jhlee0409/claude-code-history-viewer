@@ -18,11 +18,14 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
+  Scan,
   Search,
   SlidersHorizontal,
   SquareArrowRight,
   TextSearch,
   X,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +36,7 @@ import type { PlaceOwner } from "@/navigation/ownership";
 import type { Place } from "@/navigation/place";
 import type { Runtime } from "./keys";
 import { COMMAND_MANIFEST, type CommandId, type CommandManifestEntry } from "./manifest";
+import type { ZoomStep } from "./zoom";
 
 /** What a command needs to know and do. Built per use by `useCommandContext`. */
 export interface CommandContext {
@@ -71,6 +75,8 @@ export interface CommandActions {
   cycleTab: (step: 1 | -1) => unknown;
   /** ⌘1-⌘8 by position; 9 is the last tab. */
   selectTabAt: (position: number) => unknown;
+  /** Zoom the web view (`zoom.ts`). */
+  zoom: (step: ZoomStep) => unknown;
 }
 
 interface CommandHandler {
@@ -97,6 +103,18 @@ const isClaudeContext = (place: Place): boolean => (place.project?.provider ?? "
  * on macOS, so the shortcut listener leaves them to it (`shortcuts.ts`).
  */
 const TAB_KEYS = { inFields: true } as const;
+
+/**
+ * Zoom is the desktop web view's (`zoom.ts`): in the WebUI the browser's own
+ * zoom keeps ⌘= ⌘- ⌘0. It works from a text field and a dialog, as browser
+ * zoom does.
+ */
+const zoomCommand = (icon: LucideIcon, step: ZoomStep): CommandHandler => ({
+  icon,
+  available: (ctx) => ctx.runtime === "desktop",
+  run: (ctx) => ctx.actions.zoom(step),
+  keys: { inFields: true, inDialogs: true },
+});
 
 /** ⌘n: tab n exists. */
 const goToTab = (position: number): CommandHandler => ({
@@ -148,6 +166,9 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     run: (ctx) => ctx.actions.toggleMinimap(),
     keys: { inDialogs: true },
   },
+  "view.zoomIn": zoomCommand(ZoomIn, "in"),
+  "view.zoomOut": zoomCommand(ZoomOut, "out"),
+  "view.actualSize": zoomCommand(Scan, "reset"),
   "go.settingsManager": {
     icon: SCREEN_ICONS.settings,
     enabled: (ctx) => ctx.place.view !== "settingsManager",

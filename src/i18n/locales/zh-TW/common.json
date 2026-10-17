@@ -302,5 +302,8 @@
   "common.menu.bringAllToFront": "將全部移至最前",
   "common.menu.inspector": "檢閱器",
   "common.menu.minimap": "會話小地圖",
-  "common.menu.syncFailed": "無法更新選單列。鍵盤快速鍵仍可使用。"
+  "common.menu.syncFailed": "無法更新選單列。鍵盤快速鍵仍可使用。",
+  "common.command.zoomIn": "放大",
+  "common.command.zoomOut": "縮小",
+  "common.command.actualSize": "實際大小"
 }

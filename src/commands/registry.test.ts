@@ -45,6 +45,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
     selectTabAt: vi.fn(),
+    zoom: vi.fn(),
   };
   return {
     place: { view: "conversation" },

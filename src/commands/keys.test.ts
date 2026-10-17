@@ -87,3 +87,35 @@ describe("detectOs", () => {
     expect(detectOs("Mozilla/5.0 (X11; Linux x86_64)")).toBe("linux");
   });
 });
+
+describe("zoom keys (= - Plus)", () => {
+  it("parses = and - as keys, and Plus as the + character", () => {
+    expect(parseAccelerator("Cmd+=", "mac")).toMatchObject({ meta: true, shift: false, key: "=" });
+    expect(parseAccelerator("Ctrl+-", "win")).toMatchObject({ ctrl: true, key: "-" });
+    expect(parseAccelerator("CmdOrCtrl+Plus", "linux")).toMatchObject({ ctrl: true, key: "+" });
+  });
+
+  it("matches ⌘= and ⌘-, and ⌘+ whether or not the layout needs ⇧ for +", () => {
+    const zoomIn = parseAccelerator("Cmd+=", "mac");
+    const plus = parseAccelerator("Cmd+Plus", "mac");
+    const zoomOut = parseAccelerator("Cmd+-", "mac");
+    expect(matchesChord(key({ key: "=", code: "Equal", metaKey: true }), zoomIn)).toBe(true);
+    // US layout: + is ⇧=.
+    expect(matchesChord(key({ key: "+", code: "Equal", metaKey: true, shiftKey: true }), zoomIn)).toBe(false);
+    expect(matchesChord(key({ key: "+", code: "Equal", metaKey: true, shiftKey: true }), plus)).toBe(true);
+    // German layout / numpad: + without ⇧.
+    expect(matchesChord(key({ key: "+", code: "BracketRight", metaKey: true }), plus)).toBe(true);
+    expect(matchesChord(key({ key: "+", code: "Equal", shiftKey: true }), plus)).toBe(false);
+    // A web view that reports ⇧= by its unshifted character.
+    expect(matchesChord(key({ key: "=", code: "Equal", metaKey: true, shiftKey: true }), plus)).toBe(true);
+    expect(matchesChord(key({ key: "=", code: "Equal", metaKey: true, shiftKey: true }), zoomIn)).toBe(false);
+    expect(matchesChord(key({ key: "-", code: "Minus", metaKey: true }), zoomOut)).toBe(true);
+  });
+
+  it("writes them as ⌘= ⌘- ⌘0 and Ctrl+=", () => {
+    expect(formatAccelerator("Cmd+=", "mac")).toBe("⌘=");
+    expect(formatAccelerator("Cmd+-", "mac")).toBe("⌘-");
+    expect(formatAccelerator("Cmd+0", "mac")).toBe("⌘0");
+    expect(formatAccelerator("Ctrl+=", "win")).toBe("Ctrl+=");
+  });
+});

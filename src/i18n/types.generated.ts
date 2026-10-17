@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T16:01:48.144Z
- * 총 키 개수: 2209
+ * 생성 시간: 2026-10-17T16:10:37.039Z
+ * 총 키 개수: 2212
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (304개)
+ * common namespace의 번역 키 (307개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -58,6 +58,7 @@ export type CommonKeys =
   | 'common.clear'
   | 'common.close'
   | 'common.collapse'
+  | 'common.command.actualSize'
   | 'common.command.back'
   | 'common.command.checkForUpdates'
   | 'common.command.closeTab'
@@ -84,6 +85,8 @@ export type CommonKeys =
   | 'common.command.sendFeedback'
   | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
+  | 'common.command.zoomIn'
+  | 'common.command.zoomOut'
   | 'common.commandPalette'
   | 'common.completed'
   | 'common.copied'
@@ -2662,6 +2665,7 @@ export type TranslationKey =
   | 'common.clear'
   | 'common.close'
   | 'common.collapse'
+  | 'common.command.actualSize'
   | 'common.command.back'
   | 'common.command.checkForUpdates'
   | 'common.command.closeTab'
@@ -2688,6 +2692,8 @@ export type TranslationKey =
   | 'common.command.sendFeedback'
   | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
+  | 'common.command.zoomIn'
+  | 'common.command.zoomOut'
   | 'common.commandPalette'
   | 'common.completed'
   | 'common.copied'

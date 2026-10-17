@@ -302,5 +302,8 @@
   "common.menu.bringAllToFront": "前置全部窗口",
   "common.menu.inspector": "检查器",
   "common.menu.minimap": "会话小地图",
-  "common.menu.syncFailed": "无法更新菜单栏。键盘快捷键仍可使用。"
+  "common.menu.syncFailed": "无法更新菜单栏。键盘快捷键仍可使用。",
+  "common.command.zoomIn": "放大",
+  "common.command.zoomOut": "缩小",
+  "common.command.actualSize": "实际大小"
 }

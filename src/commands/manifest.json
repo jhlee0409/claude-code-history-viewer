@@ -1,5 +1,5 @@
 {
-  "$comment": "One entry per menu item and app command (plan §4.4). `frontend` entries are app commands: the TS registry (src/commands/registry.ts) attaches enabled/run, the native menu (src-tauri/src/menu) lists them. `predefined` entries are the OS's own items (copy, quit...) on the `platforms` listed; `shortcut` records the accelerator the OS gives them so the duplicate-shortcut checks see it. Entry order is menu order. `menu: app` is the macOS application menu; `menuElsewhere` places an app entry on Windows/Linux. `nativeShortcuts`: where the native menu owns frontend shortcuts (off until the platform's smoke checklist passes). Shortcut grammar: src/commands/keys.ts.",
+  "$comment": "One entry per menu item and app command (plan §4.4). `frontend` entries are app commands: the TS registry (src/commands/registry.ts) attaches enabled/run, the native menu (src-tauri/src/menu) lists them. `predefined` entries are the OS's own items (copy, quit...) on the `platforms` listed; `shortcut` records the accelerator the OS gives them so the duplicate-shortcut checks see it. Entry order is menu order. `menu: app` is the macOS application menu; `menuElsewhere` places an app entry on Windows/Linux. `nativeShortcuts`: where the native menu owns frontend shortcuts (off until the platform's smoke checklist passes). `shortcutAlias`: a second key the DOM listener always runs (never the native menu, which cannot match it), e.g. ⌘+ beside Zoom In's ⌘=. Zoom: the view.zoom* commands are the web view's one zoom owner; the engine's own zoom hotkeys (`zoomHotkeysEnabled` in tauri.conf.json) stay off. Shortcut grammar: src/commands/keys.ts.",
   "nativeShortcuts": { "mac": true, "win": false, "linux": false },
   "commands": [
     {
@@ -172,6 +172,29 @@
       "source": "frontend",
       "menu": "view",
       "toggle": true
+    },
+    {
+      "id": "view.zoomIn",
+      "labelKey": "common.command.zoomIn",
+      "shortcut": { "mac": "Cmd+=", "win": "Ctrl+=", "linux": "Ctrl+=", "web": "CmdOrCtrl+=" },
+      "shortcutAlias": { "mac": "Cmd+Plus", "win": "Ctrl+Plus", "linux": "Ctrl+Plus", "web": "CmdOrCtrl+Plus" },
+      "source": "frontend",
+      "menu": "view",
+      "separatorBefore": true
+    },
+    {
+      "id": "view.zoomOut",
+      "labelKey": "common.command.zoomOut",
+      "shortcut": { "mac": "Cmd+-", "win": "Ctrl+-", "linux": "Ctrl+-", "web": "CmdOrCtrl+-" },
+      "source": "frontend",
+      "menu": "view"
+    },
+    {
+      "id": "view.actualSize",
+      "labelKey": "common.command.actualSize",
+      "shortcut": { "mac": "Cmd+0", "win": "Ctrl+0", "linux": "Ctrl+0", "web": "CmdOrCtrl+0" },
+      "source": "frontend",
+      "menu": "view"
     },
     {
       "id": "view.fullscreen",
