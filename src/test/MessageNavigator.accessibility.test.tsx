@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { Range } from "@tanstack/react-virtual";
 import { MessageNavigator } from "@/components/MessageNavigator";
 
 const {
@@ -39,23 +40,43 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        start: index * 40,
-      })),
-    getTotalSize: () => count * 40,
-    scrollToIndex: vi.fn(),
-  }),
+// The rows the mock virtualizer treats as in view. Null renders every row;
+// a window renders only the rows the component's range extractor returns
+// for it, as the real virtualizer does.
+const virtualWindow = vi.hoisted(() => ({
+  current: null as { startIndex: number; endIndex: number } | null,
 }));
+
+vi.mock("@tanstack/react-virtual", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
+  return {
+    defaultRangeExtractor: actual.defaultRangeExtractor,
+    useVirtualizer: ({
+      count,
+      rangeExtractor = actual.defaultRangeExtractor,
+    }: {
+      count: number;
+      rangeExtractor?: (range: Range) => number[];
+    }) => {
+      const indexes = virtualWindow.current
+        ? rangeExtractor({ ...virtualWindow.current, overscan: 0, count })
+        : Array.from({ length: count }, (_, index) => index);
+      return {
+        getVirtualItems: () => indexes.map((index) => ({ index, start: index * 40 })),
+        getTotalSize: () => count * 40,
+        scrollToIndex: vi.fn(),
+      };
+    },
+  };
+});
 
 describe("MessageNavigator accessibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeState.showParallelTasksInNavigator = true;
     storeState.userOnlyFilter = false;
+    storeState.targetMessageUuid = "message-2";
+    virtualWindow.current = null;
   });
 
   it("supports roving focus and keyboard activation", () => {
@@ -96,6 +117,35 @@ describe("MessageNavigator accessibility", () => {
 
     fireEvent.keyDown(movedEntry, { key: "Enter" });
     expect(navigateToMessageMock).toHaveBeenCalledWith("message-3");
+  });
+
+  it("keeps the focused row rendered outside the virtual window, so Tab can reach the list", () => {
+    // Twenty rows with only the first two in view, and the focused row the
+    // last one, as after scrolling the panel away from the current message.
+    storeState.targetMessageUuid = "message-20";
+    virtualWindow.current = { startIndex: 0, endIndex: 1 };
+
+    render(
+      <MessageNavigator
+        messages={Array.from({ length: 20 }, (_, index) => ({
+          uuid: `message-${index + 1}`,
+          type: "assistant",
+          content: `Reply ${index + 1}`,
+          timestamp: "2026-02-27T10:00:00Z",
+        }) as never)}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const rows = screen.getAllByRole("option");
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toHaveTextContent("Reply 20");
+    expect(rows[2]).toHaveAttribute("tabindex", "0");
+    expect(rows.filter((row) => row.getAttribute("tabindex") === "0")).toHaveLength(1);
   });
 
   it("hides Parallel Tasks entries and exposes a header toggle", () => {
