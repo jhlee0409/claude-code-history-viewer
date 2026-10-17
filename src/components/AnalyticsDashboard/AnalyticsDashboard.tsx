@@ -141,8 +141,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   return (
     <div className="flex-1 p-4 md:p-6 overflow-auto bg-background">
       <div className="relative">
-        {/* Header Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        {/* Header Controls. On phones the date filter shares the row with
+            Project overview | Session details when both fit, and wraps under
+            it, left-aligned, when they do not (a long locale, an open date
+            range); never a lone right-aligned row. */}
+        <div
+          data-analytics-controls=""
+          className="flex flex-wrap items-center justify-between gap-2 mb-4 md:gap-4 md:mb-6"
+        >
           {/* Tab Selector */}
           {hasSessionData && (
             <div role="tablist" className="segmented w-fit">
@@ -150,7 +156,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 role="tab"
                 aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
-                className="segmented-item flex items-center gap-2 px-4 py-2 text-caption"
+                className="segmented-item flex items-center gap-2 px-3 md:px-4 py-2 text-caption whitespace-nowrap"
               >
                 <Layers
                   className={cn(
@@ -164,7 +170,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 role="tab"
                 aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
-                className="segmented-item flex items-center gap-2 px-4 py-2 text-caption"
+                className="segmented-item flex items-center gap-2 px-3 md:px-4 py-2 text-caption whitespace-nowrap"
               >
                 <Activity
                   className={cn(

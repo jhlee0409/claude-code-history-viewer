@@ -1,7 +1,7 @@
 /**
  * The Edits screen (plan T9b): the one recent-edits surface, opened from the
- * toolbar's Edits tab (on phones from the analytics sub-navigation), the same
- * screen on every width.
+ * toolbar's Edits tab (on phones from the analytics nav row, Overview ·
+ * Tokens · Edits), the same screen on every width.
  *
  * It took over everything the docked panel beside the transcript had: the
  * project/session scope, grouping per scope, row density, the missing-on-disk

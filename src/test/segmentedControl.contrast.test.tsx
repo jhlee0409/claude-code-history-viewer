@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import { block, contrast, oklch } from "./utils/oklchContrast";
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => {} },
   useTranslation: () => ({
     t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
   }),
@@ -26,6 +27,7 @@ vi.mock("react-i18next", () => ({
 import { RecentEditsDensityToggle, RecentEditsScopeToggle } from "@/components/RecentEditsViewer/RecentEditsToggles";
 import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
 import { MetricModeToggle } from "@/components/ui/MetricModeToggle";
+import { MobileAnalyticsSubNav } from "@/layouts/shell/MobileAnalyticsSubNav";
 
 const NON_TEXT = 3;
 const AA_SMALL_TEXT = 4.5;
@@ -91,9 +93,9 @@ describe("segmented control contrast (selected vs unselected)", () => {
     expect(at).toBeLessThan(CSS.indexOf("@layer utilities {", components));
   });
 
-  it("the selected state is drawn from those tokens, for both aria-pressed and aria-selected", () => {
+  it("the selected state is drawn from those tokens, for aria-pressed, aria-selected and aria-current", () => {
     const selected = CSS.match(
-      /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\]\s*\{([^}]*)\}/
+      /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\],\s*\.segmented-item\[aria-current="page"\]\s*\{([^}]*)\}/
     );
     expect(selected, "no shared selected rule in index.css").not.toBeNull();
     const body = selected![1]!;
@@ -109,7 +111,12 @@ describe("every segmented control uses the shared style", () => {
     screen
       .queryAllByRole("button")
       .concat(screen.queryAllByRole("tab"))
-      .filter((el) => el.getAttribute("aria-pressed") === "true" || el.getAttribute("aria-selected") === "true");
+      .filter(
+        (el) =>
+          el.getAttribute("aria-pressed") === "true" ||
+          el.getAttribute("aria-selected") === "true" ||
+          el.getAttribute("aria-current") === "page"
+      );
 
   const expectShared = () => {
     const items = selectedItem();
@@ -138,6 +145,11 @@ describe("every segmented control uses the shared style", () => {
 
   it("analytics sub-tabs (Overview / Tokens)", () => {
     render(<AnalyticsSubTabs value="tokens" onChange={() => {}} />);
+    expectShared();
+  });
+
+  it("the phone's analytics nav (Overview / Tokens / Edits)", () => {
+    render(<MobileAnalyticsSubNav view="edits" analyticsActions={{} as never} />);
     expectShared();
   });
 
@@ -176,6 +188,7 @@ describe("every segmented control uses the shared style", () => {
     ["Edits density", () => <RecentEditsDensityToggle value="compact" onChange={() => {}} />],
     ["analytics sub-tabs", () => <AnalyticsSubTabs value="tokens" onChange={() => {}} />],
     ["metric mode", () => <MetricModeToggle value="tokens" onChange={() => {}} />],
+    ["phone analytics nav", () => <MobileAnalyticsSubNav view="analytics" analyticsActions={{} as never} />],
   ])("%s: rendered items carry only the shared focus style", (_name, ui) => {
     const { container } = render(ui());
     const items = container.querySelectorAll(".segmented-item");

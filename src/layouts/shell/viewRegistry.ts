@@ -3,9 +3,9 @@
  *
  * Every `View` of the place model has one entry. The shell reads it for the
  * main-area body (`component` inside its `frame`), the content header
- * (`icon`, `titleKey`, `header.subtitle`), the header's view tabs (`tab`)
- * and the mobile analytics sub-nav. Nothing else in `src/layouts` picks a
- * component, title or icon per view; the registry test holds that line. The
+ * (`icon`, `titleKey`, `header.subtitle`) and the header's view tabs
+ * (`tab`). Nothing else in `src/layouts` picks a component, title or icon
+ * per view; the registry test holds that line. The
  * screens the right-hand inspector sits beside are the inspector's own rule
  * (`components/Inspector/inspectorAvailability.ts`), shared with the command
  * registry, which must not import the screens.
@@ -52,10 +52,10 @@ export interface ViewEntry {
   component: ComponentType<ViewScreenProps>;
   /** What the body sits in inside the view panel. */
   frame: ComponentType<{ children: ReactNode }>;
-  /** The screen's mark: header tab, content header, mobile sub-nav. */
+  /** The screen's mark: header tab, content header. */
   icon: LucideIcon;
   /**
-   * The screen's name (content header, mobile sub-nav). An i18n key that
+   * The screen's name (content header). An i18n key that
    * must exist in `en`; checked by the registry test rather than by type,
    * as the generated key union does not cover every namespace.
    */
@@ -153,8 +153,9 @@ export const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
 ];
 
 /**
- * The project screens the mobile layout switches between under its header.
- * Token statistics are reached through analytics' own sub-tabs (T9b).
+ * The project screens that show the phone's analytics nav row under their
+ * header (`MobileAnalyticsSubNav`: Overview · Tokens · Edits). Token
+ * statistics are analytics' "tokens" sub-tab (T9b), not a screen.
  */
 export type MobileAnalyticsView = "analytics" | "edits";
 

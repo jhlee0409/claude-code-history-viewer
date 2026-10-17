@@ -52,14 +52,20 @@ export function createActions({ session, scenario, manifest, t }) {
 
   const settled = (label) => settle(session, { label });
   /**
-   * Analytics' "Tokens" sub-tab (T9b). A base build before it has token
-   * stats as a screen of its own: from T7 a link in the analytics header,
-   * on phones a button in the analytics sub-navigation.
+   * Analytics' "Tokens" sub-tab (T9b). On phones since the one analytics nav
+   * row it is that row's Tokens item. A base build before it has token stats
+   * as a screen of its own: from T7 a link in the analytics header, on phones
+   * a button in the analytics sub-navigation.
    */
   const openAnalyticsTokens = async () => {
     const subTab = page.locator('[data-analytics-tab="tokens"]');
     if ((await subTab.count()) > 0) {
       await click(subTab, "analytics tokens sub-tab");
+      return;
+    }
+    const navItem = page.locator('[data-analytics-place="tokens"]');
+    if ((await navItem.count()) > 0) {
+      await click(navItem, "analytics nav tokens");
       return;
     }
     if (!mobile) {

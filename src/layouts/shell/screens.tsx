@@ -42,6 +42,8 @@ export interface ViewScreenProps {
   analyticsState: UseAnalyticsReturn["state"];
   analyticsActions: UseAnalyticsReturn["actions"];
   onTokenStatClick: (stats: SessionTokenStats) => void;
+  /** The phone layout: analytics' sub-tabs live in the nav row above the screen. */
+  isMobile: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,15 +216,18 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
  * Project analytics and global stats: one body, so a switch keeps the
  * dashboard mounted. Project analytics has two sub-tabs (T9b): the overview
  * dashboard and the token statistics, which were a screen of their own. The
- * selected one is the place's (`analyticsTab`); choosing one navigates.
+ * selected one is the place's (`analyticsTab`); choosing one navigates. On
+ * phones the sub-tabs are items of the one analytics nav row above the screen
+ * (`MobileAnalyticsSubNav`, with Edits), so the body draws no tablist there.
  */
-export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick }: ViewScreenProps) => {
+export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick, isMobile }: ViewScreenProps) => {
   const analyticsTab = useAppStore((s) => s.analyticsTab);
   const isProjectAnalytics = view === "analytics";
+  const hasSubTabs = isProjectAnalytics && !isMobile;
   const showsTokens = isProjectAnalytics && analyticsTab === "tokens";
   return (
     <>
-      {isProjectAnalytics && (
+      {hasSubTabs && (
         <AnalyticsSubTabs
           value={analyticsTab}
           onChange={(tab) => {
@@ -236,9 +241,9 @@ export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick }: Vi
       )}
       {/* The same element on both screens, so the dashboard stays mounted. */}
       <div
-        id={isProjectAnalytics ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
-        role={isProjectAnalytics ? "tabpanel" : undefined}
-        aria-labelledby={isProjectAnalytics ? analyticsSubTabId(analyticsTab) : undefined}
+        id={hasSubTabs ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
+        role={hasSubTabs ? "tabpanel" : undefined}
+        aria-labelledby={hasSubTabs ? analyticsSubTabId(analyticsTab) : undefined}
       >
         {showsTokens ? (
           <TokenStatsPanel onTokenStatClick={onTokenStatClick} />

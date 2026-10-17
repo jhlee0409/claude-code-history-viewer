@@ -3144,74 +3144,118 @@ exports[`shell characterization > mobile > analytics 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
+        <nav
+          aria-label="Analytics views"
+          class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
+          data-mobile-analytics-nav=""
         >
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
-            type="button"
+          <div
+            class="segmented w-full"
           >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-chart-column lucide-bar-chart-3 w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+            <button
+              aria-current="page"
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="overview"
+              type="button"
             >
-              <path
-                d="M3 3v16a2 2 0 0 0 2 2h16"
-              />
-              <path
-                d="M18 17V9"
-              />
-              <path
-                d="M13 17V5"
-              />
-              <path
-                d="M8 17v-3"
-              />
-            </svg>
-            Analytics Dashboard
-          </button>
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-file-pen-line lucide-file-signature w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 shrink-0 text-accent"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Overview
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="tokens"
+              type="button"
             >
-              <path
-                d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-              />
-              <path
-                d="M14.487 7.858A1 1 0 0 1 14 7V2"
-              />
-              <path
-                d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-              />
-              <path
-                d="M8 18h1"
-              />
-            </svg>
-            Recent Edits
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Tokens
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="edits"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-file-pen-line lucide-file-signature shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
+                />
+                <path
+                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
+                />
+                <path
+                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+                />
+                <path
+                  d="M8 18h1"
+                />
+              </svg>
+              Recent Edits
+            </button>
+          </div>
+        </nav>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -3234,99 +3278,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div
-                class="px-4 pt-4 md:px-6 md:pt-5"
-              >
-                <div
-                  aria-label="Analytics views"
-                  class="segmented w-fit"
-                  role="tablist"
-                >
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="overview"
-                    id="analytics-subtab-overview"
-                    role="tab"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-chart-column lucide-bar-chart-3 text-accent"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M3 3v16a2 2 0 0 0 2 2h16"
-                      />
-                      <path
-                        d="M18 17V9"
-                      />
-                      <path
-                        d="M13 17V5"
-                      />
-                      <path
-                        d="M8 17v-3"
-                      />
-                    </svg>
-                    Overview
-                  </button>
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="tokens"
-                    id="analytics-subtab-tokens"
-                    role="tab"
-                    tabindex="-1"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-coins text-muted-foreground/70"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-                      />
-                      <path
-                        d="M15 6h1v4"
-                      />
-                      <path
-                        d="m6.134 14.768.866-.5 2 3.464"
-                      />
-                      <circle
-                        cx="16"
-                        cy="8"
-                        r="6"
-                      />
-                    </svg>
-                    Tokens
-                  </button>
-                </div>
-              </div>
-              <div
-                aria-labelledby="analytics-subtab-overview"
-                id="analytics-subtab-panel"
-                role="tabpanel"
-              >
+              <div>
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"
@@ -3509,74 +3461,118 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
+        <nav
+          aria-label="Analytics views"
+          class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
+          data-mobile-analytics-nav=""
         >
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
-            type="button"
+          <div
+            class="segmented w-full"
           >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-chart-column lucide-bar-chart-3 w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="overview"
+              type="button"
             >
-              <path
-                d="M3 3v16a2 2 0 0 0 2 2h16"
-              />
-              <path
-                d="M18 17V9"
-              />
-              <path
-                d="M13 17V5"
-              />
-              <path
-                d="M8 17v-3"
-              />
-            </svg>
-            Analytics Dashboard
-          </button>
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-file-pen-line lucide-file-signature w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Overview
+            </button>
+            <button
+              aria-current="page"
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="tokens"
+              type="button"
             >
-              <path
-                d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-              />
-              <path
-                d="M14.487 7.858A1 1 0 0 1 14 7V2"
-              />
-              <path
-                d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-              />
-              <path
-                d="M8 18h1"
-              />
-            </svg>
-            Recent Edits
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins shrink-0 text-accent"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Tokens
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="edits"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-file-pen-line lucide-file-signature shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
+                />
+                <path
+                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
+                />
+                <path
+                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+                />
+                <path
+                  d="M8 18h1"
+                />
+              </svg>
+              Recent Edits
+            </button>
+          </div>
+        </nav>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -3599,99 +3595,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div
-                class="px-4 pt-4 md:px-6 md:pt-5"
-              >
-                <div
-                  aria-label="Analytics views"
-                  class="segmented w-fit"
-                  role="tablist"
-                >
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="overview"
-                    id="analytics-subtab-overview"
-                    role="tab"
-                    tabindex="-1"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-chart-column lucide-bar-chart-3 text-muted-foreground/70"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M3 3v16a2 2 0 0 0 2 2h16"
-                      />
-                      <path
-                        d="M18 17V9"
-                      />
-                      <path
-                        d="M13 17V5"
-                      />
-                      <path
-                        d="M8 17v-3"
-                      />
-                    </svg>
-                    Overview
-                  </button>
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="tokens"
-                    id="analytics-subtab-tokens"
-                    role="tab"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-coins text-accent"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-                      />
-                      <path
-                        d="M15 6h1v4"
-                      />
-                      <path
-                        d="m6.134 14.768.866-.5 2 3.464"
-                      />
-                      <circle
-                        cx="16"
-                        cy="8"
-                        r="6"
-                      />
-                    </svg>
-                    Tokens
-                  </button>
-                </div>
-              </div>
-              <div
-                aria-labelledby="analytics-subtab-tokens"
-                id="analytics-subtab-panel"
-                role="tabpanel"
-              >
+              <div>
                 <div
                   class="p-3 md:p-6"
                 >
@@ -3878,74 +3782,118 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
+        <nav
+          aria-label="Analytics views"
+          class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
+          data-mobile-analytics-nav=""
         >
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
-            type="button"
+          <div
+            class="segmented w-full"
           >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-chart-column lucide-bar-chart-3 w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+            <button
+              aria-current="page"
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="overview"
+              type="button"
             >
-              <path
-                d="M3 3v16a2 2 0 0 0 2 2h16"
-              />
-              <path
-                d="M18 17V9"
-              />
-              <path
-                d="M13 17V5"
-              />
-              <path
-                d="M8 17v-3"
-              />
-            </svg>
-            Analytics Dashboard
-          </button>
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-file-pen-line lucide-file-signature w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 shrink-0 text-accent"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Overview
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="tokens"
+              type="button"
             >
-              <path
-                d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-              />
-              <path
-                d="M14.487 7.858A1 1 0 0 1 14 7V2"
-              />
-              <path
-                d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-              />
-              <path
-                d="M8 18h1"
-              />
-            </svg>
-            Recent Edits
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Tokens
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="edits"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-file-pen-line lucide-file-signature shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
+                />
+                <path
+                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
+                />
+                <path
+                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+                />
+                <path
+                  d="M8 18h1"
+                />
+              </svg>
+              Recent Edits
+            </button>
+          </div>
+        </nav>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -3968,99 +3916,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div
-                class="px-4 pt-4 md:px-6 md:pt-5"
-              >
-                <div
-                  aria-label="Analytics views"
-                  class="segmented w-fit"
-                  role="tablist"
-                >
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="overview"
-                    id="analytics-subtab-overview"
-                    role="tab"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-chart-column lucide-bar-chart-3 text-accent"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M3 3v16a2 2 0 0 0 2 2h16"
-                      />
-                      <path
-                        d="M18 17V9"
-                      />
-                      <path
-                        d="M13 17V5"
-                      />
-                      <path
-                        d="M8 17v-3"
-                      />
-                    </svg>
-                    Overview
-                  </button>
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="tokens"
-                    id="analytics-subtab-tokens"
-                    role="tab"
-                    tabindex="-1"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-coins text-muted-foreground/70"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-                      />
-                      <path
-                        d="M15 6h1v4"
-                      />
-                      <path
-                        d="m6.134 14.768.866-.5 2 3.464"
-                      />
-                      <circle
-                        cx="16"
-                        cy="8"
-                        r="6"
-                      />
-                    </svg>
-                    Tokens
-                  </button>
-                </div>
-              </div>
-              <div
-                aria-labelledby="analytics-subtab-overview"
-                id="analytics-subtab-panel"
-                role="tabpanel"
-              >
+              <div>
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"
@@ -5332,74 +5188,118 @@ exports[`shell characterization > mobile > loading stats 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
+        <nav
+          aria-label="Analytics views"
+          class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
+          data-mobile-analytics-nav=""
         >
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
-            type="button"
+          <div
+            class="segmented w-full"
           >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-chart-column lucide-bar-chart-3 w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+            <button
+              aria-current="page"
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="overview"
+              type="button"
             >
-              <path
-                d="M3 3v16a2 2 0 0 0 2 2h16"
-              />
-              <path
-                d="M18 17V9"
-              />
-              <path
-                d="M13 17V5"
-              />
-              <path
-                d="M8 17v-3"
-              />
-            </svg>
-            Analytics Dashboard
-          </button>
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-file-pen-line lucide-file-signature w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 shrink-0 text-accent"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Overview
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="tokens"
+              type="button"
             >
-              <path
-                d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-              />
-              <path
-                d="M14.487 7.858A1 1 0 0 1 14 7V2"
-              />
-              <path
-                d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-              />
-              <path
-                d="M8 18h1"
-              />
-            </svg>
-            Recent Edits
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Tokens
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="edits"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-file-pen-line lucide-file-signature shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
+                />
+                <path
+                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
+                />
+                <path
+                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+                />
+                <path
+                  d="M8 18h1"
+                />
+              </svg>
+              Recent Edits
+            </button>
+          </div>
+        </nav>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -5422,99 +5322,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div
-                class="px-4 pt-4 md:px-6 md:pt-5"
-              >
-                <div
-                  aria-label="Analytics views"
-                  class="segmented w-fit"
-                  role="tablist"
-                >
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="true"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="overview"
-                    id="analytics-subtab-overview"
-                    role="tab"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-chart-column lucide-bar-chart-3 text-accent"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M3 3v16a2 2 0 0 0 2 2h16"
-                      />
-                      <path
-                        d="M18 17V9"
-                      />
-                      <path
-                        d="M13 17V5"
-                      />
-                      <path
-                        d="M8 17v-3"
-                      />
-                    </svg>
-                    Overview
-                  </button>
-                  <button
-                    aria-controls="analytics-subtab-panel"
-                    aria-selected="false"
-                    class="segmented-item flex items-center gap-2 px-3 py-1.5 text-list whitespace-nowrap"
-                    data-analytics-tab="tokens"
-                    id="analytics-subtab-tokens"
-                    role="tab"
-                    tabindex="-1"
-                    type="button"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      class="lucide lucide-coins text-muted-foreground/70"
-                      fill="none"
-                      height="14"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.75"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
-                      />
-                      <path
-                        d="M15 6h1v4"
-                      />
-                      <path
-                        d="m6.134 14.768.866-.5 2 3.464"
-                      />
-                      <circle
-                        cx="16"
-                        cy="8"
-                        r="6"
-                      />
-                    </svg>
-                    Tokens
-                  </button>
-                </div>
-              </div>
-              <div
-                aria-labelledby="analytics-subtab-overview"
-                id="analytics-subtab-panel"
-                role="tabpanel"
-              >
+              <div>
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"
@@ -5842,74 +5650,118 @@ exports[`shell characterization > mobile > recent edits 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="flex items-center gap-1.5 px-3 py-2 border-b border-border/40 bg-card/30 md:hidden overflow-x-auto"
+        <nav
+          aria-label="Analytics views"
+          class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
+          data-mobile-analytics-nav=""
         >
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            type="button"
+          <div
+            class="segmented w-full"
           >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-chart-column lucide-bar-chart-3 w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="overview"
+              type="button"
             >
-              <path
-                d="M3 3v16a2 2 0 0 0 2 2h16"
-              />
-              <path
-                d="M18 17V9"
-              />
-              <path
-                d="M13 17V5"
-              />
-              <path
-                d="M8 17v-3"
-              />
-            </svg>
-            Analytics Dashboard
-          </button>
-          <button
-            class="shrink-0 flex items-center gap-1.5 px-3 py-2.5 md:py-1.5 rounded-lg text-list font-medium transition-colors bg-accent/15 text-accent border border-accent/30"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-file-pen-line lucide-file-signature w-3.5 h-3.5"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-column lucide-bar-chart-3 shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 3v16a2 2 0 0 0 2 2h16"
+                />
+                <path
+                  d="M18 17V9"
+                />
+                <path
+                  d="M13 17V5"
+                />
+                <path
+                  d="M8 17v-3"
+                />
+              </svg>
+              Overview
+            </button>
+            <button
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="tokens"
+              type="button"
             >
-              <path
-                d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-              />
-              <path
-                d="M14.487 7.858A1 1 0 0 1 14 7V2"
-              />
-              <path
-                d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-              />
-              <path
-                d="M8 18h1"
-              />
-            </svg>
-            Recent Edits
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-coins shrink-0 text-muted-foreground/70"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.744 17.736a6 6 0 1 1-7.48-7.48"
+                />
+                <path
+                  d="M15 6h1v4"
+                />
+                <path
+                  d="m6.134 14.768.866-.5 2 3.464"
+                />
+                <circle
+                  cx="16"
+                  cy="8"
+                  r="6"
+                />
+              </svg>
+              Tokens
+            </button>
+            <button
+              aria-current="page"
+              class="segmented-item flex flex-1 min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-list whitespace-nowrap"
+              data-analytics-place="edits"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-file-pen-line lucide-file-signature shrink-0 text-accent"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="14"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
+                />
+                <path
+                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
+                />
+                <path
+                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
+                />
+                <path
+                  d="M8 18h1"
+                />
+              </svg>
+              Recent Edits
+            </button>
+          </div>
+        </nav>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"

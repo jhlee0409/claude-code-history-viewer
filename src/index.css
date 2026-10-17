@@ -975,9 +975,10 @@
   }
 
   /* === Segmented control (one shared style) ===
-     Session/Project, row density, analytics Overview/Tokens, Project
-     overview/Session details, metric mode. The track holds the items; the
-     selected one (aria-pressed or aria-selected) gets its own surface and an
+     Session/Project, row density, analytics Overview/Tokens, the phone's
+     Overview/Tokens/Edits nav, Project overview/Session details, metric
+     mode. The track holds the items; the selected one (aria-pressed,
+     aria-selected, or aria-current="page" in a nav) gets its own surface and an
      accent outline (tokens --segmented-*). Padding and type size stay on each
      control. */
   .segmented {
@@ -994,7 +995,8 @@
   }
 
   .segmented-item[aria-pressed="true"],
-  .segmented-item[aria-selected="true"] {
+  .segmented-item[aria-selected="true"],
+  .segmented-item[aria-current="page"] {
     background-color: var(--segmented-selected);
     color: var(--segmented-selected-foreground);
     box-shadow:

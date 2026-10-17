@@ -368,6 +368,7 @@ describe("the analytics tokens sub-tab shows only its own project's stats", () =
         analyticsState={{} as never}
         analyticsActions={{} as never}
         onTokenStatClick={() => {}}
+        isMobile={false}
       />,
     );
 
@@ -468,6 +469,7 @@ describe("the Edits screen shows only its own project's edits", () => {
           analyticsState={useAppStore((s) => s.analytics)}
           analyticsActions={result.current}
           onTokenStatClick={() => {}}
+          isMobile={false}
         />
       );
     }

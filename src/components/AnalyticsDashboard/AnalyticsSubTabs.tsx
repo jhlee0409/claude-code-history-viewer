@@ -8,8 +8,9 @@
  * this control only reflects and requests it.
  *
  * An APG tablist with automatic activation: one tab stop (the selected tab),
- * Arrow keys / Home / End move and select. Same on every width; on phones it
- * is how token statistics are reached from the analytics bottom tab.
+ * Arrow keys / Home / End move and select. Wider layouts only: on phones the
+ * two sub-tabs are items of the one analytics nav row, with Edits
+ * (`layouts/shell/MobileAnalyticsSubNav.tsx`).
  */
 import { useRef, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";

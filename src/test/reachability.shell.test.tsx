@@ -394,6 +394,101 @@ describe("§6 reachability through the real shell", () => {
     expect(screenShown()).toBe("AnalyticsDashboard");
   });
 
+  describe("phones: one analytics nav row, Overview · Tokens · Edits (owner decision)", () => {
+    // The phone once stacked the analytics/edits chips over the Overview |
+    // Tokens sub-tabs. They are one segmented row now; its items navigate
+    // places (analytics+overview, analytics+tokens, edits), so it is a nav
+    // of buttons with aria-current, not a tablist.
+    const navRow = () => screen.getByRole("navigation", { name: t("analytics.subTab.label") });
+    const items = () => within(navRow()).getAllByRole("button");
+    const item = (key: string) => within(navRow()).getByRole("button", { name: t(key) });
+    const current = () =>
+      items()
+        .filter((b) => b.getAttribute("aria-current") === "page")
+        .map((b) => b.textContent);
+    /** Navigation rows in the main column, above the screen body. */
+    const expectOneRow = () => {
+      const main = document.getElementById("main-content")!;
+      expect(main.querySelectorAll("nav, [role=navigation]")).toHaveLength(1);
+      expect(main.querySelectorAll("[role=tablist]")).toHaveLength(0);
+      expect(main.querySelectorAll(".segmented")).toHaveLength(1);
+      expect(main.querySelectorAll("[data-analytics-tab]")).toHaveLength(0);
+    };
+    const bottomTab = () => screen.getByRole("button", { name: t("common.mobile.tab.analytics"), exact: true } as never);
+
+    beforeEach(() => {
+      platformState.isMobile = true;
+    });
+
+    it("has exactly three items in order, and the analytics bottom tab opens Overview", async () => {
+      await renderShell();
+      await activate(bottomTab());
+      await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
+      expect(items().map((b) => b.textContent)).toEqual([
+        t("analytics.subTab.overview"),
+        t("analytics.subTab.tokens"),
+        t("recentEdits.title"),
+      ]);
+      expect(state().view).toBe("analytics");
+      expect(state().analyticsTab).toBe("overview");
+      expect(current()).toEqual([t("analytics.subTab.overview")]);
+      expectOneRow();
+    });
+
+    it("Tokens, Edits and Overview navigate and the row reflects each place", async () => {
+      await renderShell();
+      await activate(bottomTab());
+      await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
+
+      await activate(item("analytics.subTab.tokens"));
+      await waitFor(() => expect(state().analyticsTab).toBe("tokens"));
+      expect(state().view).toBe("analytics");
+      expect(screenShown()).toBe("TokenStatsViewer");
+      expect(current()).toEqual([t("analytics.subTab.tokens")]);
+      expectOneRow();
+
+      await activate(item("recentEdits.title"));
+      await waitFor(() => expect(state().view).toBe("edits"));
+      expect(screenShown()).toBe("RecentEditsViewer");
+      expect(current()).toEqual([t("recentEdits.title")]);
+      expectOneRow();
+
+      // Straight from Edits to Tokens: one step, not via Overview.
+      await activate(item("analytics.subTab.tokens"));
+      await waitFor(() => expect(state().view).toBe("analytics"));
+      expect(state().analyticsTab).toBe("tokens");
+      expect(screenShown()).toBe("TokenStatsViewer");
+      expect(current()).toEqual([t("analytics.subTab.tokens")]);
+
+      await activate(item("analytics.subTab.overview"));
+      await waitFor(() => expect(state().analyticsTab).toBe("overview"));
+      expect(screenShown()).toBe("AnalyticsDashboard");
+      expect(current()).toEqual([t("analytics.subTab.overview")]);
+      expectOneRow();
+    });
+
+    it("every item is a native button in the tab order (keyboard: Tab + Enter/Space)", async () => {
+      await renderShell();
+      await activate(bottomTab());
+      await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
+      for (const button of items()) {
+        expect(button.tagName).toBe("BUTTON");
+        expect(button.getAttribute("type")).toBe("button");
+        expect(button.tabIndex).toBe(0);
+        expect(button.classList.contains("segmented-item")).toBe(true);
+      }
+    });
+
+    it("on the desktop the row does not exist; the sub-tabs stay inside analytics", async () => {
+      platformState.isMobile = false;
+      await renderShell();
+      await activate(document.getElementById("view-tab-analytics")!);
+      await waitFor(() => expect(screenShown()).toBe("AnalyticsDashboard"));
+      expect(screen.queryByRole("navigation", { name: t("analytics.subTab.label") })).toBeNull();
+      expect(screen.getByRole("tablist", { name: t("analytics.subTab.label") })).toBeTruthy();
+    });
+  });
+
   describe("gear menu", () => {
     it("check for updates", async () => {
       const heard = vi.fn();

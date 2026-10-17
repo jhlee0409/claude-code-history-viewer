@@ -396,6 +396,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             analyticsState={analyticsState}
             analyticsActions={analyticsActions}
             onTokenStatClick={handleTokenStatClick}
+            isMobile={isMobile}
           />
         </Frame>
       }
