@@ -536,10 +536,10 @@ fn temp_path(path: &Path) -> PathBuf {
 ///
 /// `fs::rename` replaces an existing target on every platform — on Windows
 /// it is `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` / `FileRenameInfoEx`
-/// with `REPLACE_IF_EXISTS` (std `sys/fs/windows.rs`, `rename`) — so
-/// `fs_utils::atomic_rename`'s remove-the-target-first step (the CLAUDE.md
-/// rule) is not needed, and skipping it closes the gap in which neither
-/// file exists.
+/// with `REPLACE_IF_EXISTS` (std `sys/fs/windows.rs`, `rename`) — so the
+/// first attempt is that one atomic replace, with no moment in which neither
+/// file exists. Only if it fails on Windows (a target that cannot be replaced
+/// in place) is the CLAUDE.md remove-the-target-first step used as a retry.
 pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     let json = serde_json::to_vec_pretty(record).map_err(|e| format!("not serialized: {e}"))?;
     if let Some(dir) = path.parent() {
@@ -547,7 +547,17 @@ pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     }
     let temp = temp_path(path);
     crate::commands::fs_utils::write_fresh_temp_file(&temp, &json)?;
-    fs::rename(&temp, path).map_err(|e| {
+    let renamed = fs::rename(&temp, path);
+    // Windows fallback (CLAUDE.md rule): a target that cannot be replaced in
+    // place (read-only attribute, opened without FILE_SHARE_DELETE) is removed
+    // and the rename retried. Only on failure, so the usual path stays one
+    // atomic replace.
+    #[cfg(windows)]
+    let renamed = renamed.or_else(|_| {
+        let _ = fs::remove_file(path);
+        fs::rename(&temp, path)
+    });
+    renamed.map_err(|e| {
         let _ = fs::remove_file(&temp);
         format!("{} not replaced: {e}", path.display())
     })
