@@ -8,10 +8,14 @@ import { parkPointer, settle } from "./browser.mjs";
 const VIEW_LABEL_KEYS = {
   messages: "message.view",
   analytics: "analytics.dashboard",
-  tokenStats: "messages.tokenStats.existing",
+  // Analytics' "Tokens" sub-tab (T9b), reached through the analytics tab.
+  analyticsTokens: "analytics.dashboard",
   recentEdits: "recentEdits.title",
   board: "session.board.title",
 };
+
+/** The token stats tab of a base build before T7. */
+const LEGACY_TOKEN_STATS_TAB_KEY = "messages.tokenStats.existing";
 
 const MOBILE_TAB_KEYS = {
   projects: "common.mobile.tab.projects",
@@ -47,6 +51,24 @@ export function createActions({ session, scenario, manifest, t }) {
   };
 
   const settled = (label) => settle(session, { label });
+  /**
+   * Analytics' "Tokens" sub-tab (T9b). A base build before it has token
+   * stats as a screen of its own: from T7 a link in the analytics header,
+   * on phones a button in the analytics sub-navigation.
+   */
+  const openAnalyticsTokens = async () => {
+    const subTab = page.locator('[data-analytics-tab="tokens"]');
+    if ((await subTab.count()) > 0) {
+      await click(subTab, "analytics tokens sub-tab");
+      return;
+    }
+    if (!mobile) {
+      await click(page.locator('[data-related-view="tokenStats"]'), "view tokenStats");
+      return;
+    }
+    const label = t("messages.tokenStats.title");
+    await click(page.locator("#main-content").getByRole("button", { name: label, exact: true }), "view tokenStats");
+  };
   const click = async (locator, label, options = {}) => {
     try {
       await locator.scrollIntoViewIfNeeded();
@@ -171,23 +193,32 @@ export function createActions({ session, scenario, manifest, t }) {
             .locator("[role=tablist]")
             .getByRole("tab", { name, exact: true })
             .or(header.locator("[role=group]").getByRole("button", { name, exact: true }));
-        const tab = tabNamed(t(VIEW_LABEL_KEYS[view]));
-        // Since T7 token stats has no tab: it opens from the analytics
-        // screen's header (plan C1). Builds before T7 still have the tab.
-        if (view === "tokenStats" && (await tab.count()) === 0) {
+        if (view === "analyticsTokens") {
+          // Builds before T7 still have a token stats tab.
+          const legacyTab = tabNamed(t(LEGACY_TOKEN_STATS_TAB_KEY));
+          if ((await legacyTab.count()) > 0) {
+            await click(legacyTab, "view tokenStats");
+            return;
+          }
           await click(tabNamed(t(VIEW_LABEL_KEYS.analytics)), "view analytics");
-          await click(page.locator('[data-related-view="tokenStats"]'), "view tokenStats");
+          await openAnalyticsTokens();
           return;
         }
-        await click(tab, `view ${view}`);
+        await click(tabNamed(t(VIEW_LABEL_KEYS[view])), `view ${view}`);
         return;
       }
-      if (view === "tokenStats" || view === "recentEdits") {
-        // Mobile reaches these through the analytics sub-navigation inside
-        // the main pane (#main-content predates the capture markers, so base
-        // builds without data-slot="main" are driven the same way).
+      if (view === "analyticsTokens") {
         await click(mobileTab("analytics"), "view analytics");
-        const label = view === "tokenStats" ? t("messages.tokenStats.title") : t("recentEdits.title");
+        await openAnalyticsTokens();
+        return;
+      }
+      if (view === "recentEdits") {
+        // Mobile reaches the Edits screen through the analytics
+        // sub-navigation inside the main pane (#main-content predates the
+        // capture markers, so base builds without data-slot="main" are
+        // driven the same way).
+        await click(mobileTab("analytics"), "view analytics");
+        const label = t("recentEdits.title");
         await click(page.locator("#main-content").getByRole("button", { name: label, exact: true }), `view ${view}`);
         return;
       }

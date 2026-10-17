@@ -51,7 +51,7 @@ directory, and Windows resolves the home folder without `HOME`.
 
 **Settled state** = no tracked request in flight, `data-ready="true"` on the
 app root (attribute only; "true" only when no store load - including
-incremental "load more" pages and the recent-edits dock - and no view-level
+incremental "load more" pages and the Edits screen's rows - and no view-level
 load registered with `usePendingLoad`, e.g. the Settings Manager's settings
 fetch, is pending; the terminal error screen is always "true"),
 `document.fonts.status === "loaded"`, and no DOM mutation for 4 consecutive
@@ -66,7 +66,7 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
 - Viewports: `1180x760`, `1440x900`, `1920x1080`, `390x844` (mobile).
 - Themes: `dark`, `light`.
 - Screens: `home`, `transcript` (the 1,369-message session), `analytics`,
-  `token-stats` (legacy), `recent-edits`, `board`, `global-stats`, `archive`,
+  `analytics-tokens` (the analytics Tokens sub-tab; token stats before T9b), `recent-edits`, `board`, `global-stats`, `archive`,
   `settings` (Settings Manager), two highlight-regression flows from the
   UX audit (`global-stats-after-analytics`: a project's analytics, then
   global stats; `archive-after-global-stats`: global stats, then the

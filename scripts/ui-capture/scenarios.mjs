@@ -9,7 +9,9 @@
 // Step vocabulary (implemented in lib/actions.mjs):
 //   { do: "openProject", project: "featured" | "<name>" }
 //   { do: "openSession", session: "large" | "subagent" }   (opens its project first)
-//   { do: "view", view: "messages" | "analytics" | "tokenStats" | "recentEdits" | "board" }
+//   { do: "view", view: "messages" | "analytics" | "analyticsTokens" | "recentEdits" | "board" }
+//                                   analyticsTokens: analytics › Tokens sub-tab (T9b);
+//                                   on a base build before T9b, the token stats screen
 //   { do: "appMenu", item: "settingsManager" | "archive" }
 //   { do: "globalStats" }
 //   { do: "openSidebar" }                                   (mobile drawer)
@@ -99,13 +101,15 @@ const COMMON_SCREENS = [
     steps: [{ do: "openSession", session: "large" }, { do: "view", view: "analytics" }],
   },
   {
-    id: "token-stats",
-    title: "Token stats (legacy view)",
-    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "tokenStats" }],
+    // Token stats became the analytics "Tokens" sub-tab (T9b); on a base
+    // build before it, the token stats screen: the before/after pair.
+    id: "analytics-tokens",
+    title: "Analytics › Tokens sub-tab (token stats before T9b)",
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "analyticsTokens" }],
   },
   {
     id: "recent-edits",
-    title: "Recent edits page",
+    title: "Edits screen (the only recent-edits surface since T9b)",
     steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }],
   },
   {
@@ -329,6 +333,28 @@ const INSPECTOR_SCREENS = ["outline", "tokens", "info"].map((tab) => ({
   steps: [{ do: "openSession", session: "large" }],
 }));
 
+/**
+ * The recent-edits dock, opened through stored state as a relaunch restores
+ * it, beside the large transcript (plan T9b). A base build before T9b shows
+ * the dock; since T9b the one-time storage migration deletes its keys and the
+ * transcript has no dock: the before/after pair for the dock's removal. The
+ * Edits screen's compact rows (the dock's density) pair with the base page's.
+ */
+const DOCK_SCREENS = [
+  {
+    id: "transcript-dock-stored",
+    title: "Large transcript with the recent-edits dock stored open (gone since T9b)",
+    storage: { "recent-edits-mode": "docked", "recent-edits-dock-open": "true" },
+    steps: [{ do: "openSession", session: "large" }],
+  },
+  {
+    id: "recent-edits-compact",
+    title: "Edits screen with compact rows",
+    storage: { "recent-edits-density-page": "compact", "recent-edits-density": "compact" },
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }],
+  },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -354,6 +380,13 @@ export const MATRIX = [
   // Phones have no inspector: a stored open one must not show (or break
   // the transcript); the outline stays in its own sheet.
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: INSPECTOR_SCREENS.slice(0, 1) },
+  // The dock rendered from `xl` (1280) up; 1180 never had it.
+  {
+    viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"),
+    themes: THEMES,
+    screens: DOCK_SCREENS,
+  },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: DOCK_SCREENS.slice(1) },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */
