@@ -73,7 +73,18 @@ const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
  * the reply is delivered (review-2 A1). Menu events go through a journal
  * like `journal.rs`: numbered, kept until acknowledged.
  */
-function fakeHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSyncError?: (e: unknown) => void } = {}) {
+function fakeHost(
+  ctx: CommandContext,
+  options: {
+    retryDelaysMs?: number[];
+    onSyncError?: (e: unknown) => void;
+    /** The first this-many listener registrations fail. */
+    failListens?: number;
+    onListenError?: (e: unknown) => void;
+  } = {},
+) {
+  let failListens = options.failListens ?? 0;
+  const listenCalls = { count: 0 };
   let listener: ((event: LiveMenuEvent) => void) | null = null;
   let changeHandler: (() => void) | null = null;
   let language = "en";
@@ -110,6 +121,11 @@ function fakeHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSy
         pending.push(entry);
       }),
     listen: async (handler) => {
+      listenCalls.count += 1;
+      if (failListens > 0) {
+        failListens -= 1;
+        throw new Error("injected listen failure");
+      }
       listener = handler;
       return unlisten;
     },
@@ -124,6 +140,7 @@ function fakeHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSy
     },
     retryDelaysMs: options.retryDelaysMs ?? [0, 0],
     onSyncError: options.onSyncError,
+    onListenError: options.onListenError,
   };
   const bridge = startMenuBridge(deps);
   stops.push(() => bridge.stop());
@@ -143,6 +160,7 @@ function fakeHost(ctx: CommandContext, options: { retryDelaysMs?: number[]; onSy
   };
   return {
     bridge,
+    listenCalls,
     syncs,
     pending,
     unlisten,
@@ -283,6 +301,32 @@ describe("menu bridge", () => {
     await flush();
     await flush();
     expect(log).toEqual(["newTab", "closeTab"]);
+  });
+
+  it("retries a listener that failed to attach, tells the user once, then runs the menu commands kept meanwhile in order (review-3 F3)", async () => {
+    vi.useFakeTimers();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const log: string[] = [];
+      const onListenError = vi.fn();
+      const host = fakeHost(loggingContext(log), { failListens: 3, onListenError, retryDelaysMs: [100, 200] });
+      await vi.advanceTimersByTimeAsync(0);
+      host.choose("tab.new"); // retained by the host; nobody hears it
+      host.choose("tab.close");
+      await vi.advanceTimersByTimeAsync(300);
+      expect(onListenError).toHaveBeenCalledTimes(1);
+      expect(log).toEqual([]);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(host.listenCalls.count).toBe(4);
+      expect(log).toEqual(["newTab", "closeTab"]);
+      host.choose("tab.new");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(log).toEqual(["newTab", "closeTab", "newTab"]);
+      expect(onListenError).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("sends the language and state at start, and again when the language changes", async () => {

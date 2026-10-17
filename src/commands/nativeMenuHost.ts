@@ -27,6 +27,8 @@ export function tauriMenuDeps(getContext: () => CommandContext): MenuBridgeDeps 
     onSyncError: () => toast.error(i18n.t("common.menu.syncFailed")),
     // The host keeps the events; the next menu event pulls again.
     onPullError: () => toast.error(i18n.t("common.menu.eventsFailed")),
+    // The listener keeps retrying; once it attaches, the menu commands chosen meanwhile run in order.
+    onListenError: () => toast.error(i18n.t("common.menu.listenFailed")),
     listen: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
       return listen<LiveMenuEvent>(MENU_COMMAND_EVENT, (event) => handler(event.payload));

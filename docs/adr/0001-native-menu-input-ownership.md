@@ -31,7 +31,11 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    (`epoch` + monotonic `seq`), keeps it until acknowledged and emits it live. The page runs
    events strictly in `seq` order, writes its cursor (sessionStorage) before running, and
    acknowledges; a reload or a replacement listener pulls the unacknowledged events and skips
-   those at or below the cursor. No ready state or page-load hook exists.
+   those at or below the cursor. No ready state or page-load hook exists. A listener that
+   fails to attach is retried (the pull backoff, then every last delay until it attaches);
+   the user is told once (`common.menu.listenFailed`: shortcuts still work, menu commands
+   run once it reconnects). The startup pull runs anyway, and each attach pulls, so the
+   events chosen while nobody listened run then, in order.
 3. **One command executor for every input.** Keys, the ⌘K palette, toolbar controls and
    menu events all hand their commands to one FIFO queue (`src/commands/commandQueue.ts`,
    through `dispatchCommand` or the journal). With nothing waiting a command runs at once,

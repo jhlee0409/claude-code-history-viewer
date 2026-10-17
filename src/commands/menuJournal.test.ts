@@ -489,4 +489,61 @@ describe("menu journal", () => {
       expect(ran).toEqual(["key:tab.close"]);
     });
   });
+
+  describe("a listener that fails to attach (review-3 F3)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it("retries with backoff, reports once, and runs the events kept meanwhile in order once it attaches", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const host = fakeHost();
+      const attach = host.deps(() => {}, memoryCursorStore()).listen;
+      let failures = 3;
+      const listen = vi.fn((handler: (event: LiveMenuEvent) => void) =>
+        failures-- > 0 ? Promise.reject(new Error("injected listen failure")) : attach(handler),
+      );
+      const onListenError = vi.fn();
+      const queue = createCommandQueue();
+      const ran: string[] = [];
+      start(host, ran, memoryCursorStore(), { listen, onListenError, queue, retryDelaysMs: [100, 200] });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(listen).toHaveBeenCalledTimes(1);
+      // The startup pull still ran, so keys are not held while the listener is down.
+      queue.submit(() => ran.push("key"));
+      expect(ran).toEqual(["key"]);
+      host.choose("tab.new"); // nobody hears these; the host keeps them
+      host.choose("tab.close");
+      await vi.advanceTimersByTimeAsync(100);
+      expect(listen).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(listen).toHaveBeenCalledTimes(3);
+      expect(onListenError).toHaveBeenCalledTimes(1);
+      expect(ran).toEqual(["key"]);
+      await vi.advanceTimersByTimeAsync(200); // keeps trying at the last delay; this one attaches
+      expect(listen).toHaveBeenCalledTimes(4);
+      expect(ran).toEqual(["key", "tab.new", "tab.close"]);
+      expect(host.retained()).toEqual([]);
+      host.choose("go.back");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ran).toEqual(["key", "tab.new", "tab.close", "go.back"]);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(listen).toHaveBeenCalledTimes(4);
+      expect(onListenError).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops retrying when stopped during the backoff", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const host = fakeHost();
+      const listen = vi.fn(() => Promise.reject(new Error("injected listen failure")));
+      const journal = start(host, [], memoryCursorStore(), { listen, retryDelaysMs: [100] });
+      await vi.advanceTimersByTimeAsync(0);
+      journal.stop();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(listen).toHaveBeenCalledTimes(1);
+    });
+  });
 });

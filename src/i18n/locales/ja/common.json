@@ -303,6 +303,7 @@
   "common.menu.inspector": "インスペクタ",
   "common.menu.minimap": "セッションミニマップ",
   "common.menu.eventsFailed": "メニューのコマンドを受け取れませんでした。次にメニューを使うと実行されます。",
+  "common.menu.listenFailed": "メニューバーが応答していません。キーボードショートカットは引き続き使えます。選んだメニューのコマンドは再接続後に実行されます。",
   "common.menu.syncFailed": "メニューバーを更新できませんでした。キーボードショートカットは引き続き使えます。",
   "common.command.zoomIn": "拡大",
   "common.command.zoomOut": "縮小",

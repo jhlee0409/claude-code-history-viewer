@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T17:03:16.476Z
- * 총 키 개수: 2213
+ * 생성 시간: 2026-10-17T17:51:13.340Z
+ * 총 키 개수: 2214
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (308개)
+ * common namespace의 번역 키 (309개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -167,6 +167,7 @@ export type CommonKeys =
   | 'common.menu.hide'
   | 'common.menu.hideOthers'
   | 'common.menu.inspector'
+  | 'common.menu.listenFailed'
   | 'common.menu.maximize'
   | 'common.menu.minimap'
   | 'common.menu.minimize'
@@ -2775,6 +2776,7 @@ export type TranslationKey =
   | 'common.menu.hide'
   | 'common.menu.hideOthers'
   | 'common.menu.inspector'
+  | 'common.menu.listenFailed'
   | 'common.menu.maximize'
   | 'common.menu.minimap'
   | 'common.menu.minimize'

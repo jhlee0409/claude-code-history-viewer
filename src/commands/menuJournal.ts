@@ -21,6 +21,10 @@
  *   lands late is either for a stopped journal (ignored) or a duplicate.
  * - A failed pull retries with a short backoff, then reports once; the next
  *   event pulls again. Nothing is lost meanwhile: the host keeps it.
+ * - A listener that fails to attach is retried with the same backoff, then
+ *   every last delay until it attaches; the user is told once. The startup
+ *   pull runs anyway, and each attach pulls again, so the events chosen while
+ *   nobody listened run then, in order.
  *
  * Menu events and every other input share one command queue
  * (`commandQueue.ts`). While the journal asks the host for events that may
@@ -70,10 +74,12 @@ export interface MenuJournalDeps {
   cursor: MenuCursorStore;
   /** The one command queue the keys and the palette use too. */
   queue: CommandQueue;
-  /** Waits before each retry of a failed pull (default `PULL_RETRY_DELAYS_MS`). */
+  /** Waits before each retry of a failed pull or listener (default `PULL_RETRY_DELAYS_MS`). */
   retryDelaysMs?: readonly number[];
   /** A pull failed and its retries too (once per outage). */
   onPullError?: (error: unknown) => void;
+  /** The listener failed to attach, and its quick retries too (once); it keeps trying. */
+  onListenError?: (error: unknown) => void;
 }
 
 export const PULL_RETRY_DELAYS_MS: readonly number[] = [250, 1000, 4000];
@@ -124,6 +130,7 @@ export function sessionCursorStore(): MenuCursorStore {
 
 export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
   const retryDelays = deps.retryDelaysMs ?? PULL_RETRY_DELAYS_MS;
+  const listenDelays = retryDelays.length > 0 ? retryDelays : PULL_RETRY_DELAYS_MS;
   let stopped = false;
   let unlisten: (() => void) | null = null;
   /** The host run whose numbers we follow; null until the first pull answers. */
@@ -140,6 +147,8 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
   let pullAgain = false;
   let failures = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let listenFailures = 0;
+  let listenTimer: ReturnType<typeof setTimeout> | null = null;
   let acking = false;
   let acked = 0;
   /**
@@ -298,24 +307,42 @@ export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
     drain(false);
   };
 
-  deps
-    .listen(receive)
-    .then((stopListening) => {
-      if (stopped) {
-        stopListening();
-        return;
-      }
-      unlisten = stopListening;
-    })
-    .catch((error: unknown) => console.error("Menu event listener failed:", error))
-    // Listen first, then pull: an event chosen in between is in the journal or heard live.
-    .finally(() => pull());
+  /** Listen first, then pull: an event chosen in between is in the journal or heard live. */
+  const attach = (first: boolean) => {
+    deps.listen(receive).then(
+      (stopListening) => {
+        if (stopped) {
+          stopListening();
+          return;
+        }
+        unlisten = stopListening;
+        listenFailures = 0;
+        // The startup pull; after a failed attach, what was chosen while nobody listened.
+        pull();
+      },
+      (error: unknown) => {
+        if (stopped) return;
+        console.error("Menu event listener failed:", error);
+        // The events chosen before this page still run (and the queue is let go).
+        if (first) pull();
+        if (listenFailures === listenDelays.length) deps.onListenError?.(error); // once
+        const delay = listenDelays[Math.min(listenFailures, listenDelays.length - 1)];
+        listenFailures += 1;
+        listenTimer = setTimeout(() => {
+          listenTimer = null;
+          attach(false);
+        }, delay);
+      },
+    );
+  };
+  attach(true);
 
   return {
     stop: () => {
       if (stopped) return;
       stopped = true;
       if (retryTimer !== null) clearTimeout(retryTimer);
+      if (listenTimer !== null) clearTimeout(listenTimer);
       releaseQueue();
       unlisten?.();
       unlisten = null;

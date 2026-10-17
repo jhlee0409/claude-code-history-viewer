@@ -303,6 +303,7 @@
   "common.menu.inspector": "检查器",
   "common.menu.minimap": "会话小地图",
   "common.menu.eventsFailed": "无法接收菜单命令。下次使用菜单时会执行。",
+  "common.menu.listenFailed": "菜单栏没有响应。键盘快捷键仍可使用；选择的菜单命令会在重新连接后执行。",
   "common.menu.syncFailed": "无法更新菜单栏。键盘快捷键仍可使用。",
   "common.command.zoomIn": "放大",
   "common.command.zoomOut": "缩小",

@@ -97,6 +97,8 @@ export interface MenuBridgeDeps {
   onSyncError?: (error: unknown) => void;
   /** Pulling the menu journal failed and its retries too (once per outage). */
   onPullError?: (error: unknown) => void;
+  /** The menu event listener failed to attach, and its quick retries too (once; it keeps trying). */
+  onListenError?: (error: unknown) => void;
   /** Where menu commands run (default: the app's one command queue, shared with keys and the palette). */
   queue?: CommandQueue;
 }
@@ -185,6 +187,7 @@ export function startMenuBridge(deps: MenuBridgeDeps): MenuBridge {
     queue: deps.queue ?? appCommandQueue,
     retryDelaysMs: deps.retryDelaysMs,
     onPullError: deps.onPullError,
+    onListenError: deps.onListenError,
   });
   const stopSync = startMenuStateSync(deps);
   let stopped = false;

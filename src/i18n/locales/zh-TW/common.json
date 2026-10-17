@@ -303,6 +303,7 @@
   "common.menu.inspector": "檢閱器",
   "common.menu.minimap": "會話小地圖",
   "common.menu.eventsFailed": "無法接收選單命令。下次使用選單時會執行。",
+  "common.menu.listenFailed": "選單列沒有回應。鍵盤快速鍵仍可使用；選擇的選單命令會在重新連線後執行。",
   "common.menu.syncFailed": "無法更新選單列。鍵盤快速鍵仍可使用。",
   "common.command.zoomIn": "放大",
   "common.command.zoomOut": "縮小",
