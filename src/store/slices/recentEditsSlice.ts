@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import type { FullAppStore } from "./types";
 import type { RecentFileEdit } from "../../types";
 import { fetchRecentEdits } from "../../services/analyticsApi";
-import { ownPlace } from "@/navigation/ownership";
+import { ownWork, type WorkContext } from "@/navigation/ownership";
 import { RECENT_EDITS_DENSITY_KEY } from "@/navigation/storageMigration";
 
 const PAGE_SIZE = 20;
@@ -268,6 +268,19 @@ const toListResult = (
   request,
 });
 
+/**
+ * The place a request was asked for (`navigation/ownership.ts`): its project,
+ * and for session scope its session. A load for A never writes once B is
+ * open, even when nothing newer of its kind started - moving to B's
+ * conversation or another tab asks the Edits screen nothing, so neither the
+ * key nor the generation moves. Project-wide rows still land after a move to
+ * another session of the same project (same-context cache warming).
+ */
+const contextOf = (request: RecentEditsRequest): WorkContext => ({
+  projectPath: request.projectPath,
+  sessionPath: request.scope === "session" ? (request.sessionFilePath ?? null) : undefined,
+});
+
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export const createRecentEditsSlice: StateCreator<
@@ -341,11 +354,16 @@ export const createRecentEditsSlice: StateCreator<
       recentEditsError: null,
       recentEditsRequestedKey: key,
     });
-    // Both, because they answer different questions. The key rejects an answer
-    // to a question no longer being asked; the generation rejects an answer to
-    // an earlier asking of the same one.
-    const stillOwns = () =>
-      recentEditsGeneration === generation && get().recentEditsRequestedKey === key;
+    // Taken before the first await (`ownWork`). Request identity is both the
+    // key and the generation, because they answer different questions: the
+    // key rejects an answer to a question no longer being asked, the
+    // generation an answer to an earlier asking of the same one. The context
+    // rejects an answer for a place no longer open.
+    const owner = ownWork(get, {
+      context: contextOf(request),
+      isLatest: () =>
+        recentEditsGeneration === generation && get().recentEditsRequestedKey === key,
+    });
     const promise = (async () => {
       try {
         const result = await fetchRecentEdits(request.projectPath, {
@@ -354,15 +372,17 @@ export const createRecentEditsSlice: StateCreator<
           grouping: request.grouping,
           sessionFilePath: request.scope === "session" ? request.sessionFilePath : undefined,
         });
-        if (!stillOwns()) return;
+        if (!owner.ownsData()) return;
         set({ recentEditsList: toListResult(request, result) });
       } catch (error) {
         console.error("Failed to load recent edits:", error);
-        if (!stillOwns()) return;
+        // The screen's own error is data (`ownsData`), not feedback.
+        if (!owner.ownsData()) return;
         set({ recentEditsError: messageOf(error) });
       } finally {
         // Only the newest attempt may lower the spinner. A superseded one doing
-        // it would report a request that is still running as finished.
+        // it would report a request that is still running as finished. An
+        // abandoned one (its place closed) still lowers its own.
         if (recentEditsGeneration === generation) {
           set({ isLoadingRecentEdits: false });
         }
@@ -428,8 +448,13 @@ export const createRecentEditsSlice: StateCreator<
     // same reset that discards that request - including a clear-and-restart
     // where the key comes back identical (#538).
     const generation = recentEditsGeneration;
-    // Taken before the await: the failure toast is feedback (`ownWork`).
-    const ownsPlace = ownPlace(get);
+    // Taken before the await (`ownWork`): the page is data for the place it
+    // continues; the failure toast is feedback on top of that.
+    const owner = ownWork(get, {
+      context: contextOf(request),
+      isLatest: () =>
+        recentEditsGeneration === generation && get().recentEditsRequestedKey === key,
+    });
     set({ isLoadingMoreRecentEdits: true });
     try {
       const result = await fetchRecentEdits(request.projectPath, {
@@ -443,8 +468,9 @@ export const createRecentEditsSlice: StateCreator<
       });
       const latest = get().recentEditsList;
       // Appending onto a different request's rows would interleave two result
-      // sets, so a scope change mid-flight discards this page.
-      if (recentEditsGeneration !== generation) return;
+      // sets, so a scope change mid-flight discards this page; so does a move
+      // to another place, which asked for none of it.
+      if (!owner.ownsData()) return;
       if (!latest || latest.requestKey !== key) return;
       // Declared stale while the page was in flight: the same moved offsets.
       if (latest.stale) return;
@@ -454,9 +480,7 @@ export const createRecentEditsSlice: StateCreator<
       // Same ownership rule as the success path: a late failure from a request
       // the user has already moved on from says nothing. The rows already on
       // screen stay (as the page did); the button stays to try again.
-      if (recentEditsGeneration !== generation) return;
-      if (get().recentEditsRequestedKey !== key) return;
-      if (ownsPlace()) toast.error(`Failed to load more edits: ${messageOf(error)}`);
+      if (owner.ownsFeedback()) toast.error(`Failed to load more edits: ${messageOf(error)}`);
     } finally {
       // A superseded page must not lower a flag the current request owns.
       if (recentEditsGeneration === generation) {

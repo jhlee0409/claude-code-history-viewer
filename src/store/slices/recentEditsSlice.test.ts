@@ -12,29 +12,70 @@ vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(..
 import {
   createRecentEditsSlice,
   recentEditsRequestKey,
+  type RecentEditsRequest,
   type RecentEditsSlice,
 } from "./recentEditsSlice";
 import type { FullAppStore } from "./types";
+
+/** The place the test store has open: what `ownWork` checks a write against. */
+interface Place {
+  selectedProject: { path: string } | null;
+  selectedSession: { file_path: string } | null;
+  navigationEpoch: number;
+}
+type TestStore = RecentEditsSlice & Place;
+type Creator = StateCreator<FullAppStore, [], [], RecentEditsSlice>;
 
 /**
  * A fresh store per test, following `filterSlice.test.ts`. The slice reads
  * localStorage in its initializer, so the store has to be built after whatever
  * the test seeded.
+ *
+ * The screen only ever asks for the place it shows (`selectRecentEditsRequest`),
+ * so each load opens its request's project (and session) first; a test moves
+ * the place itself with `openPlace` to model a switch while a load runs.
  */
-const makeStore = () =>
-  create<RecentEditsSlice>()((set, get, api) =>
-    createRecentEditsSlice(
-      set as unknown as Parameters<
-        StateCreator<FullAppStore, [], [], RecentEditsSlice>
-      >[0],
-      get as unknown as Parameters<
-        StateCreator<FullAppStore, [], [], RecentEditsSlice>
-      >[1],
-      api as unknown as Parameters<
-        StateCreator<FullAppStore, [], [], RecentEditsSlice>
-      >[2]
-    )
-  );
+const makeStore = () => {
+  const store = create<TestStore>()((set, get, api) => ({
+    selectedProject: null,
+    selectedSession: null,
+    navigationEpoch: 0,
+    ...createRecentEditsSlice(
+      set as unknown as Parameters<Creator>[0],
+      get as unknown as Parameters<Creator>[1],
+      api as unknown as Parameters<Creator>[2]
+    ),
+  }));
+  const { loadRecentEditsList, loadMoreRecentEditsList } = store.getState();
+  const openRequest = (request: RecentEditsRequest) =>
+    store.setState({
+      selectedProject: { path: request.projectPath },
+      selectedSession: request.sessionFilePath ? { file_path: request.sessionFilePath } : null,
+    });
+  store.setState({
+    loadRecentEditsList: (request, options) => {
+      openRequest(request);
+      return loadRecentEditsList(request, options);
+    },
+    loadMoreRecentEditsList: (request) => {
+      openRequest(request);
+      return loadMoreRecentEditsList(request);
+    },
+  });
+  return store;
+};
+
+/** A navigation to another place (a project or tab switch): the epoch moves too. */
+const openPlace = (
+  store: ReturnType<typeof makeStore>,
+  projectPath: string,
+  sessionPath: string | null = null
+) =>
+  store.setState((s) => ({
+    selectedProject: { path: projectPath },
+    selectedSession: sessionPath ? { file_path: sessionPath } : null,
+    navigationEpoch: s.navigationEpoch + 1,
+  }));
 
 describe("recentEditsSlice preferences", () => {
   beforeEach(() => {
@@ -719,5 +760,136 @@ describe("recentEditsSlice request identity across a restart", () => {
     releaseFresh?.(pageOf(["/project/fresh.ts"]));
     await fresh;
     expect(store.getState().isLoadingRecentEdits).toBe(false);
+  });
+});
+
+/**
+ * T9b review P2: an Edits load is owned by the place it was asked for
+ * (`navigation/ownership.ts`, the T2 rule). Request identity alone was not
+ * enough: moving to another project without asking the Edits screen anything
+ * (its conversation, another screen, another tab) left the key unchanged, and
+ * the late answer committed into the shared slot under the new project.
+ */
+describe("recentEditsSlice ownership: the place the load was asked for", () => {
+  const A = "/storage/project-a";
+  const B = "/storage/project-b";
+  const requestA = {
+    projectPath: A,
+    scope: "project" as const,
+    grouping: "file" as const,
+    sessionFilePath: `${A}/s1.jsonl`,
+  };
+  const sessionRequestA = { ...requestA, scope: "session" as const, grouping: "edit" as const };
+  const pageOf = (paths: string[], hasMore = false, offset = 0) => ({
+    files: paths.map((file_path) => ({
+      file_path,
+      timestamp: "2026-08-01T00:00:00.000Z",
+      session_id: "s1",
+      operation_type: "edit" as const,
+      content_after_change: "after",
+      lines_added: 1,
+      lines_removed: 0,
+    })),
+    total_edits_count: 40,
+    unique_files_count: 40,
+    project_cwd: "/project",
+    offset,
+    limit: 20,
+    has_more: hasMore,
+  });
+  const twenty = Array.from({ length: 20 }, (_, i) => `/a/${i}.ts`);
+  const held = () => {
+    let resolve!: (value: unknown) => void;
+    let reject!: (reason: unknown) => void;
+    fetchRecentEdits.mockImplementationOnce(
+      () =>
+        new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        })
+    );
+    return { resolve: (v: unknown) => resolve(v), reject: (e: unknown) => reject(e) };
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchRecentEdits.mockReset();
+    toastError.mockReset();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("a first page for A that lands after B opens is dropped, and its spinner still clears", async () => {
+    const store = makeStore();
+    const gate = held();
+    const loading = store.getState().loadRecentEditsList(requestA);
+    openPlace(store, B);
+
+    gate.resolve(pageOf(["/a/late.ts"]));
+    await loading;
+
+    expect(store.getState().recentEditsList).toBeNull();
+    expect(store.getState().isLoadingRecentEdits).toBe(false);
+  });
+
+  it("a first-page failure for A that lands after B opens is not B's error", async () => {
+    const store = makeStore();
+    const gate = held();
+    const loading = store.getState().loadRecentEditsList(requestA);
+    openPlace(store, B);
+
+    gate.reject(new Error("A failed"));
+    await loading;
+
+    expect(store.getState().recentEditsError).toBeNull();
+    expect(store.getState().isLoadingRecentEdits).toBe(false);
+  });
+
+  it("a load-more page for A that lands after B opens is not appended, says nothing, and frees load-more", async () => {
+    const store = makeStore();
+    fetchRecentEdits.mockResolvedValueOnce(pageOf(twenty, true));
+    await store.getState().loadRecentEditsList(requestA);
+
+    const ok = held();
+    const more = store.getState().loadMoreRecentEditsList(requestA);
+    openPlace(store, B);
+    ok.resolve(pageOf(["/a/20.ts"], false, 20));
+    await more;
+    expect(store.getState().recentEditsList?.files).toHaveLength(20);
+    expect(store.getState().isLoadingMoreRecentEdits).toBe(false);
+
+    // Back on A, a failing page after another switch raises no toast over B.
+    openPlace(store, A, requestA.sessionFilePath);
+    const failing = held();
+    const again = store.getState().loadMoreRecentEditsList(requestA);
+    openPlace(store, B);
+    failing.reject(new Error("page failed"));
+    await again;
+    expect(toastError).not.toHaveBeenCalled();
+    expect(store.getState().isLoadingMoreRecentEdits).toBe(false);
+  });
+
+  it("session-scoped rows for s1 are dropped once another session of the project opens", async () => {
+    const store = makeStore();
+    const gate = held();
+    const loading = store.getState().loadRecentEditsList(sessionRequestA);
+    openPlace(store, A, `${A}/s2.jsonl`);
+
+    gate.resolve(pageOf(["/a/s1-only.ts"]));
+    await loading;
+
+    expect(store.getState().recentEditsList).toBeNull();
+  });
+
+  it("same place: project-wide rows still land after a screen-only move or another session of the project", async () => {
+    // Bounded cache warming for the same context is allowed (ownership.ts).
+    const store = makeStore();
+    const gate = held();
+    const loading = store.getState().loadRecentEditsList(requestA);
+    openPlace(store, A, `${A}/s2.jsonl`);
+
+    gate.resolve(pageOf(["/a/warm.ts"]));
+    await loading;
+
+    expect(store.getState().recentEditsList?.files.map((f) => f.file_path)).toEqual(["/a/warm.ts"]);
   });
 });

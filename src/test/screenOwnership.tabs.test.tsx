@@ -515,6 +515,78 @@ describe("the Edits screen shows only its own project's edits", () => {
     expect(screen.queryAllByText(/only-in-y\.ts/)).toHaveLength(0);
   });
 
+  /**
+   * T9b review P2: X's Edits load is owned by X (the T2 `ownWork` rule). The
+   * move to Y opens a screen that asks the Edits slot nothing, so neither its
+   * request key nor its generation changes - only the place does - and the
+   * late answer must still not land in the shared slot. Its spinner clears.
+   */
+  async function startEditsLoadOnX(screens: TabScreens): Promise<{ loading: Promise<void> }> {
+    hold("get_recent_edits", X);
+    let loading!: Promise<void>;
+    act(() => {
+      loading = (async () => {
+        await state().navigate({ project: X, view: "edits" });
+        await screens.openView("edits");
+      })();
+    });
+    await waitFor(() => expect(arrived.has(`get_recent_edits@${X.path}`)).toBe(true));
+    // Wrapped: an async function returning the promise itself would adopt it.
+    return { loading };
+  }
+  const releaseX = async (loading: Promise<void>, outcome: "answer" | "fail") => {
+    const held = holds.get(`get_recent_edits@${X.path}`)!;
+    holds.delete(`get_recent_edits@${X.path}`);
+    await act(async () => {
+      if (outcome === "answer") held.resolve(editsOf(X));
+      else held.reject(new Error("x edits failed"));
+      await loading;
+    });
+    await settle();
+  };
+
+  it.each(["answer", "fail"] as const)(
+    "switching project mid-load: X's late %s never commits while Y is open",
+    async (outcome) => {
+      const screens = realScreens();
+      const { loading } = await startEditsLoadOnX(screens);
+      await act(async () => {
+        await state().navigate({ project: Y, session: Y1, view: "conversation" });
+      });
+      expect(state().selectedProject?.path).toBe(Y.path);
+
+      await releaseX(loading, outcome);
+      expect(state().selectedProject?.path).toBe(Y.path);
+      expect(state().recentEditsList).toBeNull();
+      expect(state().recentEditsError).toBeNull();
+      expect(state().isLoadingRecentEdits).toBe(false);
+    },
+  );
+
+  it("switching tabs mid-load: X's late answer never commits under tab B's project; back on A, X loads again", async () => {
+    const screens = realScreens();
+    const { loading } = await startEditsLoadOnX(screens);
+    const tabA = state().activeDocumentId!;
+    await act(async () => {
+      await openInNewTab(async () => {
+        await state().navigate({ project: Y, view: "analytics" });
+        await screens.openView("analytics");
+      });
+    });
+    expect(state().selectedProject?.path).toBe(Y.path);
+
+    await releaseX(loading, "answer");
+    expect(state().recentEditsList).toBeNull();
+    expect(state().isLoadingRecentEdits).toBe(false);
+
+    // Nothing is stranded: tab A's Edits screen reads X again and shows it.
+    renderEditsScreen();
+    await act(async () => void (await activateTab(tabA, screens)));
+    await settle();
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+    expect(state().recentEditsList?.request.projectPath).toBe(X.path);
+  });
+
   it("session scope asks the backend for the open session's edits only", async () => {
     const screens = realScreens();
     useAppStore.setState({ recentEditsScope: "session" });
