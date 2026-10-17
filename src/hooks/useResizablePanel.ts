@@ -138,6 +138,9 @@ export function useResizablePanel({
         maxWidth,
         Math.max(minWidth, startWidthRef.current + effectiveDelta)
       );
+      // Written here as well as on render: a release can arrive before
+      // React re-renders, and it must save this width, not the last drawn.
+      widthRef.current = newWidth;
       setWidth(newWidth);
     };
 
