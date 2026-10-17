@@ -103,11 +103,12 @@ function migrateToVersion2(storage: MigrationStorage): void {
 }
 
 /** Bring stored UI state up to `UI_STORAGE_VERSION`, once. Never throws. */
-export function runUiStorageMigrations(
-  storage: MigrationStorage | undefined = globalThis.localStorage,
-): void {
-  if (!storage) return;
+export function runUiStorageMigrations(storage?: MigrationStorage): void {
   try {
+    // Reading `localStorage` itself throws where storage is blocked (sandboxed
+    // iframe, blocked cookies in the WebUI), so it is read inside the try.
+    storage ??= globalThis.localStorage;
+    if (!storage) return;
     const stored = Number(storage.getItem(UI_STORAGE_VERSION_KEY) ?? "0");
     const version = Number.isFinite(stored) ? stored : 0;
     if (version >= UI_STORAGE_VERSION) return;

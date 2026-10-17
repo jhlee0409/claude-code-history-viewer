@@ -54,7 +54,7 @@ import {
 import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
 import { fieldsOf } from "@/navigation/stateScope";
 import { createEmptySearchState } from "@/store/slices/types";
-import { loadProjectAnalytics, loadRecentEditsScreen, loadRecentEditsScreen, loadTokenStatsScreen, reloadBoard } from "@/navigation/screenData";
+import { loadProjectAnalytics, loadRecentEditsScreen, loadTokenStatsScreen, reloadBoard } from "@/navigation/screenData";
 
 const project = (name: string, provider = "claude"): ClaudeProject => ({
   name,
@@ -1018,6 +1018,21 @@ describe("restoring tabs at startup", () => {
     expect(state().view).toBe("analytics");
     expect(state().analyticsTab).toBe("tokens");
     expect(screens.openView).toHaveBeenCalledWith("analytics");
+  });
+
+  it("the migration never throws when reading localStorage itself throws (blocked storage)", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("blocked", "SecurityError");
+      },
+    });
+    try {
+      expect(() => runUiStorageMigrations()).not.toThrow();
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
+    }
   });
 
   it("an old tabs.v1 token stats tab opens as analytics › tokens after the one-time migration (T9b)", async () => {
