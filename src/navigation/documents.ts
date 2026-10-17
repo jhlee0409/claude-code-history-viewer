@@ -262,9 +262,9 @@ export function cycledId(list: TabList, step: 1 | -1): string | null {
 }
 
 /** ⌘1-⌘8 pick that tab; ⌘9 picks the last one, as browsers do. */
-export function idAtPosition(documents: readonly TabDocument[], position: number): string | null {
-  if (position >= 9) return documents[documents.length - 1]?.id ?? null;
-  return documents[position - 1]?.id ?? null;
+export function idAtPosition(ids: readonly string[], position: number): string | null {
+  if (position >= 9) return ids[ids.length - 1] ?? null;
+  return ids[position - 1] ?? null;
 }
 
 // ---------------------------------------------------------------------------

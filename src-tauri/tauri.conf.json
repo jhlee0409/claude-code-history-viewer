@@ -24,7 +24,7 @@
         "center": true,
         "visible": true,
         "focus": true,
-        "zoomHotkeysEnabled": true
+        "zoomHotkeysEnabled": false
       }
     ],
     "security": {

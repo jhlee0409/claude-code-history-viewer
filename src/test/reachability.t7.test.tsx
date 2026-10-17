@@ -190,6 +190,7 @@ const REACHABILITY: { feature: string; before: string; after: Place[] }[] = [
 function fakeActions(): CommandActions {
   return {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
@@ -210,6 +211,7 @@ function commandContext(actions: CommandActions): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
+    tabs: { activeId: "t1", ids: ["t1"] },
     ownPlace: () => ({ isCurrent: () => true }) as unknown as ReturnType<CommandContext["ownPlace"]>,
     actions,
   } as CommandContext;

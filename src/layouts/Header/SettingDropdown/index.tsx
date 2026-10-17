@@ -11,7 +11,9 @@ import { Settings, RefreshCw, Folder, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import { useEffect, useState } from "react";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
+import { OPEN_PREFERENCES_EVENT } from "@/commands/appEvents";
 import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
 import { DesktopOnly } from "@/contexts/platform";
@@ -32,16 +34,26 @@ interface SettingDropdownProps {
  * desktop the app's own update check. The Claude Code tools (Settings
  * Manager, Archive) live in the sidebar library and the ⌘K palette; feedback
  * is the sidebar's help button and a palette command (§6).
+ *
+ * The `app.preferences` command (Settings… ⌘, in the app menu, and the
+ * palette) opens it through `OPEN_PREFERENCES_EVENT`.
  */
 export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
   const { t } = useTranslation();
   const { openModal } = useModal();
 
   const isCheckingForUpdates = updater.state.isChecking;
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openMenu = () => setOpen(true);
+    window.addEventListener(OPEN_PREFERENCES_EVENT, openMenu);
+    return () => window.removeEventListener(OPEN_PREFERENCES_EVENT, openMenu);
+  }, []);
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
             id="app-settings-button"

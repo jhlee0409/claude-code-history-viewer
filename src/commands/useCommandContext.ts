@@ -12,13 +12,14 @@ import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation
 import { ownPlace } from "@/navigation/ownership";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAppStore } from "@/store/useAppStore";
-import { closeTab, cycleTab, newTab, selectTabAt } from "@/navigation/tabs";
+import { activateTab, closeTab, cycleTab, newTab } from "@/navigation/tabs";
 import { toggleInspector } from "@/components/Inspector/inspectorFocus";
+import { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT } from "./appEvents";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
+import { appZoom } from "./zoom";
 import type { CommandActions, CommandContext } from "./registry";
 
-/** The event the desktop updater listens for (`SimpleUpdateManager`). */
-export const MANUAL_UPDATE_CHECK_EVENT = "manual-update-check";
+export { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT };
 
 export function useCommandContext(): () => CommandContext {
   const { openModal } = useModal();
@@ -29,6 +30,7 @@ export function useCommandContext(): () => CommandContext {
 
   const actions: CommandActions = {
     openPalette: () => openModal("globalSearch"),
+    openPreferences: () => window.dispatchEvent(new Event(OPEN_PREFERENCES_EVENT)),
     goBack,
     goForward,
     focusFind: () => {
@@ -43,9 +45,10 @@ export function useCommandContext(): () => CommandContext {
     openFeedback: () => openModal("feedback"),
     checkForUpdates: () => window.dispatchEvent(new Event(MANUAL_UPDATE_CHECK_EVENT)),
     newTab: () => newTab(),
-    closeTab: () => closeTab(useAppStore.getState().activeDocumentId, screens),
-    cycleTab: (step) => cycleTab(step, screens),
-    selectTabAt: (position) => selectTabAt(position, screens),
+    closeTab: (id) => closeTab(id, screens),
+    cycleTab: (from, step) => cycleTab(from, step, screens),
+    selectTab: (id) => activateTab(id, screens),
+    zoom: (step) => appZoom.apply(step),
   };
   const latest = useRef({ actions, isDesktop, isMobile });
   useEffect(() => {
@@ -62,7 +65,7 @@ export function useCommandContext(): () => CommandContext {
       canGoBack: state.placeHistory.back.length > 0,
       canGoForward: state.placeHistory.forward.length > 0,
       hasFindTarget: hasFindTarget(),
-      tabCount: state.documents.length,
+      tabs: { activeId: state.activeDocumentId, ids: state.documents.map((doc) => doc.id) },
       ownPlace: () => ownPlace(useAppStore.getState),
       actions: current,
     };

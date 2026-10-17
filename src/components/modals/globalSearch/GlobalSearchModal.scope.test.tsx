@@ -23,6 +23,9 @@ import type { PlaceOpeners } from "@/navigation/paletteOpen";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 
+/** `n` open tabs t1…tn, the first in front. */
+const tabsOf = (n: number) => ({ activeId: "t1", ids: Array.from({ length: n }, (_, i) => `t${i + 1}`) });
+
 const project = (name: string, extra: Partial<ClaudeProject> = {}): ClaudeProject => ({
     name,
     path: `/store/${name}`,
@@ -90,6 +93,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 
 const actions: CommandActions = {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
@@ -102,7 +106,8 @@ const actions: CommandActions = {
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
-    selectTabAt: vi.fn(),
+    selectTab: vi.fn(),
+    zoom: vi.fn(),
 };
 const context = (): CommandContext => ({
     place: { view: "conversation" },
@@ -111,7 +116,7 @@ const context = (): CommandContext => ({
     canGoBack: true,
     canGoForward: false,
     hasFindTarget: false,
-    tabCount: 1,
+    tabs: tabsOf(1),
     ownPlace: () => () => true,
     actions,
 });

@@ -13,9 +13,11 @@ const getCommandContext = (): CommandContext => ({
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    tabs: { activeId: "t1", ids: ["t1"] },
     ownPlace: () => () => true,
     actions: {
         openPalette: vi.fn(),
+        openPreferences: vi.fn(),
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),

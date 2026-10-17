@@ -1,76 +1,82 @@
 {
-  "$comment": "One entry per app command (plan §4.4). The TS registry (src/commands/registry.ts) attaches enabled/run; the native menu (T11a) is built from the same entries. Shortcut grammar: src/commands/keys.ts.",
+  "$comment": "One entry per menu item and app command (plan §4.4). `frontend` entries are app commands: the TS registry (src/commands/registry.ts) attaches enabled/run, the native menu (src-tauri/src/menu) lists them. `predefined` entries are the OS's own items (copy, quit...) on the `platforms` listed; `shortcut` records the accelerator the OS gives them so the duplicate-shortcut checks see it. Entry order is menu order. `menu: app` is the macOS application menu; `menuElsewhere` places an app entry on Windows/Linux. `menuAccelerators`: where the native menu items carry the app commands' accelerators (shown, and run only if a key reaches the menu - the page claims every app key first, src/commands/shortcuts.ts); off where the menu could see a key before the page or until the platform's smoke checklist passes. `shortcutAlias`: a second key only the page binds (the menu cannot match it), e.g. ⌘+ beside Zoom In's ⌘=. Zoom input has one owner per platform: the view.zoom* commands on macOS/Linux (`zoomHotkeysEnabled` off in tauri.conf.json), WebView2 on Windows (on in tauri.windows.conf.json; the page binds no zoom key there). Shortcut grammar: src/commands/keys.ts.",
+  "menuAccelerators": { "mac": true, "win": false, "linux": false },
   "commands": [
     {
-      "id": "palette.open",
-      "labelKey": "common.command.openPalette",
-      "shortcut": { "mac": "Cmd+K", "win": "Ctrl+K", "linux": "Ctrl+K", "web": "CmdOrCtrl+K" },
-      "source": "frontend",
-      "menu": "go",
-      "palette": false
-    },
-    {
-      "id": "go.back",
-      "labelKey": "common.command.back",
-      "shortcut": { "mac": "Cmd+[", "win": "Alt+ArrowLeft", "linux": "Alt+ArrowLeft", "web": "Alt+ArrowLeft" },
-      "source": "frontend",
-      "menu": "go"
-    },
-    {
-      "id": "go.forward",
-      "labelKey": "common.command.forward",
-      "shortcut": { "mac": "Cmd+]", "win": "Alt+ArrowRight", "linux": "Alt+ArrowRight", "web": "Alt+ArrowRight" },
-      "source": "frontend",
-      "menu": "go"
-    },
-    {
-      "id": "edit.find",
-      "labelKey": "common.command.find",
-      "shortcut": { "mac": "Cmd+F", "win": "Ctrl+F", "linux": "Ctrl+F", "web": "CmdOrCtrl+F" },
-      "source": "frontend",
-      "menu": "edit"
-    },
-    {
-      "id": "view.toggleInspector",
-      "labelKey": "common.command.toggleInspector",
-      "shortcut": { "mac": "Cmd+Shift+M", "win": "Ctrl+Shift+M", "linux": "Ctrl+Shift+M", "web": "CmdOrCtrl+Shift+M" },
-      "source": "frontend",
-      "menu": "view"
-    },
-    {
-      "id": "view.toggleMinimap",
-      "labelKey": "common.command.toggleMinimap",
-      "shortcut": { "mac": "Cmd+Shift+F", "win": "Ctrl+Shift+F", "linux": "Ctrl+Shift+F", "web": "CmdOrCtrl+Shift+F" },
-      "source": "frontend",
-      "menu": "view"
-    },
-    {
-      "id": "go.settingsManager",
-      "labelKey": "common.command.openSettingsManager",
+      "id": "app.about",
+      "labelKey": "common.menu.about",
       "shortcut": null,
-      "source": "frontend",
-      "menu": "go"
+      "source": "predefined",
+      "predefined": "about",
+      "platforms": ["mac", "win", "linux"],
+      "menu": "app",
+      "menuElsewhere": "help"
     },
     {
-      "id": "go.archive",
-      "labelKey": "common.command.openArchive",
-      "shortcut": null,
+      "id": "app.preferences",
+      "labelKey": "common.command.openPreferences",
+      "shortcut": { "mac": "Cmd+,", "win": "Ctrl+,", "linux": "Ctrl+,", "web": "Alt+," },
       "source": "frontend",
-      "menu": "go"
-    },
-    {
-      "id": "help.feedback",
-      "labelKey": "common.command.sendFeedback",
-      "shortcut": null,
-      "source": "frontend",
-      "menu": "help"
+      "menu": "app",
+      "menuElsewhere": "file",
+      "separatorBefore": true
     },
     {
       "id": "app.checkForUpdates",
       "labelKey": "common.command.checkForUpdates",
       "shortcut": null,
       "source": "frontend",
+      "menu": "app",
+      "menuElsewhere": "help"
+    },
+    {
+      "id": "app.services",
+      "labelKey": "common.menu.services",
+      "shortcut": null,
+      "source": "predefined",
+      "predefined": "services",
+      "platforms": ["mac"],
+      "menu": "app",
+      "separatorBefore": true
+    },
+    {
+      "id": "app.hide",
+      "labelKey": "common.menu.hide",
+      "shortcut": { "mac": "Cmd+H" },
+      "source": "predefined",
+      "predefined": "hide",
+      "platforms": ["mac"],
+      "menu": "app",
+      "separatorBefore": true
+    },
+    {
+      "id": "app.hideOthers",
+      "labelKey": "common.menu.hideOthers",
+      "shortcut": { "mac": "Cmd+Alt+H" },
+      "source": "predefined",
+      "predefined": "hideOthers",
+      "platforms": ["mac"],
       "menu": "app"
+    },
+    {
+      "id": "app.showAll",
+      "labelKey": "common.menu.showAll",
+      "shortcut": null,
+      "source": "predefined",
+      "predefined": "showAll",
+      "platforms": ["mac"],
+      "menu": "app"
+    },
+    {
+      "id": "app.quit",
+      "labelKey": "common.menu.quit",
+      "shortcut": { "mac": "Cmd+Q" },
+      "source": "predefined",
+      "predefined": "quit",
+      "platforms": ["mac", "win"],
+      "menu": "app",
+      "menuElsewhere": "file",
+      "separatorBefore": true
     },
     {
       "id": "tab.new",
@@ -87,11 +93,191 @@
       "menu": "file"
     },
     {
+      "id": "edit.undo",
+      "labelKey": "common.menu.undo",
+      "shortcut": { "mac": "Cmd+Z", "win": "Ctrl+Z" },
+      "source": "predefined",
+      "predefined": "undo",
+      "platforms": ["mac", "win"],
+      "menu": "edit"
+    },
+    {
+      "id": "edit.redo",
+      "labelKey": "common.menu.redo",
+      "shortcut": { "mac": "Cmd+Shift+Z", "win": "Ctrl+Y" },
+      "source": "predefined",
+      "predefined": "redo",
+      "platforms": ["mac", "win"],
+      "menu": "edit"
+    },
+    {
+      "id": "edit.cut",
+      "labelKey": "common.menu.cut",
+      "shortcut": { "mac": "Cmd+X", "win": "Ctrl+X", "linux": "Ctrl+X" },
+      "source": "predefined",
+      "predefined": "cut",
+      "platforms": ["mac", "win", "linux"],
+      "menu": "edit",
+      "separatorBefore": true
+    },
+    {
+      "id": "edit.copy",
+      "labelKey": "common.menu.copy",
+      "shortcut": { "mac": "Cmd+C", "win": "Ctrl+C", "linux": "Ctrl+C" },
+      "source": "predefined",
+      "predefined": "copy",
+      "platforms": ["mac", "win", "linux"],
+      "menu": "edit"
+    },
+    {
+      "id": "edit.paste",
+      "labelKey": "common.menu.paste",
+      "shortcut": { "mac": "Cmd+V", "win": "Ctrl+V", "linux": "Ctrl+V" },
+      "source": "predefined",
+      "predefined": "paste",
+      "platforms": ["mac", "win", "linux"],
+      "menu": "edit"
+    },
+    {
+      "id": "edit.selectAll",
+      "labelKey": "common.menu.selectAll",
+      "shortcut": { "mac": "Cmd+A", "win": "Ctrl+A", "linux": "Ctrl+A" },
+      "source": "predefined",
+      "predefined": "selectAll",
+      "platforms": ["mac", "win", "linux"],
+      "menu": "edit"
+    },
+    {
+      "id": "edit.find",
+      "labelKey": "common.command.find",
+      "shortcut": { "mac": "Cmd+F", "win": "Ctrl+F", "linux": "Ctrl+F", "web": "CmdOrCtrl+F" },
+      "source": "frontend",
+      "menu": "edit",
+      "separatorBefore": true
+    },
+    {
+      "id": "view.toggleInspector",
+      "labelKey": "common.command.toggleInspector",
+      "menuLabelKey": "common.menu.inspector",
+      "shortcut": { "mac": "Cmd+Shift+M", "win": "Ctrl+Shift+M", "linux": "Ctrl+Shift+M", "web": "CmdOrCtrl+Shift+M" },
+      "source": "frontend",
+      "menu": "view",
+      "toggle": true
+    },
+    {
+      "id": "view.toggleMinimap",
+      "labelKey": "common.command.toggleMinimap",
+      "menuLabelKey": "common.menu.minimap",
+      "shortcut": { "mac": "Cmd+Shift+F", "win": "Ctrl+Shift+F", "linux": "Ctrl+Shift+F", "web": "CmdOrCtrl+Shift+F" },
+      "source": "frontend",
+      "menu": "view",
+      "toggle": true
+    },
+    {
+      "id": "view.zoomIn",
+      "labelKey": "common.command.zoomIn",
+      "shortcut": { "mac": "Cmd+=", "win": "Ctrl+=", "linux": "Ctrl+=", "web": "CmdOrCtrl+=" },
+      "shortcutAlias": { "mac": "Cmd+Plus", "win": "Ctrl+Plus", "linux": "Ctrl+Plus", "web": "CmdOrCtrl+Plus" },
+      "source": "frontend",
+      "menu": "view",
+      "separatorBefore": true
+    },
+    {
+      "id": "view.zoomOut",
+      "labelKey": "common.command.zoomOut",
+      "shortcut": { "mac": "Cmd+-", "win": "Ctrl+-", "linux": "Ctrl+-", "web": "CmdOrCtrl+-" },
+      "source": "frontend",
+      "menu": "view"
+    },
+    {
+      "id": "view.actualSize",
+      "labelKey": "common.command.actualSize",
+      "shortcut": { "mac": "Cmd+0", "win": "Ctrl+0", "linux": "Ctrl+0", "web": "CmdOrCtrl+0" },
+      "source": "frontend",
+      "menu": "view"
+    },
+    {
+      "id": "view.fullscreen",
+      "labelKey": "common.menu.fullscreen",
+      "shortcut": { "mac": "Ctrl+Cmd+F" },
+      "source": "predefined",
+      "predefined": "fullscreen",
+      "platforms": ["mac"],
+      "menu": "view",
+      "separatorBefore": true
+    },
+    {
+      "id": "go.back",
+      "labelKey": "common.command.back",
+      "shortcut": { "mac": "Cmd+[", "win": "Alt+ArrowLeft", "linux": "Alt+ArrowLeft", "web": "Alt+ArrowLeft" },
+      "source": "frontend",
+      "menu": "go"
+    },
+    {
+      "id": "go.forward",
+      "labelKey": "common.command.forward",
+      "shortcut": { "mac": "Cmd+]", "win": "Alt+ArrowRight", "linux": "Alt+ArrowRight", "web": "Alt+ArrowRight" },
+      "source": "frontend",
+      "menu": "go"
+    },
+    {
+      "id": "go.settingsManager",
+      "labelKey": "common.command.openSettingsManager",
+      "shortcut": null,
+      "source": "frontend",
+      "menu": "go",
+      "separatorBefore": true
+    },
+    {
+      "id": "go.archive",
+      "labelKey": "common.command.openArchive",
+      "shortcut": null,
+      "source": "frontend",
+      "menu": "go"
+    },
+    {
+      "id": "palette.open",
+      "labelKey": "common.command.openPalette",
+      "shortcut": { "mac": "Cmd+K", "win": "Ctrl+K", "linux": "Ctrl+K", "web": "CmdOrCtrl+K" },
+      "source": "frontend",
+      "menu": "go",
+      "separatorBefore": true,
+      "palette": false
+    },
+    {
+      "id": "window.minimize",
+      "labelKey": "common.menu.minimize",
+      "shortcut": { "mac": "Cmd+M", "win": "Ctrl+M" },
+      "source": "predefined",
+      "predefined": "minimize",
+      "platforms": ["mac", "win"],
+      "menu": "window"
+    },
+    {
+      "id": "window.zoom",
+      "labelKey": "common.menu.zoom",
+      "shortcut": null,
+      "source": "predefined",
+      "predefined": "maximize",
+      "platforms": ["mac"],
+      "menu": "window"
+    },
+    {
+      "id": "window.maximize",
+      "labelKey": "common.menu.maximize",
+      "shortcut": null,
+      "source": "predefined",
+      "predefined": "maximize",
+      "platforms": ["win"],
+      "menu": "window"
+    },
+    {
       "id": "tab.next",
       "labelKey": "common.command.nextTab",
       "shortcut": { "mac": "Cmd+Alt+ArrowRight", "win": "Ctrl+PageDown", "linux": "Ctrl+PageDown", "web": "Alt+Shift+ArrowRight" },
       "source": "frontend",
-      "menu": "window"
+      "menu": "window",
+      "separatorBefore": true
     },
     {
       "id": "tab.previous",
@@ -105,7 +291,8 @@
       "labelKey": "common.command.goToTab1",
       "shortcut": { "mac": "Cmd+1", "win": "Ctrl+1", "linux": "Ctrl+1", "web": "Alt+1" },
       "source": "frontend",
-      "menu": "window"
+      "menu": "window",
+      "separatorBefore": true
     },
     {
       "id": "tab.goTo2",
@@ -162,6 +349,23 @@
       "shortcut": { "mac": "Cmd+9", "win": "Ctrl+9", "linux": "Ctrl+9", "web": "Alt+9" },
       "source": "frontend",
       "menu": "window"
+    },
+    {
+      "id": "window.bringAllToFront",
+      "labelKey": "common.menu.bringAllToFront",
+      "shortcut": null,
+      "source": "predefined",
+      "predefined": "bringAllToFront",
+      "platforms": ["mac"],
+      "menu": "window",
+      "separatorBefore": true
+    },
+    {
+      "id": "help.feedback",
+      "labelKey": "common.command.sendFeedback",
+      "shortcut": null,
+      "source": "frontend",
+      "menu": "help"
     }
   ]
 }

@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createShortcutHandler } from "./shortcuts";
-import { COMMANDS, type CommandActions, type CommandContext } from "./registry";
-import type { KeyEnvironment } from "./keys";
-import type { CommandId } from "./manifest";
+import { COMMANDS, isCommandEnabled, runCommand, type CommandActions, type CommandContext } from "./registry";
+import { parseAccelerator, shortcutFor, type KeyEnvironment } from "./keys";
+
+/** `n` open tabs t1…tn, the first in front. */
+const tabsOf = (n: number) => ({ activeId: "t1", ids: Array.from({ length: n }, (_, i) => `t${i + 1}`) });
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   const actions: CommandActions = {
     openPalette: vi.fn(),
+    openPreferences: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
@@ -19,7 +22,8 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
-    selectTabAt: vi.fn(),
+    selectTab: vi.fn(),
+    zoom: vi.fn(),
   };
   return {
     place: {
@@ -32,15 +36,15 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
-    tabCount: 3,
+    tabs: tabsOf(3),
     ownPlace: () => () => true,
     actions,
     ...overrides,
   };
 }
 
-function setup(env: KeyEnvironment, ctx = makeContext(), nativeOwned?: ReadonlySet<CommandId>) {
-  const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx, nativeOwned });
+function setup(env: KeyEnvironment, ctx = makeContext()) {
+  const handler = createShortcutHandler({ commands: COMMANDS, env, getContext: () => ctx });
   window.addEventListener("keydown", handler);
   cleanups.push(() => window.removeEventListener("keydown", handler));
   return ctx;
@@ -57,6 +61,22 @@ const press = (init: KeyboardEventInit, target: EventTarget = window) => {
 const MAC_DESKTOP: KeyEnvironment = { os: "mac", runtime: "desktop" };
 const WIN_DESKTOP: KeyEnvironment = { os: "win", runtime: "desktop" };
 const MAC_WEB: KeyEnvironment = { os: "mac", runtime: "web" };
+const LINUX_DESKTOP: KeyEnvironment = { os: "linux", runtime: "desktop" };
+
+/** The keydown a chord types (US layout). */
+function keyInit(accelerator: string, env: KeyEnvironment): KeyboardEventInit {
+  const chord = parseAccelerator(accelerator, env.os);
+  const codes: Record<string, string> = { "[": "BracketLeft", "]": "BracketRight", ",": "Comma", "=": "Equal", "-": "Minus" };
+  const code = /^[a-z]$/.test(chord.key)
+    ? `Key${chord.key.toUpperCase()}`
+    : /^[0-9]$/.test(chord.key)
+      ? `Digit${chord.key}`
+      : (codes[chord.key] ?? chord.key);
+  return { key: chord.key, code, metaKey: chord.meta, ctrlKey: chord.ctrl, altKey: chord.alt, shiftKey: chord.shift };
+}
+
+const actionCalls = (ctx: CommandContext): number =>
+  Object.values(ctx.actions).reduce((n, fn) => n + (fn as ReturnType<typeof vi.fn>).mock.calls.length, 0);
 
 describe("shortcut handler", () => {
   afterEach(() => {
@@ -114,7 +134,13 @@ describe("shortcut handler", () => {
 
   describe("focus and composition", () => {
     it("ignores every shortcut while an IME is composing", () => {
-      const ctx = setup(MAC_DESKTOP);
+      const ctx = setup(LINUX_DESKTOP);
+      press({ key: "k", code: "KeyK", ctrlKey: true, isComposing: true });
+      press({ key: "f", code: "KeyF", ctrlKey: true, keyCode: 229 } as KeyboardEventInit);
+      expect(ctx.actions.openPalette).not.toHaveBeenCalled();
+      expect(ctx.actions.focusFind).not.toHaveBeenCalled();
+      cleanups.pop()?.();
+      setup(MAC_DESKTOP, ctx);
       press({ key: "k", code: "KeyK", metaKey: true, isComposing: true });
       press({ key: "f", code: "KeyF", metaKey: true, keyCode: 229 } as KeyboardEventInit);
       expect(ctx.actions.openPalette).not.toHaveBeenCalled();
@@ -179,7 +205,7 @@ describe("shortcut handler", () => {
       }
       expect(ctx.actions.closeTab).not.toHaveBeenCalled();
       expect(ctx.actions.newTab).not.toHaveBeenCalled();
-      expect(ctx.actions.selectTabAt).not.toHaveBeenCalled();
+      expect(ctx.actions.selectTab).not.toHaveBeenCalled();
       expect(ctx.actions.cycleTab).not.toHaveBeenCalled();
     });
 
@@ -211,7 +237,7 @@ describe("shortcut handler", () => {
       press({ key: "™", code: "Digit2", altKey: true });
       expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
       expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
-      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(2);
+      expect(ctx.actions.selectTab).toHaveBeenCalledWith("t2");
     });
 
     it("the desktop's ⌘W ⌘T ⌘1 still work from a text field, as in a browser", () => {
@@ -222,7 +248,7 @@ describe("shortcut handler", () => {
       press({ key: "1", code: "Digit1", metaKey: true }, input);
       expect(ctx.actions.closeTab).toHaveBeenCalledTimes(1);
       expect(ctx.actions.newTab).toHaveBeenCalledTimes(1);
-      expect(ctx.actions.selectTabAt).toHaveBeenCalledWith(1);
+      expect(ctx.actions.selectTab).toHaveBeenCalledWith("t1");
     });
   });
 
@@ -243,13 +269,99 @@ describe("shortcut handler", () => {
       expect(ctx.actions.openPalette).not.toHaveBeenCalled();
     });
 
-    it("skips a command whose shortcut the native menu owns", () => {
-      const ctx = setup(MAC_DESKTOP, makeContext(), new Set<CommandId>(["go.back"]));
-      const event = press({ key: "[", code: "BracketLeft", metaKey: true });
-      expect(ctx.actions.goBack).not.toHaveBeenCalled();
-      expect(event.defaultPrevented).toBe(false);
-      press({ key: "]", code: "BracketRight", metaKey: true });
-      expect(ctx.actions.goForward).toHaveBeenCalledTimes(1);
+    it("binds no zoom key on Windows: WebView2 zooms (and pinches) itself there", () => {
+      const ctx = setup(WIN_DESKTOP);
+      for (const init of [
+        { key: "=", code: "Equal", ctrlKey: true },
+        { key: "+", code: "Equal", ctrlKey: true, shiftKey: true },
+        { key: "-", code: "Minus", ctrlKey: true },
+        { key: "0", code: "Digit0", ctrlKey: true },
+      ]) {
+        expect(press(init).defaultPrevented, init.key).toBe(false);
+      }
+      expect(ctx.actions.zoom).not.toHaveBeenCalled();
+      press({ key: "k", code: "KeyK", ctrlKey: true });
+      expect(ctx.actions.openPalette).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs Ctrl+= Ctrl++ Ctrl+- Ctrl+0 once each on Linux (the zoom commands own zoom there)", () => {
+      const ctx = setup(LINUX_DESKTOP);
+      press({ key: "=", code: "Equal", ctrlKey: true });
+      press({ key: "+", code: "Equal", ctrlKey: true, shiftKey: true });
+      press({ key: "-", code: "Minus", ctrlKey: true });
+      press({ key: "0", code: "Digit0", ctrlKey: true });
+      expect(vi.mocked(ctx.actions.zoom).mock.calls).toEqual([["in"], ["in"], ["out"], ["reset"]]);
+    });
+  });
+
+  /**
+   * The Mac app's menu items carry the same keys. Measured in the real app
+   * (docs/adr/0001-native-menu-input-ownership.md): the web view sees a ⌘ key before the
+   * menu, and a key the page prevents never runs the menu item. So the page
+   * owns every app key outright and claims (prevents) each one it matches,
+   * run or not: no key depends on the native item's enabled state, which is
+   * only ever an asynchronous copy (review R1, review-2 A1).
+   */
+  describe("the page owns every app key; in the Mac app it claims each one", () => {
+    it("claims a key it does not run - command disabled, in a field or dialog it skips, composing", () => {
+      const ctx = setup(MAC_DESKTOP, makeContext({ canGoBack: false }));
+      const input = document.body.appendChild(document.createElement("input"));
+      const dialog = document.body.appendChild(document.createElement("div"));
+      dialog.setAttribute("role", "dialog");
+      const inDialog = dialog.appendChild(document.createElement("input"));
+      expect(press({ key: "[", code: "BracketLeft", metaKey: true }).defaultPrevented).toBe(true);
+      ctx.canGoBack = true;
+      expect(press({ key: "[", code: "BracketLeft", metaKey: true }, input).defaultPrevented).toBe(true);
+      expect(press({ key: "t", code: "KeyT", metaKey: true }, inDialog).defaultPrevented).toBe(true);
+      expect(press({ key: "k", code: "KeyK", metaKey: true, isComposing: true }).defaultPrevented).toBe(true);
+      expect(actionCalls(ctx)).toBe(0);
+    });
+
+    it("leaves keys it does not run to the browser in the WebUI and to the web view on Windows/Linux", () => {
+      for (const env of [MAC_WEB, WIN_DESKTOP, LINUX_DESKTOP]) {
+        const ctx = setup(env, makeContext({ canGoBack: false, canGoForward: false, tabs: tabsOf(1 )}));
+        const key = env.runtime === "web" ? { key: "ArrowLeft", code: "ArrowLeft", altKey: true } : { key: "ArrowLeft", altKey: true };
+        expect(press(key).defaultPrevented, `${env.os}/${env.runtime}`).toBe(false);
+        expect(actionCalls(ctx)).toBe(0);
+        while (cleanups.length) cleanups.pop()?.();
+      }
+    });
+
+    /**
+     * The macOS order, modelled: the page's listener first; a key it leaves
+     * goes on to the menu item, which runs it only while the native item is
+     * enabled. The native state is any snapshot - stale, pending, or failed
+     * to sync - so it is tried both ways for every command and both command
+     * states: a press runs exactly once when the command can run, else never.
+     */
+    it("runs every Mac app shortcut exactly once per press, whatever the native item's state (census)", () => {
+      let checked = 0;
+      for (const command of COMMANDS) {
+        const accelerator = shortcutFor(command.shortcut, MAC_DESKTOP);
+        if (!accelerator) continue;
+        for (const commandCanRun of [true, false]) {
+          for (const nativeEnabled of [true, false]) {
+            const ctx = makeContext({
+              canGoBack: commandCanRun,
+              canGoForward: commandCanRun,
+              hasFindTarget: commandCanRun,
+              tabs: tabsOf(commandCanRun ? 9 : 1),
+              place: commandCanRun
+                ? makeContext().place
+                : { view: "settingsManager", project: { provider: "codex", path: "/q" }, session: null },
+            });
+            const runnable = isCommandEnabled(command, ctx);
+            const handler = createShortcutHandler({ commands: COMMANDS, env: MAC_DESKTOP, getContext: () => ctx });
+            const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...keyInit(accelerator, MAC_DESKTOP) });
+            handler(event);
+            if (!event.defaultPrevented && nativeEnabled) runCommand(command.id, ctx);
+            expect(actionCalls(ctx), `${command.id} canRun=${runnable} native=${nativeEnabled}`).toBe(runnable ? 1 : 0);
+            expect(event.defaultPrevented, command.id).toBe(true);
+            checked += 1;
+          }
+        }
+      }
+      expect(checked).toBeGreaterThanOrEqual(4 * 20);
     });
   });
 });

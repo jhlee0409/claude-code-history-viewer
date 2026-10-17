@@ -803,6 +803,7 @@ dependencies = [
  "memmap2",
  "mime_guess",
  "mockall",
+ "muda",
  "notify",
  "notify-debouncer-mini",
  "once_cell",

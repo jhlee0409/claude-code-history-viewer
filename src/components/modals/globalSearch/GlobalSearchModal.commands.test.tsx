@@ -99,6 +99,7 @@ function setUpPalette() {
     mockApi.mockResolvedValue([]);
     actions = {
         openPalette: vi.fn(),
+        openPreferences: vi.fn(),
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),
@@ -120,6 +121,7 @@ function setUpPalette() {
         canGoBack: true,
         canGoForward: false,
         hasFindTarget: true,
+        tabs: { activeId: "t1", ids: ["t1"] },
         ownPlace: () => () => true,
     };
 }

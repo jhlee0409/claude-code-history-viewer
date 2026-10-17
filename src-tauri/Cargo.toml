@@ -82,6 +82,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 # Property-based testing (QuickCheck-style)
 proptest = "1.4"
 
+# The native menu's accelerator parser (already in the tree via tauri), so
+# the manifest's shortcuts are checked as the menu will parse them.
+muda = { version = "0.19", default-features = false }
+
 # Parameterized tests & fixtures
 rstest = "0.18"
 
