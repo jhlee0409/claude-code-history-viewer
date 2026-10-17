@@ -222,7 +222,6 @@ export interface AppStoreState {
   activeSessionNearBottom: boolean;
 
   // Navigator state
-  isNavigatorOpen: boolean;
   navigatorViewMode: import('./navigatorSlice').NavigatorViewMode;
   visibleMessageUuid: string | null;
 
@@ -476,8 +475,6 @@ export interface AppStoreActions {
   setInspectorWidth: (width: number) => void;
 
   // Navigator actions
-  toggleNavigator: () => void;
-  setNavigatorOpen: (open: boolean) => void;
   setNavigatorViewMode: (mode: import('./navigatorSlice').NavigatorViewMode) => void;
   toggleNavigatorViewMode: () => void;
   setVisibleMessageUuid: (uuid: string | null) => void;

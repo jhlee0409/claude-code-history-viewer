@@ -176,11 +176,11 @@ const REACHABILITY: { feature: string; before: string; after: Place[] }[] = [
     ],
   },
   {
-    feature: "Inspector (message navigator)",
+    feature: "Inspector (outline: the message navigator)",
     before: "navigator's own collapse button",
     after: [
-      { at: "toolbar", label: "common.toolbar.inspector", command: "view.toggleNavigator" },
-      { at: "palette", command: "view.toggleNavigator", action: "toggleNavigator" },
+      { at: "toolbar", label: "common.toolbar.inspector", command: "view.toggleInspector" },
+      { at: "palette", command: "view.toggleInspector", action: "toggleInspector" },
     ],
   },
 ];
@@ -191,7 +191,7 @@ function fakeActions(): CommandActions {
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
-    toggleNavigator: vi.fn(),
+    toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
     openSettingsManager: vi.fn(),
     openArchive: vi.fn(),
@@ -343,7 +343,7 @@ async function check(place: Place) {
           "palette.open": actions.openPalette,
           "go.back": actions.goBack,
           "go.forward": actions.goForward,
-          "view.toggleNavigator": actions.toggleNavigator,
+          "view.toggleInspector": actions.toggleInspector,
         }).find(([id]) => id === place.command)![1] as ReturnType<typeof vi.fn>;
         activateByPointerAndTouch(button, () => action.mock.calls.length);
       } else {
@@ -438,7 +438,7 @@ describe("§6 reachability after T7", () => {
         "Refresh all conversations",
         "Global stats",
         "Back / forward",
-        "Inspector (message navigator)",
+        "Inspector (outline: the message navigator)",
       ]
     `);
     for (const entry of REACHABILITY) expect(entry.after.length, entry.feature).toBeGreaterThan(0);

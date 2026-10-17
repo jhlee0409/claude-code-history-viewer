@@ -49,6 +49,11 @@ interface UseResizablePanelOptions {
   storageKey?: string;
   /** Resize direction: "right" = panel grows rightward (left sidebar), "left" = panel grows leftward (right sidebar) */
   direction?: "right" | "left";
+  /**
+   * Called with the final width when a drag ends. For a panel whose width
+   * lives elsewhere (a store preference) instead of under `storageKey`.
+   */
+  onResizeEnd?: (width: number) => void;
 }
 
 interface UseResizablePanelReturn {
@@ -72,6 +77,7 @@ export function useResizablePanel({
   maxWidth,
   storageKey,
   direction = "right",
+  onResizeEnd,
 }: UseResizablePanelOptions): UseResizablePanelReturn {
   /**
    * Initialize width from localStorage if available, otherwise use default
@@ -99,6 +105,8 @@ export function useResizablePanel({
   const startWidthRef = useRef(0); // Initial panel width
   const widthRef = useRef(width); // Latest width for stale-closure safety
   widthRef.current = width;
+  const onResizeEndRef = useRef(onResizeEnd);
+  onResizeEndRef.current = onResizeEnd;
 
   /**
    * Start resize operation
@@ -139,6 +147,7 @@ export function useResizablePanel({
       if (storageKey) {
         try { localStorage.setItem(storageKey, widthRef.current.toString()); } catch { /* ignore */ }
       }
+      onResizeEndRef.current?.(widthRef.current);
     };
 
     document.addEventListener("mousemove", handleMouseMove);

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T22:23:58.219Z
- * 총 키 개수: 2138
+ * 생성 시간: 2026-10-17T06:19:45.426Z
+ * 총 키 개수: 2159
  * Namespace 수: 11
  */
 
@@ -40,14 +40,14 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (257개)
+ * common namespace의 번역 키 (278개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
   | 'common.a11y.navigation'
   | 'common.a11y.skipNavigation'
+  | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
-  | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
@@ -82,8 +82,8 @@ export type CommonKeys =
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
+  | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
-  | 'common.command.toggleNavigator'
   | 'common.commandPalette'
   | 'common.completed'
   | 'common.copied'
@@ -129,6 +129,27 @@ export type CommonKeys =
   | 'common.hooks.updateDownloadComplete'
   | 'common.id'
   | 'common.input'
+  | 'common.inspector.close'
+  | 'common.inspector.info.copyFilePath'
+  | 'common.inspector.info.created'
+  | 'common.inspector.info.filePath'
+  | 'common.inspector.info.filePathCopied'
+  | 'common.inspector.info.messages'
+  | 'common.inspector.info.models'
+  | 'common.inspector.info.modelsUnavailable'
+  | 'common.inspector.info.noModels'
+  | 'common.inspector.info.project'
+  | 'common.inspector.info.provider'
+  | 'common.inspector.info.sessionId'
+  | 'common.inspector.info.updated'
+  | 'common.inspector.tab.info'
+  | 'common.inspector.tab.outline'
+  | 'common.inspector.tab.tokens'
+  | 'common.inspector.tabs'
+  | 'common.inspector.tokens.breakdown'
+  | 'common.inspector.tokens.byModel'
+  | 'common.inspector.tokens.error'
+  | 'common.inspector.tokens.loading'
   | 'common.loading'
   | 'common.mobile.closeSidebar'
   | 'common.mobile.openNavigator'
@@ -2576,8 +2597,8 @@ export type TranslationKey =
   | 'commandRenderer.unknownContentType'
   | 'common.a11y.navigation'
   | 'common.a11y.skipNavigation'
+  | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
-  | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
@@ -2612,8 +2633,8 @@ export type TranslationKey =
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
+  | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
-  | 'common.command.toggleNavigator'
   | 'common.commandPalette'
   | 'common.completed'
   | 'common.copied'
@@ -2659,6 +2680,27 @@ export type TranslationKey =
   | 'common.hooks.updateDownloadComplete'
   | 'common.id'
   | 'common.input'
+  | 'common.inspector.close'
+  | 'common.inspector.info.copyFilePath'
+  | 'common.inspector.info.created'
+  | 'common.inspector.info.filePath'
+  | 'common.inspector.info.filePathCopied'
+  | 'common.inspector.info.messages'
+  | 'common.inspector.info.models'
+  | 'common.inspector.info.modelsUnavailable'
+  | 'common.inspector.info.noModels'
+  | 'common.inspector.info.project'
+  | 'common.inspector.info.provider'
+  | 'common.inspector.info.sessionId'
+  | 'common.inspector.info.updated'
+  | 'common.inspector.tab.info'
+  | 'common.inspector.tab.outline'
+  | 'common.inspector.tab.tokens'
+  | 'common.inspector.tabs'
+  | 'common.inspector.tokens.breakdown'
+  | 'common.inspector.tokens.byModel'
+  | 'common.inspector.tokens.error'
+  | 'common.inspector.tokens.loading'
   | 'common.loading'
   | 'common.mobile.closeSidebar'
   | 'common.mobile.openNavigator'

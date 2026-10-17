@@ -56,7 +56,7 @@ export interface CommandActions {
   goBack: () => unknown;
   goForward: () => unknown;
   focusFind: () => void;
-  toggleNavigator: () => void;
+  toggleInspector: () => void;
   toggleMinimap: () => void;
   openSettingsManager: () => unknown;
   openArchive: () => unknown;
@@ -130,10 +130,10 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     // "find in this conversation"; behind a dialog it does not.
     keys: { inFields: true },
   },
-  "view.toggleNavigator": {
+  "view.toggleInspector": {
     icon: SCREEN_ICONS.inspector,
     enabled: (ctx) => !ctx.isMobile,
-    run: (ctx) => ctx.actions.toggleNavigator(),
+    run: (ctx) => ctx.actions.toggleInspector(),
     keys: { inFields: true, inDialogs: true },
   },
   "view.toggleMinimap": {

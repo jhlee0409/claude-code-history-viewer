@@ -37,6 +37,13 @@ interface MessageNavigatorProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   asideId?: string;
+  /**
+   * Rendered as the inspector's Outline tab (T9a): the inspector owns the
+   * landmark, the width, the resize handle and the close button, so the
+   * navigator draws its contents only - no `aside`, no handle, no close
+   * button. Everything else is unchanged.
+   */
+  embedded?: boolean;
 }
 
 export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
@@ -47,6 +54,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   isCollapsed,
   onToggleCollapse,
   asideId = "message-navigator",
+  embedded = false,
 }) => {
   const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
@@ -324,27 +332,10 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     );
   }
 
-  // Expanded view
-  return (
-    <aside
-      id={asideId}
-      role="complementary"
-      aria-label={t("navigator.title")}
-      aria-describedby={keyboardHelpId}
-      tabIndex={-1}
-      className={cn(
-        "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
-        isResizing && "select-none",
-        width == null && "w-full"
-      )}
-      style={width != null ? { width, minWidth: width, maxWidth: width } : undefined}
-    >
-      {/* Resize handle (left edge) */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 z-10"
-        onMouseDown={onResizeStart}
-      />
-
+  // Expanded view: the panel's contents, inside its own aside or, embedded,
+  // inside the inspector's tab panel.
+  const contents = (
+    <>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
         <ListTree className="w-3.5 h-3.5 text-muted-foreground" />
@@ -398,13 +389,15 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             <Zap className="w-3.5 h-3.5" />
           </button>
         )}
-        <button
-          onClick={onToggleCollapse}
-          className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={t("navigator.toggle")}
-        >
-          <PanelRightClose className="w-3.5 h-3.5" />
-        </button>
+        {!embedded && (
+          <button
+            onClick={onToggleCollapse}
+            className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={t("navigator.toggle")}
+          >
+            <PanelRightClose className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Filter input */}
@@ -507,6 +500,37 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         )}{" "}
         {promptJumpHint}
       </p>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div id={asideId} className="relative flex min-h-0 flex-1 flex-col">
+        {contents}
+      </div>
+    );
+  }
+
+  return (
+    <aside
+      id={asideId}
+      role="complementary"
+      aria-label={t("navigator.title")}
+      aria-describedby={keyboardHelpId}
+      tabIndex={-1}
+      className={cn(
+        "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
+        isResizing && "select-none",
+        width == null && "w-full"
+      )}
+      style={width != null ? { width, minWidth: width, maxWidth: width } : undefined}
+    >
+      {/* Resize handle (left edge) */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 z-10"
+        onMouseDown={onResizeStart}
+      />
+      {contents}
     </aside>
   );
 };

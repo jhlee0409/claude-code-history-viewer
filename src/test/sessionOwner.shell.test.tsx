@@ -176,7 +176,7 @@ function openIn(p: ClaudeProject, sessions: ClaudeSession[], projects: ClaudePro
     selectedSession: null,
     view: "conversation",
     isMetadataLoaded: true,
-    isNavigatorOpen: false,
+    isInspectorOpen: false,
   } as never);
 }
 

@@ -139,7 +139,7 @@ beforeEach(async () => {
     selectedSession: S1,
     view: "conversation",
     isMetadataLoaded: true,
-    isNavigatorOpen: false,
+    isInspectorOpen: false,
     placeHistory: {
       back: [{ view: "analytics", project: PROJECT, session: S1 }],
       forward: [{ view: "board", project: PROJECT, session: S1 }],
@@ -252,7 +252,7 @@ describe("§6 reachability through the real shell", () => {
       ["common.command.openArchive", () => expect(state().view).toBe("archive")],
       ["common.command.sendFeedback", () => expect(modal("feedback")).not.toBeNull()],
       ["common.command.back", () => expect(state().view).toBe("analytics")],
-      ["common.command.toggleNavigator", () => expect(state().isNavigatorOpen).toBe(true)],
+      ["common.command.toggleInspector", () => expect(state().isInspectorOpen).toBe(true)],
     ] as const)("%s runs from the palette", async (labelKey, expectEffect) => {
       await renderShell();
       await runFromPalette(labelKey);
@@ -293,14 +293,31 @@ describe("§6 reachability through the real shell", () => {
       await waitFor(() => expect(state().view).toBe("conversation"));
     });
 
-    it("the inspector button opens and closes the message navigator", async () => {
+    it("the inspector button opens and closes the inspector, on its outline (the message navigator)", async () => {
       await renderShell();
+      expect(document.getElementById("inspector")).toBeNull();
       expect(document.querySelector('[data-screen="MessageNavigator"]')).toBeNull();
       await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
-      expect(state().isNavigatorOpen).toBe(true);
+      expect(state().isInspectorOpen).toBe(true);
+      expect(document.getElementById("inspector")).not.toBeNull();
       expect(document.querySelector('[data-screen="MessageNavigator"]')).not.toBeNull();
       await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
-      expect(state().isNavigatorOpen).toBe(false);
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+    });
+
+    it("opening the inspector focuses its tab; Escape closes it and returns focus to the toolbar button", async () => {
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      await activate(toggle);
+      const outline = await screen.findByRole("tab", { name: t("common.inspector.tab.outline") });
+      await waitFor(() => expect(document.activeElement).toBe(outline));
+      await act(async () => {
+        fireEvent.keyDown(outline, { key: "Escape" });
+      });
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+      expect(document.activeElement).toBe(toggle);
     });
 
     it("the palette button opens the palette", async () => {

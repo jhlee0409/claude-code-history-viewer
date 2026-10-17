@@ -8,7 +8,7 @@ import { useCommandContext } from "@/commands/useCommandContext";
  * The app's keyboard shortcuts: the manifest commands' shortcuts
  * (`src/commands/manifest.json`), served by one window listener
  * (`src/commands/shortcuts.ts`). Among them the three this hook used to
- * hard-code: ⌘K (palette), ⌘⇧M (message navigator, not on mobile) and ⌘⇧F
+ * hard-code: ⌘K (palette), ⌘⇧M (inspector, not on mobile) and ⌘⇧F
  * (minimap, not while typing).
  *
  * Mount once, at the app root. The listener is bound once and reads the

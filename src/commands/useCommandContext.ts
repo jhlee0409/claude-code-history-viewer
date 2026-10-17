@@ -13,6 +13,7 @@ import { ownPlace } from "@/navigation/ownership";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAppStore } from "@/store/useAppStore";
 import { closeTab, cycleTab, newTab, selectTabAt } from "@/navigation/tabs";
+import { toggleInspector } from "@/components/Inspector/inspectorFocus";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
 import type { CommandActions, CommandContext } from "./registry";
 
@@ -24,7 +25,6 @@ export function useCommandContext(): () => CommandContext {
   const { isDesktop, isMobile } = usePlatform();
   const { goBack, goForward, switchToSettings, switchToArchive, openView } = useAnalyticsNavigation();
   const screens = { openView };
-  const toggleNavigator = useAppStore((s) => s.toggleNavigator);
   const toggleMinimap = useAppStore((s) => s.toggleMinimap);
 
   const actions: CommandActions = {
@@ -34,7 +34,9 @@ export function useCommandContext(): () => CommandContext {
     focusFind: () => {
       focusFindTarget();
     },
-    toggleNavigator,
+    // Moves focus into the panel it opens, and back to the toolbar button
+    // when it closes the panel that held focus (`inspectorFocus.ts`).
+    toggleInspector,
     toggleMinimap,
     openSettingsManager: switchToSettings,
     openArchive: switchToArchive,

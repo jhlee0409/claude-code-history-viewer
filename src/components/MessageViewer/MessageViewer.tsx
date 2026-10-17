@@ -445,7 +445,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Reports the first visible message row to the Messages panel's outline
   // mode, which highlights the turn containing it (Design, "Highlighting
-  // the turn in view"). Gated on outline mode, not `isNavigatorOpen` (that
+  // the turn in view"). Gated on outline mode, not `isInspectorOpen` (that
   // flag never describes the narrow-screen sheet).
   useVisibleMessageTracking({
     enabled: navigatorViewMode === "outline",

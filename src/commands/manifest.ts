@@ -15,7 +15,7 @@ export const COMMAND_IDS = [
   "go.back",
   "go.forward",
   "edit.find",
-  "view.toggleNavigator",
+  "view.toggleInspector",
   "view.toggleMinimap",
   "go.settingsManager",
   "go.archive",

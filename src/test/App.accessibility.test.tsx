@@ -91,8 +91,12 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     isProjectHidden: vi.fn(() => false),
     dateFilter: { start: null, end: null },
     setDateFilter: vi.fn(),
-    isNavigatorOpen: true,
-    toggleNavigator: vi.fn(),
+    isInspectorOpen: true,
+    inspectorTab: "outline",
+    inspectorWidth: 280,
+    setInspectorTab: vi.fn(),
+    setInspectorWidth: vi.fn(),
+    setInspectorOpen: vi.fn(),
     activeProviders: [],
     setSelectedSession: vi.fn(),
     fontScale: 100,
@@ -360,14 +364,16 @@ describe("App accessibility smoke", () => {
       screen.getByRole("link", { name: "Skip to main content" })
     ).toHaveAttribute("href", "#main-content");
     expect(
-      screen.getByRole("link", { name: "Skip to message navigator" })
-    ).toHaveAttribute("href", "#message-navigator");
+      screen.getByRole("link", { name: "Skip to inspector" })
+    ).toHaveAttribute("href", "#inspector");
     expect(
       screen.getByRole("link", { name: "Skip to settings" })
     ).toHaveAttribute("href", "#app-settings-button");
 
     expect(document.getElementById("project-explorer")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
+    expect(document.getElementById("inspector")).not.toBeNull();
+    // The outline (the message navigator) is the inspector's default tab.
     expect(document.getElementById("message-navigator")).not.toBeNull();
     expect(document.getElementById("app-settings-button")).not.toBeNull();
   });
@@ -390,17 +396,18 @@ describe("App accessibility smoke", () => {
     // It is covered by `isTranscriptView` all the same.
     ["recent edits", { isRecentEditsView: true }],
   ])(
-    "drops the message-navigator skip link in the %s view, where the navigator does not render",
+    "drops the inspector skip link in the %s view, where the inspector does not render",
     (_label, flags) => {
-      // The navigator only renders in the transcript branch, but its link was
+      // The inspector only renders in the transcript branch, but its link was
       // keyed to `selectedSession` — which survives switching views.
       Object.assign(computedMock, { isMessagesView: false }, flags);
 
       render(<App />);
 
+      expect(document.getElementById("inspector")).toBeNull();
       expect(document.getElementById("message-navigator")).toBeNull();
       expect(
-        screen.queryByRole("link", { name: "Skip to message navigator" })
+        screen.queryByRole("link", { name: "Skip to inspector" })
       ).toBeNull();
     }
   );

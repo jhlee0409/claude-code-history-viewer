@@ -3,9 +3,11 @@ import type { FullAppStore } from "./types";
 
 export type NavigatorViewMode = "list" | "outline";
 
+/**
+ * The message navigator's own state. Whether it shows is the inspector's
+ * (`inspectorSlice.ts`): the navigator is the inspector's Outline tab.
+ */
 export interface NavigatorSliceState {
-    /** Whether the right sidebar navigator is expanded */
-    isNavigatorOpen: boolean;
     /** List (flat, default) or outline (grouped by turn) rendering mode */
     navigatorViewMode: NavigatorViewMode;
     /** uuid of the message currently visible in the main transcript; not persisted */
@@ -13,8 +15,6 @@ export interface NavigatorSliceState {
 }
 
 export interface NavigatorSliceActions {
-    toggleNavigator: () => void;
-    setNavigatorOpen: (open: boolean) => void;
     setNavigatorViewMode: (mode: NavigatorViewMode) => void;
     toggleNavigatorViewMode: () => void;
     setVisibleMessageUuid: (uuid: string | null) => void;
@@ -22,7 +22,6 @@ export interface NavigatorSliceActions {
 
 export type NavigatorSlice = NavigatorSliceState & NavigatorSliceActions;
 
-const STORAGE_KEY = "navigator-open";
 const VIEW_MODE_STORAGE_KEY = "navigator-view-mode";
 
 function readStoredViewMode(): NavigatorViewMode {
@@ -40,30 +39,9 @@ export const createNavigatorSlice: StateCreator<
     [],
     NavigatorSlice
 > = (set, get) => ({
-    isNavigatorOpen: (() => {
-        try {
-            // Closed until the user opens it (plan decision 5); then the
-            // last choice is kept.
-            return localStorage.getItem(STORAGE_KEY) === "true";
-        } catch {
-            return false;
-        }
-    })(),
-
     navigatorViewMode: readStoredViewMode(),
 
     visibleMessageUuid: null,
-
-    toggleNavigator: () => set((state) => {
-        const next = !state.isNavigatorOpen;
-        try { localStorage.setItem(STORAGE_KEY, String(next)); } catch { /* ignore */ }
-        return { isNavigatorOpen: next };
-    }),
-
-    setNavigatorOpen: (open) => {
-        try { localStorage.setItem(STORAGE_KEY, String(open)); } catch { /* ignore */ }
-        set({ isNavigatorOpen: open });
-    },
 
     setNavigatorViewMode: (mode) => {
         try { localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode); } catch { /* ignore */ }

@@ -21,6 +21,7 @@ import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
 import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
+import { INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -48,7 +49,7 @@ const InspectorIcon = SCREEN_ICONS.inspector;
  * - the screen tabs come from the view registry and switch the screen of the
  *   current place (the selected tab is a projection of the place, plan C3);
  * - the palette and inspector buttons run `palette.open` and
- *   `view.toggleNavigator`;
+ *   `view.toggleInspector`;
  * - the gear menu holds preferences only (D8); the Claude Code tools moved to
  *   the sidebar library, the palette and (T11a) the menu bar.
  */
@@ -70,7 +71,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   } = useAppStore();
   const canGoBack = useAppStore((s) => s.placeHistory.back.length > 0);
   const canGoForward = useAppStore((s) => s.placeHistory.forward.length > 0);
-  const isNavigatorOpen = useAppStore((s) => s.isNavigatorOpen);
+  const isInspectorOpen = useAppStore((s) => s.isInspectorOpen);
   const view = useAppStore((s) => s.view);
 
   const computed = analyticsComputed;
@@ -364,9 +365,10 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           className="hidden md:inline-flex"
           icon={InspectorIcon}
           label={inspectorLabel}
-          pressed={isNavigatorOpen}
+          id={INSPECTOR_TOGGLE_ID}
+          pressed={isInspectorOpen}
           disabled={!computed.isMessagesView || !selectedSession}
-          onClick={() => commands.run("view.toggleNavigator")}
+          onClick={() => commands.run("view.toggleInspector")}
         />
 
         {/* App menu: preferences only (plan D8). */}
@@ -392,6 +394,7 @@ const ToolbarIconButton = ({
   pressed,
   spinning = false,
   className,
+  id,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -400,8 +403,10 @@ const ToolbarIconButton = ({
   pressed?: boolean;
   spinning?: boolean;
   className?: string;
+  id?: string;
 }) => (
   <TooltipButton
+    id={id}
     onClick={onClick}
     disabled={disabled}
     aria-label={label}

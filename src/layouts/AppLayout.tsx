@@ -5,7 +5,7 @@ import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
-import { MessageNavigator } from "@/components/MessageNavigator";
+import { Inspector } from "@/components/Inspector";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
@@ -102,12 +102,11 @@ export interface AppLayoutProps {
   isSidebarResizing: boolean;
   handleSidebarResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
 
-  // Navigator resize
-  navigatorWidth: number;
-  isNavigatorResizing: boolean;
-  handleNavigatorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
-  isNavigatorOpen: boolean;
-  toggleNavigator: () => void;
+  // Inspector (open state and committed width: `inspectorSlice.ts`)
+  inspectorWidth: number;
+  isInspectorResizing: boolean;
+  handleInspectorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
+  isInspectorOpen: boolean;
   recentEditsDockWidth: number;
   isRecentEditsDockResizing: boolean;
   handleRecentEditsDockResizeStart: (
@@ -147,7 +146,7 @@ export interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
   // The dock is panel state, not layout state, so it is read from the store
-  // rather than threaded through props like the navigator's older toggle.
+  // rather than threaded through props.
   const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
   const {
     projects,
@@ -177,11 +176,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     sidebarWidth,
     isSidebarResizing,
     handleSidebarResizeStart,
-    navigatorWidth,
-    isNavigatorResizing,
-    handleNavigatorResizeStart,
-    isNavigatorOpen,
-    toggleNavigator,
+    inspectorWidth,
+    isInspectorResizing,
+    handleInspectorResizeStart,
+    isInspectorOpen,
     recentEditsDockWidth,
     isRecentEditsDockResizing,
     handleRecentEditsDockResizeStart,
@@ -301,10 +299,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     screen is exactly the transcript.
   */
   const isTranscriptView = computed.isMessagesView;
-  // The inspector (today the message navigator) is closed by default and
-  // opens from the toolbar's inspector button or ⌘⇧M (plan T7, decision 5);
+  // The inspector (outline, tokens, info) is closed by default and opens
+  // from the toolbar's inspector button or ⌘⇧M (plan T9a, decision D5);
   // closed, it takes no width at all.
-  const showMessageNavigator = entry.inspector && selectedSession != null && isNavigatorOpen;
+  const showInspector = entry.inspector && selectedSession != null && isInspectorOpen;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
@@ -367,7 +365,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
         <SkipLinks
           hasProjectExplorer={!isMobile}
           hasRecentEditsDock={showRecentEditsDock}
-          hasMessageNavigator={!isMobile && showMessageNavigator}
+          hasInspector={!isMobile && showInspector}
         />
       }
       header={
@@ -442,24 +440,21 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       mainLabelledBy={viewPanelLabel}
       inspector={
         <>
-          {showMessageNavigator && (
+          {showInspector && (
             <div className="hidden md:block">
-              <MessageNavigator
+              <Inspector
                 messages={messages}
-                width={navigatorWidth}
-                isResizing={isNavigatorResizing}
-                onResizeStart={handleNavigatorResizeStart}
-                isCollapsed={false}
-                onToggleCollapse={toggleNavigator}
-                asideId="message-navigator"
+                width={inspectorWidth}
+                isResizing={isInspectorResizing}
+                onResizeStart={handleInspectorResizeStart}
               />
             </div>
           )}
           {/*
-            Outermost on the right, after the navigator rather than before it.
-            The navigator is an outline OF the transcript, so it belongs
-            against the transcript it indexes; the dock is a separate surface
-            about the project and sits outside it.
+            Outermost on the right, after the inspector rather than before it.
+            The inspector's outline is an outline OF the transcript, so it
+            belongs against the transcript it indexes; the dock is a separate
+            surface about the project and sits outside it.
 
             Keyed by whether a session is open, so clearing or opening one
             remounts the dock (fresh scroll, focus and panel state) while a

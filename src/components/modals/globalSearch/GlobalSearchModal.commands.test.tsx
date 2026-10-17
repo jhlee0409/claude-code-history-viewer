@@ -98,7 +98,7 @@ function setUpPalette() {
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),
-        toggleNavigator: vi.fn(),
+        toggleInspector: vi.fn(),
         toggleMinimap: vi.fn(),
         openSettingsManager: vi.fn(),
         openArchive: vi.fn(),

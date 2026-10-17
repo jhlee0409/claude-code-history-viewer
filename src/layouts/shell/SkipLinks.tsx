@@ -13,17 +13,17 @@ interface SkipLinksProps {
   hasProjectExplorer: boolean;
   hasRecentEditsDock: boolean;
   /**
-   * The navigator renders only beside a transcript, while the selected
+   * The inspector renders only beside a transcript, while the selected
    * session survives switching to other screens; keyed to the session alone,
    * the link pointed at nothing there (#518).
    */
-  hasMessageNavigator: boolean;
+  hasInspector: boolean;
 }
 
 export const SkipLinks = ({
   hasProjectExplorer,
   hasRecentEditsDock,
-  hasMessageNavigator,
+  hasInspector,
 }: SkipLinksProps) => {
   const { t } = useTranslation();
   return (
@@ -60,13 +60,13 @@ export const SkipLinks = ({
           })}
         </a>
       )}
-      {hasMessageNavigator && (
+      {hasInspector && (
         <a
-          href="#message-navigator"
+          href="#inspector"
           className="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         >
-          {t("common.a11y.skipToNavigator", {
-            defaultValue: "Skip to message navigator",
+          {t("common.a11y.skipToInspector", {
+            defaultValue: "Skip to inspector",
           })}
         </a>
       )}

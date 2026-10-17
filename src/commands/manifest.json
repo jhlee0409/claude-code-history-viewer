@@ -31,8 +31,8 @@
       "menu": "edit"
     },
     {
-      "id": "view.toggleNavigator",
-      "labelKey": "common.command.toggleNavigator",
+      "id": "view.toggleInspector",
+      "labelKey": "common.command.toggleInspector",
       "shortcut": { "mac": "Cmd+Shift+M", "win": "Ctrl+Shift+M", "linux": "Ctrl+Shift+M", "web": "CmdOrCtrl+Shift+M" },
       "source": "frontend",
       "menu": "view"

@@ -5,6 +5,7 @@ import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useUpdater } from "./hooks/useUpdater";
 import { useResizablePanel } from "./hooks/useResizablePanel";
+import { INSPECTOR_WIDTH } from "./store/slices/inspectorSlice";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useLiveStatusMessage } from "./hooks/useLiveStatusMessage";
@@ -104,8 +105,9 @@ function App() {
     unhideProject,
     isProjectHidden,
     setDateFilter,
-    isNavigatorOpen,
-    toggleNavigator,
+    isInspectorOpen,
+    inspectorWidth: storedInspectorWidth,
+    setInspectorWidth,
     activeProviders,
   } = useAppStore();
 
@@ -359,17 +361,19 @@ function App() {
     storageKey: "sidebar-width",
   });
 
-  // Navigator resize (right sidebar)
+  // Inspector resize (right side). The width is a stored preference of the
+  // inspector's (`inspectorSlice.ts`): read once here, written when a drag
+  // ends.
   const {
-    width: navigatorWidth,
-    isResizing: isNavigatorResizing,
-    handleMouseDown: handleNavigatorResizeStart,
+    width: inspectorWidth,
+    isResizing: isInspectorResizing,
+    handleMouseDown: handleInspectorResizeStart,
   } = useResizablePanel({
-    defaultWidth: 280,
-    minWidth: 200,
-    maxWidth: 400,
-    storageKey: "navigator-width",
+    defaultWidth: storedInspectorWidth,
+    minWidth: INSPECTOR_WIDTH.min,
+    maxWidth: INSPECTOR_WIDTH.max,
     direction: "left",
+    onResizeEnd: setInspectorWidth,
   });
 
   // Recent Edits dock resize (right side, sibling of the navigator).
@@ -540,11 +544,10 @@ function App() {
       sidebarWidth={sidebarWidth}
       isSidebarResizing={isSidebarResizing}
       handleSidebarResizeStart={handleSidebarResizeStart}
-      navigatorWidth={navigatorWidth}
-      isNavigatorResizing={isNavigatorResizing}
-      handleNavigatorResizeStart={handleNavigatorResizeStart}
-      isNavigatorOpen={isNavigatorOpen}
-      toggleNavigator={toggleNavigator}
+      inspectorWidth={inspectorWidth}
+      isInspectorResizing={isInspectorResizing}
+      handleInspectorResizeStart={handleInspectorResizeStart}
+      isInspectorOpen={isInspectorOpen}
       recentEditsDockWidth={recentEditsDockWidth}
       isRecentEditsDockResizing={isRecentEditsDockResizing}
       handleRecentEditsDockResizeStart={handleRecentEditsDockResizeStart}
