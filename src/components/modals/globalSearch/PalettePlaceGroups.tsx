@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ClaudeProject } from "@/types";
+import { getCompactParentPath } from "@/utils/pathUtils";
 import { getProviderBadgeStyle, getProviderLabel } from "@/utils/providers";
 import {
   GROUP_LIMIT,
@@ -117,11 +118,14 @@ export function PaletteProjectGroup({ hits, query, expanded, onExpand, onOpen }:
   );
 }
 
+/** Where the project lives: its parent folders, short (the sidebar's secondary text). */
 function ProjectPath({ project }: { project: ClaudeProject }) {
   const path = project.actual_path || project.path;
+  const parent = getCompactParentPath(path);
+  if (!parent) return null;
   return (
     <span className="ml-auto min-w-0 max-w-[50%] truncate text-list text-muted-foreground" title={path}>
-      {path}
+      {parent}
     </span>
   );
 }

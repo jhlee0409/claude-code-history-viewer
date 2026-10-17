@@ -319,7 +319,9 @@ export const GlobalSearchModal = ({
                 vimBindings={false}
                 loop
                 label={t("common.commandPalette")}
-                className="flex flex-col min-h-0 outline-none"
+                // min-w-0: the dialog is a grid; without it a long row (a
+                // path, a title) widens the palette past a phone's screen.
+                className="flex flex-col min-h-0 min-w-0 outline-none"
               >
                 {/* Search Header */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -389,7 +391,7 @@ export const GlobalSearchModal = ({
                     <div className="segmented" role="group" aria-label={t("globalSearch.scope.label")}>
                         <button
                             type="button"
-                            className="segmented-item text-caption"
+                            className="segmented-item px-2 py-0.5 text-list whitespace-nowrap"
                             aria-pressed={effectiveScope === "project"}
                             disabled={!selectedProject}
                             title={selectedProject ? scopeProjectLabel : t("globalSearch.scope.projectUnavailable")}
@@ -399,7 +401,7 @@ export const GlobalSearchModal = ({
                         </button>
                         <button
                             type="button"
-                            className="segmented-item text-caption"
+                            className="segmented-item px-2 py-0.5 text-list whitespace-nowrap"
                             aria-pressed={effectiveScope === "all"}
                             onClick={() => setScope("all")}
                         >
@@ -479,9 +481,15 @@ export const GlobalSearchModal = ({
                     {liveText}
                 </div>
 
-                {/* Footer with keyboard hints */}
-                <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground">
-                    <div className="flex items-center gap-4">
+                {/* Footer: keyboard hints (not on phones, which have no
+                    keyboard to use them with) and the message count. */}
+                <div
+                    className={cn(
+                        "items-center justify-between gap-3 px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground",
+                        messageCount > 0 ? "flex" : "hidden sm:flex",
+                    )}
+                >
+                    <div className="hidden sm:flex items-center gap-4 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
                                 <ArrowUp className="w-3.5 h-3.5 inline" />
@@ -501,8 +509,7 @@ export const GlobalSearchModal = ({
                                 {t("globalSearch.select")}
                             </span>
                         </div>
-                        {/* Phones have no ⌘ / Ctrl key to hold. */}
-                        <div className="hidden sm:flex items-center gap-1">
+                        <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-caption">
                                 {isMacOS() ? "⌘" : "Ctrl"}
                             </kbd>
@@ -523,7 +530,7 @@ export const GlobalSearchModal = ({
                         </div>
                     </div>
                     {messageCount > 0 && (
-                        <span>
+                        <span className="ml-auto text-right">
                             {messageCount >= MAX_MESSAGE_RESULTS
                                 ? t("globalSearch.resultsCapped", { count: MAX_MESSAGE_RESULTS })
                                 : t("globalSearch.results", { count: messageCount })}

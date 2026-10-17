@@ -317,7 +317,8 @@ describe("⌘K palette: IME composition", () => {
         render(<Harness />);
         fireEvent.compositionStart(input());
         fireEvent.change(input(), { target: { value: "로그" } });
-        expect(screen.getByRole("option", { name: /로그인/ })).toBeInTheDocument();
+        // (The match is marked, so the name reads "로그 인".)
+        expect(screen.getByRole("option", { name: /로그\s*인/ })).toBeInTheDocument();
     });
 
     it("Enter that confirms a composition picks nothing", async () => {

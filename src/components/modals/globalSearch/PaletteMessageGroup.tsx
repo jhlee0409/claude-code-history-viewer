@@ -136,8 +136,9 @@ export function PaletteMessageGroup({
       );
       const key = `${provider}::${projectName}`;
       if (!out.has(key)) {
+        const displayName = project ? getProjectDisplayName(project) : projectName;
         out.set(key, {
-          label: project ? getProjectDisplayName(project) : projectName,
+          label: `${displayName} (${providerName(provider)})`,
           provider: result.provider,
           pathUnavailable: project?.path_status === "unavailable",
           project,
@@ -147,7 +148,7 @@ export function PaletteMessageGroup({
       out.get(key)!.items.push({ result, index });
     });
     return out;
-  }, [projects, results, expanded, t]);
+  }, [projects, results, expanded, t, providerName]);
 
   // Conversation titles of the listed projects, fetched at most once per
   // project version, a few at a time; abandoned when the rows change.
@@ -319,7 +320,7 @@ export function PaletteMessageGroup({
       {view.status === "done" && view.results.length === 0 && note(<span>{t("globalSearch.messages.none")}</span>)}
       {Array.from(groups.entries()).map(([key, group]) => (
         <div key={key}>
-          <div className="px-4 py-1 text-list text-muted-foreground truncate flex items-center gap-2">
+          <div className="px-4 py-1.5 text-list font-medium text-muted-foreground bg-muted sticky top-0 truncate flex items-center gap-2">
             <ProviderBadge provider={group.provider} />
             {group.pathUnavailable && (
               <Badge
