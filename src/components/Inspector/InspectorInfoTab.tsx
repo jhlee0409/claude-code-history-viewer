@@ -23,9 +23,16 @@ import { useSessionTokenStats } from "./useSessionTokenStats";
  * A moment as date and time, each kept on one line: in a narrow column the
  * pair wraps between them, never inside the time ("01:24:42") or the date.
  * The same fields as `formatTime`.
+ *
+ * A missing or unparseable time (subagent sessions are synthesised with
+ * empty first/last times) reads "Unknown", with no `<time>` to mislabel.
  */
 const Moment = ({ timestamp }: { timestamp: string }) => {
+  const { t } = useTranslation();
   const date = new Date(timestamp);
+  if (!timestamp || Number.isNaN(date.getTime())) {
+    return <span className="text-muted-foreground">{t("common.unknown")}</span>;
+  }
   const locale = getLocale(i18n.language || "en");
   return (
     <time dateTime={timestamp} className="flex flex-wrap gap-x-1.5">

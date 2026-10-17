@@ -388,6 +388,21 @@ describe("Info tab", () => {
     expect(row("File").textContent).toContain(S1.file_path);
   });
 
+  it.each([
+    ["empty", ""],
+    ["unparseable", "not a date"],
+  ])("says Unknown for an %s time, with no machine-readable date", (_, time) => {
+    // Subagent sessions are synthesised with empty first/last message times.
+    arrange({ inspectorTab: "info", selectedSession: { ...S1, first_message_time: time, last_message_time: time } });
+    renderInspector();
+    const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    for (const label of ["Started", "Last activity"]) {
+      expect(row(label).textContent, label).toBe(i18n.t("common.unknown"));
+      expect(row(label).textContent, label).not.toContain("Invalid Date");
+      expect(row(label).querySelector("time"), label).toBeNull();
+    }
+  });
+
   it("copies the file path and the session id", async () => {
     arrange({ inspectorTab: "info" });
     renderInspector();
