@@ -17,6 +17,9 @@ vi.mock("react-i18next", async (importOriginal) => {
   };
 });
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
+
 vi.mock("@/contexts/theme", () => ({
   useTheme: () => ({ isDarkMode: false }),
 }));
@@ -287,6 +290,23 @@ describe("restore, the missing filter and the jump to the message", () => {
     expect(rows[1]?.props.onJumpToMessage).toBeUndefined();
     (rows[0]?.props.onJumpToMessage as (uuid: string) => void)("m-42");
     expect(fn("navigate")).toHaveBeenCalledWith({ view: "conversation", session: SESSION, messageId: "m-42" });
+  });
+});
+
+describe("a failed jump to the message", () => {
+  it("tells the user with a toast, not only the console", async () => {
+    const files = [edit("/project/a.ts")];
+    state = baseState({
+      recentEditsDensity: "compact",
+      recentEditsList: listFor(projectRequest, files),
+      navigate: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<RecentEditsViewer />);
+    (rows[0]?.props.onJumpToMessage as (uuid: string) => void)("m-42");
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("globalSearch.navigationFailed"));
   });
 });
 

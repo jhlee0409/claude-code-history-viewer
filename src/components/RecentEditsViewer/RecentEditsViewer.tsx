@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, File, FilePen, FolderOpen, LoaderCircle, Search } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
+import { toast } from "sonner";
 import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
@@ -139,7 +140,10 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
     if (!session) return undefined;
     return (messageUuid: string) => {
       navigate({ view: "conversation", session, messageId: messageUuid }).catch(
-        (jumpError: unknown) => console.error("Failed to open the edit's message:", jumpError)
+        (jumpError: unknown) => {
+          console.error("Failed to open the edit's message:", jumpError);
+          toast.error(t("globalSearch.navigationFailed"));
+        }
       );
     };
   };
