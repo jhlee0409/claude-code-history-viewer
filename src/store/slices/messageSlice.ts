@@ -66,6 +66,9 @@ export interface MessageSliceState {
   /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
   projectTokenStatsOwner: string | null;
   sessionTokenStatsOwner: string | null;
+  /** The session token stats load's failure, and the session file it was for. */
+  sessionTokenStatsError: string | null;
+  sessionTokenStatsErrorOwner: string | null;
   /** The project token stats load's failure, and the project it was for. */
   projectTokenStatsError: string | null;
   projectTokenStatsErrorOwner: string | null;
@@ -228,6 +231,8 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
   projectTokenStatsOwner: null,
   sessionTokenStatsOwner: null,
+  sessionTokenStatsError: null,
+  sessionTokenStatsErrorOwner: null,
   projectTokenStatsError: null,
   projectTokenStatsErrorOwner: null,
   subagentSessions: [],
@@ -767,6 +772,11 @@ export const createMessageSlice: StateCreator<
       context: { sessionPath },
       isLatest: () => requestId === getRequestId("sessionTokenStats"),
     });
+    // A new try for the same session shows its loading state, not the
+    // previous failure; another session's failure is not this load's.
+    if (get().sessionTokenStatsErrorOwner === sessionPath) {
+      set({ sessionTokenStatsError: null, sessionTokenStatsErrorOwner: null });
+    }
     try {
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
@@ -797,15 +807,25 @@ export const createMessageSlice: StateCreator<
         sessionTokenStats: stats,
         sessionConversationTokenStats: conversationStats,
         sessionTokenStatsOwner: sessionPath,
+        sessionTokenStatsError: null,
+        sessionTokenStatsErrorOwner: null,
       });
     } catch (error) {
       console.error("Failed to load session token stats:", error);
       if (!owner.ownsData()) return;
-      set({ sessionTokenStats: null, sessionConversationTokenStats: null, sessionTokenStatsOwner: null });
+      const message = error instanceof Error ? error.message : String(error);
+      // Recorded with its session, so the inspector's Tokens tab shows its
+      // error state for this session only (`selectSessionTokenStats`).
+      set({
+        sessionTokenStats: null,
+        sessionConversationTokenStats: null,
+        sessionTokenStatsOwner: null,
+        sessionTokenStatsError: message,
+        sessionTokenStatsErrorOwner: sessionPath,
+      });
       if (!owner.ownsFeedback()) return;
       // The token stats screen is one tab's: it says so there, and the
       // tabs stay (never the app's error screen).
-      const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load session token stats: ${message}`);
     } finally {
       endTokenStatsLoading(loadingEpoch);
@@ -1100,6 +1120,8 @@ export const createMessageSlice: StateCreator<
       ),
       projectTokenStatsOwner: null,
       sessionTokenStatsOwner: null,
+      sessionTokenStatsError: null,
+      sessionTokenStatsErrorOwner: null,
       projectTokenStatsError: null,
       projectTokenStatsErrorOwner: null,
     });

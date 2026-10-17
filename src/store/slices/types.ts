@@ -127,6 +127,9 @@ export interface AppStoreState {
   /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
   projectTokenStatsOwner: string | null;
   sessionTokenStatsOwner: string | null;
+  /** The session token stats load's failure, and the session file it was for. */
+  sessionTokenStatsError: string | null;
+  sessionTokenStatsErrorOwner: string | null;
   /** The project token stats load's failure, and the project it was for. */
   projectTokenStatsError: string | null;
   projectTokenStatsErrorOwner: string | null;

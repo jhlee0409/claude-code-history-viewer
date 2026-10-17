@@ -131,6 +131,35 @@ export function selectTokenStats(s: State): TokenStatsView {
   };
 }
 
+/**
+ * The open session's token totals alone (the inspector's Tokens and Info
+ * tabs). Unlike `selectTokenStats` it does not wait on the project's pages:
+ * the value is shown once the session's own load answered, and its own
+ * failure - recorded with the session it was for - is its error state.
+ */
+export interface SessionTokenStatsView {
+  stats: SessionTokenStats | null;
+  conversationStats: SessionTokenStats | null;
+  /** No answer for this session yet (a load is running or about to start). */
+  isLoading: boolean;
+  error: string | null;
+  /** No session is open: there is nothing to load. */
+  hasSession: boolean;
+}
+
+export function selectSessionTokenStats(s: State): SessionTokenStatsView {
+  const session = sessionOwner(s);
+  const owns = isOwnedBy(s.sessionTokenStatsOwner, session);
+  const error = isOwnedBy(s.sessionTokenStatsErrorOwner, session) ? s.sessionTokenStatsError : null;
+  return {
+    stats: owns ? s.sessionTokenStats : null,
+    conversationStats: owns ? s.sessionConversationTokenStats : null,
+    isLoading: session !== null && !owns && error === null,
+    error,
+    hasSession: session !== null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Board
 // ---------------------------------------------------------------------------

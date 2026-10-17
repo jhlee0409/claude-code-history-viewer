@@ -98,6 +98,9 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   // Whose the token stats are, and the project load's failure.
   projectTokenStatsOwner: "screen",
   sessionTokenStatsOwner: "screen",
+  // The session load's failure, and whose (the inspector's Tokens tab).
+  sessionTokenStatsError: "screen",
+  sessionTokenStatsErrorOwner: "screen",
   projectTokenStatsError: "screen",
   projectTokenStatsErrorOwner: "screen",
   analytics: "screen",
