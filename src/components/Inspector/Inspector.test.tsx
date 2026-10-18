@@ -388,6 +388,37 @@ describe("Info tab", () => {
     expect(row("File").textContent).toContain(S1.file_path);
   });
 
+  it("shows the project and file paths with ~ when the Claude folder fixes home", () => {
+    const claudeFile = "/home/me/.claude/projects/-home-me-alpha/s1.jsonl";
+    arrange({ inspectorTab: "info", claudePath: "/home/me/.claude", selectedSession: { ...S1, file_path: claudeFile } });
+    renderInspector();
+    const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+
+    const projectPath = row("Project").querySelector("[data-path]");
+    expect(projectPath).toHaveAttribute("data-path-kind", "home");
+    expect(projectPath).toHaveAttribute("data-path", "/home/me/alpha");
+    expect(projectPath).toHaveAttribute("title", "/home/me/alpha");
+    expect(projectPath?.textContent).toBe("~/alpha");
+
+    const filePath = row("File").querySelector("[data-path]");
+    expect(filePath).toHaveAttribute("data-path-kind", "home");
+    expect(filePath).toHaveAttribute("title", claudeFile);
+    expect(filePath?.textContent).toBe("~/.claude/projects/-home-me-alpha/s1.jsonl");
+    // The file name stays whole; only the folders may ellipsise.
+    expect(filePath?.querySelector('[data-path-part="name"]')?.textContent).toBe("s1.jsonl");
+  });
+
+  it("keeps paths whole when nothing says where home is", () => {
+    arrange({ inspectorTab: "info", claudePath: "/data/claude-config" });
+    renderInspector();
+    const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    for (const [label, full] of [["Project", "/home/me/alpha"], ["File", S1.file_path]] as const) {
+      const el = row(label).querySelector("[data-path]");
+      expect(el, label).toHaveAttribute("data-path-kind", "absolute");
+      expect(el?.textContent, label).toBe(full);
+    }
+  });
+
   it.each([
     ["empty", ""],
     ["unparseable", "not a date"],
@@ -403,9 +434,11 @@ describe("Info tab", () => {
     }
   });
 
-  it("copies the file path and the session id", async () => {
-    arrange({ inspectorTab: "info" });
+  it("copies the full file path and the session id", async () => {
+    arrange({ inspectorTab: "info", claudePath: "/p/.claude" });
     renderInspector();
+    // Shown shortened (`~/alpha/s1.jsonl`), copied whole.
+    expect(screen.getByRole("button", { name: "Copy file path" }).closest("dd")?.textContent).toBe("~/alpha/s1.jsonl");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy file path" }));
     });

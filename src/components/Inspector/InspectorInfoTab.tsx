@@ -15,6 +15,8 @@ import { useAppStore } from "@/store/useAppStore";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { getProviderLabel } from "@/utils/providers";
 import { getProjectDisplayName } from "@/utils/pathUtils";
+import { homeDirFromClaudePath, type PathContext } from "@/lib/format/path";
+import { PathText } from "@/lib/format/PathText";
 import i18n from "@/i18n";
 import { getLocale } from "@/utils/time";
 import { useSessionTokenStats } from "./useSessionTokenStats";
@@ -53,13 +55,19 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   </div>
 );
 
-/** A value the user may want elsewhere (an id, a path), with a copy button. */
+/**
+ * A value the user may want elsewhere (an id, a path), with a copy button.
+ * `display` replaces the plain text (a shortened path); the button always
+ * copies `value` whole.
+ */
 const CopyableValue = ({
   value,
+  display,
   copyLabel,
   copiedMessage,
 }: {
   value: string;
+  display?: ReactNode;
   copyLabel: string;
   copiedMessage: string;
 }) => {
@@ -74,9 +82,11 @@ const CopyableValue = ({
   };
   return (
     <div className="flex items-start gap-1">
-      <span className="min-w-0 flex-1 break-all font-mono text-caption text-foreground select-all">
-        {value}
-      </span>
+      {display ?? (
+        <span className="min-w-0 flex-1 break-all font-mono text-caption text-foreground select-all">
+          {value}
+        </span>
+      )}
       <button
         type="button"
         onClick={() => void copy()}
@@ -94,9 +104,17 @@ export const InspectorInfoTab = () => {
   const { t } = useTranslation();
   const session = useAppStore((s) => s.selectedSession);
   const project = useAppStore((s) => s.selectedProject);
+  const claudePath = useAppStore((s) => s.claudePath);
   const tokens = useSessionTokenStats();
 
   if (!session) return null;
+
+  // Paths read relative to the project or `~`, only where the app knows the
+  // base for certain (`formatPath`); otherwise they stay whole.
+  const pathCtx: PathContext = {
+    projectRoot: project?.actual_path,
+    homeDir: homeDirFromClaudePath(claudePath),
+  };
 
   const modelNames = [...new Set((tokens.stats?.model_distribution ?? []).map((m) => m.model_name))];
   const models = (() => {
@@ -123,9 +141,11 @@ export const InspectorInfoTab = () => {
           <Row label={t("common.inspector.info.project")}>
             <span className="block break-words">{getProjectDisplayName(project)}</span>
             {project.actual_path && (
-              <span className="block break-all font-mono text-caption text-muted-foreground">
-                {project.actual_path}
-              </span>
+              <PathText
+                path={project.actual_path}
+                ctx={pathCtx}
+                className="flex text-caption text-muted-foreground"
+              />
             )}
           </Row>
         )}
@@ -152,6 +172,13 @@ export const InspectorInfoTab = () => {
         <Row label={t("common.inspector.info.filePath")}>
           <CopyableValue
             value={session.file_path}
+            display={
+              <PathText
+                path={session.file_path}
+                ctx={pathCtx}
+                className="flex flex-1 text-caption text-foreground select-all"
+              />
+            }
             copyLabel={t("common.inspector.info.copyFilePath")}
             copiedMessage={t("common.inspector.info.filePathCopied")}
           />
