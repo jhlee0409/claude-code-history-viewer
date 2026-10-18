@@ -466,7 +466,9 @@ const INNER_SCREENS = [
   {
     id: "no-matches",
     title: "Conversation search with no matches",
-    steps: [{ do: "openSession", session: "large" }, { do: "transcriptSearch", query: "zzqx-no-such-text" }],
+    // A short session: on the 1,369-message one the virtualizer's scroll
+    // offset after a search differed by ~11px between runs (not reproducible).
+    steps: [{ do: "openSession", session: "outcomes" }, { do: "transcriptSearch", query: "zzqx-no-such-text" }],
   },
   {
     id: "unreadable-source",
