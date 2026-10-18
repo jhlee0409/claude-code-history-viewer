@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { generateFixture, snapshotTree } from "../fixtures/generate.mjs";
-import { E15_RESULT, INNER_CASES } from "../fixtures/inner.mjs";
+import { CJK_CASES, E15_RESULT, INNER_CASES } from "../fixtures/inner.mjs";
 
 let scratch;
 let withInner;
@@ -143,5 +143,17 @@ describe("inner fixture", () => {
     };
     walk(withInner.manifest.home);
     expect([...used].filter((m) => deprecated.has(m))).toEqual([]);
+  });
+
+  // transcript-cjk's cjkLeading probe needs a CJK text node that wraps. A
+  // short run wraps or not by the fallback font's glyph widths: the Korean
+  // body wrapped on macOS and fit on one line on the ubuntu runner (empty
+  // population, capture failed). 60 CJK letters are wider than the 1440px
+  // transcript column (638px at 15px) in any CJK font.
+  it("CJK: every body has a prose run long enough to wrap the transcript column", () => {
+    const CJK_LETTER = /[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\u3400-\u9fff\uac00-\ud7af]/gu;
+    const longestRun = (body) => Math.max(...body.split(/`[^`]*`/).map((run) => (run.match(CJK_LETTER) ?? []).length));
+    expect(CJK_CASES.map(([key]) => key)).toEqual(["cjk-ko", "cjk-ja", "cjk-zh-CN", "cjk-zh-TW"]);
+    for (const [key, , body] of CJK_CASES) expect(longestRun(body), key).toBeGreaterThanOrEqual(60);
   });
 });

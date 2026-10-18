@@ -34,6 +34,19 @@ export const INNER_CASES = {
 const ONE_PX_PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEUlEQVR4nGP4z8DwHwlwMDAAAAD//wMAx1wH+QAAAABJRU5ErkJggg==";
 
+/**
+ * The D12 CJK cases: [session key, title, assistant body]. Each body mixes
+ * prose, paths and code, and ends with a prose run long enough to wrap the
+ * transcript column whatever CJK font the system falls back to (the
+ * cjkLeading probe needs a multi-line CJK text node; fixtureInner.test).
+ */
+export const CJK_CASES = [
+  ["cjk-ko", "알림 미리보기 경로 정리하고 테스트 고쳐줘", "`src/preview/renderPreview.ts`의 공백 처리 때문에 테스트가 깨졌습니다. 경로는 `src/preview` 아래에 있고, 수정한 코드는 `input.trim().replace(/\\s+/g, \" \")` 입니다. 이어지는 설명은 좁은 창과 넓은 창 모두에서 줄바꿈과 줄 간격을 확인하기 위해 충분히 길게 쓴 한국어 문장이며, 단어 중간에서 끊기지 않고 어절 사이에서만 줄이 바뀌어야 합니다."],
+  ["cjk-ja", "通知プレビューのパスを整理してテストを直して", "`src/preview/renderPreview.ts` の空白処理でテストが失敗しています。修正後のコードは `input.trim().replace(/\\s+/g, \" \")` です。長い説明文がここに続き、行の折り返しと行間を確認するための日本語の文章を十分な長さで書いています。広い画面でも狭い画面でも、この段落は二行以上に折り返されることを前提にしています。"],
+  ["cjk-zh-CN", "整理通知预览路径并修复测试", "测试失败是因为 `src/preview/renderPreview.ts` 中的空白处理。修改后的代码是 `input.trim().replace(/\\s+/g, \" \")`。这里继续写一段足够长的中文说明，用来检查换行和行距在窄窗口中的表现。无论窗口宽窄，这一段都应当折成两行以上，便于测量行高与字号之比。"],
+  ["cjk-zh-TW", "整理通知預覽路徑並修復測試", "測試失敗是因為 `src/preview/renderPreview.ts` 中的空白處理。修改後的程式碼是 `input.trim().replace(/\\s+/g, \" \")`。這裡繼續寫一段足夠長的中文說明，用來檢查換行與行距在窄視窗中的表現。無論視窗寬窄，這一段都應當折成兩行以上，便於測量行高與字號之比。"],
+];
+
 /** The audit gallery's E15 result, byte for byte (scratch/visual-audit/system/gallery/fixtures.tsx:161). */
 export const E15_RESULT = { stdout: "", stderr: "fatal: not a git repository (or any of the parent directories): .git", interrupted: false };
 
@@ -132,12 +145,7 @@ function kilnSessions(cwd) {
         t.assistant([{ type: "text", text: "This directory is not a git repository, so I can't tell." }], "end_turn");
       },
     },
-    ...[
-      ["cjk-ko", "알림 미리보기 경로 정리하고 테스트 고쳐줘", "`src/preview/renderPreview.ts`의 공백 처리 때문에 테스트가 깨졌습니다. 경로는 `src/preview` 아래에 있고, 수정한 코드는 `input.trim().replace(/\\s+/g, \" \")` 입니다."],
-      ["cjk-ja", "通知プレビューのパスを整理してテストを直して", "`src/preview/renderPreview.ts` の空白処理でテストが失敗しています。修正後のコードは `input.trim().replace(/\\s+/g, \" \")` です。長い説明文がここに続き、行の折り返しと行間を確認するための日本語の文章を十分な長さで書いています。"],
-      ["cjk-zh-CN", "整理通知预览路径并修复测试", "测试失败是因为 `src/preview/renderPreview.ts` 中的空白处理。修改后的代码是 `input.trim().replace(/\\s+/g, \" \")`。这里继续写一段足够长的中文说明，用来检查换行和行距在窄窗口中的表现。"],
-      ["cjk-zh-TW", "整理通知預覽路徑並修復測試", "測試失敗是因為 `src/preview/renderPreview.ts` 中的空白處理。修改後的程式碼是 `input.trim().replace(/\\s+/g, \" \")`。這裡繼續寫一段足夠長的中文說明，用來檢查換行與行距在窄視窗中的表現。"],
-    ].map(([key, title, body]) => ({
+    ...CJK_CASES.map(([key, title, body]) => ({
       key,
       title,
       build: (t) => {
