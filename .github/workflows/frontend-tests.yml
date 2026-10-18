@@ -143,6 +143,9 @@ jobs:
       - name: Primitive states gallery
         run: pnpm ui:states
 
+      # --no-build reuses the head build of step 4 only; the base has no
+      # artifacts on a clean runner, so run.mjs builds it into
+      # .ui-capture/build-base/<sha> (sharing src-tauri/target).
       - name: Capture gate (unchanged vs. base)
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000')
         env:

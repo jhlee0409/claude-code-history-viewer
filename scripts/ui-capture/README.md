@@ -21,7 +21,10 @@ directory, and Windows resolves the home folder without `HOME`.
 
 1. **Build** (`build.sh`): `vite build` into `.ui-capture/build/dist` and
    `cargo build --features webui-server` (debug) copied to
-   `.ui-capture/build/cchv-server`. `--no-build` reuses both.
+   `.ui-capture/build/cchv-server`. `--no-build` reuses that head build;
+   it does **not** skip the base: a `--base <git-ref>` whose
+   `.ui-capture/build-base/<sha>` is absent (every clean CI runner) is still
+   built, and reused when an earlier run left it (`lib/artifacts.mjs`).
 2. **Fixture** (`fixtures/generate.mjs`): regenerates
    `.ui-capture/fixture/home` from `fixtures/catalog.mjs` (see below).
 3. **Server**: `cchv-server --serve --no-auth --host 127.0.0.1 --port <free>

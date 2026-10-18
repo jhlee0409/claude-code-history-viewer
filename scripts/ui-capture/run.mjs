@@ -28,6 +28,7 @@ import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { splitByActivation } from "./lib/activation.mjs";
 import { VariantError, effectiveVariant, normalizeVariant, parseViewport, variantTag } from "./lib/variant.mjs";
 import { startServer } from "./lib/server.mjs";
+import { artifactModes, prepareArtifacts as prepareBuildArtifacts } from "./lib/artifacts.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
@@ -59,7 +60,9 @@ const HELP = `usage: pnpm ui:capture [options]
   --scenarios <file>      alternative scenario module (default scripts/ui-capture/scenarios.mjs)
   --locale <code>         ${SUPPORTED_LOCALES.join(" | ")} (default: scenario file DEFAULT_LOCALE)
   --out <dir>             run directory (default .ui-capture/runs/<timestamp>-<sha>)
-  --no-build              reuse .ui-capture/build/{dist,cchv-server} instead of building
+  --no-build              reuse the head build .ui-capture/build/{dist,cchv-server}
+                          instead of building it; a --base <git-ref> is still
+                          built into .ui-capture/build-base/<sha> when absent
 
   Variants (plan I0; recorded in the manifest, part of the base cache key):
   --forced-colors <m>     none | active   (Playwright forcedColors)
@@ -207,22 +210,18 @@ const isAppCacheFile = (relPath) => path.basename(relPath) === ".session_cache.j
 // Build
 // ---------------------------------------------------------------------------
 
-/** Build (or reuse) the dist + server binary for a checkout. */
-function prepareArtifacts({ appDir, buildDir, build }) {
-  const dist = path.join(buildDir, "dist");
-  const serverBin = path.join(buildDir, "cchv-server");
-  if (build) {
-    console.log(`▸ building ${path.relative(REPO, appDir) || "."} -> ${path.relative(REPO, buildDir)}`);
-    const result = spawnSync("bash", [path.join(HERE, "build.sh"), appDir, dist, serverBin, path.join(REPO, "src-tauri", "target")], {
-      stdio: "inherit",
-    });
-    if (result.status !== 0) throw new Error(`build failed for ${appDir} (exit ${result.status})`);
-  }
-  for (const required of [path.join(dist, "index.html"), serverBin]) {
-    if (!fs.existsSync(required)) throw new Error(`missing build artifact ${required} (drop --no-build)`);
-  }
-  return { appDir, dist, serverBin };
+/** build.sh for a checkout into dist + server binary (one shared cargo target dir). */
+function runBuildScript({ appDir, dist, serverBin }) {
+  console.log(`▸ building ${path.relative(REPO, appDir) || "."} -> ${path.relative(REPO, path.dirname(dist))}`);
+  const result = spawnSync("bash", [path.join(HERE, "build.sh"), appDir, dist, serverBin, path.join(REPO, "src-tauri", "target")], {
+    stdio: "inherit",
+  });
+  if (result.status !== 0) throw new Error(`build failed for ${appDir} (exit ${result.status})`);
 }
+
+/** Build (or reuse, see lib/artifacts.mjs) the dist + server binary for a checkout. */
+const prepareArtifacts = ({ appDir, buildDir, mode }) =>
+  prepareBuildArtifacts({ appDir, buildDir, mode, runBuild: runBuildScript, log: (m) => console.log(`▸ ${m.replace(REPO + path.sep, "")}`) });
 
 // ---------------------------------------------------------------------------
 // Capture
@@ -434,7 +433,7 @@ function locateShots(dir) {
 }
 
 /** A directory of PNGs (or a run dir) is used as-is; anything else is a git ref. */
-async function resolveBase({ base, scenarios, declared, locale, measurement, build, variant = {} }) {
+async function resolveBase({ base, scenarios, declared, locale, measurement, buildMode, variant = {} }) {
   if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
     const dir = path.resolve(base);
     const { shotsDir, manifest } = locateShots(dir);
@@ -474,7 +473,7 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
   try {
     // Inside the try: a partially created worktree is removed as well.
     git(["worktree", "add", "--detach", worktree, sha]);
-    const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), build });
+    const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), mode: buildMode });
     const run = await captureRun({
       app,
       scenarios,
@@ -582,7 +581,8 @@ async function main() {
   const tag = variantTag(opts.variant);
   const id = `${runId(state)}${tag ? `-${tag}` : ""}`;
   const runDir = opts.out ?? path.join(OUT_ROOT, "runs", id);
-  const head = prepareArtifacts({ appDir: REPO, buildDir: path.join(OUT_ROOT, "build"), build: opts.build });
+  const modes = artifactModes({ build: opts.build });
+  const head = prepareArtifacts({ appDir: REPO, buildDir: path.join(OUT_ROOT, "build"), mode: modes.head });
 
   const failures = [];
   let comparison = null;
@@ -596,7 +596,7 @@ async function main() {
     const run = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir, label: "head" });
     failures.push(...run.failures);
     if (opts.base) {
-      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, build: opts.build, variant: opts.variant });
+      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, buildMode: modes.base, variant: opts.variant });
       failures.push(...base.failures);
       comparison = { gate: opts.gate ?? "reproducibility", baseLabel: base.label, headLabel: run.runDir, baseDir: base.shotsDir, headDir: run.shotsDir };
     }
