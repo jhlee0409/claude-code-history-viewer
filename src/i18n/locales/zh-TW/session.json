@@ -263,8 +263,6 @@
   "sessionPicker.cancelled": "啟動時的工作階段提示已取消",
   "project.temporaryGroup": "暫存位置",
   "project.switchProvider": "開啟 {{provider}} 會話（{{count}}）",
-  "project.kind.main": "專案",
-  "project.kind.worktree": "工作樹",
   "session.noProjects.title": "未找到專案",
   "session.noProjects.description": "在此電腦上找到的助理中沒有對話歷史。Claude Code 的歷史記錄從以下位置讀取：",
   "session.noProjects.hint": "請在支援的助理中開始會話後重新搜尋，或在 {{settings}} → {{section}} 中新增其他資料夾。",

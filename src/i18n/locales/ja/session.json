@@ -263,8 +263,6 @@
   "sessionPicker.cancelled": "起動時のセッションヒントをキャンセルしました",
   "project.temporaryGroup": "一時的な場所",
   "project.switchProvider": "{{provider}} のセッションを開く（{{count}}）",
-  "project.kind.main": "プロジェクト",
-  "project.kind.worktree": "ワークツリー",
   "session.noProjects.title": "プロジェクトが見つかりません",
   "session.noProjects.description": "このコンピューターで見つかったアシスタントに会話履歴がありませんでした。Claude Code の履歴は次の場所から読み込みます:",
   "session.noProjects.hint": "対応するアシスタントでセッションを開始してから再検索するか、{{settings}} → {{section}} で別のフォルダを追加してください。",

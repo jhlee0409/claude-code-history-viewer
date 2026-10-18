@@ -263,8 +263,6 @@
   "sessionPicker.cancelled": "启动会话提示已取消",
   "project.temporaryGroup": "临时位置",
   "project.switchProvider": "打开 {{provider}} 会话（{{count}}）",
-  "project.kind.main": "项目",
-  "project.kind.worktree": "工作树",
   "session.noProjects.title": "未找到项目",
   "session.noProjects.description": "在此电脑上找到的助手中没有对话历史。Claude Code 的历史记录从以下位置读取：",
   "session.noProjects.hint": "请在受支持的助手中开始会话后重新搜索，或在 {{settings}} → {{section}} 中添加其他文件夹。",

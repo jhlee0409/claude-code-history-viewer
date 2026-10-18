@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T17:51:13.340Z
- * 총 키 개수: 2214
+ * 생성 시간: 2026-10-18T05:24:19.818Z
+ * 총 키 개수: 2211
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (309개)
+ * common namespace의 번역 키 (308개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -273,7 +273,6 @@ export type CommonKeys =
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
-  | 'common.showMore'
   | 'common.tabs.all_one'
   | 'common.tabs.all_other'
   | 'common.tabs.closeNamed'
@@ -570,7 +569,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (298개)
+ * session namespace의 번역 키 (296개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -602,8 +601,6 @@ export type SessionKeys =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
-  | 'project.kind.main'
-  | 'project.kind.worktree'
   | 'project.library.archive'
   | 'project.library.claudeSettings'
   | 'project.library.favorites'
@@ -2882,7 +2879,6 @@ export type TranslationKey =
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
-  | 'common.showMore'
   | 'common.tabs.all_one'
   | 'common.tabs.all_other'
   | 'common.tabs.closeNamed'
@@ -3331,8 +3327,6 @@ export type TranslationKey =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
-  | 'project.kind.main'
-  | 'project.kind.worktree'
   | 'project.library.archive'
   | 'project.library.claudeSettings'
   | 'project.library.favorites'
