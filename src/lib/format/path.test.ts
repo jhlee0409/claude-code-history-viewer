@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { disambiguate, formatPath, homeDirFromClaudePath } from "./path";
+import { disambiguate, formatPath, homeDirFromDefaultClaudePath, type FormattedPath } from "./path";
 
 const display = (p: { dir: string; name: string }) => `${p.dir}${p.name}`;
 
@@ -175,19 +175,94 @@ describe("disambiguate", () => {
     ]);
     expect(hints).toEqual(["a", "b"]);
   });
-});
 
-describe("homeDirFromClaudePath", () => {
-  it("reads home from the default ~/.claude location", () => {
-    expect(homeDirFromClaudePath("/Users/jack/.claude")).toBe("/Users/jack");
-    expect(homeDirFromClaudePath("/Users/jack/.claude/")).toBe("/Users/jack");
-    expect(homeDirFromClaudePath("C:\\Users\\jack\\.claude")).toBe("C:\\Users\\jack");
+  it("tells apart files whose shortened labels match but whose bases differ", () => {
+    // cwd `/p/src` and project `/p` both shorten to `lib/index.ts`.
+    const mixed = { cwd: "/p/src", projectRoot: "/p" };
+    const paths = ["/p/src/lib/index.ts", "/p/lib/index.ts"].map((p) => formatPath(p, mixed));
+    expect(paths.map(display)).toEqual(["lib/index.ts", "lib/index.ts"]);
+    const hints = disambiguate(paths);
+    expect(new Set(hints).size).toBe(2);
+    expect(hints).toEqual(["src/lib", "/p/lib"]);
   });
 
-  it("returns null when the folder is not named .claude", () => {
-    expect(homeDirFromClaudePath("/Volumes/backup/claude-config")).toBeNull();
-    expect(homeDirFromClaudePath("")).toBeNull();
-    expect(homeDirFromClaudePath(undefined)).toBeNull();
-    expect(homeDirFromClaudePath("/.claude")).toBeNull();
+  it("tells apart same-named files at the root of two different bases", () => {
+    const paths = [
+      formatPath("/p/src/index.ts", { cwd: "/p/src", projectRoot: "/p" }),
+      formatPath("/p/index.ts", { cwd: "/p/src", projectRoot: "/p" }),
+    ];
+    const hints = disambiguate(paths);
+    expect(hints[0]).not.toBe(hints[1]);
+  });
+
+  it("gives every distinct file a distinct label (random path sets)", () => {
+    // Deterministic PRNG so a failure is reproducible from the seed.
+    let seed = 0x5eed;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    const pick = <T,>(xs: readonly T[]) => xs[rand(xs.length)] as T;
+    const folders = ["p", "src", "lib", "a", "b", "home", "u", "x"] as const;
+    const names = ["index.ts", "a.ts", "x"] as const;
+    const roots = ["/", "/p/", "/p/src/", "/home/u/", "/home/u/p/", "/opt/", "C:\\p\\"] as const;
+    const contexts = [
+      {},
+      { projectRoot: "/p" },
+      { cwd: "/p/src", projectRoot: "/p" },
+      { cwd: "/p/src/lib", projectRoot: "/p", homeDir: "/home/u" },
+      { projectRoot: "/home/u/p", homeDir: "/home/u" },
+    ] as const;
+
+    for (let round = 0; round < 400; round += 1) {
+      const count = 2 + rand(7);
+      const paths: FormattedPath[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const root = pick(roots);
+        const sep = root.includes("\\") ? "\\" : "/";
+        const depth = rand(4);
+        const segments = Array.from({ length: depth }, () => pick(folders));
+        const full = `${root}${[...segments, pick(names)].join(sep)}`;
+        paths.push(formatPath(full, pick(contexts)));
+      }
+      // Re-use some exact paths so duplicates are exercised too.
+      if (rand(3) === 0) paths.push({ ...(paths[0] as FormattedPath) });
+
+      const hints = disambiguate(paths);
+      expect(hints).toHaveLength(paths.length);
+      for (let i = 0; i < paths.length; i += 1) {
+        for (let j = i + 1; j < paths.length; j += 1) {
+          const a = paths[i] as FormattedPath;
+          const b = paths[j] as FormattedPath;
+          const context = `round ${round}: ${a.full} vs ${b.full} -> ${JSON.stringify(hints)}`;
+          if (a.full === b.full) {
+            // The same file: shown the same way, it reads the same way.
+            if (display(a) === display(b)) expect(hints[i], context).toBe(hints[j]);
+          } else if (a.name === b.name) {
+            expect(hints[i], context).not.toBe(hints[j]);
+          }
+        }
+      }
+      // A name nobody else has needs no hint.
+      paths.forEach((p, i) => {
+        const rivals = paths.filter((q) => q.full !== p.full && q.name === p.name);
+        if (rivals.length === 0) expect(hints[i]).toBe("");
+      });
+    }
+  });
+});
+
+describe("homeDirFromDefaultClaudePath", () => {
+  it("reads home from the backend's default <home>/.claude", () => {
+    expect(homeDirFromDefaultClaudePath("/Users/jack/.claude")).toBe("/Users/jack");
+    expect(homeDirFromDefaultClaudePath("/Users/jack/.claude/")).toBe("/Users/jack");
+    expect(homeDirFromDefaultClaudePath("C:\\Users\\jack\\.claude")).toBe("C:\\Users\\jack");
+  });
+
+  it("returns null for anything that is not <home>/.claude", () => {
+    expect(homeDirFromDefaultClaudePath("/Volumes/backup/claude-config")).toBeNull();
+    expect(homeDirFromDefaultClaudePath("")).toBeNull();
+    expect(homeDirFromDefaultClaudePath(undefined)).toBeNull();
+    expect(homeDirFromDefaultClaudePath("/.claude")).toBeNull();
   });
 });

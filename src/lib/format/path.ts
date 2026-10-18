@@ -108,48 +108,99 @@ export function formatPath(path: string, ctx: PathContext = {}): FormattedPath {
   return make(path, "absolute");
 }
 
+/** A folder spelling without its trailing separator; a bare root stays as is. */
+const trimDir = (dir: string) => (dir.length > 1 ? dir.replace(/[\\/]+$/, "") : dir);
+
 /**
- * For each path, the parent folders to show beside its name so that
- * same-named files can be told apart (VS Code style): as few trailing folders
- * as make the label unique, `""` when the name alone is unique. A path that
- * runs out of folders shows its whole `dir` (keeping `~`, `/` or `C:\`).
- * Identical paths get identical hints.
+ * The hints one path can show, shortest first: more and more parent folders
+ * of its display text, then its whole display folder (keeping `~`, `/` or
+ * `C:\`), then folders the display had dropped (from `full`), and last the
+ * folder — or the whole path — exactly as recorded.
  */
-export function disambiguate(paths: readonly FormattedPath[]): string[] {
-  const segmentsOf = paths.map((p) => splitPathParts(`${p.dir}${p.name}`));
-  const tail = (segments: string[], k: number) => segments.slice(-k).join("/");
+function hintLadder(path: FormattedPath): string[] {
+  const shown = splitPathParts(`${path.dir}${path.name}`);
+  const recorded = splitPathParts(path.full);
+  const ladder: string[] = [];
+  const add = (hint: string) => {
+    if (ladder[ladder.length - 1] !== hint) ladder.push(hint);
+  };
+  for (let k = 2; k < shown.length; k += 1) add(shown.slice(-k, -1).join("/"));
+  add(trimDir(path.dir));
+  for (let k = shown.length + 1; k < recorded.length; k += 1) add(recorded.slice(-k, -1).join("/"));
+  add(trimDir(splitDisplay(path.full).dir));
+  add(path.full);
+  return ladder;
+}
 
-  return paths.map((path, index) => {
-    const own = segmentsOf[index] ?? [];
-    const rivals = segmentsOf.filter(
-      (segments, other) =>
-        other !== index &&
-        paths[other]?.full !== path.full &&
-        segments[segments.length - 1] === own[own.length - 1],
-    );
-    if (rivals.length === 0) return "";
-
-    for (let k = 2; k <= own.length; k += 1) {
-      const label = tail(own, k);
-      const clash = rivals.some((segments) => segments.length >= k && tail(segments, k) === label);
-      if (clash) continue;
-      if (k === own.length) break;
-      return own.slice(-k, -1).join("/");
-    }
-    return path.dir.length > 1 ? path.dir.replace(/[\\/]+$/, "") : path.dir;
-  });
+interface HintEntry {
+  path: FormattedPath;
+  ladder: string[];
+  /** Index into `ladder` of the hint currently chosen. */
+  level: number;
 }
 
 /**
- * The home directory implied by the Claude folder: the app's default is
- * `<home>/.claude` (`get_claude_folder_path`). A custom folder with another
- * name says nothing about home, so the answer is `null` and paths stay whole.
+ * For each path, the parent folders to show beside its name so that
+ * same-named files can be told apart (VS Code style): `""` when the name
+ * alone is unique, otherwise as little context as makes every same-named
+ * file's hint different. Files whose shortened labels match (say `lib/index.ts`
+ * under the cwd and under the project root) fall back to the folders the
+ * shortening dropped, then to the folder as recorded. The same path shown the
+ * same way gets the same hint.
  */
-export function homeDirFromClaudePath(claudePath: string | null | undefined): string | null {
-  if (!claudePath) return null;
-  const trimmed = claudePath.replace(/[\\/]+$/, "");
+export function disambiguate(paths: readonly FormattedPath[]): string[] {
+  // One entry per distinct file *as shown*; duplicates share its hint.
+  const keyOf = (p: FormattedPath) => `${p.full}\u0000${p.dir}${p.name}`;
+  const entries = new Map<string, HintEntry>();
+  for (const path of paths) {
+    if (!entries.has(keyOf(path))) entries.set(keyOf(path), { path, ladder: hintLadder(path), level: 0 });
+  }
+
+  const byName = new Map<string, HintEntry[]>();
+  for (const entry of entries.values()) {
+    const group = byName.get(entry.path.name) ?? [];
+    group.push(entry);
+    byName.set(entry.path.name, group);
+  }
+
+  const hints = new Map<string, string>();
+  for (const group of byName.values()) {
+    const files = new Set(group.map((e) => e.path.full));
+    if (files.size === 1) {
+      for (const entry of group) hints.set(keyOf(entry.path), "");
+      continue;
+    }
+    const hintOf = (e: HintEntry) => e.ladder[e.level] ?? e.path.full;
+    // Raise the colliding entries one step at a time until no two different
+    // files share a hint. Each ladder ends with the full path, which differs
+    // for different files, so this ends.
+    for (;;) {
+      const clashing = group.filter((e) =>
+        group.some((other) => other.path.full !== e.path.full && hintOf(other) === hintOf(e)),
+      );
+      const raisable = clashing.filter((e) => e.level < e.ladder.length - 1);
+      if (raisable.length === 0) break;
+      for (const entry of raisable) entry.level += 1;
+    }
+    for (const entry of group) hints.set(keyOf(entry.path), hintOf(entry));
+  }
+
+  return paths.map((path) => hints.get(keyOf(path)) ?? "");
+}
+
+/**
+ * The home directory, from the path the backend's `get_claude_folder_path`
+ * returned. That command builds `<OS home>/.claude`, so its parent *is* home.
+ *
+ * Pass only that value. A folder the user chose — even one named `.claude`
+ * (`/Volumes/backup/.claude`) — says nothing about home; the app keeps home
+ * unknown then and paths stay whole.
+ */
+export function homeDirFromDefaultClaudePath(defaultClaudePath: string | null | undefined): string | null {
+  if (!defaultClaudePath) return null;
+  const trimmed = defaultClaudePath.replace(/[\\/]+$/, "");
   const { dir, name } = splitDisplay(trimmed);
   if (name !== ".claude") return null;
-  const parent = dir.length > 1 ? dir.replace(/[\\/]+$/, "") : dir;
+  const parent = trimDir(dir);
   return isUsableBase(parent) ? parent : null;
 }

@@ -1002,3 +1002,77 @@ describe("projectSlice scanProjects", () => {
     );
   });
 });
+
+describe("projectSlice homeDir", () => {
+  const SAVED_PATH_KEY = "webui:settings.json:claudePath";
+
+  beforeEach(() => {
+    vi.mocked(api).mockReset();
+    localStorage.removeItem(SAVED_PATH_KEY);
+  });
+
+  it("takes home from the backend's default Claude folder lookup", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      if (command === "scan_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().claudePath).toBe("/Users/me/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("does not take home from a custom folder that happens to be named .claude", async () => {
+    // `validate_claude_folder` accepts any `.claude` folder with `projects/`;
+    // its parent is not the user's home.
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBeNull();
+  });
+
+  it("still learns the real home from the backend when a custom folder is saved", async () => {
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("keeps home when the user picks another Claude folder", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "/Users/me/.claude", homeDir: "/Users/me" });
+
+    await store.getState().setClaudePath("/Volumes/backup/.claude");
+
+    expect(store.getState().homeDir).toBe("/Users/me");
+    localStorage.removeItem(SAVED_PATH_KEY);
+  });
+});

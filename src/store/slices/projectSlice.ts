@@ -6,6 +6,7 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
+import { homeDirFromDefaultClaudePath } from "@/lib/format/path";
 import type { ClaudeProject, ClaudeSession, SessionPage, AppError, ProviderId, UserSettings } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
@@ -49,6 +50,12 @@ import {
 
 export interface ProjectSliceState {
   claudePath: string;
+  /**
+   * The OS home directory as the backend reports it (the parent of
+   * `get_claude_folder_path`'s `<home>/.claude`), or `null` when unknown.
+   * Never derived from the Claude folder the user chose.
+   */
+  homeDir: string | null;
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
@@ -98,6 +105,7 @@ export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
 
 const initialProjectState: ProjectSliceState = {
   claudePath: "",
+  homeDir: null,
   projects: [],
   selectedProject: null,
   sessions: [],
@@ -360,6 +368,12 @@ export const createProjectSlice: StateCreator<
           });
           if (isValid) {
             set({ claudePath: savedPath });
+            // The saved folder may be anywhere; ask the backend where home
+            // is. Best effort — without it paths are simply shown whole.
+            void api<string>("get_claude_folder_path").then(
+              (defaultPath) => set({ homeDir: homeDirFromDefaultClaudePath(defaultPath) }),
+              () => undefined,
+            );
             await get().scanProjects();
             return;
           }
@@ -373,7 +387,7 @@ export const createProjectSlice: StateCreator<
       // user folders before the user has asked to browse them.
       try {
         const claudePath = await api<string>("get_claude_folder_path");
-        set({ claudePath });
+        set({ claudePath, homeDir: homeDirFromDefaultClaudePath(claudePath) });
         await get().scanProjects();
         return;
       } catch (claudeFolderError) {

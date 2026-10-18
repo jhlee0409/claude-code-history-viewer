@@ -96,6 +96,7 @@ export const createEmptySearchState = (
 export interface AppStoreState {
   // Project state
   claudePath: string;
+  homeDir: string | null;
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];

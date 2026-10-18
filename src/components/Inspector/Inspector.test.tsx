@@ -388,9 +388,14 @@ describe("Info tab", () => {
     expect(row("File").textContent).toContain(S1.file_path);
   });
 
-  it("shows the project and file paths with ~ when the Claude folder fixes home", () => {
+  it("shows the project and file paths with ~ when the backend reported home", () => {
     const claudeFile = "/home/me/.claude/projects/-home-me-alpha/s1.jsonl";
-    arrange({ inspectorTab: "info", claudePath: "/home/me/.claude", selectedSession: { ...S1, file_path: claudeFile } });
+    arrange({
+      inspectorTab: "info",
+      claudePath: "/home/me/.claude",
+      homeDir: "/home/me",
+      selectedSession: { ...S1, file_path: claudeFile },
+    });
     renderInspector();
     const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
 
@@ -408,8 +413,12 @@ describe("Info tab", () => {
     expect(filePath?.querySelector('[data-path-part="name"]')?.textContent).toBe("s1.jsonl");
   });
 
-  it("keeps paths whole when nothing says where home is", () => {
-    arrange({ inspectorTab: "info", claudePath: "/data/claude-config" });
+  it.each([
+    ["a custom folder", "/data/claude-config"],
+    // A custom folder named `.claude` says nothing about home either.
+    ["a custom folder named .claude", "/home/.claude"],
+  ])("keeps paths whole when home is unknown (%s)", (_, claudePath) => {
+    arrange({ inspectorTab: "info", claudePath, homeDir: null });
     renderInspector();
     const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
     for (const [label, full] of [["Project", "/home/me/alpha"], ["File", S1.file_path]] as const) {
@@ -435,7 +444,7 @@ describe("Info tab", () => {
   });
 
   it("copies the full file path and the session id", async () => {
-    arrange({ inspectorTab: "info", claudePath: "/p/.claude" });
+    arrange({ inspectorTab: "info", claudePath: "/p/.claude", homeDir: "/p" });
     renderInspector();
     // Shown shortened (`~/alpha/s1.jsonl`), copied whole.
     expect(screen.getByRole("button", { name: "Copy file path" }).closest("dd")?.textContent).toBe("~/alpha/s1.jsonl");

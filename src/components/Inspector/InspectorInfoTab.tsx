@@ -15,7 +15,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { getProviderLabel } from "@/utils/providers";
 import { getProjectDisplayName } from "@/utils/pathUtils";
-import { homeDirFromClaudePath, type PathContext } from "@/lib/format/path";
+import type { PathContext } from "@/lib/format/path";
 import { PathText } from "@/lib/format/PathText";
 import i18n from "@/i18n";
 import { getLocale } from "@/utils/time";
@@ -104,16 +104,17 @@ export const InspectorInfoTab = () => {
   const { t } = useTranslation();
   const session = useAppStore((s) => s.selectedSession);
   const project = useAppStore((s) => s.selectedProject);
-  const claudePath = useAppStore((s) => s.claudePath);
+  const homeDir = useAppStore((s) => s.homeDir);
   const tokens = useSessionTokenStats();
 
   if (!session) return null;
 
   // Paths read relative to the project or `~`, only where the app knows the
-  // base for certain (`formatPath`); otherwise they stay whole.
+  // base for certain (`formatPath`): home comes from the backend, never from
+  // the chosen Claude folder. Otherwise they stay whole.
   const pathCtx: PathContext = {
     projectRoot: project?.actual_path,
-    homeDir: homeDirFromClaudePath(claudePath),
+    homeDir,
   };
 
   const modelNames = [...new Set((tokens.stats?.model_distribution ?? []).map((m) => m.model_name))];

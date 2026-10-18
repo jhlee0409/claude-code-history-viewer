@@ -132,6 +132,7 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
 
   // --- projects, providers, app status ----------------------------------------
   claudePath: "app",
+  homeDir: "app",
   projects: "app",
   projectsScanned: "app",
   isLoadingProjects: "app",
