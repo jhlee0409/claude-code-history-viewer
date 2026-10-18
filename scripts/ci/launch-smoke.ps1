@@ -1,7 +1,7 @@
 # Windows launch smoke: the real desktop binary starts and its main window
 # becomes visible (T11b creates it hidden; window_state::restore_and_track
-# shows it from `setup`). Twice: the second launch reads the
-# window-state.json the first one wrote.
+# shows it from `setup`). Twice: the window is moved, the move must reach
+# window-state.json, and the second launch must show it there.
 #
 # Usage: pwsh scripts/ci/launch-smoke.ps1 <binary> <out-dir>
 # Writes screenshots, app logs and summary.txt to <out-dir>. Exits nonzero if
@@ -15,6 +15,8 @@ $ErrorActionPreference = 'Stop'
 $Identifier = 'com.claude.history-viewer' # tauri.conf.json "identifier"
 $MoveX = 150
 $MoveY = 120
+$MoveW = 700
+$MoveH = 500
 
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
 Add-Type @'
@@ -79,14 +81,16 @@ function Fail([string] $message) {
   exit 1
 }
 
-# The app's largest visible top-level window: @{ Handle; X; Y; W; H } or $null.
+# The app's largest visible top-level window of at least 100x100 (the main
+# window's minimum is 380x400; tao also owns small helper windows):
+# @{ Handle; X; Y; W; H } or $null.
 function Find-Window {
   $best = $null
   foreach ($h in [Win]::VisibleTopLevel([uint32]$script:App.Id)) {
     $r = New-Object Win+RECT
     [void][Win]::GetWindowRect($h, [ref]$r)
     $w = $r.Right - $r.Left; $hgt = $r.Bottom - $r.Top
-    if ($w -gt 1 -and $hgt -gt 1 -and (-not $best -or $w * $hgt -gt $best.W * $best.H)) {
+    if ($w -ge 100 -and $hgt -ge 100 -and (-not $best -or $w * $hgt -gt $best.W * $best.H)) {
       $best = @{ Handle = $h; X = $r.Left; Y = $r.Top; W = $w; H = $hgt }
     }
   }
@@ -103,7 +107,8 @@ function Save-Screenshot([string] $path) {
 }
 
 function Start-Launch([int] $n) {
-  $script:App = Start-Process -FilePath $Binary -PassThru `
+  # -NoNewWindow: the debug build is a console app; keep its console off screen.
+  $script:App = Start-Process -FilePath $Binary -PassThru -NoNewWindow `
     -RedirectStandardOutput (Join-Path $OutDir "app-$n.log") `
     -RedirectStandardError (Join-Path $OutDir "app-$n.err.log")
   $clock = [Diagnostics.Stopwatch]::StartNew()
@@ -143,26 +148,32 @@ Log "binary $Binary"
 $window = Start-Launch 1
 # Move the window; the app writes window-state.json 500 ms after the last
 # move (SAVE_DEBOUNCE) and again on close.
-$movedAt = Get-Date
-# SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-[void][Win]::SetWindowPos($window.Handle, [IntPtr]::Zero, $MoveX, $MoveY, 0, 0, 0x0001 -bor 0x0004 -bor 0x0010)
+# Also resized: the runner's screen is small (1024x768), and a frame that
+# does not fit is pulled back on screen at restore, which is not under test.
+# SWP_NOZORDER | SWP_NOACTIVATE
+[void][Win]::SetWindowPos($window.Handle, [IntPtr]::Zero, $MoveX, $MoveY, $MoveW, $MoveH, 0x0004 -bor 0x0010)
+# The file may already exist from the initial show; wait for the moved frame.
+$moved = '"frame":{"x":' + $MoveX + ',"y":' + $MoveY + ',"width":' + $MoveW + ',"height":' + $MoveH + '}'
 $state = $null
 for ($i = 0; $i -lt 40; $i++) {
   $state = Get-StateFile
-  if ($state -and $state.LastWriteTime -ge $movedAt.AddSeconds(-1)) { break }
+  if ($state -and (Get-Content $state.FullName -Raw).Contains($moved)) { break }
   $state = $null
   Start-Sleep -Milliseconds 250
 }
-if (-not $state) { Fail 'window-state.json not written after moving the window' }
+if (-not $state) {
+  $found = Get-StateFile
+  $content = if ($found) { (Get-Content $found.FullName -Raw) -replace '\s', '' } else { 'missing' }
+  Fail "window-state.json does not hold the moved frame: $content"
+}
 Stop-Launch $window
 Log "state file $($state.FullName): $((Get-Content $state.FullName -Raw) -replace '\s', '')"
 
 $window = Start-Launch 2
-if ($window.X -eq $MoveX -and $window.Y -eq $MoveY) {
-  Log "launch 2: restored the moved position ($MoveX,$MoveY)"
-} else {
-  Log "note: launch 2 at ($($window.X),$($window.Y)), moved to ($MoveX,$MoveY) (placement may adjust it)"
+if ($window.X -ne $MoveX -or $window.Y -ne $MoveY -or $window.W -ne $MoveW -or $window.H -ne $MoveH) {
+  Fail "launch 2 at x=$($window.X) y=$($window.Y) w=$($window.W) h=$($window.H), expected the saved x=$MoveX y=$MoveY w=$MoveW h=$MoveH"
 }
+Log "launch 2: restored the saved frame x=$MoveX y=$MoveY w=$MoveW h=$MoveH"
 Stop-Launch $window
 Remove-Item -Recurse -Force $Sandbox -ErrorAction SilentlyContinue
 Log 'PASS'

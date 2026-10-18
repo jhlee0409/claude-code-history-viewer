@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Linux launch smoke: the real desktop binary starts and its main window
 # becomes visible (T11b creates it hidden; window_state::restore_and_track
-# shows it from `setup`). Twice: the second launch reads the
-# window-state.json the first one wrote.
+# shows it from `setup`). Twice: the window is moved, the move must reach
+# window-state.json, and the second launch must show it there.
 #
 # Usage: dbus-run-session -- bash scripts/ci/launch-smoke.sh <binary> <out-dir>
 # Needs: Xvfb, xdotool, ImageMagick (`import`). Writes screenshots, app logs
@@ -51,12 +51,13 @@ for _ in $(seq 1 50); do xdotool getdisplaygeometry >/dev/null 2>&1 && break; sl
 xdotool getdisplaygeometry >/dev/null 2>&1 || fail "Xvfb did not start"
 
 # Prints "<window id> <x> <y> <width> <height>" of the app's largest visible
-# top-level window, or nothing.
+# window of at least 100x100 (the main window's minimum is 380x400), or
+# nothing.
 visible_window() {
   local best="" area=0 id
   for id in $(xdotool search --onlyvisible --pid "$APP" 2>/dev/null || true); do
     eval "$(xdotool getwindowgeometry --shell "$id" 2>/dev/null || echo WIDTH=0 HEIGHT=0)"
-    if [ "${WIDTH:-0}" -gt 1 ] && [ "${HEIGHT:-0}" -gt 1 ] && [ $((WIDTH * HEIGHT)) -gt "$area" ]; then
+    if [ "${WIDTH:-0}" -ge 100 ] && [ "${HEIGHT:-0}" -ge 100 ] && [ $((WIDTH * HEIGHT)) -gt "$area" ]; then
       area=$((WIDTH * HEIGHT))
       best="$id $X $Y $WIDTH $HEIGHT"
     fi
@@ -99,18 +100,22 @@ launch 1
 # Move the window; the app writes window-state.json 500 ms after the last
 # move (SAVE_DEBOUNCE). Headless there is no WM to send a polite close, so
 # the debounced write is the round trip under test; SIGTERM then ends it.
+# The file may already exist from the initial show; wait for the moved frame.
 xdotool windowmove "$WIN" "$MOVE_X" "$MOVE_Y"
-for _ in $(seq 1 40); do [ -s "$STATE" ] && break; sleep 0.25; done
-[ -s "$STATE" ] || fail "window-state.json not written after moving the window"
+sleep 0.5
+read -r _ x y _ _ <<<"$(visible_window)"
+log "moved window to ($x,$y)"
+MOVED="\"frame\":{\"x\":$MOVE_X,\"y\":$MOVE_Y,"
+for _ in $(seq 1 40); do grep -qF "$MOVED" "$STATE" 2>/dev/null && break; sleep 0.25; done
+grep -qF "$MOVED" "$STATE" 2>/dev/null ||
+  fail "window-state.json does not hold the moved frame: $(tr -d '\n ' <"$STATE" 2>/dev/null || echo missing)"
 log "state file written: $(tr -d '\n ' <"$STATE")"
 stop
 
 launch 2
 read -r _ x y _ _ <<<"$(visible_window)"
-if [ "$x" = "$MOVE_X" ] && [ "$y" = "$MOVE_Y" ]; then
-  log "launch 2: restored the moved position ($MOVE_X,$MOVE_Y)"
-else
-  log "note: launch 2 at ($x,$y), moved to ($MOVE_X,$MOVE_Y) (placement may adjust it)"
-fi
+[ "$x" = "$MOVE_X" ] && [ "$y" = "$MOVE_Y" ] ||
+  fail "launch 2 at ($x,$y), expected the saved ($MOVE_X,$MOVE_Y)"
+log "launch 2: restored the moved position ($MOVE_X,$MOVE_Y)"
 stop
 log "PASS"

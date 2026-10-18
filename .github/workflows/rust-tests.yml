@@ -142,6 +142,7 @@ jobs:
 
       - name: Launch smoke (Xvfb)
         if: runner.os == 'Linux'
+        timeout-minutes: 5
         run: |
           sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick
           dbus-run-session -- bash scripts/ci/launch-smoke.sh \
@@ -230,6 +231,7 @@ jobs:
 
       - name: Launch smoke
         shell: pwsh
+        timeout-minutes: 5
         run: |
           ./scripts/ci/launch-smoke.ps1 src-tauri/target/debug/claude-code-history-viewer.exe launch-smoke
           Get-Content launch-smoke/summary.txt | Add-Content $env:GITHUB_STEP_SUMMARY
