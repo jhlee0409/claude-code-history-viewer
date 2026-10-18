@@ -44,5 +44,14 @@ CARGO_TARGET_DIR="$target_dir" cargo build \
 mkdir -p "$(dirname "$out_bin")"
 # Copy right away: another checkout building into the same target dir would
 # overwrite target/debug/<bin>.
-cp "$target_dir/debug/claude-code-history-viewer" "$out_bin"
+# Copy to a temp file beside <out-bin>, then rename it into place. `cp` over an
+# existing <out-bin> rewrites the same inode, and macOS keeps the old code
+# signature cached for that inode, so the next exec is SIGKILLed ("invalid
+# code signature"). A rename gives <out-bin> a fresh inode every build.
+tmp_bin="$(mktemp "$(dirname "$out_bin")/.$(basename "$out_bin").XXXXXX")"
+trap 'rm -f "$tmp_bin"' EXIT
+cp "$target_dir/debug/claude-code-history-viewer" "$tmp_bin"
+chmod 755 "$tmp_bin"
+mv -f "$tmp_bin" "$out_bin"
+trap - EXIT
 echo "▸ server binary: $out_bin"
