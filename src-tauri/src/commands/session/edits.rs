@@ -2598,3 +2598,6 @@ mod tests {
         assert_eq!(edits_result.project_cwd, Some("/test/project".to_string()));
     }
 }
+
+#[cfg(test)]
+mod restore_safety_tests;
