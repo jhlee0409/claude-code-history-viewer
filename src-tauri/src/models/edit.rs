@@ -22,6 +22,35 @@ pub struct RecentFileEdit {
     /// than by the number of raw edits.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exists_on_disk: Option<bool>,
+    /// What `content_after_change` holds. Only [`EditContentKind::Full`] is a
+    /// whole file, so only it may be written back by restore. A payload
+    /// without the field (older backend) reads as `Unavailable`.
+    #[serde(default)]
+    pub content_kind: EditContentKind,
+}
+
+/// What a recorded edit's `content_after_change` holds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditContentKind {
+    /// The whole file after the edit: Claude Edit/MultiEdit replayed onto
+    /// `originalFile`, or the content of a write.
+    Full,
+    /// Patch text (Codex `apply_patch`), possibly naming several files.
+    Patch,
+    /// Only the changed part, such as an edit tool's `new_string`.
+    Fragment,
+    /// Nothing usable: the tool input stored as a fallback, or an edit whose
+    /// replay could not reproduce the result.
+    #[default]
+    Unavailable,
+}
+
+impl EditContentKind {
+    /// Whether restore may write this content over the file.
+    pub fn is_restorable(self) -> bool {
+        matches!(self, Self::Full)
+    }
 }
 
 /// Result container for recent edits query
@@ -51,6 +80,7 @@ mod tests {
             cwd: Some("/path/to".to_string()),
             message_uuid: Some("uuid-abc".to_string()),
             exists_on_disk: Some(true),
+            content_kind: EditContentKind::Full,
         };
 
         let serialized = serde_json::to_string(&edit).unwrap();
@@ -66,6 +96,27 @@ mod tests {
         );
         assert_eq!(deserialized.message_uuid, Some("uuid-abc".to_string()));
         assert_eq!(deserialized.exists_on_disk, Some(true));
+        assert_eq!(deserialized.content_kind, EditContentKind::Full);
+    }
+
+    #[test]
+    fn content_kind_is_kebab_case_and_absent_reads_as_unavailable() {
+        for (kind, wire) in [
+            (EditContentKind::Full, "\"full\""),
+            (EditContentKind::Patch, "\"patch\""),
+            (EditContentKind::Fragment, "\"fragment\""),
+            (EditContentKind::Unavailable, "\"unavailable\""),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).unwrap(), wire);
+        }
+
+        // A payload from before the field existed must not become restorable.
+        let legacy = r#"{"file_path":"/f","timestamp":"t","session_id":"s","operation_type":"edit",
+            "content_after_change":"c","original_content":null,"lines_added":1,"lines_removed":0,"cwd":null}"#;
+        let edit: RecentFileEdit = serde_json::from_str(legacy).unwrap();
+        assert_eq!(edit.content_kind, EditContentKind::Unavailable);
+        assert!(!edit.content_kind.is_restorable());
+        assert!(EditContentKind::Full.is_restorable());
     }
 
     #[test]
@@ -82,6 +133,7 @@ mod tests {
             cwd: None,
             message_uuid: None,
             exists_on_disk: None,
+            content_kind: EditContentKind::Full,
         };
 
         let serialized = serde_json::to_string(&edit).unwrap();
@@ -108,6 +160,7 @@ mod tests {
                     cwd: Some("/project".to_string()),
                     message_uuid: None,
                     exists_on_disk: None,
+                    content_kind: EditContentKind::Full,
                 },
                 RecentFileEdit {
                     file_path: "/file2.rs".to_string(),
@@ -121,6 +174,7 @@ mod tests {
                     cwd: Some("/project".to_string()),
                     message_uuid: None,
                     exists_on_disk: None,
+                    content_kind: EditContentKind::Full,
                 },
             ],
             total_edits_count: 5,

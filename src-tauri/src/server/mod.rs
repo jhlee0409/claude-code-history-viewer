@@ -915,6 +915,64 @@ mod tests {
         );
     }
 
+    /// The web server's write goes through the same content rule as the desktop
+    /// command: only a recorded whole-file version reaches the disk, so an
+    /// older frontend sending a row's patch text cannot overwrite the file.
+    #[tokio::test]
+    #[serial]
+    async fn test_restore_endpoint_writes_only_a_recorded_whole_file_version() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-work-app");
+        std::fs::create_dir_all(&project).unwrap();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let target = workspace.path().join("main.rs");
+        let recorded = "fn main() {}\n";
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": workspace.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": target.to_string_lossy(),
+                "content": recorded,
+            }
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{record}\n")).unwrap();
+        std::fs::write(&target, "edited since\n").unwrap();
+
+        let post = |content: &str| {
+            let body = serde_json::json!({
+                "filePath": target.to_string_lossy(),
+                "content": content,
+                "projectPath": project.to_string_lossy(),
+            });
+            build_router(state_with(false, None), "127.0.0.1", 3730, None, "/").oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/restore_file")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+        };
+
+        let refused = post("*** Begin Patch\n*** Update File: main.rs\n*** End Patch\n")
+            .await
+            .unwrap();
+        assert_ne!(refused.status(), StatusCode::OK);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "edited since\n");
+
+        let restored = post(recorded).await.unwrap();
+        assert_eq!(restored.status(), StatusCode::OK);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), recorded);
+    }
+
     /// The handler runs the same project guard `restore_file` does: a project
     /// outside every history root is refused before any read.
     #[tokio::test]

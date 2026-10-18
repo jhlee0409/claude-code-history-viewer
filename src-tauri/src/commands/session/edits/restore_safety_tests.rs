@@ -351,6 +351,39 @@ async fn opencode_write_restore_writes_the_whole_file() {
     );
 }
 
+/// A write of empty `content` records a whole file: the empty file.
+#[tokio::test]
+#[serial]
+async fn opencode_empty_write_restores_an_empty_file() {
+    let home = SandboxHome::new();
+    let base = home.path().join(".local").join("share").join("opencode");
+    let _g = EnvVarGuard::set("OPENCODE_HOME", &base);
+    let project = home.path().join("work").join("repo");
+    fs::create_dir_all(project.join("src")).unwrap();
+    let target = project.join("src").join("lib.rs");
+    fs::write(&target, EXPECTED_AFTER).unwrap();
+    let part = serde_json::json!({"type":"tool","tool":"write","callID":"call_w0",
+        "state":{"status":"completed",
+                 "input":{"filePath": target.to_string_lossy(), "content": ""},
+                 "output":"ok"}});
+    create_store_db(&base, "opencode.db", &project, &part);
+
+    let project_path = "opencode://proj1".to_string();
+    let page = get_recent_edits_blocking(project_path.clone(), None, None, None, None).unwrap();
+    let row = row_for(&page, &target).clone();
+    assert_eq!(
+        row.content_after_change, "",
+        "the row holds the empty file, not the tool input"
+    );
+
+    let res = restore_like_ui(&project_path, &row).await;
+    assert!(
+        res.is_ok(),
+        "an empty whole-file write is restorable: {res:?}"
+    );
+    assert_eq!(fs::read_to_string(&target).unwrap(), "");
+}
+
 // ---------------------------------------------------------------------------
 // Claude: Edit replays onto `originalFile`, so its rows are whole files.
 // ---------------------------------------------------------------------------
@@ -422,6 +455,7 @@ async fn claude_edit_restore_writes_the_reconstructed_whole_file() {
     let page = get_recent_edits_blocking(p.project_path.clone(), None, None, None, None).unwrap();
     let row = row_for(&page, &p.target).clone();
     assert_eq!(row.content_after_change, EXPECTED_AFTER);
+    assert_eq!(row.content_kind, EditContentKind::Full);
 
     let res = restore_like_ui(&p.project_path, &row).await;
     assert!(res.is_ok(), "{res:?}");
@@ -452,6 +486,7 @@ async fn claude_edit_whose_old_string_is_not_in_the_original_is_not_restorable()
 
     let page = get_recent_edits_blocking(p.project_path.clone(), None, None, None, None).unwrap();
     let row = row_for(&page, &p.target).clone();
+    assert_eq!(row.content_kind, EditContentKind::Unavailable);
 
     let res = restore_like_ui(&p.project_path, &row).await;
     assert!(
@@ -513,4 +548,108 @@ async fn restore_accepts_an_older_recorded_whole_file_version() {
     .expect("every recorded whole-file version of the path is restorable");
 
     assert_eq!(fs::read_to_string(&p.target).unwrap(), ORIGINAL);
+}
+
+// ---------------------------------------------------------------------------
+// Every row says what its content is, so the UI can offer Restore only for
+// whole files.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn provider_rows_carry_the_kind_of_content_they_hold() {
+    use EditContentKind::{Fragment, Full, Patch, Unavailable};
+    let kinds = |tool: &str, input: serde_json::Value| -> Vec<EditContentKind> {
+        build_tool_use_edits(tool, &input, "t", "s", None, Some("/repo"))
+            .into_iter()
+            .map(|edit| edit.content_kind)
+            .collect()
+    };
+
+    let patch = "*** Begin Patch\n*** Update File: a.rs\n*** Delete File: b.rs\n*** End Patch\n";
+    assert_eq!(
+        kinds("apply_patch", serde_json::json!({ "patch": patch })),
+        [Patch, Patch]
+    );
+    assert_eq!(
+        kinds(
+            "edit",
+            serde_json::json!({"filePath": "/repo/a.rs", "old_string": "a", "new_string": "b"})
+        ),
+        [Fragment]
+    );
+    assert_eq!(
+        kinds(
+            "multiedit",
+            serde_json::json!({"filePath": "/repo/a.rs", "edits": [{"old_string": "a", "new_string": "b"}]})
+        ),
+        [Unavailable]
+    );
+    assert_eq!(
+        kinds(
+            "write",
+            serde_json::json!({"filePath": "/repo/a.rs", "content": "x"})
+        ),
+        [Full]
+    );
+    assert_eq!(
+        kinds(
+            "write_to_file",
+            serde_json::json!({"TargetFile": "/repo/a.rs", "content": "x"})
+        ),
+        [Full]
+    );
+    // An empty write is the empty file, not missing content.
+    let empty_write = build_tool_use_edits(
+        "write",
+        &serde_json::json!({"filePath": "/repo/a.rs", "content": ""}),
+        "t",
+        "s",
+        None,
+        Some("/repo"),
+    );
+    assert_eq!(empty_write.len(), 1);
+    assert_eq!(empty_write[0].content_after_change, "");
+    assert_eq!(empty_write[0].content_kind, Full);
+    // An edit tool's `content` is not known to be the whole file.
+    assert_eq!(
+        kinds(
+            "replace_file_content",
+            serde_json::json!({"TargetFile": "/repo/a.rs", "content": "x"})
+        ),
+        [Fragment]
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn claude_multiedit_row_is_unavailable_when_a_step_does_not_replay() {
+    let multi = |cwd: &Path, file: &Path, olds: &[&str]| {
+        let edits: Vec<_> = olds
+            .iter()
+            .map(|old| serde_json::json!({"old_string": old, "new_string": "x", "replace_all": false}))
+            .collect();
+        serde_json::json!({
+            "uuid":"u-m","sessionId":"s-1","timestamp":"2026-10-19T03:00:00Z",
+            "type":"user","cwd": cwd.to_string_lossy(),
+            "toolUseResult": {"filePath": file.to_string_lossy(), "edits": edits, "originalFile": ORIGINAL}
+        })
+        .to_string()
+    };
+
+    let whole = claude_project(|cwd, file| vec![multi(cwd, file, &["    1\n", "    3\n"])]);
+    let page =
+        get_recent_edits_blocking(whole.project_path.clone(), None, None, None, None).unwrap();
+    assert_eq!(
+        row_for(&page, &whole.target).content_kind,
+        EditContentKind::Full
+    );
+
+    // The second step's text is gone once the first step replaced it.
+    let broken = claude_project(|cwd, file| vec![multi(cwd, file, &["    1\n", "    1\n"])]);
+    let page =
+        get_recent_edits_blocking(broken.project_path.clone(), None, None, None, None).unwrap();
+    assert_eq!(
+        row_for(&page, &broken.target).content_kind,
+        EditContentKind::Unavailable
+    );
 }

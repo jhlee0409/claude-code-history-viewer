@@ -1,6 +1,6 @@
 //! File edit and restore functions
 
-use crate::models::{ClaudeMessage, RawLogEntry, RecentFileEdit};
+use crate::models::{ClaudeMessage, EditContentKind, RawLogEntry, RecentFileEdit};
 use crate::providers;
 use crate::utils::find_line_ranges;
 use memmap2::Mmap;
@@ -89,6 +89,16 @@ struct SessionEditsResult {
     cwd_counts: HashMap<String, usize>,
 }
 
+/// Whether replaying an edit of `old_str` onto `content` reproduces it.
+///
+/// The Edit tool fails when `old_string` is absent, so a recorded edit always
+/// matched the file it ran on. When the replay text lacks it, the recorded
+/// `originalFile` is not that file, and the replay result is the unchanged
+/// input presented as the post-edit file. Such a row is not restorable.
+fn replays(content: &str, old_str: &str) -> bool {
+    content.contains(old_str)
+}
+
 /// Replay one Edit/MultiEdit step the way the Edit tool applied it:
 /// every occurrence when `replace_all` was set, otherwise the first.
 fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) -> String {
@@ -156,6 +166,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                         cwd: cwd.clone(),
                         message_uuid: log_entry.uuid.clone(),
                         exists_on_disk: None,
+                        content_kind: EditContentKind::Full,
                     });
                 }
             }
@@ -169,6 +180,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                             tool_use_result.get("originalFile").and_then(|v| v.as_str())
                         {
                             let mut content = original.to_string();
+                            let mut content_kind = EditContentKind::Full;
                             let mut lines_added = 0usize;
                             let mut lines_removed = 0usize;
 
@@ -182,6 +194,9 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                             .get("replace_all")
                                             .and_then(serde_json::Value::as_bool)
                                             .unwrap_or(false);
+                                        if !replays(&content, old_str) {
+                                            content_kind = EditContentKind::Unavailable;
+                                        }
                                         content =
                                             apply_edit(&content, old_str, new_str, replace_all);
                                         lines_removed += old_str.lines().count();
@@ -202,6 +217,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind,
                             });
                         }
                     } else if let (Some(old_str), Some(new_str)) = (
@@ -216,6 +232,11 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 .get("replaceAll")
                                 .and_then(serde_json::Value::as_bool)
                                 .unwrap_or(false);
+                            let content_kind = if replays(original, old_str) {
+                                EditContentKind::Full
+                            } else {
+                                EditContentKind::Unavailable
+                            };
                             let content = apply_edit(original, old_str, new_str, replace_all);
 
                             edits.push(RecentFileEdit {
@@ -230,6 +251,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind,
                             });
                         }
                     }
@@ -258,6 +280,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind: EditContentKind::Full,
                             });
                         }
                     }
@@ -413,12 +436,36 @@ fn parse_patch_file_paths(patch: &str) -> Vec<String> {
     files
 }
 
-fn get_tool_input_content(input: &serde_json::Value) -> String {
-    if let Some(content) = get_first_string(input, &["content", "new_string", "newString", "patch"])
-    {
-        return content;
+/// The content a provider tool call recorded for its file, and what kind of
+/// content it is, decided together from the key the content came from.
+///
+/// Only a write's `content` is the whole file: an edit tool's `content`
+/// (`replace_file_content`) is not known to be, `new_string` is the changed
+/// part, and the input JSON fallback is not file content at all.
+///
+/// Unlike [`get_first_string`], an empty string counts as present: a write of
+/// `""` is the empty file, not missing content.
+fn get_tool_input_content(
+    input: &serde_json::Value,
+    operation_type: &str,
+) -> (String, EditContentKind) {
+    let present = |key: &str| input.get(key).and_then(serde_json::Value::as_str);
+
+    if let Some(content) = present("content") {
+        let kind = if operation_type == "write" {
+            EditContentKind::Full
+        } else {
+            EditContentKind::Fragment
+        };
+        return (content.to_string(), kind);
     }
-    input.to_string()
+    if let Some(fragment) = present("new_string").or_else(|| present("newString")) {
+        return (fragment.to_string(), EditContentKind::Fragment);
+    }
+    if let Some(patch) = present("patch") {
+        return (patch.to_string(), EditContentKind::Patch);
+    }
+    (input.to_string(), EditContentKind::Unavailable)
 }
 
 fn build_tool_use_edits(
@@ -464,6 +511,8 @@ fn build_tool_use_edits(
                 cwd: project_cwd.map(str::to_string),
                 message_uuid: message_uuid.map(str::to_string),
                 exists_on_disk: None,
+                // The same multi-file patch text on every file it names.
+                content_kind: EditContentKind::Patch,
             })
             .collect();
     }
@@ -472,7 +521,7 @@ fn build_tool_use_edits(
         return Vec::new();
     };
 
-    let content_after_change = get_tool_input_content(input);
+    let (content_after_change, content_kind) = get_tool_input_content(input, operation_type);
     let lines_added = content_after_change.lines().count();
     let lines_removed = get_first_string(input, &["old_string", "oldString"])
         .map(|s| s.lines().count())
@@ -490,6 +539,7 @@ fn build_tool_use_edits(
         cwd: project_cwd.map(str::to_string),
         message_uuid: message_uuid.map(str::to_string),
         exists_on_disk: None,
+        content_kind,
     }]
 }
 
@@ -959,7 +1009,7 @@ fn get_recent_edits_blocking(
 /// Every edit recorded for a project, before pagination, with the project's
 /// most common `cwd`.
 ///
-/// Shared by the paginated command and by [`is_recorded_edit_target`], so the
+/// Shared by the paginated command and by [`recorded_edits_of`], so the
 /// set the panel shows and the set restore will authorise are the same set by
 /// construction rather than by two implementations agreeing.
 fn collect_all_recent_edits(
@@ -1012,11 +1062,12 @@ fn collect_all_recent_edits(
     Ok((all_edits, project_cwd))
 }
 
-/// Whether `file_path` is recorded as an edit target in this project's history.
+/// The edits this project's history records for `file_path`; empty when the
+/// project never edited it.
 ///
-/// This is the authorisation boundary for restore, replacing the question "is
-/// this path inside a directory we allow?" with "did this project actually
-/// edit this file?" (#525).
+/// Being non-empty is the authorisation boundary for restore, replacing the
+/// question "is this path inside a directory we allow?" with "did this project
+/// actually edit this file?" (#525).
 ///
 /// The distinction matters because containment is not a boundary here. The
 /// allowlist matches by prefix, and a project root is not a leaf: run `claude`
@@ -1028,16 +1079,17 @@ fn collect_all_recent_edits(
 /// Compared on `file_identity` rather than on the raw string, for the same
 /// separator and Windows-case reasons the grouping code already handles: under
 /// `--serve` the caller spells the path itself.
-pub(crate) fn is_recorded_edit_target(
+fn recorded_edits_of(
     project_path: &str,
     session_file_path: Option<&str>,
     file_path: &str,
-) -> Result<bool, String> {
+) -> Result<Vec<RecentFileEdit>, String> {
     let wanted = file_identity(file_path);
     let (edits, _) = collect_all_recent_edits(project_path, session_file_path)?;
     Ok(edits
-        .iter()
-        .any(|edit| file_identity(&edit.file_path) == wanted))
+        .into_iter()
+        .filter(|edit| file_identity(&edit.file_path) == wanted)
+        .collect())
 }
 
 /// The one gate in front of a restore target, shared by the write
@@ -1045,13 +1097,16 @@ pub(crate) fn is_recorded_edit_target(
 /// cannot drift apart: a path the preview may read is exactly a path restore
 /// may write.
 ///
+/// Returns the target's recorded edits, so [`restore_file`] can check the
+/// content it was given against them without scanning the history again.
+///
 /// Blocking: the authorisation scans session logs, so callers run it on a
 /// blocking thread.
 fn authorise_restore_target(
     file_path: &str,
     project_path: &str,
     session_file_path: Option<&str>,
-) -> Result<(), String> {
+) -> Result<Vec<RecentFileEdit>, String> {
     // Security validation: reject paths with null bytes
     if file_path.contains('\0') {
         return Err("Invalid file path: contains null bytes".to_string());
@@ -1074,7 +1129,8 @@ fn authorise_restore_target(
     // common case reads one JSONL rather than walking the project. The scan
     // costs what a panel refresh costs, and restores are rare and
     // user-initiated.
-    if !is_recorded_edit_target(project_path, session_file_path, file_path)? {
+    let recorded = recorded_edits_of(project_path, session_file_path, file_path)?;
+    if recorded.is_empty() {
         return Err("Refusing to restore a file this project has no recorded edit for".to_string());
     }
 
@@ -1096,7 +1152,7 @@ fn authorise_restore_target(
     if is_symlink(path) || path.parent().is_some_and(is_symlink) {
         return Err("Invalid file path: symlinks are not allowed".to_string());
     }
-    Ok(())
+    Ok(recorded)
 }
 
 /// Largest file the restore preview reads; beyond this a text diff is not
@@ -1162,6 +1218,12 @@ pub async fn read_restore_target(
 /// session logs name as edit targets (#525). `project_path` is therefore
 /// required, and `session_file_path` narrows the scan the same way the panel's
 /// session scope does.
+///
+/// It writes only `content` that byte-equals a recorded whole-file version of
+/// that path ([`EditContentKind::Full`]). A patch, an edit fragment or a
+/// tool-input blob is not a file, and writing one over the file destroys it.
+/// Enforced here rather than only in the UI, so an older frontend or a caller
+/// of the web server cannot bypass it; the request shape is unchanged.
 #[tauri::command]
 pub async fn restore_file(
     file_path: String,
@@ -1174,9 +1236,23 @@ pub async fn restore_file(
 
     // Runs before `create_dir_all` below, which is itself a write: an
     // unauthorised path must not leave directories behind.
-    tauri::async_runtime::spawn_blocking({
+    let content = tauri::async_runtime::spawn_blocking({
         let file_path = file_path.clone();
-        move || authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())
+        move || {
+            let recorded =
+                authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
+            let is_whole_file_version = recorded.iter().any(|edit| {
+                edit.content_kind.is_restorable() && edit.content_after_change == content
+            });
+            if !is_whole_file_version {
+                return Err(
+                    "Refusing to restore: the content is not a recorded whole-file \
+                     version of this file"
+                        .to_string(),
+                );
+            }
+            Ok(content)
+        }
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
@@ -1354,6 +1430,14 @@ mod tests {
     // #525: restore is authorised by recorded edit history, not containment
     // ------------------------------------------------------------------
 
+    fn is_recorded_edit_target(
+        project_path: &str,
+        session_file_path: Option<&str>,
+        file_path: &str,
+    ) -> Result<bool, String> {
+        Ok(!recorded_edits_of(project_path, session_file_path, file_path)?.is_empty())
+    }
+
     #[test]
     fn recorded_edit_target_admits_only_files_the_project_edited() {
         let (dir, _a, _b) = project_with_two_sessions();
@@ -1418,16 +1502,18 @@ mod tests {
         let root = dir.path();
         let target = root.join("alpha.txt");
 
+        // Restore writes a recorded whole-file version, here the latest write.
+        let recorded = "contents written at 2026-08-21T12:00:00Z";
         restore_file(
             target.to_string_lossy().to_string(),
-            "restored".to_string(),
+            recorded.to_string(),
             root.to_string_lossy().to_string(),
             None,
         )
         .await
         .expect("a recorded edit target must be restorable");
 
-        assert_eq!(std::fs::read_to_string(&target).unwrap(), "restored");
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), recorded);
     }
 
     // ------------------------------------------------------------------
@@ -2273,6 +2359,9 @@ mod tests {
     /// A project whose session log records one edit to `name`, so restore is
     /// authorised for it. Tests below that only care about the write mechanics
     /// still have to satisfy the #525 authorisation gate to reach it.
+    ///
+    /// Restore writes only a recorded whole-file version, which for this
+    /// project is [`RECORDED_CONTENT`].
     fn project_recording_edit_to(name: &str) -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let root = dir.path().to_path_buf();
@@ -2284,6 +2373,9 @@ mod tests {
         );
         (dir, target)
     }
+
+    /// What [`project_recording_edit_to`]'s single write recorded.
+    const RECORDED_CONTENT: &str = "contents written at 2026-08-21T10:00:00Z";
 
     // Test restore_file security validations
     #[tokio::test]
@@ -2336,7 +2428,7 @@ mod tests {
 
         restore_file(
             file_path.to_string_lossy().to_string(),
-            "restored content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -2344,7 +2436,7 @@ mod tests {
         .expect("restore must succeed");
 
         assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
-        assert_eq!(fs::read_to_string(&file_path).unwrap(), "restored content");
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -2353,7 +2445,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "restored content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -2363,7 +2455,7 @@ mod tests {
 
         // Verify file content
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "restored content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -2373,7 +2465,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "atomic content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -2384,7 +2476,7 @@ mod tests {
         assert!(!temp_path.exists());
         // Verify target file exists with correct content
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "atomic content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -2396,7 +2488,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "new content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -2404,7 +2496,7 @@ mod tests {
 
         assert!(result.is_ok());
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "new content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -2413,7 +2505,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )

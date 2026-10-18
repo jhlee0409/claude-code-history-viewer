@@ -33,6 +33,13 @@ export interface FileEditActions {
   revealLabel: string;
   reveal: () => Promise<void>;
 
+  /**
+   * False unless the row holds a whole file (`content_kind === "full"`).
+   * A Codex patch, an edit fragment or a tool-input blob written back would
+   * destroy the file, so callers render Restore disabled with an explanation
+   * and the backend refuses such content as well.
+   */
+  canRestore: boolean;
   restoreStatus: RestoreStatus;
   restoreError: string | null;
   isConfirmingRestore: boolean;
@@ -78,6 +85,7 @@ export function useFileEditActions(
   const restoreSessionFilePath = options.restoreScope?.sessionFilePath;
   const filePath = edit.file_path;
   const content = edit.content_after_change;
+  const canRestore = edit.content_kind === "full";
 
   const copy = useCallback(async () => {
     try {
@@ -110,8 +118,9 @@ export function useFileEditActions(
   }, [filePath, t]);
 
   const requestRestore = useCallback(() => {
+    if (!canRestore) return;
     setIsConfirmingRestore(true);
-  }, []);
+  }, [canRestore]);
 
   const cancelRestore = useCallback(() => {
     setIsConfirmingRestore(false);
@@ -127,6 +136,9 @@ export function useFileEditActions(
       // made without it.
       if (!restoreProjectPath) {
         throw new Error("Cannot restore without the originating project");
+      }
+      if (!canRestore) {
+        throw new Error("This edit is not a whole-file version and cannot be restored");
       }
       await api("restore_file", {
         filePath,
@@ -153,7 +165,7 @@ export function useFileEditActions(
         setRestoreError(null);
       }, ERROR_MS);
     }
-  }, [filePath, content, onRestored, restoreProjectPath, restoreSessionFilePath]);
+  }, [filePath, content, canRestore, onRestored, restoreProjectPath, restoreSessionFilePath]);
 
   return {
     copied,
@@ -161,6 +173,7 @@ export function useFileEditActions(
     canReveal,
     revealLabel,
     reveal,
+    canRestore,
     restoreStatus,
     restoreError,
     isConfirmingRestore,

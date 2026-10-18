@@ -65,6 +65,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     canReveal,
     revealLabel,
     reveal,
+    canRestore,
     restoreStatus,
     restoreError,
     isConfirmingRestore,
@@ -72,6 +73,12 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     confirmRestore,
     cancelRestore,
   } = useFileEditActions(edit, { onRestored, restoreScope });
+
+  // A row that is not a whole file keeps its Restore button, disabled, so the
+  // tooltip can say why instead of the action silently vanishing.
+  const restoreLabel = canRestore
+    ? t("recentEdits.restoreFile")
+    : t("recentEdits.restoreUnavailable");
 
   const language = getLanguageFromPath(edit.file_path);
   const fileName = getPathLeaf(edit.file_path);
@@ -339,19 +346,21 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                 requestRestore();
               }
             }}
-            disabled={restoreStatus === "loading"}
+            disabled={!canRestore || restoreStatus === "loading"}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
-              restoreStatus === "success"
-                ? "bg-success/20 text-success ring-1 ring-success/30"
-                : restoreStatus === "error"
-                  ? "bg-destructive/20 text-destructive ring-1 ring-destructive/30"
-                  : restoreStatus === "loading"
-                    ? "bg-muted text-muted-foreground cursor-wait"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              !canRestore
+                ? "text-muted-foreground/40 cursor-not-allowed"
+                : restoreStatus === "success"
+                  ? "bg-success/20 text-success ring-1 ring-success/30"
+                  : restoreStatus === "error"
+                    ? "bg-destructive/20 text-destructive ring-1 ring-destructive/30"
+                    : restoreStatus === "loading"
+                      ? "bg-muted text-muted-foreground cursor-wait"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
-            title={t("recentEdits.restoreFile")}
-            aria-label={t("recentEdits.restoreFile")}
+            title={restoreLabel}
+            aria-label={restoreLabel}
           >
             {restoreStatus === "loading" ? (
               <LoaderCircle className="w-4 h-4 animate-spin" />

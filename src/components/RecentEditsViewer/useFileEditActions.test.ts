@@ -38,6 +38,7 @@ const edit: RecentFileEdit = {
   original_content: "before content",
   lines_added: 3,
   lines_removed: 1,
+  content_kind: "full",
 };
 
 type Scope = { projectPath: string; sessionFilePath?: string } | undefined;
@@ -91,5 +92,42 @@ describe("useFileEditActions restore scope", () => {
 
     expect(apiMock).not.toHaveBeenCalled();
     expect(result.current.restoreStatus).toBe("error");
+  });
+});
+
+describe("useFileEditActions restore content", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockResolvedValue(undefined);
+  });
+
+  const scope = { projectPath: "/projects/a" };
+
+  it.each([["patch"], ["fragment"], ["unavailable"], [undefined]] as const)(
+    "does not restore a %s row",
+    async (kind) => {
+      const { result } = renderHook(() =>
+        useFileEditActions({ ...edit, content_kind: kind }, { restoreScope: scope })
+      );
+      expect(result.current.canRestore).toBe(false);
+
+      act(() => result.current.requestRestore());
+      expect(result.current.isConfirmingRestore).toBe(false);
+
+      // Even a direct call (a stale dialog) must not reach the backend.
+      await act(async () => {
+        await result.current.confirmRestore();
+      });
+      expect(apiMock).not.toHaveBeenCalledWith("restore_file", expect.anything());
+      expect(result.current.restoreStatus).toBe("error");
+    }
+  );
+
+  it("restores a full row", async () => {
+    const { result } = renderHook(() => useFileEditActions(edit, { restoreScope: scope }));
+    expect(result.current.canRestore).toBe(true);
+
+    act(() => result.current.requestRestore());
+    expect(result.current.isConfirmingRestore).toBe(true);
   });
 });

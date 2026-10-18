@@ -78,6 +78,11 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
   const actions = useFileEditActions(edit, { onRestored, restoreScope });
+  // Kept visible but disabled when the row is not a whole file, so the tooltip
+  // can say why Restore is unavailable.
+  const restoreLabel = actions.canRestore
+    ? t("recentEdits.restoreFile")
+    : t("recentEdits.restoreUnavailable");
 
   const fileName = getPathLeaf(edit.file_path);
   const directory = elideProjectRoot(
@@ -259,7 +264,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
                 there does nothing.
               */}
               {isMissing ? (
-                <RestoreButton actions={actions} label={t("recentEdits.restoreFile")} />
+                <RestoreButton actions={actions} label={restoreLabel} />
               ) : (
                 actions.canReveal && (
                   <button
@@ -293,9 +298,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
                 )}
               </button>
 
-              {!isMissing && (
-                <RestoreButton actions={actions} label={t("recentEdits.restoreFile")} />
-              )}
+              {!isMissing && <RestoreButton actions={actions} label={restoreLabel} />}
             </div>
           </div>
         </div>
@@ -385,14 +388,16 @@ const RestoreButton: React.FC<{
     onClick={() => {
       if (actions.restoreStatus === "idle") actions.requestRestore();
     }}
-    disabled={actions.restoreStatus === "loading"}
+    disabled={!actions.canRestore || actions.restoreStatus === "loading"}
     className={cn(
       "rounded p-0.5 transition-colors",
-      actions.restoreStatus === "success"
-        ? "text-success"
-        : actions.restoreStatus === "error"
-          ? "text-destructive"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      !actions.canRestore
+        ? "cursor-not-allowed text-muted-foreground/40"
+        : actions.restoreStatus === "success"
+          ? "text-success"
+          : actions.restoreStatus === "error"
+            ? "text-destructive"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
     )}
     aria-label={label}
     title={label}
