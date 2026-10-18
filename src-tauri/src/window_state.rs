@@ -1814,6 +1814,42 @@ mod registration_tests {
         assert!(run.contains("window_state::on_run_event(app, &event);"));
     }
 
+    /// The one `setup` builds the native menu (T11a) first — on Windows/Linux
+    /// its bar is part of the decoration the restore measures — and then
+    /// restores and shows the hidden window. A menu error must reach neither
+    /// a skipped restore nor `setup`'s `Err`: Tauri panics on a failed setup
+    /// ("Failed to setup app"), before the main-queue show runs, so either
+    /// way the app would never appear. The menu error is handled in place.
+    #[test]
+    fn a_menu_error_never_skips_the_restore_and_first_show() {
+        let body = desktop_builder();
+        let setup = &body[body.find(".setup(").expect("setup")..];
+        let setup = &setup[..setup.find("Ok(())").expect("setup end")];
+        // Code only: a comment may say anything.
+        let code: String = setup
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let menu = code
+            .find("menu::initial_menu(app.handle())")
+            .expect("the menu is built in setup");
+        let restore = code
+            .find("window_state::restore_and_track(app.handle());")
+            .expect("the restore runs in setup");
+        assert!(menu < restore, "menu first: its bar is in the decoration");
+        for exit in ["?", "return", ".unwrap()", ".expect(", "panic!"] {
+            assert!(
+                !code.contains(exit),
+                "`{exit}` in setup: a menu error could skip the show or fail setup, which panics before the window is shown"
+            );
+        }
+        assert!(
+            code[..restore].contains("if let Err("),
+            "the menu error is handled before the restore"
+        );
+    }
+
     /// `--serve` and `--export` return before the desktop builder exists.
     #[test]
     fn only_the_desktop_builder_uses_window_state() {
@@ -1838,6 +1874,15 @@ mod registration_tests {
         let main = &config["app"]["windows"][0];
         assert_eq!(main["label"], super::WINDOW_LABEL);
         assert_eq!(main["visible"], false);
+        // Tauri merges `tauri.windows.conf.json` (T11a) as a JSON merge
+        // patch: its `windows` array replaces this one whole, so it must
+        // create the window hidden too or Windows shows the default frame
+        // before the restore.
+        let on_windows: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.windows.conf.json")).unwrap();
+        let main = &on_windows["app"]["windows"][0];
+        assert_eq!(main["label"], super::WINDOW_LABEL);
+        assert_eq!(main["visible"], false, "tauri.windows.conf.json");
     }
 
     #[test]

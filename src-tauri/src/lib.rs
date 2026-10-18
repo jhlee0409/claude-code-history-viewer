@@ -182,15 +182,22 @@ fn run_tauri() {
         // app-wide menu-event handler; a rebuilt menu adds no listener.
         .manage(menu::MenuBridge::new("en"))
         .manage(menu::MenuJournal::for_this_run())
-        // Built in `setup`: the saved UI language is read from the app data
-        // folder, whose path resolver does not exist yet when `Builder::menu`
-        // runs.
-        // The window opens hidden; `restore_and_track` restores its saved
-        // frame, then shows it (T11b). Keep it last in `setup`, after
-        // anything that changes the window's decoration.
+        // One setup hook (a second one would replace the first):
+        // 1. The menu, built here because the saved UI language is read from
+        //    the app data folder, whose path resolver does not exist yet when
+        //    `Builder::menu` runs. First, so the menu bar (Windows/Linux) is
+        //    in the decoration the window restore measures.
+        // 2. The window opens hidden; `restore_and_track` restores its saved
+        //    frame, then shows it (T11b). Keep it last, after anything that
+        //    changes the window's decoration.
+        // A menu error is logged, never returned: an `Err` from `setup`
+        // panics before the window is shown. The app runs on without the
+        // native menu (macOS keeps Tauri's default one).
         .setup(|app| {
-            let menu = menu::initial_menu(app.handle())?;
-            app.set_menu(menu)?;
+            if let Err(error) = menu::initial_menu(app.handle()).and_then(|menu| app.set_menu(menu))
+            {
+                log::error!("native menu not installed: {error}");
+            }
             window_state::restore_and_track(app.handle());
             Ok(())
         })

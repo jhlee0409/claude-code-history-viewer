@@ -73,6 +73,9 @@ fits the monitor it overlaps most; otherwise its outer frame is fitted to that m
       pixels.
 - [ ] Edit the file to `{"version":1,"frame":` (corrupt), relaunch: the window opens at the
       default and is shown.
+- [ ] With the native menu bar: quit and relaunch three times without touching the window: the
+      size stays the same (the menu bar is in the measured decoration, so no menu-bar height is
+      lost or added per launch), and the menu bar is present on every launch.
 
 ## C. Linux Wayland
 - [ ] Wayland session: the window opens (shown, not stuck hidden) at the saved size; the position

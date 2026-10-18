@@ -146,6 +146,9 @@ pnpm run i18n:validate          # 5개 언어 키 동기화 확인 (en, ko, ja, 
 **네이티브 메뉴 스모크 (릴리즈 차단):** Windows/Linux CI 빌드 산출물로
 `docs/release/native-menu-smoke-checklist.md`를 모두 통과해야 릴리즈한다.
 
+**창 상태 스모크 (릴리즈 차단):** 같은 Windows/Linux CI 빌드 산출물로
+`docs/release/window-state-smoke-checklist.md`를 모두 통과해야 릴리즈한다.
+
 **주의사항:**
 - `cargo test`는 반드시 `--test-threads=1`로 실행 (settings 테스트가 `env::set_var("HOME")` 사용)
 - `pnpm install` 생략 시 lockfile과 node_modules 불일치로 빌드 실패 가능
