@@ -36,8 +36,11 @@ const FIXTURE_ROOT = path.join(OUT_ROOT, "fixture");
 
 class UsageError extends Error {}
 
-const INTERACTIVE_INNER_PROBES = ["focusVisible", "motionActivity"];
-const STATIC_INNER_PROBES = ["absPathLeaks", "toolRowMetrics", "wordBreak", "cjkLeading", "leftEdges", "overflowX", "cards", "chromeSelect"];
+// Order matters: the static probes read the captured view; motionActivity
+// opens the first collapsed row, so it runs before the layout probes (which
+// open every collapsed row); focusVisible moves focus, so it runs last.
+const STATIC_INNER_PROBES = ["absPathLeaks", "toolRowMetrics", "wordBreak", "cjkLeading", "leftEdges", "overflowX", "cards", "chromeSelect", "motionActivity"];
+const INTERACTIVE_INNER_PROBES = ["focusVisible"];
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -292,9 +295,7 @@ async function captureRun({ app, scenarios, declared, inactive = [], locale, mea
           }
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
-          // Inner-UI probes (plan I0): static ones on the captured view first,
-          // then the scrolling/expanding layout probes, then the ones that
-          // move focus or click (focusVisible, motionActivity).
+          // Inner-UI probes (plan I0): see STATIC_INNER_PROBES for the order.
           const probeCtx = { screen: scenario.screen.id, locale, mobile: scenario.mobile, theme: scenario.theme, viewport: scenario.viewport.id, live: v.live };
           const inner = await runInnerProbes(session.page, probeCtx, { only: STATIC_INNER_PROBES });
           const probes = await runProbes(session.page, { live: v.live });

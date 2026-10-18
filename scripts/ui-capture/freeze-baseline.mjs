@@ -22,13 +22,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
 
 function parseArgs(argv) {
-  const opts = { runs: [], motion: null };
+  const opts = { runs: [], motion: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const next = () => argv[(i += 1)];
     if (argv[i] === "--run") opts.runs.push(path.resolve(next()));
     else if (argv[i] === "--repro-report") opts.repro = path.resolve(next());
     else if (argv[i] === "--states") opts.states = path.resolve(next());
-    else if (argv[i] === "--motion") opts.motion = path.resolve(next());
+    else if (argv[i] === "--motion") opts.motion.push(path.resolve(next()));
     else if (argv[i] === "--out") opts.out = path.resolve(next());
     else throw new Error(`unknown option ${argv[i]}`);
   }
@@ -81,16 +81,26 @@ function main() {
   }
   const states = opts.states ? readJson(opts.states) : null;
   const repro = opts.repro ? readJson(opts.repro) : null;
-  let motion = null;
-  if (opts.motion) {
-    const probes = readJson(path.join(opts.motion, "probes.json"));
-    motion = Object.fromEntries(Object.entries(probes).map(([id, p]) => [id, { variant: p.variant, motionActivity: p.inner?.motionActivity ?? null }]));
+  // --live runs (one per --motion dir): motionActivity per scenario and motion preference.
+  const motion = opts.motion.length ? {} : null;
+  for (const dir of opts.motion) {
+    const probes = readJson(path.join(dir, "probes.json"));
+    for (const [id, p] of Object.entries(probes)) {
+      motion[`${id} [prefers-reduced-motion: ${p.variant?.motion === "full" ? "no-preference" : "reduce"}]`] = { run: path.relative(REPO, dir), motionActivity: p.inner?.motionActivity ?? null };
+    }
   }
   const verify = JSON.parse(sh(process.execPath, [path.join(HERE, "fixtures", "generate.mjs"), "--verify"]) ?? "null");
   const baseline = {
     $comment: "Inner-UI plan I0 baseline freeze: measured values only. Regenerate with scripts/ui-capture/freeze-baseline.mjs; see scripts/ui-capture/README.md.",
     revision: { sha: head.git.sha, dirty: head.git.dirty, harnessDigest: head.harness },
-    fixture: { version: head.fixture.version, digest: head.fixture.digest, verify: verify && { reproducible: verify.reproducible, manifestDigest: verify.manifestDigest } },
+    fixture: {
+      version: head.fixture.version,
+      // At this checkout's .ui-capture/fixture; the digest also depends on
+      // the root path's sort position (as on develop), so --verify (two temp
+      // roots + the same root twice) is the reproducibility proof.
+      digest: head.fixture.digest,
+      verify: verify && { reproducible: verify.reproducible, manifestDigest: verify.manifestDigest },
+    },
     engines: {
       node: head.versions.node,
       playwright: head.versions.playwright,
@@ -109,7 +119,7 @@ function main() {
       gate: repro.gate,
       scenarios: repro.rows?.length ?? null,
       failures: repro.failures ?? [],
-      maxExactDiffPx: Math.max(0, ...(repro.rows ?? []).map((r) => r.exactDiffPixels ?? r.exactDiff ?? 0)),
+      maxExactDiffPx: Math.max(0, ...(repro.rows ?? []).map((r) => r.exactDifferentPixels ?? 0)),
     },
     inactiveScenarios: head.inactive ?? [],
     before: byScale,
