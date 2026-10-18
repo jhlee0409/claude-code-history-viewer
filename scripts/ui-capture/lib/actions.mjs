@@ -3,7 +3,7 @@
 // accessible names read from the captured build's own locale files; they
 // never depend on CSS classes. Every step parks the pointer and settles.
 
-import { parkPointer, settle } from "./browser.mjs";
+import { actionModifier, parkPointer, settle } from "./browser.mjs";
 
 const VIEW_LABEL_KEYS = {
   messages: "message.view",
@@ -371,7 +371,8 @@ export function createActions({ session, scenario, manifest, t }) {
     },
 
     /**
-     * Conversation tabs (T8). ⌘+click (Ctrl+click off macOS) on a session row
+     * Conversation tabs (T8). ⌘+click (Ctrl+click off macOS, by the page's
+     * user agent: see actionModifier) on a session row
      * of a fixture project opens it in a new tab. `session` is "large" |
      * "subagent", or `project` + `index` into that project's sessions.
      */
@@ -380,7 +381,7 @@ export function createActions({ session, scenario, manifest, t }) {
       if (mobile) throw new Error("openSessionInNewTab: no ⌘+click on a phone; use newTab + openSession");
       await selectProjectRow(project(target.project));
       await click(page.getByRole("tree").getByText(target.title.slice(0, 40)).first(), `session ${target.title} in a new tab`, {
-        modifiers: ["ControlOrMeta"],
+        modifiers: [await actionModifier(page)],
       });
     },
 
@@ -388,7 +389,7 @@ export function createActions({ session, scenario, manifest, t }) {
     async viewInNewTab({ view }) {
       if (!(view in VIEW_LABEL_KEYS)) throw new Error(`unknown view "${view}"`);
       const tab = page.locator("#app-header [role=tablist]").getByRole("tab", { name: t(VIEW_LABEL_KEYS[view]), exact: true });
-      await click(tab, `view ${view} in a new tab`, { modifiers: ["ControlOrMeta"] });
+      await click(tab, `view ${view} in a new tab`, { modifiers: [await actionModifier(page)] });
     },
 
     /** A new empty tab: the strip's + (desktop) or the tab sheet's button (phone). */

@@ -2,7 +2,7 @@
 // source of nondeterminism pinned (clock, locale, timezone, DPR, motion,
 // theme, storage, network), request tracking, injection and the settle loop.
 
-/* global document, window -- functions passed to page.evaluate run in the page */
+/* global document, navigator, window -- functions passed to page.evaluate run in the page */
 
 import { fontScaleCss, normalizeVariant, resolveContextOptions } from "./variant.mjs";
 
@@ -152,6 +152,20 @@ export async function newScenarioPage(
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The ⌘/Ctrl key the app under test reads, for a user agent: Meta when it says
+ * Mac, Control otherwise (the rule of src/utils/platform.ts isActionModifier).
+ * Playwright's "ControlOrMeta" follows the host OS instead, and its WebKit
+ * reports a Macintosh user agent on every host, so on Linux it sends Control
+ * to an app that waits for Meta.
+ */
+export const actionModifierFor = (userAgent) => (/mac/i.test(userAgent) ? "Meta" : "Control");
+
+/** actionModifierFor the page's own navigator.userAgent. */
+export async function actionModifier(page) {
+  return actionModifierFor(await page.evaluate(() => navigator.userAgent));
+}
 
 /** Park the pointer where nothing reacts to hover (header padding). */
 export async function parkPointer(page) {

@@ -26,6 +26,7 @@ import { webkit } from "playwright";
 import { generateFixture } from "./fixtures/generate.mjs";
 import { startServer } from "./lib/server.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
+import { actionModifier } from "./lib/browser.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -131,7 +132,7 @@ async function main() {
         return page.evaluate(READ_ANCHOR);
       };
       let anchor = await parkMiddle();
-      await page.getByRole("tree").getByText(other.slice(0, 40)).first().click({ modifiers: ["ControlOrMeta"] });
+      await page.getByRole("tree").getByText(other.slice(0, 40)).first().click({ modifiers: [await actionModifier(page)] });
       await ready();
       await page.waitForTimeout(400);
 
