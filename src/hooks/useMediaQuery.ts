@@ -28,14 +28,6 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Tailwind's `lg` breakpoint. */
-export const LG_BREAKPOINT = 1024;
-
-/** Whether the viewport is at or above Tailwind's `lg` breakpoint. */
-export function useIsLgUp(): boolean {
-  return useMediaQuery(`(min-width: ${LG_BREAKPOINT}px)`);
-}
-
 /** Whether the viewport is at or above Tailwind's `md` breakpoint (the inverse of `useIsMobile`). */
 export function useIsMdUp(): boolean {
   return !useIsMobile();

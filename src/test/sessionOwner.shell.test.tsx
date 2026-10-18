@@ -36,7 +36,6 @@ vi.mock("@/contexts/platform", () => ({
 }));
 vi.mock("@/hooks/useMediaQuery", () => ({
   useMediaQuery: () => true,
-  useIsLgUp: () => true,
 }));
 const { screenStub } = vi.hoisted(() => ({
   screenStub: (name: string) => () => <div data-screen={name} />,

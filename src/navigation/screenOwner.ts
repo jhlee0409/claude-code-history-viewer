@@ -30,11 +30,7 @@ import type { FullAppStore } from "@/store/slices/types";
 import type { BoardSessionData } from "@/types/board.types";
 import type { ProjectStatsSummary, SessionComparison, SessionTokenStats } from "@/types";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
-import {
-  recentEditsRequestKey,
-  type RecentEditsListResult,
-  type RecentEditsRequest,
-} from "@/store/slices/recentEditsSlice";
+import type { RecentEditsListResult, RecentEditsRequest } from "@/store/slices/recentEditsSlice";
 import { supportsRecentEdits } from "@/utils/providers";
 
 type State = FullAppStore;
@@ -227,9 +223,3 @@ export function selectRecentEdits(s: State, requestKey: string | null): RecentEd
     error,
   };
 }
-
-/** The current Edits request's key (`null` when the screen asks nothing). */
-export const selectRecentEditsKey = (s: State): string | null => {
-  const request = selectRecentEditsRequest(s);
-  return request ? recentEditsRequestKey(request) : null;
-};

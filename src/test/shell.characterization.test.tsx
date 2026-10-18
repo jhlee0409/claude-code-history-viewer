@@ -262,7 +262,6 @@ vi.mock("@/contexts/theme", () => ({ useTheme: () => ({ isDarkMode: false }) }))
 // Wide viewport: the sessions column can render.
 vi.mock("@/hooks/useMediaQuery", () => ({
   useMediaQuery: () => true,
-  useIsLgUp: () => true,
 }));
 
 vi.mock("@/hooks/useAnalytics", () => ({

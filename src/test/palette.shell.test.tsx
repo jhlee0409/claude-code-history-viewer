@@ -28,7 +28,7 @@ vi.mock("@/contexts/platform", () => ({
   DesktopOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
   MobileOnly: () => null,
 }));
-vi.mock("@/hooks/useMediaQuery", () => ({ useMediaQuery: () => true, useIsLgUp: () => true }));
+vi.mock("@/hooks/useMediaQuery", () => ({ useMediaQuery: () => true }));
 vi.mock("@/utils/platform", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/utils/platform")>();
   // ⌘ is the action modifier in these rows, whatever the host OS.
