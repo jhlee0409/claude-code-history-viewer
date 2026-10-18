@@ -36,6 +36,7 @@
   "recentEdits.restorePreviewIdentical": "The file on disk already matches this version. Restoring changes nothing.",
   "recentEdits.restorePreviewLoading": "Reading the file on disk...",
   "recentEdits.restorePreviewUnreadable": "The file on disk could not be read, so the change cannot be previewed. Restoring will still overwrite it.",
+  "recentEdits.restoreUnavailable": "Can't restore: this edit was recorded as a patch or partial change, not as the whole file.",
   "recentEdits.revealError": "Could not reveal file",
   "recentEdits.revealInExplorer": "Show in Explorer",
   "recentEdits.revealInFinder": "Reveal in Finder",

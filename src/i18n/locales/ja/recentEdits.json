@@ -36,6 +36,7 @@
   "recentEdits.restorePreviewIdentical": "ディスク上のファイルはすでにこのバージョンと同じです。復元しても変更はありません。",
   "recentEdits.restorePreviewLoading": "ディスク上のファイルを読み込み中...",
   "recentEdits.restorePreviewUnreadable": "ディスク上のファイルを読み取れないため、変更をプレビューできません。復元すると上書きされます。",
+  "recentEdits.restoreUnavailable": "復元できません。この編集はファイル全体ではなく、パッチまたは部分的な変更として記録されています。",
   "recentEdits.revealError": "ファイルを表示できませんでした",
   "recentEdits.revealInExplorer": "エクスプローラーで表示",
   "recentEdits.revealInFinder": "Finderで表示",
