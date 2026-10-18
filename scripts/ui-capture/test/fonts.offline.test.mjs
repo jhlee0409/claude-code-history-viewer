@@ -14,9 +14,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
 import { REQUIRED_FACES, fontProblems, loadRequiredFaces, watchFontTraffic } from "../lib/fonts.mjs";
 import { buildDist, listFiles, mainStylesheet } from "../lib/viteBuild.mjs";
+import { browserRequirement } from "./requirements.mjs";
 
-const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
-if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping fonts.offline.test: no WebKit at ${webkit.executablePath()}`);
+// CI_REQUIRE_BROWSER=1 (CI ui-harness job) turns a missing WebKit into an error.
+const HAS_WEBKIT = browserRequirement({ webkit: true }, { label: "fonts.offline.test" }).enabled;
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const FONTS = path.join(REPO, "src", "assets", "fonts");

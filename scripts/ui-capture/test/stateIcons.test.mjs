@@ -18,6 +18,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { webkit } from "playwright";
 import { buildDist, mainStylesheet } from "../lib/viteBuild.mjs";
+import { browserRequirement } from "./requirements.mjs";
 
 vi.hoisted(() => {
   // src/i18n sets html[lang] on import; a node test has no document.
@@ -34,8 +35,8 @@ const menu = await import("@/components/ui/dropdown-menu");
 const { LoadingState } = await import("@/components/ui/loading");
 const { IconProvider } = await import("@/components/icon/Icon");
 
-const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
-if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping stateIcons.test: no WebKit at ${webkit.executablePath()}`);
+// CI_REQUIRE_BROWSER=1 (CI ui-harness job) turns a missing WebKit into an error.
+const HAS_WEBKIT = browserRequirement({ webkit: true }, { label: "stateIcons.test" }).enabled;
 
 const h = React.createElement;
 

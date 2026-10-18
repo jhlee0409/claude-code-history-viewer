@@ -7,10 +7,11 @@ import { webkit } from "playwright";
 
 // Needs the pinned WebKit build (`pnpm exec playwright install webkit`). CI
 // does not install browsers, so the suite is skipped there and reports why.
-const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
-if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping probes.test: no WebKit at ${webkit.executablePath()}`);
+// CI_REQUIRE_BROWSER=1 (CI ui-harness job) turns a missing WebKit into an error.
+const HAS_WEBKIT = browserRequirement({ webkit: true }, { label: "probes.test" }).enabled;
 import { runProbes } from "../lib/probes.mjs";
 import { TYPOGRAPHY_PROBE, parseFontFamily } from "../lib/typography.mjs";
+import { browserRequirement } from "./requirements.mjs";
 
 const PAGE = `<!doctype html><html><body style="margin:0;font-size:16px">
 <main data-slot="main" style="height:600px;overflow:auto">

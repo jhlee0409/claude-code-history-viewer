@@ -15,6 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { webkit } from "playwright";
 import { buildDist, mainStylesheet } from "../lib/viteBuild.mjs";
+import { browserRequirement } from "./requirements.mjs";
 
 const state = vi.hoisted(() => {
   // src/i18n sets html[lang] on import; a node test has no document.
@@ -40,8 +41,8 @@ const { default: i18n } = await import("@/i18n");
 const { SessionItem } = await import("@/components/SessionItem");
 const { sessionItemHeight } = await import("@/components/ProjectTree/components/sessionItemHeight");
 
-const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
-if (!HAS_WEBKIT) console.warn(`[ui-capture] skipping sessionRowFit.test: no WebKit at ${webkit.executablePath()}`);
+// CI_REQUIRE_BROWSER=1 (CI ui-harness job) turns a missing WebKit into an error.
+const HAS_WEBKIT = browserRequirement({ webkit: true }, { label: "sessionRowFit.test" }).enabled;
 
 const SCALES = [90, 100, 110, 130];
 // Long enough to wrap past two lines at the row width (line-clamp-2 caps it).

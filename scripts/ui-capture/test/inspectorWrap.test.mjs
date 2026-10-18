@@ -25,6 +25,7 @@ import { createActions } from "../lib/actions.mjs";
 import { loadTranslator, SUPPORTED_LOCALES } from "../lib/i18n.mjs";
 import { generateFixture } from "../fixtures/generate.mjs";
 import { STORAGE_SEED, expandScenarios, inspectorStorage } from "../scenarios.mjs";
+import { browserRequirement } from "./requirements.mjs";
 
 /* global document, getComputedStyle, NodeFilter -- functions passed to page.evaluate run in the page */
 
@@ -32,12 +33,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const SERVER_BIN = path.join(REPO, ".ui-capture", "build", "cchv-server");
 const HAS_WEBKIT = fs.existsSync(webkit.executablePath());
 const HAS_SERVER = fs.existsSync(SERVER_BIN);
-const ENABLED = HAS_WEBKIT && HAS_SERVER;
-if (!ENABLED) {
-  console.warn(
-    `[ui-capture] skipping inspectorWrap.test: ${HAS_WEBKIT ? `no server at ${SERVER_BIN}` : `no WebKit at ${webkit.executablePath()}`}`,
-  );
-}
+// CI_REQUIRE_BROWSER=1 (CI ui-harness job) turns a missing WebKit/server into an error.
+const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "inspectorWrap.test" }).enabled;
 
 const SCENARIOS = new Map(expandScenarios().map((scenario) => [scenario.id, scenario]));
 /** The inspector's default and minimum widths (`inspectorSlice.ts`). */

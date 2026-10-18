@@ -24,6 +24,9 @@ on:
       - "eslint.config.js"
       - "package.json"
       - "pnpm-lock.yaml"
+      # ui-harness: the WebUI server and providers are part of every capture.
+      - "src-tauri/**"
+      - ".nvmrc"
       - ".github/workflows/frontend-tests.yml"
   pull_request:
     branches: [main, develop]
@@ -71,3 +74,90 @@ jobs:
 
       - name: Bundle (vite build)
         run: pnpm exec vite build
+
+  # Real-browser checks of the WebUI build (plan I0, RR C7). The harness
+  # integration tests need WebKit AND the harness server binary
+  # (.ui-capture/build/cchv-server), which only build.sh makes, so the order
+  # on a clean runner is: install -> Rust + system packages -> browsers with
+  # their OS deps -> build.sh -> tests with CI_REQUIRE_BROWSER=1 (a missing
+  # browser or server fails instead of skipping) -> ui:states -> the
+  # unchanged gate against the PR's base. Run time is recorded from the
+  # first real runs, not estimated here.
+  ui-harness:
+    name: UI harness (WebKit + Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # --base <sha> checks the base out into a worktree
+
+      # 1. pnpm, Node from .nvmrc, dependencies
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js (.nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 2. Rust stable + the same Linux packages as rust-tests.yml
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      # 3. Browsers and their runtime dependencies
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps webkit chromium
+
+      # 4. The bundle + server the integration tests and run.mjs use
+      - name: Build the WebUI bundle and harness server
+        run: bash scripts/ui-capture/build.sh . .ui-capture/build/dist .ui-capture/build/cchv-server
+
+      # 5. Browser tests (skipped = failure), states gallery, unchanged gate
+      - name: Harness tests (no skips)
+        env:
+          CI_REQUIRE_BROWSER: "1"
+        run: pnpm exec vitest run scripts/ui-capture --maxWorkers=2 --testTimeout=60000
+
+      - name: Primitive states gallery
+        run: pnpm ui:states
+
+      - name: Capture gate (unchanged vs. base)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000')
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: pnpm ui:capture --no-build --base "$BASE_SHA" --gate unchanged
+
+      - name: Upload harness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-harness-${{ github.sha }}
+          path: |
+            .ui-capture/runs/latest/compare/
+            .ui-capture/runs/latest/manifest.json
+            .ui-capture/runs/latest/probes.json
+            .ui-capture/states/latest/summary.json
+          if-no-files-found: ignore
+
