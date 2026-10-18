@@ -51,19 +51,25 @@ $Binary = (Resolve-Path $Binary).Path
 $Summary = Join-Path $OutDir 'summary.txt'
 Set-Content -Path $Summary -Value ''
 
-# Isolated profile for the child: no user data. Tauri resolves its config
-# folder through the Known Folder API, which ignores these variables, so the
-# state file is looked up in both places (the runner is fresh either way).
+# Isolated profile for the child: no user data. Laid out like a real profile
+# because the Known Folder API Tauri uses for its config folder resolves
+# against it and returns nothing when AppData\Roaming is missing (the app
+# then keeps no window state at all).
 $Sandbox = Join-Path ([IO.Path]::GetTempPath()) ("launch-smoke-" + [guid]::NewGuid())
-foreach ($name in 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA') {
-  $dir = Join-Path $Sandbox $name
-  New-Item -ItemType Directory -Force -Path $dir | Out-Null
-  Set-Item -Path "env:$name" -Value $dir
+$Sandboxed = @{
+  HOME         = $Sandbox
+  USERPROFILE  = $Sandbox
+  APPDATA      = Join-Path $Sandbox 'AppData\Roaming'
+  LOCALAPPDATA = Join-Path $Sandbox 'AppData\Local'
+}
+foreach ($name in $Sandboxed.Keys) {
+  New-Item -ItemType Directory -Force -Path $Sandboxed[$name] | Out-Null
+  Set-Item -Path "env:$name" -Value $Sandboxed[$name]
 }
 $StateCandidates = @(
   (Join-Path ([Environment]::GetFolderPath('ApplicationData')) "$Identifier\window-state.json"),
   (Join-Path $env:APPDATA "$Identifier\window-state.json")
-)
+) | Select-Object -Unique
 
 function Log([string] $message) {
   $line = "[launch-smoke] $message"
@@ -164,7 +170,9 @@ for ($i = 0; $i -lt 40; $i++) {
 }
 if (-not $state) {
   $found = Get-StateFile
-  $content = if ($found) { (Get-Content $found.FullName -Raw) -replace '\s', '' } else { 'missing' }
+  $content = if ($found) { (Get-Content $found.FullName -Raw) -replace '\s', '' } else { "missing (looked in: $($StateCandidates -join '; '))" }
+  $now = Find-Window
+  Log "window after the move: x=$($now.X) y=$($now.Y) w=$($now.W) h=$($now.H)"
   Fail "window-state.json does not hold the moved frame: $content"
 }
 Stop-Launch $window
