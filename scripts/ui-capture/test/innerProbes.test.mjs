@@ -160,6 +160,56 @@ describe.skipIf(!req.enabled)("probes on a fake page (real WebKit)", () => {
     expect(r.value.radii).toEqual({ 8: 3, pill: 1 });
   });
 
+  // D20: "PageHeader title x == first content column x" — the header's own
+  // subtitle is not content (review R2: a subtitle aligned with the title made
+  // every screen read 0 while the Edits file names sat 50px to the right).
+  const header = (title, sub) =>
+    `<div id="hdr" style="padding:12px 28px;display:flex;gap:12px"><div style="width:36px;height:36px"></div><div><h2 style="margin:0">${title}</h2><p style="margin:0">${sub}</p></div></div>`;
+  const runLeft = async (body, screen = "analytics") => {
+    const p = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    try {
+      await p.setContent(page(`<main data-slot="main">${body}</main>`));
+      return await p.evaluate(staticProbeSource("leftEdges", { screen }));
+    } finally {
+      await p.close();
+    }
+  };
+
+  it("leftEdges: the header subtitle is not the content column (title/subtitle 76, body 208 → +132)", async () => {
+    const r = await runLeft(`${header("Analytics", "Overview of the project")}<section style="padding-left:208px"><p style="margin:0">Total tokens</p></section>`);
+    expect(r.value.headingX).toBe(76);
+    expect(r.value.contentX).toBe(208);
+    expect(r.value.delta).toBe(132);
+    expect(r.value.contentRule).toBe("leftmostBody");
+  });
+
+  it("leftEdges: header and body in one wrapper — the title block (title + subtitle) is still the header", async () => {
+    const r = await runLeft(`<div>${header("Analytics", "Overview")}<p style="margin:0;padding-left:150px">Body</p></div>`);
+    expect(r.value.contentX).toBe(150);
+    expect(r.value.delta).toBe(74);
+  });
+
+  it("leftEdges: controls (tabs, buttons) are not the content column; the leftmost body text is", async () => {
+    const r = await runLeft(
+      `${header("Analytics", "sub")}<div role="tablist" style="padding-left:40px"><button role="tab">Overview</button></div>
+       <div style="position:relative;height:80px"><span style="position:absolute;left:300px;top:0">62x</span><p style="position:absolute;left:100px;top:20px;margin:0">1.4K</p></div>`,
+    );
+    expect(r.value.contentX).toBe(100);
+    expect(r.value.delta).toBe(24);
+  });
+
+  it("leftEdges: on Edits the content column is the file name column, not the summary line", async () => {
+    const body = `${header("Recent edits", "Check the latest content")}
+      <p style="margin:0;padding-left:28px">10 files, 188 edits</p>
+      <div style="display:flex;padding-left:28px;gap:26px"><div style="width:24px"></div><div><div>Sidebar.tsx</div><div>src/components</div></div></div>`;
+    const edits = await runLeft(body, "recent-edits");
+    expect(edits.value.contentRule).toBe("fileName");
+    expect(edits.value.contentX).toBe(78);
+    expect(edits.value.delta).toBe(2);
+    const compact = await runLeft(body, "recent-edits-compact");
+    expect(compact.value.contentRule).toBe("fileName");
+  });
+
   it("chromeSelect: selectable chrome text counts, user-select:none does not", async () => {
     const r = await run("chromeSelect", `<header><span>Title</span><span style="-webkit-user-select:none;user-select:none">Tabs</span></header><main>body</main>`);
     expect(r.population).toBe(2);

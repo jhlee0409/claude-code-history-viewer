@@ -89,6 +89,8 @@ export function aggregateBefore(probes) {
         ...meta("leftEdges"),
         value: {
           titleToContentDeltaPx: Object.fromEntries(left.map(([id, r]) => [id, r.value.delta])),
+          // D20's criterion: title x == first content column x, within 2px.
+          alignedWithin2px: left.filter(([, r]) => r.value.delta !== null && Math.abs(r.value.delta) <= 2).length,
           distinctLeftEdgesMax: Math.max(0, ...left.map(([, r]) => r.value.distinctEdges)),
         },
       },
@@ -102,4 +104,31 @@ export function aggregateBefore(probes) {
       },
     },
   };
+}
+
+/**
+ * Re-freeze one probe: take every entry of `fresh` (aggregateBefore of a new
+ * run) whose `probe` is `probe` into a copy of `frozen`, leaving everything
+ * else as frozen. The fresh run must have judged the same number of
+ * scenarios. Returns the new before-values and the replaced paths.
+ */
+export function replaceProbe(frozen, fresh, probe) {
+  const before = structuredClone(frozen);
+  const replaced = [];
+  const walk = (node, freshNode, at) => {
+    for (const [key, value] of Object.entries(node)) {
+      if (!value || typeof value !== "object") continue;
+      const where = [...at, key];
+      if (value.probe === probe) {
+        const next = freshNode?.[key];
+        if (!next || next.probe !== probe) throw new Error(`${where.join(".")}: the new run has no ${probe} entry`);
+        if (next.scenarios !== value.scenarios) throw new Error(`${where.join(".")}: frozen on ${value.scenarios} scenarios, the new run measured ${next.scenarios}`);
+        node[key] = structuredClone(next);
+        replaced.push(where.join("."));
+      } else if (!("probe" in value)) walk(value, freshNode?.[key], where);
+    }
+  };
+  walk(before, fresh, []);
+  if (!replaced.length) throw new Error(`no frozen entry is measured by ${probe}`);
+  return { before, replaced };
 }

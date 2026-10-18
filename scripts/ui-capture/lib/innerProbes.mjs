@@ -14,7 +14,8 @@
 //   toolRowMetrics D2  tool rows: font size, row box height, clipped names
 //   wordBreak      D12 CJK text: computed word-break per language
 //   cjkLeading     D12 multi-line CJK text with line-height / font-size < 1.5
-//   leftEdges      D20 page title x vs first content x, distinct left edges
+//   leftEdges      D20 page title x vs first content column x (below the page
+//                      header; Edits: file name column), distinct left edges
 //   overflowX      D25 horizontal overflow (page and clipped/spilling boxes)
 //   cards          D20 bordered rounded boxes, their nesting and radii
 //   chromeSelect   D24 selectable text in the app chrome
@@ -76,6 +77,16 @@ const PATH_SCREENS = ["transcript", "recent-edits", "board", "inspector-info", "
 const TOOL_ROW_SCREENS = ["transcript", "x-transcript-edit-expanded"];
 const WORK_SCREENS = ["analytics", "recent-edits", "board", "global-stats", "archive", "settings"];
 const FOCUS_SCREENS = new Set(["home", "transcript", "settings"]);
+
+/**
+ * D20's "first content column" per screen (plan §8 D20): Edits measures the
+ * file name column; other work screens the leftmost body text below the page
+ * header (controls such as tabs and buttons are not a content column).
+ */
+export const contentColumnRule = (screen = "") => (startsWithAny(screen, ["recent-edits"]) ? "fileName" : "leftmostBody");
+
+/** What the in-page probe code may read about its scenario. */
+const probeContext = (ctx) => ({ screen: ctx.screen ?? "", contentColumn: contentColumnRule(ctx.screen) });
 
 export const PROBE_APPLICABILITY = {
   absPathLeaks: ({ screen }) => startsWithAny(screen, PATH_SCREENS),
@@ -201,30 +212,66 @@ const STATIC_PROBES = {
   })()`,
   leftEdges: `(() => {
     const main = document.querySelector('[data-slot="main"]') || document.getElementById("main-content");
-    const selector = '[data-slot="main"] text nodes; title = first visible h1/h2/[role=heading]/[data-page-title]';
+    const selector = '[data-slot="main"] text nodes; title = first visible h1/h2/[role=heading]/[data-page-title]; content = ' + CTX.contentColumn + ' below the page header';
     if (!main) return { population: 0, selector, value: null };
     const nodes = textNodes(main);
-    const lefts = {};
-    for (const node of nodes) {
+    const leftOf = (node) => {
       const range = document.createRange();
       range.selectNodeContents(node);
       const r = range.getClientRects()[0];
-      if (!r) continue;
-      const x = Math.round(r.left);
-      lefts[x] = (lefts[x] ?? 0) + 1;
+      return r ? { x: Math.round(r.left), top: r.top } : null;
+    };
+    const lefts = {};
+    for (const node of nodes) {
+      const at = leftOf(node);
+      if (at) lefts[at.x] = (lefts[at.x] ?? 0) + 1;
     }
     const heading = [...main.querySelectorAll('[data-page-title], h1, h2, [role="heading"]')].find(visible) ?? null;
     const headingX = heading ? Math.round(heading.getBoundingClientRect().left) : null;
-    const contentNode = nodes.find((n) => !heading || !heading.contains(n.parentElement));
-    let contentX = null;
-    if (contentNode) {
-      const range = document.createRange();
-      range.selectNodeContents(contentNode);
-      const r = range.getClientRects()[0];
-      contentX = r ? Math.round(r.left) : null;
+    // The page header: a marked one, else main's child that holds the title
+    // (icon, title, subtitle, actions); when that child also holds the body,
+    // the title block (the title's parent: title + subtitle). Its text is
+    // never "content", nor is anything above its bottom edge.
+    let headerEl = null;
+    if (heading) {
+      headerEl = heading.closest("[data-page-header]");
+      if (!headerEl || !main.contains(headerEl)) {
+        let el = heading;
+        while (el.parentElement && el.parentElement !== main) el = el.parentElement;
+        headerEl = nodes.some((n) => !el.contains(n)) ? el : heading.parentElement;
+      }
     }
+    const headerBottom = headerEl ? headerEl.getBoundingClientRect().bottom : -Infinity;
+    const CONTROL = 'button, [role="button"], [role="tab"], [role="tablist"], [role="toolbar"], [role="radiogroup"], [role="menubar"], label, select, input, textarea';
+    const body = [];
+    for (const node of nodes) {
+      if (headerEl && headerEl.contains(node)) continue;
+      if (node.parentElement.closest(CONTROL)) continue;
+      const at = leftOf(node);
+      if (!at || at.top < headerBottom - 1) continue;
+      body.push({ node, x: at.x });
+    }
+    // The content column (plan §8 D20): on Edits the file name column (the
+    // first text that is a bare file name); elsewhere the leftmost body text.
+    const FILE_NAME = /^[^\\s\\/\\\\]+\\.[A-Za-z0-9]{1,8}$/;
+    let content = null;
+    if (CTX.contentColumn === "fileName") content = body.find((b) => FILE_NAME.test(b.node.nodeValue.trim())) ?? null;
+    else for (const b of body) if (!content || b.x < content.x) content = b;
+    const contentX = content ? content.x : null;
     const distinct = Object.entries(lefts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([x, n]) => ({ x: Number(x), n }));
-    return { population: nodes.length, selector, value: { headingX, contentX, delta: headingX !== null && contentX !== null ? contentX - headingX : null, distinctEdges: Object.keys(lefts).length, top: distinct } };
+    return {
+      population: nodes.length,
+      selector,
+      value: {
+        headingX,
+        contentX,
+        delta: headingX !== null && contentX !== null ? contentX - headingX : null,
+        contentRule: CTX.contentColumn,
+        contentAt: content ? describe(content.node.parentElement) + " " + JSON.stringify(content.node.nodeValue.trim().slice(0, 40)) : null,
+        distinctEdges: Object.keys(lefts).length,
+        top: distinct,
+      },
+    };
   })()`,
   overflowX: `(() => {
     const selector = "body * (visible elements)";
@@ -382,7 +429,7 @@ export async function runInnerProbes(page, ctx, { only = null } = {}) {
       continue;
     }
     let measured;
-    if (name in STATIC_PROBES) measured = await page.evaluate(`(() => { ${PAGE_LIB} return ${STATIC_PROBES[name]}; })()`);
+    if (name in STATIC_PROBES) measured = await page.evaluate(staticProbeSource(name, ctx));
     else if (name === "focusVisible") measured = await probeFocusVisible(page);
     else if (name === "motionActivity") measured = await probeMotionActivity(page);
     results[name] = { applicable: true, ...measured };
@@ -390,5 +437,6 @@ export async function runInnerProbes(page, ctx, { only = null } = {}) {
   return results;
 }
 
-/** For tests: run one static probe's page code directly. */
-export const staticProbeSource = (name) => `(() => { ${PAGE_LIB} return ${STATIC_PROBES[name]}; })()`;
+/** The page source of one static probe for a scenario `ctx` (tests run it directly). */
+export const staticProbeSource = (name, ctx = {}) =>
+  `(() => { ${PAGE_LIB} const CTX = ${JSON.stringify(probeContext(ctx))}; return ${STATIC_PROBES[name]}; })()`;

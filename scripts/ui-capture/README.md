@@ -279,7 +279,7 @@ probe reports `{ population, selector, value, applicable }`:
 | `toolRowMetrics` | D2 | transcript\* (not the dock pair) | `[data-tool-row]`, else today's `[data-message-uuid] button[aria-expanded]`: font size, row height, clipped names |
 | `wordBreak` | D12 | every scenario in ko/ja/zh, `transcript-cjk` | computed `word-break` of CJK text per language |
 | `cjkLeading` | D12 | `transcript-cjk` | multi-line CJK text with line-height/font-size < 1.5 |
-| `leftEdges` | D20 | desktop work screens | page title x vs first content x, distinct left edges |
+| `leftEdges` | D20 | desktop work screens | page title x vs first content column x: text below the page header (its subtitle is header, not content), controls excluded, leftmost; on Edits the file name column. `alignedWithin2px` counts the ±2px criterion |
 | `overflowX` | D25 | all | page overflow and clipped/spilling boxes (scrollers and ellipsis excluded) |
 | `cards` | D20 | work screens | bordered rounded boxes, nesting, radii (`pill` for fully round) |
 | `chromeSelect` | D24 | desktop, no modal, not the terminal error screen | selectable text in the chrome |
@@ -365,6 +365,15 @@ pnpm ui:states
 node scripts/ui-capture/freeze-baseline.mjs --run .ui-capture/runs/<repro>/run-1 \
   --run .ui-capture/runs/<font125> --repro-report .ui-capture/runs/<repro>/compare/report.json \
   --states .ui-capture/states/latest/summary.json --out specs/2026-10-18-inner-ui/baseline.json
+```
+
+After a probe fix, re-freeze only that probe (everything else stays as
+frozen; the run must judge the same number of scenarios, and `remeasured`
+records the run, revision, harness digest and reason):
+
+```bash
+node scripts/ui-capture/freeze-baseline.mjs --update-probe leftEdges \
+  --run .ui-capture/runs/<run> --reason "<why>" --out specs/2026-10-18-inner-ui/baseline.json
 ```
 
 ## Gates

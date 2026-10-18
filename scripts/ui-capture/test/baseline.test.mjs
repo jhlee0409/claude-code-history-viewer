@@ -1,7 +1,7 @@
 // Baseline freeze aggregation (plan I0): D "before" values from probes.
 
 import { describe, expect, it } from "vitest";
-import { aggregateBefore, scrubPaths } from "../lib/baseline.mjs";
+import { aggregateBefore, replaceProbe, scrubPaths } from "../lib/baseline.mjs";
 
 const scenario = (inner) => ({ inner });
 
@@ -39,5 +39,36 @@ describe("aggregateBefore", () => {
 
   it("scrubs machine roots from examples", () => {
     expect(scrubPaths({ a: ["/Users/me/repo/x", "/Users/me/y"] }, [["/Users/me/repo", "<repo>"], ["/Users/me", "~"]])).toEqual({ a: ["<repo>/x", "~/y"] });
+  });
+
+  it("D20 leftEdges: counts scenarios aligned within ±2px (plan §8 D20)", () => {
+    const left = (delta) => ({ leftEdges: { applicable: true, population: 5, selector: "main", value: { delta, distinctEdges: 3 } } });
+    const d20 = aggregateBefore({ a: scenario(left(0)), b: scenario(left(50)), c: scenario(left(-2)) }).D20.leftEdges.value;
+    expect(d20.titleToContentDeltaPx).toEqual({ a: 0, b: 50, c: -2 });
+    expect(d20.alignedWithin2px).toBe(2);
+  });
+});
+
+describe("replaceProbe (re-freeze one probe's before-values)", () => {
+  const entry = (probe, scenarios, value) => ({ probe, selector: "s", scenarios, population: 1, emptyPopulation: [], value });
+  const frozen = { D1: entry("absPathLeaks", 3, { leaks: 9 }), D20: { cards: entry("cards", 2, { cards: 4 }), leftEdges: entry("leftEdges", 2, { old: true }) } };
+
+  it("replaces only the entries measured by that probe and says where", () => {
+    const fresh = { D1: entry("absPathLeaks", 3, { leaks: 0 }), D20: { cards: entry("cards", 2, { cards: 1 }), leftEdges: entry("leftEdges", 2, { new: true }) } };
+    const { before, replaced } = replaceProbe(frozen, fresh, "leftEdges");
+    expect(replaced).toEqual(["D20.leftEdges"]);
+    expect(before.D20.leftEdges.value).toEqual({ new: true });
+    expect(before.D20.cards.value).toEqual({ cards: 4 }); // untouched
+    expect(before.D1.value).toEqual({ leaks: 9 });
+    expect(frozen.D20.leftEdges.value).toEqual({ old: true }); // input not mutated
+  });
+
+  it("refuses a run that measured the probe on a different number of scenarios", () => {
+    const fresh = { D20: { leftEdges: entry("leftEdges", 1, {}) } };
+    expect(() => replaceProbe(frozen, fresh, "leftEdges")).toThrow(/frozen on 2 scenarios.*measured 1/);
+  });
+
+  it("refuses a probe the frozen baseline does not have", () => {
+    expect(() => replaceProbe(frozen, frozen, "nope")).toThrow(/no frozen entry/);
   });
 });

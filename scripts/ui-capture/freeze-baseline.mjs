@@ -8,6 +8,11 @@
 //     [--motion <--live run dir>] \
 //     --out specs/2026-10-18-inner-ui/baseline.json
 //
+// Re-freeze one probe after a probe fix (the rest stays as frozen):
+//
+//   node scripts/ui-capture/freeze-baseline.mjs --update-probe leftEdges \
+//     --run <run dir> --reason "<why>" --out specs/2026-10-18-inner-ui/baseline.json
+//
 // Writes numbers only from the given runs (never estimates); D metrics no I0
 // probe measures are listed with the task/test that measures them.
 
@@ -16,13 +21,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { aggregateBefore, scrubPaths } from "./lib/baseline.mjs";
+import { aggregateBefore, replaceProbe, scrubPaths } from "./lib/baseline.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
 
 function parseArgs(argv) {
-  const opts = { runs: [], motion: [] };
+  const opts = { runs: [], motion: [], updateProbes: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const next = () => argv[(i += 1)];
     if (argv[i] === "--run") opts.runs.push(path.resolve(next()));
@@ -30,9 +35,12 @@ function parseArgs(argv) {
     else if (argv[i] === "--states") opts.states = path.resolve(next());
     else if (argv[i] === "--motion") opts.motion.push(path.resolve(next()));
     else if (argv[i] === "--out") opts.out = path.resolve(next());
+    else if (argv[i] === "--update-probe") opts.updateProbes.push(next());
+    else if (argv[i] === "--reason") opts.reason = next();
     else throw new Error(`unknown option ${argv[i]}`);
   }
   if (!opts.runs.length || !opts.out) throw new Error("usage: freeze-baseline.mjs --run <dir> [--run <dir>] --repro-report <json> --states <json> [--motion <dir>] --out <file>");
+  if (opts.updateProbes.length && !opts.reason) throw new Error("--update-probe needs --reason (recorded in the baseline)");
   return opts;
 }
 
@@ -69,10 +77,41 @@ const NOT_PROBED = {
   D28: "designTokens guard decoration category (I0b)",
 };
 
+/**
+ * --update-probe: replace only the named probes' before-values (per font
+ * scale of the given runs) in the existing --out baseline, and record the
+ * re-measurement (run, revision, harness, reason) next to them.
+ */
+function updateProbes(opts, runs, roots) {
+  const baseline = readJson(opts.out);
+  baseline.remeasured ??= [];
+  for (const run of runs) {
+    const scale = `${Math.round((run.manifest.variant?.fontScale ?? 1) * 100)}%`;
+    const frozen = baseline.before[scale];
+    if (!frozen) throw new Error(`the baseline has no ${scale} before-values to update`);
+    for (const probe of opts.updateProbes) {
+      const { before, replaced } = replaceProbe(frozen.before, aggregateBefore(run.probes), probe);
+      frozen.before = before;
+      baseline.remeasured.push({
+        probe,
+        fontScale: scale,
+        replaced,
+        run: path.relative(REPO, run.dir),
+        revision: { sha: run.manifest.git.sha, dirty: run.manifest.git.dirty, harnessDigest: run.manifest.harness },
+        reason: opts.reason,
+      });
+      console.log(`▸ ${scale}: re-froze ${replaced.join(", ")} from ${path.relative(REPO, run.dir)}`);
+    }
+  }
+  fs.writeFileSync(opts.out, JSON.stringify(scrubPaths(baseline, roots), null, 2) + "\n");
+  console.log(`▸ wrote ${path.relative(REPO, opts.out)}`);
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   const roots = [[REPO, "<repo>"], [os.homedir(), "~"]];
   const runs = opts.runs.map((dir) => ({ dir, manifest: readJson(path.join(dir, "manifest.json")), probes: readJson(path.join(dir, "probes.json")) }));
+  if (opts.updateProbes.length) return updateProbes(opts, runs, roots);
   const head = runs[0].manifest;
   const byScale = {};
   for (const run of runs) {
