@@ -212,7 +212,7 @@ const STATIC_PROBES = {
   })()`,
   leftEdges: `(() => {
     const main = document.querySelector('[data-slot="main"]') || document.getElementById("main-content");
-    const selector = '[data-slot="main"] text nodes; title = first visible h1/h2/[role=heading]/[data-page-title]; content = ' + CTX.contentColumn + ' below the page header';
+    const selector = '[data-slot="main"] text nodes; title = first visible h1/h2/[role=heading]/[data-page-title]; content column = first text below the page header outside controls: the file name on Edits, else the leftmost (per scenario: contentRule)';
     if (!main) return { population: 0, selector, value: null };
     const nodes = textNodes(main);
     const leftOf = (node) => {
