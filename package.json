@@ -18,6 +18,7 @@
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "pricing:check": "node scripts/check-model-pricing.mjs",
     "ui:capture": "node scripts/ui-capture/run.mjs",
+    "ui:states": "node scripts/ui-capture/states/run.mjs",
     "prepare": "husky"
   },
   "dependencies": {

@@ -22,6 +22,7 @@ import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
+import { populationFailures, runInnerProbes } from "./lib/innerProbes.mjs";
 import { TYPOGRAPHY_PROBE, checkTypography } from "./lib/typography.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { splitByActivation } from "./lib/activation.mjs";
@@ -34,6 +35,9 @@ const OUT_ROOT = path.join(REPO, ".ui-capture");
 const FIXTURE_ROOT = path.join(OUT_ROOT, "fixture");
 
 class UsageError extends Error {}
+
+const INTERACTIVE_INNER_PROBES = ["focusVisible", "motionActivity"];
+const STATIC_INNER_PROBES = ["absPathLeaks", "toolRowMetrics", "wordBreak", "cjkLeading", "leftEdges", "overflowX", "cards", "chromeSelect"];
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -288,7 +292,14 @@ async function captureRun({ app, scenarios, declared, inactive = [], locale, mea
           }
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
+          // Inner-UI probes (plan I0): static ones on the captured view first,
+          // then the scrolling/expanding layout probes, then the ones that
+          // move focus or click (focusVisible, motionActivity).
+          const probeCtx = { screen: scenario.screen.id, locale, mobile: scenario.mobile, theme: scenario.theme, viewport: scenario.viewport.id, live: v.live };
+          const inner = await runInnerProbes(session.page, probeCtx, { only: STATIC_INNER_PROBES });
           const probes = await runProbes(session.page, { live: v.live });
+          Object.assign(inner, await runInnerProbes(session.page, probeCtx, { only: INTERACTIVE_INNER_PROBES }));
+          const emptyPopulations = populationFailures(inner);
           // Undo what the steps wrote to the shared fixture (a favourite),
           // so later scenarios start from the same data.
           for (const step of scenario.screen.cleanup ?? []) {
@@ -320,9 +331,12 @@ async function captureRun({ app, scenarios, declared, inactive = [], locale, mea
             variant: v,
             ...probes,
             typography,
+            inner,
           });
           if (stateProblems.length) throw new Error(`measurement state: ${stateProblems.join("; ")}`);
           if (enforceTypography && typography.problems.length) throw new Error(`typography: ${typography.problems.join("; ")}`);
+          // An applicable probe that judged nothing proves nothing (plan I0).
+          if (enforceTypography && emptyPopulations.length) throw new Error(`probes: ${emptyPopulations.join("; ")}`);
           result.ok = true;
           result.readyMarker = settled.readyMarker;
         } catch (error) {
