@@ -101,3 +101,16 @@ describe("scale scenarios", () => {
     }
   });
 });
+
+describe("browser text size (--font-scale, plan I0)", () => {
+  it("expects every step at base × root scale while the app's own scale stays 1", () => {
+    const typography = sample({ steps: stepsAt(1.25), used: { list: [16.25] } });
+    expect(checkTypography(typography, { locale: "ko", scalePercent: 100, rootScale: 1.25, minFontPx: 15 })).toEqual([]);
+  });
+
+  it("still fails a step that did not follow the root size", () => {
+    const typography = sample({ steps: stepsAt(1.25, { list: { fontSize: 13, lineHeight: "18px" } }) });
+    const problems = checkTypography(typography, { locale: "ko", scalePercent: 100, rootScale: 1.25, minFontPx: 15 });
+    expect(problems.some((p) => p.startsWith("step list 13px, expected 16.25px"))).toBe(true);
+  });
+});

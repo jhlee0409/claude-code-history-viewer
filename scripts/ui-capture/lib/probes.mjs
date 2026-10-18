@@ -206,8 +206,10 @@ export function checkMeasurementState(measured, expected, { mobile }) {
   }
   // The font-size setting scales the type tokens through --app-font-scale;
   // the root font size stays the browser default at every scale.
-  if (measured.rootFontSize !== 16) {
-    problems.push(`root font size ${measured.rootFontSize}px, expected 16px`);
+  // 16px unless the --font-scale variant sets the browser text size.
+  const rootFontSizePx = expected.rootFontSizePx ?? 16;
+  if (measured.rootFontSize !== rootFontSizePx) {
+    problems.push(`root font size ${measured.rootFontSize}px, expected ${rootFontSizePx}px`);
   }
   if (measured.tabs !== undefined && measured.tabs !== null && expected.tabs !== undefined && measured.tabs !== expected.tabs) {
     problems.push(`${measured.tabs} tabs open, expected ${expected.tabs}`);
@@ -232,28 +234,30 @@ async function sampleFonts(page, accumulator) {
 }
 
 /** Let React, rAF and timer work catch up (page timers run on the paused clock). */
-async function letPageWork(page) {
+async function letPageWork(page, live) {
   await sleep(30);
-  await page.clock.runFor(50);
+  // Live mode (--live) runs on the real clock: nothing to advance.
+  if (live) await sleep(50);
+  else await page.clock.runFor(50);
   await sleep(30);
 }
 
 /** Sample, then open what is collapsed in view and sample the opened content. */
-async function sampleWithExpanded(page, fonts, expandCollapsed) {
+async function sampleWithExpanded(page, fonts, expandCollapsed, live) {
   await sampleFonts(page, fonts);
   if (!expandCollapsed) return;
   const opened = await page.evaluate(EXPAND_COLLAPSED);
   if (opened === 0) return;
   fonts.expandedControls += opened;
   fonts.expandedPositions += 1;
-  await letPageWork(page);
+  await letPageWork(page, live);
   await sampleFonts(page, fonts);
 }
 
-export async function runProbes(page, { maxPositionsPerContainer = 16, expandCollapsed = true } = {}) {
+export async function runProbes(page, { maxPositionsPerContainer = 16, expandCollapsed = true, live = false } = {}) {
   const layout = await page.evaluate(LAYOUT_PROBE);
   const fonts = { min: null, minAt: null, samples: 0, positions: 0, expandedControls: 0, expandedPositions: 0 };
-  await sampleWithExpanded(page, fonts, expandCollapsed);
+  await sampleWithExpanded(page, fonts, expandCollapsed, live);
 
   const containers = await page.evaluate(SCROLLABLES);
   for (let index = 0; index < containers.length; index += 1) {
@@ -269,7 +273,7 @@ export async function runProbes(page, { maxPositionsPerContainer = 16, expandCol
       // Let the virtualizer react: scroll events and React work run in real
       // time, rAF/timer work needs the paused clock to move.
       await letPageWork(page);
-      await sampleWithExpanded(page, fonts, expandCollapsed);
+      await sampleWithExpanded(page, fonts, expandCollapsed, live);
     }
     await page.evaluate((i) => {
       const element = window.__uiCaptureScrollables[i];

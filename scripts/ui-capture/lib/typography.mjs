@@ -94,13 +94,17 @@ const round2 = (n) => Math.round(n * 100) / 100;
  * Problems of one capture's typography against the expected locale and font
  * scale. `minFontPx` is the min-font probe (null when nothing was sampled).
  */
-export function checkTypography(typography, { locale, scalePercent, minFontPx }) {
+export function checkTypography(typography, { locale, scalePercent, minFontPx, rootScale = 1 }) {
   const problems = [];
   if (!typography) return ["no typography probe recorded"];
-  const scale = scalePercent / 100;
+  // `scalePercent`: the app's own font setting (--app-font-scale);
+  // `rootScale`: the browser/OS text size (--font-scale variant, root font
+  // size). The rem-based steps scale with both.
+  const appScale = scalePercent / 100;
+  const scale = appScale * rootScale;
   if (typography.lang !== locale) problems.push(`html[lang] "${typography.lang}", expected "${locale}"`);
-  if (typography.appFontScale === null || Math.abs(typography.appFontScale - scale) > 1e-6) {
-    problems.push(`--app-font-scale ${typography.appFontScale}, expected ${scale}`);
+  if (typography.appFontScale === null || Math.abs(typography.appFontScale - appScale) > 1e-6) {
+    problems.push(`--app-font-scale ${typography.appFontScale}, expected ${appScale}`);
   }
   for (const [step, base] of Object.entries(TYPE_STEPS)) {
     const expected = round2(base * scale);
@@ -126,8 +130,8 @@ export function checkTypography(typography, { locale, scalePercent, minFontPx })
   }
   if (typeof minFontPx === "number") {
     // D9: >= 12px at 100 %; scaled runs get the same ±0.5px as the steps.
-    const floor = scalePercent === 100 ? MIN_FONT_PX : round2(MIN_FONT_PX * scale) - SIZE_TOLERANCE_PX;
-    if (minFontPx < floor) problems.push(`min font ${minFontPx}px < ${floor}px at ${scalePercent}%`);
+    const floor = scale === 1 ? MIN_FONT_PX : round2(MIN_FONT_PX * scale) - SIZE_TOLERANCE_PX;
+    if (minFontPx < floor) problems.push(`min font ${minFontPx}px < ${floor}px at ${round2(scale * 100)}%`);
   }
   return problems;
 }

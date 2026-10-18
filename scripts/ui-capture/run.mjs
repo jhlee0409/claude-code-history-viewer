@@ -24,6 +24,8 @@ import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
 import { TYPOGRAPHY_PROBE, checkTypography } from "./lib/typography.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
+import { splitByActivation } from "./lib/activation.mjs";
+import { VariantError, effectiveVariant, normalizeVariant, parseViewport, variantTag } from "./lib/variant.mjs";
 import { startServer } from "./lib/server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -51,11 +53,22 @@ const HELP = `usage: pnpm ui:capture [options]
   --locale <code>         ${SUPPORTED_LOCALES.join(" | ")} (default: scenario file DEFAULT_LOCALE)
   --out <dir>             run directory (default .ui-capture/runs/<timestamp>-<sha>)
   --no-build              reuse .ui-capture/build/{dist,cchv-server} instead of building
+
+  Variants (plan I0; recorded in the manifest, part of the base cache key):
+  --forced-colors <m>     none | active   (Playwright forcedColors)
+  --contrast <m>          no-preference | more
+  --motion <m>            reduce (default) | full   (prefers-reduced-motion)
+  --font-scale <f>        root font size factor, e.g. 1.25 (browser/OS text size)
+  --timezone <zone>       IANA zone for the browser (default Asia/Seoul)
+  --viewport <WxH>        capture the selected screens at this size instead
+  --inspector <s>         open | closed: the stored inspector state
+  --live                  live interaction mode: real clock, CSS motion not
+                          suppressed (motion tests); never for pixel gates
   --help
 `;
 
 function parseArgs(argv) {
-  const opts = { build: true, approve: false, repro: false, only: [] };
+  const opts = { build: true, approve: false, repro: false, only: [], variant: {} };
   const value = (i, flag) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${flag} needs a value`);
@@ -75,6 +88,14 @@ function parseArgs(argv) {
       case "--locale": opts.locale = value(i, arg); i += 1; break;
       case "--out": opts.out = path.resolve(value(i, arg)); i += 1; break;
       case "--no-build": opts.build = false; break;
+      case "--forced-colors": opts.variant.forcedColors = value(i, arg); i += 1; break;
+      case "--contrast": opts.variant.contrast = value(i, arg); i += 1; break;
+      case "--motion": opts.variant.motion = value(i, arg); i += 1; break;
+      case "--font-scale": opts.variant.fontScale = Number(value(i, arg)); i += 1; break;
+      case "--timezone": opts.variant.timezone = value(i, arg); i += 1; break;
+      case "--viewport": opts.variant.viewport = value(i, arg); i += 1; break;
+      case "--inspector": opts.variant.inspector = value(i, arg); i += 1; break;
+      case "--live": opts.variant.live = true; break;
       case "--help": case "-h": opts.help = true; break;
       default: throw new UsageError(`unknown option ${arg}`);
     }
@@ -83,6 +104,13 @@ function parseArgs(argv) {
   if (opts.gate && !opts.base) throw new UsageError("--gate needs --base (or use --repro)");
   if (opts.repro && opts.base) throw new UsageError("--repro and --base are exclusive");
   if (opts.locale && !SUPPORTED_LOCALES.includes(opts.locale)) throw new UsageError(`--locale must be one of ${SUPPORTED_LOCALES.join(", ")}`);
+  try {
+    normalizeVariant(opts.variant);
+  } catch (error) {
+    if (error instanceof VariantError) throw new UsageError(error.message);
+    throw error;
+  }
+  if (opts.variant.live && (opts.repro || opts.base)) throw new UsageError("--live is for interaction tests; it cannot feed a pixel gate (--repro / --base)");
   opts.approved ??= path.join(OUT_ROOT, "approved");
   return opts;
 }
@@ -122,17 +150,42 @@ function runId(state) {
 
 async function loadScenarios(file) {
   const module = await import(pathToFileURL(file ?? path.join(HERE, "scenarios.mjs")).href);
-  const all = module.expandScenarios(module.MATRIX);
+  const expanded = module.expandScenarios(module.MATRIX);
   const ids = new Set();
-  for (const scenario of all) {
+  for (const scenario of expanded) {
     if (ids.has(scenario.id)) throw new UsageError(`duplicate scenario id ${scenario.id}`);
     ids.add(scenario.id);
   }
+  // Later-active scenarios (plan I0 (b)): declared with the task that turns
+  // them on; never run, never part of a gate, always listed in the manifest.
+  const { active: all, inactive } = splitByActivation(expanded);
   return {
     all,
+    inactive,
     defaultLocale: module.DEFAULT_LOCALE ?? "ko",
-    measurement: { state: module.MEASUREMENT_STATE ?? null, storageSeed: module.STORAGE_SEED ?? {} },
+    measurement: {
+      state: module.MEASUREMENT_STATE ?? null,
+      storageSeed: module.STORAGE_SEED ?? {},
+      // --inspector open|closed seeds the stored inspector through the
+      // scenario file's own helper.
+      inspectorStorage: module.inspectorStorage ?? null,
+    },
   };
+}
+
+/** `--viewport`: the selected screens at one size (ids follow the new size). */
+function applyViewportVariant(scenarios, viewport) {
+  if (!viewport) return scenarios;
+  const vp = typeof viewport === "string" ? parseViewport(viewport) : viewport;
+  const seen = new Set();
+  const out = [];
+  for (const scenario of scenarios) {
+    const id = `${scenario.screen.id}--${vp.id}--${scenario.theme}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ ...scenario, id, viewport: vp, mobile: vp.width < 768 });
+  }
+  return out;
 }
 
 const writeJson = (file, data) => {
@@ -173,7 +226,7 @@ function prepareArtifacts({ appDir, buildDir, build }) {
  * order, body line height, steps × scale, min font). On for this checkout's
  * captures; off for a --base capture, which is the "before" being compared.
  */
-async function captureRun({ app, scenarios, declared, locale, measurement, runDir, label, checkTypography: enforceTypography = true }) {
+async function captureRun({ app, scenarios, declared, inactive = [], locale, measurement, runDir, label, variant = {}, checkTypography: enforceTypography = true }) {
   const shotsDir = path.join(runDir, "shots");
   const probesDir = path.join(runDir, "probes");
   const logsDir = path.join(runDir, "logs");
@@ -215,13 +268,16 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
         results.push(result);
         let session;
         try {
+          const v = effectiveVariant(variant, scenario.screen.variant);
+          const inspectorSeed = v.inspector && measurement.inspectorStorage ? measurement.inspectorStorage({ open: v.inspector === "open" }) : {};
           session = await newScenarioPage(browser, {
             scenario,
             origin: server.origin,
             locale,
             fixedNow: fixture.fixedNow,
             injections: scenario.screen.inject,
-            storageSeed: { ...measurement.storageSeed, ...(scenario.screen.storage ?? {}) },
+            storageSeed: { ...measurement.storageSeed, ...(scenario.screen.storage ?? {}), ...inspectorSeed },
+            variant: v,
           });
           await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
           const mode = scenario.screen.settle ?? "ready";
@@ -232,7 +288,7 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           }
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
-          const probes = await runProbes(session.page);
+          const probes = await runProbes(session.page, { live: v.live });
           // Undo what the steps wrote to the shared fixture (a favourite),
           // so later scenarios start from the same data.
           for (const step of scenario.screen.cleanup ?? []) {
@@ -242,7 +298,8 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
             ...measurement.state,
             fontScalePercent: scenario.screen.fontScalePercent ?? measurement.state.fontScalePercent,
             tabs: scenario.screen.tabs ?? measurement.state.tabs,
-            inspectorOpen: scenario.screen.inspectorOpen ?? measurement.state.inspectorOpen,
+            inspectorOpen: v.inspector ? v.inspector === "open" : (scenario.screen.inspectorOpen ?? measurement.state.inspectorOpen),
+            rootFontSizePx: 16 * v.fontScale,
           };
           const stateProblems = expectedState
             ? checkMeasurementState(probes.measurementState, expectedState, { mobile: scenario.mobile })
@@ -251,6 +308,7 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           typography.problems = checkTypography(typography, {
             locale,
             scalePercent: expectedState?.fontScalePercent ?? 100,
+            rootScale: v.fontScale, // browser/OS text size (--font-scale)
             minFontPx: probes.minFontSize.px,
           });
           writeJson(path.join(probesDir, `${scenario.id}.json`), {
@@ -259,6 +317,7 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
             viewport: { width: scenario.viewport.width, height: scenario.viewport.height, deviceScaleFactor: 2 },
             theme: scenario.theme,
             locale,
+            variant: v,
             ...probes,
             typography,
           });
@@ -322,7 +381,10 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
     },
     versions: { node: process.version, playwright: playwrightVersion(), webkit: browserVersion },
     server: { args: serverArgs },
+    variant: normalizeVariant(variant),
     declared,
+    // Later-active scenarios (plan I0 (b)): not run, owner task named.
+    inactive,
     scenarios: results,
     durationMs: Date.now() - started,
   });
@@ -357,7 +419,7 @@ function locateShots(dir) {
 }
 
 /** A directory of PNGs (or a run dir) is used as-is; anything else is a git ref. */
-async function resolveBase({ base, scenarios, declared, locale, measurement, build }) {
+async function resolveBase({ base, scenarios, declared, locale, measurement, build, variant = {} }) {
   if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
     const dir = path.resolve(base);
     const { shotsDir, manifest } = locateShots(dir);
@@ -373,7 +435,8 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
   } catch {
     throw new UsageError(`--base ${base}: neither a directory nor a git ref`);
   }
-  const key = `${sha.slice(0, 12)}-${locale}-${harnessDigest()}`;
+  const tag = variantTag(variant);
+  const key = `${sha.slice(0, 12)}-${locale}-${harnessDigest()}${tag ? `-${tag}` : ""}`;
   const cacheDir = path.join(OUT_ROOT, "baselines", key);
   const cached = path.join(cacheDir, "manifest.json");
   if (fs.existsSync(cached)) {
@@ -403,6 +466,7 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
       declared,
       locale,
       measurement,
+      variant,
       runDir: cacheDir,
       label: `base ${sha.slice(0, 12)}`,
       checkTypography: false,
@@ -479,9 +543,15 @@ async function main() {
     return 0;
   }
 
-  const { all, defaultLocale, measurement } = await loadScenarios(opts.scenarios);
+  const loaded = await loadScenarios(opts.scenarios);
+  const { defaultLocale, measurement, inactive } = loaded;
+  const all = applyViewportVariant(loaded.all, opts.variant.viewport);
   const declared = all.map((s) => s.id);
   const scenarios = opts.only.length ? all.filter((s) => opts.only.some((o) => s.id.includes(o))) : all;
+  if (inactive.length) {
+    const owners = [...new Set(inactive.map((s) => s.activatesWith))].sort();
+    console.log(`▸ ${inactive.length} later-active scenario(s) not run (inactive until ${owners.join(", ")}); listed in manifest.json → inactive`);
+  }
   if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
   const locale = opts.locale ?? defaultLocale;
   acquireLock();
@@ -494,7 +564,8 @@ async function main() {
   }
 
   const state = gitState();
-  const id = runId(state);
+  const tag = variantTag(opts.variant);
+  const id = `${runId(state)}${tag ? `-${tag}` : ""}`;
   const runDir = opts.out ?? path.join(OUT_ROOT, "runs", id);
   const head = prepareArtifacts({ appDir: REPO, buildDir: path.join(OUT_ROOT, "build"), build: opts.build });
 
@@ -502,15 +573,15 @@ async function main() {
   let comparison = null;
 
   if (opts.repro) {
-    const first = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
-    const second = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
+    const first = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
+    const second = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
     failures.push(...first.failures.map((f) => `run 1 ${f}`), ...second.failures.map((f) => `run 2 ${f}`));
     comparison = { gate: "reproducibility", baseLabel: first.runDir, headLabel: second.runDir, baseDir: first.shotsDir, headDir: second.shotsDir };
   } else {
-    const run = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir, label: "head" });
+    const run = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir, label: "head" });
     failures.push(...run.failures);
     if (opts.base) {
-      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, build: opts.build });
+      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, build: opts.build, variant: opts.variant });
       failures.push(...base.failures);
       comparison = { gate: opts.gate ?? "reproducibility", baseLabel: base.label, headLabel: run.runDir, baseDir: base.shotsDir, headDir: run.shotsDir };
     }
