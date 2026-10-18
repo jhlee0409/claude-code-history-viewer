@@ -85,8 +85,9 @@ export const PROBE_APPLICABILITY = {
   leftEdges: ({ screen, mobile }) => !mobile && startsWithAny(screen, WORK_SCREENS),
   overflowX: () => true,
   cards: ({ screen }) => startsWithAny(screen, WORK_SCREENS),
-  // Not with a modal open (palette, gear menu): the rest of the app is inert.
-  chromeSelect: ({ mobile, screen }) => !mobile && !screen.startsWith("palette") && screen !== "gear",
+  // Not with a modal open (palette, gear menu): the rest of the app is inert;
+  // not on the terminal error screen, which replaces the app and its chrome.
+  chromeSelect: ({ mobile, screen }) => !mobile && !screen.startsWith("palette") && screen !== "gear" && screen !== "error",
   focusVisible: ({ screen, mobile, theme, viewport }) => FOCUS_SCREENS.has(screen) && !mobile && theme === "dark" && viewport === "1440x900",
   motionActivity: ({ live }) => live,
 };
