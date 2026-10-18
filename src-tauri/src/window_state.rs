@@ -539,7 +539,8 @@ fn temp_path(path: &Path) -> PathBuf {
 /// with `REPLACE_IF_EXISTS` (std `sys/fs/windows.rs`, `rename`) — so the
 /// first attempt is that one atomic replace, with no moment in which neither
 /// file exists. Only if it fails on Windows (a target that cannot be replaced
-/// in place) is the CLAUDE.md remove-the-target-first step used as a retry.
+/// in place) is the target moved aside and the rename retried
+/// (`replace_keeping_previous`), never deleted first.
 pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     let json = serde_json::to_vec_pretty(record).map_err(|e| format!("not serialized: {e}"))?;
     if let Some(dir) = path.parent() {
@@ -549,18 +550,45 @@ pub fn save(path: &Path, record: &SavedWindow) -> Result<(), String> {
     crate::commands::fs_utils::write_fresh_temp_file(&temp, &json)?;
     let renamed = fs::rename(&temp, path);
     // Windows fallback (CLAUDE.md rule): a target that cannot be replaced in
-    // place (read-only attribute, opened without FILE_SHARE_DELETE) is removed
-    // and the rename retried. Only on failure, so the usual path stays one
-    // atomic replace.
+    // place (read-only attribute, opened without FILE_SHARE_DELETE) is moved
+    // aside and the rename retried. Only on failure, so the usual path stays
+    // one atomic replace.
     #[cfg(windows)]
-    let renamed = renamed.or_else(|_| {
-        let _ = fs::remove_file(path);
-        fs::rename(&temp, path)
-    });
+    let renamed = renamed.or_else(|_| replace_keeping_previous(&temp, path));
     renamed.map_err(|e| {
         let _ = fs::remove_file(&temp);
         format!("{} not replaced: {e}", path.display())
     })
+}
+
+/// Replaces `path` with `temp` without ever deleting the previous file first:
+/// it is renamed to a backup, `temp` takes its place, the backup is dropped.
+/// If `temp` cannot take its place, the backup is put back, so a failed save
+/// never loses the window's previous state.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn replace_keeping_previous(temp: &Path, path: &Path) -> std::io::Result<()> {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    let backup = path.with_file_name(name);
+    let had_previous = path.exists();
+    if had_previous {
+        let _ = fs::remove_file(&backup);
+        fs::rename(path, &backup)?;
+    }
+    match fs::rename(temp, path) {
+        Ok(()) => {
+            if had_previous {
+                let _ = fs::remove_file(&backup);
+            }
+            Ok(())
+        }
+        Err(error) => {
+            if had_previous {
+                let _ = fs::rename(&backup, path);
+            }
+            Err(error)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1588,6 +1616,39 @@ mod record_tests {
         assert_eq!(
             parse(&serde_json::to_vec(&record()).unwrap()),
             Some(record())
+        );
+    }
+
+    /// The Windows fallback moves the old file aside, never deletes it first:
+    /// a retry that fails puts it back (a PR 679 review comment).
+    #[test]
+    fn the_replace_fallback_keeps_the_previous_file_when_the_retry_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        fs::write(&path, b"previous").unwrap();
+        let missing_temp = dir.path().join("gone.tmp"); // the retry cannot succeed
+        assert!(replace_keeping_previous(&missing_temp, &path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"previous");
+        assert_eq!(
+            fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "no backup left"
+        );
+    }
+
+    #[test]
+    fn the_replace_fallback_replaces_and_drops_the_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        fs::write(&path, b"previous").unwrap();
+        let temp = temp_path(&path);
+        fs::write(&temp, b"next").unwrap();
+        replace_keeping_previous(&temp, &path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"next");
+        assert_eq!(
+            fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "no temp or backup left"
         );
     }
 }
