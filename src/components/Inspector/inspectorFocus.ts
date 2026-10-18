@@ -18,13 +18,13 @@ export const INSPECTOR_TOGGLE_ID = "inspector-toggle";
 
 const inspectorElement = () => document.getElementById(INSPECTOR_ID);
 
-export function inspectorHasFocus(): boolean {
+function inspectorHasFocus(): boolean {
   const panel = inspectorElement();
   return panel != null && panel.contains(document.activeElement);
 }
 
 /** Focus the selected tab once the panel has rendered. */
-export function focusInspectorTab(): void {
+function focusInspectorTab(): void {
   requestAnimationFrame(() => {
     inspectorElement()
       ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')

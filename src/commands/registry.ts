@@ -281,7 +281,7 @@ const BY_ID: ReadonlyMap<string, AppCommand> = new Map(COMMANDS.map((command) =>
 
 export const getCommand = (id: string): AppCommand | undefined => BY_ID.get(id);
 
-export const isCommandAvailable = (command: AppCommand, ctx: CommandContext): boolean =>
+const isCommandAvailable = (command: AppCommand, ctx: CommandContext): boolean =>
   command.available?.(ctx) ?? true;
 
 export const isCommandEnabled = (command: AppCommand, ctx: CommandContext): boolean =>

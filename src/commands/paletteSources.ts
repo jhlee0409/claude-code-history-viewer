@@ -30,7 +30,7 @@ export const MIN_MESSAGE_QUERY = 2;
 const providerOf = (p: { provider?: string | null }): string => p.provider ?? "claude";
 
 /** The query's words, lowercased. */
-export function queryWords(query: string): string[] {
+function queryWords(query: string): string[] {
   return query
     .trim()
     .split(/\s+/)

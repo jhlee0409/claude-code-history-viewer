@@ -49,7 +49,7 @@ export interface WorkContext {
 }
 
 /** Whether the open project / session is still the one `context` names. */
-export function inContext(get: Get, context: WorkContext): () => boolean {
+function inContext(get: Get, context: WorkContext): () => boolean {
   return () => {
     const { selectedProject, selectedSession } = get();
     return (
