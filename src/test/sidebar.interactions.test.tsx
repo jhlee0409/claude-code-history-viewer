@@ -3,8 +3,10 @@
  * the real `ProjectTree` and the real store.
  *
  * - The open project's sessions are listed inside the sidebar.
- * - Click, touch tap, Enter and ⌘/Ctrl+click open a session (⌘+click opens
- *   in the current tab until T8 adds tabs).
+ * - Click, touch tap, Enter and ⌘/Ctrl+click open a session. With no
+ *   new-tab opener mounted (`OpenSessionInNewTabContext`), ⌘/Ctrl+click opens
+ *   it in this tab; the real shell opens it in a new tab
+ *   (`reachability.shell.test.tsx`).
  * - Shift+click and the "Select" button enter the existing multi-select
  *   mode; further clicks toggle rows; the batch bar offers its actions.
  * - The row menu (right-click or the ContextMenu key) stars a session.
@@ -112,7 +114,7 @@ describe("sidebar sessions (plan T7)", () => {
     for (const n of [1, 2, 3]) expect(sessionRow(n)).toBeTruthy();
   });
 
-  it("click, touch tap, Enter and ⌘/Ctrl+click open a session (in this tab before T8)", () => {
+  it("click, touch tap, Enter and ⌘/Ctrl+click open a session (in this tab: no new-tab opener mounted)", () => {
     const { onSessionSelect } = renderSidebar();
 
     // Each row passes the project it is listed under (T7 re-review F2).

@@ -14,7 +14,7 @@
  * - a per-document load failing (session list, screens, find): never the
  *   app's error screen, and the other tabs stay usable;
  * - the tab cap and the last tab;
- * - a corrupted `tabs.v1`.
+ * - a corrupted `tabs.v2`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
@@ -267,7 +267,7 @@ const setEveryResetField = (uuid: string) => {
   });
 };
 
-/** Tabs as `tabs.v1` would hold them, loaded into the store as at startup. */
+/** Tabs as `tabs.v2` would hold them, loaded into the store as at startup. */
 function startWithStoredTabs(documents: TabDocument[], activeIdStored: string) {
   localStorage.setItem(TABS_STORAGE_KEY, serializeTabs({ documents, activeId: activeIdStored }));
   useAppStore.setState(initialDocumentState());
@@ -1159,7 +1159,7 @@ describe("restoring tabs at startup", () => {
     expect(state().error).toBeNull();
   });
 
-  it("a corrupted tabs.v1 starts with one empty tab and says so once", () => {
+  it("a corrupted tabs.v2 starts with one empty tab and says so once", () => {
     localStorage.setItem(TABS_STORAGE_KEY, "{not json");
     useAppStore.setState(initialDocumentState());
     expect(state().documents).toHaveLength(1);
