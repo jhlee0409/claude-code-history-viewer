@@ -36,7 +36,7 @@
   "recentEdits.restorePreviewIdentical": "磁盘上的文件已与此版本相同，恢复不会有任何更改。",
   "recentEdits.restorePreviewLoading": "正在读取磁盘上的文件...",
   "recentEdits.restorePreviewUnreadable": "无法读取磁盘上的文件，因此无法预览更改。恢复仍会覆盖该文件。",
-  "recentEdits.restoreUnavailable": "无法恢复：此编辑仅记录为补丁或部分更改，而非完整文件。",
+  "recentEdits.restoreUnavailable": "无法恢复：未记录此编辑的完整文件内容。",
   "recentEdits.revealError": "无法显示文件",
   "recentEdits.revealInExplorer": "在资源管理器中显示",
   "recentEdits.revealInFinder": "在访达中显示",

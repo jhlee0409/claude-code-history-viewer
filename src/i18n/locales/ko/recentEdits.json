@@ -36,7 +36,7 @@
   "recentEdits.restorePreviewIdentical": "디스크의 파일이 이미 이 버전과 같습니다. 복원해도 변경되지 않습니다.",
   "recentEdits.restorePreviewLoading": "디스크의 파일을 읽는 중...",
   "recentEdits.restorePreviewUnreadable": "디스크의 파일을 읽을 수 없어 변경 내용을 미리 볼 수 없습니다. 복원하면 파일을 덮어씁니다.",
-  "recentEdits.restoreUnavailable": "복원할 수 없습니다. 이 편집은 파일 전체가 아니라 패치나 일부 변경으로만 기록되어 있습니다.",
+  "recentEdits.restoreUnavailable": "복원할 수 없습니다. 이 편집의 파일 전체 내용이 기록되지 않았습니다.",
   "recentEdits.revealError": "파일을 열 수 없습니다",
   "recentEdits.revealInExplorer": "탐색기에서 보기",
   "recentEdits.revealInFinder": "Finder에서 보기",

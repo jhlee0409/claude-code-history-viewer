@@ -78,8 +78,8 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
   const actions = useFileEditActions(edit, { onRestored, restoreScope });
-  // Kept visible but disabled when the row is not a whole file, so the tooltip
-  // can say why Restore is unavailable.
+  // Kept visible, and focusable, when the row is not a whole file, so the
+  // tooltip and screen readers can say why Restore is unavailable.
   const restoreLabel = actions.canRestore
     ? t("recentEdits.restoreFile")
     : t("recentEdits.restoreUnavailable");
@@ -386,9 +386,14 @@ const RestoreButton: React.FC<{
   <button
     type="button"
     onClick={() => {
+      if (!actions.canRestore) return;
       if (actions.restoreStatus === "idle") actions.requestRestore();
     }}
-    disabled={!actions.canRestore || actions.restoreStatus === "loading"}
+    // `aria-disabled` rather than `disabled` when unavailable: a natively
+    // disabled button leaves the tab order, hiding the reason from keyboard and
+    // screen-reader users. Only the in-flight restore is natively disabled.
+    aria-disabled={!actions.canRestore || undefined}
+    disabled={actions.canRestore && actions.restoreStatus === "loading"}
     className={cn(
       "rounded p-0.5 transition-colors",
       !actions.canRestore

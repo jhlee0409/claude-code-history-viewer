@@ -74,8 +74,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     cancelRestore,
   } = useFileEditActions(edit, { onRestored, restoreScope });
 
-  // A row that is not a whole file keeps its Restore button, disabled, so the
-  // tooltip can say why instead of the action silently vanishing.
+  // A row that is not a whole file keeps its Restore button, aria-disabled but
+  // still focusable, so the tooltip and screen readers can say why instead of
+  // the action silently vanishing.
   const restoreLabel = canRestore
     ? t("recentEdits.restoreFile")
     : t("recentEdits.restoreUnavailable");
@@ -342,11 +343,17 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!canRestore) return;
               if (restoreStatus === "idle") {
                 requestRestore();
               }
             }}
-            disabled={!canRestore || restoreStatus === "loading"}
+            // `aria-disabled` rather than `disabled` when unavailable: a natively
+            // disabled button leaves the tab order, hiding the reason from
+            // keyboard and screen-reader users. Only the in-flight restore is
+            // natively disabled.
+            aria-disabled={!canRestore || undefined}
+            disabled={canRestore && restoreStatus === "loading"}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
               !canRestore
