@@ -1,0 +1,154 @@
+{
+  "requests": [
+    {
+      "scope": {
+        "kind": "project",
+        "project_path": "/Users/dev/.claude/projects/-Users-dev-app",
+        "provider": "claude"
+      },
+      "stats_mode": "billing_total",
+      "intervals": [
+        { "key": "2026-10-17", "start_utc": 1792175400000, "end_utc": 1792261800000 },
+        { "key": "2026-10-18", "start_utc": 1792261800000, "end_utc": 1792348200000 }
+      ]
+    },
+    {
+      "scope": {
+        "kind": "all",
+        "providers": ["claude", "codex"],
+        "claude_path": "/Users/dev/.claude",
+        "custom_claude_paths": [
+          { "path": "/Volumes/work/.claude", "label": "Work" },
+          { "path": "/Users/dev/.claude-alt", "label": "Alt" }
+        ]
+      },
+      "stats_mode": "conversation_only",
+      "intervals": [
+        { "key": "2011-12-30", "start_utc": 1325239200000, "end_utc": 1325239200000 }
+      ]
+    }
+  ],
+  "response": {
+    "intervals": [
+      {
+        "key": "2026-10-17",
+        "models": [
+          {
+            "pricing_source": "source",
+            "stats": {
+              "provider_id": "claude",
+              "model_name": "claude-sonnet-4-5-20250929",
+              "service_tier": "fast",
+              "message_count": 1,
+              "token_count": 1000000,
+              "input_tokens": 1000000,
+              "output_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_read_tokens": 0,
+              "reasoning_tokens": 0,
+              "cost_usd": 1.0,
+              "context_breakdown": [
+                {
+                  "min_context_tokens": 0,
+                  "token_count": 1000000,
+                  "input_tokens": 1000000,
+                  "output_tokens": 0,
+                  "cache_creation_tokens": 0,
+                  "cache_creation_tokens_5m": 0,
+                  "cache_creation_tokens_1h": 0,
+                  "cache_read_tokens": 0,
+                  "reasoning_tokens": 0
+                }
+              ]
+            }
+          },
+          {
+            "pricing_source": "estimate",
+            "stats": {
+              "provider_id": "claude",
+              "model_name": "claude-sonnet-4-5-20250929",
+              "message_count": 2,
+              "token_count": 1300,
+              "input_tokens": 1000,
+              "output_tokens": 200,
+              "cache_creation_tokens": 60,
+              "cache_read_tokens": 30,
+              "reasoning_tokens": 10,
+              "context_breakdown": [
+                {
+                  "min_context_tokens": 0,
+                  "token_count": 1300,
+                  "input_tokens": 1000,
+                  "output_tokens": 200,
+                  "cache_creation_tokens": 60,
+                  "cache_creation_tokens_5m": 40,
+                  "cache_creation_tokens_1h": 20,
+                  "cache_read_tokens": 30,
+                  "reasoning_tokens": 10
+                }
+              ]
+            }
+          }
+        ],
+        "message_count": 3,
+        "session_count": 1
+      },
+      {
+        "key": "2026-10-18",
+        "models": [],
+        "message_count": 0,
+        "session_count": 0
+      }
+    ],
+    "sessions": [
+      {
+        "ref": {
+          "provider": "claude",
+          "file_path": "/Users/dev/.claude/projects/-Users-dev-app/s1.jsonl",
+          "session_id": "s1",
+          "project_path": "/Users/dev/.claude/projects/-Users-dev-app"
+        },
+        "title": "Fix the release script",
+        "models": [],
+        "first_ts": 1792200000000,
+        "last_ts": 1792200600000,
+        "message_count": 3
+      },
+      {
+        "ref": {
+          "provider": "codex",
+          "file_path": "codex:///Users/dev/.codex/sessions/rollout-1.jsonl",
+          "session_id": "rollout-1",
+          "project_path": "codex:///Users/dev/app"
+        },
+        "title": null,
+        "models": [],
+        "first_ts": 1792201000000,
+        "last_ts": 1792201000000,
+        "message_count": 1
+      }
+    ],
+    "coverage": {
+      "providers": [
+        {
+          "id": "claude",
+          "status": "scanned",
+          "sessions_scanned": 1,
+          "sessions_failed": 0,
+          "sidechain_metadata": true,
+          "source_cost": "some"
+        },
+        {
+          "id": "codex",
+          "status": "partial",
+          "sessions_scanned": 3,
+          "sessions_failed": 1,
+          "sidechain_metadata": false,
+          "source_cost": "none"
+        }
+      ],
+      "undated_rows": 2,
+      "unknown_model_tokens": 40
+    }
+  }
+}
