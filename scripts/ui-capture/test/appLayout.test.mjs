@@ -186,10 +186,35 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
         }
         return null;
       });
+      // The virtualizer renders a scroll position a frame or more later, so
+      // the rows in the DOM right after a scroll can belong to an earlier
+      // position (on a Mac about 4 checks in 10 were). Checking those, the
+      // scan could step past the divider; on the slower Linux runner it did,
+      // and then sat at the fully loaded top until it gave up. Each check
+      // waits until the rendered rows cover the viewport: consecutive
+      // viewports overlap, so no row can be skipped.
+      const rowsCoverViewport = () =>
+        viewport.evaluate((vp) => {
+          const box = vp.getBoundingClientRect();
+          const rows = [...vp.querySelectorAll("[data-index]")].map((row) => row.getBoundingClientRect());
+          if (rows.length === 0) return false;
+          const top = Math.min(...rows.map((r) => r.top));
+          const bottom = Math.max(...rows.map((r) => r.bottom));
+          return top <= box.top + 1 && bottom >= Math.min(box.bottom, box.top + vp.scrollHeight - vp.scrollTop) - 1;
+        });
+      const waitForRows = async () => {
+        for (let i = 0; i < 100; i += 1) {
+          if (await rowsCoverViewport()) return;
+          await page.clock.runFor(50);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        throw new Error("the transcript never rendered rows for its scroll position");
+      };
       // Scroll up (loading earlier pages at the top) until a divider with
       // enough rows above it for overscan to render some of the previous day.
       let label = null;
       for (let step = 0; step < 600 && !label; step += 1) {
+        await waitForRows();
         const state = await viewport.evaluate((vp) => {
           for (const sep of vp.querySelectorAll("[data-index] [role=separator][aria-label]")) {
             if (Number(sep.closest("[data-index]").dataset.index) >= 20) return { label: sep.getAttribute("aria-label") };
