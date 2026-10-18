@@ -121,25 +121,14 @@ jobs:
         working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2
 
-      # webui-server gates extra command surface (incl. is_safe_session_path),
-      # which the default run does not compile. Exercise it explicitly so those
-      # paths get real test coverage (e.g. the #355 symlinked-root regression).
-      - name: Run tests with nextest (webui-server feature)
-        working-directory: src-tauri
-        run: cargo nextest run --profile ci --retries 2 --features webui-server
-
-      # Launch smoke: the real desktop binary (debug, default features - not
-      # `--serve`) starts and its main window becomes visible. The window is
-      # created hidden and shown from `setup` (window_state.rs); if that show
-      # never runs the app looks dead, which no unit test sees. Built here
-      # because the test steps above already compiled every dependency in
-      # the same profile, so this costs one link, not a new job's full build.
-      # Linux only in this matrix; Windows runs it in its own job below.
-      - name: Build desktop binary (launch smoke)
-        if: runner.os == 'Linux'
-        working-directory: src-tauri
-        run: cargo build --bin claude-code-history-viewer
-
+      # Launch smoke: the real desktop binary starts and its main window
+      # becomes visible. The window is created hidden and shown from `setup`
+      # (window_state.rs); if that show never runs the app looks dead, which
+      # no unit test sees. It runs here, between the two test runs, because
+      # the integration tests make the step above build the binary
+      # (default features, debug) into target/debug - no extra compile. The
+      # webui-server run below rebuilds it with that feature. Linux only in
+      # this matrix; Windows runs it in its own job below.
       - name: Launch smoke (Xvfb)
         if: runner.os == 'Linux'
         timeout-minutes: 5
@@ -157,6 +146,13 @@ jobs:
           path: launch-smoke/
           if-no-files-found: ignore
           retention-days: 7
+
+      # webui-server gates extra command surface (incl. is_safe_session_path),
+      # which the default run does not compile. Exercise it explicitly so those
+      # paths get real test coverage (e.g. the #355 symlinked-root regression).
+      - name: Run tests with nextest (webui-server feature)
+        working-directory: src-tauri
+        run: cargo nextest run --profile ci --retries 2 --features webui-server
 
       - name: Upload test results
         if: always()
@@ -205,30 +201,17 @@ jobs:
         shell: bash
         run: mkdir -p dist && touch dist/index.html
 
+      # Default features last: the integration tests make this build the
+      # desktop binary into target/debug, and the launch smoke below runs the
+      # default-feature one.
       - name: Build test binaries
         working-directory: src-tauri
         run: |
-          cargo nextest run --profile ci --no-run
           cargo nextest run --profile ci --no-run --features webui-server
-
-      # Both feature sets, matching Ubuntu. The default set is not a subset:
-      # `grok::get_base_path_returns_none_when_default_dir_absent` only runs
-      # there, and it was the one that caught a test skipping itself based on
-      # the developer's home (#551).
-      - name: Run tests with nextest
-        working-directory: src-tauri
-        run: cargo nextest run --profile ci --retries 2
-
-      - name: Run tests with nextest (webui-server feature)
-        working-directory: src-tauri
-        run: cargo nextest run --profile ci --retries 2 --features webui-server
+          cargo nextest run --profile ci --no-run
 
       # Launch smoke, as in the Ubuntu job: the real desktop binary starts and
       # its hidden-at-creation main window becomes visible.
-      - name: Build desktop binary (launch smoke)
-        working-directory: src-tauri
-        run: cargo build --bin claude-code-history-viewer
-
       - name: Launch smoke
         shell: pwsh
         timeout-minutes: 5
@@ -244,6 +227,18 @@ jobs:
           path: launch-smoke/
           if-no-files-found: ignore
           retention-days: 7
+
+      # Both feature sets, matching Ubuntu. The default set is not a subset:
+      # `grok::get_base_path_returns_none_when_default_dir_absent` only runs
+      # there, and it was the one that caught a test skipping itself based on
+      # the developer's home (#551).
+      - name: Run tests with nextest
+        working-directory: src-tauri
+        run: cargo nextest run --profile ci --retries 2
+
+      - name: Run tests with nextest (webui-server feature)
+        working-directory: src-tauri
+        run: cargo nextest run --profile ci --retries 2 --features webui-server
 
   # Code coverage - main branch only
   coverage:
