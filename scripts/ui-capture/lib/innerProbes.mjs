@@ -85,7 +85,8 @@ export const PROBE_APPLICABILITY = {
   leftEdges: ({ screen, mobile }) => !mobile && startsWithAny(screen, WORK_SCREENS),
   overflowX: () => true,
   cards: ({ screen }) => startsWithAny(screen, WORK_SCREENS),
-  chromeSelect: ({ mobile }) => !mobile,
+  // Not with a modal open (palette, gear menu): the rest of the app is inert.
+  chromeSelect: ({ mobile, screen }) => !mobile && !screen.startsWith("palette") && screen !== "gear",
   focusVisible: ({ screen, mobile, theme, viewport }) => FOCUS_SCREENS.has(screen) && !mobile && theme === "dark" && viewport === "1440x900",
   motionActivity: ({ live }) => live,
 };

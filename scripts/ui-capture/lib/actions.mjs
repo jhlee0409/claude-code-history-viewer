@@ -44,8 +44,18 @@ export function createActions({ session, scenario, manifest, t }) {
     if (!found) throw new Error(`unknown fixture project "${key}"`);
     return found;
   };
+  /**
+   * "large" | "subagent" | an inner-UI case key (fixtures/inner.mjs,
+   * manifest.namedSessions) | { project, index } (a catalog session).
+   */
   const fixtureSession = (key) => {
-    const found = key === "large" ? manifest.largeSession : key === "subagent" ? manifest.subagentSession : null;
+    if (key && typeof key === "object") {
+      const owner = project(key.project);
+      const session = owner.sessions[key.index ?? 0];
+      if (!session) throw new Error(`fixture project ${owner.name} has no session ${key.index}`);
+      return { project: owner.name, title: session.title };
+    }
+    const found = key === "large" ? manifest.largeSession : key === "subagent" ? manifest.subagentSession : manifest.namedSessions?.[key];
     if (!found) throw new Error(`unknown fixture session "${key}"`);
     return found;
   };
@@ -128,7 +138,56 @@ export function createActions({ session, scenario, manifest, t }) {
       };
     });
 
+  const main = () => page.locator('[data-slot="main"]').or(page.locator("#main-content")).first();
+
   const steps = {
+    /**
+     * Inner-UI (plan I0): open the collapsed tool rows of the shown
+     * conversation whose header names one of `tools` (e.g. ["Edit"]). Today a
+     * tool row is a disclosure button inside a message; TR0 gives rows a
+     * stable hook. `limit` caps how many open (default all).
+     */
+    async expandToolRows({ tools = [], match = [], limit = Infinity }) {
+      const candidates = main().locator('[data-message-uuid] button[aria-expanded="false"]');
+      let opened = 0;
+      for (let guard = 0; guard < 40 && opened < limit; guard += 1) {
+        const count = await candidates.count();
+        let clicked = false;
+        for (let index = 0; index < count; index += 1) {
+          const button = candidates.nth(index);
+          // The row = the button and its siblings (the target sits beside it).
+          const text = (await button.evaluate((b) => b.parentElement?.innerText ?? b.innerText)).trim();
+          // By tool name (the row's label) or by a target substring (some
+          // rows carry a translated label, e.g. Edit's "file edit result").
+          if (!tools.some((tool) => new RegExp(`\\b${tool}\\b`).test(text)) && !match.some((m) => text.includes(m))) continue;
+          await click(button, `expand ${text.slice(0, 40)}`);
+          opened += 1;
+          clicked = true;
+          break;
+        }
+        if (!clicked) break;
+      }
+      if (opened === 0) throw new Error(`expandToolRows: no collapsed row for ${[...tools, ...match].join(", ")}`);
+    },
+
+    /** The gear (app settings) menu open (desktop toolbar). */
+    async gearMenu() {
+      await click(page.locator("#app-settings-button"), "open app menu");
+    },
+
+    /** Type a query into the conversation search and run it. */
+    async transcriptSearch({ query }) {
+      const input = main().getByRole("textbox", { name: t("messageViewer.searchPlaceholder") }).first();
+      await input.fill(query);
+      await input.press("Enter");
+      await parkPointer(page);
+      await settled(`search ${query}`);
+    },
+
+    /** Settings manager: flip the first switch, leaving an unsaved change. */
+    async settingsToggle() {
+      await click(main().getByRole("switch").first(), "toggle the first setting");
+    },
     async collapseProjects() {
       await steps.openSidebar();
       // The tree's own keyboard contract: ArrowLeft collapses an expanded row.

@@ -36,6 +36,17 @@
 //                                   row (Tab / the phone's row button), then
 //                                   type `then`
 //
+//   Inner-UI (plan I0):
+//   { do: "openSession", session: "<case key>" | { project, index } }  fixtures/inner.mjs cases
+//   { do: "expandToolRows", tools?: ["Read"], match?: ["file.ts"], limit? }
+//                                   open collapsed tool rows by tool name or target text
+//   { do: "gearMenu" }               the app settings (gear) menu open
+//   { do: "transcriptSearch", query }   conversation search
+//   { do: "settingsToggle" }         settings manager: flip the first switch (unsaved change)
+//
+// `activatesWith: "<task id>"` marks a later-active scenario (plan I0 (b)):
+// not run, listed in manifest.json → inactive with its `before` counterpart.
+//
 // `cleanup` steps run after the capture and the probes: they undo what the
 // steps wrote to the shared fixture.
 //   { do: "selectSessions", project: "featured", count }  "Select" + check rows
@@ -411,6 +422,109 @@ const PALETTE_PIN_SCREENS = [
   },
 ];
 
+/**
+ * Inner-UI scenarios (plan I0, RR C7), part (a): surfaces that exist today,
+ * so I0 records their "before" with no app change. Fixture cases come from
+ * fixtures/inner.mjs (sessions by key: manifest.namedSessions).
+ */
+const INNER_SCREENS = [
+  {
+    id: "transcript-mixed-turn",
+    title: "A mixed turn: text → Read·Grep → Edit diff → failing test run (D1-D3)",
+    steps: [{ do: "openSession", session: "mixed-turn" }],
+  },
+  {
+    id: "x-transcript-edit-expanded",
+    title: "The mixed turn's Edit opened (D4: what sits between the Edit row and its diff)",
+    steps: [{ do: "openSession", session: "mixed-turn" }, { do: "expandToolRows", match: ["renderPreview.ts"], limit: 1 }],
+  },
+  {
+    id: "transcript-run-open",
+    title: "The successful Read·Grep run, every row opened (the 'before' of folding a run)",
+    steps: [{ do: "openSession", session: "mixed-turn" }, { do: "expandToolRows", tools: ["Read", "Grep"] }],
+  },
+  {
+    id: "transcript-failure",
+    title: "Tool outcomes: exit 1, warning + exit 0, error_code, conflict, interrupted, no result, orphan",
+    steps: [{ do: "openSession", session: "outcomes" }],
+  },
+  {
+    id: "transcript-unknown-outcome",
+    title: "E15: empty stdout + fatal stderr, no exit code (no evidence either way)",
+    steps: [{ do: "openSession", session: "unknown-outcome" }],
+  },
+  {
+    id: "transcript-cjk",
+    title: "Korean session mixing prose, paths and code (D12)",
+    steps: [{ do: "openSession", session: "cjk-ko" }],
+  },
+  {
+    id: "subagent",
+    title: "The session whose Task spawned a subagent",
+    steps: [{ do: "openSession", session: "subagent" }],
+  },
+  {
+    id: "no-matches",
+    title: "Conversation search with no matches",
+    steps: [{ do: "openSession", session: "large" }, { do: "transcriptSearch", query: "zzqx-no-such-text" }],
+  },
+  {
+    id: "unreadable-source",
+    title: "The session's messages cannot be read (permission denied)",
+    inject: ["load_provider_messages", "load_provider_messages_paginated"].map((command) => ({
+      command,
+      fail: { status: 500, error: "Permission denied (os error 13)" },
+    })),
+    steps: [{ do: "openSession", session: "large" }],
+  },
+  {
+    id: "analytics-lowdata",
+    title: "Project analytics with one short session (low data)",
+    steps: [{ do: "openSession", session: { project: "willow-notes", index: 0 } }, { do: "view", view: "analytics" }],
+  },
+  {
+    id: "edits-patch-only",
+    title: "Edits of a Codex project whose rows are all apply_patch text",
+    steps: [{ do: "openSession", session: "patch-only" }, { do: "view", view: "recentEdits" }],
+  },
+  {
+    id: "settings-dirty",
+    title: "Settings manager with an unsaved change",
+    steps: [{ do: "openProject", project: "featured" }, { do: "appMenu", item: "settingsManager" }, { do: "settingsToggle" }],
+  },
+  {
+    id: "archive-error",
+    title: "Archive manager when the archive list cannot be read",
+    inject: [{ command: "list_archives", fail: { status: 500, error: "Permission denied (os error 13)" } }],
+    steps: [{ do: "openProject", project: "featured" }, { do: "appMenu", item: "archive" }],
+  },
+];
+
+/** Desktop-only inner scenarios (the gear menu lives in the desktop toolbar). */
+const INNER_DESKTOP_SCREENS = [{ id: "gear", title: "The gear (app settings) menu open", steps: [{ do: "gearMenu" }] }];
+
+/**
+ * Part (b): later-active scenarios (plan I0, RR C7). The surface does not
+ * exist yet (or I0's injection steps did not reach the state on today's
+ * screen), so the owning task turns the scenario on by deleting
+ * `activatesWith`. `before` names the old counterpart to compare with, or
+ * "new-surface" (no before; the first approved capture is the baseline).
+ * Never captured here: a "success capture" of an unbuilt screen would be
+ * invented.
+ */
+export const LATER_SCREENS = [
+  { id: "analytics-activity", activatesWith: "AN1", before: "analytics (today's overview: heatmap + most-used tools)", title: "Analytics › Activity tab", steps: [] },
+  { id: "session-detail-sheet", activatesWith: "AN1", before: "analytics (today's overview 'session detail' segmented)", title: "Session detail sheet", steps: [] },
+  { id: "journey-evidence", activatesWith: "EV2", before: "new-surface", title: "Evidence journey: search → turn → Edit diff → file history → back", steps: [] },
+  { id: "file-history", activatesWith: "EV3b", before: "recent-edits (today's per-file latest row)", title: "File history: snapshots k/n, compare, diff before restore", steps: [] },
+  { id: "partial-provider", activatesWith: "SX1", before: "new-surface", title: "One provider failed to scan, the others listed", steps: [] },
+  { id: "stale-data", activatesWith: "SX1", before: "new-surface", title: "Data older than the source on disk", steps: [] },
+  { id: "settings-invalid", activatesWith: "SE1", before: "settings", title: "Settings with an invalid value", steps: [] },
+  { id: "settings-inherited", activatesWith: "SE1", before: "settings", title: "Settings showing a value inherited from another scope", steps: [] },
+  { id: "archive-progress", activatesWith: "AR1", before: "archive", title: "Archive being created (progress)", steps: [] },
+  { id: "archive-result", activatesWith: "AR1", before: "archive", title: "Archive created (result)", steps: [] },
+];
+
 /** The matrix: every group expands to screens × viewports × themes. */
 export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS, themes: THEMES, screens: COMMON_SCREENS },
@@ -450,6 +564,14 @@ export const MATRIX = [
   },
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: PALETTE_PIN_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: PALETTE_PIN_SCREENS },
+  // Inner-UI (plan I0): the plan's default evidence set - 1440 both themes,
+  // the narrow desktop (1180) and the phone (390) in dark.
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1180x760"), themes: ["dark"], screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: INNER_SCREENS },
+  // Later-active (b): expanded like any scenario, split out by run.mjs.
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: ["dark"], screens: LATER_SCREENS },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: LATER_SCREENS.filter((s) => s.id === "session-detail-sheet") },
 ];
 
 /** Expanded, ordered scenario list. Ids are unique; run.mjs asserts it. */
