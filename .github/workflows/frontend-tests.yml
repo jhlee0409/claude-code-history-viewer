@@ -176,6 +176,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-harness-${{ github.sha }}
+          # Every path is under .ui-capture/, a hidden directory, which v4
+          # leaves out unless asked; the list stays limited to the evidence.
+          include-hidden-files: true
           path: |
             .ui-capture/runs/latest/compare/
             .ui-capture/runs/latest/manifest.json
