@@ -207,6 +207,78 @@ fn dedup_rows() -> Vec<FixtureRow> {
     ]
 }
 
+/// Rows that production's `dedup_usage_key` keeps apart although a naive
+/// "message id, else uuid" key would merge them. Each row has 100 input and
+/// a $1 source cost.
+fn empty_message_id_rows() -> Vec<FixtureRow> {
+    // An empty message id is no id: the rows fall back to their uuids.
+    vec![
+        row("s-empty", "e1", "2026-10-15T10:00:00Z")
+            .message_id("")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-empty", "e2", "2026-10-15T10:01:00Z")
+            .message_id("")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+    ]
+}
+
+fn message_id_uuid_collision_rows() -> Vec<FixtureRow> {
+    // One row's message id equals another row's fallback uuid.
+    vec![
+        row("s-collide", "c1", "2026-10-15T11:00:00Z")
+            .message_id("same")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-collide", "same", "2026-10-15T11:01:00Z")
+            .no_message_id()
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+    ]
+}
+
+fn same_message_id_two_sessions_rows() -> Vec<FixtureRow> {
+    // One file, two session ids, the same message id.
+    vec![
+        row("s-sessions", "x1", "2026-10-15T12:00:00Z")
+            .session("session-a")
+            .message_id("shared")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-sessions", "x2", "2026-10-15T12:01:00Z")
+            .session("session-b")
+            .message_id("shared")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+    ]
+}
+
+fn unkeyed_rows() -> Vec<FixtureRow> {
+    // No usable message id or uuid (missing or empty): every row counts on
+    // its own, never merged with another unkeyed row.
+    vec![
+        row("s-unkeyed", "", "2026-10-15T13:00:00Z")
+            .no_message_id()
+            .no_uuid()
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-unkeyed", "", "2026-10-15T13:01:00Z")
+            .no_message_id()
+            .no_uuid()
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-unkeyed", "", "2026-10-15T13:02:00Z")
+            .message_id("")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+        row("s-unkeyed", "", "2026-10-15T13:03:00Z")
+            .message_id("")
+            .tokens(100, 0, 0, 0)
+            .cost(1.0),
+    ]
+}
+
 fn day(key: &str, start: &str, end: &str) -> UsageInterval {
     interval(key, start, end)
 }
@@ -458,6 +530,65 @@ fn reference_half_open_split_preserves_range_totals_across_midnight() {
     assert_eq!((source.output, source.cost_usd), (40, Some(0.0)));
 }
 
+/// The old summary and the reference scan agree on `rows`, and every row is
+/// its own identity: N rows of 100 input and $1 count as 100·N input and
+/// $N, all in the source bucket.
+async fn assert_reference_keeps_identities_apart(project: &str, rows: Vec<FixtureRow>) {
+    let n = rows.len() as u64;
+    let fixture = UsageFixture::write(project, rows);
+    let _home = HomeGuard::set(fixture.root());
+    let summary = legacy_summary(&fixture, None, None).await;
+    let scan = reference_scan(&fixture.rows, every_dated_row);
+
+    let legacy = legacy_model_map(&summary);
+    let reference = reference_model_map(&scan);
+    assert_eq!(
+        legacy.keys().collect::<Vec<_>>(),
+        reference.keys().collect::<Vec<_>>()
+    );
+    for (key, expected) in &reference {
+        assert_totals_eq(&legacy[key], expected);
+    }
+
+    assert_eq!(scan.buckets.len(), 1, "one source bucket");
+    let source = &scan.buckets[&(SONNET.to_string(), None, PricingSource::Source)];
+    assert_totals_eq(
+        source,
+        &RefTotals {
+            message_count: n,
+            input: 100 * n,
+            cost_usd: Some(n as f64),
+            ..RefTotals::default()
+        },
+    );
+    assert_eq!(summary.total_tokens, 100 * n);
+}
+
+#[tokio::test]
+#[serial]
+async fn reference_treats_empty_message_id_as_missing_like_legacy() {
+    assert_reference_keeps_identities_apart("empty-id", empty_message_id_rows()).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn reference_keeps_message_id_and_uuid_keys_apart_like_legacy() {
+    assert_reference_keeps_identities_apart("id-uuid", message_id_uuid_collision_rows()).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn reference_scopes_message_id_by_session_like_legacy() {
+    assert_reference_keeps_identities_apart("two-sessions", same_message_id_two_sessions_rows())
+        .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn reference_counts_rows_without_any_id_individually_like_legacy() {
+    assert_reference_keeps_identities_apart("unkeyed", unkeyed_rows()).await;
+}
+
 #[tokio::test]
 #[serial]
 async fn legacy_summary_stamps_undated_rows_but_reference_only_counts_them() {
@@ -701,6 +832,32 @@ async fn an0b_streamed_turn_across_midnight_is_split_without_double_count() {
         .map(|m| m.stats.token_count)
         .sum();
     assert_eq!(total, legacy.total_tokens);
+}
+
+#[tokio::test]
+#[serial]
+#[ignore = "AN0b"]
+async fn an0b_dedup_identity_follows_production_key_rules() {
+    // Empty message id, message-id/uuid collision, one id in two sessions,
+    // rows without any id: each row is its own identity.
+    let rows: Vec<FixtureRow> = [
+        empty_message_id_rows(),
+        message_id_uuid_collision_rows(),
+        same_message_id_two_sessions_rows(),
+        unkeyed_rows(),
+    ]
+    .concat();
+    let fixture = UsageFixture::write("an0b-identity", rows);
+    let _home = HomeGuard::set(fixture.root());
+    let d15 = day("2026-10-15", "2026-10-15T00:00:00Z", "2026-10-16T00:00:00Z");
+    let response = usage_breakdown(project_request(&fixture, vec![d15.clone()]))
+        .await
+        .expect("AN0b");
+    let expected = reference_scan(&fixture.rows, half_open(&d15)).buckets;
+    assert_bucket_maps_eq(&bucket_map([&response.intervals[0].models]), &expected);
+    let source = &expected[&(SONNET.to_string(), None, PricingSource::Source)];
+    assert_eq!((source.message_count, source.input), (10, 1_000));
+    assert_cost_eq(source.cost_usd, Some(10.0));
 }
 
 #[tokio::test]

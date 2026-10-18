@@ -110,8 +110,11 @@ not changed.
 - The public `ModelStats` is unchanged and wrapped: a bucket is keyed by
   **(provider, model, service tier, pricing source)**, so one model can have two buckets in the
   same interval or session.
-- The pricing source is decided **per dedup identity** (`dedup_usage_key`: message id, else
-  uuid). If any row of the identity reports a cost, all of its token growth is **source** and
+- The pricing source is decided **per dedup identity** — one API request/message, not a user
+  conversation turn. The identity is `dedup_usage_key` inside the per-file state: (session,
+  non-empty message id), else (session, non-empty uuid), the two kinds namespaced apart; a row
+  with neither always counts on its own and is never merged. If any row of the identity
+  reports a cost, all of its token growth is **source** and
   the cost counts once, on its first costed row (`dedup_source_cost`); otherwise it is
   **estimate**. So a streamed turn that repeats its full cost on every row while its output
   grows never leaks growth into an estimate bucket. A source bucket's `cost_usd` is the sum of

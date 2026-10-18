@@ -47,9 +47,15 @@ export interface UsageBreakdownRequest {
 }
 
 /**
- * `source`: every row carried a provider-reported cost; `stats.cost_usd` is
- * their sum. `estimate`: no row did; `stats.cost_usd` is absent and the
- * price table applies.
+ * Decided per dedup identity — one API request/message (session + message
+ * id, else uuid), not a user conversation turn.
+ *
+ * `source`: usage of identities with a provider-reported cost on at least
+ * one row. All of the identity's growth is source, including rows without a
+ * cost; its cost is charged once, on its first costed row, so
+ * `stats.cost_usd` is the cost charged in this bucket and may be 0 when the
+ * costed row lies in another interval. `estimate`: identities with no
+ * reported cost; `stats.cost_usd` is absent and the price table applies.
  */
 export type PricingSource = "source" | "estimate";
 

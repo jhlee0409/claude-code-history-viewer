@@ -174,10 +174,16 @@ impl UsageBreakdownRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PricingSource {
-    /// Every row carried a provider-reported cost; `stats.cost_usd` is their sum.
+    /// Usage of dedup identities (one API request/message, keyed like
+    /// `dedup_usage_key`, not a user conversation turn) that carry a
+    /// provider-reported cost on at least one row. All of such an
+    /// identity's token growth is source, including rows without a cost;
+    /// its cost is charged once, on its first costed row. `stats.cost_usd`
+    /// is the sum of the costs charged in this bucket and may be 0 when the
+    /// costed row lies in another interval.
     Source,
-    /// No row carried a cost; `stats.cost_usd` is absent and the frontend
-    /// prices the tokens with the price table.
+    /// Usage of identities with no reported cost on any row; `stats.cost_usd`
+    /// is absent and the frontend prices the tokens with the price table.
     Estimate,
 }
 
@@ -227,7 +233,8 @@ pub enum ProviderScanStatus {
     NotSupported,
 }
 
-/// How much of a provider's priced usage carried a provider-reported cost.
+/// How much of a provider's priced usage is in [`PricingSource::Source`]
+/// buckets (covered by a cost-bearing dedup identity).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceCostCoverage {
