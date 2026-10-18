@@ -136,7 +136,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick
           dbus-run-session -- bash scripts/ci/launch-smoke.sh \
             src-tauri/target/debug/claude-code-history-viewer launch-smoke
-          cat launch-smoke/summary.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload launch smoke
         if: always() && runner.os == 'Linux'
@@ -215,9 +214,7 @@ jobs:
       - name: Launch smoke
         shell: pwsh
         timeout-minutes: 5
-        run: |
-          ./scripts/ci/launch-smoke.ps1 src-tauri/target/debug/claude-code-history-viewer.exe launch-smoke
-          Get-Content launch-smoke/summary.txt | Add-Content $env:GITHUB_STEP_SUMMARY
+        run: ./scripts/ci/launch-smoke.ps1 src-tauri/target/debug/claude-code-history-viewer.exe launch-smoke
 
       - name: Upload launch smoke
         if: always()

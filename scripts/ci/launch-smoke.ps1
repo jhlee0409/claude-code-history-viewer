@@ -75,6 +75,8 @@ function Log([string] $message) {
   $line = "[launch-smoke] $message"
   Write-Host $line
   Add-Content -Path $Summary -Value $line
+  # Also to the job summary as it happens, so a failure keeps it.
+  if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $line }
 }
 
 $script:App = $null

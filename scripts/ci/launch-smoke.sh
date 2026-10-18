@@ -6,7 +6,7 @@
 #
 # Usage: dbus-run-session -- bash scripts/ci/launch-smoke.sh <binary> <out-dir>
 # Needs: Xvfb, xdotool, ImageMagick (`import`). Writes screenshots, app logs
-# and summary.txt to <out-dir>. Exits nonzero if the app dies or no window
+# and summary.txt to <out-dir> (and the summary to $GITHUB_STEP_SUMMARY). Exits nonzero if the app dies or no window
 # shows within SMOKE_TIMEOUT seconds (default 30).
 set -euo pipefail
 
@@ -36,7 +36,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log() { echo "[launch-smoke] $*" | tee -a "$OUT/summary.txt"; }
+# Each line also goes to the job summary as it happens, so a failure keeps it.
+log() {
+  echo "[launch-smoke] $*" | tee -a "$OUT/summary.txt"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then echo "[launch-smoke] $*" >>"$GITHUB_STEP_SUMMARY"; fi
+}
 fail() {
   log "FAIL: $*"
   for f in "$OUT"/app-*.log; do [ -f "$f" ] && { echo "--- $f"; tail -n 80 "$f"; }; done
