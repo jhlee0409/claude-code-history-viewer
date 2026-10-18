@@ -5,11 +5,13 @@ on:
     branches: [main, develop]
     paths:
       - "src-tauri/**"
+      - "scripts/ci/launch-smoke.*"
       - ".github/workflows/rust-tests.yml"
   pull_request:
     branches: [main, develop]
     paths:
       - "src-tauri/**"
+      - "scripts/ci/launch-smoke.*"
       - ".github/workflows/rust-tests.yml"
 
 env:
@@ -126,6 +128,35 @@ jobs:
         working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2 --features webui-server
 
+      # Launch smoke: the real desktop binary (debug, default features - not
+      # `--serve`) starts and its main window becomes visible. The window is
+      # created hidden and shown from `setup` (window_state.rs); if that show
+      # never runs the app looks dead, which no unit test sees. Built here
+      # because the test steps above already compiled every dependency in
+      # the same profile, so this costs one link, not a new job's full build.
+      # Linux only in this matrix; Windows runs it in its own job below.
+      - name: Build desktop binary (launch smoke)
+        if: runner.os == 'Linux'
+        working-directory: src-tauri
+        run: cargo build --bin claude-code-history-viewer
+
+      - name: Launch smoke (Xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick
+          dbus-run-session -- bash scripts/ci/launch-smoke.sh \
+            src-tauri/target/debug/claude-code-history-viewer launch-smoke
+          cat launch-smoke/summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload launch smoke
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-smoke-linux
+          path: launch-smoke/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -190,6 +221,27 @@ jobs:
       - name: Run tests with nextest (webui-server feature)
         working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2 --features webui-server
+
+      # Launch smoke, as in the Ubuntu job: the real desktop binary starts and
+      # its hidden-at-creation main window becomes visible.
+      - name: Build desktop binary (launch smoke)
+        working-directory: src-tauri
+        run: cargo build --bin claude-code-history-viewer
+
+      - name: Launch smoke
+        shell: pwsh
+        run: |
+          ./scripts/ci/launch-smoke.ps1 src-tauri/target/debug/claude-code-history-viewer.exe launch-smoke
+          Get-Content launch-smoke/summary.txt | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload launch smoke
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-smoke-windows
+          path: launch-smoke/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Code coverage - main branch only
   coverage:

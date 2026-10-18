@@ -1,12 +1,12 @@
-# Native menu smoke checklist — Windows x64 and Linux x64 (release blocker)
+# Native menu smoke checklist — Windows x64 and Linux x64 (manual reference)
 
 Added with the native menu bar (plan T11a). The menu is built from `src/commands/manifest.json` in
 `src-tauri/src/menu/`; its macOS behaviour is covered by tests and a real-app check, Windows and
 Linux only by this checklist.
 
 Run on the **CI build artifacts** (Windows `.exe`/`.msi`, Linux `.AppImage` and `.deb`) of the
-release candidate. Every box must be checked on both platforms before a release; record OS
-version, artifact name and commit SHA.
+release candidate when menu or input behaviour changes; record OS version, artifact name and
+commit SHA. Not a release gate: CI's launch smoke (`scripts/ci/launch-smoke.*`) covers startup.
 
 How input is owned — one fixed owner per input, never switched by the menu's enabled state:
 

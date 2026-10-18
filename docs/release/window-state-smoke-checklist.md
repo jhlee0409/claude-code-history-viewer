@@ -4,8 +4,10 @@ Added with window size/position restore (plan T11b). The app owns it end to end 
 `src-tauri/src/window_state.rs` (no plugin, no page permission). The main window is created hidden
 (`"visible": false`); in `setup` the saved frame is corrected for the monitors present now and
 applied, then the window is shown. The placement rules are unit-tested and macOS was checked on a
-real app. Windows and Linux are covered only by this checklist (multi-monitor layouts, DPI, title
-bars and panels differ per platform).
+real app. On Windows and Linux, CI's launch smoke (`scripts/ci/launch-smoke.*`) checks that the
+window shows, that moving it writes the state file and that a second launch shows again; this
+checklist is the manual reference for what CI cannot see (multi-monitor layouts, DPI, title bars
+and panels differ per platform). It is not a release gate.
 
 Run on the **CI build artifacts** (Windows `.exe`/`.msi`, Linux `.AppImage` and `.deb`) of the
 release candidate, ideally with two monitors. Record OS version, session type (Linux: X11 or
