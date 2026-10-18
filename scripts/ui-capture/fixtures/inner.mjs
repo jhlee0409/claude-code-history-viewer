@@ -380,8 +380,8 @@ function opencodeProject(kit, { home, out, rel, fixedNow, namedSessions }) {
     tool("edit", { filePath: file("src/parser.ts"), oldString: "const QUOTE = \"'\";", newString: "const QUOTE = '\"';" }, "Edit applied successfully."),
     tool("edit", { filePath: file("src/feed.ts"), oldString: "v1", newString: "v2" }, "Edit applied successfully."),
     tool("multiedit", { filePath: file("src/feed.ts"), edits: [{ oldString: "http:", newString: "https:" }] }, "Applied 1 edit."),
-  ], { modelID: "claude-sonnet-4", providerID: "anthropic", cost: 0.0421, tokens: { input: 5200, output: 640, reasoning: 0, cache: { read: 12000, write: 0 } }, parentID: null });
-  message("assistant", startMs + 120_000, [{ type: "text", text: "Parser, schedule fields and the placeholder file are updated." }], { modelID: "claude-sonnet-4", providerID: "anthropic", cost: 0.0113, tokens: { input: 900, output: 120, reasoning: 0, cache: { read: 14000, write: 0 } } });
+  ], { modelID: "claude-sonnet-4-6", providerID: "anthropic", cost: 0.0421, tokens: { input: 5200, output: 640, reasoning: 0, cache: { read: 12000, write: 0 } }, parentID: null });
+  message("assistant", startMs + 120_000, [{ type: "text", text: "Parser, schedule fields and the placeholder file are updated." }], { modelID: "claude-sonnet-4-6", providerID: "anthropic", cost: 0.0113, tokens: { input: 900, output: 120, reasoning: 0, cache: { read: 14000, write: 0 } } });
   for (const m of messages) {
     out.file(rel(path.join(storage, "message", sessionId, `${m.id}.json`)), json({ id: m.id, sessionID: sessionId, role: m.role, time: { created: m.time, completed: m.time + 500 }, ...m.extra }), endMs);
     m.parts.forEach((part, i) => {

@@ -215,7 +215,7 @@ async function measureRun(run, origin, runDir) {
       els.map((e) => ({ ctl: e.getAttribute("data-ctl"), pointerEvents: getComputedStyle(e).pointerEvents, opacity: getComputedStyle(e).opacity, cursor: getComputedStyle(e).cursor })),
     );
     const summary = summarizeStates(rows);
-    const result = { run, tabKey, summary, rows, pairs, ariaDisabled };
+    const result = { run, engineVersion: browser.version(), tabKey, summary, rows, pairs, ariaDisabled };
     fs.writeFileSync(path.join(runDir, "states.json"), JSON.stringify(result, null, 2) + "\n");
     return result;
   } finally {
@@ -239,6 +239,7 @@ async function main() {
   const origin = `http://127.0.0.1:${server.address().port}`;
   const failures = [];
   const summary = {};
+  const engines = {};
   try {
     for (const run of runs) {
       const runDir = path.join(outDir, run.id);
@@ -246,6 +247,7 @@ async function main() {
       try {
         const result = await measureRun(run, origin, runDir);
         summary[run.id] = result.summary;
+        engines[run.engine] = result.engineVersion;
         failures.push(...result.summary.failures.map((f) => `${run.id}: ${f}`));
         const s = result.summary;
         console.log(`  ${run.id.padEnd(22)} focus ${s.focus.visible}/${s.focus.population} · hover ${s.hover.visible}/${s.hover.population} · pressed ${s.active.visible}/${s.active.population}`);
@@ -256,7 +258,7 @@ async function main() {
   } finally {
     server.close();
   }
-  fs.writeFileSync(path.join(outDir, "summary.json"), JSON.stringify({ runs: summary, failures }, null, 2) + "\n");
+  fs.writeFileSync(path.join(outDir, "summary.json"), JSON.stringify({ engines, runs: summary, failures }, null, 2) + "\n");
   const latest = path.join(OUT, "latest");
   fs.rmSync(latest, { force: true });
   fs.symlinkSync(stamp, latest);

@@ -127,4 +127,21 @@ describe("inner fixture", () => {
       .map((f) => JSON.parse(fs.readFileSync(path.join(storage, "message", String(f)), "utf8")));
     expect(messages.filter((m) => m.role === "assistant").every((m) => typeof m.cost === "number")).toBe(true);
   });
+
+  it("uses no deprecated model (the app would toast about it over the phone's tab bar)", () => {
+    const pricing = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../../src/data/model-pricing.json"), "utf8"));
+    const table = pricing.models ?? pricing;
+    const deprecated = new Set(Object.entries(table).filter(([, m]) => m && typeof m === "object" && m.deprecatedAt).map(([id]) => id));
+    expect(deprecated.size).toBeGreaterThan(0);
+    const used = new Set();
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(abs);
+        else if (/\.(jsonl|json)$/.test(entry.name)) for (const m of fs.readFileSync(abs, "utf8").matchAll(/"(?:model|modelID)":\s*"([^"]+)"/g)) used.add(m[1]);
+      }
+    };
+    walk(withInner.manifest.home);
+    expect([...used].filter((m) => deprecated.has(m))).toEqual([]);
+  });
 });

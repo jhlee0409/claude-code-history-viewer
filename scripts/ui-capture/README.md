@@ -81,6 +81,13 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
     `get_project_stats_summary` failing (500 `boom`): the dashboard's own
     error state, not a stuck loading text
 - Mobile adds `sidebar` (project drawer open).
+- Inner-UI (plan I0): `transcript-mixed-turn`, `x-transcript-edit-expanded`,
+  `transcript-run-open`, `transcript-failure`, `transcript-unknown-outcome`,
+  `transcript-cjk`, `subagent`, `no-matches`, `unreadable-source`,
+  `analytics-lowdata`, `edits-patch-only`, `settings-dirty`, `archive-error`
+  at 1440×900 dark/light, 1180×760 dark and 390×844 dark, and `gear`
+  (desktop). New steps: `expandToolRows`, `gearMenu`, `transcriptSearch`,
+  `settingsToggle`.
 - Font scale (T4 / D9): `transcript` and `analytics` at **90 %** and
   **110 %** (`<screen>-scale90`, `<screen>-scale110`), 1440×900 light. The
   first step sets the app's own font-size setting through the gear menu
@@ -211,6 +218,152 @@ Project-row pair (C4 D3), desktop sizes, dark:
   instead (`measurementState.sessionsLayout: "pane"`, one selected row, no
   inline expansion), which is recorded as such rather than faked.
 
+## Variants (inner-UI plan I0)
+
+Media and environment emulation, chosen per run (flags) or per screen
+(`variant: { ... }` in `scenarios.mjs`). Precedence, lowest first: harness
+defaults → a test's `contextOptions` → the scenario's `variant` → the run's
+flags (`lib/variant.mjs`, unit-tested in `test/browser.options.test.mjs`).
+Before I0 the defaults were spread after `contextOptions`, so nobody could
+capture with motion, forced colours or another time zone.
+
+| Flag | Values | Effect |
+|---|---|---|
+| `--forced-colors` | `none` (default) \| `active` | Playwright `forcedColors` (WebKit and Chromium) |
+| `--contrast` | `no-preference` (default) \| `more` | `prefers-contrast` |
+| `--motion` | `reduce` (default) \| `full` | `prefers-reduced-motion` |
+| `--font-scale` | factor, e.g. `1.25` | root font size 16 × f (a browser/OS text size; the rem-based type steps follow); the measurement state and typography checks expect it |
+| `--timezone` | IANA zone (default `Asia/Seoul`) | browser time zone (the server stays `TZ=UTC`) |
+| `--viewport` | `WxH`, e.g. `1180x800` | the selected screens at that size; ids follow (`transcript--1180x800--dark`) |
+| `--inspector` | `open` \| `closed` | the stored inspector state (and the expected measurement state) |
+| `--live` | – | **live interaction mode**, below |
+
+The run dir, `manifest.json → variant` and the `--base` cache key carry the
+variant (`<stamp>-<sha>-font125+vp-1180x800+inspector-open`), so a base is
+only reused for the same variant.
+
+```bash
+pnpm ui:capture --viewport 1180x800 --inspector open --only transcript-mixed-turn
+pnpm ui:capture --font-scale 1.25 --only transcript--1440x900--light
+pnpm ui:capture --forced-colors active --only settings--1440x900--dark
+```
+
+### Live interaction mode (`--live`)
+
+The deterministic capture injects `animation: none; transition: none;
+scroll-behavior: auto` and freezes the clock, so no motion test can fail in
+it. `--live` leaves CSS motion alone and runs on the real clock (settle and
+probes wait real time); caret hiding and mutation counting stay. It is for
+interaction tests (`motionActivity`, F1b's reduced-motion test) and refuses
+`--repro` / `--base`: live captures are not pixel-stable.
+`test/liveMode.test.mjs` proves a known CSS transition is observed in
+`--live` (and suppressed in the capture mode) - without that proof every
+later motion test would be meaningless.
+
+## Inner-UI probes (plan I0, `lib/innerProbes.mjs`)
+
+Measured after the screenshot, written to `probes/<id>.json → inner`. Every
+probe reports `{ population, selector, value, applicable }`:
+
+- **applies** (declared per probe in `PROBE_APPLICABILITY`, by screen,
+  locale, viewport, theme, live): an **empty population fails the
+  scenario** - nothing measured is not "nothing wrong";
+- **does not apply**: `applicable: false`, never a vacuous pass.
+
+| Probe | D | Applies to | Measures |
+|---|---|---|---|
+| `absPathLeaks` | D1 | transcript\*, recent-edits\*, board\*, inspector-info, edits-patch-only | visible text with an absolute path (`/Users/…` and other POSIX roots, `C:\`, UNC, `\\?\`, `/mnt/c`) outside code/output wells (`pre, code, [data-output], [data-code], [data-mono=code\|diag], [data-path-kind=absolute]`); title/aria/copy text is not text |
+| `toolRowMetrics` | D2 | transcript\* (not the dock pair) | `[data-tool-row]`, else today's `[data-message-uuid] button[aria-expanded]`: font size, row height, clipped names |
+| `wordBreak` | D12 | every scenario in ko/ja/zh, `transcript-cjk` | computed `word-break` of CJK text per language |
+| `cjkLeading` | D12 | `transcript-cjk` | multi-line CJK text with line-height/font-size < 1.5 |
+| `leftEdges` | D20 | desktop work screens | page title x vs first content x, distinct left edges |
+| `overflowX` | D25 | all | page overflow and clipped/spilling boxes (scrollers and ellipsis excluded) |
+| `cards` | D20 | work screens | bordered rounded boxes, nesting, radii (`pill` for fully round) |
+| `chromeSelect` | D24 | desktop, no modal, not the terminal error screen | selectable text in the chrome |
+| `focusVisible` | D7 | home, transcript, settings at 1440 dark | first 24 Tab stops (Alt+Tab in WebKit): focused vs blurred crop changes (`lib/statesJudge.mjs`), in view, not covered (`elementFromPoint`) |
+| `motionActivity` | D8 | `--live` only | after opening the first collapsed row: `getAnimations()` at 0/16/100 ms, transition/animation events, scroll frames |
+
+Unit tests on fake pages: `test/innerProbes.test.mjs` (a leak counts 1, a
+title-only path 0, `C:\` / UNC / `/opt` 1 each, an output well 0, nothing
+visible = an empty population that fails, …).
+
+## Inner-UI fixture cases (`fixtures/inner.mjs`)
+
+Five more projects on their own PRNG streams: every catalog file stays
+byte-identical (`test/fixtureInner.test.mjs`; against develop's generator
+only `user-data.json` changes, because OpenCode is now discovered).
+Scenarios open a case by key (`{ do: "openSession", session: "<key>" }`,
+`manifest.namedSessions`):
+
+| Key | What |
+|---|---|
+| `mixed-turn` | text → Read·Grep ×4 (success) → Edit diff → failing test (exit 1); short and very long paths; three `index.ts` |
+| `outcomes` | explicit exit 1, stderr warning + exit 0, API `error_code`, `is_error:false` + exit 2, interrupted + exit 130, a call without a result, an orphan result |
+| `unknown-outcome` | E15 byte for byte: empty stdout, fatal stderr, `interrupted:false`, no exit code, no `is_error` |
+| `blocks` | thinking, web search, citations, image, document, an unknown block |
+| `cjk-ko` / `cjk-ja` / `cjk-zh-CN` / `cjk-zh-TW` | titles and bodies mixing prose, paths and code |
+| `usage-mix` / `usage-cache` | two models and two tiers in one session; cache-read heavy |
+| `patch-only` | Codex, apply_patch rows only, one three-file patch |
+| `opencode-edits` | OpenCode JSON storage: `edit` fragment, `multiedit` input, empty `write`, source cost only |
+| `giant-turn` / `ten-thousand` | one 2,000-block turn; a 10,000-message session |
+
+Already in the catalog: an edit missing on disk, single-session projects,
+the subagent session, sessions in the last 7 and the prior 7 days.
+
+## Later-active scenarios (`activatesWith`)
+
+A screen with `activatesWith: "<task id>"` is a scenario of a surface that
+does not exist yet (or a state I0's injection steps did not reach on
+today's screen). It is expanded like any other, **not run**, and listed in
+`manifest.json → inactive` with its `before`: the old counterpart to compare
+with, or `new-surface` (no before; the first approved capture is the
+baseline). The owning task turns it on by deleting `activatesWith` (its
+STOP WHEN). Today: `analytics-activity`, `session-detail-sheet` (AN1),
+`journey-evidence` (EV2), `file-history` (EV3b), `partial-provider`,
+`stale-data` (SX1), `settings-invalid`, `settings-inherited` (SE1),
+`archive-progress`, `archive-result` (AR1). A "success capture" of an
+unbuilt screen is never invented.
+
+## Primitive states gallery (`pnpm ui:states`)
+
+`states/gallery.tsx` renders the real `src/components/ui` primitives with the
+app's `index.css`; `states/run.mjs` measures each control instance at rest,
+on hover, on keyboard focus (reached by Tab / Alt+Tab, so `:focus-visible`
+matches) and pressed, plus the static states (disabled, aria-disabled,
+loading, error, selected, checked) against the control's default, in WebKit
+light/dark and Chromium forced colours light/dark. Output:
+`.ui-capture/states/<stamp>/{summary.json,<run>/{gallery.png,states.json,crops/}}`
+(`latest` links the newest). Exit 1 on an empty gallery or a failed run;
+the visibility judgement is `lib/statesJudge.mjs` (`test/states.test.mjs`).
+
+## Browser tests in CI (`CI_REQUIRE_BROWSER`)
+
+Browser suites read `test/requirements.mjs`: locally a missing WebKit,
+Chromium or harness server skips them with a warning; with
+`CI_REQUIRE_BROWSER=1` a missing one is an error. The `ui-harness` job of
+`.github/workflows/frontend-tests.yml` runs, on a clean Ubuntu runner:
+install (Node from `.nvmrc`) → Rust + the Linux packages of
+`rust-tests.yml` → `playwright install --with-deps webkit chromium` →
+`build.sh` → `vitest run scripts/ui-capture` with `CI_REQUIRE_BROWSER=1` →
+`ui:states` → `ui:capture --no-build --base <base> --gate unchanged`.
+
+## Baseline freeze (`specs/2026-10-18-inner-ui/baseline.json`)
+
+`freeze-baseline.mjs` writes the measured "before": revision, fixture
+digest (`generate.mjs --verify`), Playwright/WebKit/Chromium builds, OS and
+machine model, font scales, and per D metric the probe, selector,
+scenarios, population and value (`lib/baseline.mjs`). D metrics no I0
+probe measures name the task/test that will.
+
+```bash
+pnpm ui:capture --no-build --repro
+pnpm ui:capture --no-build --font-scale 1.25 --only <screens>
+pnpm ui:states
+node scripts/ui-capture/freeze-baseline.mjs --run .ui-capture/runs/<repro>/run-1 \
+  --run .ui-capture/runs/<font125> --repro-report .ui-capture/runs/<repro>/compare/report.json \
+  --states .ui-capture/states/latest/summary.json --out specs/2026-10-18-inner-ui/baseline.json
+```
+
 ## Gates
 
 | `--gate` | Passes when | Use for |
@@ -265,7 +418,9 @@ shots and diffs to the PR as evidence.
 `fixtures/generate.mjs` writes, under `<root>/home`:
 
 - 19 Claude Code projects (`.claude/projects/<encoded-cwd>/<uuid>.jsonl`) and
-  6 Codex CLI projects (`.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`), each
+  6 Codex CLI projects (`.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`) from the
+  catalog, plus the inner-UI cases (3 Claude, 1 Codex, 1 OpenCode JSON-storage
+  project, see "Inner-UI fixture cases"), each
   with an existing working directory under `home/work/...` (otherwise the app
   flags projects as "location unavailable");
 - `atlas-web` (newest, opened by every project-level scenario) with the
