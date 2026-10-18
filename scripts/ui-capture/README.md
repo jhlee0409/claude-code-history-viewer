@@ -348,7 +348,29 @@ Chromium or harness server skips them with a warning; with
 install (Node from `.nvmrc`) → Rust + the Linux packages of
 `rust-tests.yml` → `playwright install --with-deps webkit chromium` →
 `build.sh` → `vitest run scripts/ui-capture` with `CI_REQUIRE_BROWSER=1` →
-`ui:states` → `ui:capture --no-build --base <base> --gate unchanged`.
+`ui:states` → `ui:capture --no-build --base <base> --gate unchanged
+--scenarios scripts/ui-capture/ci-scenarios.mjs`.
+
+### CI scenario subset (`ci-scenarios.mjs`)
+
+PRs and pushes gate **32 exact ids** (`CI_SCENARIO_IDS`, 64 captures with
+the base), not the full matrix (~259 pairs, ~30 min of capture). The module
+re-exports `scenarios.mjs` and adds `SELECTED_IDS`; `run.mjs` then runs
+exactly those ids (`lib/selection.mjs`: an unknown, inactive or repeated id
+is a usage error). Unlike `--only`, nothing is substring-matched
+(`analytics--1440x900--dark` does not pull in
+`global-stats-after-analytics--…`). `test/ciScenarios.test.mjs` pins the set.
+
+```bash
+pnpm ui:capture --scenarios scripts/ui-capture/ci-scenarios.mjs --list   # print the ids
+pnpm ui:capture --no-build --base develop --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs
+```
+
+The full matrix stays the default locally and runs in CI on a manual
+dispatch of `frontend-tests.yml` with `full_matrix: true` (input `base_ref`,
+default `origin/develop`). The subset is the automatic regression gate
+only; a UI task still owes the full scenario-specific evidence (locales,
+font scale, inspector, …) for the surfaces it changes.
 
 ## Baseline freeze (`specs/2026-10-18-inner-ui/baseline.json`)
 

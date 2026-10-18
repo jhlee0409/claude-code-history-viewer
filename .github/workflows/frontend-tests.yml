@@ -33,6 +33,15 @@ on:
     paths: *frontend_paths
 
   workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "ui-harness: capture the full scenario matrix instead of the CI subset (scripts/ui-capture/ci-scenarios.mjs)"
+        type: boolean
+        default: false
+      base_ref:
+        description: "ui-harness: git ref the capture gate compares against"
+        type: string
+        default: origin/develop
 
 permissions:
   contents: read
@@ -81,12 +90,14 @@ jobs:
   # on a clean runner is: install -> Rust + system packages -> browsers with
   # their OS deps -> build.sh -> tests with CI_REQUIRE_BROWSER=1 (a missing
   # browser or server fails instead of skipping) -> ui:states -> the
-  # unchanged gate against the PR's base. Run time is recorded from the
-  # first real runs, not estimated here.
+  # unchanged gate against the PR's base. PRs and pushes gate the 32 exact
+  # ids of scripts/ui-capture/ci-scenarios.mjs (64 captures, head + base);
+  # the full matrix (~259 pairs, ~30 min of capture on a fast Mac) runs only
+  # on a manual dispatch with full_matrix, or locally with `pnpm ui:capture`.
   ui-harness:
     name: UI harness (WebKit + Chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: ${{ inputs.full_matrix && 120 || 30 }}
 
     steps:
       - uses: actions/checkout@v4
@@ -146,10 +157,18 @@ jobs:
       # --no-build reuses the head build of step 4 only; the base has no
       # artifacts on a clean runner, so run.mjs builds it into
       # .ui-capture/build-base/<sha> (sharing src-tauri/target).
-      - name: Capture gate (unchanged vs. base)
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000')
+      # Exact ids (not --only's substring match); test/ciScenarios.test.mjs
+      # pins the set.
+      - name: Capture gate (unchanged vs. base, CI subset)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000') || (github.event_name == 'workflow_dispatch' && !inputs.full_matrix)
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && inputs.base_ref || github.event.before }}
+        run: pnpm ui:capture --no-build --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs
+
+      - name: Capture gate (unchanged vs. base, full matrix)
+        if: github.event_name == 'workflow_dispatch' && inputs.full_matrix
+        env:
+          BASE_SHA: ${{ inputs.base_ref }}
         run: pnpm ui:capture --no-build --base "$BASE_SHA" --gate unchanged
 
       - name: Upload harness evidence
@@ -163,4 +182,3 @@ jobs:
             .ui-capture/runs/latest/probes.json
             .ui-capture/states/latest/summary.json
           if-no-files-found: ignore
-

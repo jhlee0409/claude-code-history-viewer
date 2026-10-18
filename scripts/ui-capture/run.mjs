@@ -2,6 +2,7 @@
 // Deterministic UI capture + measurement harness (task T0).
 //
 //   pnpm ui:capture                          capture every scenario
+//   pnpm ui:capture --scenarios scripts/ui-capture/ci-scenarios.mjs   the CI subset
 //   pnpm ui:capture --repro                  capture twice, gate reproducibility (0%)
 //   pnpm ui:capture --base <ref|dir> [--gate reproducibility|unchanged|changed]
 //   pnpm ui:capture --approve | --approve-from <run-dir>
@@ -26,6 +27,7 @@ import { populationFailures, runInnerProbes } from "./lib/innerProbes.mjs";
 import { TYPOGRAPHY_PROBE, checkTypography } from "./lib/typography.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
 import { splitByActivation } from "./lib/activation.mjs";
+import { SelectionError, selectScenarios } from "./lib/selection.mjs";
 import { VariantError, effectiveVariant, normalizeVariant, parseViewport, variantTag } from "./lib/variant.mjs";
 import { startServer } from "./lib/server.mjs";
 import { artifactModes, prepareArtifacts as prepareBuildArtifacts } from "./lib/artifacts.mjs";
@@ -57,7 +59,10 @@ const HELP = `usage: pnpm ui:capture [options]
   --approve               after capturing, copy this run's PNGs into the approved dir
   --approve-from <dir>    approve an existing run dir without capturing
   --only <a,b,...>        only scenarios whose id contains one of the substrings
-  --scenarios <file>      alternative scenario module (default scripts/ui-capture/scenarios.mjs)
+  --scenarios <file>      alternative scenario module (default scripts/ui-capture/scenarios.mjs);
+                          a module exporting SELECTED_IDS runs exactly those ids,
+                          e.g. scripts/ui-capture/ci-scenarios.mjs (the PR gate)
+  --list                  print the selected scenario ids and exit (no capture)
   --locale <code>         ${SUPPORTED_LOCALES.join(" | ")} (default: scenario file DEFAULT_LOCALE)
   --out <dir>             run directory (default .ui-capture/runs/<timestamp>-<sha>)
   --no-build              reuse the head build .ui-capture/build/{dist,cchv-server}
@@ -106,6 +111,7 @@ function parseArgs(argv) {
       case "--viewport": opts.variant.viewport = value(i, arg); i += 1; break;
       case "--inspector": opts.variant.inspector = value(i, arg); i += 1; break;
       case "--live": opts.variant.live = true; break;
+      case "--list": opts.list = true; break;
       case "--help": case "-h": opts.help = true; break;
       default: throw new UsageError(`unknown option ${arg}`);
     }
@@ -172,6 +178,8 @@ async function loadScenarios(file) {
   return {
     all,
     inactive,
+    // An exact-id subset (lib/selection.mjs); null = every active scenario.
+    selected: module.SELECTED_IDS ?? null,
     defaultLocale: module.DEFAULT_LOCALE ?? "ko",
     measurement: {
       state: module.MEASUREMENT_STATE ?? null,
@@ -560,13 +568,29 @@ async function main() {
   const loaded = await loadScenarios(opts.scenarios);
   const { defaultLocale, measurement, inactive } = loaded;
   const all = applyViewportVariant(loaded.all, opts.variant.viewport);
+  // `declared` stays the whole matrix under a SELECTED_IDS subset too, so a
+  // base cache holding the full matrix is not mistaken for removed scenarios.
   const declared = all.map((s) => s.id);
-  const scenarios = opts.only.length ? all.filter((s) => opts.only.some((o) => s.id.includes(o))) : all;
+  let pool = all;
+  if (loaded.selected) {
+    try {
+      pool = applyViewportVariant(selectScenarios(loaded.all, loaded.selected), opts.variant.viewport);
+    } catch (error) {
+      if (error instanceof SelectionError) throw new UsageError(`${path.relative(REPO, opts.scenarios)}: ${error.message}`);
+      throw error;
+    }
+  }
+  const scenarios = opts.only.length ? pool.filter((s) => opts.only.some((o) => s.id.includes(o))) : pool;
+  if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
+  if (opts.list) {
+    for (const scenario of scenarios) console.log(scenario.id);
+    return 0;
+  }
   if (inactive.length) {
     const owners = [...new Set(inactive.map((s) => s.activatesWith))].sort();
     console.log(`▸ ${inactive.length} later-active scenario(s) not run (inactive until ${owners.join(", ")}); listed in manifest.json → inactive`);
   }
-  if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
+  if (loaded.selected) console.log(`▸ ${pool.length} of ${all.length} scenarios selected by ${path.relative(REPO, opts.scenarios)} (SELECTED_IDS)`);
   const locale = opts.locale ?? defaultLocale;
   acquireLock();
 
