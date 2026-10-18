@@ -157,7 +157,8 @@ $moved = '"frame":{"x":' + $MoveX + ',"y":' + $MoveY + ',"width":' + $MoveW + ',
 $state = $null
 for ($i = 0; $i -lt 40; $i++) {
   $state = Get-StateFile
-  if ($state -and (Get-Content $state.FullName -Raw).Contains($moved)) { break }
+  # The file is pretty-printed; compare without whitespace.
+  if ($state -and ((Get-Content $state.FullName -Raw) -replace '\s', '').Contains($moved)) { break }
   $state = $null
   Start-Sleep -Milliseconds 250
 }

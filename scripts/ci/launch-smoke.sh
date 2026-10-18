@@ -106,8 +106,9 @@ sleep 0.5
 read -r _ x y _ _ <<<"$(visible_window)"
 log "moved window to ($x,$y)"
 MOVED="\"frame\":{\"x\":$MOVE_X,\"y\":$MOVE_Y,"
-for _ in $(seq 1 40); do grep -qF "$MOVED" "$STATE" 2>/dev/null && break; sleep 0.25; done
-grep -qF "$MOVED" "$STATE" 2>/dev/null ||
+state_compact() { tr -d '\n\t ' <"$STATE" 2>/dev/null; } # the file is pretty-printed
+for _ in $(seq 1 40); do state_compact | grep -qF "$MOVED" && break; sleep 0.25; done
+state_compact | grep -qF "$MOVED" ||
   fail "window-state.json does not hold the moved frame: $(tr -d '\n ' <"$STATE" 2>/dev/null || echo missing)"
 log "state file written: $(tr -d '\n ' <"$STATE")"
 stop
