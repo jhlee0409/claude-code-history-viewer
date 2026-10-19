@@ -42,8 +42,8 @@ import { kindColorSource, minimapFailedColor, minimapTickColors } from "../helpe
 /** The strip's fixed CSS width (Decision 8). The mount site pads the list by the same amount. */
 export const MINIMAP_WIDTH_PX = 64;
 
-/** The band shows its unloaded count only when at least this tall. */
-const BAND_LABEL_MIN_PX = 14;
+/** The band shows its unloaded count only when at least this tall: the caption chip's 15 px line plus a pixel. */
+const BAND_LABEL_MIN_PX = 16;
 
 /** The prototype's "not loaded yet" hatching, in the theme's muted text color. */
 const BAND_HATCH =
@@ -559,7 +559,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
           >
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: BAND_HATCH }} />
             {layout.bandHeight >= BAND_LABEL_MIN_PX && unloadedCount > 0 && (
-              <span className="relative rounded-row bg-background/80 px-1 text-[10px] font-medium leading-tight tabular-nums text-muted-foreground">
+              <span className="relative rounded-row bg-background/80 px-1 text-caption font-medium leading-tight tabular-nums text-muted-foreground">
                 {unloadedCount.toLocaleString()}
               </span>
             )}
@@ -573,10 +573,10 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         {hover && tooltip && (
           <div
             data-testid="session-minimap-tooltip"
-            className="pointer-events-none absolute right-full z-20 mr-2 w-max max-w-[280px] rounded-md border border-border bg-popover px-3 py-2 text-xs leading-snug text-popover-foreground shadow-popover"
+            className="pointer-events-none absolute right-full z-20 mr-2 w-max max-w-[280px] rounded-md border border-border bg-popover px-3 py-2 text-caption text-popover-foreground shadow-popover"
             style={{ top: hover.top }}
           >
-            <span className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+            <span className="mb-1 block text-caption font-semibold text-muted-foreground">
               {tooltip.title}
             </span>
             {tooltip.lines.map((line, index) => (
