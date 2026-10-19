@@ -559,7 +559,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
           >
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: BAND_HATCH }} />
             {layout.bandHeight >= BAND_LABEL_MIN_PX && unloadedCount > 0 && (
-              <span className="relative rounded-sm bg-background/80 px-1 text-[10px] font-medium leading-tight tabular-nums text-muted-foreground">
+              <span className="relative rounded-row bg-background/80 px-1 text-[10px] font-medium leading-tight tabular-nums text-muted-foreground">
                 {unloadedCount.toLocaleString()}
               </span>
             )}
@@ -573,10 +573,10 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
         {hover && tooltip && (
           <div
             data-testid="session-minimap-tooltip"
-            className="pointer-events-none absolute right-full z-20 mr-2 w-max max-w-[280px] rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs leading-snug text-popover-foreground shadow-md"
+            className="pointer-events-none absolute right-full z-20 mr-2 w-max max-w-[280px] rounded-md border border-border bg-popover px-3 py-2 text-xs leading-snug text-popover-foreground shadow-popover"
             style={{ top: hover.top }}
           >
-            <span className="mb-0.5 block text-[11px] font-semibold text-muted-foreground">
+            <span className="mb-1 block text-[11px] font-semibold text-muted-foreground">
               {tooltip.title}
             </span>
             {tooltip.lines.map((line, index) => (
