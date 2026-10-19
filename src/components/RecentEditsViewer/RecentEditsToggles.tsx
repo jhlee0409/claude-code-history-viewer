@@ -1,35 +1,26 @@
 /**
- * Segmented controls for the Recent Edits panel header.
+ * Segmented controls for the Edits screen's controls row.
  *
- * Both copy `src/components/ui/MetricModeToggle.tsx` exactly: track
- * `bg-muted/30 rounded-lg p-1 gap-1`, active `bg-card text-foreground
- * shadow-sm`, inactive `text-muted-foreground hover:text-foreground`, and
- * `aria-pressed` per button. An earlier review round invented a filled-accent
- * style that looked foreign next to the analytics dashboard.
+ * Drawn with the app's one segmented style (`.segmented` / `.segmented-item`
+ * in index.css, shared with the analytics sub-tabs and metric toggle): the
+ * selected item is keyed on its `aria-pressed` and carries an accent outline
+ * that stays visible in the dark theme. An earlier review round invented a
+ * filled-accent style that looked foreign next to the analytics dashboard.
  */
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-// `Rows` is this lucide version's name for the two-row glyph the design calls
-// `Rows2`. The rename to `Rows2` landed after lucide-react 0.300, which is what
-// the project pins, so importing `Rows2` here resolves to undefined.
-import { AlignJustify, Rows } from "lucide-react";
+import { TextAlignJustify, Rows2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   RecentEditsDensity,
   RecentEditsScope,
-} from "@/store/slices/recentEditsPanelSlice";
+} from "@/store/slices/recentEditsSlice";
 
-const TRACK_CLASS = "flex items-center gap-1 p-1 bg-muted/30 rounded-lg";
+const TRACK_CLASS = "segmented";
 
-const buttonClass = (active: boolean, extra?: string) =>
-  cn(
-    "rounded-md text-px11 font-medium transition-all duration-200",
-    active
-      ? "bg-card text-foreground shadow-sm"
-      : "text-muted-foreground hover:text-foreground",
-    extra
-  );
+/** The selected look comes from `aria-pressed` (index.css), not from here. */
+const buttonClass = (extra?: string) => cn("segmented-item text-caption", extra);
 
 const SCOPES: Array<{
   id: RecentEditsScope;
@@ -113,11 +104,7 @@ export const RecentEditsScopeToggle: React.FC<RecentEditsScopeToggleProps> = ({
               disabled={scopeDisabled}
               onClick={() => onChange(scope.id)}
               className={buttonClass(
-                active,
-                cn(
-                  "px-3 py-1.5",
-                  scopeDisabled && "cursor-not-allowed opacity-50"
-                )
+                cn("px-3 py-1.5", scopeDisabled && "cursor-not-allowed opacity-50")
               )}
             >
               {t(scope.labelKey, scope.fallback)}
@@ -135,19 +122,19 @@ const DENSITIES: Array<{
   id: RecentEditsDensity;
   labelKey: string;
   fallback: string;
-  Icon: typeof AlignJustify;
+  Icon: typeof TextAlignJustify;
 }> = [
   {
     id: "compact",
     labelKey: "recentEdits.densityCompact",
     fallback: "Compact rows",
-    Icon: AlignJustify,
+    Icon: TextAlignJustify,
   },
   {
     id: "standard",
     labelKey: "recentEdits.densityFull",
     fallback: "Full cards",
-    Icon: Rows,
+    Icon: Rows2,
   },
 ];
 
@@ -175,7 +162,7 @@ export const RecentEditsDensityToggle: React.FC<
             aria-label={label}
             title={label}
             onClick={() => onChange(id)}
-            className={buttonClass(active, "px-2 py-1.5")}
+            className={buttonClass("px-2 py-1.5")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden="true" />
           </button>

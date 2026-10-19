@@ -33,8 +33,8 @@ export const FilteredDiffLines = ({ groups, kind }: FilteredDiffLinesProps) => {
     <pre
       className="font-mono"
       style={{
-        fontSize: "calc(0.8125rem * var(--app-font-scale))",
-        lineHeight: "1.25rem",
+        fontSize: "var(--text-code)",
+        lineHeight: "var(--text-code--line-height)",
         padding: "0.75rem",
       }}
     >

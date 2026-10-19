@@ -2,9 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
-import { supportsRecentEdits } from "../../utils/providers";
 import {
-  AppErrorType,
   type ClaudeProject,
   type MetricMode,
   type StatsMode,
@@ -12,6 +10,7 @@ import {
 import {
   projectRefOf,
   viewAfterLeavingProject,
+  type AnalyticsTab,
   type View,
 } from "../../navigation/place";
 import { ownPlace, type PlaceOwner } from "../../navigation/ownership";
@@ -45,7 +44,6 @@ export function useAnalyticsNavigation() {
     setAnalyticsSessionComparison,
     setAnalyticsProjectSummaryError,
     setAnalyticsSessionComparisonError,
-    setAnalyticsRecentEdits,
     resetAnalytics,
     clearAnalyticsErrors,
     loadGlobalStats,
@@ -60,12 +58,13 @@ export function useAnalyticsNavigation() {
   // navigating (`src/navigation/screenData.ts`).
 
   /**
-   * Commit `view` and take ownership of the navigation that did it, so the
-   * screen's data is written only while that navigation is still in charge.
+   * Commit `view` (and, on analytics, the sub-tab when one is named) and take
+   * ownership of the navigation that did it, so the screen's data is written
+   * only while that navigation is still in charge.
    */
   const enterScreen = useCallback(
-    (view: View): PlaceOwner => {
-      void navigate({ view });
+    (view: View, analyticsTab?: AnalyticsTab): PlaceOwner => {
+      void navigate(analyticsTab ? { view, analyticsTab } : { view });
       return ownPlace(useAppStore.getState);
     },
     [navigate]
@@ -119,36 +118,10 @@ export function useAnalyticsNavigation() {
     [t]
   );
 
+  /** The Edits screen's rows (`recentEditsSlice`, keyed by their request). */
   const loadRecentEditsData = useCallback(
-    async (ownsPlace: PlaceOwner) => {
-      const project = useAppStore.getState().selectedProject;
-      if (!project) return;
-
-      // The view explains the gap itself; asking the backend would only error
-      // (WebUI) or read the wrong provider's files (desktop) (#643).
-      if (!supportsRecentEdits(project.provider)) {
-        return;
-      }
-
-      // Read the cache at call time rather than from the render closure.
-      // `refreshAnalytics` clears it and then loads in the same tick, so a
-      // closed-over value is a render behind and reports a hit on data that
-      // no longer exists, leaving the view empty.
-      const cached = useAppStore.getState().analytics.recentEdits;
-      // No `files.length` condition: with request identity on the entry, an
-      // empty result is a valid answer ("this project has no edits") rather
-      // than an absent one. Requiring a non-empty list made such a project
-      // miss the cache on every visit and re-walk its whole JSONL set forever.
-      if (cached && cached.requestedProjectPath === project.path) {
-        return;
-      }
-
-      await loadRecentEditsScreen(useAppStore.getState, project, {
-        ownsPlace,
-        failureText: t("common.hooks.recentEditsLoadFailed"),
-      });
-    },
-    [t]
+    (options?: { force?: boolean }) => loadRecentEditsScreen(useAppStore.getState, options),
+    []
   );
 
   const switchToMessages = useCallback(() => {
@@ -177,25 +150,31 @@ export function useAnalyticsNavigation() {
     }
   }, [enterScreen, clearAnalyticsErrors]);
 
-  const switchToTokenStats = useCallback(async () => {
-    requireProject();
-    enterScreen("tokenStats");
-    clearAnalyticsErrors();
-    await loadTokenStatsData();
-  }, [requireProject, enterScreen, clearAnalyticsErrors, loadTokenStatsData]);
-
-  const switchToAnalytics = useCallback(async () => {
-    requireProject();
-    const ownsPlace = enterScreen("analytics");
-    clearAnalyticsErrors();
-    await loadAnalyticsData(ownsPlace);
-  }, [requireProject, enterScreen, clearAnalyticsErrors, loadAnalyticsData]);
+  /**
+   * Project analytics on `tab` (T9b: the overview or the token statistics,
+   * which used to be a screen of their own). Without a tab it opens the
+   * sub-tab the place already holds - the one last shown in this tab, or the
+   * one a restored tab or history entry just put there.
+   */
+  const switchToAnalytics = useCallback(
+    async (tab?: AnalyticsTab) => {
+      requireProject();
+      const ownsPlace = enterScreen("analytics", tab);
+      clearAnalyticsErrors();
+      if (useAppStore.getState().analyticsTab === "tokens") {
+        await loadTokenStatsData();
+      } else {
+        await loadAnalyticsData(ownsPlace);
+      }
+    },
+    [requireProject, enterScreen, clearAnalyticsErrors, loadTokenStatsData, loadAnalyticsData]
+  );
 
   const switchToRecentEdits = useCallback(async () => {
     requireProject();
-    const ownsPlace = enterScreen("edits");
+    enterScreen("edits");
     clearAnalyticsErrors();
-    await loadRecentEditsData(ownsPlace);
+    await loadRecentEditsData();
   }, [requireProject, enterScreen, clearAnalyticsErrors, loadRecentEditsData]);
 
   const switchToBoard = useCallback(async () => {
@@ -212,18 +191,26 @@ export function useAnalyticsNavigation() {
     const ownsPlace = enterScreen("board");
     clearAnalyticsErrors();
     try {
-      const { boardSessions, loadBoardSessions, dateFilter, sessions } =
+      const { boardSessions, boardOwner, loadBoardSessions, dateFilter, sessions } =
         useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
-      const firstSession = Object.values(boardSessions)[0];
+      // The cached board belongs to the open project only when it holds the
+      // open project's sessions, compared by file: a project name is the
+      // last directory segment, so two projects can both be "repo".
+      const listed = new Set(sessions.map((s) => s.file_path));
+      const holdsOtherSessions = Object.values(boardSessions).some(
+        (board) => !listed.has(board.session.file_path)
+      );
       const needsFullReload =
         !hasAnySessionsLoaded ||
-        (firstSession &&
-          firstSession.session.project_name !== project.name) ||
+        // Loaded for another project (`navigation/screenOwner.ts`).
+        boardOwner !== project.path ||
+        holdsOtherSessions ||
         sessions.length > Object.keys(boardSessions).length;
 
-      if (needsFullReload && sessions.length > 0) {
+      // An empty list loads too: the empty board is the project's own.
+      if (needsFullReload) {
         await loadBoardSessions(sessions);
         // The date range below frames this board; a navigation since then
         // owns the screen and its filter.
@@ -286,6 +273,7 @@ export function useAnalyticsNavigation() {
       const state = useAppStore.getState();
       const project = state.selectedProject;
       const screen = state.view;
+      const onTokens = screen === "analytics" && state.analyticsTab === "tokens";
       const isGlobalScope =
         options?.isGlobalScope ??
         (screen === "globalStats" || (!project && screen === "analytics"));
@@ -296,7 +284,7 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (screen === "tokenStats") {
+        if (onTokens) {
           await loadTokenStatsData();
           return;
         }
@@ -313,15 +301,11 @@ export function useAnalyticsNavigation() {
         // Project analytics never lands here: its loader records and
         // reports a failure itself (`loadProjectAnalytics`).
         toast.error(errorMessage);
-        if (screen === "tokenStats") {
-          useAppStore.getState().setError({
-            type: AppErrorType.UNKNOWN,
-            message: errorMessage,
-          });
-          return;
-        }
+        // The token stats sub-tab is one tab's: the notification is all
+        // (never the app's error screen, which would hide every tab).
+        if (onTokens || !project) return;
 
-        setAnalyticsProjectSummaryError(errorMessage);
+        setAnalyticsProjectSummaryError(errorMessage, project.path);
       }
     },
     [
@@ -353,13 +337,14 @@ export function useAnalyticsNavigation() {
    */
   const refreshAnalytics = useCallback(async () => {
     const ownsPlace = ownPlace(useAppStore.getState);
-    const { view } = useAppStore.getState();
+    const { view, analyticsTab } = useAppStore.getState();
     switch (view) {
-      case "tokenStats":
-        clearTokenStats();
-        await loadTokenStatsData();
-        break;
       case "analytics":
+        if (analyticsTab === "tokens") {
+          clearTokenStats();
+          await loadTokenStatsData();
+          break;
+        }
         clearAnalyticsErrors();
         setAnalyticsProjectSummary(null);
         setAnalyticsProjectConversationSummary(null);
@@ -368,8 +353,7 @@ export function useAnalyticsNavigation() {
         break;
       case "edits":
         clearAnalyticsErrors();
-        setAnalyticsRecentEdits(null);
-        await loadRecentEditsData(ownsPlace);
+        await loadRecentEditsData({ force: true });
         break;
       case "board":
         await reloadBoard(useAppStore.getState);
@@ -399,7 +383,6 @@ export function useAnalyticsNavigation() {
     setAnalyticsProjectSummary,
     setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
-    setAnalyticsRecentEdits,
   ]);
 
   /** Open a screen and load its data: one entry point per `view`. */
@@ -408,8 +391,6 @@ export function useAnalyticsNavigation() {
       switch (view) {
         case "analytics":
           return switchToAnalytics();
-        case "tokenStats":
-          return switchToTokenStats();
         case "edits":
           return switchToRecentEdits();
         case "board":
@@ -427,7 +408,6 @@ export function useAnalyticsNavigation() {
     },
     [
       switchToAnalytics,
-      switchToTokenStats,
       switchToRecentEdits,
       switchToBoard,
       switchToGlobalStats,
@@ -458,6 +438,7 @@ export function useAnalyticsNavigation() {
       const restored = await navigate(
         {
           view: entry.view,
+          analyticsTab: entry.analyticsTab,
           project: entry.project,
           session: entry.session,
           messageId: entry.messageId,
@@ -483,7 +464,6 @@ export function useAnalyticsNavigation() {
 
   return {
     switchToMessages,
-    switchToTokenStats,
     switchToAnalytics,
     switchToRecentEdits,
     switchToSettings,

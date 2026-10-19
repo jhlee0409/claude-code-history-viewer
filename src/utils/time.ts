@@ -87,13 +87,16 @@ export const isSameDay = (a: string, b: string): boolean => {
 
 /**
  * Format a timestamp as a date divider label.
- * Returns "Today", "Yesterday", or a full date like "Friday, June 27, 2025".
+ * Returns "Today", "Yesterday", or a full date like "Friday, June 27, 2025",
+ * in `language` (default: the current i18n language).
  */
-export const formatDateDivider = (timestamp: string): string => {
+export const formatDateDivider = (
+  timestamp: string,
+  language: string = i18n.language || "en",
+): string => {
   const date = new Date(timestamp);
   const now = new Date();
-  const currentLanguage = i18n.language || "en";
-  const locale = getLocale(currentLanguage);
+  const locale = getLocale(language);
 
   // Check today
   if (
@@ -101,7 +104,7 @@ export const formatDateDivider = (timestamp: string): string => {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate()
   ) {
-    return i18n.t("time.today");
+    return i18n.t("time.today", { lng: language });
   }
 
   // Check yesterday
@@ -112,7 +115,7 @@ export const formatDateDivider = (timestamp: string): string => {
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate()
   ) {
-    return i18n.t("time.yesterday");
+    return i18n.t("time.yesterday", { lng: language });
   }
 
   return date.toLocaleDateString(locale, {

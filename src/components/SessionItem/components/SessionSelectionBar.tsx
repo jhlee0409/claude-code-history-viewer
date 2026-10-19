@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCheck,
   Copy,
-  DownloadCloud,
-  Loader2,
-  TerminalSquare as SquareTerminal,
-  Trash2,
+  CloudDownload,
+  LoaderCircle,
+  SquareTerminal,
+  Trash,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -31,7 +31,7 @@ interface SessionSelectionBarProps {
 }
 
 const actionButtonClass = cn(
-  "flex items-center gap-1 rounded px-1.5 py-1 text-2xs font-medium transition-colors",
+  "flex items-center gap-1 rounded px-1.5 py-1 text-caption font-medium transition-colors",
   "disabled:opacity-40 disabled:pointer-events-none"
 );
 
@@ -227,7 +227,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-1.5 border-b border-border/30 bg-sidebar/95 px-2 py-1.5 backdrop-blur-sm">
       <div className="flex items-center justify-between">
-        <span className="text-2xs font-semibold text-foreground">
+        <span className="text-caption font-semibold text-foreground">
           {t("session.selection.count", {
             count: selectedCount,
             defaultValue: "{{count}} selected",
@@ -245,7 +245,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
       </div>
 
       {hasMoreSessions && (
-        <div className="flex items-center gap-1 text-2xs text-amber-600 dark:text-amber-400">
+        <div className="flex items-center gap-1 text-caption text-amber-600 dark:text-amber-400">
           <span>
             {t("session.selection.partialNotice", {
               loaded: allSessions.length,
@@ -263,7 +263,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
           onClick={handleToggleAll}
           className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
         >
-          <CheckCheck className="h-3 w-3" />
+          <CheckCheck className="h-3.5 w-3.5" />
           <span>
             {allVisibleSelected
               ? t("session.selection.clear", "Clear")
@@ -282,9 +282,9 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
           >
             {isLoadingAll ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <DownloadCloud className="h-3 w-3" />
+              <CloudDownload className="h-3.5 w-3.5" />
             )}
             <span>
               {isLoadingAll
@@ -307,7 +307,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
           disabled={selectedCount === 0}
           className={cn(actionButtonClass, "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
         >
-          <Copy className="h-3 w-3" />
+          <Copy className="h-3.5 w-3.5" />
           <span>{t("session.selection.copyIds", "Copy IDs")}</span>
         </button>
 
@@ -318,7 +318,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             disabled={resumableCount === 0}
             className={cn(actionButtonClass, "ml-auto text-muted-foreground hover:bg-muted/50 hover:text-foreground")}
           >
-            <SquareTerminal className="h-3 w-3" />
+            <SquareTerminal className="h-3.5 w-3.5" />
             <span>
               {t("session.selection.resume", {
                 count: resumableCount,
@@ -335,7 +335,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             disabled={deletableCount === 0}
             className={cn(actionButtonClass, "text-destructive hover:bg-destructive/10")}
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash className="h-3.5 w-3.5" />
             <span>
               {t("session.selection.delete", {
                 count: deletableCount,

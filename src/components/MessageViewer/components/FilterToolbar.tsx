@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal, Zap } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -15,7 +15,7 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs border transition-colors",
+        "flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border transition-colors",
         active
           ? "bg-accent/15 text-accent border-accent/30"
           : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
@@ -57,8 +57,8 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
     >
       {/* Filter icon + count */}
       <div className="flex items-center gap-1 shrink-0">
-        <Filter className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
-        <span className={cn("text-2xs tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
+        <Funnel className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
+        <span className={cn("text-caption tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
           {isActive
             ? t("filter.showing", { filtered: filteredCount, total: totalCount })
             : totalCount}
@@ -73,13 +73,13 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           active={messageFilter.roles.user}
           onClick={() => toggleRole("user")}
           label={t("filter.role.user")}
-          icon={<User className="w-3 h-3" />}
+          icon={<User className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.roles.assistant}
           onClick={() => toggleRole("assistant")}
           label={t("filter.role.assistant")}
-          icon={<Bot className="w-3 h-3" />}
+          icon={<Bot className="w-3.5 h-3.5" />}
         />
       </div>
 
@@ -91,32 +91,32 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           active={messageFilter.contentTypes.text}
           onClick={() => toggleContentType("text")}
           label={t("filter.content.text")}
-          icon={<MessageSquareText className="w-3 h-3" />}
+          icon={<MessageSquareText className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.thinking}
           onClick={() => toggleContentType("thinking")}
           label={t("filter.content.thinking")}
-          icon={<Brain className="w-3 h-3" />}
+          icon={<Brain className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.toolCalls}
           onClick={() => toggleContentType("toolCalls")}
           label={t("filter.content.toolCalls")}
-          icon={<Wrench className="w-3 h-3" />}
+          icon={<Wrench className="w-3.5 h-3.5" />}
         />
         <FilterToggle
           active={messageFilter.contentTypes.commands}
           onClick={() => toggleContentType("commands")}
           label={t("filter.content.commands")}
-          icon={<Terminal className="w-3 h-3" />}
+          icon={<SquareTerminal className="w-3.5 h-3.5" />}
         />
         {hasParallelTasks && (
           <FilterToggle
             active={messageFilter.contentTypes.parallelTasks}
             onClick={() => toggleContentType("parallelTasks")}
             label={t("filter.content.parallelTasks")}
-            icon={<Zap className="w-3 h-3" />}
+            icon={<Zap className="w-3.5 h-3.5" />}
           />
         )}
       </div>

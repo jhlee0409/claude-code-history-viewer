@@ -1,7 +1,8 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Indent, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
+import { ListIndentIncrease, ListTree, Search, X, PanelRightClose, User, Zap } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -17,6 +18,8 @@ import { findTurnKeyForUuid } from "./outline/flattenOutline";
 import { NavigatorOutline } from "./outline/NavigatorOutline";
 import { buildTurnOfMessage } from "./outline/turnOfMessage";
 import { useOutlineTurns } from "./outline/useOutlineTurns";
+
+const InspectorIcon = SCREEN_ICONS.inspector;
 
 // Height estimation constants for virtual scrolling
 const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
@@ -34,6 +37,13 @@ interface MessageNavigatorProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   asideId?: string;
+  /**
+   * Rendered as the inspector's Outline tab (T9a): the inspector owns the
+   * landmark, the width, the resize handle and the close button, so the
+   * navigator draws its contents only - no `aside`, no handle, no close
+   * button. Everything else is unchanged.
+   */
+  embedded?: boolean;
 }
 
 export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
@@ -44,6 +54,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   isCollapsed,
   onToggleCollapse,
   asideId = "message-navigator",
+  embedded = false,
 }) => {
   const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
@@ -306,7 +317,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             title={t("navigator.toggle")}
             aria-label={t("navigator.toggle")}
           >
-            <PanelRight className="w-4 h-4" />
+            <InspectorIcon className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-accent/20" />
@@ -315,40 +326,23 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           <ListTree className="w-4 h-4 text-muted-foreground" />
 
           {/* Entry count */}
-          <span className="text-2xs font-mono text-muted-foreground">{allEntries.length}</span>
+          <span className="text-caption font-mono text-muted-foreground">{allEntries.length}</span>
         </div>
       </aside>
     );
   }
 
-  // Expanded view
-  return (
-    <aside
-      id={asideId}
-      role="complementary"
-      aria-label={t("navigator.title")}
-      aria-describedby={keyboardHelpId}
-      tabIndex={-1}
-      className={cn(
-        "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
-        isResizing && "select-none",
-        width == null && "w-full"
-      )}
-      style={width != null ? { width, minWidth: width, maxWidth: width } : undefined}
-    >
-      {/* Resize handle (left edge) */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 z-10"
-        onMouseDown={onResizeStart}
-      />
-
+  // Expanded view: the panel's contents, inside its own aside or, embedded,
+  // inside the inspector's tab panel.
+  const contents = (
+    <>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
         <ListTree className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground flex-1">
+        <span className="text-list font-semibold text-foreground flex-1">
           {t("navigator.title")}
         </span>
-        <span className="text-2xs text-muted-foreground tabular-nums">
+        <span className="text-caption text-muted-foreground tabular-nums">
           {isOutlineRendered ? realTurnsCount : entries.length}
         </span>
         <button
@@ -363,7 +357,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           aria-pressed={isOutline}
           title={t("navigator.viewMode.toggle")}
         >
-          <Indent className="w-3.5 h-3.5" />
+          <ListIndentIncrease className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handlePersonButtonClick}
@@ -395,26 +389,28 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             <Zap className="w-3.5 h-3.5" />
           </button>
         )}
-        <button
-          onClick={onToggleCollapse}
-          className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={t("navigator.toggle")}
-        >
-          <PanelRightClose className="w-3.5 h-3.5" />
-        </button>
+        {!embedded && (
+          <button
+            onClick={onToggleCollapse}
+            className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={t("navigator.toggle")}
+          >
+            <PanelRightClose className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Filter input */}
       <div className="px-2 py-1.5 border-b border-border/30 shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
           <input
             type="text"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={t("navigator.filter")}
             aria-label={t("navigator.filter")}
-            className="w-full pl-6 pr-2 py-1 text-xs bg-muted/30 border border-border/30 rounded focus:outline-none focus:ring-1 focus:ring-accent/40 placeholder:text-muted-foreground/40"
+            className="w-full pl-6 pr-2 py-1 text-list bg-muted/30 border border-border/30 rounded focus:outline-none focus:ring-1 focus:ring-accent/40 placeholder:text-muted-foreground/40"
           />
           {filterText && (
             <button
@@ -422,7 +418,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
               className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-accent/10"
               aria-label={t("common.cancel")}
             >
-              <X className="w-2.5 h-2.5 text-muted-foreground" />
+              <X className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           )}
         </div>
@@ -443,7 +439,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         />
       ) : entries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-list text-muted-foreground text-center">
             {filterText ? t("messageViewer.noSearchResults") : t("navigator.noMessages")}
           </p>
         </div>
@@ -504,6 +500,37 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         )}{" "}
         {promptJumpHint}
       </p>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div id={asideId} className="relative flex min-h-0 flex-1 flex-col">
+        {contents}
+      </div>
+    );
+  }
+
+  return (
+    <aside
+      id={asideId}
+      role="complementary"
+      aria-label={t("navigator.title")}
+      aria-describedby={keyboardHelpId}
+      tabIndex={-1}
+      className={cn(
+        "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
+        isResizing && "select-none",
+        width == null && "w-full"
+      )}
+      style={width != null ? { width, minWidth: width, maxWidth: width } : undefined}
+    >
+      {/* Resize handle (left edge) */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 z-10"
+        onMouseDown={onResizeStart}
+      />
+      {contents}
     </aside>
   );
 };

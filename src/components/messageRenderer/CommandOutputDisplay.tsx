@@ -13,7 +13,7 @@
 
 import React from "react";
 import { Highlight, themes } from "prism-react-renderer";
-import { Terminal, Package, TestTube, Hammer, BarChart3 } from "lucide-react";
+import { SquareTerminal, Package, TestTube, Hammer, ChartColumn } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -83,7 +83,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
               <pre
                 className={className}
                 style={getPreStyles(isDarkMode, style, {
-                  fontSize: "calc(0.6875rem * var(--app-font-scale))",
+                  fontSize: "var(--text-code)",
                   padding: "0.75rem",
                 })}
               >
@@ -216,7 +216,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
             neutralStyles.badgeText
           )}
         >
-          <BarChart3 className={layout.iconSize} />
+          <ChartColumn className={layout.iconSize} />
           <span>
             {t("commandOutputDisplay.tableOutput", {
               defaultValue: "Table Output",
@@ -245,7 +245,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
           terminalStyles.badgeText
         )}
       >
-        <Terminal className={layout.iconSize} />
+        <SquareTerminal className={layout.iconSize} />
         <span>
           {t("commandOutputDisplay.terminalOutput", {
             defaultValue: "Terminal Output",

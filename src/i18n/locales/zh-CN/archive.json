@@ -1,5 +1,4 @@
 {
-  "archive.title": "归档管理器",
   "archive.description": "管理和保存您的对话历史",
   "archive.tab.overview": "概览",
   "archive.tab.browse": "浏览",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "选择项目",
   "archive.create.mainSessions": "主会话 ({{count}})",
   "archive.create.subagentSessions": "子代理会话 ({{count}})",
-  "archive.settings.link": "归档管理器",
   "archive.settings.linkDescription": "在清理前管理和保存您的对话历史"
 }

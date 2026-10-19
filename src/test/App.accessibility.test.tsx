@@ -37,9 +37,8 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     isLoadingGlobalStats: false,
     isLoadingBoard: false,
     isMetadataLoading: false,
-    isLoadingRecentEditsDock: false,
-    isLoadingMoreRecentEditsDock: false,
-    analytics: { recentEditsPagination: { isLoadingMore: false } },
+    isLoadingRecentEdits: false,
+    isLoadingMoreRecentEdits: false,
     archive: {
       isLoadingArchives: false,
       isLoadingSessions: false,
@@ -69,12 +68,17 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     loadGlobalStats: vi.fn(async () => {}),
     view: "conversation",
     navigationEpoch: 0,
+    // Conversation tabs (T8): one tab, the live state.
+    documents: [],
+    parentSessionStack: [],
+    activeDocumentId: "t1",
+    hydratedDocumentId: "t1",
+    tabsRestoreReport: { corrupt: false, dropped: 0 },
     navigate: vi.fn(async () => true),
     beginNavigation: vi.fn(() => 1),
     reloadCurrent: vi.fn(async () => {}),
     setBoardHoverSession: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
-    loadMoreRecentEdits: vi.fn(async () => {}),
     updateUserSettings: vi.fn(),
     getGroupedProjects: vi.fn(() => ({ groups: [], ungrouped: [] })),
     getDirectoryGroupedProjects: vi.fn(() => ({ groups: [] })),
@@ -85,8 +89,12 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     isProjectHidden: vi.fn(() => false),
     dateFilter: { start: null, end: null },
     setDateFilter: vi.fn(),
-    isNavigatorOpen: true,
-    toggleNavigator: vi.fn(),
+    isInspectorOpen: true,
+    inspectorTab: "outline",
+    inspectorWidth: 280,
+    setInspectorTab: vi.fn(),
+    setInspectorWidth: vi.fn(),
+    setInspectorOpen: vi.fn(),
     activeProviders: [],
     setSelectedSession: vi.fn(),
     fontScale: 100,
@@ -108,14 +116,14 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
   const storeMock = ((selector?: (state: typeof state) => unknown) =>
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
+  (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
   const resetStoreLoadFlags = () => {
     state.isLoadingGlobalStats = false;
     state.isLoadingBoard = false;
     state.isMetadataLoading = false;
-    state.isLoadingRecentEditsDock = false;
-    state.isLoadingMoreRecentEditsDock = false;
-    state.analytics.recentEditsPagination.isLoadingMore = false;
+    state.isLoadingRecentEdits = false;
+    state.isLoadingMoreRecentEdits = false;
     state.pagination.isLoadingMore = false;
     Object.assign(state.archive, {
       isLoadingArchives: false,
@@ -135,17 +143,17 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
 vi.mock("@/components/ProjectTree", () => ({
   ProjectTree: ({
     asideId,
-    isGlobalStatsActive,
+    libraryItem,
     isSelectionRetained,
   }: {
     asideId?: string;
-    isGlobalStatsActive?: boolean;
+    libraryItem?: string | null;
     isSelectionRetained?: boolean;
   }) => (
     <aside
       id={asideId ?? "project-explorer"}
       tabIndex={-1}
-      data-global-stats-active={String(isGlobalStatsActive)}
+      data-library-item={String(libraryItem)}
       data-selection={isSelectionRetained ? "retained" : "active"}
     >
       project-tree
@@ -220,16 +228,11 @@ vi.mock("@/layouts/Header/SettingDropdown/ModalContainer", () => ({
 vi.mock("@/hooks/useAnalytics", () => ({
   useAnalytics: () => ({
     state: {
-      recentEdits: null,
-      recentEditsPagination: null,
-      isLoadingRecentEdits: false,
-      recentEditsError: null,
       recentEditsSearchQuery: "",
     },
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -246,7 +249,8 @@ vi.mock("@/hooks/useAnalytics", () => ({
 const { computedMock, resetComputedMock } = vi.hoisted(() => {
   const defaults = {
     isMessagesView: true,
-    isTokenStatsView: false,
+    isAnalyticsOverview: false,
+    isAnalyticsTokens: false,
     isAnalyticsView: false,
     isGlobalStatsView: false,
     isRecentEditsView: false,
@@ -353,14 +357,16 @@ describe("App accessibility smoke", () => {
       screen.getByRole("link", { name: "Skip to main content" })
     ).toHaveAttribute("href", "#main-content");
     expect(
-      screen.getByRole("link", { name: "Skip to message navigator" })
-    ).toHaveAttribute("href", "#message-navigator");
+      screen.getByRole("link", { name: "Skip to inspector" })
+    ).toHaveAttribute("href", "#inspector");
     expect(
       screen.getByRole("link", { name: "Skip to settings" })
     ).toHaveAttribute("href", "#app-settings-button");
 
     expect(document.getElementById("project-explorer")).not.toBeNull();
     expect(document.getElementById("main-content")).not.toBeNull();
+    expect(document.getElementById("inspector")).not.toBeNull();
+    // The outline (the message navigator) is the inspector's default tab.
     expect(document.getElementById("message-navigator")).not.toBeNull();
     expect(document.getElementById("app-settings-button")).not.toBeNull();
   });
@@ -376,24 +382,25 @@ describe("App accessibility smoke", () => {
   it.each([
     ["settings", { isSettingsView: true }],
     ["analytics", { isAnalyticsView: true }],
-    ["token stats", { isTokenStatsView: true }],
+    ["analytics tokens sub-tab", { isAnalyticsView: true, isAnalyticsTokens: true }],
     ["board", { isBoardView: true }],
     // Archive is left out: its branch reads archive state this mock does not
     // carry, so including it would test the fixture rather than the gating.
     // It is covered by `isTranscriptView` all the same.
     ["recent edits", { isRecentEditsView: true }],
   ])(
-    "drops the message-navigator skip link in the %s view, where the navigator does not render",
+    "drops the inspector skip link in the %s view, where the inspector does not render",
     (_label, flags) => {
-      // The navigator only renders in the transcript branch, but its link was
+      // The inspector only renders in the transcript branch, but its link was
       // keyed to `selectedSession` — which survives switching views.
       Object.assign(computedMock, { isMessagesView: false }, flags);
 
       render(<App />);
 
+      expect(document.getElementById("inspector")).toBeNull();
       expect(document.getElementById("message-navigator")).toBeNull();
       expect(
-        screen.queryByRole("link", { name: "Skip to message navigator" })
+        screen.queryByRole("link", { name: "Skip to inspector" })
       ).toBeNull();
     }
   );
@@ -435,24 +442,24 @@ describe("App accessibility smoke", () => {
   });
 
   /**
-   * Plan §9b C3 (audit capture 12): the sidebar's global stats row is
-   * selected only while global stats is the open screen, and on any app-level
-   * screen the tree marks its selection as kept context.
+   * Plan §9b C3 (audit capture 12): the sidebar's library row is the open
+   * app-level screen only (global stats, archive, Claude Code settings), and
+   * on any app-level screen the tree marks its selection as kept context.
    */
   it.each([
-    ["globalStats", "true", "retained"],
-    ["archive", "false", "retained"],
-    ["settingsManager", "false", "retained"],
-    ["conversation", "false", "active"],
-    ["analytics", "false", "active"],
+    ["globalStats", "globalStats", "retained"],
+    ["archive", "archive", "retained"],
+    ["settingsManager", "settingsManager", "retained"],
+    ["conversation", "null", "active"],
+    ["analytics", "null", "active"],
   ] as const)(
     "derives the sidebar highlight from the place: %s",
-    (view, globalActive, selection) => {
+    (view, libraryItem, selection) => {
       appStoreState.view = view;
       try {
         render(<App />);
         const tree = document.getElementById("project-explorer");
-        expect(tree?.getAttribute("data-global-stats-active")).toBe(globalActive);
+        expect(tree?.getAttribute("data-library-item")).toBe(libraryItem);
         expect(tree?.getAttribute("data-selection")).toBe(selection);
       } finally {
         appStoreState.view = "conversation";
@@ -493,9 +500,8 @@ describe("App accessibility smoke", () => {
     ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
     ["session metadata is loading", () => { appStoreState.isMetadataLoading = true; }, "false"],
     ["another message page is loading", () => { appStoreState.pagination.isLoadingMore = true; }, "false"],
-    ["the recent-edits dock is loading", () => { appStoreState.isLoadingRecentEditsDock = true; }, "false"],
-    ["another recent-edits dock page is loading", () => { appStoreState.isLoadingMoreRecentEditsDock = true; }, "false"],
-    ["another recent-edits page is loading", () => { appStoreState.analytics.recentEditsPagination.isLoadingMore = true; }, "false"],
+    ["the Edits screen's rows are loading", () => { appStoreState.isLoadingRecentEdits = true; }, "false"],
+    ["another page of the Edits screen is loading", () => { appStoreState.isLoadingMoreRecentEdits = true; }, "false"],
   ])("reports data-ready while %s", (_label, arrange, expected) => {
     arrange();
 

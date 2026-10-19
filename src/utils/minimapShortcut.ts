@@ -1,12 +1,11 @@
-import { isMacOS } from "./platform";
+import { shortcutLabel } from "@/commands/keys";
+import { getCommand } from "@/commands/registry";
 
 /**
- * Keys shown wherever the minimap-toggle shortcut (Cmd/Ctrl+Shift+F) is
- * described. Mirrors `getPromptJumpKeysLabel` in
- * `components/MessageViewer/helpers/promptJump.ts`, kept as its own helper
- * here because the only consumer (`ViewMenuGroup`) lives under `layouts/`
- * and importing from that helper would drag in `messageKinds`.
+ * Keys shown wherever the minimap-toggle shortcut is described (`⌘⇧F` on
+ * macOS, `Ctrl+Shift+F` elsewhere), read from the command manifest so the
+ * hint cannot drift from the key that actually works.
  */
 export function getMinimapToggleKeysLabel(): string {
-  return isMacOS() ? "⌘⇧F" : "Ctrl+Shift+F";
+  return shortcutLabel(getCommand("view.toggleMinimap")?.shortcut ?? null) ?? "";
 }

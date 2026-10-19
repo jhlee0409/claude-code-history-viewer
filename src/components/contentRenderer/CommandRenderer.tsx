@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
+import { SquareTerminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -102,14 +102,14 @@ export const CommandRenderer = ({
                   isCommandExpanded && "rotate-90"
                 )}
               />
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
             </button>
           ) : (
             <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
@@ -121,10 +121,10 @@ export const CommandRenderer = ({
               {/* Command args if present */}
               {commandGroup.args && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-caption font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.arguments")}
                   </span>
-                  <code className={cn("px-1.5 py-0.5 text-px11", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
+                  <code className={cn("px-1.5 py-0.5 text-caption", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.args}
@@ -142,10 +142,10 @@ export const CommandRenderer = ({
               {/* Command message/status if present */}
               {commandGroup.message && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-caption font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.status")}
                   </span>
-                  <span className={cn("text-px11 italic", colors.text)}>
+                  <span className={cn("text-caption italic", colors.text)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.message}
@@ -168,7 +168,7 @@ export const CommandRenderer = ({
                     "mt-1.5 px-2.5 py-2",
                     layout.rounded,
                     "bg-background/50 text-foreground/80",
-                    "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+                    "whitespace-pre-wrap font-mono text-list leading-relaxed"
                   )}
                 >
                   {searchQuery ? (
@@ -191,7 +191,7 @@ export const CommandRenderer = ({
       {/* Output Tags */}
       {outputTags.map((output, index) => {
         const isError = output.type === "stderr";
-        const Icon = isError ? AlertCircle : CheckCircle;
+        const Icon = isError ? CircleAlert : CircleCheckBig;
         const label = isError
           ? t("commandRenderer.errorOutput")
           : t("commandRenderer.executionResult");
@@ -239,8 +239,8 @@ export const CommandRenderer = ({
           )}
         >
           <div className={cn("flex items-center mb-1.5", layout.iconSpacing)}>
-            <Terminal className={cn(layout.iconSize, "text-muted-foreground")} />
-            <span className={cn("text-xs font-medium text-muted-foreground")}>
+            <SquareTerminal className={cn(layout.iconSize, "text-muted-foreground")} />
+            <span className={cn("text-list font-medium text-muted-foreground")}>
               {t("commandRenderer.commandOutput")}
             </span>
           </div>
@@ -249,7 +249,7 @@ export const CommandRenderer = ({
               "px-2.5 py-2",
               layout.rounded,
               "bg-card text-foreground/80",
-              "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+              "whitespace-pre-wrap font-mono text-list leading-relaxed"
             )}
           >
             {searchQuery ? (

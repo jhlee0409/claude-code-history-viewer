@@ -21,7 +21,7 @@ import {
   ChevronRight,
   Copy,
   FolderOpen,
-  Loader2,
+  LoaderCircle,
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -78,6 +78,11 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
   const actions = useFileEditActions(edit, { onRestored, restoreScope });
+  // Kept visible, and focusable, when the row is not a whole file, so the
+  // tooltip and screen readers can say why Restore is unavailable.
+  const restoreLabel = actions.canRestore
+    ? t("recentEdits.restoreFile")
+    : t("recentEdits.restoreUnavailable");
 
   const fileName = getPathLeaf(edit.file_path);
   const directory = elideProjectRoot(
@@ -175,7 +180,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
       */}
       <div className="pointer-events-none relative flex items-start gap-1.5 px-2.5 py-2">
         <ChevronIcon
-          className="h-3 w-3 shrink-0 text-muted-foreground"
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
           style={{ marginTop: "3.5px" }}
           aria-hidden="true"
         />
@@ -208,10 +213,10 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
               is sized for roughly this. At 16px the text nearly filled it,
               which is what made the rows feel cramped as well as loud.
             */}
-            <span className="min-w-0 flex-1 truncate text-px13 font-semibold text-foreground">
+            <span className="min-w-0 flex-1 truncate text-list font-semibold text-foreground">
               {fileName}
             </span>
-            <span className="shrink-0 font-mono text-px11 text-muted-foreground">
+            <span className="shrink-0 font-mono text-caption text-muted-foreground">
               {edit.lines_added > 0 && (
                 <span className="text-success">
                   +{edit.lines_added}
@@ -244,7 +249,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
               canReveal={actions.canReveal && !isMissing}
               onReveal={actions.reveal}
               revealLabel={actions.revealLabel}
-              className="min-w-0 flex-1 text-px11 text-muted-foreground"
+              className="min-w-0 flex-1 text-caption text-muted-foreground"
             />
             <div
               className={cn(
@@ -259,7 +264,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
                 there does nothing.
               */}
               {isMissing ? (
-                <RestoreButton actions={actions} label={t("recentEdits.restoreFile")} />
+                <RestoreButton actions={actions} label={restoreLabel} />
               ) : (
                 actions.canReveal && (
                   <button
@@ -293,9 +298,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
                 )}
               </button>
 
-              {!isMissing && (
-                <RestoreButton actions={actions} label={t("recentEdits.restoreFile")} />
-              )}
+              {!isMissing && <RestoreButton actions={actions} label={restoreLabel} />}
             </div>
           </div>
         </div>
@@ -303,7 +306,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
       </div>
 
       {actions.restoreError && (
-        <div className="mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-px11 text-destructive">
+        <div className="mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-caption text-destructive">
           {t("recentEdits.restoreError")}: {actions.restoreError}
         </div>
       )}
@@ -347,14 +350,14 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
             <button
               type="button"
               onClick={actions.cancelRestore}
-              className="rounded-md bg-muted px-4 py-2 text-sm text-foreground hover:bg-muted/80"
+              className="rounded-md bg-muted px-4 py-2 text-body text-foreground hover:bg-muted/80"
             >
               {t("recentEdits.cancel")}
             </button>
             <button
               type="button"
               onClick={actions.confirmRestore}
-              className="rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground hover:bg-accent/90"
+              className="rounded-md bg-accent px-4 py-2 text-body text-accent-foreground hover:bg-accent/90"
             >
               {t("recentEdits.confirmRestore")}
             </button>
@@ -383,22 +386,29 @@ const RestoreButton: React.FC<{
   <button
     type="button"
     onClick={() => {
+      if (!actions.canRestore) return;
       if (actions.restoreStatus === "idle") actions.requestRestore();
     }}
-    disabled={actions.restoreStatus === "loading"}
+    // `aria-disabled` rather than `disabled` when unavailable: a natively
+    // disabled button leaves the tab order, hiding the reason from keyboard and
+    // screen-reader users. Only the in-flight restore is natively disabled.
+    aria-disabled={!actions.canRestore || undefined}
+    disabled={actions.canRestore && actions.restoreStatus === "loading"}
     className={cn(
       "rounded p-0.5 transition-colors",
-      actions.restoreStatus === "success"
-        ? "text-success"
-        : actions.restoreStatus === "error"
-          ? "text-destructive"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      !actions.canRestore
+        ? "cursor-not-allowed text-muted-foreground/40"
+        : actions.restoreStatus === "success"
+          ? "text-success"
+          : actions.restoreStatus === "error"
+            ? "text-destructive"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
     )}
     aria-label={label}
     title={label}
   >
     {actions.restoreStatus === "loading" ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
     ) : actions.restoreStatus === "success" ? (
       <Check className="h-3.5 w-3.5" />
     ) : (

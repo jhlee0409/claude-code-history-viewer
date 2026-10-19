@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ExternalLink, Search, AlertCircle, Clock } from "lucide-react";
+import { ExternalLink, Search, CircleAlert, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -36,7 +36,7 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
     return (
       <ToolResultCard
         title={t("webSearchResultRenderer.error")}
-        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
         variant="error"
         toolUseId={toolUseId}
       >

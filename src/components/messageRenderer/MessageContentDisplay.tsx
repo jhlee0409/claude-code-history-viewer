@@ -90,13 +90,13 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
           onClick={() => setIsExpanded(prev => !prev)}
           className={cn(
             "flex items-center justify-center gap-1 w-full py-1.5 mt-1",
-            "text-2xs text-muted-foreground hover:text-foreground",
+            "text-caption text-muted-foreground hover:text-foreground",
             "border-t border-border/50",
             "transition-colors"
           )}
         >
           <ChevronDown className={cn(
-            "w-3 h-3 transition-transform",
+            "w-3.5 h-3.5 transition-transform",
             isExpanded && "rotate-180"
           )} />
           <span>
@@ -206,7 +206,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
         <div className="max-w-[85%] md:max-w-md lg:max-w-lg bg-accent text-accent-foreground rounded-2xl px-4 py-3 relative group shadow-sm">
           <div className={cn(
             "whitespace-pre-wrap break-words",
-            layout.bodyText
+            "text-body"
           )}>
             {searchQuery ? (
               <HighlightedText
@@ -225,13 +225,13 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             <button
               onClick={() => setIsExpanded(prev => !prev)}
               className={cn(
-                "flex items-center gap-1 mt-1.5 text-2xs",
+                "flex items-center gap-1 mt-1.5 text-caption",
                 "text-accent-foreground/70 hover:text-accent-foreground",
                 "transition-colors"
               )}
             >
               <ChevronDown className={cn(
-                "w-3 h-3 transition-transform",
+                "w-3.5 h-3.5 transition-transform",
                 isExpanded && "rotate-180"
               )} />
               <span>
@@ -263,7 +263,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
         <div className="max-w-[95%] md:max-w-2xl bg-secondary text-secondary-foreground rounded-2xl px-4 py-3 relative group shadow-sm border border-border">
           {/* 검색 중일 때는 plain text로 렌더링 (성능 + 하이라이팅) */}
           {searchQuery ? (
-            <div className={`whitespace-pre-wrap break-words ${layout.bodyText}`}>
+            <div className={`whitespace-pre-wrap break-words text-body`}>
               <HighlightedText
                 text={content}
                 searchQuery={searchQuery}
@@ -291,13 +291,13 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             <button
               onClick={() => setIsExpanded(prev => !prev)}
               className={cn(
-                "flex items-center gap-1 mt-2 text-2xs",
+                "flex items-center gap-1 mt-2 text-caption",
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors"
               )}
             >
               <ChevronDown className={cn(
-                "w-3 h-3 transition-transform",
+                "w-3.5 h-3.5 transition-transform",
                 isExpanded && "rotate-180"
               )} />
               <span>

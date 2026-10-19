@@ -7,11 +7,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, Loader2, Archive, SlidersHorizontal } from "lucide-react";
+import { Settings, RefreshCw, Folder, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import { useEffect, useState } from "react";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
+import { OPEN_PREFERENCES_EVENT } from "@/commands/appEvents";
 import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
 import { DesktopOnly } from "@/contexts/platform";
@@ -24,62 +26,47 @@ import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
 
 interface SettingDropdownProps {
   updater: UseUpdaterReturn;
-  /** Claude-only tool; disabled for other providers. */
-  onOpenArchive?: () => void;
-  archiveDisabled?: boolean;
-  onOpenSettingsManager?: () => void;
 }
 
-export const SettingDropdown = ({
-  updater,
-  onOpenArchive,
-  archiveDisabled = false,
-  onOpenSettingsManager,
-}: SettingDropdownProps) => {
+/**
+ * The gear menu: app preferences only (plan T7, D8) - the Claude folder,
+ * message filters, view, font, accessibility, theme, language, and on the
+ * desktop the app's own update check. The Claude Code tools (Settings
+ * Manager, Archive) live in the sidebar library and the ⌘K palette; feedback
+ * is the sidebar's help button and a palette command (§6).
+ *
+ * The `app.preferences` command (Settings… ⌘, in the app menu, and the
+ * palette) opens it through `OPEN_PREFERENCES_EVENT`.
+ */
+export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
   const { t } = useTranslation();
   const { openModal } = useModal();
 
   const isCheckingForUpdates = updater.state.isChecking;
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openMenu = () => setOpen(true);
+    window.addEventListener(OPEN_PREFERENCES_EVENT, openMenu);
+    return () => window.removeEventListener(OPEN_PREFERENCES_EVENT, openMenu);
+  }, []);
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
             id="app-settings-button"
-            className="p-2 rounded-lg transition-colors cursor-pointer relative text-muted-foreground/50 hover:text-foreground/80 hover:bg-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer relative text-muted-foreground hover:text-foreground hover:bg-muted"
             aria-label={t("common.settings.title")}
           >
-            <Settings className="w-5 h-5 text-foreground" />
+            <Settings className="w-4 h-4" />
             {isCheckingForUpdates && (
-              <Loader2 className="absolute -top-1 -right-1 w-3 h-3 animate-spin text-info" />
+              <LoaderCircle className="absolute -top-1 -right-1 w-3.5 h-3.5 animate-spin text-info" />
             )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
-          {(onOpenSettingsManager || onOpenArchive) && (
-            <>
-              <DropdownMenuLabel>{t("common.settings.tools", "Claude Code")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {onOpenSettingsManager && (
-                <DropdownMenuItem onClick={onOpenSettingsManager}>
-                  <SlidersHorizontal className="mr-2 h-4 w-4 text-foreground" />
-                  <span>{t("settingsManager.title")}</span>
-                </DropdownMenuItem>
-              )}
-              {onOpenArchive && (
-                <DropdownMenuItem onClick={onOpenArchive} disabled={archiveDisabled}>
-                  <Archive className="mr-2 h-4 w-4 text-foreground" />
-                  <span>
-                    {archiveDisabled
-                      ? t("common.settings.claudeOnly", { name: t("archive.title") })
-                      : t("archive.title")}
-                  </span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-            </>
-          )}
           <DropdownMenuLabel>{t('common.settings.title')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -87,10 +74,6 @@ export const SettingDropdown = ({
           >
             <Folder className="mr-2 h-4 w-4 text-foreground" />
             <span>{t('common.settings.changeFolder')}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => openModal("feedback")}>
-            <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
-            <span>{t("feedback.title")}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />

@@ -20,6 +20,8 @@ export interface ProviderSliceState {
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
   isDetectingProviders: boolean;
+  /** A detection completed this run, even one that found no provider. */
+  hasDetectedProviders: boolean;
 }
 
 export interface ProviderSliceActions {
@@ -39,6 +41,7 @@ const initialProviderState: ProviderSliceState = {
   providers: [],
   activeProviders: [DEFAULT_PROVIDER_ID],
   isDetectingProviders: false,
+  hasDetectedProviders: false,
 };
 
 // ============================================================================
@@ -62,6 +65,7 @@ export const createProviderSlice: StateCreator<
         .map((p) => p.id as ProviderId);
       set({
         providers,
+        hasDetectedProviders: true,
         activeProviders: activeProviders.length > 0
           ? activeProviders
           : [DEFAULT_PROVIDER_ID],

@@ -1,4 +1,4 @@
-import { Clipboard, Circle, CheckCircle, MinusCircle, X } from "lucide-react";
+import { Clipboard, Circle, CircleCheckBig, CircleMinus, X } from "lucide-react";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -24,9 +24,9 @@ export const TodoUpdateRenderer = ({
   const getTodoStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className={cn(layout.iconSize, "text-success")} />;
+        return <CircleCheckBig className={cn(layout.iconSize, "text-success")} />;
       case "in_progress":
-        return <MinusCircle className={cn(layout.iconSize, "text-warning")} />;
+        return <CircleMinus className={cn(layout.iconSize, "text-warning")} />;
       case "pending":
         return <Circle className={cn(layout.iconSize, "text-muted-foreground")} />;
       default:

@@ -119,3 +119,9 @@ global.ResizeObserver = class ResizeObserver {
   new (): ResizeObserver;
   prototype: ResizeObserver;
 };
+
+// jsdom has no layout, so no scrollIntoView; cmdk (the ⌘K palette list)
+// scrolls its selected item into view on every selection change.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}

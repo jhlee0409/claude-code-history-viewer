@@ -4,6 +4,10 @@ import type { ClaudeProject } from "../../../types";
 import type { GroupingMode } from "../../../types/metadata.types";
 import type { ContextMenuState } from "../types";
 
+/** Expansion keys of group rows (directory, worktree, time bucket). */
+const isGroupKey = (key: string) =>
+  key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:");
+
 export function useProjectTreeState(groupingMode: GroupingMode) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -34,11 +38,14 @@ export function useProjectTreeState(groupingMode: GroupingMode) {
       if (!projectPath) return;
 
       setExpandedProjects((prev) => {
-        if (prev.has(projectPath) && (!groupKey || prev.has(groupKey))) {
+        const isOnlyProject = [...prev].every((key) => isGroupKey(key) || key === projectPath);
+        if (prev.has(projectPath) && (!groupKey || prev.has(groupKey)) && isOnlyProject) {
           return prev;
         }
 
-        const next = new Set(prev);
+        // One project row is expanded at a time (plan T7); group rows keep
+        // their own state.
+        const next = new Set([...prev].filter(isGroupKey));
         next.add(projectPath);
         if (groupKey) {
           next.add(groupKey);

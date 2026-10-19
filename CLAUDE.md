@@ -143,6 +143,9 @@ cd src-tauri && cargo fmt --all -- --check && cd ..      # Rust 포맷 체크
 pnpm run i18n:validate          # 5개 언어 키 동기화 확인 (en, ko, ja, zh-CN, zh-TW)
 ```
 
+**실행 스모크 (CI):** `rust-tests.yml`의 Ubuntu/Windows 잡이 실제 데스크톱 바이너리를 띄워
+메인 창이 보이는지 확인한다 (`scripts/ci/launch-smoke.{sh,ps1}`). Windows/Linux 시작은 이것으로 커버한다.
+
 **주의사항:**
 - `cargo test`는 반드시 `--test-threads=1`로 실행 (settings 테스트가 `env::set_var("HOME")` 사용)
 - `pnpm install` 생략 시 lockfile과 node_modules 불일치로 빌드 실패 가능

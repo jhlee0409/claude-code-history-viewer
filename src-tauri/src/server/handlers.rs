@@ -958,6 +958,28 @@ handler_json!(
     |p: SendFeedbackParams| async move { commands::feedback::send_feedback(p.feedback).await }
 );
 
+/// `sync_menu_state` (desktop: the native menu's language and command state).
+/// The `WebUI` has no native menu, so the menu routes only keep the desktop
+/// and `WebUI` command surfaces in parity: this one accepts the body and
+/// does nothing.
+pub async fn sync_menu_state() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
+
+/// `menu_journal` (desktop: menu events not yet acknowledged). No native
+/// menu in the `WebUI`: an empty journal.
+pub async fn menu_journal() -> Result<Json<Value>, ApiError> {
+    Ok(Json(
+        serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+    ))
+}
+
+/// `ack_menu_events` (desktop: drop acknowledged menu events). A no-op in
+/// the `WebUI`.
+pub async fn ack_menu_events() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
+
 /// Special handler: returns URL instead of opening browser on server.
 pub async fn open_github_issues() -> Result<Json<Value>, ApiError> {
     let url = "https://github.com/jhlee0409/claude-code-history-viewer/issues/new";
@@ -1747,6 +1769,43 @@ mod tests {
         let saved = persisted_metadata().settings.custom_claude_paths;
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
+    }
+
+    /// The `WebUI` path (Axum `/update_session_metadata`) keeps a favourite's
+    /// `ref` from the request body on disk and in its response (plan T7, A2).
+    #[tokio::test]
+    #[serial]
+    async fn webui_session_update_keeps_the_favourite_ref() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let state = metadata_state();
+        // The JSON body the frontend posts.
+        let params: UpdateSessionMetadataParams = serde_json::from_value(serde_json::json!({
+            "sessionId": "s1",
+            "update": {
+                "starred": true,
+                "ref": {
+                    "provider": "codex",
+                    "filePath": "/c/rollout-1.jsonl",
+                    "sessionId": "s1",
+                    "actualSessionId": "a1"
+                }
+            }
+        }))
+        .unwrap();
+
+        let Json(response) = update_session_metadata(State(state), Json(params))
+            .await
+            .unwrap_or_else(|_| panic!("update_session_metadata failed"));
+        assert_eq!(
+            response["sessions"]["s1"]["ref"]["filePath"],
+            "/c/rollout-1.jsonl"
+        );
+        assert_eq!(response["sessions"]["s1"]["ref"]["actualSessionId"], "a1");
+
+        let saved = persisted_metadata();
+        let saved_ref = saved.sessions["s1"].session_ref.clone().unwrap();
+        assert_eq!(saved_ref.provider, "codex");
+        assert_eq!(saved_ref.actual_session_id.as_deref(), Some("a1"));
     }
 
     /// Concurrent `WebUI` session updates must all survive on disk and in the

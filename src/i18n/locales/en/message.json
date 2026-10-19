@@ -16,7 +16,6 @@
   "message.scrollToBottom": "Scroll to Bottom",
   "message.system": "System",
   "message.user": "User",
-  "message.view": "View Message",
   "messageContentDisplay.copyMessage": "Copy Message",
   "messageContentDisplay.showLess": "Show less",
   "messageContentDisplay.showMore": "Show more...",
@@ -128,5 +127,8 @@
   "filter.content.parallelTasks": "Parallel Tasks",
   "filter.reset": "Reset Filters",
   "filter.active": "Filters active",
-  "filter.showing": "{{filtered}} / {{total}}"
+  "filter.showing": "{{filtered}} / {{total}}",
+  "messageViewer.clearSearch": "Clear search",
+  "messageViewer.prevMatch": "Previous match (Shift+Enter)",
+  "messageViewer.nextMatch": "Next match (Enter)"
 }

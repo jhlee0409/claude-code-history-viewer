@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Server, CheckCircle, AlertCircle } from "lucide-react";
+import { Server, CircleCheckBig, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeStringify } from "../../utils/jsonUtils";
 import { TruncatedPre } from "../common/TruncatedPre";
@@ -37,7 +37,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
     return (
       <ToolResultCard
         title={t("mcpToolResultRenderer.error")}
-        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
         variant="error"
         toolUseId={toolUseId}
       >
@@ -105,7 +105,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
       icon={
         <span className={cn("flex items-center", layout.iconGap)}>
           <Server className={cn(layout.iconSize, "text-tool-mcp")} />
-          <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
+          <CircleCheckBig className={cn(layout.iconSizeSmall, "text-success")} />
         </span>
       }
       variant="mcp"

@@ -11,5 +11,6 @@ expression: edit
   "original_content": "fn main() {}",
   "lines_added": 3,
   "lines_removed": 1,
-  "cwd": "/path/to"
+  "cwd": "/path/to",
+  "content_kind": "full"
 }

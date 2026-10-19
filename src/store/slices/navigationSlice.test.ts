@@ -24,14 +24,17 @@ describe("navigationSlice WebUI history", () => {
 
   it("pushes the selected session and target message into the URL", () => {
     const set = vi.fn();
-    const get = () => ({ selectedSession: session });
+    const get = () => ({ selectedSession: session, targetRequest: 4 });
     const slice = createNavigationSlice(set as never, get as never, {} as never);
 
     slice.navigateToMessage("message-123");
 
+    // An explicit target outranks a tab's saved scroll position (T8).
     expect(set).toHaveBeenCalledWith({
       targetMessageUuid: "message-123",
       shouldHighlightTarget: true,
+      targetRequest: 5,
+      pendingAnchor: null,
     });
     expect(readLocation()).toEqual({
       session: "canonical-session",

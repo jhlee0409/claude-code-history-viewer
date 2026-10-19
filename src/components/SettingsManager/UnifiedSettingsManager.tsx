@@ -32,6 +32,7 @@ import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
 import { SessionResumeSection } from "./sections/SessionResumeSection";
+import { placeNameKey } from "@/navigation/placeNames";
 import {
   OPEN_SETTINGS_SECTION_EVENT,
   consumeRequestedSettingsSection,
@@ -296,7 +297,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   return (
     <SettingsManagerContext.Provider value={contextValue}>
-      <div className={`flex flex-col ${className || ""}`}>
+      {/* The page scrolls as a whole while sidebar and editor stack (narrow
+          container); side by side, the editor scrolls inside itself. Root is
+          the size container so the content below can switch on its width. */}
+      <div className={`@container flex flex-col overflow-y-auto ${className || ""}`}>
         {/* Archive Manager Link (mobile access point) */}
         <button
           type="button"
@@ -307,8 +311,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <Archive className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{t("archive.settings.link")}</p>
-            <p className="text-xs text-muted-foreground">{t("archive.settings.linkDescription")}</p>
+            <p className="text-body font-medium">{t(placeNameKey("archive"))}</p>
+            <p className="text-list text-muted-foreground">{t("archive.settings.linkDescription")}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
@@ -346,7 +350,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             error={error}
           />
         ) : (
-          <div className="@container flex flex-col gap-4 flex-1 min-h-0">
+          <div className="flex flex-col gap-4 flex-none @2xl:flex-1 @2xl:min-h-0">
             {/* Custom Directories — app-level setting, independent of Claude Code scope */}
             <Card className="shrink-0">
               <CustomDirectoriesSection
@@ -378,7 +382,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             {/* Sidebar and editor stack until the *container* is wide enough
                 (≈672px), not the viewport — the pane sits beside the explorer
                 and sessions column, so viewport breakpoints lied here. */}
-            <div className="flex flex-col @2xl:flex-row gap-4 flex-1 min-h-0">
+            <div className="flex flex-col @2xl:flex-row gap-4 flex-none @2xl:flex-1 @2xl:min-h-0">
               {/* Left Sidebar */}
               <SettingsSidebar availableScopes={availableScopes} />
 

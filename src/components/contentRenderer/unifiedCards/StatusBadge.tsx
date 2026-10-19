@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import { CircleCheck, Clock3, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "../../renderers";
@@ -11,7 +11,7 @@ export function StatusBadge({ results }: { results: ToolResultLike[] }) {
   const hasError = hasResult && results.some(isError);
   if (hasError) return (
     <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", layout.smallText, "bg-destructive/20 text-destructive")}>
-      <AlertTriangle className={layout.iconSizeSmall} />{t("common.error")}
+      <TriangleAlert className={layout.iconSizeSmall} />{t("common.error")}
     </span>
   );
   if (!hasResult) return (
@@ -21,7 +21,7 @@ export function StatusBadge({ results }: { results: ToolResultLike[] }) {
   );
   return (
     <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", layout.smallText, "bg-success/20 text-success")}>
-      <CheckCircle2 className={layout.iconSizeSmall} />{t("common.completed")}
+      <CircleCheck className={layout.iconSizeSmall} />{t("common.completed")}
     </span>
   );
 }

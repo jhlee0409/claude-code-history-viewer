@@ -2,6 +2,33 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import type { CommandContext } from "@/commands/registry";
+
+// The palette's command group renders from this context; these tests cover
+// the message search only (commands: GlobalSearchModal.commands.test.tsx).
+const getCommandContext = (): CommandContext => ({
+    place: { view: "conversation" },
+    runtime: "web",
+    isMobile: false,
+    canGoBack: false,
+    canGoForward: false,
+    hasFindTarget: false,
+    tabs: { activeId: "t1", ids: ["t1"] },
+    ownPlace: () => () => true,
+    actions: {
+        openPalette: vi.fn(),
+        openPreferences: vi.fn(),
+        goBack: vi.fn(),
+        goForward: vi.fn(),
+        focusFind: vi.fn(),
+        toggleInspector: vi.fn(),
+        toggleMinimap: vi.fn(),
+        openSettingsManager: vi.fn(),
+        openArchive: vi.fn(),
+        openFeedback: vi.fn(),
+        checkForUpdates: vi.fn(),
+    },
+});
 
 type MockProps = {
     children?: ReactNode;
@@ -91,7 +118,7 @@ describe("GlobalSearchModal WSL search routing", () => {
 
     it("searches WSL when no native Claude path is configured", async () => {
         storeState.activeProviders = ["claude", "codex"];
-        render(<GlobalSearchModal isOpen onClose={vi.fn()} />);
+        render(<GlobalSearchModal isOpen onClose={vi.fn()} getCommandContext={getCommandContext} />);
 
         fireEvent.change(screen.getByPlaceholderText("globalSearch.placeholder"), {
             target: { value: "hello" },
@@ -115,7 +142,7 @@ describe("GlobalSearchModal WSL search routing", () => {
         storeState.activeProviders = ["codex"];
         storeState.userMetadata.settings.wsl.enabled = false;
 
-        render(<GlobalSearchModal isOpen onClose={vi.fn()} />);
+        render(<GlobalSearchModal isOpen onClose={vi.fn()} getCommandContext={getCommandContext} />);
 
         fireEvent.change(screen.getByPlaceholderText("globalSearch.placeholder"), {
             target: { value: "hello" },
@@ -138,7 +165,7 @@ describe("GlobalSearchModal WSL search routing", () => {
         storeState.claudePath = "/home/user/.claude";
         storeState.userMetadata.settings.wsl.enabled = false;
 
-        render(<GlobalSearchModal isOpen onClose={vi.fn()} />);
+        render(<GlobalSearchModal isOpen onClose={vi.fn()} getCommandContext={getCommandContext} />);
 
         fireEvent.change(screen.getByPlaceholderText("globalSearch.placeholder"), {
             target: { value: "hello" },

@@ -1,20 +1,22 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
-import { MessageNavigator } from "@/components/MessageNavigator";
+import { Inspector } from "@/components/Inspector";
+import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailability";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
-import { useIsLgUp, useIsXlUp } from "@/hooks/useMediaQuery";
-import { useResizablePanel } from "@/hooks/useResizablePanel";
-import { SessionsPane } from "@/components/SessionsPane/SessionsPane";
-import { formatTimeAgo } from "@/utils/time";
+import { CommandRunnerContext } from "@/commands/CommandRunner";
+import { useCommandContext } from "@/commands/useCommandContext";
+import { dispatchCommand } from "@/commands/registry";
+import { useFavoriteRefBackfill } from "@/hooks/useFavoriteRefBackfill";
 import {
   AppErrorType,
   type ClaudeMessage,
@@ -41,8 +43,9 @@ import { ShellLayout } from "@/layouts/shell/ShellLayout";
 import { SkipLinks } from "@/layouts/shell/SkipLinks";
 import { ContentHeader } from "@/layouts/shell/ContentHeader";
 import { MobileAnalyticsSubNav } from "@/layouts/shell/MobileAnalyticsSubNav";
-import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
 import { StatusBar } from "@/layouts/shell/StatusBar";
+import { TabStrip } from "@/layouts/shell/TabStrip";
+import { TabUnavailableNotice } from "@/layouts/shell/TabUnavailableNotice";
 import {
   VIEW_REGISTRY,
   isMobileAnalyticsView,
@@ -98,17 +101,11 @@ export interface AppLayoutProps {
   isSidebarResizing: boolean;
   handleSidebarResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
 
-  // Navigator resize
-  navigatorWidth: number;
-  isNavigatorResizing: boolean;
-  handleNavigatorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
-  isNavigatorOpen: boolean;
-  toggleNavigator: () => void;
-  recentEditsDockWidth: number;
-  isRecentEditsDockResizing: boolean;
-  handleRecentEditsDockResizeStart: (
-    e: React.MouseEvent<HTMLElement>
-  ) => void;
+  // Inspector (open state and committed width: `inspectorSlice.ts`)
+  inspectorWidth: number;
+  isInspectorResizing: boolean;
+  handleInspectorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
+  isInspectorOpen: boolean;
 
   // Grouping
   groupingMode: GroupingMode;
@@ -120,7 +117,7 @@ export interface AppLayoutProps {
   // Callbacks
   handleProjectSelect: (project: ClaudeProject) => void;
   loadMoreSessions: () => void;
-  handleSessionSelect: (session: ClaudeSession) => void;
+  handleSessionSelect: (session: ClaudeSession, owner?: ClaudeProject) => void;
   handleSessionHover: (session: ClaudeSession) => void;
   handleGlobalStatsClick: () => void;
   handleToggleSidebar: () => void;
@@ -142,9 +139,6 @@ export interface AppLayoutProps {
  */
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
-  // The dock is panel state, not layout state, so it is read from the store
-  // rather than threaded through props like the navigator's older toggle.
-  const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
   const {
     projects,
     sessions,
@@ -173,14 +167,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     sidebarWidth,
     isSidebarResizing,
     handleSidebarResizeStart,
-    navigatorWidth,
-    isNavigatorResizing,
-    handleNavigatorResizeStart,
-    isNavigatorOpen,
-    toggleNavigator,
-    recentEditsDockWidth,
-    isRecentEditsDockResizing,
-    handleRecentEditsDockResizeStart,
+    inspectorWidth,
+    isInspectorResizing,
+    handleInspectorResizeStart,
+    isInspectorOpen,
     groupingMode,
     worktreeGroups,
     directoryGroups,
@@ -201,28 +191,13 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     liveStatusMessage,
   } = props;
 
-  // Called before the early returns below, as hook order must not vary.
-  const isXlUp = useIsXlUp();
-  // Sessions get their own column from `lg` up; below that they stay inline in
-  // the explorer so narrow windows keep a usable transcript width. The column
-  // only exists for a selected project, and not on app-level views (Settings,
-  // Archive) where it would just steal width.
-  const showSessionsPane =
-    useIsLgUp() &&
-    !isMobile &&
-    selectedProject != null &&
-    !computed.isSettingsView &&
-    !computed.isArchiveView;
-  const {
-    width: sessionsPaneWidth,
-    isResizing: isSessionsPaneResizing,
-    handleMouseDown: handleSessionsPaneResizeStart,
-  } = useResizablePanel({
-    defaultWidth: 300,
-    minWidth: 220,
-    maxWidth: 520,
-    storageKey: "sessions-pane-width",
-  });
+  // Toolbar and sidebar controls run registry commands (`CommandRunner`).
+  const getCommandContext = useCommandContext();
+  const run = (id: Parameters<typeof dispatchCommand>[0]) => dispatchCommand(id, getCommandContext);
+  // Opening a tab loads its screen's data the way the toolbar tabs do.
+  const tabScreens = { openView: analyticsActions.openView };
+  // Legacy favourites learn where they live once their project is open.
+  useFavoriteRefBackfill();
   // Highlights are projections of the place (plan C3); primitives only, so
   // the selectors stay stable between renders.
   const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
@@ -236,7 +211,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     The non-visual `data-ready` marker on the root reads "true" only when no
     load is pending anywhere a screen can show a loader: the prop flags below,
     store-level loads the props do not carry (including incremental "load
-    more" pages and the recent-edits dock), and view-level loads components
+    more" pages and the Edits screen's rows), and view-level loads components
     keep in local state (`usePendingLoad`, e.g. the Settings Manager). The UI
     capture harness (`scripts/ui-capture`) waits on it, on top of network and
     DOM quiescence, before it photographs a screen. Attribute only; it never
@@ -248,9 +223,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       s.isLoadingBoard ||
       s.isMetadataLoading ||
       s.pagination.isLoadingMore ||
-      s.isLoadingRecentEditsDock ||
-      s.isLoadingMoreRecentEditsDock ||
-      s.analytics.recentEditsPagination.isLoadingMore ||
+      s.isLoadingRecentEdits ||
+      s.isLoadingMoreRecentEdits ||
       s.archive.isLoadingArchives ||
       s.archive.isLoadingSessions ||
       s.archive.isLoadingExpiring ||
@@ -279,12 +253,12 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       >
         <div className="text-center max-w-md mx-auto p-8">
           <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
-            <AlertTriangle className="w-8 h-8 text-destructive" />
+            <Icon icon={TriangleAlert} size={24} className="text-destructive" />
           </div>
-          <h1 className="text-xl font-semibold text-foreground mb-2">
+          <h1 className="text-title font-semibold text-foreground mb-2">
             {t("common.errorOccurred")}
           </h1>
-          <p className="text-sm text-muted-foreground mb-6">{error.message}</p>
+          <p className="text-body text-muted-foreground mb-6">{error.message}</p>
           <button
             onClick={() => window.location.reload()}
             className="action-btn primary"
@@ -303,33 +277,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const Screen = entry.component;
   const Frame = entry.frame;
 
-  /*
-    The transcript screen. The dock and the skip links that point into the
-    inspector track exactly this condition, so an anchor and its target cannot
-    drift apart. Global stats is a screen of its own, so the conversation
-    screen is exactly the transcript.
-  */
-  const isTranscriptView = computed.isMessagesView;
-  const showMessageNavigator = entry.inspector && selectedSession != null;
-  /*
-    Gated on `xl` in JavaScript, not merely in CSS. The wrapper is
-    `hidden xl:block`, but a hidden wrapper still mounts its children, so
-    between 768 and 1279 the panel used to mount, run its effect and fetch a
-    page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
-    was never the right gate for an `xl` surface.
-
-    Deliberately NOT gated on a selected session or project. It stays beside
-    the "select a session" placeholder: the panel scopes itself to the project
-    on its own (`effectiveScope` falls back to "project"), so a refresh that
-    clears the session does not blank the one surface still able to say what
-    the project had been touching. And clicking the selected project in the
-    tree collapses and deselects it; the panel is a workspace fixture, so it
-    stays put and shows its own empty state. `clearProjectSelection` drops the
-    dock's fetched page, so there is nothing of the old project to render.
-  */
-  const showRecentEditsDock =
-    isXlUp && isRecentEditsDockOpen && isTranscriptView;
-
+  // The inspector (outline, tokens, info) is closed by default and opens
+  // from the toolbar's inspector button or ⌘⇧M (plan T9a, decision D5);
+  // closed, it takes no width at all. Gated on the desktop layout in
+  // JavaScript, not merely by `hidden md:block`: a hidden wrapper still
+  // mounts its children, so a saved open Tokens/Info tab would run its
+  // loaders on a phone for a panel nobody can see. The saved preference
+  // itself stays, so the inspector returns on a wider screen.
+  const showInspector =
+    isInspectorAvailable({ isMobile, view: screen, hasSession: selectedSession != null }) && isInspectorOpen;
   const projectTreeProps = {
     projects,
     sessions,
@@ -344,8 +300,14 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     onGlobalStatsClick: handleGlobalStatsClick,
     isLoading: isLoadingProjects || isLoadingSessions,
     isLoadingMoreSessions,
-    isGlobalStatsActive: libraryItem === "globalStats",
+    libraryItem,
     isSelectionRetained: libraryItem !== null,
+    // The library's app-level rows and the help button run the same
+    // commands as the palette (plan §6).
+    onOpenArchive: () => run("go.archive"),
+    isArchiveDisabled: (selectedProject?.provider ?? "claude") !== "claude",
+    onOpenSettingsManager: () => run("go.settingsManager"),
+    onOpenHelp: () => run("help.feedback"),
   };
   const groupingProps = {
     groupingMode,
@@ -360,16 +322,13 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   };
 
   return (
+    <CommandRunnerContext.Provider value={getCommandContext}>
     <ShellLayout
       ready={isSettled}
       skipLinks={
         <SkipLinks
           hasProjectExplorer={!isMobile}
-          hasSessionsPane={showSessionsPane}
-          hasRecentEditsDock={showRecentEditsDock}
-          hasMessageNavigator={
-            !isMobile && isTranscriptView && isNavigatorOpen && selectedSession != null
-          }
+          hasInspector={showInspector}
         />
       }
       header={
@@ -379,6 +338,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           updater={updater}
         />
       }
+      tabs={!isMobile && <TabStrip screens={tabScreens} />}
       drawer={
         isMobile && (
           <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
@@ -405,7 +365,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           <div className="hidden md:block">
             <ProjectTree
               {...projectTreeProps}
-              inlineSessions={!showSessionsPane}
               width={isSidebarCollapsed ? undefined : sidebarWidth}
               isResizing={isSidebarResizing}
               onResizeStart={handleSidebarResizeStart}
@@ -417,28 +376,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           </div>
         )
       }
-      list={
-        showSessionsPane && (
-          <SessionsPane
-            selectedProject={selectedProject}
-            sessions={sessions}
-            sessionsTotal={sessionsTotal}
-            hasMoreSessions={hasMoreSessions}
-            selectedSession={selectedSession}
-            isLoading={isLoadingSessions}
-            isLoadingMoreSessions={isLoadingMoreSessions}
-            onSessionSelect={handleSessionSelect}
-            onSessionHover={handleSessionHover}
-            onLoadMoreSessions={loadMoreSessions}
-            formatTimeAgo={formatTimeAgo}
-            width={sessionsPaneWidth}
-            isResizing={isSessionsPaneResizing}
-            onResizeStart={handleSessionsPaneResizeStart}
-          />
-        )
-      }
       mainHeader={
         <>
+          <TabUnavailableNotice screens={tabScreens} />
           <ContentHeader
             view={screen}
             selectedSession={selectedSession}
@@ -456,43 +396,22 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             analyticsState={analyticsState}
             analyticsActions={analyticsActions}
             onTokenStatClick={handleTokenStatClick}
+            isMobile={isMobile}
           />
         </Frame>
       }
       mainLabelledBy={viewPanelLabel}
       inspector={
         <>
-          {showMessageNavigator && (
+          {showInspector && (
             <div className="hidden md:block">
-              <MessageNavigator
+              <Inspector
                 messages={messages}
-                width={navigatorWidth}
-                isResizing={isNavigatorResizing}
-                onResizeStart={handleNavigatorResizeStart}
-                isCollapsed={!isNavigatorOpen}
-                onToggleCollapse={toggleNavigator}
-                asideId="message-navigator"
+                width={inspectorWidth}
+                isResizing={isInspectorResizing}
+                onResizeStart={handleInspectorResizeStart}
               />
             </div>
-          )}
-          {/*
-            Outermost on the right, after the navigator rather than before it.
-            The navigator is an outline OF the transcript, so it belongs
-            against the transcript it indexes; the dock is a separate surface
-            about the project and sits outside it.
-
-            Keyed by whether a session is open, so clearing or opening one
-            remounts the dock (fresh scroll, focus and panel state) while a
-            switch between sessions keeps it - the lifetime it had when it sat
-            inside the transcript or the "select a session" placeholder (T2).
-          */}
-          {showRecentEditsDock && (
-            <RecentEditsDock
-              key={selectedSession == null ? "beside-placeholder" : "beside-transcript"}
-              width={recentEditsDockWidth}
-              isResizing={isRecentEditsDockResizing}
-              onResizeStart={handleRecentEditsDockResizeStart}
-            />
           )}
         </>
       }
@@ -547,5 +466,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       }
       modals={<ModalContainer />}
     />
+    </CommandRunnerContext.Provider>
   );
 };

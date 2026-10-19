@@ -1,5 +1,4 @@
 {
-  "archive.title": "아카이브 관리자",
   "archive.description": "대화 기록을 관리하고 보존하세요",
   "archive.tab.overview": "개요",
   "archive.tab.browse": "탐색",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "프로젝트 선택",
   "archive.create.mainSessions": "메인 세션 ({{count}})",
   "archive.create.subagentSessions": "서브에이전트 세션 ({{count}})",
-  "archive.settings.link": "아카이브 관리자",
   "archive.settings.linkDescription": "정리 전에 대화 기록을 관리하고 보존하세요"
 }

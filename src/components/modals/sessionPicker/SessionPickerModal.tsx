@@ -143,10 +143,10 @@ export const SessionPickerModal: React.FC = () => {
                                 onClick={() => handleSelect(c)}
                                 onMouseEnter={() => setSelectedIndex(i)}
                             >
-                                <div className="font-medium text-sm truncate">
+                                <div className="font-medium text-body truncate">
                                     {displayName}
                                 </div>
-                                <div className="text-xs text-muted-foreground flex gap-2">
+                                <div className="text-list text-muted-foreground flex gap-2">
                                     <span className="truncate">{c.project.name}</span>
                                     {lastMod && (
                                         <>

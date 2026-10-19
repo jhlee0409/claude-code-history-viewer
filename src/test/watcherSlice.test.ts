@@ -4,7 +4,10 @@ import {
   createWatcherSlice,
   type WatcherSlice,
 } from "../store/slices/watcherSlice";
-import { AppErrorType, type ClaudeSession } from "../types";
+import type { ClaudeSession } from "../types";
+
+const toastMock = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 const flushMicrotasks = async () => {
   await Promise.resolve();
@@ -176,7 +179,8 @@ describe("watcherSlice refresh coalescing", () => {
     expect(store.getState().reloadCurrent).toHaveBeenCalledTimes(1);
   });
 
-  it("surfaces selected-session refresh failures from the timer callback", async () => {
+  it("surfaces selected-session refresh failures from the timer callback, never as the app error", async () => {
+    toastMock.error.mockClear();
     const store = createTestStore();
     store
       .getState()
@@ -189,10 +193,9 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(1500);
     await flushMicrotasks();
 
-    expect(store.getState().setError).toHaveBeenCalledWith({
-      type: AppErrorType.UNKNOWN,
-      message: "Failed to refresh session: Error: load failed",
-    });
+    // The open session is one tab's: a notification, and the tabs stay.
+    expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining("load failed"));
+    expect(store.getState().setError).not.toHaveBeenCalled();
   });
 });
 

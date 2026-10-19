@@ -286,12 +286,22 @@ export const formatCurrency = (value: number): string =>
     maximumFractionDigits: value >= 100 ? 0 : 2,
   })}`;
 
+type HeatLevel = "empty" | "low" | "medium" | "high";
+
+/** The heatmap step an activity intensity (0-1) falls in. */
+const getHeatLevel = (intensity: number): HeatLevel => {
+  if (intensity === 0) return "empty";
+  if (intensity <= 0.3) return "low";
+  if (intensity <= 0.6) return "medium";
+  return "high";
+};
+
 /**
  * Get heatmap color based on intensity
  */
-export const getHeatColor = (intensity: number): string => {
-  if (intensity === 0) return "var(--heatmap-empty)";
-  if (intensity <= 0.3) return "var(--heatmap-low)";
-  if (intensity <= 0.6) return "var(--heatmap-medium)";
-  return "var(--heatmap-high)";
-};
+export const getHeatColor = (intensity: number): string =>
+  `var(--heatmap-${getHeatLevel(intensity)})`;
+
+/** Text color readable on the cell `getHeatColor(intensity)` fills. */
+export const getHeatTextColor = (intensity: number): string =>
+  `var(--heatmap-${getHeatLevel(intensity)}-foreground)`;

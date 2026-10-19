@@ -11,6 +11,7 @@
  */
 
 import { matchGlobPattern } from "../utils/globUtils";
+import type { SessionRef } from "../navigation/place";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
@@ -27,6 +28,8 @@ export interface SessionMetadata {
   notes?: string;
   /** Whether the session has been renamed via Claude Code native rename (synced with CLI) */
   hasClaudeCodeName?: boolean;
+  /** Where the session lives, recorded when it is starred (plan T7). */
+  ref?: SessionRef;
 }
 
 /** Metadata for individual projects */
@@ -92,7 +95,8 @@ export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
     !metadata.notes &&
-    !metadata.hasClaudeCodeName
+    !metadata.hasClaudeCodeName &&
+    !metadata.ref
   );
 };
 

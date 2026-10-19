@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, Mail, Copy, RefreshCw, CheckCircle2, HelpCircle } from "lucide-react";
+import { TriangleAlert, Mail, Copy, RefreshCw, CircleCheck, CircleQuestionMark } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { withTranslation, type WithTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -136,10 +137,10 @@ ${t("error.emailTemplate.thanks", {
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-4">
                   <div className="rounded-full bg-destructive/10 p-4">
-                    <AlertTriangle className="h-12 w-12 text-destructive" />
+                    <Icon icon={TriangleAlert} size={24} className="text-destructive" />
                   </div>
                 </div>
-                <h1 className="text-2xl font-bold mb-2 text-foreground">
+                <h1 className="text-title font-bold mb-2 text-foreground">
                   {t("error.unexpectedError", {
                     defaultValue: "An unexpected error occurred",
                   })}
@@ -154,24 +155,24 @@ ${t("error.emailTemplate.thanks", {
 
               {/* Error Details */}
               <Alert variant="destructive" className="mb-6">
-                <AlertTriangle className="h-4 w-4" />
+                <TriangleAlert className="h-4 w-4" />
                 <AlertTitle>
                   {t("error.errorInfo", {
                     defaultValue: "Error Information",
                   })}
                 </AlertTitle>
                 <AlertDescription>
-                  <pre className="text-sm overflow-x-auto whitespace-pre-wrap mt-2">
+                  <pre className="text-body overflow-x-auto whitespace-pre-wrap mt-2">
                     {this.state.error?.message || "Unknown error"}
                   </pre>
                   {this.state.error?.stack && (
                     <details className="mt-3">
-                      <summary className="cursor-pointer text-sm text-destructive/80 hover:text-destructive">
+                      <summary className="cursor-pointer text-body text-destructive/80 hover:text-destructive">
                         {t("error.viewDetails", {
                           defaultValue: "View Details",
                         })}
                       </summary>
-                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-destructive/70">
+                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-list text-destructive/70">
                         {this.state.error.stack}
                       </pre>
                     </details>
@@ -188,7 +189,7 @@ ${t("error.emailTemplate.thanks", {
                   })}
                 </AlertTitle>
                 <AlertDescription>
-                  <p className="text-sm mb-3">
+                  <p className="text-body mb-3">
                     {t("error.reportDescription", {
                       defaultValue:
                         "If this error occurs repeatedly, please report it to the email below:",
@@ -197,7 +198,7 @@ ${t("error.emailTemplate.thanks", {
                   <div className="flex flex-col gap-3">
                     <a
                       href={`mailto:relee6203@gmail.com?subject=${emailSubject}&body=${emailBody}`}
-                      className="text-sm font-medium text-info hover:underline"
+                      className="text-body font-medium text-info hover:underline"
                     >
                       relee6203@gmail.com
                     </a>
@@ -208,7 +209,7 @@ ${t("error.emailTemplate.thanks", {
                       className="w-fit"
                     >
                       {this.state.copied ? (
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CircleCheck className="h-4 w-4" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -237,15 +238,15 @@ ${t("error.emailTemplate.thanks", {
               {/* Troubleshooting */}
               <Card variant="outline" className="bg-muted/30">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4" />
+                  <CardTitle className="text-body font-semibold flex items-center gap-2">
+                    <CircleQuestionMark className="h-4 w-4" />
                     {t("error.troubleshooting", {
                       defaultValue: "Troubleshooting",
                     })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <ul className="space-y-2 text-sm text-muted-foreground">
+                  <ul className="space-y-2 text-body text-muted-foreground">
                     <li className="flex items-start gap-2">
                       <span className="text-muted-foreground/60">•</span>
                       {t("error.troubleshootingSteps.restart", {

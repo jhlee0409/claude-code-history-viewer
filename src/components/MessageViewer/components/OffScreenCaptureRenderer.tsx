@@ -9,7 +9,8 @@
 
 import { forwardRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import type { FlattenedMessage, FlattenedMessageItem } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
@@ -111,8 +112,8 @@ export const OffScreenCaptureRenderer = forwardRef<
         }}
       >
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-accent animate-spin" />
-          <span className="text-sm text-white/80">
+          <Icon icon={LoaderCircle} size={24} className="text-accent animate-spin" />
+          <span className="text-body text-white/80">
             {t("captureMode.capturing")}
           </span>
         </div>

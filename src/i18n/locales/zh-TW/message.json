@@ -16,7 +16,6 @@
   "message.scrollToBottom": "捲動到底部",
   "message.system": "系統",
   "message.user": "使用者",
-  "message.view": "查看訊息",
   "messageContentDisplay.copyMessage": "複製訊息",
   "messageContentDisplay.showLess": "收起",
   "messageContentDisplay.showMore": "展開更多...",
@@ -128,5 +127,8 @@
   "filter.content.parallelTasks": "並行任務",
   "filter.reset": "重設篩選",
   "filter.active": "篩選已啟用",
-  "filter.showing": "{{filtered}} / {{total}}"
+  "filter.showing": "{{filtered}} / {{total}}",
+  "messageViewer.clearSearch": "清除搜尋",
+  "messageViewer.prevMatch": "上一個符合項目 (Shift+Enter)",
+  "messageViewer.nextMatch": "下一個符合項目 (Enter)"
 }

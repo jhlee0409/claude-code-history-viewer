@@ -22,8 +22,11 @@ const HEIGHT_DEFAULTS = {
   hidden: 0,
 } as const;
 
-const CONTENT_WRAP_CHARS = 88;
-const CONTENT_LINE_HEIGHT = 18;
+// Conversation text renders on the body step (15px, line height up to 1.7):
+// ~70 characters per line in the message column and ~26px per line. Only an
+// initial estimate; the virtualizer measures every rendered row.
+const CONTENT_WRAP_CHARS = 70;
+const CONTENT_LINE_HEIGHT = 26;
 const MAX_TEXT_EXTRA_HEIGHT = 1400;
 const MAX_TOOL_EXTRA_HEIGHT = 2200;
 const MAX_INSPECTED_CHARS = 16000;

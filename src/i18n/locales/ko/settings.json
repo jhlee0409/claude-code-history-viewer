@@ -409,7 +409,6 @@
   "settingsManager.tabs.mcp": "MCP 서버",
   "settingsManager.tabs.overview": "개요",
   "settingsManager.tabs.presets": "프리셋",
-  "settingsManager.title": "설정 관리자",
   "settingsManager.unified.banner.effectiveSettings": "적용된 설정 요약",
   "settingsManager.unified.banner.hookTypes": "훅 유형",
   "settingsManager.unified.banner.noSettings": "어떤 범위에도 설정이 없습니다",
@@ -550,5 +549,6 @@
   "settings.sessionResume.noProviders": "이 머신에서 지원되는 CLI 에이전트 런타임을 감지하지 못했습니다.",
   "settings.sessionResume.saved": "재개 인수가 저장되었습니다",
   "settings.sessionResume.saveFailed": "설정 저장에 실패했습니다",
-  "settings.sessionResume.resetSuccess": "기본 인수로 재설정되었습니다"
+  "settings.sessionResume.resetSuccess": "기본 인수로 재설정되었습니다",
+  "settingsManager.unified.mcp.goToSourceOf": "{{source}}에서 편집"
 }

@@ -24,15 +24,42 @@ on:
       - "eslint.config.js"
       - "package.json"
       - "pnpm-lock.yaml"
+      # ui-harness: the WebUI server and providers are part of every capture.
+      - "src-tauri/**"
+      - ".nvmrc"
       - ".github/workflows/frontend-tests.yml"
   pull_request:
     branches: [main, develop]
     paths: *frontend_paths
+    # `edited`: a PR body edit must re-run the ui-harness capture gate, which
+    # reads the body's `ui-expected-changes:` line (see that job). The trigger
+    # is per workflow, so an edit re-runs the `frontend` job as well; a
+    # job-level skip would instead report the skipped job as passed and hide
+    # an earlier failure of the same commit. The other three are the default
+    # activity types, which an explicit `types` list replaces.
+    types: [opened, synchronize, reopened, edited]
 
   workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "ui-harness: capture the full scenario matrix instead of the CI subset (scripts/ui-capture/ci-scenarios.mjs)"
+        type: boolean
+        default: false
+      base_ref:
+        description: "ui-harness: git ref the capture gate compares against"
+        type: string
+        default: origin/develop
 
 permissions:
   contents: read
+
+# One run per PR: a body edit (`edited`, e.g. CodeRabbit's summary) or a new
+# push cancels that PR's run still in progress instead of stacking a second
+# full run. Pushes and manual runs get a group of their own (run_id), so none
+# of them is ever cancelled or replaced while pending.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   frontend:
@@ -71,3 +98,135 @@ jobs:
 
       - name: Bundle (vite build)
         run: pnpm exec vite build
+
+  # Real-browser checks of the WebUI build (plan I0, RR C7). The harness
+  # integration tests need WebKit AND the harness server binary
+  # (.ui-capture/build/cchv-server), which only build.sh makes, so the order
+  # on a clean runner is: install -> Rust + system packages -> browsers with
+  # their OS deps -> build.sh -> tests with CI_REQUIRE_BROWSER=1 (a missing
+  # browser or server fails instead of skipping) -> ui:states -> the
+  # unchanged gate against the PR's base. PRs and pushes gate the 32 exact
+  # ids of scripts/ui-capture/ci-scenarios.mjs (64 captures, head + base);
+  # the full matrix (~259 pairs, ~30 min of capture on a fast Mac) runs only
+  # on a manual dispatch with full_matrix, or locally with `pnpm ui:capture`.
+  ui-harness:
+    name: UI harness (WebKit + Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.full_matrix && 120 || 30 }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # --base <sha> checks the base out into a worktree
+
+      # 1. pnpm, Node from .nvmrc, dependencies
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js (.nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Intended visual changes (scripts/ui-capture/README.md, "Gates"): a PR
+      # names the scenarios it changes on purpose with a body line
+      #   ui-expected-changes: <id>, <id-prefix>*
+      # The body is untrusted input: it reaches a script only as $PR_BODY
+      # (never as ${{ }} inside `run`), and only expected-changes.mjs reads
+      # it; what that prints is scenario ids, `*` and commas. Read here, right
+      # after install, with `--list` checking the gate's own arguments, so a
+      # malformed or unknown id fails in a minute instead of after the builds.
+      - name: Expected visual changes (PR body)
+        id: expected
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          ids="$(node scripts/ui-capture/expected-changes.mjs)"
+          if [ -n "$ids" ]; then
+            echo "ui-expected-changes: $ids"
+            pnpm -s ui:capture --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs --expect-changed "$ids" --list > /dev/null
+          else
+            echo "No ui-expected-changes line: every scenario must stay within 0.1%."
+          fi
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+      # 2. Rust stable + the same Linux packages as rust-tests.yml
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      # 3. Browsers and their runtime dependencies
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps webkit chromium
+
+      # 4. The bundle + server the integration tests and run.mjs use
+      - name: Build the WebUI bundle and harness server
+        run: bash scripts/ui-capture/build.sh . .ui-capture/build/dist .ui-capture/build/cchv-server
+
+      # 5. Browser tests (skipped = failure), states gallery, unchanged gate
+      - name: Harness tests (no skips)
+        env:
+          CI_REQUIRE_BROWSER: "1"
+        run: pnpm exec vitest run scripts/ui-capture --maxWorkers=2 --testTimeout=60000
+
+      - name: Primitive states gallery
+        run: pnpm ui:states
+
+      # --no-build reuses the head build of step 4 only; the base has no
+      # artifacts on a clean runner, so run.mjs builds it into
+      # .ui-capture/build-base/<sha> (sharing src-tauri/target).
+      # Exact ids (not --only's substring match); test/ciScenarios.test.mjs
+      # pins the set. The PR body's declared ids (step "Expected visual
+      # changes") may exceed 0.1% and are listed as expected-change; every
+      # other scenario keeps the 0.1% rule.
+      - name: Capture gate (unchanged vs. base, CI subset)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000') || (github.event_name == 'workflow_dispatch' && !inputs.full_matrix)
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && inputs.base_ref || github.event.before }}
+          EXPECTED_CHANGES: ${{ steps.expected.outputs.ids }}
+        run: |
+          args=(--no-build --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs)
+          if [ -n "$EXPECTED_CHANGES" ]; then args+=(--expect-changed "$EXPECTED_CHANGES"); fi
+          pnpm ui:capture "${args[@]}"
+
+      - name: Capture gate (unchanged vs. base, full matrix)
+        if: github.event_name == 'workflow_dispatch' && inputs.full_matrix
+        env:
+          BASE_SHA: ${{ inputs.base_ref }}
+        run: pnpm ui:capture --no-build --base "$BASE_SHA" --gate unchanged
+
+      - name: Upload harness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-harness-${{ github.sha }}
+          # Every path is under .ui-capture/, a hidden directory, which v4
+          # leaves out unless asked; the list stays limited to the evidence.
+          include-hidden-files: true
+          path: |
+            .ui-capture/runs/latest/compare/
+            .ui-capture/runs/latest/manifest.json
+            .ui-capture/runs/latest/probes.json
+            .ui-capture/states/latest/summary.json
+          if-no-files-found: ignore

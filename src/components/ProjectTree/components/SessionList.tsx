@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
-import { Search, X, SortDesc, SortAsc, Loader2, ListChecks } from "lucide-react";
+import { Search, X, ArrowDownWideNarrow, ArrowUpNarrowWide, LoaderCircle, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -14,17 +14,18 @@ import {
 import { SessionItem } from "../../SessionItem";
 import { SessionSelectionBar } from "../../SessionItem/components/SessionSelectionBar";
 import { useAppStore } from "@/store/useAppStore";
+import { COMPACT_SESSION_ROW_HEIGHT, sessionItemHeight } from "./sessionItemHeight";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
 
-// SessionItem fixed row height. Sized to fit a 2-line wrapped name:
-//   py-2.5 (20px) + name 2 × text-xs/leading-relaxed (39px)
-//   + gap-1.5 (6px) + meta text-2xs (15px) ≈ 80px → 88px with safety margin.
-// Bumping this matters because react-window's FixedSizeList stacks rows at
-// `index * height`; a row taller than the height visually overlaps the next
-// row (#284). line-clamp-2 caps the worst case at 2 lines.
-const SESSION_ITEM_HEIGHT = 88;
+/**
+ * The search / source / sort controls show from this many sessions on. The
+ * sidebar offers the full list ("Show all") from here too, so they stay
+ * reachable for a small project (`ProjectSessions`).
+ */
+export const SESSION_CONTROLS_MIN = 3;
+
 // Virtual scroll을 적용할 최소 세션 수
 const VIRTUALIZATION_THRESHOLD = 20;
 // Virtual list의 최대 표시 높이
@@ -40,6 +41,7 @@ interface SessionRowData {
   selectedIds: Set<string>;
   onSessionCheck: (session: ClaudeSession, e: React.MouseEvent | React.KeyboardEvent | React.KeyboardEvent) => void;
   onSessionModifierSelect: (session: ClaudeSession, e: React.MouseEvent | React.KeyboardEvent) => void;
+  compact: boolean;
 }
 
 interface SessionRowProps {
@@ -59,6 +61,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
     selectedIds,
     onSessionCheck,
     onSessionModifierSelect,
+    compact,
   } = data;
   const session = sessions[index];
 
@@ -78,6 +81,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
         isChecked={selectedIds.has(session.session_id)}
         onToggleSelect={(e) => onSessionCheck(session, e)}
         onModifierSelect={(e) => onSessionModifierSelect(session, e)}
+        variant={compact ? "compact" : "default"}
       />
     </div>
   );
@@ -116,12 +120,12 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
       {/* Search + Sort */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             placeholder={t("session.filter.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
-            className="h-7 pl-7 pr-7 text-xs"
+            className="h-7 pl-7 pr-7 text-list"
           />
           {searchQuery && (
             <button
@@ -129,7 +133,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
               className="absolute right-2 top-1/2 -translate-y-1/2"
               aria-label={t("session.filter.clearSearch")}
             >
-              <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+              <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
             </button>
           )}
         </div>
@@ -170,16 +174,16 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
           }
         >
           {sessionSortOrder === "newest" ? (
-            <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
+            <ArrowDownWideNarrow className="w-3.5 h-3.5 text-muted-foreground" />
           ) : (
-            <SortAsc className="w-3.5 h-3.5 text-accent" />
+            <ArrowUpNarrowWide className="w-3.5 h-3.5 text-accent" />
           )}
         </button>
       </div>
 
       {/* Source (entrypoint) segmented filter */}
       <div className="flex items-center gap-1.5">
-        <span className="text-2xs text-muted-foreground shrink-0">
+        <span className="text-caption text-muted-foreground shrink-0">
           {t("session.filter.source.label")}
         </span>
         <div
@@ -195,7 +199,7 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
                 onClick={() => onEntrypointFilterChange(option)}
                 aria-pressed={isActive}
                 className={cn(
-                  "px-1.5 py-0.5 rounded text-2xs font-medium transition-colors",
+                  "px-1.5 py-0.5 rounded text-caption font-medium transition-colors",
                   isActive
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted/50"
@@ -224,7 +228,9 @@ export const SessionList: React.FC<SessionListProps> = ({
   formatTimeAgo,
   variant = "default",
   listHeight: paneListHeight,
+  density = "default",
 }) => {
+  const compact = density === "compact";
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const lastAutoLoadLengthRef = useRef(0);
@@ -236,6 +242,8 @@ export const SessionList: React.FC<SessionListProps> = ({
     getSessionDisplayName,
   } = useAppStore();
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
+  const fontScale = useAppStore((s) => s.fontScale);
+  const itemHeight = compact ? COMPACT_SESSION_ROW_HEIGHT : sessionItemHeight(fontScale);
   const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
@@ -244,7 +252,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
   const isPane = variant === "pane";
-  const borderClass = isPane
+  const borderClass = isPane || compact
     ? ""
     : isWorktree
       ? "border-l border-success/30"
@@ -252,7 +260,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         ? "border-l border-accent/30"
         : "border-l-2 border-accent/20";
 
-  const containerClass = isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
+  const containerClass = compact ? "" : isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
 
   // Filter and sort sessions
   const filteredAndSortedSessions = useMemo(() => {
@@ -289,7 +297,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   }, [sessions, sessionSortOrder, sessionEntrypointFilter, searchQuery, getSessionDisplayName]);
 
   // Show controls only if we have enough sessions
-  const showControls = sessions.length >= 3 || sessionsTotal >= 3;
+  const showControls = sessions.length >= SESSION_CONTROLS_MIN || sessionsTotal >= SESSION_CONTROLS_MIN;
 
   // Ordered IDs of the currently visible (filtered + sorted) sessions — the
   // basis for Shift range selection and "Select all".
@@ -406,13 +414,13 @@ export const SessionList: React.FC<SessionListProps> = ({
         disabled={isLoadingMoreSessions}
         className={cn(
           "w-full h-8 rounded-md border border-border/60 bg-background/70",
-          "text-2xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          "text-caption font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           "disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
         )}
       >
         <span className="inline-flex items-center justify-center gap-1.5">
           {isLoadingMoreSessions && (
-            <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+            <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
           )}
           <span>
             {isLoadingMoreSessions
@@ -439,6 +447,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       selectedIds: selectedIdSet,
       onSessionCheck: handleSessionCheck,
       onSessionModifierSelect: handleModifierSelect,
+      compact,
     }),
     [
       filteredAndSortedSessions,
@@ -450,14 +459,15 @@ export const SessionList: React.FC<SessionListProps> = ({
       selectedIdSet,
       handleSessionCheck,
       handleModifierSelect,
+      compact,
     ]
   );
 
   // 리스트 높이 계산
   const listHeight = useMemo(() => {
-    const totalHeight = filteredAndSortedSessions.length * SESSION_ITEM_HEIGHT;
+    const totalHeight = filteredAndSortedSessions.length * itemHeight;
     return Math.min(totalHeight, isPane && paneListHeight ? paneListHeight : MAX_LIST_HEIGHT);
-  }, [filteredAndSortedSessions.length, isPane, paneListHeight]);
+  }, [filteredAndSortedSessions.length, isPane, paneListHeight, itemHeight]);
 
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
@@ -480,7 +490,7 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   if (sessions.length === 0 && !hasMoreSessions) {
     return (
-      <div className={cn(containerClass, "py-2 text-2xs text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
+      <div className={cn(containerClass, "py-2 text-caption text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
         {t("components:session.notFound", "No sessions")}
       </div>
     );
@@ -494,9 +504,9 @@ export const SessionList: React.FC<SessionListProps> = ({
         {selectionBar}
 
         {/* Session List */}
-        <div className="space-y-1 py-2">
+        <div className={compact ? "py-0.5" : "space-y-1 py-2"}>
           {filteredAndSortedSessions.length === 0 ? (
-            <div className="py-2 text-2xs text-muted-foreground text-center">
+            <div className="py-2 text-caption text-muted-foreground text-center">
               {t("session.filter.noResults", "No matching sessions")}
             </div>
           ) : (
@@ -512,6 +522,7 @@ export const SessionList: React.FC<SessionListProps> = ({
                 isChecked={selectedIdSet.has(session.session_id)}
                 onToggleSelect={(e) => handleSessionCheck(session, e)}
                 onModifierSelect={(e) => handleModifierSelect(session, e)}
+                variant={compact ? "compact" : "default"}
               />
             ))
           )}
@@ -528,16 +539,16 @@ export const SessionList: React.FC<SessionListProps> = ({
       {selectionBar}
 
       {/* Virtual Scroll List */}
-      <div className="py-2">
+      <div className={compact ? "py-0.5" : "py-2"}>
         {filteredAndSortedSessions.length === 0 ? (
-          <div className="py-2 text-2xs text-muted-foreground text-center">
+          <div className="py-2 text-caption text-muted-foreground text-center">
             {t("session.filter.noResults", "No matching sessions")}
           </div>
         ) : (
           <List
             height={listHeight}
             itemCount={filteredAndSortedSessions.length}
-            itemSize={SESSION_ITEM_HEIGHT}
+            itemSize={itemHeight}
             width="100%"
             itemData={itemData}
             overscanCount={5}

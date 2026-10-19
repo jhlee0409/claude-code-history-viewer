@@ -1,5 +1,4 @@
 {
-  "archive.title": "封存管理器",
   "archive.description": "管理並保存您的對話歷史",
   "archive.tab.overview": "概覽",
   "archive.tab.browse": "瀏覽",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "選擇專案",
   "archive.create.mainSessions": "主工作階段 ({{count}})",
   "archive.create.subagentSessions": "子代理工作階段 ({{count}})",
-  "archive.settings.link": "封存管理器",
   "archive.settings.linkDescription": "在清理前管理並保存您的對話歷史"
 }

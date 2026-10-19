@@ -7,7 +7,8 @@
 import { api } from "@/services/api";
 import { toast } from "sonner";
 import type { ClaudeMessage, SearchFilters } from "../../types";
-import { AppErrorType } from "../../types";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { ownPlace, ownWork } from "@/navigation/ownership";
 import { searchMessagesAsync, buildSearchIndex, isSearchIndexReady, linearSearchMessages } from "../../utils/searchIndex";
@@ -135,7 +136,8 @@ export const createSearchSlice: StateCreator<
     } catch (error) {
       console.error("Failed to search messages:", error);
       if (!owner.ownsFeedback()) return;
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      // A search that failed says so; the app and its tabs stay.
+      toast.error(i18n.t("error.searchFailed", { detail: errorDetail(error) }));
     }
   },
 
@@ -318,13 +320,16 @@ export const createSearchSlice: StateCreator<
     });
   },
 
+  // A clear is the latest request too: a search still running lands nothing.
   clearSessionSearch: () => {
+    sessionSearchRequestId += 1;
     set((state) => ({
       sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
     }));
   },
 
   setSearchFilterType: (filterType: SearchFilterType) => {
+    sessionSearchRequestId += 1;
     set(() => ({
       sessionSearch: createEmptySearchState(filterType),
     }));

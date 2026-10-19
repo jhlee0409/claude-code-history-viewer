@@ -23,7 +23,23 @@ import type { ClaudeProject } from "@/types";
 import type { ToolbarView, View } from "@/navigation/place";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsComputed } from "@/hooks/analytics/useAnalyticsComputed";
+import {
+  Archive,
+  Bot,
+  ChartColumn,
+  ChartPie,
+  Coins,
+  FilePenLine,
+  MessageSquareText,
+  PanelRight,
+  RotateCcwClock,
+  Settings,
+  SquareKanban,
+  SquareTerminal,
+  Star,
+} from "lucide-react";
 import { screenRenderViolations, type SourceText } from "@/test/utils/screenRegistryGuard";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import {
   MOBILE_ANALYTICS_VIEWS,
   TOOLBAR_TAB_ORDER,
@@ -41,14 +57,12 @@ const ALL_VIEWS: Record<View, true> = {
   globalStats: true,
   archive: true,
   settingsManager: true,
-  tokenStats: true,
 };
 const VIEWS = Object.keys(ALL_VIEWS) as View[];
 
 const TOOLBAR: Record<ToolbarView, true> = {
   conversation: true,
   analytics: true,
-  tokenStats: true,
   edits: true,
   board: true,
 };
@@ -138,14 +152,61 @@ describe("VIEW_REGISTRY completeness", () => {
     expect(keys.filter((key) => !EN_KEYS.has(key))).toEqual([]);
   });
 
+  it("has no token stats screen: token statistics are an analytics sub-tab (T9b)", () => {
+    expect(Object.keys(VIEW_REGISTRY)).not.toContain("tokenStats");
+    expect(MOBILE_ANALYTICS_VIEWS as readonly string[]).not.toContain("tokenStats");
+    expect(MOBILE_ANALYTICS_VIEWS).toEqual(["analytics", "edits"]);
+  });
+
   it("gives the mobile analytics chips registry entries with a content header", () => {
     for (const view of MOBILE_ANALYTICS_VIEWS) {
       expect(VIEW_REGISTRY[view].header, view).not.toBeNull();
     }
   });
+});
 
-  it("shows the inspector on the conversation screen only", () => {
-    expect(VIEWS.filter((view) => VIEW_REGISTRY[view].inspector)).toEqual(["conversation"]);
+describe("screen icons (decision page section 7, plan T5)", () => {
+  it("fixes one glyph per meaning, as the decision table lists them", () => {
+    expect(SCREEN_ICONS).toEqual({
+      conversation: MessageSquareText,
+      analytics: ChartColumn,
+      edits: FilePenLine,
+      board: SquareKanban,
+      // The table says `history`; lucide 1.57 names that glyph rotate-ccw-clock.
+      recent: RotateCcwClock,
+      favorites: Star,
+      globalStats: ChartPie,
+      archive: Archive,
+      inspector: PanelRight,
+      agent: Bot,
+      terminal: SquareTerminal,
+      settings: Settings,
+      // Not in the table: token stats (the analytics sub-tab since T9b)
+      // keeps the coins it already showed.
+      tokenStats: Coins,
+    });
+  });
+
+  it("draws each screen with its meaning's icon", () => {
+    const expected: Record<View, unknown> = {
+      empty: SCREEN_ICONS.conversation,
+      conversation: SCREEN_ICONS.conversation,
+      analytics: SCREEN_ICONS.analytics,
+      edits: SCREEN_ICONS.edits,
+      board: SCREEN_ICONS.board,
+      globalStats: SCREEN_ICONS.globalStats,
+      archive: SCREEN_ICONS.archive,
+      settingsManager: SCREEN_ICONS.settings,
+    };
+    for (const view of VIEWS) {
+      expect(VIEW_REGISTRY[view].icon, view).toBe(expected[view]);
+    }
+  });
+
+  it("gives a header tab no icon of its own, so tab and content header always match", () => {
+    for (const view of TOOLBAR_TAB_ORDER) {
+      expect(Object.keys(VIEW_REGISTRY[view].tab), view).toEqual(["labelKey"]);
+    }
   });
 });
 
@@ -169,6 +230,16 @@ describe("screenOf: the analytics flags resolve back to the place's view", () =>
     useAppStore.setState({ view, selectedProject: PROJECT });
     const { result } = renderHook(() => useAnalyticsComputed());
     expect(screenOf(result.current)).toBe(view);
+  });
+
+  it("either analytics sub-tab renders the analytics screen", () => {
+    for (const analyticsTab of ["overview", "tokens"] as const) {
+      useAppStore.setState({ view: "analytics", analyticsTab, selectedProject: PROJECT });
+      const { result } = renderHook(() => useAnalyticsComputed());
+      expect(screenOf(result.current), analyticsTab).toBe("analytics");
+      expect(result.current.isAnalyticsTokens, analyticsTab).toBe(analyticsTab === "tokens");
+      expect(result.current.isAnalyticsOverview, analyticsTab).toBe(analyticsTab === "overview");
+    }
   });
 
   it("a project screen without a project resolves to the empty screen", () => {

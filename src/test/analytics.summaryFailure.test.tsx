@@ -238,7 +238,7 @@ describe("every summary load path reports an owned failure exactly once", () => 
   it("a date-filter change", async () => {
     await state().navigate({ project: A, view: "analytics" });
     renderHook(() =>
-      useAnalyticsAutoLoad({ isTokenStatsView: false, isAnalyticsView: true })
+      useAnalyticsAutoLoad({ isAnalyticsTokens: false, isAnalyticsOverview: true })
     );
     vi.mocked(toast.error).mockClear();
     failSummary("boom");

@@ -566,7 +566,7 @@ export const ClaudeContentArrayRenderer = memo(({
   };
 
   return (
-    <div className="space-y-2 text-px12">
+    <div className="space-y-2 text-caption">
       {normalizedContent.map((entry) => (
         <ExpandKeyProvider key={entry.key} value={`${expandPrefix}:${entry.key}`}>
           {renderEntry(entry)}

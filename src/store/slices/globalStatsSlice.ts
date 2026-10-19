@@ -5,7 +5,6 @@
  */
 
 import type { GlobalStatsSummary } from "../../types";
-import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
@@ -72,7 +71,6 @@ export const createGlobalStatsSlice: StateCreator<
       isLatest: () => requestId === getRequestId("globalStats"),
     });
     set({ isLoadingGlobalStats: true });
-    get().setError(null);
 
     // Convert dateFilter to RFC3339 strings for the backend.
     // Ensure endDate includes the full local day for parity with other stats slices.
@@ -135,8 +133,9 @@ export const createGlobalStatsSlice: StateCreator<
       set({ globalSummary: null, globalConversationSummary: null });
       if (!owner.ownsFeedback()) return;
       const message = error instanceof Error ? error.message : String(error);
+      // The screen is one tab's: its notification, never the app's error
+      // screen (which would hide every tab).
       toast.error(`Failed to load global stats: ${message}`);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
     } finally {
       if (owner.ownsSpinner()) {
         set({ isLoadingGlobalStats: false });

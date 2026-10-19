@@ -30,25 +30,26 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  AlertTriangle,
+  TriangleAlert,
   ArrowLeft,
-  CheckCircle2,
+  CircleCheck,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileJson,
+  FileBraces,
   FolderTree,
-  HelpCircle,
-  Home,
+  CircleQuestionMark,
+  House,
   Info,
-  Loader2,
+  LoaderCircle,
   Package,
   RefreshCw,
   Server,
   Shield,
-  XCircle,
+  CircleX,
   Zap,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import { useUnifiedPresets } from "@/hooks/useUnifiedPresets";
 import { mergeSettings } from "@/utils/settingsMerger";
@@ -182,9 +183,9 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
       return (
         <div className="relative px-2.5 py-1.5 rounded-md border border-dashed border-border/50 bg-muted/20 opacity-50">
           <div className="flex items-center gap-2">
-            <FileJson aria-hidden className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-            <code className="text-px10 text-muted-foreground/60 font-mono break-all">{analysis.path}</code>
-            <span className="text-px9 text-muted-foreground/40">{t("settingsManager.analyzer.fileNotFound")}</span>
+            <FileBraces aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+            <code className="text-caption text-muted-foreground/60 font-mono break-all">{analysis.path}</code>
+            <span className="text-caption text-muted-foreground/40">{t("settingsManager.analyzer.fileNotFound")}</span>
           </div>
         </div>
       );
@@ -192,40 +193,40 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
 
     return (
       <div className={`relative px-2.5 py-1.5 rounded-md border transition-all duration-200 ${isHighlighted ? "border-accent/50 bg-accent/5" : "border-border/50 bg-card hover:border-border"}`}>
-        <Badge variant="outline" className={`absolute -top-1.5 right-2 text-px8 px-1 py-0 leading-tight ${SCOPE_COLORS[analysis.scope]}`}>
+        <Badge variant="outline" className={`absolute -top-1.5 right-2 text-caption px-1 py-0 leading-tight ${SCOPE_COLORS[analysis.scope]}`}>
           {t(`settingsManager.analyzer.scope.${analysis.scope}`)}
         </Badge>
         <div className="flex items-center gap-2">
-          <FileJson aria-hidden className="w-3 h-3 text-muted-foreground shrink-0" />
+          <FileBraces aria-hidden className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <code className="text-px10 text-foreground/80 font-mono break-all">{analysis.path}</code>
+              <code className="text-caption text-foreground/80 font-mono break-all">{analysis.path}</code>
               {analysis.projectLabel && (
-                <Badge variant="secondary" className="text-px8 px-1 py-0 shrink-0">{analysis.projectLabel}</Badge>
+                <Badge variant="secondary" className="text-caption px-1 py-0 shrink-0">{analysis.projectLabel}</Badge>
               )}
             </div>
             <div className="flex flex-wrap gap-1 mt-1">
               {analysis.settingsCount > 0 && (
-                <Badge variant="secondary" className="text-px9 h-4 px-1">
+                <Badge variant="secondary" className="text-caption h-4 px-1">
                   {analysis.settingsCount} {t("settingsManager.analyzer.settings")}
                 </Badge>
               )}
               {analysis.mcpCount > 0 && (
-                <Badge variant="secondary" className="text-px9 h-4 px-1">
-                  <Server aria-hidden className="w-2 h-2 mr-0.5" />{analysis.mcpCount} MCP
+                <Badge variant="secondary" className="text-caption h-4 px-1">
+                  <Server aria-hidden className="w-3.5 h-3.5 mr-0.5" />{analysis.mcpCount} MCP
                 </Badge>
               )}
               {analysis.model && (
-                <Badge variant="outline" className="text-px9 h-4 px-1 font-mono">{analysis.model}</Badge>
+                <Badge variant="outline" className="text-caption h-4 px-1 font-mono">{analysis.model}</Badge>
               )}
               {analysis.hasPermissions && (
-                <Badge variant="secondary" className="text-px9 h-4 px-1">
-                  <Shield aria-hidden className="w-2 h-2 mr-0.5" />{t("settingsManager.analyzer.permissions")}
+                <Badge variant="secondary" className="text-caption h-4 px-1">
+                  <Shield aria-hidden className="w-3.5 h-3.5 mr-0.5" />{t("settingsManager.analyzer.permissions")}
                 </Badge>
               )}
               {analysis.hasHooks && (
-                <Badge variant="secondary" className="text-px9 h-4 px-1">
-                  <Zap aria-hidden className="w-2 h-2 mr-0.5" />{t("settingsManager.analyzer.hooks")}
+                <Badge variant="secondary" className="text-caption h-4 px-1">
+                  <Zap aria-hidden className="w-3.5 h-3.5 mr-0.5" />{t("settingsManager.analyzer.hooks")}
                 </Badge>
               )}
             </div>
@@ -237,9 +238,9 @@ const FileCard = React.memo<{ analysis: FileAnalysis; isHighlighted?: boolean }>
 );
 FileCard.displayName = "FileCard";
 
-const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof XCircle; className: string }> = {
-  error: { Icon: XCircle, className: "text-destructive" },
-  warning: { Icon: AlertTriangle, className: "text-warning" },
+const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof CircleX; className: string }> = {
+  error: { Icon: CircleX, className: "text-destructive" },
+  warning: { Icon: TriangleAlert, className: "text-warning" },
   info: { Icon: Info, className: "text-info" },
 };
 
@@ -251,22 +252,22 @@ const SEVERITY_BORDER: Record<IssueSeverity, string> = {
 
 const IssueCard = React.memo<{ issue: SettingsIssue }>(({ issue }) => {
   const { t } = useTranslation();
-  const { Icon, className: iconClass } = SEVERITY_ICON[issue.severity];
+  const { Icon: SeverityIcon, className: iconClass } = SEVERITY_ICON[issue.severity];
   return (
     <div className={`px-2.5 py-2 rounded-md border ${SEVERITY_BORDER[issue.severity]}`}>
       <div className="flex items-start gap-2">
-        <Icon aria-hidden className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${iconClass}`} />
+        <SeverityIcon aria-hidden className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${iconClass}`} />
         <div className="flex-1 min-w-0 space-y-0.5">
-          <p className="text-xs font-medium">{t(issue.titleKey)}</p>
-          <p className="text-px10 text-muted-foreground leading-tight">{t(issue.descriptionKey, issue.descriptionParams ?? {})}</p>
+          <p className="text-list font-medium">{t(issue.titleKey)}</p>
+          <p className="text-caption text-muted-foreground leading-tight">{t(issue.descriptionKey, issue.descriptionParams ?? {})}</p>
           <div className="flex flex-wrap gap-0.5">
             {issue.affectedScopes.map((scope) => (
-              <Badge key={scope} variant="outline" className={`text-px8 px-1 py-0 ${SCOPE_COLORS[scope] ?? ""}`}>
+              <Badge key={scope} variant="outline" className={`text-caption px-1 py-0 ${SCOPE_COLORS[scope] ?? ""}`}>
                 {t(`settingsManager.analyzer.scope.${scope}`)}
               </Badge>
             ))}
           </div>
-          <p className="text-px9 italic text-muted-foreground/70 leading-tight">{t(issue.recommendationKey)}</p>
+          <p className="text-caption italic text-muted-foreground/70 leading-tight">{t(issue.recommendationKey)}</p>
         </div>
       </div>
     </div>
@@ -292,24 +293,24 @@ const ProjectIssueGroup = React.memo<{
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors text-left">
         {open ? (
-          <ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />
+          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRight className="w-3 h-3 shrink-0 text-muted-foreground" />
+          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
         )}
-        <span className="text-xs font-medium flex-1 truncate">{pd.projectName}</span>
+        <span className="text-list font-medium flex-1 truncate">{pd.projectName}</span>
         <div className="flex items-center gap-1 shrink-0">
           {errors > 0 && (
-            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-destructive/10 text-destructive">
+            <Badge variant="secondary" className="text-caption h-3.5 px-1 bg-destructive/10 text-destructive">
               {errors}
             </Badge>
           )}
           {warnings > 0 && (
-            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-warning/10 text-warning">
+            <Badge variant="secondary" className="text-caption h-3.5 px-1 bg-warning/10 text-warning">
               {warnings}
             </Badge>
           )}
           {infos > 0 && (
-            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-info/10 text-info">
+            <Badge variant="secondary" className="text-caption h-3.5 px-1 bg-info/10 text-info">
               {infos}
             </Badge>
           )}
@@ -343,36 +344,36 @@ const HealthBar: React.FC<{
     <div className="flex items-center gap-3 px-4 py-2 border-b border-border/50 bg-muted/20 shrink-0">
       <div className="flex items-center gap-2 flex-1">
         {isScanning ? (
-          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
         ) : total === 0 ? (
-          <CheckCircle2 className="w-4 h-4 text-success" />
+          <CircleCheck className="w-4 h-4 text-success" />
         ) : errors > 0 ? (
-          <XCircle className="w-4 h-4 text-destructive" />
+          <CircleX className="w-4 h-4 text-destructive" />
         ) : (
-          <AlertTriangle className="w-4 h-4 text-warning" />
+          <TriangleAlert className="w-4 h-4 text-warning" />
         )}
         <div className="flex items-center gap-1.5">
           {errors > 0 && (
-            <Badge variant="secondary" className="text-px10 h-5 bg-destructive/10 text-destructive">
+            <Badge variant="secondary" className="text-caption h-5 bg-destructive/10 text-destructive">
               {t("settingsManager.diagnostics.errorCount", { count: errors })}
             </Badge>
           )}
           {warnings > 0 && (
-            <Badge variant="secondary" className="text-px10 h-5 bg-warning/10 text-warning">
+            <Badge variant="secondary" className="text-caption h-5 bg-warning/10 text-warning">
               {t("settingsManager.diagnostics.warningCount", { count: warnings })}
             </Badge>
           )}
           {infos > 0 && (
-            <Badge variant="secondary" className="text-px10 h-5 bg-info/10 text-info">
+            <Badge variant="secondary" className="text-caption h-5 bg-info/10 text-info">
               {t("settingsManager.diagnostics.infoCount", { count: infos })}
             </Badge>
           )}
           {!isScanning && total === 0 && (
-            <span className="text-xs text-success">{t("settingsManager.analyzer.issues.noIssues")}</span>
+            <span className="text-list text-success">{t("settingsManager.analyzer.issues.noIssues")}</span>
           )}
         </div>
       </div>
-      <span className="text-px10 text-muted-foreground shrink-0">
+      <span className="text-caption text-muted-foreground shrink-0">
         {t("settingsManager.diagnostics.projectsScanned", { count: projectsScanned })}
       </span>
       <Button
@@ -575,8 +576,8 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <FolderTree aria-hidden className="w-5 h-5 text-accent" />
-          <h3 className="text-lg font-semibold">{t("settingsManager.diagnostics.title")}</h3>
+          <FolderTree aria-hidden className="w-4 h-4 text-accent" />
+          <h3 className="text-title font-semibold">{t("settingsManager.diagnostics.title")}</h3>
         </div>
       </div>
 
@@ -595,24 +596,24 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
         <TabsList className="w-full justify-start rounded-none border-b border-border/50 bg-transparent h-auto p-0 shrink-0">
           <TabsTrigger
             value="issues"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-sm"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-body"
           >
             {t("settingsManager.diagnostics.tabs.issues")}
             {issueCounts.total > 0 && (
-              <Badge variant="secondary" className={`ml-2 text-px10 h-4 px-1.5 ${issueCounts.errors > 0 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
+              <Badge variant="secondary" className={`ml-2 text-caption h-4 px-1.5 ${issueCounts.errors > 0 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
                 {issueCounts.total}
               </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="files"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-sm"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-body"
           >
             {t("settingsManager.diagnostics.tabs.files")}
           </TabsTrigger>
           <TabsTrigger
             value="guide"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-sm"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:bg-transparent px-4 py-2.5 text-body"
           >
             {t("settingsManager.diagnostics.tabs.guide")}
           </TabsTrigger>
@@ -625,7 +626,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Global Issues Section */}
           {globalIssues.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <h4 className="text-list font-medium text-muted-foreground uppercase tracking-wider">
                 {t("settingsManager.diagnostics.globalScope")}
               </h4>
               {globalIssues.map((issue) => (
@@ -650,7 +651,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           {/* Clean projects footer */}
           {!isScanning && cleanProjectCount > 0 && (
-            <p className="text-xs text-muted-foreground text-center pt-2">
+            <p className="text-list text-muted-foreground text-center pt-2">
               {t("settingsManager.diagnostics.projectsClean", { count: cleanProjectCount })}
             </p>
           )}
@@ -658,16 +659,16 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* All clean */}
           {!isScanning && issueCounts.total === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <CheckCircle2 className="w-10 h-10 text-success mb-3" />
-              <p className="text-sm font-medium">{t("settingsManager.analyzer.issues.noIssues")}</p>
+              <Icon icon={CircleCheck} size={24} className="text-success mb-3" />
+              <p className="text-body font-medium">{t("settingsManager.analyzer.issues.noIssues")}</p>
             </div>
           )}
 
           {/* Scanning state */}
           {isScanning && (
             <div className="flex items-center justify-center py-12 gap-3 text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm">{t("common.loading")}</span>
+              <LoaderCircle className="w-4 h-4 animate-spin" />
+              <span className="text-body">{t("common.loading")}</span>
             </div>
           )}
         </TabsContent>
@@ -678,7 +679,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
         <TabsContent value="files" className="flex-1 overflow-auto m-0 p-4 space-y-5">
           {/* Global files */}
           <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <h4 className="text-list font-medium text-muted-foreground uppercase tracking-wider">
               {t("settingsManager.diagnostics.globalScope")}
             </h4>
             {globalFiles.map((file) => (
@@ -694,7 +695,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             if (nonEmptyFiles.length === 0) return null;
             return (
               <div key={pd.projectPath} className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground truncate">{pd.projectName}</h4>
+                <h4 className="text-list font-medium text-muted-foreground truncate">{pd.projectName}</h4>
                 {nonEmptyFiles.map((file) => (
                   <FileCard
                     key={`${pd.projectPath}_${file.path}_${file.scope}`}
@@ -708,8 +709,8 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           {isScanning && (
             <div className="flex items-center justify-center py-8 gap-3 text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm">{t("common.loading")}</span>
+              <LoaderCircle className="w-4 h-4 animate-spin" />
+              <span className="text-body">{t("common.loading")}</span>
             </div>
           )}
 
@@ -723,7 +724,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             >
               {saveResult?.type === "success" ? (
                 <>
-                  <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-success" />
+                  <CircleCheck aria-hidden className="w-4 h-4 mr-2 text-success" />
                   {saveResult.message}
                 </>
               ) : (
@@ -734,12 +735,12 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
               )}
             </Button>
             {saveResult?.type === "error" && (
-              <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 text-destructive text-xs">
-                <XCircle aria-hidden className="w-3.5 h-3.5 shrink-0" />
+              <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 text-destructive text-list">
+                <CircleX aria-hidden className="w-3.5 h-3.5 shrink-0" />
                 <span>{saveResult.message}</span>
               </div>
             )}
-            <p className="text-px10 text-muted-foreground text-center">{t("settingsManager.analyzer.backupHint")}</p>
+            <p className="text-caption text-muted-foreground text-center">{t("settingsManager.analyzer.backupHint")}</p>
           </div>
         </TabsContent>
 
@@ -749,11 +750,11 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
         <TabsContent value="guide" className="flex-1 overflow-auto m-0 p-6 space-y-6">
           {/* Why Complex */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <HelpCircle aria-hidden className="w-4 h-4 text-warning" />
+            <h3 className="text-body font-medium flex items-center gap-2">
+              <CircleQuestionMark aria-hidden className="w-4 h-4 text-warning" />
               {t("settingsManager.analyzer.whyComplex.title")}
             </h3>
-            <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-sm text-muted-foreground">
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-body text-muted-foreground">
               <p>{t("settingsManager.analyzer.whyComplex.reason1")}</p>
               <p>{t("settingsManager.analyzer.whyComplex.reason2")}</p>
               <p>{t("settingsManager.analyzer.whyComplex.reason3")}</p>
@@ -762,61 +763,61 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           {/* Recommended Structure */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
+            <h3 className="text-body font-medium flex items-center gap-2">
               <FolderTree aria-hidden className="w-4 h-4 text-success" />
               {t("settingsManager.analyzer.recommended.title")}
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-list text-muted-foreground">
               {summary.hasIssues
                 ? t("settingsManager.analyzer.recommended.currentMismatch")
                 : t("settingsManager.analyzer.recommended.currentMatch")}
             </p>
-            <div className="bg-card border border-border/50 rounded-lg p-4 font-mono text-xs space-y-1">
+            <div className="bg-card border border-border/50 rounded-lg p-4 font-mono text-list space-y-1">
               <div className="text-muted-foreground"><span className="text-success">~/.claude/</span></div>
               <div className="pl-4 flex items-center gap-2">
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span>settings.json</span>
-                <Badge variant="outline" className="text-px9 h-4">{t("settingsManager.analyzer.recommended.globalSettings")}</Badge>
+                <Badge variant="outline" className="text-caption h-4">{t("settingsManager.analyzer.recommended.globalSettings")}</Badge>
               </div>
               <div className="text-muted-foreground mt-3">
                 <span className="text-success">~/.claude.json</span>
-                <Badge variant="outline" className="text-px9 h-4 ml-2">{t("settingsManager.analyzer.recommended.globalMcp")}</Badge>
+                <Badge variant="outline" className="text-caption h-4 ml-2">{t("settingsManager.analyzer.recommended.globalMcp")}</Badge>
               </div>
               <div className="text-muted-foreground mt-3"><span className="text-info">your-project/</span></div>
               <div className="pl-4 flex items-center gap-2">
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span>.mcp.json</span>
-                <Badge variant="outline" className="text-px9 h-4">{t("settingsManager.analyzer.recommended.projectMcp")}</Badge>
+                <Badge variant="outline" className="text-caption h-4">{t("settingsManager.analyzer.recommended.projectMcp")}</Badge>
               </div>
               <div className="pl-4 flex items-center gap-2">
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span>.claude/settings.json</span>
-                <Badge variant="outline" className="text-px9 h-4">{t("settingsManager.analyzer.recommended.teamSettings")}</Badge>
+                <Badge variant="outline" className="text-caption h-4">{t("settingsManager.analyzer.recommended.teamSettings")}</Badge>
               </div>
               <div className="pl-4 flex items-center gap-2 text-muted-foreground/60">
-                <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/30" />
+                <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground/30" />
                 <span>.claude/settings.local.json</span>
-                <Badge variant="outline" className="text-px9 h-4 opacity-50">gitignore</Badge>
+                <Badge variant="outline" className="text-caption h-4 opacity-50">gitignore</Badge>
               </div>
             </div>
           </div>
 
           {/* Priority Order */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
+            <h3 className="text-body font-medium flex items-center gap-2">
               <Info aria-hidden className="w-4 h-4 text-info" />
               {t("settingsManager.analyzer.priority.title")}
             </h3>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 text-list">
               <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400">{t("settingsManager.analyzer.scope.local")}</Badge>
-              <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+              <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
               <Badge variant="secondary" className="bg-success/10 text-success">{t("settingsManager.analyzer.scope.project")}</Badge>
-              <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+              <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
               <Badge variant="secondary" className="bg-info/10 text-info">{t("settingsManager.analyzer.scope.user")}</Badge>
-              <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
+              <ChevronRight aria-hidden className="w-3.5 h-3.5 text-muted-foreground" />
               <Badge variant="secondary" className="bg-warning/10 text-warning">{t("settingsManager.analyzer.scope.global")}</Badge>
             </div>
-            <p className="text-xs text-muted-foreground">{t("settingsManager.analyzer.priority.description")}</p>
+            <p className="text-list text-muted-foreground">{t("settingsManager.analyzer.priority.description")}</p>
           </div>
 
           <hr className="border-border/50" />
@@ -824,45 +825,45 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* MCP Guide */}
           {summary.hasMcpInSettings && (
             <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-              <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-              <p className="text-sm font-medium text-destructive">{t("settingsManager.analyzer.status.mcpInSettings")}</p>
+              <TriangleAlert aria-hidden className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-body font-medium text-destructive">{t("settingsManager.analyzer.status.mcpInSettings")}</p>
             </div>
           )}
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
+            <h3 className="text-body font-medium flex items-center gap-2">
               <Server aria-hidden className="w-4 h-4 text-tool-mcp" />
               {t("settingsManager.analyzer.mcp.title")}
             </h3>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-body">
               <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
-                <Home aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                <House aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                 <div>
-                  <code className="text-xs font-mono">~/.claude.json</code>
-                  <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.global")}</p>
+                  <code className="text-list font-mono">~/.claude.json</code>
+                  <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.global")}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/20">
                 <FolderTree aria-hidden className="w-4 h-4 text-success shrink-0 mt-0.5" />
                 <div>
-                  <code className="text-xs font-mono">.mcp.json</code>
-                  <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.project")}</p>
+                  <code className="text-list font-mono">.mcp.json</code>
+                  <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.project")}</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-            <AlertTriangle aria-hidden className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <TriangleAlert aria-hidden className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-destructive">{t("settingsManager.analyzer.mcp.warning.title")}</p>
-              <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.warning.description")}</p>
+              <p className="text-body font-medium text-destructive">{t("settingsManager.analyzer.mcp.warning.title")}</p>
+              <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.warning.description")}</p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium">{t("settingsManager.analyzer.mcp.perProject.title")}</h3>
-            <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-xs text-muted-foreground">
+            <h3 className="text-body font-medium">{t("settingsManager.analyzer.mcp.perProject.title")}</h3>
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-list text-muted-foreground">
               <p>{t("settingsManager.analyzer.mcp.perProject.desc1")}</p>
               <p>{t("settingsManager.analyzer.mcp.perProject.desc2")}</p>
               <div className="bg-card border border-border/50 rounded p-3 font-mono">
@@ -875,10 +876,10 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           <div className="border-t border-border/50 pt-4">
             <div className="flex items-center gap-3 p-4 rounded-lg bg-accent/5 border border-accent/20">
-              <Package aria-hidden className="w-8 h-8 text-accent shrink-0" />
+              <Icon icon={Package} size={24} className="text-accent shrink-0" aria-hidden />
               <div>
-                <p className="text-sm font-medium">{t("settingsManager.analyzer.mcp.usePresets.title")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.usePresets.description")}</p>
+                <p className="text-body font-medium">{t("settingsManager.analyzer.mcp.usePresets.title")}</p>
+                <p className="text-list text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.usePresets.description")}</p>
               </div>
             </div>
           </div>
@@ -886,10 +887,10 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           <a
             href="https://code.claude.com/docs/en/settings"
             target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-xs text-accent hover:underline"
+            className="flex items-center gap-2 text-list text-accent hover:underline"
             aria-label={t("settingsManager.analyzer.officialDocs")}
           >
-            <ExternalLink aria-hidden className="w-3 h-3" />
+            <ExternalLink aria-hidden className="w-3.5 h-3.5" />
             {t("settingsManager.analyzer.officialDocs")}
           </a>
         </TabsContent>

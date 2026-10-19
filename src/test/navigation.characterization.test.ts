@@ -359,7 +359,11 @@ describe("navigation", () => {
     expect(state.sessions.map((s) => s.file_path)).toEqual([BETA_S1.file_path]);
   });
 
-  it("a failed session load keeps the target selected and reports it", async () => {
+  // Intended change (T8 review #6): the failure is reported inside the tab
+  // that asked for the session - its "no longer available" state naming it -
+  // instead of the app's error screen; the half-open session leaves the
+  // screen, as for a restored tab whose session is gone.
+  it("a failed session load is reported in the tab, which keeps naming the session", async () => {
     overrides.load_provider_messages_paginated = () => {
       throw new Error("disk gone");
     };
@@ -370,8 +374,12 @@ describe("navigation", () => {
     expect(readPlace(state)).toEqual({
       view: "conversation",
       project: ALPHA.path,
-      session: ALPHA_S1.file_path,
+      session: null,
     });
+    const tab = state.documents.find((d) => d.id === state.activeDocumentId);
+    expect(tab?.unavailable).toBe("session");
+    expect(tab?.session?.filePath).toBe(ALPHA_S1.file_path);
+    expect(state.error).toBeNull();
     expect(state.isLoadingMessages).toBe(false);
   });
 

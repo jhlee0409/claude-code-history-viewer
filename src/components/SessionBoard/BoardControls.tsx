@@ -1,11 +1,11 @@
 import type { ZoomLevel, DateFilter } from "../../types/board.types";
 import type { ActiveBrush } from "@/utils/brushMatchers";
 import {
-    Layout,
-    Layers,
-    Eye,
-    Filter,
-    Lock
+  PanelsTopLeft,
+  Layers,
+  Eye,
+  Funnel,
+  Lock,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
@@ -72,7 +72,7 @@ export const BoardControls = ({
                         title={t("session.board.controls.pixelView")}
                         aria-label={t("session.board.controls.pixelView")}
                     >
-                        <Layout className="w-3.5 h-3.5" />
+                        <PanelsTopLeft className="w-3.5 h-3.5" />
                     </button>
                     <button
                         onClick={() => onZoomChange(1)}
@@ -102,22 +102,22 @@ export const BoardControls = ({
             <div className="flex items-center gap-4">
                 {/* Brushing Dropdowns */}
                 <div className="hidden lg:flex items-center gap-1.5">
-                    <Filter className="w-3 h-3 text-muted-foreground mr-0.5" />
+                    <Funnel className="w-3.5 h-3.5 text-muted-foreground mr-0.5" />
                     
                     <Select
                         value={activeBrush?.type === 'tool' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'tool', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-32 text-px10 bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.tool")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                            <SelectItem value="_ALL_" className="text-caption font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                             {toolOptions.map(toolOption => (
                                 <SelectItem
                                     key={toolOption}
                                     value={toolOption}
-                                    className="text-px10"
+                                    className="text-caption"
                                     disabled={availableTools ? !availableTools.includes(toolOption) : false}
                                 >
                                     {toolOption.toUpperCase()}
@@ -132,16 +132,16 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'mcp' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'mcp', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-32 text-px10 bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.mcp")} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="_ALL_" className="text-caption font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                                 {mcpServerOptions.map(server => (
                                     <SelectItem
                                         key={server}
                                         value={server}
-                                        className="text-px10"
+                                        className="text-caption"
                                         disabled={availableMcpServers ? !availableMcpServers.includes(server) : false}
                                     >
                                         {server}
@@ -157,16 +157,16 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'command' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'command', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-40 text-px10 bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.command")} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="_ALL_" className="text-caption font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                                 {shellCommandOptions.map(cmd => (
                                     <SelectItem
                                         key={cmd}
                                         value={cmd}
-                                        className="text-px10 font-mono"
+                                        className="text-caption font-mono"
                                         disabled={availableShellCommands ? !availableShellCommands.includes(cmd) : false}
                                         title={cmd}
                                     >
@@ -181,16 +181,16 @@ export const BoardControls = ({
                         value={activeBrush?.type === 'file' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'file', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-40 text-px10 bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.file")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                            <SelectItem value="_ALL_" className="text-caption font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                             {fileOptions.map(f => (
                                 <SelectItem
                                     key={f}
                                     value={f}
-                                    className="text-px10"
+                                    className="text-caption"
                                     disabled={availableFiles ? !availableFiles.includes(f) : false}
                                 >
                                     {f.split(/[\\/]/).pop() || ""}
@@ -211,7 +211,7 @@ export const BoardControls = ({
                 <div className="flex items-center gap-2">
                     {activeBrush && stickyBrush && (
                         <div className="bg-accent/10 p-1 rounded">
-                            <Lock className="w-3 h-3 fill-accent text-accent" />
+                            <Lock className="w-3.5 h-3.5 fill-accent text-accent" />
                         </div>
                     )}
                 </div>

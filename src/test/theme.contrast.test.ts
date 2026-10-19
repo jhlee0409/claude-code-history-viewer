@@ -1,105 +1,161 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { THEME_NAMES, contrast, createTokenResolver, deltaE00, type ThemeName } from "./utils/oklchContrast";
 
 /**
- * Contrast invariants for the brand accent tokens in src/index.css.
+ * Contrast invariants for the colour tokens in src/index.css.
  *
- * Parses the theme blocks directly (no browser), converts OKLCH to sRGB with
- * gamut clipping, and checks WCAG 2.x contrast ratios. Thresholds: 4.5 for
- * text pairs, 3.0 for non-text (focus ring).
+ * Parses the theme blocks directly (no browser): a token is resolved the
+ * way `<html>` gets it in each theme — through the theme's cascade of blocks
+ * and `var(--…)` aliases (a cycle, a missing token or a translucent colour
+ * fails) — converted from OKLCH to gamut-clipped sRGB, and checked against
+ * WCAG 2.x: 4.5 for text, 3.0 for non-text (rings, input borders, marks).
  */
 
-const CSS = readFileSync(resolve(__dirname, "../index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const tokens = createTokenResolver();
+const ratio = (theme: ThemeName, fg: string, bg: string) => contrast(tokens.color(theme, fg), tokens.color(theme, bg));
 
-const THEMES = [
-  { name: "light", selector: ":root" },
-  { name: "dark", selector: ".dark" },
-] as const;
+const AA_TEXT = 4.5;
+const NON_TEXT = 3;
+/** prefers-contrast: more / the high-contrast themes (plan D11). */
+const AAA_TEXT = 7;
 
-const HIGH_CONTRAST_THEMES = [".high-contrast", ".dark.high-contrast"] as const;
+// ---------------------------------------------------------------------------
+// Brand accent (light and dark; the high-contrast themes keep it achromatic)
+// ---------------------------------------------------------------------------
 
 // [foreground token, background token]
 const TEXT_PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ["--accent", "--background"],
-  ["--accent", "--card"],
-  ["--accent", "--popover"],
-  ["--accent", "--muted"],
-  ["--accent", "--secondary"],
-  ["--accent-foreground", "--accent"],
+  ["accent", "background"],
+  ["accent", "card"],
+  ["accent", "popover"],
+  ["accent", "muted"],
+  ["accent", "secondary"],
+  ["accent-foreground", "accent"],
 ];
 
-const NON_TEXT_PAIRS: ReadonlyArray<readonly [string, string]> = [["--ring", "--background"]];
+const NON_TEXT_PAIRS: ReadonlyArray<readonly [string, string]> = [["ring", "background"]];
 
-const BRAND_TOKENS = ["--accent", "--ring"] as const;
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Body of the first top-level block whose line starts with exactly `selector {`. */
-function themeBlock(selector: string): string {
-  const match = new RegExp(`^${escapeRegExp(selector)}\\s*\\{([^}]*)\\}`, "m").exec(CSS);
-  if (!match?.[1]) throw new Error(`theme block not found: ${selector}`);
-  return match[1];
-}
-
-function tokenValue(block: string, token: string): string {
-  const match = new RegExp(`(?:^|[\\s;])${escapeRegExp(token)}:\\s*([^;]+);`).exec(block);
-  if (!match?.[1]) throw new Error(`token not found: ${token}`);
-  return match[1].trim();
-}
-
-type Oklch = { l: number; c: number; h: number };
-
-function parseOklch(value: string): Oklch {
-  const match = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(value);
-  if (!match) throw new Error(`not an opaque oklch() value: ${value}`);
-  return { l: Number(match[1]), c: Number(match[2]), h: Number(match[3]) };
-}
-
-/** OKLCH -> linear sRGB, clipped to the sRGB gamut. */
-function toLinearSrgb({ l, c, h }: Oklch): [number, number, number] {
-  const a = c * Math.cos((h * Math.PI) / 180);
-  const b = c * Math.sin((h * Math.PI) / 180);
-  const l_ = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m_ = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s_ = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const clip = (v: number) => Math.min(1, Math.max(0, v));
-  return [
-    clip(4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_),
-    clip(-1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_),
-    clip(-0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_),
-  ];
-}
-
-function relativeLuminance(color: Oklch): number {
-  const [r, g, b] = toLinearSrgb(color);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrast(a: Oklch, b: Oklch): number {
-  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [number, number];
-  return (hi + 0.05) / (lo + 0.05);
-}
+const BRAND_TOKENS = ["accent", "ring"] as const;
 
 describe("theme contrast invariants", () => {
-  describe.each(THEMES)("$name theme ($selector)", ({ selector }) => {
-    const block = themeBlock(selector);
-    const color = (token: string) => parseOklch(tokenValue(block, token));
-
-    it.each(TEXT_PAIRS)("%s on %s meets 4.5:1", (fg, bg) => {
-      expect(contrast(color(fg), color(bg))).toBeGreaterThanOrEqual(4.5);
+  describe.each(["light", "dark"] as const)("%s theme", (theme) => {
+    it.each(TEXT_PAIRS)("--%s on --%s meets 4.5:1", (fg, bg) => {
+      expect(ratio(theme, fg, bg)).toBeGreaterThanOrEqual(AA_TEXT);
     });
 
-    it.each(NON_TEXT_PAIRS)("%s against %s meets 3:1", (fg, bg) => {
-      expect(contrast(color(fg), color(bg))).toBeGreaterThanOrEqual(3);
+    it.each(NON_TEXT_PAIRS)("--%s against --%s meets 3:1", (fg, bg) => {
+      expect(ratio(theme, fg, bg)).toBeGreaterThanOrEqual(NON_TEXT);
     });
   });
 
-  describe.each(HIGH_CONTRAST_THEMES)("%s", (selector) => {
-    it.each(BRAND_TOKENS)("%s stays achromatic", (token) => {
-      expect(parseOklch(tokenValue(themeBlock(selector), token)).c).toBe(0);
+  describe.each(["high contrast", "dark high contrast"] as const)("%s theme", (theme) => {
+    it.each(BRAND_TOKENS)("--%s stays achromatic", (token) => {
+      expect(tokens.color(theme, token)[1]).toBe(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Role tokens (inner-UI plan F1a, §4.1)
+// ---------------------------------------------------------------------------
+
+/** Surfaces text and rows sit on. */
+const SURFACES = [
+  "surface-canvas",
+  "surface-pane",
+  "surface-raised",
+  "surface-well",
+  "surface-hover",
+  "surface-selected",
+  "surface-turn-user",
+] as const;
+
+const STATUSES = ["danger", "warning", "info", "success"] as const;
+const DIFF_SIDES = ["add", "del"] as const;
+const CODE_ROLES = ["keyword", "string", "number", "comment", "function", "type", "punct"] as const;
+
+type Pair = readonly [fg: string, bg: string, min: number];
+
+function rolePairs(theme: ThemeName): Pair[] {
+  const highContrast = theme === "high contrast" || theme === "dark high contrast";
+  const secondaryText = highContrast ? AAA_TEXT : AA_TEXT;
+  const pairs: Pair[] = [];
+  // Text: --fg / --fg-2 / --fg-3 on every surface (no opacity dimming).
+  for (const bg of SURFACES) {
+    pairs.push(["fg", bg, AA_TEXT], ["fg-2", bg, AA_TEXT], ["fg-3", bg, AA_TEXT]);
+  }
+  // High contrast (and so prefers-contrast: more, F1b): secondary text ≥ 7:1 on the canvas.
+  pairs.push(["fg-2", "surface-canvas", secondaryText], ["fg-3", "surface-canvas", secondaryText]);
+  // Lines: the input border and the selected line are UI components (3:1; 4.5:1 in high contrast).
+  for (const bg of ["surface-canvas", "surface-pane", "surface-raised"]) {
+    pairs.push(["line-input", bg, highContrast ? AA_TEXT : NON_TEXT], ["line-selected", bg, NON_TEXT]);
+  }
+  // Focus ring: 3:1 on every surface a focusable element sits on.
+  for (const bg of SURFACES) pairs.push(["focus-ring", bg, NON_TEXT]);
+  // Status sets: text on its own surface and on the plain surfaces; the line is a visible mark.
+  for (const s of STATUSES) {
+    pairs.push(
+      [`status-${s}-fg`, `status-${s}-surface`, AA_TEXT],
+      [`status-${s}-fg`, "surface-canvas", AA_TEXT],
+      [`status-${s}-fg`, "surface-pane", AA_TEXT],
+      [`status-${s}-fg`, "surface-well", AA_TEXT],
+      [`status-${s}-line`, "surface-canvas", NON_TEXT],
+      [`status-${s}-line`, "surface-well", NON_TEXT],
+      ["fg", `status-${s}-surface`, AA_TEXT],
+    );
+  }
+  // Search highlight: the matched text stays readable on both steps.
+  pairs.push(
+    ["highlight-search-fg", "highlight-search-bg", AA_TEXT],
+    ["highlight-search-fg", "highlight-search-current", AA_TEXT],
+  );
+  // Diff (Q1): marker/text colour on the line, the gutter and the word mark; underline mark 3:1.
+  for (const side of DIFF_SIDES) {
+    pairs.push(
+      [`diff-${side}-fg`, `diff-${side}-bg`, AA_TEXT],
+      [`diff-${side}-fg`, `diff-${side}-gutter`, AA_TEXT],
+      [`diff-${side}-fg`, `diff-word-${side}-bg`, AA_TEXT],
+      ["fg", `diff-${side}-bg`, AA_TEXT],
+      ["fg", `diff-word-${side}-bg`, AA_TEXT],
+      [`diff-word-${side}-mark`, `diff-word-${side}-bg`, NON_TEXT],
+    );
+  }
+  pairs.push(["diff-hunk-fg", "surface-well", AA_TEXT], ["diff-context-fg", "surface-well", AA_TEXT]);
+  // Code (syntax) colours on the well they render in.
+  for (const role of CODE_ROLES) pairs.push([`code-${role}`, "surface-well", AA_TEXT]);
+  return pairs;
+}
+
+describe("role token contrast (F1a)", () => {
+  describe.each(THEME_NAMES)("%s theme", (theme) => {
+    it.each(rolePairs(theme))("--%s on --%s meets %s:1", (fg, bg, min) => {
+      const r = ratio(theme, fg, bg);
+      expect(r, `${theme}: --${fg} on --${bg} = ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(min);
+    });
+
+    it("the search highlight is a different colour from the warning surface (ΔE00 ≥ 10)", () => {
+      for (const step of ["highlight-search-bg", "highlight-search-current"]) {
+        const d = deltaE00(tokens.color(theme, step), tokens.color(theme, "status-warning-surface"));
+        expect(d, `${theme}: --${step} vs --status-warning-surface ΔE00 ${d.toFixed(1)}`).toBeGreaterThanOrEqual(10);
+      }
+    });
+
+    it("added and removed lines differ by more than colour noise (ΔE00 ≥ 10)", () => {
+      for (const [a, b] of [
+        ["diff-add-bg", "diff-del-bg"],
+        ["diff-word-add-bg", "diff-word-del-bg"],
+      ] as const) {
+        const d = deltaE00(tokens.color(theme, a), tokens.color(theme, b));
+        expect(d, `${theme}: --${a} vs --${b} ΔE00 ${d.toFixed(1)}`).toBeGreaterThanOrEqual(10);
+      }
+    });
+
+    it("hover and selected are one step each: distinct from the pane and from each other", () => {
+      const pane = tokens.color(theme, "surface-pane");
+      const hover = tokens.color(theme, "surface-hover");
+      const selected = tokens.color(theme, "surface-selected");
+      expect(deltaE00(pane, hover)).toBeGreaterThan(1);
+      expect(deltaE00(hover, selected)).toBeGreaterThan(1);
     });
   });
 });

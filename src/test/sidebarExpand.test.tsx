@@ -1,11 +1,13 @@
 /**
- * Plan §9b F3: expanding or collapsing a project row is tree state, not
- * navigation. Collapsing the open project's row (ArrowLeft) while reading
- * its conversation keeps the conversation and the project.
+ * Plan §9b F3 (T7): expanding or collapsing a project row is tree state, not
+ * navigation.
  *
- * Expanding a closed row still opens that project: the tree lists sessions of
- * the open project only, and lifting that (plus re-click = collapse) is the
- * sidebar rework, T7.
+ * - The chevron and ArrowRight / ArrowLeft only expand or collapse; they
+ *   never open or leave a project, so a conversation stays open.
+ * - A click on a closed project's row opens it and expands it.
+ * - Re-clicking the open project only expands / collapses it; it never
+ *   leaves the project.
+ * - One project row is expanded at a time.
  */
 import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
@@ -13,6 +15,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ClaudeProject } from "@/types";
 import { GroupedProjectList } from "@/components/ProjectTree/components/GroupedProjectList";
 
+vi.mock("@/services/api", () => ({
+  api: vi.fn(async () => ({ sessions: [], total: 0, nextOffset: 0, hasMore: false })),
+}));
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {
@@ -57,7 +62,6 @@ function Harness({ onProjectClick }: { onProjectClick: (p: ClaudeProject) => voi
         handleContextMenu={vi.fn()}
         onSessionSelect={vi.fn()}
         formatTimeAgo={() => ""}
-        inlineSessions={false}
       />
     </div>
   );
@@ -65,35 +69,53 @@ function Harness({ onProjectClick }: { onProjectClick: (p: ClaudeProject) => voi
 
 const row = (p: ClaudeProject) =>
   document.querySelector<HTMLElement>(`[data-tree-node="project"][data-project-path="${p.path}"]`)!;
+const chevron = (p: ClaudeProject) => row(p).querySelector<HTMLElement>("[data-chevron]")!;
+const expandedKeys = () => screen.getByRole("tree").getAttribute("data-expanded");
 
 describe("sidebar expand is not select (F3)", () => {
-  it("collapsing the open project's row does not leave the project", () => {
+  it("collapsing the open project's row (keyboard) does not leave the project", () => {
     const onProjectClick = vi.fn();
     render(<Harness onProjectClick={onProjectClick} />);
 
     fireEvent.keyDown(row(OPEN), { key: "ArrowLeft" });
-
-    expect(onProjectClick).not.toHaveBeenCalled();
-    expect(screen.getByRole("tree").getAttribute("data-expanded")).toBe("");
-  });
-
-  it("re-expanding the open project's collapsed row expands it in place", () => {
-    const onProjectClick = vi.fn();
-    render(<Harness onProjectClick={onProjectClick} />);
-
-    fireEvent.keyDown(row(OPEN), { key: "ArrowLeft" });
+    expect(expandedKeys()).toBe("");
     fireEvent.keyDown(row(OPEN), { key: "ArrowRight" });
+    expect(expandedKeys()).toBe(OPEN.path);
 
     expect(onProjectClick).not.toHaveBeenCalled();
-    expect(screen.getByRole("tree").getAttribute("data-expanded")).toBe(OPEN.path);
   });
 
-  it("expanding a closed row still opens that project", () => {
+  it("re-clicking the open project collapses and re-expands it, never leaving it", () => {
     const onProjectClick = vi.fn();
     render(<Harness onProjectClick={onProjectClick} />);
 
+    fireEvent.click(row(OPEN));
+    expect(expandedKeys()).toBe("");
+    fireEvent.click(row(OPEN));
+    expect(expandedKeys()).toBe(OPEN.path);
+    expect(onProjectClick).not.toHaveBeenCalled();
+  });
+
+  it("the chevron and ArrowRight expand another project without opening it", () => {
+    const onProjectClick = vi.fn();
+    render(<Harness onProjectClick={onProjectClick} />);
+
+    fireEvent.click(chevron(OTHER));
+    // One expanded project row at a time.
+    expect(expandedKeys()).toBe(OTHER.path);
+    fireEvent.keyDown(row(OTHER), { key: "ArrowLeft" });
     fireEvent.keyDown(row(OTHER), { key: "ArrowRight" });
+    expect(expandedKeys()).toBe(OTHER.path);
+    expect(onProjectClick).not.toHaveBeenCalled();
+  });
+
+  it("a click on a closed project's row opens it and expands it", () => {
+    const onProjectClick = vi.fn();
+    render(<Harness onProjectClick={onProjectClick} />);
+
+    fireEvent.click(row(OTHER));
 
     expect(onProjectClick).toHaveBeenCalledWith(OTHER);
+    expect(expandedKeys()).toBe(OTHER.path);
   });
 });

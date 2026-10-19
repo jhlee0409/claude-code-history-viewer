@@ -1,0 +1,21 @@
+{
+  "app": {
+    "windows": [
+      {
+        "titleBarStyle": "Overlay",
+        "label": "main",
+        "title": "",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 380,
+        "minHeight": 400,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "visible": false,
+        "focus": true,
+        "zoomHotkeysEnabled": true
+      }
+    ]
+  }
+}

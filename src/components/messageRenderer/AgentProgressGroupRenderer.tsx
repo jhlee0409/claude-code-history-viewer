@@ -9,12 +9,12 @@ import { memo, useMemo } from "react";
 import {
   ChevronRight,
   Bot,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  FileEdit,
+  LoaderCircle,
+  CircleCheck,
+  CircleAlert,
+  FilePen,
   FileSearch,
-  Terminal,
+  SquareTerminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -74,9 +74,9 @@ const getActionIcon = (data: ProgressData) => {
         const toolUse = content.find((c: { type?: string }) => c.type === "tool_use");
         if (toolUse && typeof toolUse === "object" && "name" in toolUse) {
           const toolName = String(toolUse.name).toLowerCase();
-          if (toolName.includes("edit") || toolName.includes("write")) return FileEdit;
+          if (toolName.includes("edit") || toolName.includes("write")) return FilePen;
           if (toolName.includes("read") || toolName.includes("glob") || toolName.includes("grep")) return FileSearch;
-          if (toolName.includes("bash")) return Terminal;
+          if (toolName.includes("bash")) return SquareTerminal;
         }
       }
     }
@@ -184,9 +184,9 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
           )}>
             {entries.length} {t("agentProgressGroup.steps", { defaultValue: "steps" })}
           </span>
-          {isRunning && <Loader2 className="w-3.5 h-3.5 text-info animate-spin" />}
-          {isCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
-          {hasError && <AlertCircle className="w-3.5 h-3.5 text-destructive" />}
+          {isRunning && <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin" />}
+          {isCompleted && <CircleCheck className="w-3.5 h-3.5 text-success" />}
+          {hasError && <CircleAlert className="w-3.5 h-3.5 text-destructive" />}
         </div>
       </button>
 

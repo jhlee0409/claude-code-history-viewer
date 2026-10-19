@@ -12,7 +12,7 @@ import {
     isClaudeUserMessage
 } from "../../utils/messageUtils";
 import { clsx } from "clsx";
-import { FileText, X, Bot, User, Ban, GitCommit as GitIcon, PencilLine, CheckCircle2, Link2, Layers, Timer, Scissors, AlertTriangle, Zap, Plug, Terminal } from "lucide-react";
+import { FileText, X, Bot, User, Ban, GitCommitHorizontal as GitIcon, PencilLine, CircleCheck, Link2, Layers, Timer, Scissors, TriangleAlert, Zap, Plug, SquareTerminal } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
 import { getNaturalLanguageSummary, getAgentName } from "../../utils/toolSummaries";
@@ -42,8 +42,8 @@ const FileEditDisplay = ({ toolUseBlock }: { toolUseBlock: ReturnType<typeof get
     if (path && typeof path === 'string') {
         const displayText = path.split(/[\\/]/).pop();
         return (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-success/10 border border-success/20 rounded text-px10 text-success font-medium mb-1">
-                <PencilLine className="w-3 h-3" />
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-success/10 border border-success/20 rounded text-caption text-success font-medium mb-1">
+                <PencilLine className="w-3.5 h-3.5" />
                 <span className="truncate" title={path}>{t('session.interaction.edit', { file: displayText })}</span>
             </div>
         );
@@ -64,10 +64,10 @@ const ExitCodeDisplay = ({ message }: { message: ClaudeMessage }) => {
     if (Number.isNaN(codeNum)) return null; // Handle NaN
 
     return (
-        <div className={clsx("flex items-center gap-1 text-px9 font-mono px-1.5 py-0.5 rounded border self-start",
+        <div className={clsx("flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded border self-start",
             codeNum === 0 ? "text-success bg-success/5 border-success/20" : "text-destructive bg-destructive/5 border-destructive/20"
         )} title={t("session.interaction.exitCode", { code: codeNum })}>
-            {codeNum === 0 ? <CheckCircle2 className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
+            {codeNum === 0 ? <CircleCheck className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
             <span className="font-bold">{t("session.interaction.exit", { code: codeNum })}</span>
         </div>
     );
@@ -157,14 +157,14 @@ export const InteractionCard = memo(({
                 <span title={t("session.interaction.gitCommit")}><GitIcon className="w-3.5 h-3.5 text-tool-git" /></span>
                 {verifiedCommit && (
                     <div className="absolute -top-1 -right-1">
-                        <span title={t("session.interaction.verifiedCommit")}><CheckCircle2 className="w-2 h-2 text-info fill-background" /></span>
+                        <span title={t("session.interaction.verifiedCommit")}><span className="block w-2 h-2 rounded-full bg-info border border-background" /></span>
                     </div>
                 )}
             </div>
         );
 
         // Error takes precedence
-        if (isRawError) return <span title={t("session.interaction.errorDetectedIcon")}><AlertTriangle className="w-3.5 h-3.5 text-destructive" /></span>;
+        if (isRawError) return <span title={t("session.interaction.errorDetectedIcon")}><TriangleAlert className="w-3.5 h-3.5 text-destructive" /></span>;
 
         // Generic Git (non-commit)
         if (isGit) return <span title={t("session.interaction.gitOperation")}><GitIcon className="w-3.5 h-3.5 text-tool-git" /></span>;
@@ -291,8 +291,8 @@ export const InteractionCard = memo(({
                 {/* Content Icon Overlay (Pixel View) */}
                 {!isExpanded && (
                     <div className="absolute top-0.5 right-0.5 pointer-events-none opacity-40">
-                        {isError && <AlertTriangle className="w-2.5 h-2.5 text-destructive" />}
-                        {isCancelled && <Ban className="w-2.5 h-2.5 text-warning" />}
+                        {isError && <TriangleAlert className="w-3.5 h-3.5 text-destructive" />}
+                        {isCancelled && <Ban className="w-3.5 h-3.5 text-warning" />}
                     </div>
                 )}
             </button>
@@ -328,29 +328,29 @@ export const InteractionCard = memo(({
                 <TooltipContent side="right" className="p-2 max-w-[300px] border border-border/50 bg-popover text-popover-foreground shadow-xl">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center justify-between gap-4">
-                            <span className="text-px10 font-bold uppercase tracking-widest text-muted-foreground/50">
+                            <span className="text-caption font-bold uppercase tracking-widest text-muted-foreground/50">
                                 {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
                             </span>
-                            <span className="text-px10 text-muted-foreground font-mono">
+                            <span className="text-caption text-muted-foreground font-mono">
                                 {new Date(message.timestamp).toLocaleTimeString()}
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                        <div className="flex items-center gap-1.5 text-list font-medium">
                             {RoleIcon}
                             <div className="flex flex-col">
-                                <span className="uppercase text-px10 font-bold tracking-wide opacity-80">
+                                <span className="uppercase text-caption font-bold tracking-wide opacity-80">
                                     {toolUseBlock ? toolUseBlock.name : role}
                                 </span>
                                 {totalMessagesCount > 1 && (
-                                    <span className="text-px10 text-muted-foreground">
+                                    <span className="text-caption text-muted-foreground">
                                         {t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: totalTokens.toLocaleString() })}
                                     </span>
                                 )}
                             </div>
                         </div>
 
-                        <div className="text-px11 leading-tight text-foreground/90 font-mono line-clamp-4 whitespace-pre-wrap break-words border-t border-border/20 pt-1 mt-0.5">
+                        <div className="text-caption leading-tight text-foreground/90 font-mono line-clamp-4 whitespace-pre-wrap break-words border-t border-border/20 pt-1 mt-0.5">
                             {totalMessagesCount > 1 ? (
                                 <div className="flex flex-col gap-1">
                                     <div className="italic opacity-70">{t("session.board.blockContaining", { count: totalMessagesCount })}</div>
@@ -381,7 +381,7 @@ export const InteractionCard = memo(({
                 >
                     {/* Agent Name Header - Only if NOT General Purpose */}
                     {agentName !== generalPurpose && (
-                        <div className="text-px8 font-bold uppercase tracking-widest text-muted-foreground/40 leading-none select-none">
+                        <div className="text-caption font-bold uppercase tracking-widest text-muted-foreground/40 leading-none select-none">
                             {agentName}
                         </div>
                     )}
@@ -404,20 +404,20 @@ export const InteractionCard = memo(({
                                     className="absolute -top-1 -right-1 p-0.5 bg-tool-document rounded-full shadow-sm text-background border border-background"
                                     title={t("session.interaction.markdownModified")}
                                 >
-                                    <FileText className="w-2 h-2" />
+                                    <span className="block w-2 h-2" aria-hidden="true" />
                                 </div>
                             )}
 
                             {isCancelled && (
                                 <div className="absolute -bottom-1 -right-1 p-0.5 bg-warning rounded-full shadow-sm text-warning-foreground border border-background" title={t("session.interaction.cancelledByUser")}>
-                                    <Ban className="w-2 h-2" />
+                                    <span className="block w-2 h-2" aria-hidden="true" />
                                 </div>
                             )}
                         </div>
                         <div className="flex-1 min-w-0">
                             {toolUseBlock && (
                                 <div
-                                    className="text-px9 font-medium uppercase tracking-tight text-accent opacity-90 mb-0.5 flex items-center gap-1.5 hover:opacity-100 cursor-pointer"
+                                    className="text-caption font-medium uppercase tracking-tight text-accent opacity-90 mb-0.5 flex items-center gap-1.5 hover:opacity-100 cursor-pointer"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onToggleSticky?.();
@@ -425,8 +425,8 @@ export const InteractionCard = memo(({
                                 >
                                     {toolUseBlock.name}
                                     {siblings && siblings.length > 0 && (
-                                        <span className="flex items-center gap-0.5 text-px8 bg-accent/10 text-accent px-1 rounded-sm border border-accent/20">
-                                            <Layers className="w-2 h-2" />
+                                        <span className="flex items-center gap-0.5 text-caption bg-accent/10 text-accent px-1 rounded-sm border border-accent/20">
+                                            <Layers className="w-3.5 h-3.5" />
                                             x{siblings.length + 1}
                                         </span>
                                     )}
@@ -437,11 +437,11 @@ export const InteractionCard = memo(({
                             )}
                             {/* Shell command preview */}
                             {isShell && shellCommand && (
-                                <p className="text-px10 font-mono text-[var(--tool-terminal)] truncate opacity-70 mb-0.5">
+                                <p className="text-caption font-mono text-[var(--tool-terminal)] truncate opacity-70 mb-0.5">
                                     $ {shellCommand.length > 60 ? shellCommand.slice(0, 60) + '…' : shellCommand}
                                 </p>
                             )}
-                            <p className={clsx("text-xs line-clamp-2 leading-tight",
+                            <p className={clsx("text-list line-clamp-2 leading-tight",
                                 role === 'user' ? 'text-foreground font-medium' : 'text-foreground/80'
                             )}>
                                 {toolUseBlock
@@ -484,17 +484,17 @@ export const InteractionCard = memo(({
             >
                 {editedMdFile ? (
                     <div
-                        className="flex items-center gap-1.5 px-2 py-1 bg-tool-document/10 border border-tool-document/20 rounded text-px10 text-tool-document font-medium mb-1 cursor-help group/md"
+                        className="flex items-center gap-1.5 px-2 py-1 bg-tool-document/10 border border-tool-document/20 rounded text-caption text-tool-document font-medium mb-1 cursor-help group/md"
                         title={t("session.interaction.markdownFileEdit")}
                     >
-                        <FileText className="w-3 h-3" />
+                        <FileText className="w-3.5 h-3.5" />
                         <span className="truncate">{t("session.interaction.docs", { file: editedMdFile })}</span>
                     </div>
                 ) : editedMdFile === null && isFileEdit ? (
                     <FileEditDisplay toolUseBlock={toolUseBlock} />
                 ) : isShell && shellCommand ? (
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--tool-terminal)]/10 border border-[var(--tool-terminal)]/20 rounded text-px10 text-[var(--tool-terminal)] font-medium mb-1">
-                        <Terminal className="w-3.5 h-3.5 shrink-0" />
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--tool-terminal)]/10 border border-[var(--tool-terminal)]/20 rounded text-caption text-[var(--tool-terminal)] font-medium mb-1">
+                        <SquareTerminal className="w-3.5 h-3.5 shrink-0" />
                         <code className="font-mono truncate">$ {shellCommand}</code>
                     </div>
                 ) : null}
@@ -512,9 +512,9 @@ export const InteractionCard = memo(({
                             {RoleIcon}
                         </div>
 
-                        {isCommit && <span className="text-px9 bg-tool-git/10 text-tool-git px-1 rounded border border-tool-git/30 uppercase tracking-wider font-bold cursor-pointer">GIT</span>}
-                        {isShell && <span className="text-px9 bg-[var(--tool-terminal)]/10 text-[var(--tool-terminal)] px-1 rounded border border-[var(--tool-terminal)]/20 uppercase tracking-wider font-bold cursor-pointer">SHELL</span>}
-                        {editedMdFile && <span className="text-px9 bg-tool-document/10 text-tool-document px-1 rounded border border-tool-document/30 uppercase tracking-wider font-bold cursor-pointer">DOCS</span>}
+                        {isCommit && <span className="text-caption bg-tool-git/10 text-tool-git px-1 rounded border border-tool-git/30 uppercase tracking-wider font-bold cursor-pointer">GIT</span>}
+                        {isShell && <span className="text-caption bg-[var(--tool-terminal)]/10 text-[var(--tool-terminal)] px-1 rounded border border-[var(--tool-terminal)]/20 uppercase tracking-wider font-bold cursor-pointer">SHELL</span>}
+                        {editedMdFile && <span className="text-caption bg-tool-document/10 text-tool-document px-1 rounded border border-tool-document/30 uppercase tracking-wider font-bold cursor-pointer">DOCS</span>}
 
                         {/* Tool Frequency Summary (memoized) */}
                         {toolFrequency && (
@@ -522,7 +522,7 @@ export const InteractionCard = memo(({
                                 {(Object.entries(toolFrequency) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
                                     <div
                                         key={name}
-                                        className="flex items-center gap-0.5 text-px9 text-muted-foreground/80 bg-muted/30 px-1 rounded-sm border border-border/20 hover:bg-muted/50 cursor-pointer transition-colors"
+                                        className="flex items-center gap-0.5 text-caption text-muted-foreground/80 bg-muted/30 px-1 rounded-sm border border-border/20 hover:bg-muted/50 cursor-pointer transition-colors"
                                         title={`${count}x ${name}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -537,30 +537,30 @@ export const InteractionCard = memo(({
                                                             'bg-muted-foreground'
                                         )} />
                                         <span className="font-mono">{name}</span>
-                                        {count > 1 && <span className="opacity-50 text-px8 ml-px">({count})</span>}
+                                        {count > 1 && <span className="opacity-50 text-caption ml-px">({count})</span>}
                                     </div>
                                 ))}
                             </div>
                         )}
 
                         {isCancelled && (
-                            <span className="text-px9 uppercase font-bold text-warning tracking-wide border border-warning/30 px-1 rounded">{t("session.interaction.cancelled")}</span>
+                            <span className="text-caption uppercase font-bold text-warning tracking-wide border border-warning/30 px-1 rounded">{t("session.interaction.cancelled")}</span>
                         )}
                     </div>
-                    <span className="text-px9 text-muted-foreground font-mono">
+                    <span className="text-caption text-muted-foreground font-mono">
                         {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                 </div>
 
                 {/* Content Area */}
-                <div className="text-xs text-foreground/90 whitespace-pre-wrap break-words leading-tight max-h-[300px] overflow-hidden relative">
+                <div className="text-list text-foreground/90 whitespace-pre-wrap break-words leading-tight max-h-[300px] overflow-hidden relative">
                     {displayContent ? displayContent : (toolUseBlock ? <SmartJsonDisplay data={toolUseBlock.input} /> : t("session.board.noContent"))}
                     {/* Gradient to fade out long content */}
                     <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-card to-transparent pointer-events-none" />
                 </div>
 
                 {(message.type === 'assistant' && message.usage) && (
-                    <div className="mt-auto pt-1 flex gap-2 text-px9 text-muted-foreground opacity-60 font-mono items-center">
+                    <div className="mt-auto pt-1 flex gap-2 text-caption text-muted-foreground opacity-60 font-mono items-center">
                         <span>{t("session.interaction.inputTokens")} {message.usage.input_tokens}</span>
                         <span>{t("session.interaction.outputTokens")} {message.usage.output_tokens}</span>
                         {message.usage.reasoning_tokens ? (
@@ -570,7 +570,7 @@ export const InteractionCard = memo(({
                         {/* Cache Hit Indicator */}
                         {message.usage.cache_read_input_tokens && message.usage.cache_read_input_tokens > 0 && (
                             <div className="flex items-center gap-0.5 text-success" title={t("session.interaction.cacheHit", { tokens: message.usage.cache_read_input_tokens })}>
-                                <Zap className="w-3 h-3 fill-success/20" />
+                                <Zap className="w-3.5 h-3.5 fill-success/20" />
                                 <span>{(message.usage.cache_read_input_tokens / 1000).toFixed(1)}k</span>
                             </div>
                         )}
@@ -578,7 +578,7 @@ export const InteractionCard = memo(({
                         {/* Duration Indicator */}
                         {message.durationMs && (
                             <div className="flex items-center gap-0.5 ml-auto" title={t("session.interaction.duration", { seconds: (message.durationMs / 1000).toFixed(1) })}>
-                                <Timer className="w-3 h-3" />
+                                <Timer className="w-3.5 h-3.5" />
                                 <span>{(message.durationMs / 1000).toFixed(1)}s</span>
                             </div>
                         )}
@@ -591,16 +591,16 @@ export const InteractionCard = memo(({
 
                     {/* Cutoff Indicator */}
                     {isClaudeAssistantMessage(message) && message.stop_reason === 'max_tokens' && (
-                        <div className="flex items-center gap-1 text-px9 font-mono px-1.5 py-0.5 rounded border self-start text-warning bg-warning/5 border-warning/20" title={t("session.interaction.cutoffTitle")}>
-                            <Scissors className="w-2.5 h-2.5" />
+                        <div className="flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded border self-start text-warning bg-warning/5 border-warning/20" title={t("session.interaction.cutoffTitle")}>
+                            <Scissors className="w-3.5 h-3.5" />
                             <span className="font-bold">{t("session.interaction.cutoff")}</span>
                         </div>
                     )}
                 </div>
 
                 {isError && (
-                    <div className="mt-1 p-1 bg-destructive/10 rounded text-px9 text-destructive border border-destructive/20 font-mono italic flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
+                    <div className="mt-1 p-1 bg-destructive/10 rounded text-caption text-destructive border border-destructive/20 font-mono italic flex items-center gap-1">
+                        <TriangleAlert className="w-3.5 h-3.5" />
                         <span>{t("session.interaction.errorDetected")}</span>
                     </div>
                 )}

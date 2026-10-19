@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileEdit } from "lucide-react";
+import { FilePen } from "lucide-react";
 import * as Diff from "diff";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -115,7 +115,7 @@ export const AdvancedTextDiff = ({
     <div className="mt-2 p-3 bg-muted/50 border border-border rounded-lg">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <FileEdit className={`${layout.iconSize} text-tool-code`} />
+          <FilePen className={`${layout.iconSize} text-tool-code`} />
           <span className={`${layout.titleText} text-foreground`}>{defaultTitle}</span>
         </div>
         {shouldCollapse && (

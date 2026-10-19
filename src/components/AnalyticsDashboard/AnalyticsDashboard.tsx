@@ -8,10 +8,13 @@
 
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, Layers, Activity } from "lucide-react";
+import { ChartColumn, Layers, Activity } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/loading";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../../store/useAppStore";
+import { selectProjectAnalytics } from "@/navigation/screenOwner";
 import type { AnalyticsDashboardProps } from "./types";
 import { ProjectStatsView, SessionStatsView, GlobalStatsView } from "./views";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
@@ -27,8 +30,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const {
     selectedProject,
     selectedSession,
-    sessionTokenStats,
-    sessionConversationTokenStats,
     globalSummary,
     globalConversationSummary,
     isLoadingGlobalStats,
@@ -38,11 +39,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     analytics: analyticsState,
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
-
-  const projectSummary = analyticsState.projectSummary;
-  const projectConversationSummary = analyticsState.projectConversationSummary;
-  const sessionComparison = analyticsState.sessionComparison;
-  const sessionStats = sessionTokenStats;
+  // Only the open place's data: another tab's (or an earlier load's) is
+  // never shown under this project (`navigation/screenOwner.ts`).
+  const {
+    projectSummary,
+    projectConversationSummary,
+    sessionComparison,
+    sessionTokenStats: sessionStats,
+    sessionConversationTokenStats,
+    isLoading: isLoadingProjectSummary,
+    error: projectSummaryError,
+  } = useAppStore(useShallow(selectProjectAnalytics));
   const hasSessionData =
     selectedSession != null && sessionStats != null && sessionComparison != null;
 
@@ -118,10 +125,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           emptyComponent={
             <div className="text-center space-y-4">
               <div className="w-16 h-16 mx-auto rounded-full bg-muted/30 flex items-center justify-center">
-                <BarChart3 className="w-8 h-8 text-muted-foreground/40" />
+                <Icon icon={ChartColumn} size={24} className="text-muted-foreground/40" />
               </div>
               {/* The view's title is the shell's content header (AppLayout). */}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("analytics.Select a project to view analytics")}
               </p>
             </div>
@@ -134,21 +141,22 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   return (
     <div className="flex-1 p-4 md:p-6 overflow-auto bg-background">
       <div className="relative">
-        {/* Header Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        {/* Header Controls. On phones the date filter shares the row with
+            Project overview | Session details when both fit, and wraps under
+            it, left-aligned, when they do not (a long locale, an open date
+            range); never a lone right-aligned row. */}
+        <div
+          data-analytics-controls=""
+          className="flex flex-wrap items-center justify-between gap-2 mb-4 md:gap-4 md:mb-6"
+        >
           {/* Tab Selector */}
           {hasSessionData && (
-            <div role="tablist" className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
+            <div role="tablist" className="segmented w-fit">
               <button
                 role="tab"
                 aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
-                  activeTab === "project"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                className="segmented-item flex items-center gap-2 px-3 md:px-4 py-2 text-caption whitespace-nowrap"
               >
                 <Layers
                   className={cn(
@@ -162,12 +170,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 role="tab"
                 aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
-                  activeTab === "session"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                className="segmented-item flex items-center gap-2 px-3 md:px-4 py-2 text-caption whitespace-nowrap"
               >
                 <Activity
                   className={cn(
@@ -202,8 +205,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ProjectStatsView
             projectSummary={projectSummary}
             conversationSummary={projectConversationSummary}
-            isLoading={analyticsState.isLoadingProjectSummary}
-            error={analyticsState.projectSummaryError}
+            isLoading={isLoadingProjectSummary}
+            error={projectSummaryError}
             onRetry={onRetry}
             providerId={selectedProject?.provider ?? "claude"}
           />

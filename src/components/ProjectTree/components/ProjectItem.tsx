@@ -1,26 +1,28 @@
 // src/components/ProjectTree/components/ProjectItem.tsx
 import React from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
+import { CircleAlert, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
-import {
-  getProviderBadgeStyle,
-  getProviderId,
-  getProviderLabel,
-} from "../../../utils/providers";
-import {
-  getCompactParentPath,
-  getProjectDisplayName,
-  isAbsolutePath,
-  isProjectPathUnavailable,
-} from "../../../utils/pathUtils";
+import { getProviderId, getProviderLabel } from "../../../utils/providers";
+import { getProjectDisplayName, isProjectPathUnavailable } from "../../../utils/pathUtils";
+import { ProviderDot } from "./ProviderDot";
 
+/**
+ * One project row (plan T7): a single line - chevron, name, provider dot(s),
+ * session count. The full path is the row's tooltip, so the name keeps the
+ * row's width instead of sharing it with a path line and provider chips.
+ *
+ * A click on the chevron only expands or collapses (`onToggle`); a click on
+ * the rest of the row is the caller's `onClick` (open the project, or, for
+ * the open project, expand/collapse it - plan §9b F3).
+ */
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
   isExpanded,
   isSelected,
+  isRetained = false,
   ariaLevel = 1,
   onToggle,
   onClick,
@@ -28,34 +30,31 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   variant = "default",
   showProviderBadge = true,
   providerSiblings = [],
-  onSelectSibling,
   hasInlineChildren = true,
+  reserveTrailingSpace = false,
 }) => {
   const { t } = useTranslation();
 
   const isMain = variant === "main";
   const isWorktree = variant === "worktree";
-  const isGrouped = isMain || isWorktree;
-  const isExpandable = project.session_count > 0;
+  const isExpandable = project.session_count > 0 && hasInlineChildren;
   const isPathUnavailable = isProjectPathUnavailable(project);
-  const hasSiblings = providerSiblings.length > 0;
   const actualPath = project.actual_path || project.path || project.name;
 
   const providerId = getProviderId(project.provider);
-  const baseProviderLabel = getProviderLabel(
-    (key, fallback) => t(key, fallback),
-    providerId
-  );
-  const providerLabel = project.custom_directory_label
-    ? `${baseProviderLabel} (${project.custom_directory_label})`
-    : baseProviderLabel;
-  const shouldShowParentPath = !isGrouped && isAbsolutePath(actualPath);
-  const parentPath = shouldShowParentPath ? getCompactParentPath(actualPath) : "";
+  const providers = [project, ...providerSiblings];
+  const providerNames = providers
+    .map((p) => {
+      const label = getProviderLabel((key, fallback) => t(key, fallback), getProviderId(p.provider));
+      return p.custom_directory_label ? `${label} (${p.custom_directory_label})` : label;
+    })
+    .join(", ");
   const displayName = isMain
     ? t("project.main", "main")
     : isWorktree
       ? getWorktreeLabel(project.actual_path)
       : getProjectDisplayName({ ...project, provider: providerId });
+  const showDots = showProviderBadge || providerSiblings.length > 0;
 
   return (
     <button
@@ -64,11 +63,20 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       data-tree-node="project"
       data-row="project"
       data-project-path={project.path}
+      data-selection={isSelected ? (isRetained ? "retained" : "active") : undefined}
       aria-level={ariaLevel}
       aria-selected={isSelected}
-      aria-expanded={isExpandable && hasInlineChildren ? isExpanded : undefined}
+      aria-expanded={isExpandable ? isExpanded : undefined}
       tabIndex={-1}
-      onClick={onClick}
+      title={showDots ? `${actualPath}\n${providerNames}` : actualPath}
+      onClick={(e) => {
+        // The chevron is a disclosure, not a link: it never opens the project.
+        if ((e.target as HTMLElement).closest("[data-chevron]")) {
+          if (isExpandable) onToggle();
+          return;
+        }
+        onClick();
+      }}
       onKeyDown={(e) => {
         if (e.key === "ArrowRight" && isExpandable && !isExpanded) {
           e.preventDefault();
@@ -84,152 +92,39 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       }}
       onContextMenu={onContextMenu}
       className={cn(
-        "w-full flex items-center gap-2",
-        "text-left transition-all duration-200 rounded-md cursor-pointer outline-none",
-        isGrouped ? "px-2 py-1.5" : "px-4 py-2.5",
-        isGrouped ? "focus:ring-2 focus:ring-accent" : "focus:ring-2 focus:ring-accent",
-        isGrouped
-          ? "hover:bg-accent/10"
-          : "hover:bg-accent/8 hover:pl-5 border-l-2 border-transparent",
-        !isGrouped && isExpanded && "bg-accent/10 border-l-accent pl-5",
-        isGrouped && isMain && "hover:bg-accent/10",
-        isGrouped && isWorktree && "hover:bg-success/10",
-        isGrouped && isExpanded && (isMain ? "bg-accent/15" : "bg-success/15")
+        // 28px; 26px on a desktop mouse screen, where it buys a 21st row at
+        // 1440x900 (plan C4 margin). Phones and touch screens keep 28px.
+        "group/project w-full h-7 md:pointer-fine:h-6.5 flex items-center gap-1.5 pl-1 pr-2 rounded-md",
+        "text-left text-list outline-none transition-colors cursor-pointer",
+        "focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected
+          ? isRetained
+            ? "bg-muted/60 text-foreground/80"
+            : "bg-accent/15 text-foreground"
+          : "text-sidebar-foreground/85 hover:bg-muted/60",
+        reserveTrailingSpace && "pr-16"
       )}
     >
-      {/* Expand Icon */}
       <span
-        aria-label={isExpanded ? t("common.collapse", "Collapse") : t("common.expand", "Expand")}
+        data-chevron
+        aria-hidden="true"
         className={cn(
-          "transition-all duration-200 p-0.5 -m-0.5 rounded",
-          isExpanded
-            ? isWorktree
-              ? "text-success"
-              : "text-accent"
-            : "text-muted-foreground"
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground",
+          isExpandable ? "hover:bg-muted hover:text-foreground" : "opacity-0"
         )}
       >
-        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </span>
 
-      {/* Icon */}
-      {isGrouped ? (
-        isMain ? (
-          <span title="Project">
-            <Folder
-              className={cn(
-                "w-3.5 h-3.5 transition-colors",
-                isExpanded ? "text-accent" : "text-muted-foreground"
-              )}
-            />
-          </span>
-        ) : (
-          <span title="Worktree">
-            <GitBranch
-              className={cn(
-                "w-3.5 h-3.5 transition-colors",
-                isExpanded ? "text-success" : "text-success/60"
-              )}
-            />
-          </span>
-        )
-      ) : (
-        <div
-          className={cn(
-            "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
-            isExpanded ? "bg-accent/20 text-accent" : "bg-muted/50 text-muted-foreground"
-          )}
-        >
-          <Folder className="w-3.5 h-3.5" />
-        </div>
-      )}
-
-      {/* Project Name */}
       <span
-        className="min-w-0 flex-1"
-        title={actualPath}
+        className={cn(
+          "min-w-0 flex-1 truncate",
+          isSelected && "font-medium",
+          isWorktree && "text-success"
+        )}
       >
-        <span
-          className={cn(
-            "block truncate transition-colors",
-            isGrouped ? "text-xs" : "text-sm",
-            isExpanded
-              ? isWorktree
-                ? "text-success font-medium"
-                : isGrouped
-                  ? "text-accent font-medium"
-                  : "text-accent font-semibold"
-              : isGrouped
-                ? "text-muted-foreground"
-                : "text-sidebar-foreground/80",
-            !isGrouped && "duration-300"
-          )}
-        >
-          {displayName}
-        </span>
-        {parentPath && (
-          <span className="mt-0.5 block truncate text-2xs text-muted-foreground/70">
-            {parentPath}
-          </span>
-        )}
-        {/* Several providers for one folder: chips get their own line so the
-            name keeps its width. Spans, not buttons — we are inside the
-            treeitem button. */}
-        {hasSiblings && (
-          <span className="mt-1 flex flex-wrap items-center gap-1">
-            <span
-              className={cn(
-                "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none",
-                getProviderBadgeStyle(providerId)
-              )}
-            >
-              {providerLabel}
-            </span>
-            {providerSiblings.map((sibling) => {
-              const siblingProvider = getProviderId(sibling.provider);
-              const siblingBase = getProviderLabel((key, fallback) => t(key, fallback), siblingProvider);
-              const siblingLabel = sibling.custom_directory_label
-                ? `${siblingBase} (${sibling.custom_directory_label})`
-                : siblingBase;
-              return (
-                <span
-                  key={sibling.path}
-                  role="button"
-                  tabIndex={-1}
-                  title={t("project.switchProvider", {
-                    provider: siblingLabel,
-                    count: sibling.session_count,
-                    defaultValue: "Open {{provider}} sessions ({{count}})",
-                  })}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectSibling?.(sibling);
-                  }}
-                  className={cn(
-                    "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none opacity-60 hover:opacity-100 transition-opacity",
-                    getProviderBadgeStyle(siblingProvider)
-                  )}
-                >
-                  {siblingLabel}
-                  <span className="ml-1 font-mono opacity-70">{sibling.session_count}</span>
-                </span>
-              );
-            })}
-          </span>
-        )}
+        {displayName}
       </span>
-
-      {/* Single-provider folder: badge stays inline on the right */}
-      {showProviderBadge && !hasSiblings && (
-        <span
-          className={cn(
-            "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
-            getProviderBadgeStyle(providerId)
-          )}
-        >
-          {providerLabel}
-        </span>
-      )}
 
       {isPathUnavailable && (
         <span
@@ -241,26 +136,21 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           })}
           className="flex-shrink-0 text-warning"
         >
-          <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          <CircleAlert className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}
 
-      {/* Session Count */}
-      {(!isGrouped && project.session_count > 0) || isGrouped ? (
-        <span
-          className={cn(
-            "text-2xs font-mono rounded",
-            isGrouped
-              ? "text-muted-foreground/60"
-              : cn(
-                "px-1.5 py-0.5",
-                isExpanded ? "text-accent/70 bg-accent/10" : "text-muted-foreground/60"
-              )
-          )}
-        >
-          {project.session_count}
+      {showDots && (
+        <span className="flex shrink-0 items-center gap-0.5" aria-label={providerNames} role="img">
+          {providers.map((p) => (
+            <ProviderDot key={p.path} provider={p.provider} />
+          ))}
         </span>
-      ) : null}
+      )}
+
+      <span className="shrink-0 min-w-4 text-right text-caption tabular-nums text-muted-foreground">
+        {project.session_count}
+      </span>
     </button>
   );
 };

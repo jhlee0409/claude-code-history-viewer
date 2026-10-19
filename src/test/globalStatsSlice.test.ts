@@ -163,7 +163,8 @@ describe("globalStatsSlice", () => {
     expect(useStore.getState().globalSummary).toEqual(summary);
     // Conversation failure → null (no implicit fallback to billing)
     expect(useStore.getState().globalConversationSummary).toBeNull();
-    expect(useStore.getState().setError).toHaveBeenCalledWith(null);
+    // A screen's load leaves the app's error alone (it is not its to clear).
+    expect(useStore.getState().setError).not.toHaveBeenCalled();
     expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
   });
 

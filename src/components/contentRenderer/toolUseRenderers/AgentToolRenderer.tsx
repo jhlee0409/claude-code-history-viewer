@@ -3,7 +3,7 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  PlayCircle,
+  CirclePlay,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
             {input.subagent_type && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-0.5 font-mono text-px11 uppercase tracking-wide",
+                  "inline-flex items-center gap-1 px-2 py-0.5 font-mono text-caption uppercase tracking-wide",
                   layout.rounded,
                   style.bg,
                   style.text,
@@ -61,7 +61,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
                   style.border
                 )}
               >
-                <SubagentIcon className="w-3 h-3" />
+                <SubagentIcon className="w-3.5 h-3.5" />
                 {input.subagent_type}
               </span>
             )}
@@ -170,7 +170,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
               ) : (
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
               )}
-              <PlayCircle
+              <CirclePlay
                 className={cn("w-3.5 h-3.5", style.text)}
               />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>

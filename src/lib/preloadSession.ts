@@ -120,7 +120,7 @@ function normalizePath(path: string): string {
   return unified;
 }
 
-function matchByPath(sessions: ClaudeSession[], absPath: string): ClaudeSession | undefined {
+export function matchByPath(sessions: ClaudeSession[], absPath: string): ClaudeSession | undefined {
   const target = normalizePath(absPath);
   return sessions.find((s) => normalizePath(s.file_path ?? "") === target);
 }
@@ -155,7 +155,7 @@ function matchByTitle(sessions: ClaudeSession[], substring: string): ClaudeSessi
 
 type ProjectSessionsPair = { project: ClaudeProject; sessions: ClaudeSession[] };
 
-async function loadSessionsFor(
+export async function loadSessionsFor(
   project: ClaudeProject,
   excludeSidechain: boolean,
 ): Promise<ClaudeSession[]> {
@@ -395,6 +395,14 @@ export interface OpenSessionHintOptions {
   epoch?: number;
   /** Record the move in back/forward history (default true). */
   record?: boolean;
+  /**
+   * Open the matched session. Default: navigate the active tab there. A CLI
+   * or startup hint passes `openHintInTab` (its own tab, plan §4.3).
+   */
+  openMatch?: (
+    match: SessionPickerCandidate,
+    context: { epoch: number; messageId: string | null; record?: boolean },
+  ) => Promise<boolean>;
   t: Translator;
 }
 
@@ -416,12 +424,13 @@ export function openSessionHint(
   return preloadSessionFromCli({
     getStartupSessionHint: () => Promise.resolve(hint),
     projects: useAppStore.getState().projects,
-    openMatch: ({ project, session }) =>
+    openMatch: (match) =>
+      options.openMatch?.(match, { epoch, messageId: options.messageId ?? null, record: options.record }) ??
       useAppStore.getState().navigate(
         {
           view: "conversation",
-          project,
-          session,
+          project: match.project,
+          session: match.session,
           messageId: options.messageId ?? null,
         },
         { history: "none", epoch, record: options.record },

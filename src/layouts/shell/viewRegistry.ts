@@ -3,33 +3,29 @@
  *
  * Every `View` of the place model has one entry. The shell reads it for the
  * main-area body (`component` inside its `frame`), the content header
- * (`icon`, `titleKey`, `header.subtitle`), the right-hand inspector, the
- * header's view tabs (`tab`) and the mobile analytics sub-nav. Nothing else in
- * `src/layouts` picks a component, title or icon per view; the registry test
- * holds that line.
+ * (`icon`, `titleKey`, `header.subtitle`) and the header's view tabs
+ * (`tab`). Nothing else in `src/layouts` picks a component, title or icon
+ * per view; the registry test holds that line. The
+ * screens the right-hand inspector sits beside are the inspector's own rule
+ * (`components/Inspector/inspectorAvailability.ts`), shared with the command
+ * registry, which must not import the screens.
  *
- * Today's icon pairs are kept as they render (zero visual change): the board's
- * content header shows a message icon while its tab shows columns, and token
- * stats shows coins in the content header and activity on its tab. Unifying
- * them is icon work (T5), not shell work.
+ * A screen has one icon (`SCREEN_ICONS`, decision page section 7): the header
+ * tab draws the entry's `icon`, so a tab and its content header cannot
+ * disagree (the board once showed a message icon in its header and columns on
+ * its tab).
+ *
+ * Token statistics are no entry (T9b): they are the analytics screen's
+ * "tokens" sub-tab (`AnalyticsSubTabs`, the place's `analyticsTab`).
  */
 import type { ComponentType, ReactNode } from "react";
 import type { TFunction } from "i18next";
-import {
-  Activity,
-  Archive,
-  BarChart3,
-  Coins,
-  Columns,
-  Database,
-  FileEdit,
-  MessageSquare,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ClaudeSession } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { ToolbarView, View } from "@/navigation/place";
+import { PLACE_NAMES } from "@/navigation/placeNames";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import {
   AnalyticsScreen,
   ArchiveScreen,
@@ -41,7 +37,6 @@ import {
   RecentEditsScreen,
   ScrollFrame,
   SettingsScreen,
-  TokenStatsScreen,
   type ViewScreenProps,
 } from "./screens";
 
@@ -58,23 +53,21 @@ export interface ViewEntry {
   component: ComponentType<ViewScreenProps>;
   /** What the body sits in inside the view panel. */
   frame: ComponentType<{ children: ReactNode }>;
-  /** The screen's mark: content header, mobile sub-nav. */
+  /** The screen's mark: header tab, content header. */
   icon: LucideIcon;
   /**
-   * The screen's name (content header, mobile sub-nav). An i18n key that
+   * The screen's name (content header): the place's one name from
+   * `PLACE_NAMES` where it has one (plan F4a). An i18n key that
    * must exist in `en`; checked by the registry test rather than by type,
    * as the generated key union does not cover every namespace.
    */
   titleKey: string;
   /** The content header above the body; null for screens without one. */
   header: { subtitle: (context: HeaderContext) => string } | null;
-  /** Whether the right-hand inspector (message navigator, edits dock) shows. */
-  inspector: boolean;
 }
 
-/** A header view tab: its own icon and label (they differ from the header's). */
+/** A header view tab: its label (which may differ from the title). It draws the entry's icon. */
 export interface TabEntry {
-  icon: LucideIcon;
   labelKey: string;
 }
 
@@ -83,7 +76,7 @@ export type ViewRegistry = {
   [V in View]: ViewEntry & (V extends ToolbarView ? { tab: TabEntry } : { tab?: never });
 };
 
-/** The open session's summary, or a placeholder (project analytics and token stats). */
+/** The open session's summary, or a placeholder (project analytics). */
 const sessionSummary = ({ t, selectedSession }: HeaderContext) =>
   selectedSession?.summary || t("session.summaryNotFound");
 
@@ -91,100 +84,85 @@ export const VIEW_REGISTRY: ViewRegistry = {
   empty: {
     component: EmptyScreen,
     frame: BareFrame,
-    icon: MessageSquare,
+    icon: SCREEN_ICONS.conversation,
     titleKey: "session.select",
     header: null,
-    inspector: false,
   },
   conversation: {
     component: ConversationScreen,
     frame: BareFrame,
-    icon: MessageSquare,
-    titleKey: "message.view",
+    icon: SCREEN_ICONS.conversation,
+    titleKey: PLACE_NAMES.conversation,
     header: null,
-    inspector: true,
-    tab: { icon: MessageSquare, labelKey: "message.view" },
+    tab: { labelKey: PLACE_NAMES.conversation },
   },
   analytics: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
-    icon: BarChart3,
-    titleKey: "analytics.dashboard",
+    icon: SCREEN_ICONS.analytics,
+    titleKey: PLACE_NAMES.analytics,
     header: { subtitle: sessionSummary },
-    inspector: false,
-    tab: { icon: BarChart3, labelKey: "analytics.dashboard" },
-  },
-  tokenStats: {
-    component: TokenStatsScreen,
-    frame: ScrollFrame,
-    icon: Coins,
-    titleKey: "messages.tokenStats.title",
-    header: { subtitle: sessionSummary },
-    inspector: false,
-    tab: { icon: Activity, labelKey: "messages.tokenStats.existing" },
+    tab: { labelKey: PLACE_NAMES.analytics },
   },
   edits: {
     component: RecentEditsScreen,
     frame: ScrollFrame,
-    icon: FileEdit,
-    titleKey: "recentEdits.title",
+    icon: SCREEN_ICONS.edits,
+    titleKey: PLACE_NAMES.edits,
     header: { subtitle: ({ t }) => t("recentEdits.description") },
-    inspector: false,
-    tab: { icon: FileEdit, labelKey: "recentEdits.title" },
+    tab: { labelKey: PLACE_NAMES.edits },
   },
   board: {
     component: BoardScreen,
     frame: BareFrame,
-    icon: MessageSquare,
-    titleKey: "session.board.title",
+    icon: SCREEN_ICONS.board,
+    titleKey: PLACE_NAMES.board,
     header: {
       subtitle: ({ t }) =>
         t("session.board.description", "Comparative overview of different sessions"),
     },
-    inspector: false,
-    tab: { icon: Columns, labelKey: "session.board.title" },
+    tab: { labelKey: PLACE_NAMES.board },
   },
   globalStats: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
-    icon: Database,
-    titleKey: "analytics.globalOverview",
+    icon: SCREEN_ICONS.globalStats,
+    titleKey: PLACE_NAMES.globalStats,
     header: { subtitle: ({ globalOverviewDescription }) => globalOverviewDescription },
-    inspector: false,
   },
   archive: {
     component: ArchiveScreen,
     frame: PaddedFrame,
-    icon: Archive,
-    titleKey: "archive.title",
+    icon: SCREEN_ICONS.archive,
+    titleKey: PLACE_NAMES.archive,
     header: { subtitle: ({ t }) => t("archive.description") },
-    inspector: false,
   },
   settingsManager: {
     component: SettingsScreen,
     frame: PaddedFrame,
-    icon: Settings,
-    titleKey: "settingsManager.title",
+    icon: SCREEN_ICONS.settings,
+    titleKey: PLACE_NAMES.settingsManager,
     header: { subtitle: ({ t }) => t("settingsManager.description") },
-    inspector: false,
   },
 };
 
-/** The header's view tabs, in display order. */
+/** The toolbar's screen tabs, in display order. */
 export const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
   "conversation",
   "analytics",
-  "tokenStats",
   "edits",
   "board",
 ];
 
-/** The project screens the mobile layout switches between under its header. */
-export type MobileAnalyticsView = "analytics" | "tokenStats" | "edits";
+/**
+ * The project screens that show the phone's analytics nav row under their
+ * header (`MobileAnalyticsSubNav`: Overview · Tokens · Edits). Token
+ * statistics are analytics' "tokens" sub-tab (T9b), not a screen.
+ */
+export type MobileAnalyticsView = "analytics" | "edits";
 
 export const MOBILE_ANALYTICS_VIEWS: readonly MobileAnalyticsView[] = [
   "analytics",
-  "tokenStats",
   "edits",
 ];
 
@@ -195,7 +173,6 @@ export const isMobileAnalyticsView = (view: View): view is MobileAnalyticsView =
 export type ScreenFlags = Pick<
   UseAnalyticsReturn["computed"],
   | "isMessagesView"
-  | "isTokenStatsView"
   | "isAnalyticsView"
   | "isGlobalStatsView"
   | "isRecentEditsView"
@@ -213,7 +190,6 @@ const SCREEN_FLAGS: ReadonlyArray<readonly [keyof ScreenFlags, View]> = [
   ["isRecentEditsView", "edits"],
   ["isAnalyticsView", "analytics"],
   ["isGlobalStatsView", "globalStats"],
-  ["isTokenStatsView", "tokenStats"],
   ["isEmptyView", "empty"],
 ];
 

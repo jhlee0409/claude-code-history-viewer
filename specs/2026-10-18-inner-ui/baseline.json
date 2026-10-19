@@ -1,0 +1,664 @@
+{
+  "$comment": "Inner-UI plan I0 baseline freeze: measured values only. Regenerate with scripts/ui-capture/freeze-baseline.mjs; see scripts/ui-capture/README.md.",
+  "revision": {
+    "sha": "0841bec15395414cdb3af09ff677267375d68b78",
+    "dirty": false,
+    "harnessDigest": "3c1fe75bfdfcf8ed"
+  },
+  "fixture": {
+    "version": 4,
+    "digest": "95157a613e96ab6d4c32bacd59541e35573b09bbfa3d0aab6ac8ffe874f44f2b",
+    "verify": {
+      "reproducible": true,
+      "manifestDigest": "19296208b83d175c90b87b76a9611cab116a04d14ee8fb81ee28ac7a05f3e88e"
+    }
+  },
+  "engines": {
+    "node": "v22.18.0",
+    "playwright": "1.63.0",
+    "webkit": "26.6",
+    "chromium": "153.0.8010.12"
+  },
+  "machine": {
+    "os": "Darwin 25.6.0 arm64",
+    "model": "Mac16,8"
+  },
+  "locale": "ko",
+  "fixedNow": "2026-06-30T00:00:00.000Z",
+  "fontScales": [
+    "100%",
+    "125%"
+  ],
+  "reproducibility": {
+    "gate": "reproducibility",
+    "scenarios": 259,
+    "failures": [],
+    "maxExactDiffPx": 0
+  },
+  "inactiveScenarios": [
+    {
+      "id": "analytics-activity--1440x900--dark",
+      "activatesWith": "AN1",
+      "before": "analytics (today's overview: heatmap + most-used tools)"
+    },
+    {
+      "id": "session-detail-sheet--1440x900--dark",
+      "activatesWith": "AN1",
+      "before": "analytics (today's overview 'session detail' segmented)"
+    },
+    {
+      "id": "journey-evidence--1440x900--dark",
+      "activatesWith": "EV2",
+      "before": "new-surface"
+    },
+    {
+      "id": "file-history--1440x900--dark",
+      "activatesWith": "EV3b",
+      "before": "recent-edits (today's per-file latest row)"
+    },
+    {
+      "id": "partial-provider--1440x900--dark",
+      "activatesWith": "SX1",
+      "before": "new-surface"
+    },
+    {
+      "id": "stale-data--1440x900--dark",
+      "activatesWith": "SX1",
+      "before": "new-surface"
+    },
+    {
+      "id": "settings-invalid--1440x900--dark",
+      "activatesWith": "SE1",
+      "before": "settings"
+    },
+    {
+      "id": "settings-inherited--1440x900--dark",
+      "activatesWith": "SE1",
+      "before": "settings"
+    },
+    {
+      "id": "archive-progress--1440x900--dark",
+      "activatesWith": "AR1",
+      "before": "archive"
+    },
+    {
+      "id": "archive-result--1440x900--dark",
+      "activatesWith": "AR1",
+      "before": "archive"
+    },
+    {
+      "id": "session-detail-sheet--390x844--dark",
+      "activatesWith": "AN1",
+      "before": "analytics (today's overview 'session detail' segmented)"
+    }
+  ],
+  "before": {
+    "100%": {
+      "run": ".ui-capture/runs/20261019-020058-0841bec/run-1",
+      "variant": {
+        "motion": "reduce",
+        "forcedColors": "none",
+        "contrast": "no-preference",
+        "fontScale": 1,
+        "timezone": "Asia/Seoul",
+        "viewport": null,
+        "inspector": null,
+        "live": false
+      },
+      "scenarios": 259,
+      "before": {
+        "D1": {
+          "probe": "absPathLeaks",
+          "selector": "body (text nodes; exempt: pre, code, kbd, samp, textarea, input, [data-output], [data-code], [data-mono=\"code\"], [data-mono=\"diag\"], [data-path-kind=\"absolute\"], [contenteditable=\"true\"])",
+          "scenarios": 63,
+          "population": 7014,
+          "emptyPopulation": [],
+          "value": {
+            "leaks": 139,
+            "scenariosWithLeaks": 44
+          }
+        },
+        "D2": {
+          "probe": "toolRowMetrics",
+          "selector": "[data-tool-row], [data-message-uuid] button[aria-expanded]",
+          "scenarios": 34,
+          "population": 142,
+          "emptyPopulation": [],
+          "value": {
+            "rows": 142,
+            "fontSizePx": {
+              "12": 132,
+              "10.8": 3,
+              "13.2": 3
+            },
+            "minRowHeightPx": 24,
+            "truncatedRows": 26
+          }
+        },
+        "D7": {
+          "probe": "focusVisible",
+          "selector": "first 24 Alt+Tab stops from the top of the page",
+          "scenarios": 3,
+          "population": 66,
+          "emptyPopulation": [],
+          "value": {
+            "visible": 33,
+            "stops": 66,
+            "invisible": 33
+          }
+        },
+        "D12": {
+          "wordBreak": {
+            "probe": "wordBreak",
+            "selector": "body (visible text nodes with Hangul/Kana/Han)",
+            "scenarios": 259,
+            "population": 8764,
+            "emptyPopulation": [],
+            "value": {
+              "ko": {
+                "total": 8743,
+                "keepAll": 182,
+                "keepAllShare": 0.0208
+              },
+              "ja": {
+                "total": 21,
+                "keepAll": 0,
+                "keepAllShare": 0
+              },
+              "zh": {
+                "total": 0,
+                "keepAll": 0,
+                "keepAllShare": null
+              }
+            }
+          },
+          "cjkLeading": {
+            "probe": "cjkLeading",
+            "selector": "body (visible multi-line CJK text nodes)",
+            "scenarios": 4,
+            "population": 10,
+            "emptyPopulation": [],
+            "value": {
+              "multiLineNodes": 10,
+              "below15": 0
+            }
+          }
+        },
+        "D20": {
+          "cards": {
+            "probe": "cards",
+            "selector": "[data-slot=\"main\"] * (visible, >=40x24)",
+            "scenarios": 97,
+            "population": 6336,
+            "emptyPopulation": [],
+            "value": {
+              "cards": 939,
+              "maxNesting": 2,
+              "radii": {
+                "4": 228,
+                "6": 150,
+                "8": 333,
+                "12": 181,
+                "pill": 47
+              }
+            }
+          },
+          "leftEdges": {
+            "probe": "leftEdges",
+            "selector": "[data-slot=\"main\"] text nodes; title = first visible h1/h2/[role=heading]/[data-page-title]; content column = first text below the page header outside controls: the file name on Edits, else the leftmost (per scenario: contentRule)",
+            "scenarios": 73,
+            "population": 3677,
+            "emptyPopulation": [],
+            "value": {
+              "titleToContentDeltaPx": {
+                "analytics--1180x760--dark": -27,
+                "analytics-tokens--1180x760--dark": -31,
+                "recent-edits--1180x760--dark": 50,
+                "board--1180x760--dark": -56,
+                "global-stats--1180x760--dark": -48,
+                "archive--1180x760--dark": -23,
+                "settings--1180x760--dark": -44,
+                "global-stats-after-analytics--1180x760--dark": -48,
+                "archive-after-global-stats--1180x760--dark": -23,
+                "analytics-error--1180x760--dark": 318,
+                "analytics--1180x760--light": -27,
+                "analytics-tokens--1180x760--light": -31,
+                "recent-edits--1180x760--light": 50,
+                "board--1180x760--light": -56,
+                "global-stats--1180x760--light": -48,
+                "archive--1180x760--light": -23,
+                "settings--1180x760--light": -44,
+                "global-stats-after-analytics--1180x760--light": -48,
+                "archive-after-global-stats--1180x760--light": -23,
+                "analytics-error--1180x760--light": 318,
+                "analytics--1440x900--dark": -27,
+                "analytics-tokens--1440x900--dark": -31,
+                "recent-edits--1440x900--dark": 50,
+                "board--1440x900--dark": -56,
+                "global-stats--1440x900--dark": -48,
+                "archive--1440x900--dark": -23,
+                "settings--1440x900--dark": -44,
+                "global-stats-after-analytics--1440x900--dark": -48,
+                "archive-after-global-stats--1440x900--dark": -23,
+                "analytics-error--1440x900--dark": 448,
+                "analytics--1440x900--light": -27,
+                "analytics-tokens--1440x900--light": -31,
+                "recent-edits--1440x900--light": 50,
+                "board--1440x900--light": -56,
+                "global-stats--1440x900--light": -48,
+                "archive--1440x900--light": -23,
+                "settings--1440x900--light": -44,
+                "global-stats-after-analytics--1440x900--light": -48,
+                "archive-after-global-stats--1440x900--light": -23,
+                "analytics-error--1440x900--light": 448,
+                "analytics--1920x1080--dark": -27,
+                "analytics-tokens--1920x1080--dark": -31,
+                "recent-edits--1920x1080--dark": 50,
+                "board--1920x1080--dark": -56,
+                "global-stats--1920x1080--dark": -48,
+                "archive--1920x1080--dark": -23,
+                "settings--1920x1080--dark": -44,
+                "global-stats-after-analytics--1920x1080--dark": -48,
+                "archive-after-global-stats--1920x1080--dark": -23,
+                "analytics-error--1920x1080--dark": 688,
+                "analytics--1920x1080--light": -27,
+                "analytics-tokens--1920x1080--light": -31,
+                "recent-edits--1920x1080--light": 50,
+                "board--1920x1080--light": -56,
+                "global-stats--1920x1080--light": -48,
+                "archive--1920x1080--light": -23,
+                "settings--1920x1080--light": -44,
+                "global-stats-after-analytics--1920x1080--light": -48,
+                "archive-after-global-stats--1920x1080--light": -23,
+                "analytics-error--1920x1080--light": 688,
+                "analytics-scale90--1440x900--light": -27,
+                "analytics-scale110--1440x900--light": -27,
+                "recent-edits-compact--1440x900--dark": -5,
+                "recent-edits-compact--1440x900--light": -5,
+                "analytics-lowdata--1440x900--dark": -27,
+                "settings-dirty--1440x900--dark": -44,
+                "archive-error--1440x900--dark": -23,
+                "analytics-lowdata--1440x900--light": -27,
+                "settings-dirty--1440x900--light": -44,
+                "archive-error--1440x900--light": -23,
+                "analytics-lowdata--1180x760--dark": -27,
+                "settings-dirty--1180x760--dark": -44,
+                "archive-error--1180x760--dark": -23
+              },
+              "alignedWithin2px": 0,
+              "distinctLeftEdgesMax": 95
+            }
+          }
+        },
+        "D24": {
+          "probe": "chromeSelect",
+          "selector": "header, nav, #project-explorer, [role=\"toolbar\"], [role=\"tablist\"], [data-slot=\"tabs\"] (text nodes outside inputs)",
+          "scenarios": 171,
+          "population": 10737,
+          "emptyPopulation": [],
+          "value": {
+            "selectableChromeText": 10721,
+            "chromeText": 10737
+          }
+        },
+        "D25": {
+          "probe": "overflowX",
+          "selector": "body * (visible elements)",
+          "scenarios": 259,
+          "population": 60042,
+          "emptyPopulation": [],
+          "value": {
+            "mobileScenariosWithPageOverflow": [
+              "home--390x844--dark (33px)",
+              "transcript--390x844--dark (33px)",
+              "analytics--390x844--dark (33px)",
+              "analytics-tokens--390x844--dark (33px)",
+              "recent-edits--390x844--dark (33px)",
+              "board--390x844--dark (33px)",
+              "global-stats--390x844--dark (33px)",
+              "archive--390x844--dark (33px)",
+              "settings--390x844--dark (33px)",
+              "global-stats-after-analytics--390x844--dark (33px)",
+              "archive-after-global-stats--390x844--dark (33px)",
+              "empty--390x844--dark (33px)",
+              "empty-first-launch--390x844--dark (33px)",
+              "loading--390x844--dark (33px)",
+              "analytics-error--390x844--dark (33px)",
+              "home--390x844--light (33px)",
+              "transcript--390x844--light (33px)",
+              "analytics--390x844--light (33px)",
+              "analytics-tokens--390x844--light (33px)",
+              "recent-edits--390x844--light (33px)",
+              "board--390x844--light (33px)",
+              "global-stats--390x844--light (33px)",
+              "archive--390x844--light (33px)",
+              "settings--390x844--light (33px)",
+              "global-stats-after-analytics--390x844--light (33px)",
+              "archive-after-global-stats--390x844--light (33px)",
+              "empty--390x844--light (33px)",
+              "empty-first-launch--390x844--light (33px)",
+              "loading--390x844--light (33px)",
+              "analytics-error--390x844--light (33px)",
+              "sidebar-sessions--390x844--dark (33px)",
+              "sidebar-sessions--390x844--light (33px)",
+              "tabs-mobile--390x844--dark (33px)",
+              "tabs-mobile--390x844--light (33px)",
+              "inspector-outline--390x844--dark (33px)",
+              "recent-edits-compact--390x844--dark (33px)",
+              "transcript-mixed-turn--390x844--dark (33px)",
+              "x-transcript-edit-expanded--390x844--dark (33px)",
+              "transcript-run-open--390x844--dark (33px)",
+              "transcript-failure--390x844--dark (33px)",
+              "transcript-unknown-outcome--390x844--dark (33px)",
+              "transcript-cjk--390x844--dark (33px)",
+              "subagent--390x844--dark (33px)",
+              "no-matches--390x844--dark (33px)",
+              "unreadable-source--390x844--dark (33px)",
+              "analytics-lowdata--390x844--dark (33px)",
+              "edits-patch-only--390x844--dark (33px)",
+              "settings-dirty--390x844--dark (33px)",
+              "archive-error--390x844--dark (33px)"
+            ],
+            "clippedBoxes": 71
+          }
+        }
+      }
+    },
+    "125%": {
+      "run": ".ui-capture/runs/20261019-023332-0841bec-font125",
+      "variant": {
+        "motion": "reduce",
+        "forcedColors": "none",
+        "contrast": "no-preference",
+        "fontScale": 1.25,
+        "timezone": "Asia/Seoul",
+        "viewport": null,
+        "inspector": null,
+        "live": false
+      },
+      "scenarios": 5,
+      "before": {
+        "D1": {
+          "probe": "absPathLeaks",
+          "selector": "body (text nodes; exempt: pre, code, kbd, samp, textarea, input, [data-output], [data-code], [data-mono=\"code\"], [data-mono=\"diag\"], [data-path-kind=\"absolute\"], [contenteditable=\"true\"])",
+          "scenarios": 5,
+          "population": 535,
+          "emptyPopulation": [],
+          "value": {
+            "leaks": 11,
+            "scenariosWithLeaks": 4
+          }
+        },
+        "D2": {
+          "probe": "toolRowMetrics",
+          "selector": "[data-tool-row], [data-message-uuid] button[aria-expanded]",
+          "scenarios": 5,
+          "population": 23,
+          "emptyPopulation": [],
+          "value": {
+            "rows": 23,
+            "fontSizePx": {
+              "15": 23
+            },
+            "minRowHeightPx": 31,
+            "truncatedRows": 3
+          }
+        },
+        "D7": {
+          "probe": "focusVisible",
+          "selector": null,
+          "scenarios": 0,
+          "population": 0,
+          "emptyPopulation": [],
+          "value": {
+            "visible": 0,
+            "stops": 0,
+            "invisible": 0
+          }
+        },
+        "D12": {
+          "wordBreak": {
+            "probe": "wordBreak",
+            "selector": "body (visible text nodes with Hangul/Kana/Han)",
+            "scenarios": 5,
+            "population": 219,
+            "emptyPopulation": [],
+            "value": {
+              "ko": {
+                "total": 215,
+                "keepAll": 0,
+                "keepAllShare": 0
+              },
+              "ja": {
+                "total": 4,
+                "keepAll": 0,
+                "keepAllShare": 0
+              },
+              "zh": {
+                "total": 0,
+                "keepAll": 0,
+                "keepAllShare": null
+              }
+            }
+          },
+          "cjkLeading": {
+            "probe": "cjkLeading",
+            "selector": "body (visible multi-line CJK text nodes)",
+            "scenarios": 1,
+            "population": 2,
+            "emptyPopulation": [],
+            "value": {
+              "multiLineNodes": 2,
+              "below15": 0
+            }
+          }
+        },
+        "D20": {
+          "cards": {
+            "probe": "cards",
+            "selector": null,
+            "scenarios": 0,
+            "population": 0,
+            "emptyPopulation": [],
+            "value": {
+              "cards": 0,
+              "maxNesting": 0,
+              "radii": {}
+            }
+          },
+          "leftEdges": {
+            "probe": "leftEdges",
+            "selector": null,
+            "scenarios": 0,
+            "population": 0,
+            "emptyPopulation": [],
+            "value": {
+              "titleToContentDeltaPx": {},
+              "distinctLeftEdgesMax": 0
+            }
+          }
+        },
+        "D24": {
+          "probe": "chromeSelect",
+          "selector": "header, nav, #project-explorer, [role=\"toolbar\"], [role=\"tablist\"], [data-slot=\"tabs\"] (text nodes outside inputs)",
+          "scenarios": 5,
+          "population": 310,
+          "emptyPopulation": [],
+          "value": {
+            "selectableChromeText": 310,
+            "chromeText": 310
+          }
+        },
+        "D25": {
+          "probe": "overflowX",
+          "selector": "body * (visible elements)",
+          "scenarios": 5,
+          "population": 1648,
+          "emptyPopulation": [],
+          "value": {
+            "mobileScenariosWithPageOverflow": [],
+            "clippedBoxes": 2
+          }
+        }
+      }
+    }
+  },
+  "statesGallery": {
+    "engines": {
+      "webkit": "26.6",
+      "chromium": "153.0.8010.12"
+    },
+    "runs": {
+      "webkit-light": {
+        "failures": [],
+        "focus": {
+          "population": 17,
+          "visible": 2
+        },
+        "hover": {
+          "population": 34,
+          "visible": 8
+        },
+        "active": {
+          "population": 32,
+          "visible": 8
+        }
+      },
+      "webkit-dark": {
+        "failures": [],
+        "focus": {
+          "population": 17,
+          "visible": 2
+        },
+        "hover": {
+          "population": 34,
+          "visible": 9
+        },
+        "active": {
+          "population": 32,
+          "visible": 8
+        }
+      },
+      "chromium-forced-light": {
+        "failures": [],
+        "focus": {
+          "population": 17,
+          "visible": 4
+        },
+        "hover": {
+          "population": 34,
+          "visible": 2
+        },
+        "active": {
+          "population": 32,
+          "visible": 10
+        }
+      },
+      "chromium-forced-dark": {
+        "failures": [],
+        "focus": {
+          "population": 17,
+          "visible": 4
+        },
+        "hover": {
+          "population": 34,
+          "visible": 2
+        },
+        "active": {
+          "population": 32,
+          "visible": 10
+        }
+      }
+    },
+    "failures": []
+  },
+  "motionLive": {
+    "transcript-mixed-turn--1440x900--dark [prefers-reduced-motion: no-preference]": {
+      "run": ".ui-capture/runs/20261019-023419-0841bec-dirty-motion-full+live",
+      "motionActivity": {
+        "applicable": true,
+        "population": 1,
+        "selector": "[data-slot=\"main\"] [aria-expanded=false] (first; clicked)",
+        "value": {
+          "sampledAtMs": [
+            0,
+            16,
+            100
+          ],
+          "animationsAt": [
+            9,
+            9,
+            10
+          ],
+          "transitionEvents": 4,
+          "animationEvents": 0,
+          "scrollFrames": 0,
+          "observed": true
+        }
+      }
+    },
+    "transcript-mixed-turn--1440x900--dark [prefers-reduced-motion: reduce]": {
+      "run": ".ui-capture/runs/20261019-023426-0841bec-dirty-live",
+      "motionActivity": {
+        "applicable": true,
+        "population": 1,
+        "selector": "[data-slot=\"main\"] [aria-expanded=false] (first; clicked)",
+        "value": {
+          "sampledAtMs": [
+            0,
+            16,
+            100
+          ],
+          "animationsAt": [
+            9,
+            9,
+            10
+          ],
+          "transitionEvents": 4,
+          "animationEvents": 0,
+          "scrollFrames": 0,
+          "observed": true
+        }
+      }
+    }
+  },
+  "notMeasuredByI0Probes": {
+    "D3": "toolOutcome verdict table (TR0) + transcript-failure/-unknown-outcome captures",
+    "D4": "DOM order test + Edit row → diff distance probe (TR2a) on x-transcript-edit-expanded",
+    "D5": "DiffView unit tests + CVD simulation (TR2a/TR2b)",
+    "D6": "OutputBlock unit test (TR0)",
+    "D8": "motion.reduce.test.mjs in --live (F1b); I0 records motionActivity below when --motion is given",
+    "D9": "designTokens guard motion category (I0b)",
+    "D10": "forcedColors computed-style test (F1b/F2a)",
+    "D11": "contrast.more test (F1b)",
+    "D13": "designTokens guard (I0b) - exact fingerprint baseline",
+    "D14": "designTokens guard negative tests (I0b)",
+    "D15": "format module guard + unit tests (F3b)",
+    "D16": "i18n:validate plural rules + pluralRender.test.ts (F4a)",
+    "D17": "placeNames.invariant (F4a)",
+    "D18": "state-matrix tests and captures (SX0/SX1)",
+    "D19": "usage-breakdown reconciliation tests (AN0a/AN0b)",
+    "D21": "restore refusal tests (EV0) + Edits captures (ED1)",
+    "D22": "AX tree / axe checks (TR3, A11Y1)",
+    "D23": "regionNav.keyboard (A11Y1)",
+    "D26": "journey-evidence (EV2, later-active)",
+    "D27": "independent re-score (Q1), editorial",
+    "D28": "designTokens guard decoration category (I0b)"
+  },
+  "remeasured": [
+    {
+      "probe": "leftEdges",
+      "fontScale": "100%",
+      "replaced": [
+        "D20.leftEdges"
+      ],
+      "run": ".ui-capture/runs/20261019-043740-5204c8c",
+      "revision": {
+        "sha": "5204c8c7e03694cfd3d82cf545ed6b34bb5fb5ac",
+        "dirty": false,
+        "harnessDigest": "7a2afac860c27a2a"
+      },
+      "reason": "review R2: the probe took the page header's subtitle for content, so every work screen read 0; now the first content column below the page header (Edits: the file name column). App source of 5204c8c7 == develop d7b7ff3a (git diff d7b7ff3a 5204c8c7 -- src src-tauri is empty)"
+    }
+  ]
+}

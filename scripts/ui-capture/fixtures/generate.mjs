@@ -23,6 +23,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as C from "./catalog.mjs";
+import { addInnerFixture } from "./inner.mjs";
 
 const FIXED_NOW = Date.parse(C.FIXED_NOW_ISO);
 const MINUTE = 60_000;
@@ -264,6 +265,44 @@ function createClaudeTranscript({ rng, cwd, sessionId, model, startMs = 0, isSid
     },
     toolUseId() {
       return `toolu_${hexFor(`${label}#tool${serial + 1}`, 24)}`;
+    },
+    // Inner-UI fixture (fixtures/inner.mjs). Added methods only: the
+    // original sessions never call them, so their bytes are unchanged.
+    /** tool_result with an explicit is_error and any content shape. */
+    toolResultFull(toolUseId, content, toolUseResult, isError, advanceMs) {
+      const item = { tool_use_id: toolUseId, type: "tool_result", content, ...(isError === undefined ? {} : { is_error: isError }) };
+      return push(
+        { ...base("user"), message: { role: "user", content: [item] }, ...(toolUseResult === undefined ? {} : { toolUseResult }) },
+        advanceMs ?? rng.int(1, 12) * 1000,
+      );
+    },
+    /** A user message with content blocks (image, document, ...). */
+    userContent(content) {
+      return push({ ...base("user"), message: { role: "user", content } }, rng.int(40, 600) * 1000);
+    },
+    /** An assistant message with its own model and usage (model / tier mixes). */
+    assistantWith(content, stopReason, { model: ownModel, usage: ownUsage }) {
+      const id = `msg_${hexFor(`${label}#msg${serial + 1}`, 24)}`;
+      return push(
+        {
+          ...base("assistant"),
+          message: { id, type: "message", role: "assistant", model: ownModel, content, stop_reason: stopReason, stop_sequence: null, usage: ownUsage },
+          requestId: `req_${hexFor(`${label}#req${serial + 1}`, 24)}`,
+        },
+        rng.int(4, 40) * 1000,
+      );
+    },
+    /** An assistant message at a fixed offset (large synthetic sessions). */
+    assistantFixed(content, stopReason, advanceMs) {
+      const id = `msg_${hexFor(`${label}#msg${serial + 1}`, 24)}`;
+      return push(
+        {
+          ...base("assistant"),
+          message: { id, type: "message", role: "assistant", model, content, stop_reason: stopReason, stop_sequence: null, usage: usage() },
+          requestId: `req_${hexFor(`${label}#req${serial + 1}`, 24)}`,
+        },
+        advanceMs,
+      );
     },
   };
 }
@@ -574,7 +613,7 @@ function assertNoToolTies(scope, tally) {
  * Writes the fixture under `<root>/home` (the directory is replaced) and
  * returns the manifest the capture runner uses for selectors and checks.
  */
-export function generateFixture({ root }) {
+export function generateFixture({ root, inner: withInner = true }) {
   const absRoot = path.resolve(root);
   const home = path.join(absRoot, "home");
   fs.rmSync(home, { recursive: true, force: true });
@@ -684,7 +723,7 @@ export function generateFixture({ root }) {
   // (projectSlice.initializeApp reads settings.discoveredProviderIds).
   out.file(
     rel(path.join(home, ".claude-history-viewer", "user-data.json")),
-    JSON.stringify({ version: 1, sessions: {}, projects: {}, settings: { discoveredProviderIds: ["claude", "codex"] } }, null, 2) + "\n",
+    JSON.stringify({ version: 1, sessions: {}, projects: {}, settings: { discoveredProviderIds: ["claude", "codex", "opencode"] } }, null, 2) + "\n",
     FIXED_NOW - 400 * HOUR,
   );
 
@@ -759,6 +798,27 @@ export function generateFixture({ root }) {
     archiveCreatedMs,
   );
 
+  // Inner-UI cases (plan I0): own PRNG streams, appended after the catalog.
+  // `inner: false` (tests only) leaves them out, to prove the catalog's own
+  // bytes do not depend on them.
+  const inner = withInner
+    ? addInnerFixture({ createRng, createClaudeTranscript, uuidFor, hexFor, iso, jsonl, encodeClaudeProjectDir }, { home, out, rel, fixedNow: FIXED_NOW })
+    : { projects: [], namedSessions: {} };
+  for (const project of inner.projects) {
+    for (const session of project.sessions) {
+      if (!session.filePath || project.provider !== "claude") continue;
+      const records = out.files.get(rel(session.filePath)).content.toString("utf8").trimEnd().split("\n").map((l) => JSON.parse(l));
+      for (const mode of ["conversation", "billing"]) tallyTools(globalTools[mode], claudeToolNames(records));
+    }
+    if (project.provider === "codex") {
+      for (const session of project.sessions) {
+        const lines = out.files.get(rel(session.filePath)).content.toString("utf8").trimEnd().split("\n").map((l) => JSON.parse(l));
+        for (const mode of ["conversation", "billing"]) tallyTools(globalTools[mode], codexToolNames(lines));
+      }
+    }
+  }
+  projects.push(...inner.projects);
+
   const toolTotals = {};
   for (const mode of ["conversation", "billing"]) {
     assertNoToolTies(`all projects (${mode})`, globalTools[mode]);
@@ -774,6 +834,8 @@ export function generateFixture({ root }) {
     projects,
     largeSession,
     subagentSession,
+    // Inner-UI cases by key (fixtures/inner.mjs INNER_CASES).
+    namedSessions: inner.namedSessions,
     archive: { id: archiveId, name: C.ARCHIVE.name },
     toolTotals,
     digest: digestFileSet(out, absRoot),

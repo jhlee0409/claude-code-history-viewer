@@ -10,7 +10,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
 import {
-  FileEdit,
+  FilePen,
   FileDiff,
   FilePlus,
   Clock,
@@ -18,13 +18,13 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Loader2,
+  LoaderCircle,
   RotateCcw,
   FolderOpen,
 } from "lucide-react";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { elideProjectRoot, getPathLeaf } from "@/utils/pathUtils";
+import { getPathLeaf } from "@/utils/pathUtils";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
@@ -47,8 +47,6 @@ import {
 export const FileEditItem: React.FC<FileEditItemProps> = ({
   edit,
   isDarkMode,
-  dense = false,
-  projectCwd,
   onRestored,
   restoreScope,
 }) => {
@@ -67,6 +65,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     canReveal,
     revealLabel,
     reveal,
+    canRestore,
     restoreStatus,
     restoreError,
     isConfirmingRestore,
@@ -75,17 +74,15 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     cancelRestore,
   } = useFileEditActions(edit, { onRestored, restoreScope });
 
+  // A row that is not a whole file keeps its Restore button, aria-disabled but
+  // still focusable, so the tooltip and screen readers can say why instead of
+  // the action silently vanishing.
+  const restoreLabel = canRestore
+    ? t("recentEdits.restoreFile")
+    : t("recentEdits.restoreUnavailable");
+
   const language = getLanguageFromPath(edit.file_path);
   const fileName = getPathLeaf(edit.file_path);
-  /*
-    Dense shows the elided directory the list rows show. Full width keeps the
-    absolute path, which is readable there and is mostly shared prefix once the
-    card is squeezed into a panel.
-  */
-  const directory = elideProjectRoot(
-    edit.file_path.slice(0, edit.file_path.length - fileName.length),
-    projectCwd
-  );
   const lines = edit.content_after_change.split("\n");
 
   // Clicking the active control again collapses; otherwise expand into that view
@@ -115,17 +112,17 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
         className={cn(
           /*
             Wraps to a second line rather than letting the name collapse. The
-            stats group on the right is `shrink-0`, so at dock widths it took
-            the whole row and the name box - `flex-1 min-w-0` - shrank to zero,
-            leaving `truncate` with nothing to show. The file name is the one
-            thing a row must never lose.
+            stats group on the right is `shrink-0`, so at narrow widths (a
+            phone) it took the whole row and the name box - `flex-1 min-w-0` -
+            shrank to zero, leaving `truncate` with nothing to show. The file
+            name is the one thing a row must never lose.
 
             Driven by a min-width plus `flex-wrap`, not by a `sm:`/`md:` prefix:
-            the dock is a resizable panel, so its width is independent of the
-            viewport and Tailwind's breakpoints do not describe it.
+            the screen's width depends on the sidebar and inspector, not only
+            on the viewport.
           */
           "relative flex flex-wrap items-center justify-between gap-y-2 cursor-pointer transition-all duration-300",
-          dense ? "p-2" : "p-4",
+          "p-4",
           edit.operation_type === "write"
             ? "bg-gradient-to-r from-success/10 to-success/5"
             : "bg-gradient-to-r from-info/10 to-info/5",
@@ -149,95 +146,62 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
         */}
         <div
           className={cn(
-            "flex items-center flex-1",
-            dense ? "gap-2 min-w-[8rem]" : "space-x-3 min-w-[10rem]"
+            "flex items-center flex-1 space-x-3 min-w-[10rem]"
           )}
         >
           {/* Expand/Collapse icon */}
-          {/*
-            A tinted control at full width, a bare glyph in the list scale. The
-            boxed version reads as a button, which is right on a page of cards
-            and too heavy beside rows a third of its height.
-          */}
           <div
             className={cn(
-              "flex items-center justify-center transition-all duration-300",
-              dense
-                ? "h-3 w-3 shrink-0 text-muted-foreground"
-                : cn(
-                    "w-6 h-6 rounded-md",
-                    isExpanded
-                      ? "bg-accent/20 text-accent"
-                      : "bg-muted/50 text-muted-foreground"
-                  )
+              "flex items-center justify-center transition-all duration-300 w-6 h-6 rounded-md",
+              isExpanded ? "bg-accent/20 text-accent" : "bg-muted/50 text-muted-foreground"
             )}
           >
             {isExpanded ? (
               <span title={tCommon("common.collapse", "Collapse")}>
-                <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronDown className="w-4 h-4" />
               </span>
             ) : (
               <span title={tCommon("common.expand", "Expand")}>
-                <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronRight className="w-4 h-4" />
               </span>
             )}
           </div>
 
-          {/*
-            Operation type. A tile at full width; in the list scale the same
-            distinction is carried by the dot the compact rows use, since a 32px
-            tile beside a 17px line box dominates the name it is meant to label.
-            The left accent bar already repeats the colour, so nothing is lost.
-          */}
-          {dense ? (
-            <span
-              title={
-                edit.operation_type === "write"
-                  ? t("recentEdits.created", "Created")
-                  : t("recentEdits.edited", "Edited")
-              }
-              className={cn(
-                "h-[7px] w-[7px] shrink-0 rounded-full",
-                edit.operation_type === "write" ? "bg-success" : "bg-info"
-              )}
-            />
-          ) : (
-            <div
-              className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center",
-                edit.operation_type === "write"
-                  ? "bg-success/20 text-success"
-                  : "bg-info/20 text-info"
-              )}
-            >
-              {edit.operation_type === "write" ? (
-                <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
-              ) : (
-                <span title={t("recentEdits.edited", "Edited")}><FileEdit className="w-4 h-4" /></span>
-              )}
-            </div>
-          )}
+          {/* Operation type */}
+          <div
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              edit.operation_type === "write"
+                ? "bg-success/20 text-success"
+                : "bg-info/20 text-info"
+            )}
+          >
+            {edit.operation_type === "write" ? (
+              <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
+            ) : (
+              <span title={t("recentEdits.edited", "Edited")}><FilePen className="w-4 h-4" /></span>
+            )}
+          </div>
 
           {/* File name and path */}
           <div className="min-w-0 flex-1">
             <div
               className={cn(
-                "font-semibold truncate text-foreground",
-                dense && layout.bodyText
+                "font-semibold truncate text-foreground"
               )}
             >
               {fileName}
             </div>
             <div className="mt-0.5 flex min-w-0">
               <FileEditDirectoryLink
-                directory={dense ? directory : edit.file_path}
+                directory={edit.file_path}
                 fullPath={edit.file_path}
                 canReveal={canReveal}
                 onReveal={reveal}
                 revealLabel={revealLabel}
                 className={cn(
                   "min-w-0 flex-1 text-muted-foreground",
-                  dense ? "text-px11" : layout.smallText
+                  layout.smallText
                 )}
               />
             </div>
@@ -309,7 +273,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               aria-label={t("recentEdits.showDiff")}
               aria-pressed={isExpanded && viewMode === "diff"}
             >
-              <FileDiff className="w-3 h-3" />
+              <FileDiff className="w-3.5 h-3.5" />
               <span>{t("recentEdits.diff")}</span>
             </button>
           </div>
@@ -332,7 +296,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <div
             className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}
           >
-            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3 h-3" /></span>
+            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3.5 h-3.5" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>
@@ -370,6 +334,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             // than leaving tests to match on an icon's class names.
             data-testid={copied ? "file-edit-copied" : "file-edit-copy"}
             title={t("recentEdits.copyContent")}
+            aria-label={t("recentEdits.copyContent")}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
           </button>
@@ -378,25 +343,34 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!canRestore) return;
               if (restoreStatus === "idle") {
                 requestRestore();
               }
             }}
-            disabled={restoreStatus === "loading"}
+            // `aria-disabled` rather than `disabled` when unavailable: a natively
+            // disabled button leaves the tab order, hiding the reason from
+            // keyboard and screen-reader users. Only the in-flight restore is
+            // natively disabled.
+            aria-disabled={!canRestore || undefined}
+            disabled={canRestore && restoreStatus === "loading"}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
-              restoreStatus === "success"
-                ? "bg-success/20 text-success ring-1 ring-success/30"
-                : restoreStatus === "error"
-                  ? "bg-destructive/20 text-destructive ring-1 ring-destructive/30"
-                  : restoreStatus === "loading"
-                    ? "bg-muted text-muted-foreground cursor-wait"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              !canRestore
+                ? "text-muted-foreground/40 cursor-not-allowed"
+                : restoreStatus === "success"
+                  ? "bg-success/20 text-success ring-1 ring-success/30"
+                  : restoreStatus === "error"
+                    ? "bg-destructive/20 text-destructive ring-1 ring-destructive/30"
+                    : restoreStatus === "loading"
+                      ? "bg-muted text-muted-foreground cursor-wait"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
-            title={t("recentEdits.restoreFile")}
+            title={restoreLabel}
+            aria-label={restoreLabel}
           >
             {restoreStatus === "loading" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <LoaderCircle className="w-4 h-4 animate-spin" />
             ) : restoreStatus === "success" ? (
               <Check className="w-4 h-4" />
             ) : (
@@ -425,7 +399,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             className="rounded-lg p-6 max-w-md mx-4 shadow-xl bg-background"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-2 text-foreground">
+            <h3 className="text-title font-semibold mb-2 text-foreground">
               {t("recentEdits.confirmRestoreTitle")}
             </h3>
             <p className={`${layout.bodyText} mb-2 text-muted-foreground`}>
@@ -510,8 +484,8 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                     <pre
                       className={className}
                       style={getPreStyles(isDarkMode, style, {
-                        fontSize: "calc(0.8125rem * var(--app-font-scale))",
-                        lineHeight: "1.25rem",
+                        fontSize: "var(--text-code)",
+                        lineHeight: "var(--text-code--line-height)",
                         padding: "0.75rem",
                       })}
                     >

@@ -36,6 +36,7 @@ const makeEdit = (overrides: Partial<RecentFileEdit> = {}): RecentFileEdit => ({
   original_content: "before content",
   lines_added: 25,
   lines_removed: 6,
+  content_kind: "full",
   ...overrides,
 });
 

@@ -409,7 +409,6 @@
   "settingsManager.tabs.mcp": "MCPサーバー",
   "settingsManager.tabs.overview": "概要",
   "settingsManager.tabs.presets": "プリセット",
-  "settingsManager.title": "設定マネージャー",
   "settingsManager.unified.banner.effectiveSettings": "有効な設定の概要",
   "settingsManager.unified.banner.hookTypes": "フックタイプ",
   "settingsManager.unified.banner.noSettings": "どのスコープにも設定が構成されていません",
@@ -550,5 +549,6 @@
   "settings.sessionResume.noProviders": "このマシンでサポートされているCLIエージェントランタイムが検出されませんでした。",
   "settings.sessionResume.saved": "再開引数を保存しました",
   "settings.sessionResume.saveFailed": "設定の保存に失敗しました",
-  "settings.sessionResume.resetSuccess": "デフォルトの引数にリセットしました"
+  "settings.sessionResume.resetSuccess": "デフォルトの引数にリセットしました",
+  "settingsManager.unified.mcp.goToSourceOf": "{{source}} で編集"
 }

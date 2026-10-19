@@ -15,7 +15,7 @@ import {
   ListPlus,
   ListMinus,
   ListX,
-  Trash2,
+  Trash,
   List,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -45,7 +45,7 @@ const OPERATION_CONFIG: Record<
     variant: "warning",
   },
   popAll: {
-    icon: Trash2,
+    icon: Trash,
     variant: "error",
   },
 };

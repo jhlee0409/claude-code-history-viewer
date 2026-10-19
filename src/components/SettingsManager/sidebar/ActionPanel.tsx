@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, AlertCircle } from "lucide-react";
+import { Download, Upload, CircleAlert } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { ClaudeCodeSettings, SettingsScope } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -207,7 +207,7 @@ export const ActionPanel: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="text-sm">
+            <div className="text-body">
               <span className="text-muted-foreground">
                 {t("settingsManager.exportImport.exportScope")}:
               </span>{" "}
@@ -221,15 +221,15 @@ export const ActionPanel: React.FC = () => {
                 onCheckedChange={setExcludeSensitive}
                 id="exclude-sensitive"
               />
-              <Label htmlFor="exclude-sensitive" className="text-sm">
+              <Label htmlFor="exclude-sensitive" className="text-body">
                 {t("settingsManager.exportImport.excludeSensitive")}
               </Label>
             </div>
           </div>
           {exportError && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs">{exportError}</AlertDescription>
+              <CircleAlert className="h-4 w-4" />
+              <AlertDescription className="text-list">{exportError}</AlertDescription>
             </Alert>
           )}
           <DialogFooter>
@@ -279,15 +279,15 @@ export const ActionPanel: React.FC = () => {
             </div>
             <div className="flex-1 overflow-auto">
               <Label>{t("settingsManager.exportImport.preview")}</Label>
-              <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-[200px] font-mono mt-1">
+              <pre className="bg-muted p-3 rounded-lg text-list overflow-auto max-h-[200px] font-mono mt-1">
                 {importedSettings ? JSON.stringify(importedSettings, null, 2) : ""}
               </pre>
             </div>
           </div>
           {importError && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs">{importError}</AlertDescription>
+              <CircleAlert className="h-4 w-4" />
+              <AlertDescription className="text-list">{importError}</AlertDescription>
             </Alert>
           )}
           <DialogFooter>

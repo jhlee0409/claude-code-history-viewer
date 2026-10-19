@@ -11,7 +11,7 @@
  * - The store, the navigation helpers and the navigation/analytics hooks are
  *   held to it for every feedback write.
  * - Every other component / hook / layout (`src/layouts`: the header, the
- *   shell's screens and dock) that awaits is held to it for direct store
+ *   shell's screens) that awaits is held to it for direct store
  *   writes (`useAppStore.setState(...)`, `useAppStore.getState().setError(...)`,
  *   …). Its own toasts and React state report the outcome of what the user
  *   did there and are not scanned.
@@ -84,6 +84,8 @@ const EXEMPT: Record<string, string> = {
   "store/slices/settingsSlice.ts#setSessionEntrypointFilter:toast":
     "user action: a preference failed to save",
   "store/useLanguageStore.ts#setLanguage:toast": "user action: a preference failed to save",
+  "store/slices/metadataSlice.ts#toggleSessionFavorite:toast":
+    "user action: starring or unstarring a session failed to save",
   "store/slices/projectSlice.ts#reloadProjectSessions:place":
     "the open session's own record refreshed in place (same file_path, list counts): data, gated by ownsData - a reload must refresh it on any screen",
 };

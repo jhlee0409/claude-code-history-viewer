@@ -1,13 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../../store/useAppStore";
+import { selectBoard } from "@/navigation/screenOwner";
 import { SessionLane } from "./SessionLane";
 import { BoardControls } from "./BoardControls";
 import { SessionActivityTimeline } from "./SessionActivityTimeline";
 import { getFilterEndMs } from "./useActivityData";
-import { LoadingSpinner } from "../ui/loading";
+import { LoadingSpinner, LoadingState } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { clsx } from "clsx";
 import type { ActiveBrush } from "../../types/board.types";
 
@@ -15,13 +18,16 @@ import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { openBoardMessage } from "./openBoardMessage";
 
-const selectBoardSessions = (s: ReturnType<typeof useAppStore.getState>) => s.boardSessions;
-
 export const SessionBoard = () => {
-    const boardSessions = useAppStore(selectBoardSessions);
+    // Only the open project's board (`navigation/screenOwner.ts`): another
+    // tab's lanes are never shown under this project.
     const {
+        boardSessions,
         allSortedSessionIds,
-        isLoadingBoard,
+        isLoading: isLoadingBoard,
+        error: boardLoadError,
+    } = useAppStore(useShallow(selectBoard));
+    const {
         zoomLevel,
         activeBrush,
         setActiveBrush,
@@ -330,11 +336,22 @@ export const SessionBoard = () => {
         }
     }, [focusedSessionId, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
 
+    if (boardLoadError && allSortedSessionIds.length === 0 && !isLoadingBoard) {
+        return (
+            <LoadingState
+                isLoading={false}
+                error={boardLoadError}
+                errorTitle={t("error.loadBoard")}
+                className="h-full"
+            />
+        );
+    }
+
     if (isLoadingBoard) {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-background/50 backdrop-blur-sm">
                 <LoadingSpinner size="lg" />
-                <p className="mt-4 text-sm text-muted-foreground animate-pulse">
+                <p className="mt-4 text-body text-muted-foreground animate-pulse">
                     {t("common.loading")}
                 </p>
             </div>
@@ -363,12 +380,12 @@ export const SessionBoard = () => {
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center max-w-sm mx-auto">
                         <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                            <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                            <Icon icon={MessageSquare} size={24} className="text-muted-foreground/50" />
                         </div>
-                        <h3 className="text-lg font-medium text-foreground mb-2">
+                        <h3 className="text-title font-medium text-foreground mb-2">
                             {t("session.board.empty.title")}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-body text-muted-foreground">
                             {t("session.board.empty.description")}
                         </p>
                     </div>
@@ -478,7 +495,7 @@ export const SessionBoard = () => {
             {/* Hint for panning */}
             {
                 isMetaPressed && !isDragging && (
-                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
+                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-list font-bold shadow-2xl animate-bounce z-[100]">
                         {t("session.board.dragToPan")}
                     </div>
                 )

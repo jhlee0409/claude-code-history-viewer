@@ -11,7 +11,7 @@ import { memo } from "react";
  * - Generic tool results (text/array/object)
  */
 
-import { Check, FileText, AlertTriangle, Folder, File, Wrench } from "lucide-react";
+import { Check, FileText, TriangleAlert, Folder, File, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -87,7 +87,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
         {messages.map((msg, idx) => (
           <div key={idx} className={cn("p-2", layout.rounded, "border", warningStyles.container)}>
             <div className={cn("flex items-center mb-1", layout.iconSpacing)}>
-              <AlertTriangle className={cn(layout.iconSize, warningStyles.icon)} />
+              <TriangleAlert className={cn(layout.iconSize, warningStyles.icon)} />
               <span className={cn(layout.titleText, warningStyles.title)}>
                 {msg.type?.replace("-", " ") || "System Message"}
               </span>
@@ -194,7 +194,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                 <pre
                   className={className}
                   style={getPreStyles(isDarkMode, style, {
-                    fontSize: "calc(0.9375rem * var(--app-font-scale))",
+                    fontSize: "var(--text-code)",
                     lineHeight: codeTheme.lineHeight,
                     maxHeight: "32rem",
                     overflow: "auto",
@@ -341,7 +341,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                         key={idx}
                         className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 bg-secondary border border-border text-foreground/80", layout.rounded, layout.smallText)}
                       >
-                        <Wrench className="w-3 h-3 text-muted-foreground" />
+                        <Wrench className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-mono">{contentItem.tool_name}</span>
                       </div>
                     );

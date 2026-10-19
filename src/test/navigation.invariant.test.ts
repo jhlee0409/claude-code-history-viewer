@@ -59,6 +59,7 @@ describe("place model invariants", () => {
     clearProjectSelection: {
       "store/slices/projectSlice.ts": "refresh fallback when the open project vanished",
       "store/slices/navigationSlice.ts": "navigate({ project: null })",
+      "store/slices/documentSlice.ts": "markProjectUnavailable: the open project's folder is gone",
     },
     setSelectedSession: {
       "store/slices/messageSlice.ts": "selectSession",

@@ -13,7 +13,8 @@ expression: result
       "original_content": null,
       "lines_added": 5,
       "lines_removed": 2,
-      "cwd": "/project"
+      "cwd": "/project",
+      "content_kind": "full"
     }
   ],
   "total_edits_count": 10,

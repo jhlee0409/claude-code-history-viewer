@@ -4,7 +4,7 @@
  * Reports the uuid of the first message row currently visible in the main
  * transcript, so the Messages panel's outline mode can highlight the turn
  * containing it (Design, "Highlighting the turn in view"). Gated on outline
- * mode only - never `isNavigatorOpen`, which describes the desktop panel
+ * mode only - never `isInspectorOpen`, which describes the desktop panel
  * and never the narrow-screen sheet (Verified constraints) - so the
  * highlight still tracks while the sheet is open on a narrow screen.
  */

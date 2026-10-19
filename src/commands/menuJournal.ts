@@ -1,0 +1,366 @@
+/**
+ * The menu-event journal, frontend half (plan §4.4, T11a).
+ *
+ * The host (`src-tauri/src/menu/journal.rs`) gives every app-command menu
+ * event - a click, or an accelerator that reached the menu - the next
+ * sequence number of its run (`epoch`), keeps it until it is acknowledged,
+ * and emits it live. That one numbered journal is the only delivery rule:
+ *
+ * - Events run strictly in sequence order, each once. The page remembers the
+ *   last sequence it ran (`cursor`); anything at or below it is a duplicate.
+ * - A live event is only a hint. The page listens first, then pulls the
+ *   journal (everything not yet acknowledged); until that first answer it
+ *   holds live events. A gap (a live event past the next expected one) pulls
+ *   again - the missing events are still in the journal.
+ * - Running an event writes the cursor (sessionStorage, which survives a
+ *   page reload) in the same task, then acknowledges it so the host can drop
+ *   it. A lost acknowledgement costs nothing: the next page or listener reads
+ *   the cursor and skips what already ran.
+ * - A stopped journal (unmount, effect re-run) runs nothing more; whatever it
+ *   had not run is still in the host's journal for the next one. A reply that
+ *   lands late is either for a stopped journal (ignored) or a duplicate.
+ * - A failed pull retries with a short backoff, then reports once; the next
+ *   event pulls again. Nothing is lost meanwhile: the host keeps it.
+ * - A listener that fails to attach is retried with the same backoff, then
+ *   every last delay until it attaches; the user is told once. The startup
+ *   pull runs anyway, and each attach pulls again, so the events chosen while
+ *   nobody listened run then, in order.
+ *
+ * Menu events and every other input share one command queue
+ * (`commandQueue.ts`). While the journal asks the host for events that may
+ * be older than what the user does next - from its start until the first
+ * pull answers, and during a refetch after a gap - it holds the queue: a key
+ * or palette command arriving meanwhile runs after those events. A failed
+ * pull lets go of the queue while it waits to retry, so keys keep working.
+ *
+ * Each event carries the tab the host stamped as in front when it was
+ * chosen (`frontTabId`, from the page's last `sync_menu_state`); the journal
+ * hands it over with the command, which acts on that tab, never on the one
+ * in front when the event arrives (ADR 0001 decision 6).
+ */
+
+import type { CommandHold, CommandQueue } from "./commandQueue";
+
+/** The event the host emits for a menu item. */
+export const MENU_COMMAND_EVENT = "menu-command";
+
+export interface MenuEvent {
+  seq: number;
+  /** The command id. */
+  id: string;
+  /**
+   * The tab in front when it was chosen, as the page last reported it to the
+   * host. Null (or absent, from an older host): unknown - no tab is its target.
+   */
+  frontTabId?: string | null;
+}
+
+/** A live `menu-command` event: the host run it belongs to, its number, its command. */
+export interface LiveMenuEvent extends MenuEvent {
+  epoch: string;
+}
+
+/** What `menu_journal` returns: every event not yet acknowledged. */
+export interface MenuJournalSnapshot {
+  epoch: string;
+  /** Every event at or below this number is gone from the journal (acknowledged, or dropped when full). */
+  floor: number;
+  events: MenuEvent[];
+}
+
+/** Where the last run sequence number is kept, per host run. */
+export interface MenuCursorStore {
+  read: (epoch: string) => number | null;
+  write: (epoch: string, seq: number) => void;
+}
+
+export interface MenuJournalDeps {
+  /** Listen for live menu events; resolves to the unlisten function. */
+  listen: (handler: (event: LiveMenuEvent) => void) => Promise<() => void>;
+  pull: () => Promise<MenuJournalSnapshot>;
+  /** Tell the host every event up to `seq` ran. */
+  ack: (epoch: string, seq: number) => Promise<void>;
+  /**
+   * Issue command `id` on the tab the host stamped as in front when it was
+   * chosen (`issueMenuCommand`), and return its run.
+   */
+  issue: (id: string, frontTabId: string | null) => () => void;
+  cursor: MenuCursorStore;
+  /** The one command queue the keys and the palette use too. */
+  queue: CommandQueue;
+  /** Waits before each retry of a failed pull or listener (default `PULL_RETRY_DELAYS_MS`). */
+  retryDelaysMs?: readonly number[];
+  /** A pull failed and its retries too (once per outage). */
+  onPullError?: (error: unknown) => void;
+  /** The listener failed to attach, and its quick retries too (once); it keeps trying. */
+  onListenError?: (error: unknown) => void;
+}
+
+export const PULL_RETRY_DELAYS_MS: readonly number[] = [250, 1000, 4000];
+
+export interface MenuJournal {
+  stop: () => void;
+}
+
+/** A cursor kept in memory only (tests; a webview without sessionStorage). */
+export function memoryCursorStore(): MenuCursorStore {
+  let saved: { epoch: string; seq: number } | null = null;
+  return {
+    read: (epoch) => (saved?.epoch === epoch ? saved.seq : null),
+    write: (epoch, seq) => {
+      saved = { epoch, seq };
+    },
+  };
+}
+
+const CURSOR_KEY = "menu-journal.cursor";
+
+/** The page's cursor: sessionStorage survives a reload of the same web view; memory if it is unavailable. */
+export function sessionCursorStore(): MenuCursorStore {
+  const memory = memoryCursorStore();
+  return {
+    read: (epoch) => {
+      try {
+        const saved = JSON.parse(window.sessionStorage.getItem(CURSOR_KEY) ?? "null") as {
+          epoch?: unknown;
+          seq?: unknown;
+        } | null;
+        if (saved?.epoch === epoch && typeof saved.seq === "number") return saved.seq;
+      } catch {
+        // fall through to memory
+      }
+      return memory.read(epoch);
+    },
+    write: (epoch, seq) => {
+      memory.write(epoch, seq);
+      try {
+        window.sessionStorage.setItem(CURSOR_KEY, JSON.stringify({ epoch, seq }));
+      } catch {
+        // memory still has it for this page
+      }
+    },
+  };
+}
+
+export function startMenuJournal(deps: MenuJournalDeps): MenuJournal {
+  const retryDelays = deps.retryDelaysMs ?? PULL_RETRY_DELAYS_MS;
+  const listenDelays = retryDelays.length > 0 ? retryDelays : PULL_RETRY_DELAYS_MS;
+  let stopped = false;
+  let unlisten: (() => void) | null = null;
+  /** The host run whose numbers we follow; null until the first pull answers. */
+  let epoch: string | null = null;
+  /** The last sequence number handed to the command queue in `epoch`. */
+  let cursor = 0;
+  /** The last sequence number that ran (what may be acknowledged). */
+  let ran = 0;
+  /** Events known but not yet run, by number. */
+  const pending = new Map<number, MenuEvent>();
+  /** Live events before the first pull answered (their epoch is not known to be current yet). */
+  let early: LiveMenuEvent[] = [];
+  let pulling = false;
+  let pullAgain = false;
+  let failures = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let listenFailures = 0;
+  let listenTimer: ReturnType<typeof setTimeout> | null = null;
+  let acking = false;
+  let acked = 0;
+  /**
+   * Held while the journal may not know every event older than the next
+   * input: from the start until the first pull answers, and during a refetch.
+   */
+  let hold: CommandHold | null = deps.queue.hold();
+
+  const holdQueue = () => {
+    if (hold === null) hold = deps.queue.hold();
+  };
+  const releaseQueue = () => {
+    hold?.release();
+    hold = null;
+  };
+
+  const accept = (event: MenuEvent) => {
+    if (event.seq > cursor) pending.set(event.seq, event);
+  };
+
+  const sendAck = () => {
+    if (stopped || acking || epoch === null || ran <= acked) return;
+    const ackEpoch = epoch;
+    const upTo = ran;
+    acking = true;
+    deps.ack(ackEpoch, upTo).then(
+      () => {
+        acking = false;
+        if (epoch === ackEpoch) acked = Math.max(acked, upTo);
+        sendAck();
+      },
+      (error: unknown) => {
+        // The host keeps the events; the cursor keeps them from running twice.
+        acking = false;
+        console.error("Menu event acknowledgement failed:", error);
+      },
+    );
+  };
+
+  /** Hand one event to the command queue: at the hold's place while holding. */
+  const execute = (runEpoch: string, { seq, id, frontTabId }: MenuEvent) => {
+    const command = deps.issue(id, frontTabId ?? null);
+    const job = () => {
+      // A stopped journal runs nothing more: the next one pulls this event again.
+      if (stopped || epoch !== runEpoch) return;
+      deps.cursor.write(runEpoch, seq);
+      ran = Math.max(ran, seq);
+      try {
+        command();
+      } catch (error) {
+        // One broken command must not hold up the events after it.
+        console.error(`Menu command ${id} failed:`, error);
+      }
+      sendAck();
+    };
+    if (hold !== null) hold.run(job);
+    else deps.queue.submit(job);
+  };
+
+  /** Run every event that is next in line. A gap left behind asks the journal again. */
+  const drain = (afterPull: boolean) => {
+    if (epoch === null) return;
+    for (;;) {
+      if (stopped) return;
+      const next = cursor + 1;
+      const event = pending.get(next);
+      if (event === undefined) break;
+      pending.delete(next);
+      cursor = next;
+      execute(epoch, event);
+    }
+    if (pending.size > 0 && !afterPull) pull();
+  };
+
+  const applySnapshot = (snapshot: MenuJournalSnapshot) => {
+    if (snapshot.epoch !== epoch) {
+      epoch = snapshot.epoch;
+      cursor = 0;
+      ran = 0;
+      acked = 0;
+      pending.clear();
+    }
+    const done = Math.max(deps.cursor.read(snapshot.epoch) ?? 0, snapshot.floor);
+    cursor = Math.max(cursor, done);
+    // Only what ran (or the host dropped) may be acknowledged; an event handed
+    // to the queue but still waiting there stays the host's until it runs.
+    ran = Math.max(ran, done);
+    for (const seq of [...pending.keys()]) if (seq <= cursor) pending.delete(seq);
+    for (const event of early) if (event.epoch === epoch) accept(event);
+    early = [];
+    for (const event of snapshot.events) accept(event);
+    drain(true);
+    sendAck();
+    // A held event newer than this answer leaves a gap the journal had not
+    // reached yet when it answered: ask again. (A gap inside the answer cannot
+    // be filled, so it does not loop.)
+    const covered = snapshot.events.reduce((max, event) => Math.max(max, event.seq), snapshot.floor);
+    if ([...pending.keys()].some((seq) => seq > covered)) pullAgain = true;
+  };
+
+  const retryLater = (error: unknown) => {
+    if (failures < retryDelays.length) {
+      const delay = retryDelays[failures];
+      failures += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        pull();
+      }, delay);
+    } else if (failures === retryDelays.length) {
+      failures += 1; // report once; the next event pulls again
+      deps.onPullError?.(error);
+    }
+  };
+
+  function pull(): void {
+    if (stopped) return;
+    if (pulling || retryTimer !== null) {
+      pullAgain = true;
+      return;
+    }
+    pulling = true;
+    holdQueue();
+    deps.pull().then(
+      (snapshot) => {
+        pulling = false;
+        if (stopped) return;
+        failures = 0;
+        applySnapshot(snapshot);
+        if (pullAgain) {
+          pullAgain = false;
+          pull();
+        } else {
+          releaseQueue();
+        }
+      },
+      (error: unknown) => {
+        pulling = false;
+        if (stopped) return;
+        pullAgain = false;
+        console.error("Menu journal pull failed:", error);
+        // Keys must not wait out the backoff; the events stay in the host.
+        releaseQueue();
+        retryLater(error);
+      },
+    );
+  }
+
+  const receive = (event: LiveMenuEvent) => {
+    if (stopped) return;
+    if (epoch === null || event.epoch !== epoch) {
+      // Not yet in step with the host (or it restarted): hold it and ask the journal.
+      early.push(event);
+      if (!pulling) pull();
+      return;
+    }
+    accept(event);
+    drain(false);
+  };
+
+  /** Listen first, then pull: an event chosen in between is in the journal or heard live. */
+  const attach = (first: boolean) => {
+    deps.listen(receive).then(
+      (stopListening) => {
+        if (stopped) {
+          stopListening();
+          return;
+        }
+        unlisten = stopListening;
+        listenFailures = 0;
+        // The startup pull; after a failed attach, what was chosen while nobody listened.
+        pull();
+      },
+      (error: unknown) => {
+        if (stopped) return;
+        console.error("Menu event listener failed:", error);
+        // The events chosen before this page still run (and the queue is let go).
+        if (first) pull();
+        if (listenFailures === listenDelays.length) deps.onListenError?.(error); // once
+        const delay = listenDelays[Math.min(listenFailures, listenDelays.length - 1)];
+        listenFailures += 1;
+        listenTimer = setTimeout(() => {
+          listenTimer = null;
+          attach(false);
+        }, delay);
+      },
+    );
+  };
+  attach(true);
+
+  return {
+    stop: () => {
+      if (stopped) return;
+      stopped = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      if (listenTimer !== null) clearTimeout(listenTimer);
+      releaseQueue();
+      unlisten?.();
+      unlisten = null;
+    },
+  };
+}

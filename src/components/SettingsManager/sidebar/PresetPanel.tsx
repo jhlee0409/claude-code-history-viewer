@@ -60,13 +60,13 @@ import {
   User,
   FolderOpen,
   FileCode,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
-  Trash2,
+  Trash,
   Copy,
-  FileJson,
-  AlertTriangle,
-  Loader2,
+  FileBraces,
+  TriangleAlert,
+  LoaderCircle,
   Check,
   Server,
   Shield,
@@ -117,7 +117,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {/* Top row: name + badges */}
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
             <Package className="w-3.5 h-3.5 text-indigo-500/70 shrink-0" />
-            <span className="text-xs font-semibold truncate flex-1">{preset.name}</span>
+            <span className="text-list font-semibold truncate flex-1">{preset.name}</span>
 
             {/* Action icons - visible on hover */}
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
@@ -131,7 +131,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                     <Zap className="w-3.5 h-3.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
+                <TooltipContent side="top" className="text-list">
                   {t("settingsManager.presets.applyHere")}
                 </TooltipContent>
               </Tooltip>
@@ -143,10 +143,10 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                     className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     aria-label={t("settingsManager.presets.applyTo")}
                   >
-                    <Play className="w-3 h-3" />
+                    <Play className="w-3.5 h-3.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
+                <TooltipContent side="top" className="text-list">
                   {t("settingsManager.presets.applyTo")}
                 </TooltipContent>
               </Tooltip>
@@ -158,7 +158,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       aria-label={t("settingsManager.presets.moreOptions")}
                     >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
+                      <Ellipsis className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-36">
@@ -175,7 +175,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       onClick={onDelete}
                       className="text-destructive focus:text-destructive"
                     >
-                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      <Trash className="w-3.5 h-3.5 mr-2" />
                       {t("common.delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -188,13 +188,13 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {(summary.model || summary.mcpServerCount > 0) && (
             <div className="px-3 flex items-center gap-1.5">
               {summary.model && (
-                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-px10 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-caption font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                   {summary.model}
                 </span>
               )}
               {summary.mcpServerCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-px10 font-medium text-success whitespace-nowrap">
-                  <Server className="w-2.5 h-2.5 shrink-0" />
+                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-caption font-medium text-success whitespace-nowrap">
+                  <Server className="w-3.5 h-3.5 shrink-0" />
                   {t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount })}
                 </span>
               )}
@@ -204,7 +204,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {/* Row 3: description */}
           {preset.description && (
             <div className="px-3 py-2.5">
-              <span className="text-px10 text-muted-foreground/60 truncate block">
+              <span className="text-caption text-muted-foreground/60 truncate block">
                 {preset.description}
               </span>
             </div>
@@ -677,7 +677,7 @@ export const PresetPanel: React.FC = () => {
 
         {/* Empty state */}
         {presets.length === 0 && (
-          <p className="text-xs text-muted-foreground py-2 text-center">
+          <p className="text-list text-muted-foreground py-2 text-center">
             {t("settingsManager.presets.empty")}
           </p>
         )}
@@ -688,7 +688,7 @@ export const PresetPanel: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start h-8 text-xs text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors duration-150"
+              className="w-full justify-start h-8 text-list text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors duration-150"
               onClick={() => openDialog("create")}
             >
               <Package className="w-3.5 h-3.5 mr-2" />
@@ -712,7 +712,7 @@ export const PresetPanel: React.FC = () => {
         <DialogContent className={dialogMode === "edit" ? "sm:max-w-3xl max-h-[85vh] flex flex-col" : "max-w-lg max-h-[85vh] flex flex-col"}>
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
+              <Package className="w-4 h-4" />
               {dialogMode === "create"
                 ? t("settingsManager.presets.createTitle")
                 : dialogMode === "edit"
@@ -750,8 +750,8 @@ export const PresetPanel: React.FC = () => {
                     autoFocus
                   />
                   {formNameError && (
-                    <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                    <p className="text-list text-destructive mt-1 flex items-center gap-1">
+                      <TriangleAlert className="w-3.5 h-3.5" />
                       {formNameError}
                     </p>
                   )}
@@ -776,7 +776,7 @@ export const PresetPanel: React.FC = () => {
               {/* Right column: JSON editor */}
               <div className="flex-1 flex flex-col min-w-0">
                 <Label className="mb-1.5 flex items-center gap-2">
-                  <FileJson className="w-4 h-4" />
+                  <FileBraces className="w-4 h-4" />
                   {t("settingsManager.presets.jsonLabel")}
                 </Label>
                 <Textarea
@@ -785,12 +785,12 @@ export const PresetPanel: React.FC = () => {
                     setFormJsonText(e.target.value);
                     setFormJsonError(null);
                   }}
-                  className="font-mono text-xs flex-1 min-h-[300px] resize-none"
+                  className="font-mono text-list flex-1 min-h-[300px] resize-none"
                   spellCheck={false}
                 />
                 {formJsonError && (
-                  <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
+                  <p className="text-list text-destructive mt-1 flex items-center gap-1">
+                    <TriangleAlert className="w-3.5 h-3.5" />
                     {formJsonError}
                   </p>
                 )}
@@ -802,31 +802,31 @@ export const PresetPanel: React.FC = () => {
               {/* Summary Card (only for create) */}
               {dialogMode === "create" && (
                 <div className="bg-muted border rounded-lg p-3">
-                  <div className="text-sm font-medium mb-2">
+                  <div className="text-body font-medium mb-2">
                     {t("settingsManager.presets.includedContent")}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.keys(effectiveSettings).length > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Cpu className="w-3 h-3 mr-1" />
+                      <Badge variant="secondary" className="text-list">
+                        <Cpu className="w-3.5 h-3.5 mr-1" />
                         {Object.keys(effectiveSettings).length} {t("settingsManager.presets.summary.settings")}
                       </Badge>
                     )}
                     {Object.keys(currentMCPServers).length > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Server className="w-3 h-3 mr-1" />
+                      <Badge variant="secondary" className="text-list">
+                        <Server className="w-3.5 h-3.5 mr-1" />
                         {Object.keys(currentMCPServers).length} {t("settingsManager.presets.summary.mcpServers")}
                       </Badge>
                     )}
                     {(effectiveSettings as ClaudeCodeSettings).permissions && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Shield className="w-3 h-3 mr-1" />
+                      <Badge variant="secondary" className="text-list">
+                        <Shield className="w-3.5 h-3.5 mr-1" />
                         {t("settingsManager.presets.summary.permissions")}
                       </Badge>
                     )}
                     {(effectiveSettings as ClaudeCodeSettings).hooks && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Zap className="w-3 h-3 mr-1" />
+                      <Badge variant="secondary" className="text-list">
+                        <Zap className="w-3.5 h-3.5 mr-1" />
                         {t("settingsManager.presets.summary.hooks")}
                       </Badge>
                     )}
@@ -855,8 +855,8 @@ export const PresetPanel: React.FC = () => {
                     autoFocus
                   />
                   {formNameError && (
-                    <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                    <p className="text-list text-destructive mt-1 flex items-center gap-1">
+                      <TriangleAlert className="w-3.5 h-3.5" />
                       {formNameError}
                     </p>
                   )}
@@ -891,7 +891,7 @@ export const PresetPanel: React.FC = () => {
                       className="w-full justify-between px-3 h-9"
                     >
                       <span className="flex items-center gap-2 text-muted-foreground">
-                        <FileJson className="w-4 h-4" />
+                        <FileBraces className="w-4 h-4" />
                         {t("settingsManager.presets.viewJson")}
                       </span>
                       <ChevronDown
@@ -900,7 +900,7 @@ export const PresetPanel: React.FC = () => {
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-[150px] font-mono mt-2">
+                    <pre className="bg-muted p-3 rounded-lg text-list overflow-auto max-h-[150px] font-mono mt-2">
                       {JSON.stringify(
                         {
                           settings: effectiveSettings,
@@ -917,7 +917,7 @@ export const PresetPanel: React.FC = () => {
           )}
 
           {applyError && (
-            <p className="text-sm text-destructive px-1">{applyError}</p>
+            <p className="text-body text-destructive px-1">{applyError}</p>
           )}
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={closeDialog}>
@@ -961,36 +961,36 @@ export const PresetPanel: React.FC = () => {
           {/* Preset Summary */}
           {selectedPreset && (
             <div className="bg-muted border rounded-lg p-3 my-2">
-              <div className="text-sm font-medium mb-2">
+              <div className="text-body font-medium mb-2">
                 {t("settingsManager.presets.includedContent")}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {selectedPreset.summary.settingsCount > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Cpu className="w-3 h-3 mr-1" />
+                  <Badge variant="secondary" className="text-list">
+                    <Cpu className="w-3.5 h-3.5 mr-1" />
                     {selectedPreset.summary.settingsCount} {t("settingsManager.presets.summary.settings")}
                   </Badge>
                 )}
                 {selectedPreset.summary.model && (
-                  <Badge variant="secondary" className="text-xs font-mono">
+                  <Badge variant="secondary" className="text-list font-mono">
                     {selectedPreset.summary.model}
                   </Badge>
                 )}
                 {selectedPreset.summary.mcpServerCount > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Server className="w-3 h-3 mr-1" />
+                  <Badge variant="secondary" className="text-list">
+                    <Server className="w-3.5 h-3.5 mr-1" />
                     {selectedPreset.summary.mcpServerCount} {t("settingsManager.presets.summary.mcpServers")}
                   </Badge>
                 )}
                 {selectedPreset.summary.hasPermissions && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Shield className="w-3 h-3 mr-1" />
+                  <Badge variant="secondary" className="text-list">
+                    <Shield className="w-3.5 h-3.5 mr-1" />
                     {t("settingsManager.presets.summary.permissions")}
                   </Badge>
                 )}
                 {selectedPreset.summary.hasHooks && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Zap className="w-3 h-3 mr-1" />
+                  <Badge variant="secondary" className="text-list">
+                    <Zap className="w-3.5 h-3.5 mr-1" />
                     {t("settingsManager.presets.summary.hooks")}
                   </Badge>
                 )}
@@ -1001,7 +1001,7 @@ export const PresetPanel: React.FC = () => {
           <div className="space-y-4 py-2">
             {/* Scope Selection */}
             <div>
-              <Label className="text-sm font-medium">
+              <Label className="text-body font-medium">
                 {t("settingsManager.unified.presets.targetScope")}
               </Label>
               <Select
@@ -1034,7 +1034,7 @@ export const PresetPanel: React.FC = () => {
             {/* Project Selection */}
             {needsProject && (
               <div>
-                <Label className="text-sm font-medium">
+                <Label className="text-body font-medium">
                   {t("settingsManager.unified.presets.targetProject")}
                 </Label>
                 <Select
@@ -1053,7 +1053,7 @@ export const PresetPanel: React.FC = () => {
                   <SelectContent className="max-h-60">
                     {groupedProjects.map((group) => (
                       <SelectGroup key={group.path}>
-                        <SelectLabel className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1.5">
+                        <SelectLabel className="text-list font-medium text-muted-foreground bg-muted/50 px-2 py-1.5">
                           {group.name}
                         </SelectLabel>
                         {group.projects.map((proj) => (
@@ -1076,7 +1076,7 @@ export const PresetPanel: React.FC = () => {
           </div>
 
           {applyError && (
-            <p className="text-sm text-destructive px-1">{applyError}</p>
+            <p className="text-body text-destructive px-1">{applyError}</p>
           )}
           <DialogFooter>
             <Button
@@ -1098,7 +1098,7 @@ export const PresetPanel: React.FC = () => {
                 </>
               ) : isApplying ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-4 h-4 mr-1.5 animate-spin" />
                   {t("settingsManager.presets.applying")}
                 </>
               ) : (
@@ -1119,7 +1119,7 @@ export const PresetPanel: React.FC = () => {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" />
+              <Trash className="w-4 h-4" />
               {t("settingsManager.presets.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>
@@ -1130,7 +1130,7 @@ export const PresetPanel: React.FC = () => {
           </DialogHeader>
 
           {applyError && (
-            <p className="text-sm text-destructive px-1">{applyError}</p>
+            <p className="text-body text-destructive px-1">{applyError}</p>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>

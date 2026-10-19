@@ -75,7 +75,7 @@ type TestStore = ProjectSlice & {
   clearTargetMessage: ReturnType<typeof vi.fn>;
   resetAnalytics: ReturnType<typeof vi.fn>;
   clearBoard: ReturnType<typeof vi.fn>;
-  clearRecentEditsDock: ReturnType<typeof vi.fn>;
+  clearRecentEditsList: ReturnType<typeof vi.fn>;
   setDateFilter: ReturnType<typeof vi.fn>;
 };
 
@@ -164,7 +164,7 @@ const createTestStore = () =>
     clearTargetMessage: vi.fn(),
     resetAnalytics: vi.fn(),
     clearBoard: vi.fn(),
-    clearRecentEditsDock: vi.fn(),
+    clearRecentEditsList: vi.fn(),
     setDateFilter: vi.fn(),
     ...createProjectSlice(
       set as Parameters<typeof createProjectSlice>[0],
@@ -192,15 +192,15 @@ describe("projectSlice scanProjects", () => {
     expect(url.searchParams.get("msg")).toBeNull();
   });
 
-  it("drops the docked Recent Edits rows along with the selection", () => {
-    // The dock survives deselection now - it is a workspace fixture, not a
-    // property of the selected project - so the rows have to be dropped here.
-    // Without this the panel keeps rendering the deselected project's edits.
+  it("drops the Edits screen's rows along with the selection", () => {
+    // The rows are keyed by their request, not by the selection, so they have
+    // to be dropped here; otherwise the next project's Edits screen would hold
+    // the deselected project's rows until its own answer lands.
     const store = createTestStore();
 
     store.getState().clearProjectSelection();
 
-    expect(store.getState().clearRecentEditsDock).toHaveBeenCalled();
+    expect(store.getState().clearRecentEditsList).toHaveBeenCalled();
   });
 
   it("publishes each provider as soon as that provider scan completes", async () => {
@@ -448,11 +448,30 @@ describe("projectSlice scanProjects", () => {
 
     expect(updateUserSettings).toHaveBeenCalledWith({
       discoveredProviderIds: ["codex"],
+      providersDiscovered: true,
     });
     expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
       "codex",
     ]);
     expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("saves that discovery completed even when it found no provider", async () => {
+    const store = createTestStore();
+    const updateUserSettings = vi.fn().mockResolvedValue(undefined);
+    store.setState({ claudePath: "", providers: [], updateUserSettings });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") return Promise.resolve(null);
+      if (command === "scan_all_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).toHaveBeenCalledWith({
+      discoveredProviderIds: [],
+      providersDiscovered: true,
+    });
   });
 
   it("preserves persisted provider IDs when explicit discovery fails", async () => {
@@ -975,10 +994,85 @@ describe("projectSlice scanProjects", () => {
       expect.any(Function)
     );
     expect(store.getState().setAnalyticsProjectSummary).toHaveBeenCalledWith(
-      projectSummary
+      projectSummary,
+      project.path
     );
     expect(store.getState().setAnalyticsSessionComparison).toHaveBeenCalledWith(
       null
     );
+  });
+});
+
+describe("projectSlice homeDir", () => {
+  const SAVED_PATH_KEY = "webui:settings.json:claudePath";
+
+  beforeEach(() => {
+    vi.mocked(api).mockReset();
+    localStorage.removeItem(SAVED_PATH_KEY);
+  });
+
+  it("takes home from the backend's default Claude folder lookup", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      if (command === "scan_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().claudePath).toBe("/Users/me/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("does not take home from a custom folder that happens to be named .claude", async () => {
+    // `validate_claude_folder` accepts any `.claude` folder with `projects/`;
+    // its parent is not the user's home.
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBeNull();
+  });
+
+  it("still learns the real home from the backend when a custom folder is saved", async () => {
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("keeps home when the user picks another Claude folder", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "/Users/me/.claude", homeDir: "/Users/me" });
+
+    await store.getState().setClaudePath("/Volumes/backup/.claude");
+
+    expect(store.getState().homeDir).toBe("/Users/me");
+    localStorage.removeItem(SAVED_PATH_KEY);
   });
 });

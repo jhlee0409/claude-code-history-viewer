@@ -18,28 +18,36 @@
    • Sharp geometric forms with intentional breaks
    ============================================ */
 
+/* File regions and who may change them (inner-UI plan §4.1, R9):
+   ① tokens — :root, the theme blocks, @theme ........... F1a · F1b · F1c only
+   ② base layer — @layer base ............................ F1a · F1b · F1c only
+   ③ component classes — @layer components / utilities: the task that uses a
+     block changes or deletes it (.segmented → F2b, scrollbars → PF1,
+     .prose → TR3). A screen PR that needs a new token gets it from a small
+     F follow-up PR. */
+
 /* ============================================
    DESIGN TOKENS
    ============================================ */
 :root {
   /* === Mobile Layout Tokens === */
-  --mobile-bottom-bar-height: 3.5rem;
+  /* Icon (24) + two caption lines (2 × 15) + spacing: a tab label may wrap to
+     two lines (a place keeps its one name, e.g. "Claude Code Settings"). */
+  --mobile-bottom-bar-height: 4rem;
+  /* The tab bar's full height with the device's bottom safe area: the bar is
+     this tall and the main area reserves the same, so it never covers content. */
+  --mobile-bottom-inset: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));
   --mobile-header-height: 3rem;
   --mobile-touch-target: 2.75rem;
   --mobile-drawer-width: min(80vw, 320px);
 
-  /* === Timing Functions (Easing Curves) === */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
-  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
-
-  /* === Duration Scale === */
-  --duration-instant: 50ms;
+  /* === Motion (F1a, plan §4.1 / G-MO2): three durations, two curves ===
+     Tailwind duration-fast|normal|slow and ease-standard|emphasized (see the
+     @theme blocks below) map onto these; a transition without its own
+     duration/curve uses fast + standard. */
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
-  --duration-slower: 600ms;
 
   /* === Spacing Scale (4px base) === */
   --space-px: 1px;
@@ -110,6 +118,15 @@
   --input: oklch(0.92 0.005 240);
   --ring: oklch(0.60 0.06 275);
 
+  /* === Segmented control (shared: .segmented / .segmented-item) ===
+     The selected item is told apart by its accent outline, ≥3:1 against both
+     its own surface and the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  --segmented-track: oklch(0.94 0.005 240);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.145 0.02 260);
+  --segmented-selected-border: oklch(0.50 0.16 275);
+
   /* === Semantic Status Colors === */
   --success: oklch(0.45 0.12 145);
   --success-foreground: oklch(0.98 0 0);
@@ -156,11 +173,20 @@
   --metric-pink: oklch(0.6 0.14 310);
   --metric-teal: oklch(0.65 0.15 170);
 
-  /* === Heatmap Colors (Activity gradient) === */
-  --heatmap-empty: oklch(0.2 0.01 260);
-  --heatmap-low: oklch(0.35 0.12 145);
-  --heatmap-medium: oklch(0.55 0.16 145);
-  --heatmap-high: oklch(0.75 0.18 145);
+  /* === Heatmap Colors (Activity gradient) ===
+     Light: an empty day is a faint tile on the card; more activity = more
+     ink (darker green). Dark (below) runs the other way: more glow. */
+  --heatmap-empty: oklch(0.93 0.008 240);
+  --heatmap-low: oklch(0.83 0.09 145);
+  --heatmap-medium: oklch(0.68 0.14 145);
+  --heatmap-high: oklch(0.52 0.15 145);
+  /* Text drawn on each cell (the day number): opaque, >= 4.5:1 on its own
+     cell (heatmapContrast.test.tsx). Dark text on the pale steps, white on
+     the darkest. */
+  --heatmap-empty-foreground: oklch(0.45 0.02 260);
+  --heatmap-low-foreground: oklch(0.32 0.08 145);
+  --heatmap-medium-foreground: oklch(0.22 0.05 145);
+  --heatmap-high-foreground: oklch(1 0 0);
 
   /* === Dashboard Glow Effects === */
   --glow-green: 0 0 12px oklch(0.7 0.16 145 / 0.3);
@@ -202,6 +228,87 @@
   /* === Noise/Texture === */
   --noise-opacity: 0.025;
   --app-font-scale: 1;
+
+  /* ==========================================================
+     ROLE TOKENS (F1a, inner-UI plan §4.1). Named by role, set in all four
+     themes (light here, .dark, .high-contrast, .dark.high-contrast), each
+     a Tailwind utility (@theme inline below). Text is never dimmed with
+     opacity. Contrast: src/test/theme.contrast.test.ts; parity:
+     src/test/tokens.parity.test.ts.
+     ========================================================== */
+  /* Text: three opaque steps + disabled. */
+  --fg: var(--foreground);
+  --fg-2: var(--muted-foreground);
+  --fg-3: oklch(0.50 0.015 260);
+  --fg-disabled: oklch(0.64 0.01 260);
+  /* Surfaces: hover and selected are one step each; nothing in the flow casts a shadow. */
+  --surface-canvas: var(--background);
+  --surface-pane: var(--card);
+  --surface-raised: var(--popover);
+  --surface-well: oklch(0.972 0.003 240);
+  --surface-hover: oklch(0.955 0.005 240);
+  --surface-selected: oklch(0.94 0.03 275);
+  --surface-turn-user: oklch(0.968 0.004 240);
+  /* Lines: --line-input is a UI component border (≥ 3:1). */
+  --line: var(--border);
+  --line-faint: oklch(0.925 0.006 240);
+  --line-input: oklch(0.62 0.015 250);
+  --line-selected: var(--accent);
+  /* Status sets (text · surface · line). success = a confirmed result only. */
+  --status-danger-fg: oklch(0.48 0.19 25);
+  --status-danger-surface: oklch(0.965 0.02 25);
+  --status-danger-line: oklch(0.58 0.19 25);
+  --status-warning-fg: oklch(0.47 0.10 65);
+  --status-warning-surface: oklch(0.97 0.035 75);
+  --status-warning-line: oklch(0.62 0.13 70);
+  --status-info-fg: oklch(0.46 0.12 245);
+  --status-info-surface: oklch(0.965 0.018 245);
+  --status-info-line: oklch(0.58 0.13 245);
+  --status-success-fg: oklch(0.45 0.11 150);
+  --status-success-surface: oklch(0.965 0.03 150);
+  --status-success-line: oklch(0.58 0.13 150);
+  /* Search highlight: a different colour from warning; the current match adds an underline. */
+  --highlight-search-bg: var(--highlight);
+  --highlight-search-fg: var(--highlight-foreground);
+  --highlight-search-current: var(--highlight-current);
+  /* Diff (Q1): green/red, a +/- column always, word marks coloured and underlined. */
+  --diff-add-bg: oklch(0.955 0.045 145);
+  --diff-add-fg: oklch(0.40 0.12 145);
+  --diff-add-gutter: oklch(0.925 0.065 145);
+  --diff-word-add-bg: oklch(0.88 0.09 145);
+  --diff-word-add-mark: oklch(0.48 0.13 145);
+  --diff-del-bg: oklch(0.955 0.03 25);
+  --diff-del-fg: oklch(0.46 0.18 25);
+  --diff-del-gutter: oklch(0.925 0.05 25);
+  --diff-word-del-bg: oklch(0.89 0.07 25);
+  --diff-word-del-mark: oklch(0.50 0.18 25);
+  --diff-hunk-fg: var(--fg-3);
+  --diff-context-fg: var(--fg-2);
+  /* Code (syntax), on --surface-well. */
+  --code-keyword: oklch(0.47 0.20 265);
+  --code-string: oklch(0.47 0.16 28);
+  --code-number: oklch(0.49 0.10 165);
+  --code-comment: oklch(0.50 0.08 140);
+  --code-function: oklch(0.47 0.09 75);
+  --code-type: oklch(0.48 0.08 220);
+  --code-punct: var(--fg-2);
+  /* Focus: one ring, 2px wide, 2px outside (or inside, --focus-ring-inset). */
+  --focus-ring: var(--accent);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-inset: calc(-1 * var(--focus-ring-width));
+  /* Spacing and density: minimum heights that grow with the text and the font scale. */
+  --page-inset: 1.5rem;
+  --row-tool: calc(2rem * var(--app-font-scale));
+  --row-list: calc(1.75rem * var(--app-font-scale));
+  --row-file: calc(2.75rem * var(--app-font-scale));
+  --row-touch: 2.75rem;
+  --rail-width: calc(6.75rem * var(--app-font-scale));
+  --measure-prose: calc(42.5rem * var(--app-font-scale));
+  --measure-work: calc(45.5rem * var(--app-font-scale));
+  /* Elevation: overlapping layers only (shadow-popover, shadow-overlay). */
+  --elevation-popover: 0 4px 12px -2px oklch(0.2 0.02 260 / 0.12), 0 1px 3px oklch(0.2 0.02 260 / 0.08);
+  --elevation-overlay: 0 16px 40px -8px oklch(0.2 0.02 260 / 0.22), 0 4px 12px -4px oklch(0.2 0.02 260 / 0.12);
 }
 
 /* === Dark Theme (Primary - Command Center) === */
@@ -225,6 +332,15 @@
   --border: oklch(0.25 0.015 260);
   --input: oklch(0.22 0.015 260);
   --ring: oklch(0.50 0.06 275);
+
+  /* === Segmented control (Dark) ===
+     The card on the old muted/30 track measured ~1.1:1, so the selected item
+     read as unselected; it now has an indigo-tinted surface and the accent
+     outline (#9AA0F0-ish). */
+  --segmented-track: oklch(0.19 0.015 260);
+  --segmented-selected: oklch(0.30 0.06 278);
+  --segmented-selected-foreground: oklch(0.97 0.01 240);
+  --segmented-selected-border: oklch(0.73 0.12 279);
 
   /* === Semantic Status Colors (Dark) ===
      Fills are bright in dark mode, so their foregrounds must be dark (like
@@ -287,6 +403,11 @@
   --heatmap-low: oklch(0.40 0.14 145);
   --heatmap-medium: oklch(0.60 0.17 145);
   --heatmap-high: oklch(0.78 0.18 145);
+  /* Light text on the dim steps, dark on the bright ones. */
+  --heatmap-empty-foreground: oklch(0.78 0.02 240);
+  --heatmap-low-foreground: oklch(0.95 0.03 145);
+  --heatmap-medium-foreground: oklch(0.16 0.03 145);
+  --heatmap-high-foreground: oklch(0.2 0.05 145);
 
   /* === Dashboard Glow Effects (Dark) === */
   --glow-green: 0 0 16px oklch(0.75 0.18 145 / 0.4);
@@ -329,6 +450,46 @@
 
   /* === Noise/Texture === */
   --noise-opacity: 0.04;
+
+  /* === Role tokens (Dark) — see :root === */
+  --fg-3: oklch(0.68 0.02 250);
+  --fg-disabled: oklch(0.48 0.015 260);
+  --surface-well: oklch(0.095 0.012 260);
+  --surface-hover: oklch(0.20 0.015 260);
+  --surface-selected: oklch(0.25 0.05 279);
+  --surface-turn-user: oklch(0.145 0.015 260);
+  --line-faint: oklch(0.20 0.015 260);
+  --line-input: oklch(0.50 0.015 260);
+  --status-danger-fg: oklch(0.76 0.14 25);
+  --status-danger-surface: oklch(0.22 0.05 25);
+  --status-danger-line: oklch(0.64 0.17 25);
+  --status-warning-fg: oklch(0.83 0.13 80);
+  --status-warning-surface: oklch(0.22 0.04 75);
+  --status-warning-line: oklch(0.70 0.13 75);
+  --status-info-fg: oklch(0.79 0.11 240);
+  --status-info-surface: oklch(0.21 0.04 245);
+  --status-info-line: oklch(0.64 0.12 245);
+  --status-success-fg: oklch(0.80 0.14 150);
+  --status-success-surface: oklch(0.21 0.04 150);
+  --status-success-line: oklch(0.64 0.13 150);
+  --diff-add-bg: oklch(0.22 0.04 145);
+  --diff-add-fg: oklch(0.84 0.13 145);
+  --diff-add-gutter: oklch(0.27 0.06 145);
+  --diff-word-add-bg: oklch(0.33 0.08 145);
+  --diff-word-add-mark: oklch(0.74 0.15 145);
+  --diff-del-bg: oklch(0.22 0.045 25);
+  --diff-del-fg: oklch(0.82 0.11 25);
+  --diff-del-gutter: oklch(0.27 0.07 25);
+  --diff-word-del-bg: oklch(0.34 0.09 25);
+  --diff-word-del-mark: oklch(0.72 0.15 25);
+  --code-keyword: oklch(0.70 0.11 250);
+  --code-string: oklch(0.74 0.09 45);
+  --code-number: oklch(0.82 0.07 135);
+  --code-comment: oklch(0.66 0.08 140);
+  --code-function: oklch(0.88 0.08 105);
+  --code-type: oklch(0.77 0.10 180);
+  --elevation-popover: 0 4px 12px -2px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
+  --elevation-overlay: 0 16px 40px -8px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
 }
 
 .high-contrast {
@@ -345,6 +506,10 @@
   --ring: oklch(0.25 0 0);
   --accent: oklch(0.25 0 0);
   --accent-foreground: oklch(1 0 0);
+  --segmented-track: oklch(0.95 0 0);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.06 0 0);
+  --segmented-selected-border: oklch(0.25 0 0);
   --destructive: oklch(0.4 0.16 25);
   --destructive-foreground: oklch(1 0 0);
   /* Status / tool hues: keep hue for meaning, push lightness to ≥7:1 on white. */
@@ -366,6 +531,43 @@
   --highlight: oklch(0.92 0.16 95);
   --highlight-current: oklch(0.80 0.2 95);
   --highlight-foreground: oklch(0.06 0 0);
+  /* Role tokens (high contrast) — see :root. Secondary text ≥ 7:1, input borders ≥ 4.5:1. */
+  --fg-3: oklch(0.30 0 0);
+  --fg-disabled: oklch(0.50 0 0);
+  --surface-well: oklch(0.97 0 0);
+  --surface-hover: oklch(0.93 0 0);
+  --surface-selected: oklch(0.90 0 0);
+  --surface-turn-user: oklch(0.96 0 0);
+  --line-faint: oklch(0.60 0 0);
+  --line-input: oklch(0.35 0 0);
+  --status-danger-fg: oklch(0.40 0.16 25);
+  --status-danger-surface: oklch(0.96 0.02 25);
+  --status-danger-line: oklch(0.45 0.17 25);
+  --status-warning-fg: oklch(0.38 0.09 65);
+  --status-warning-surface: oklch(0.965 0.03 75);
+  --status-warning-line: oklch(0.45 0.10 70);
+  --status-info-fg: oklch(0.36 0.12 245);
+  --status-info-surface: oklch(0.96 0.015 245);
+  --status-info-line: oklch(0.42 0.12 245);
+  --status-success-fg: oklch(0.36 0.10 150);
+  --status-success-surface: oklch(0.96 0.025 150);
+  --status-success-line: oklch(0.42 0.11 150);
+  --diff-add-bg: oklch(0.95 0.05 145);
+  --diff-add-fg: oklch(0.34 0.10 145);
+  --diff-add-gutter: oklch(0.90 0.07 145);
+  --diff-word-add-bg: oklch(0.86 0.10 145);
+  --diff-word-add-mark: oklch(0.40 0.12 145);
+  --diff-del-bg: oklch(0.95 0.035 25);
+  --diff-del-fg: oklch(0.38 0.16 25);
+  --diff-del-gutter: oklch(0.90 0.06 25);
+  --diff-word-del-bg: oklch(0.86 0.08 25);
+  --diff-word-del-mark: oklch(0.42 0.17 25);
+  --code-keyword: oklch(0.36 0.20 265);
+  --code-string: oklch(0.38 0.15 28);
+  --code-number: oklch(0.38 0.09 165);
+  --code-comment: oklch(0.38 0.09 140);
+  --code-function: oklch(0.37 0.08 75);
+  --code-type: oklch(0.38 0.08 220);
 }
 
 .dark.high-contrast {
@@ -382,6 +584,10 @@
   --ring: oklch(0.95 0 0);
   --accent: oklch(0.9 0 0);
   --accent-foreground: oklch(0.08 0 0);
+  --segmented-track: oklch(0.11 0 0);
+  --segmented-selected: oklch(0.22 0 0);
+  --segmented-selected-foreground: oklch(0.98 0 0);
+  --segmented-selected-border: oklch(0.9 0 0);
   --destructive: oklch(0.78 0.18 25);
   --destructive-foreground: oklch(0.08 0 0);
   --success: oklch(0.85 0.18 145);
@@ -402,37 +608,209 @@
   --highlight: oklch(0.45 0.14 95);
   --highlight-current: oklch(0.6 0.18 95);
   --highlight-foreground: oklch(0.98 0 0);
+  /* Role tokens (dark high contrast) — every one .dark or .high-contrast sets, so neither leaks in. */
+  /* The current search match: --highlight-current measures 3.7:1 under white
+     text here, so the role token takes a darker step (the 2px underline
+     tells it from the other matches). */
+  --highlight-search-current: oklch(0.34 0.11 95);
+  --fg-3: oklch(0.85 0 0);
+  --fg-disabled: oklch(0.60 0 0);
+  --surface-well: oklch(0 0 0);
+  --surface-hover: oklch(0.16 0 0);
+  --surface-selected: oklch(0.22 0 0);
+  --surface-turn-user: oklch(0.08 0 0);
+  --line-faint: oklch(0.45 0 0);
+  --line-input: oklch(0.70 0 0);
+  --status-danger-fg: oklch(0.84 0.12 25);
+  --status-danger-surface: oklch(0.18 0.05 25);
+  --status-danger-line: oklch(0.75 0.15 25);
+  --status-warning-fg: oklch(0.90 0.12 80);
+  --status-warning-surface: oklch(0.18 0.04 75);
+  --status-warning-line: oklch(0.82 0.13 75);
+  --status-info-fg: oklch(0.86 0.10 240);
+  --status-info-surface: oklch(0.17 0.04 245);
+  --status-info-line: oklch(0.76 0.11 245);
+  --status-success-fg: oklch(0.88 0.13 150);
+  --status-success-surface: oklch(0.17 0.04 150);
+  --status-success-line: oklch(0.78 0.13 150);
+  --diff-add-bg: oklch(0.18 0.05 145);
+  --diff-add-fg: oklch(0.90 0.12 145);
+  --diff-add-gutter: oklch(0.24 0.07 145);
+  --diff-word-add-bg: oklch(0.32 0.09 145);
+  --diff-word-add-mark: oklch(0.82 0.15 145);
+  --diff-del-bg: oklch(0.18 0.05 25);
+  --diff-del-fg: oklch(0.88 0.10 25);
+  --diff-del-gutter: oklch(0.24 0.08 25);
+  --diff-word-del-bg: oklch(0.33 0.10 25);
+  --diff-word-del-mark: oklch(0.80 0.14 25);
+  --code-keyword: oklch(0.84 0.10 250);
+  --code-string: oklch(0.86 0.08 45);
+  --code-number: oklch(0.90 0.07 135);
+  --code-comment: oklch(0.84 0.08 140);
+  --code-function: oklch(0.92 0.08 105);
+  --code-type: oklch(0.88 0.09 180);
+  --elevation-popover: 0 4px 12px -2px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
+  --elevation-overlay: 0 16px 40px -8px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
+}
+
+/* ============================================
+   TYPE SCALE (plan T4, decision.html §4)
+   ============================================
+   Five steps, each × --app-font-scale (Settings → font size):
+     caption 12 / 1.4    dates, counts, badges, shortcut hints
+     list    13 / 1.4    sidebar, tabs, buttons, tool-call rows
+     body    15 / 1.7 CJK · 1.55 other   conversation text, markdown
+     code    13 / 1.5    code blocks, diffs (monospace)
+     title   17 / 1.3    screen titles, card numbers
+   text-lg / text-xl / text-2xl are analytics-number aliases only (their
+   current 18 / 20 / 24px, now also × scale). Nothing else exists: the
+   default Tailwind sizes are cleared, and src/test/typography.guard.test.ts
+   rejects any other size class (also arbitrary or concatenated), any inline
+   size that is not var(--text-<token>) and any other CSS font-size. */
+@theme static {
+  --text-*: initial;
+  --text-caption: calc(0.75rem * var(--app-font-scale));
+  --text-caption--line-height: 1.4;
+  --text-list: calc(0.8125rem * var(--app-font-scale));
+  --text-list--line-height: 1.4;
+  --text-body: calc(0.9375rem * var(--app-font-scale));
+  --text-body--line-height: var(--leading-body);
+  --text-code: calc(0.8125rem * var(--app-font-scale));
+  --text-code--line-height: 1.5;
+  --text-title: calc(1.0625rem * var(--app-font-scale));
+  --text-title--line-height: 1.3;
+
+  /* Analytics numbers only (guard: AnalyticsDashboard, token/session stats, board lane). */
+  --text-lg: calc(1.125rem * var(--app-font-scale));
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: calc(1.25rem * var(--app-font-scale));
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: calc(1.5rem * var(--app-font-scale));
+  --text-2xl--line-height: calc(2 / 1.5);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+
+/* Per-language font order and body line height, keyed on html[lang]
+   (set before the first render and on every language change, see
+   src/i18n/documentLanguage.ts). Latin text always uses the bundled IBM Plex
+   Sans; CJK falls through to the platform font of that script so Japanese,
+   Simplified and Traditional Chinese each get their own glyph shapes. */
+:root {
+  --font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --leading-body: 1.55;
+}
+:root:lang(ko) {
+  --font-ui: "IBM Plex Sans", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(ja) {
+  --font-ui: "IBM Plex Sans", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(zh-CN), :root:lang(zh-Hans) {
+  --font-ui: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+  --leading-body: 1.7;
+}
+:root:lang(zh-TW), :root:lang(zh-Hant), :root:lang(zh-HK) {
+  --font-ui: "IBM Plex Sans", "PingFang TC", "Microsoft JhengHei UI", "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
+  --leading-body: 1.7;
 }
 
 /* === Theme inline mapping === */
+/* Role utilities (F1a): curves and radius roles are Tailwind theme values
+   themselves (always emitted, so var(--radius-row) / var(--ease-standard)
+   also work in CSS). */
+@theme static {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  /* rows, chips, wells, diffs · buttons, inputs, segmented · overlapping
+     layers · Badge only · dots and avatars (the guard counts other radii) */
+  --radius-row: 0.375rem;
+  --radius-control: 0.5rem;
+  --radius-overlay: 0.75rem;
+  --radius-pill: 9999px;
+  --radius-dot: 9999px;
+}
+
 @theme inline {
-  /* Typography Scale */
-  --font-family-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  /* Radius: --radius-sm … --radius-xl live in :root (the scale rounded-sm …
+     rounded-xl read); no self-referencing entries here. */
 
-  --font-size-2xs: calc(0.6875rem * var(--app-font-scale));
-  --font-size-2xs--line-height: calc(0.9375rem * var(--app-font-scale));
-  --font-size-xs: calc(0.8125rem * var(--app-font-scale));
-  --font-size-xs--line-height: calc(1.0625rem * var(--app-font-scale));
-  --font-size-sm: calc(0.9375rem * var(--app-font-scale));
-  --font-size-sm--line-height: calc(1.3125rem * var(--app-font-scale));
-  --font-size-base: calc(1.0625rem * var(--app-font-scale));
-  --font-size-base--line-height: calc(1.5625rem * var(--app-font-scale));
-  --font-size-lg: calc(1.1875rem * var(--app-font-scale));
-  --font-size-lg--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-xl: calc(1.3125rem * var(--app-font-scale));
-  --font-size-xl--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-2xl: calc(1.5625rem * var(--app-font-scale));
-  --font-size-2xl--line-height: calc(2.0625rem * var(--app-font-scale));
-  --font-size-3xl: calc(1.9375rem * var(--app-font-scale));
-  --font-size-3xl--line-height: calc(2.3125rem * var(--app-font-scale));
+  /* Motion: duration-fast|normal|slow; unmarked transitions use fast + standard. */
+  --transition-duration-fast: var(--duration-fast);
+  --transition-duration-normal: var(--duration-normal);
+  --transition-duration-slow: var(--duration-slow);
+  --default-transition-duration: var(--duration-fast);
+  --default-transition-timing-function: var(--ease-standard);
 
-  /* Radius */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  /* Elevation (overlapping layers only): shadow-popover, shadow-overlay. */
+  --shadow-popover: var(--elevation-popover);
+  --shadow-overlay: var(--elevation-overlay);
 
+  /* Spacing and density (min-heights): px-page-inset, min-h-row-tool, w-rail, max-w-measure-prose … */
+  --spacing-page-inset: var(--page-inset);
+  --min-height-row-tool: var(--row-tool);
+  --min-height-row-list: var(--row-list);
+  --min-height-row-file: var(--row-file);
+  --min-height-row-touch: var(--row-touch);
+  --width-rail: var(--rail-width);
+  --max-width-measure-prose: var(--measure-prose);
+  --max-width-measure-work: var(--measure-work);
+
+  /* Role colours (F1a) */
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-disabled: var(--fg-disabled);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-pane: var(--surface-pane);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-well: var(--surface-well);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-turn-user: var(--surface-turn-user);
+  --color-line: var(--line);
+  --color-line-faint: var(--line-faint);
+  --color-line-input: var(--line-input);
+  --color-line-selected: var(--line-selected);
+  --color-status-danger-fg: var(--status-danger-fg);
+  --color-status-danger-surface: var(--status-danger-surface);
+  --color-status-danger-line: var(--status-danger-line);
+  --color-status-warning-fg: var(--status-warning-fg);
+  --color-status-warning-surface: var(--status-warning-surface);
+  --color-status-warning-line: var(--status-warning-line);
+  --color-status-info-fg: var(--status-info-fg);
+  --color-status-info-surface: var(--status-info-surface);
+  --color-status-info-line: var(--status-info-line);
+  --color-status-success-fg: var(--status-success-fg);
+  --color-status-success-surface: var(--status-success-surface);
+  --color-status-success-line: var(--status-success-line);
+  --color-highlight-search-bg: var(--highlight-search-bg);
+  --color-highlight-search-fg: var(--highlight-search-fg);
+  --color-highlight-search-current: var(--highlight-search-current);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-add-fg: var(--diff-add-fg);
+  --color-diff-add-gutter: var(--diff-add-gutter);
+  --color-diff-word-add-bg: var(--diff-word-add-bg);
+  --color-diff-word-add-mark: var(--diff-word-add-mark);
+  --color-diff-del-bg: var(--diff-del-bg);
+  --color-diff-del-fg: var(--diff-del-fg);
+  --color-diff-del-gutter: var(--diff-del-gutter);
+  --color-diff-word-del-bg: var(--diff-word-del-bg);
+  --color-diff-word-del-mark: var(--diff-word-del-mark);
+  --color-diff-hunk-fg: var(--diff-hunk-fg);
+  --color-diff-context-fg: var(--diff-context-fg);
+  --color-code-keyword: var(--code-keyword);
+  --color-code-string: var(--code-string);
+  --color-code-number: var(--code-number);
+  --color-code-comment: var(--code-comment);
+  --color-code-function: var(--code-function);
+  --color-code-type: var(--code-type);
+  --color-code-punct: var(--code-punct);
+  --color-focus-ring: var(--focus-ring);
   /* Colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -497,6 +875,13 @@
     box-sizing: border-box;
   }
 
+  /* Icons keep their 14 / 16 / 24 px in a tight flex row instead of being
+     squeezed (plan T5: the UI capture probe found 4.5 px and 9.8 px wide
+     icons on narrow screens). */
+  svg.lucide {
+    flex-shrink: 0;
+  }
+
   html,
   body,
   #root {
@@ -505,7 +890,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-ui);
     font-feature-settings: 'tnum' on, 'lnum' on;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -520,17 +905,17 @@
   }
 
   h1 {
-    @apply text-3xl;
+    @apply text-title;
     letter-spacing: -0.03em;
   }
 
   h2 {
-    @apply text-2xl;
+    @apply text-title;
     letter-spacing: -0.025em;
   }
 
   h3 {
-    @apply text-xl;
+    @apply text-title;
     letter-spacing: -0.02em;
   }
 
@@ -539,7 +924,7 @@
   code,
   pre,
   [data-mono] {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: var(--font-code);
     font-feature-settings: 'liga' on, 'calt' on;
   }
 
@@ -560,8 +945,8 @@
 
   /* Prose typography overrides for compact display */
   .prose {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
-    line-height: 1.5 !important;
+    font-size: var(--text-body) !important;
+    line-height: var(--leading-body) !important;
   }
 
   .prose p {
@@ -570,19 +955,21 @@
   }
 
   .prose h1 {
-    font-size: calc(0.9375rem * var(--app-font-scale)) !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
     margin-top: 0 !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h2 {
-    font-size: calc(0.875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h3 {
-    font-size: calc(0.8125rem * var(--app-font-scale)) !important;
+    font-size: var(--text-body) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -590,7 +977,7 @@
   .prose h4,
   .prose h5,
   .prose h6 {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
+    font-size: var(--text-body) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -628,15 +1015,15 @@
   }
 
   .prose pre {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
-    line-height: 1.4 !important;
+    font-size: var(--text-code) !important;
+    line-height: var(--text-code--line-height) !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
     padding: 0.375em 0.5em !important;
   }
 
   .prose code {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-code) !important;
     padding: 0.0625em 0.1875em !important;
   }
 
@@ -647,7 +1034,8 @@
   }
 
   .prose table {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
+    font-size: var(--text-list) !important;
+    line-height: var(--text-list--line-height) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.75em !important;
     width: 100% !important;
@@ -743,7 +1131,7 @@
   }
 
   .prose kbd {
-    font-size: calc(0.625rem * var(--app-font-scale)) !important;
+    font-size: var(--text-caption) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
@@ -753,12 +1141,12 @@
   }
 
   .prose sub {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: sub !important;
   }
 
   .prose sup {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: super !important;
   }
 
@@ -876,6 +1264,48 @@
     box-shadow: 0 0 25px color-mix(in oklch, var(--accent), transparent 60%);
   }
 
+  /* === Segmented control (one shared style) ===
+     Session/Project, row density, analytics Overview/Tokens, the phone's
+     Overview/Tokens/Edits nav, Project overview/Session details, metric
+     mode. The track holds the items; the selected one (aria-pressed,
+     aria-selected, or aria-current="page" in a nav) gets its own surface and an
+     accent outline (tokens --segmented-*). Padding and type size stay on each
+     control. */
+  .segmented {
+    @apply flex items-center gap-1 p-1 rounded-lg;
+    background-color: var(--segmented-track);
+  }
+
+  .segmented-item {
+    @apply rounded-md font-medium text-muted-foreground transition-colors duration-200;
+  }
+
+  .segmented-item:not(:disabled):hover {
+    @apply text-foreground;
+  }
+
+  .segmented-item[aria-pressed="true"],
+  .segmented-item[aria-selected="true"],
+  .segmented-item[aria-current="page"],
+  .segmented-item[data-active="true"] {
+    background-color: var(--segmented-selected);
+    color: var(--segmented-selected-foreground);
+    box-shadow:
+      inset 0 0 0 1px var(--segmented-selected-border),
+      0 1px 2px oklch(0 0 0 / 0.08);
+  }
+
+  /* Keyboard focus, for every segmented control (the base layer removes the
+     browser outline). A 2px accent ring outside the item, with a 1px gap of
+     track: it reads apart from the selected item's inset 1px border, takes no
+     layout space, fits inside the track's padding, and outlines survive
+     forced-colors mode. ≥3:1 against the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  .segmented-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
   /* === Elevated Surface (Card with depth) === */
   .surface-elevated {
     @apply bg-card border border-border;
@@ -983,7 +1413,7 @@
 
   /* === Data label style === */
   .data-label {
-    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+    @apply text-list font-medium uppercase tracking-wider text-muted-foreground;
     letter-spacing: 0.05em;
   }
 
@@ -1015,9 +1445,7 @@
   }
 
   .metric-label {
-    @apply font-semibold uppercase tracking-[0.1em] text-muted-foreground;
-    /* reactive 11px — respects the app font-size setting (#408/#412) */
-    font-size: calc(0.6875rem * var(--app-font-scale));
+    @apply text-caption font-semibold uppercase tracking-[0.1em] text-muted-foreground;
   }
 
   .metric-value {
@@ -1028,7 +1456,7 @@
   /* === Action button === */
   .action-btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-    @apply text-sm font-medium rounded-lg;
+    @apply text-body font-medium rounded-lg;
     @apply bg-secondary text-secondary-foreground;
     @apply hover:bg-secondary/80 active:scale-[0.98];
     @apply transition-all duration-150;
@@ -1058,7 +1486,7 @@
   .code-block-header {
     @apply flex items-center justify-between px-4 py-2;
     @apply bg-[oklch(0.08_0.015_260)] border-b border-border;
-    @apply text-xs text-muted-foreground;
+    @apply text-list text-muted-foreground;
   }
 
   /* === Tool result container === */
@@ -1071,12 +1499,12 @@
   .tool-result-header {
     @apply flex items-center gap-2 px-3 py-2;
     @apply border-b border-border/50;
-    @apply text-xs font-medium text-muted-foreground;
+    @apply text-list font-medium text-muted-foreground;
   }
 
   /* === Divider with label === */
   .divider-label {
-    @apply flex items-center gap-4 text-xs text-muted-foreground;
+    @apply flex items-center gap-4 text-list text-muted-foreground;
   }
 
   .divider-label::before,
@@ -1093,7 +1521,7 @@
 
   /* === Orchestrated Page Load Animation === */
   .animate-stagger>* {
-    animation: stagger-fade-in 0.5s var(--ease-out-expo) both;
+    animation: stagger-fade-in 0.5s var(--ease-emphasized) both;
   }
 
   .animate-stagger>*:nth-child(1) {
@@ -1144,7 +1572,7 @@
 
   /* === Fast Stagger (for smaller lists) === */
   .animate-stagger-fast>* {
-    animation: stagger-fade-in 0.3s var(--ease-out-expo) both;
+    animation: stagger-fade-in 0.3s var(--ease-emphasized) both;
   }
 
   .animate-stagger-fast>*:nth-child(1) {
@@ -1169,7 +1597,7 @@
 
   /* === Breathing Pulse (for active/loading states) === */
   .animate-breathe {
-    animation: breathe 3s var(--ease-in-out-circ) infinite;
+    animation: breathe 3s var(--ease-standard) infinite;
   }
 
   @keyframes breathe {
@@ -1205,19 +1633,19 @@
 
   /* === Slide Animations with Spring === */
   .animate-slide-up {
-    animation: slide-up 0.4s var(--ease-out-expo);
+    animation: slide-up 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-down {
-    animation: slide-down 0.4s var(--ease-out-expo);
+    animation: slide-down 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-left {
-    animation: slide-left 0.4s var(--ease-out-expo);
+    animation: slide-left 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-right {
-    animation: slide-right 0.4s var(--ease-out-expo);
+    animation: slide-right 0.4s var(--ease-emphasized);
   }
 
   @keyframes slide-up {
@@ -1270,11 +1698,11 @@
 
   /* === Scale Animations === */
   .animate-scale-in {
-    animation: scale-in 0.25s var(--ease-out-back);
+    animation: scale-in 0.25s var(--ease-emphasized);
   }
 
   .animate-scale-out {
-    animation: scale-out 0.2s var(--ease-in-out-circ);
+    animation: scale-out 0.2s var(--ease-standard);
   }
 
   @keyframes scale-in {
@@ -1303,11 +1731,11 @@
 
   /* === Expand/Collapse === */
   .animate-expand {
-    animation: expand 0.3s var(--ease-out-expo);
+    animation: expand 0.3s var(--ease-emphasized);
   }
 
   .animate-collapse {
-    animation: collapse 0.25s var(--ease-in-out-circ);
+    animation: collapse 0.25s var(--ease-standard);
   }
 
   @keyframes expand {
@@ -1396,7 +1824,7 @@
 
   /* === Bounce Subtle === */
   .animate-bounce-subtle {
-    animation: bounce-subtle 0.5s var(--ease-out-back);
+    animation: bounce-subtle 0.5s var(--ease-emphasized);
   }
 
   @keyframes bounce-subtle {
@@ -1430,11 +1858,11 @@
 
   /* === Fade Animations === */
   .animate-fade-in {
-    animation: fade-in 0.3s var(--ease-out-expo);
+    animation: fade-in 0.3s var(--ease-emphasized);
   }
 
   .animate-fade-out {
-    animation: fade-out 0.2s var(--ease-in-out-circ);
+    animation: fade-out 0.2s var(--ease-standard);
   }
 
   @keyframes fade-in {
@@ -1459,7 +1887,7 @@
 
   /* === Shake (for errors) === */
   .animate-shake {
-    animation: shake 0.5s var(--ease-out-expo);
+    animation: shake 0.5s var(--ease-emphasized);
   }
 
   @keyframes shake {
@@ -1492,47 +1920,6 @@
    TYPOGRAPHY UTILITIES
    ============================================ */
 @layer utilities {
-
-  /* === Custom Text Sizes === */
-  .text-2xs {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-    line-height: calc(0.9375rem * var(--app-font-scale));
-  }
-
-  .text-3xs {
-    font-size: calc(0.625rem * var(--app-font-scale));
-    line-height: calc(0.8125rem * var(--app-font-scale));
-  }
-
-  /* === Fixed pixel text sizes, made reactive to --app-font-scale (issue #408) ===
-     These replace arbitrary `text-[Npx]` classes, which compile to a literal
-     font-size and so ignore the app font-size setting. They set font-size only —
-     matching the original arbitrary-value behavior — so appearance is unchanged
-     except that they now scale with the user's font-size preference. */
-  .text-px6 {
-    font-size: calc(0.375rem * var(--app-font-scale));
-  }
-  .text-px8 {
-    font-size: calc(0.5rem * var(--app-font-scale));
-  }
-  .text-px9 {
-    font-size: calc(0.5625rem * var(--app-font-scale));
-  }
-  .text-px10 {
-    font-size: calc(0.625rem * var(--app-font-scale));
-  }
-  .text-px11 {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-  }
-  .text-px12 {
-    font-size: calc(0.75rem * var(--app-font-scale));
-  }
-  .text-px13 {
-    font-size: calc(0.8125rem * var(--app-font-scale));
-  }
-  .text-px14 {
-    font-size: calc(0.875rem * var(--app-font-scale));
-  }
 
   /* === Text Wrapping === */
   .text-balance {
@@ -1745,7 +2132,7 @@
     width: 0;
     height: 1px;
     background: currentColor;
-    transition: width 0.3s var(--ease-out-expo);
+    transition: width 0.3s var(--ease-emphasized);
   }
 
   .link-underline:hover::after {

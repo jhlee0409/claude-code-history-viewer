@@ -10,9 +10,9 @@
  * this component is a thin painter, every pixel computation comes from
  * `helpers/minimapLayout.ts`.
  *
- * Mounted as a sibling of `FloatingDateOverlay`; this component does not
- * itself decide whether it should be visible (Capture Mode, narrow windows),
- * the mount site does that with `useMinimapVisible`.
+ * Mounted next to the message list; this component does not itself decide
+ * whether it should be visible (Capture Mode, narrow windows), the mount
+ * site does that with `useMinimapVisible`.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -300,7 +300,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
     }, []);
 
     // Trigger: totalSize and virtualRows, the same values passed into
-    // `FloatingDateOverlay`, plus `draw` itself, which changes with `rows`,
+    // `CurrentDateBar`, plus `draw` itself, which changes with `rows`,
     // the search ticks, and the band's geometry.
     useEffect(() => {
       scheduleDraw();

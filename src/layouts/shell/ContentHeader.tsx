@@ -26,11 +26,11 @@ export const ContentHeader = ({
     <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50">
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-          <Icon className="w-5 h-5 text-accent" />
+          <Icon className="w-4 h-4 text-accent" />
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{t(titleKey)}</h2>
-          <p className="text-xs text-muted-foreground">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-body font-semibold text-foreground">{t(titleKey)}</h2>
+          <p className="text-list text-muted-foreground">
             {header.subtitle({ t, selectedSession, globalOverviewDescription })}
           </p>
         </div>

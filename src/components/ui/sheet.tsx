@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { XIcon } from "lucide-react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -96,7 +96,7 @@ function SheetCloseButton() {
       aria-label={label}
       className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden disabled:pointer-events-none"
     >
-      <XIcon className="size-4" />
+      <X className="size-4" />
       <span className="sr-only">{label}</span>
     </DialogPrimitive.Close>
   );
@@ -119,7 +119,7 @@ function SheetTitle({
   return (
     <DialogPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-lg leading-none font-semibold", className)}
+      className={cn("text-title leading-none font-semibold", className)}
       {...props}
     />
   );

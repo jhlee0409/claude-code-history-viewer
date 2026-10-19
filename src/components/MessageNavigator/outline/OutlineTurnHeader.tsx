@@ -18,8 +18,8 @@ const CountChip: React.FC<CountChipProps> = ({ icon: Icon, count, label, classNa
   if (count === 0) return null;
   return (
     <span className="inline-flex items-center gap-0.5" title={label}>
-      <Icon className={cn("w-3 h-3", className)} aria-hidden="true" />
-      <span aria-hidden="true" className="text-2xs tabular-nums">
+      <Icon className={cn("w-3.5 h-3.5", className)} aria-hidden="true" />
+      <span aria-hidden="true" className="text-caption tabular-nums">
         {count}
       </span>
       <span className="sr-only">{label}</span>
@@ -102,20 +102,20 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
       <div className="flex items-center gap-1.5 mb-0.5">
         <ChevronRight
           className={cn(
-            "w-3 h-3 shrink-0 text-muted-foreground transition-transform",
+            "w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform",
             isOpen && "rotate-90",
           )}
           aria-hidden="true"
         />
-        <span className="text-xs font-medium text-foreground truncate flex-1">{labelText}</span>
+        <span className="text-list font-medium text-foreground truncate flex-1">{labelText}</span>
         {formattedTime && (
-          <span className="shrink-0 text-2xs text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
         )}
       </div>
       {header && (
         <p
           className={cn(
-            "text-xs line-clamp-2 leading-relaxed mb-1",
+            "text-list line-clamp-2 leading-relaxed mb-1",
             header.preview ? kindStyle?.textClass : "text-muted-foreground italic",
           )}
         >

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Terminal } from "lucide-react";
+import { TriangleAlert, SquareTerminal } from "lucide-react";
 import { useNativeRename } from "@/hooks/useNativeRename";
 import type { ProviderId } from "@/types";
 
@@ -86,7 +86,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Terminal className="w-5 h-5" />
+            <SquareTerminal className="w-4 h-4" />
             {isOpenCode
               ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
               : isCodex
@@ -118,7 +118,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <TriangleAlert className="h-4 w-4" />
               <AlertDescription>
                 {isOpenCode
                   ? t(
@@ -144,7 +144,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
               <Label className="text-muted-foreground">
                 {t("session.nativeRename.currentName", "Current name")}
               </Label>
-              <p className="text-sm bg-muted/50 rounded-md px-3 py-2 break-words">
+              <p className="text-body bg-muted/50 rounded-md px-3 py-2 break-words">
                 {currentName || t("session.summaryNotFound", "No summary")}
               </p>
             </div>
@@ -163,7 +163,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                 disabled={isRenaming}
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {usesStandaloneTitlePreview
                   ? t("session.nativeRename.previewOpenCode", {
                       title: previewText,

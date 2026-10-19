@@ -1,5 +1,4 @@
 {
-  "archive.title": "アーカイブマネージャー",
   "archive.description": "会話履歴を管理・保存します",
   "archive.tab.overview": "概要",
   "archive.tab.browse": "閲覧",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "プロジェクトを選択",
   "archive.create.mainSessions": "メインセッション ({{count}})",
   "archive.create.subagentSessions": "サブエージェントセッション ({{count}})",
-  "archive.settings.link": "アーカイブマネージャー",
   "archive.settings.linkDescription": "クリーンアップ前に会話履歴を管理・保存"
 }

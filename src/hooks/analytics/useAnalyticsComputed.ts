@@ -19,13 +19,17 @@ function screenFor(view: View, hasProject: boolean): View {
 export function useAnalyticsComputed() {
   const hasProject = useAppStore((s) => s.selectedProject != null);
   const view = screenFor(useAppStore((s) => s.view), hasProject);
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
   const analytics = useAppStore((s) => s.analytics);
   const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
+  // The Edits screen's first page (`recentEditsSlice`).
+  const isLoadingRecentEdits = useAppStore((s) => s.isLoadingRecentEdits);
 
   return useMemo(
     () => ({
-      isTokenStatsView: view === "tokenStats",
       isAnalyticsView: view === "analytics",
+      isAnalyticsOverview: view === "analytics" && analyticsTab === "overview",
+      isAnalyticsTokens: view === "analytics" && analyticsTab === "tokens",
       isGlobalStatsView: view === "globalStats",
       isMessagesView: view === "conversation",
       isRecentEditsView: view === "edits",
@@ -35,28 +39,27 @@ export function useAnalyticsComputed() {
       isEmptyView: view === "empty",
       hasAnyError: !!(
         analytics.projectSummaryError ||
-        analytics.sessionComparisonError ||
-        analytics.recentEditsError
+        analytics.sessionComparisonError
       ),
       isLoadingAnalytics:
         analytics.isLoadingProjectSummary ||
         analytics.isLoadingSessionComparison,
       isLoadingTokenStats,
-      isLoadingRecentEdits: analytics.isLoadingRecentEdits,
+      isLoadingRecentEdits,
       isAnyLoading:
         analytics.isLoadingProjectSummary ||
         analytics.isLoadingSessionComparison ||
-        analytics.isLoadingRecentEdits ||
+        isLoadingRecentEdits ||
         isLoadingTokenStats,
     }),
     [
       view,
+      analyticsTab,
       analytics.projectSummaryError,
       analytics.sessionComparisonError,
-      analytics.recentEditsError,
       analytics.isLoadingProjectSummary,
       analytics.isLoadingSessionComparison,
-      analytics.isLoadingRecentEdits,
+      isLoadingRecentEdits,
       isLoadingTokenStats,
     ]
   );

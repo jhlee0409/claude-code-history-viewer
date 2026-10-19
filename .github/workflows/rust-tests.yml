@@ -5,11 +5,13 @@ on:
     branches: [main, develop]
     paths:
       - "src-tauri/**"
+      - "scripts/ci/launch-smoke.*"
       - ".github/workflows/rust-tests.yml"
   pull_request:
     branches: [main, develop]
     paths:
       - "src-tauri/**"
+      - "scripts/ci/launch-smoke.*"
       - ".github/workflows/rust-tests.yml"
 
 env:
@@ -119,6 +121,31 @@ jobs:
         working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2
 
+      # Launch smoke: the real desktop binary starts and its main window
+      # becomes visible. The window is created hidden and shown from `setup`
+      # (window_state.rs); if that show never runs the app looks dead, which
+      # no unit test sees. It runs here, between the two test runs, because
+      # the integration tests make the step above build the binary
+      # (default features, debug) into target/debug - no extra compile. The
+      # webui-server run below rebuilds it with that feature. Linux only in
+      # this matrix; Windows runs it in its own job below.
+      - name: Launch smoke (Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick
+          dbus-run-session -- bash scripts/ci/launch-smoke.sh \
+            src-tauri/target/debug/claude-code-history-viewer launch-smoke
+
+      - name: Upload launch smoke
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-smoke-linux
+          path: launch-smoke/
+          if-no-files-found: ignore
+          retention-days: 7
+
       # webui-server gates extra command surface (incl. is_safe_session_path),
       # which the default run does not compile. Exercise it explicitly so those
       # paths get real test coverage (e.g. the #355 symlinked-root regression).
@@ -173,11 +200,30 @@ jobs:
         shell: bash
         run: mkdir -p dist && touch dist/index.html
 
+      # Default features last: the integration tests make this build the
+      # desktop binary into target/debug, and the launch smoke below runs the
+      # default-feature one.
       - name: Build test binaries
         working-directory: src-tauri
         run: |
-          cargo nextest run --profile ci --no-run
           cargo nextest run --profile ci --no-run --features webui-server
+          cargo nextest run --profile ci --no-run
+
+      # Launch smoke, as in the Ubuntu job: the real desktop binary starts and
+      # its hidden-at-creation main window becomes visible.
+      - name: Launch smoke
+        shell: pwsh
+        timeout-minutes: 5
+        run: ./scripts/ci/launch-smoke.ps1 src-tauri/target/debug/claude-code-history-viewer.exe launch-smoke
+
+      - name: Upload launch smoke
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-smoke-windows
+          path: launch-smoke/
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Both feature sets, matching Ubuntu. The default set is not a subset:
       # `grok::get_base_path_returns_none_when_default_dir_absent` only runs

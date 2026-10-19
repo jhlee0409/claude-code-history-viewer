@@ -11,6 +11,9 @@ describe("Tauri Capabilities", () => {
     "core:app:allow-version",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
+    // View → Zoom sets the web view's zoom (src/commands/zoom.ts); it replaced
+    // the engine's zoom hotkeys, which needed the same permission.
+    "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     "dialog:allow-save",
     "process:allow-restart",
@@ -91,5 +94,21 @@ describe("Tauri Capabilities", () => {
       "core:window:allow-internal-toggle-maximize",
     ]));
     expect(capability.permissions).not.toContain("core:window:default");
+  });
+
+  it("grants the page no window-state or window-geometry permission (restore runs in Rust only)", () => {
+    const capability = JSON.parse(fs.readFileSync(defaultCapabilityPath, "utf-8"));
+    const identifiers: string[] = capability.permissions.map((permission: unknown) =>
+      typeof permission === "string"
+        ? permission
+        : (permission as { identifier?: string }).identifier ?? ""
+    );
+
+    expect(identifiers.filter((id) => id.startsWith("window-state:"))).toEqual([]);
+    expect(
+      identifiers.filter((id) =>
+        /^core:window:allow-(set-position|set-size|outer-position|outer-size|show|hide|maximize)$/.test(id)
+      )
+    ).toEqual([]);
   });
 });

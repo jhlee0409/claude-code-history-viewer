@@ -16,7 +16,6 @@
   "message.scrollToBottom": "最下部へ移動",
   "message.system": "システム",
   "message.user": "ユーザー",
-  "message.view": "メッセージを表示",
   "messageContentDisplay.copyMessage": "メッセージをコピー",
   "messageContentDisplay.showLess": "折りたたむ",
   "messageContentDisplay.showMore": "もっと見る...",
@@ -128,5 +127,8 @@
   "filter.content.parallelTasks": "並列タスク",
   "filter.reset": "フィルターをリセット",
   "filter.active": "フィルター有効",
-  "filter.showing": "{{filtered}} / {{total}}"
+  "filter.showing": "{{filtered}} / {{total}}",
+  "messageViewer.clearSearch": "検索をクリア",
+  "messageViewer.prevMatch": "前の一致 (Shift+Enter)",
+  "messageViewer.nextMatch": "次の一致 (Enter)"
 }

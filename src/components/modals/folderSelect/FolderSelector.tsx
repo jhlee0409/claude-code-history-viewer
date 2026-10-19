@@ -1,12 +1,13 @@
 import { useState } from "react";
 import {
   Folder,
-  AlertCircle,
+  CircleAlert,
   ArrowLeft,
-  CheckCircle2,
-  HelpCircle,
+  CircleCheck,
+  CircleQuestionMark,
   Search,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { isTauri } from "@/utils/platform";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
@@ -110,13 +111,13 @@ export function FolderSelector({
       {/* Icon */}
       <div className="flex justify-center">
         <div className="rounded-full bg-primary/10 p-4">
-          <Folder className="h-12 w-12 text-primary" />
+          <Icon icon={Folder} size={24} className="text-primary" />
         </div>
       </div>
 
       {/* Title & Description */}
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="text-title font-bold text-foreground">
           {isChangeMode
             ? t("folderPicker.change")
             : t("folderPicker.notFound")}
@@ -159,7 +160,7 @@ export function FolderSelector({
       {/* Selected Path */}
       {selectedPath && (
         <Alert variant="default" className="text-left overflow-hidden">
-          <CheckCircle2 className="h-4 w-4" />
+          <CircleCheck className="h-4 w-4" />
           <AlertDescription className="truncate min-w-0" title={selectedPath}>
             {t("folderPicker.selectedPath")} {selectedPath}
           </AlertDescription>
@@ -169,7 +170,7 @@ export function FolderSelector({
       {/* Validation Error */}
       {validationError && (
         <Alert variant="destructive" className="text-left">
-          <AlertCircle className="h-4 w-4" />
+          <CircleAlert className="h-4 w-4" />
           <AlertDescription>{validationError}</AlertDescription>
         </Alert>
       )}
@@ -177,13 +178,13 @@ export function FolderSelector({
       {/* Help Section */}
       <Card variant="outline" className="text-left">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <HelpCircle className="h-4 w-4" />
+          <CardTitle className="text-body font-semibold flex items-center gap-2">
+            <CircleQuestionMark className="h-4 w-4" />
             {t("folderPicker.help")}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground whitespace-pre-line">
+          <p className="text-body text-muted-foreground whitespace-pre-line">
             {t("folderPicker.helpDetails")}
           </p>
         </CardContent>

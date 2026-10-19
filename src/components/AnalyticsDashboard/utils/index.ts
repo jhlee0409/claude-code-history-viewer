@@ -6,13 +6,13 @@
 
 // Base calculations
 export {
-  calculateGrowthTrend,
   formatNumber,
   formatCurrency,
   calculateModelPrice,
   hasExplicitModelPricing,
   MODEL_PRICING_AUDITED_AT,
   getHeatColor,
+  getHeatTextColor,
 } from "./calculations";
 
 // Tool name utilities
@@ -30,7 +30,6 @@ export {
 export {
   generateTrendData,
   calculateDailyGrowth,
-  GROWTH_FLOORS,
   extractProjectGrowth,
   type GrowthMetrics,
 } from "./projectCalculations";

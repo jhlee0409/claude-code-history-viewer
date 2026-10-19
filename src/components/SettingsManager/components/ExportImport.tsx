@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Download, Upload, Archive, FolderOpen, ShieldAlert } from "lucide-react";
+import { TriangleAlert, Download, Upload, Archive, FolderOpen, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -337,7 +337,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           <div className="space-y-3">
             <div>
               <Label>{t("settingsManager.exportImport.export")}</Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 {t("settingsManager.exportImport.exportDescription")}
               </p>
             </div>
@@ -345,7 +345,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             {/* Export Scope Selection */}
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <Label className="text-sm">{t("settingsManager.exportImport.exportScope")}</Label>
+                <Label className="text-body">{t("settingsManager.exportImport.exportScope")}</Label>
                 <Select value={exportScope} onValueChange={(v) => setExportScope(v as SettingsScope)}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -381,7 +381,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
                 checked={excludeSensitive}
                 onCheckedChange={setExcludeSensitive}
               />
-              <Label className="text-sm">
+              <Label className="text-body">
                 {t("settingsManager.exportImport.excludeSensitive")}
               </Label>
             </div>
@@ -390,7 +390,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             {!excludeSensitive && (sensitiveAnalysis.hasEnvSecrets || sensitiveAnalysis.hasMcpSecrets) && (
               <Alert variant="destructive" className="mt-3">
                 <ShieldAlert className="h-4 w-4" />
-                <AlertDescription className="text-sm">
+                <AlertDescription className="text-body">
                   {t("settingsManager.exportImport.sensitiveWarning", {
                     envCount: sensitiveAnalysis.envSecretCount,
                     mcpCount: sensitiveAnalysis.mcpServerWithSecretsCount,
@@ -406,7 +406,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <Label>{t("settingsManager.exportImport.import")}</Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 {t("settingsManager.exportImport.importDescription")}
               </p>
             </div>
@@ -422,7 +422,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Archive className="w-5 h-5" />
+            <Archive className="w-4 h-4" />
             {t("settingsManager.exportImport.exportAll")}
           </CardTitle>
         </CardHeader>
@@ -432,7 +432,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <Label>{t("settingsManager.exportImport.exportAll")}</Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-body text-muted-foreground">
                   {t("settingsManager.exportImport.exportAllDescription")}
                 </p>
               </div>
@@ -446,18 +446,18 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             </div>
             {hasAnySettings && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-body text-muted-foreground">
                   {t("settingsManager.exportImport.scopesIncluded")}:
                 </span>
                 {availableScopesForExport.map((scope) => (
-                  <Badge key={scope} variant="secondary" className="text-xs">
+                  <Badge key={scope} variant="secondary" className="text-list">
                     {t(`settingsManager.scope.${scope}`)}
                   </Badge>
                 ))}
               </div>
             )}
             {!hasAnySettings && (
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-body text-muted-foreground italic">
                 {t("settingsManager.exportImport.noSettings")}
               </p>
             )}
@@ -469,7 +469,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <Label>{t("settingsManager.exportImport.importAll")}</Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 {t("settingsManager.exportImport.importAllDescription")}
               </p>
             </div>
@@ -503,7 +503,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             </div>
             <div className="flex-1 overflow-auto">
               <Label>{t("settingsManager.exportImport.preview")}</Label>
-              <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-[300px] font-mono">
+              <pre className="bg-muted p-4 rounded-lg text-body overflow-auto max-h-[300px] font-mono">
                 {importedSettings ? JSON.stringify(importedSettings, null, 2) : ""}
               </pre>
             </div>
@@ -526,7 +526,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             <DialogTitle>{t("settingsManager.exportImport.importAllPreviewTitle")}</DialogTitle>
             <DialogDescription>
               {importedBackup?.exportedAt && (
-                <span className="text-xs">
+                <span className="text-list">
                   Exported: {new Date(importedBackup.exportedAt).toLocaleString()}
                 </span>
               )}
@@ -534,7 +534,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-hidden">
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <TriangleAlert className="h-4 w-4" />
               <AlertDescription>
                 {t("settingsManager.exportImport.importAllConfirm")}
               </AlertDescription>
@@ -543,11 +543,11 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             {importedBackup && (
               <>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-body text-muted-foreground">
                     {t("settingsManager.exportImport.scopesIncluded")}:
                   </span>
                   {Object.keys(importedBackup.scopes).map((scope) => (
-                    <Badge key={scope} variant="secondary" className="text-xs">
+                    <Badge key={scope} variant="secondary" className="text-list">
                       {t(`settingsManager.scope.${scope}`)}
                     </Badge>
                   ))}
@@ -556,30 +556,30 @@ export const ExportImport: React.FC<ExportImportProps> = ({
                 <div className="flex-1 overflow-auto space-y-3">
                   {importedBackup.scopes.user && (
                     <div>
-                      <Label className="text-xs font-medium">
+                      <Label className="text-list font-medium">
                         {t("settingsManager.scope.user")}
                       </Label>
-                      <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[120px] font-mono">
+                      <pre className="bg-muted p-3 rounded text-list overflow-auto max-h-[120px] font-mono">
                         {JSON.stringify(importedBackup.scopes.user, null, 2)}
                       </pre>
                     </div>
                   )}
                   {importedBackup.scopes.project && (
                     <div>
-                      <Label className="text-xs font-medium">
+                      <Label className="text-list font-medium">
                         {t("settingsManager.scope.project")}
                       </Label>
-                      <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[120px] font-mono">
+                      <pre className="bg-muted p-3 rounded text-list overflow-auto max-h-[120px] font-mono">
                         {JSON.stringify(importedBackup.scopes.project, null, 2)}
                       </pre>
                     </div>
                   )}
                   {importedBackup.scopes.local && (
                     <div>
-                      <Label className="text-xs font-medium">
+                      <Label className="text-list font-medium">
                         {t("settingsManager.scope.local")}
                       </Label>
-                      <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[120px] font-mono">
+                      <pre className="bg-muted p-3 rounded text-list overflow-auto max-h-[120px] font-mono">
                         {JSON.stringify(importedBackup.scopes.local, null, 2)}
                       </pre>
                     </div>

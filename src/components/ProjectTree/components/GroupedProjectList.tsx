@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { AlertCircle, Clock, FolderTree, GitBranch, Timer } from "lucide-react";
+import { CircleAlert, Clock, FolderTree, GitBranch, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 import {
@@ -9,9 +9,11 @@ import {
   type DirectoryGroup,
   type TimeGroup,
 } from "../../../utils/worktreeUtils";
-import type { GroupingStrategy } from "../types";
+import type { GroupingStrategy, SessionSelectHandler } from "../types";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/useAppStore";
 import { ProjectItem } from "./ProjectItem";
-import { SessionList } from "./SessionList";
+import { ProjectSessions } from "./ProjectSessions";
 import { GroupHeader } from "./GroupHeader";
 import { isProjectPathUnavailable, isProjectTemporary } from "../../../utils/pathUtils";
 
@@ -35,12 +37,18 @@ interface GroupedProjectListProps {
   isProjectExpanded: (path: string) => boolean;
   handleProjectClick: (project: ClaudeProject) => void;
   handleContextMenu: (e: React.MouseEvent, project: ClaudeProject, providerSiblings?: ClaudeProject[]) => void;
-  onSessionSelect: (session: ClaudeSession) => void;
+  onSessionSelect: SessionSelectHandler;
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
   inlineSessions?: boolean;
+  /** An app-level screen is open: the open project is kept context (C3). */
+  isSelectionRetained?: boolean;
 }
+
+/** Expansion keys of group rows, as opposed to project paths. */
+const isGroupKey = (key: string) =>
+  key.startsWith("dir:") || key.startsWith("group:") || key.startsWith("time:");
 
 export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   groupingMode,
@@ -67,8 +75,13 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onLoadMoreSessions = () => {},
   formatTimeAgo,
   inlineSessions = true,
+  isSelectionRetained = false,
 }) => {
   const { t } = useTranslation();
+  const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
+  const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
+  // The project whose full list "Show all" opened (one at a time).
+  const [showAllPath, setShowAllPath] = React.useState<string | null>(null);
 
   const toggleGroup = (groupKey: string, projectsInGroup: ClaudeProject[]) => {
     setExpandedProjects((prev) => {
@@ -87,40 +100,43 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   };
 
   /*
-    Collapsing a row (ArrowLeft) is tree state only: the project and any open
-    conversation stay where they are (plan §9b F3, expand is not select).
-    Expanding still opens the project, because the tree can list sessions of
-    the open project only; showing another project's sessions without
-    opening it is the sidebar rework (T7), as is making a re-click collapse.
+    Expanding and collapsing a row is tree state only (plan §9b F3): it never
+    opens or leaves a project, and an open conversation stays where it is.
+    One project row is expanded at a time (only it lists its sessions);
+    group rows (directory, worktree, time buckets) keep their own state.
   */
-  const collapseProject = (project: ClaudeProject) => {
+  const setProjectExpanded = (project: ClaudeProject, expanded: boolean) => {
     setExpandedProjects((prev) => {
-      if (!prev.has(project.path)) return prev;
-      const next = new Set(prev);
-      next.delete(project.path);
+      if (prev.has(project.path) === expanded) return prev;
+      const next = new Set<string>();
+      for (const key of prev) {
+        if (isGroupKey(key)) next.add(key);
+      }
+      if (expanded) next.add(project.path);
       return next;
     });
   };
+
+  const toggleProject = (project: ClaudeProject, isExpanded: boolean) =>
+    setProjectExpanded(project, !isExpanded);
 
   /*
-    Re-expanding the open project's row (ArrowRight after ArrowLeft) is tree
-    state too: the project is already open, so only the row expands. Going
-    through `handleProjectClick` would take its re-click branch and collapse
-    the row again.
+    A row click opens a closed project (and expands it). On the open project
+    it only expands or collapses: re-clicking never leaves the project (F3).
   */
-  const expandOpenProject = (project: ClaudeProject) => {
-    setExpandedProjects((prev) => {
-      if (prev.has(project.path)) return prev;
-      const next = new Set(prev);
-      next.add(project.path);
-      return next;
-    });
+  const clickProject = (project: ClaudeProject, isExpanded: boolean) => {
+    if (selectedProject?.path === project.path) {
+      toggleProject(project, isExpanded);
+      return;
+    }
+    setProjectExpanded(project, true);
+    handleProjectClick(project);
   };
 
-  const toggleProject = (project: ClaudeProject, isExpanded: boolean) => {
-    if (isExpanded) collapseProject(project);
-    else if (selectedProject?.path === project.path) expandOpenProject(project);
-    else handleProjectClick(project);
+  const showAllFor = (project: ClaudeProject, showAll: boolean) => {
+    setShowAllPath(showAll ? project.path : null);
+    // The full list is the open project's: "Show all" on another opens it.
+    if (showAll && selectedProject?.path !== project.path) handleProjectClick(project);
   };
 
   const renderProjectWithSessions = (
@@ -130,7 +146,9 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     providerSiblings: ClaudeProject[] = []
   ) => {
     const isExpanded = isProjectExpanded(project.path);
-    const showSessions = inlineSessions && isExpanded && selectedProject?.path === project.path;
+    const isOpen = selectedProject?.path === project.path;
+    const showSessions = inlineSessions && isExpanded;
+    const canSelect = isOpen && isExpanded && sessions.length > 1 && !isSelectionMode;
 
     // NOTE: collapsed rows previously used `content-visibility: auto` to skip
     // offscreen paint (#460). Removed because WebKit (WKWebView/WebKitGTK)
@@ -141,37 +159,55 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     // useDeferredValue, so the optimization is not worth the rendering bug.
 
     return (
-      <div key={project.path} role="none">
+      <div key={project.path} role="none" className="relative">
         <ProjectItem
           project={project}
           isExpanded={isExpanded}
-          isSelected={selectedProject?.path === project.path}
+          isSelected={isOpen}
+          isRetained={isOpen && isSelectionRetained}
           ariaLevel={ariaLevel}
           onToggle={() => toggleProject(project, isExpanded)}
-          onClick={() => handleProjectClick(project)}
+          onClick={() => clickProject(project, isExpanded)}
           onContextMenu={(e) => handleContextMenu(e, project, providerSiblings)}
           variant={variant}
           showProviderBadge={showProviderBadge}
           providerSiblings={providerSiblings}
-          onSelectSibling={handleProjectClick}
           hasInlineChildren={inlineSessions}
+          reserveTrailingSpace={canSelect}
         />
+        {/* Drawn over the row, not inside it: a button inside the tree
+            item would nest interactive controls. */}
+        {canSelect && (
+          <button
+            type="button"
+            onClick={enterSessionSelectionMode}
+            className={cn(
+              "absolute right-1 top-1 h-5 px-1.5 rounded text-caption font-medium",
+              "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+            aria-label={t("session.selection.enter")}
+            title={t("session.selection.enter")}
+          >
+            {t("project.select")}
+          </button>
+        )}
         {showSessions && (
-          <div role="none">
-            <SessionList
-              sessions={sessions}
-              sessionsTotal={sessionsTotal}
-              hasMoreSessions={hasMoreSessions}
-              selectedSession={selectedSession}
-              isLoading={isLoading}
-              isLoadingMoreSessions={isLoadingMoreSessions}
-              onSessionSelect={onSessionSelect}
-              onSessionHover={onSessionHover}
-              onLoadMoreSessions={onLoadMoreSessions}
-              formatTimeAgo={formatTimeAgo}
-              variant={variant}
-            />
-          </div>
+          <ProjectSessions
+            project={project}
+            isOpen={isOpen}
+            sessions={sessions}
+            sessionsTotal={sessionsTotal}
+            hasMoreSessions={hasMoreSessions}
+            selectedSession={selectedSession}
+            isLoading={isLoading}
+            isLoadingMoreSessions={isLoadingMoreSessions}
+            showAll={showAllPath === project.path}
+            onShowAll={showAllFor}
+            onSessionSelect={onSessionSelect}
+            onSessionHover={onSessionHover}
+            onLoadMoreSessions={onLoadMoreSessions}
+            formatTimeAgo={formatTimeAgo}
+          />
         )}
       </div>
     );
@@ -202,7 +238,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
               : t("project.pathUnavailableGroup", "Unavailable locations")
           }
           icon={
-            isTemporary ? <Timer className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />
+            isTemporary ? <Timer className="w-3.5 h-3.5" /> : <CircleAlert className="w-3.5 h-3.5" />
           }
           count={bucketProjects.length}
           isExpanded={isGroupExpanded}

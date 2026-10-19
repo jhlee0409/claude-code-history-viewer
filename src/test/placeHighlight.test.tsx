@@ -86,8 +86,9 @@ const flagsFor = (view: View) =>
   ({
     isMessagesView: view === "conversation",
     isAnalyticsView: view === "analytics",
+    isAnalyticsOverview: view === "analytics",
+    isAnalyticsTokens: false,
     isGlobalStatsView: view === "globalStats",
-    isTokenStatsView: view === "tokenStats",
     isRecentEditsView: view === "edits",
     isBoardView: view === "board",
     isSettingsView: view === "settingsManager",
@@ -131,16 +132,19 @@ describe("header view tabs follow the place", () => {
     at("analytics", true);
     renderHeader("analytics");
     const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
-    expect(tabs).toHaveLength(5);
+    // Token stats has no tab of its own since T7 (plan C1).
+    expect(tabs).toHaveLength(4);
     for (const tab of tabs) {
       expect(["true", "false"]).toContain(tab.getAttribute("aria-selected"));
     }
   });
 
-  it("empty start: no tablist at all", () => {
+  it("empty start: the tabs stay in place, disabled, none selected", () => {
     at("conversation", false);
     renderHeader("conversation");
-    expect(screen.queryByRole("tablist")).toBeNull();
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    expect(tabs.every((tab) => (tab as HTMLButtonElement).disabled)).toBe(true);
+    expect(selectedTabs()).toEqual([]);
   });
 
   it.each(["globalStats", "archive", "settingsManager"] as const)(
@@ -153,15 +157,21 @@ describe("header view tabs follow the place", () => {
   );
 
   it.each([
-    ["conversation", "message.view"],
-    ["analytics", "analytics.dashboard"],
-    ["tokenStats", "messages.tokenStats.existing"],
-    ["edits", "recentEdits.title"],
-    ["board", "session.board.title"],
-  ] as const)("%s selects exactly its own tab", (view, label) => {
+    ["conversation", "common.place.messages"],
+    ["analytics", "common.place.analytics"],
+    ["edits", "common.place.edits"],
+    ["board", "common.place.board"],
+  ] as const)("%s selects exactly the %s tab", (view, label) => {
     at(view, true);
     renderHeader(view);
     expect(selectedTabs()).toEqual([label]);
+  });
+
+  it("the analytics tokens sub-tab keeps the analytics tab selected (T9b)", () => {
+    at("analytics", true);
+    useAppStore.setState({ analyticsTab: "tokens" });
+    renderHeader("analytics");
+    expect(selectedTabs()).toEqual(["common.place.analytics"]);
   });
 });
 
@@ -238,7 +248,7 @@ describe("header view tabs keyboard", () => {
     renderHeader("conversation");
     focus(tabs()[0]!);
     press("ArrowRight");
-    act(() => useAppStore.setState({ view: "tokenStats" }));
+    act(() => useAppStore.setState({ view: "board" }));
     const stops = tabs().filter((tab) => tab.tabIndex === 0);
     expect(stops).toHaveLength(1);
     expect(stops[0]?.getAttribute("aria-selected")).toBe("true");
@@ -289,10 +299,10 @@ describe("mobile tab bar follows the place", () => {
       .map((b) => b.getAttribute("aria-label"));
 
   it.each([
-    ["conversation", ["common.mobile.tab.messages"]],
-    ["analytics", ["common.mobile.tab.analytics"]],
-    ["board", ["common.mobile.tab.board"]],
-    ["settingsManager", ["common.mobile.tab.settings"]],
+    ["conversation", ["common.place.messages"]],
+    ["analytics", ["common.place.analytics"]],
+    ["board", ["common.place.board"]],
+    ["settingsManager", ["common.place.claudeCodeSettings"]],
     ["globalStats", []],
     ["archive", []],
   ] as const)("%s → %j", (view, expected) => {

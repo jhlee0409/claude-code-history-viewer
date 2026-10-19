@@ -16,7 +16,6 @@
   "message.scrollToBottom": "滚动到底部",
   "message.system": "系统",
   "message.user": "用户",
-  "message.view": "查看消息",
   "messageContentDisplay.copyMessage": "复制消息",
   "messageContentDisplay.showLess": "收起",
   "messageContentDisplay.showMore": "展开更多...",
@@ -128,5 +127,8 @@
   "filter.content.parallelTasks": "并行任务",
   "filter.reset": "重置筛选",
   "filter.active": "筛选已启用",
-  "filter.showing": "{{filtered}} / {{total}}"
+  "filter.showing": "{{filtered}} / {{total}}",
+  "messageViewer.clearSearch": "清除搜索",
+  "messageViewer.prevMatch": "上一个匹配项 (Shift+Enter)",
+  "messageViewer.nextMatch": "下一个匹配项 (Enter)"
 }

@@ -9,7 +9,12 @@ import { SEARCH_MIN_CHARS } from "../types";
 
 interface UseSearchStateOptions {
   onSearchChange: (query: string) => void;
-  sessionId?: string;
+  /**
+   * The transcript the field searches: the open session in the open tab.
+   * When it changes (another session, another tab - even on the same
+   * session) the field starts empty, as the store's find does (T8).
+   */
+  resetKey?: string;
 }
 
 interface UseSearchStateReturn {
@@ -23,7 +28,7 @@ interface UseSearchStateReturn {
 
 export const useSearchState = ({
   onSearchChange,
-  sessionId,
+  resetKey,
 }: UseSearchStateOptions): UseSearchStateReturn => {
   // Optimistic UI: 입력 상태를 별도로 관리
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,10 +61,10 @@ export const useSearchState = ({
     onSearchChange(deferredSearchQuery);
   }, [deferredSearchQuery, onSearchChange]);
 
-  // 세션 변경 시 검색어 초기화
+  // 세션 또는 탭 변경 시 검색어 초기화
   useEffect(() => {
     setSearchQuery("");
-  }, [sessionId]);
+  }, [resetKey]);
 
   // 검색어 초기화 핸들러
   const handleClearSearch = useCallback(() => {

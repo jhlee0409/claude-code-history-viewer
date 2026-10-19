@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 mod cache;
+pub mod usage_breakdown;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 enum StatsProvider {

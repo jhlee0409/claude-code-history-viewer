@@ -85,15 +85,15 @@ export const OutlineActivityRow = React.memo<OutlineActivityRowProps>(({
       onKeyDown={onKeyDown}
     >
       <div className="flex items-center gap-1.5 mb-0.5">
-        <ReplyIcon className={cn("w-3 h-3 shrink-0", KIND_STYLES.reply.iconClass)} aria-hidden="true" />
-        <span className="text-xs font-medium text-foreground/80 truncate flex-1">
+        <ReplyIcon className={cn("w-3.5 h-3.5 shrink-0", KIND_STYLES.reply.iconClass)} aria-hidden="true" />
+        <span className="text-list font-medium text-foreground/80 truncate flex-1">
           {activity.preview || t(getKindLabelKey(activity.previewKind))}
         </span>
         {formattedTime && (
-          <span className="shrink-0 text-2xs text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+      <p className="text-list text-muted-foreground truncate">{subtitle}</p>
     </button>
   );
 });

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import type { ReactNode } from "react";
-import { CheckSquare, Circle } from "lucide-react";
+import { SquareCheckBig, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
@@ -146,7 +146,7 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
       <Renderer.Content>
         <div className="space-y-3">
           {questions.map((q, qi) => {
-            const OptionIcon = q.multiSelect ? CheckSquare : Circle;
+            const OptionIcon = q.multiSelect ? SquareCheckBig : Circle;
             return (
               <div key={qi} className="border-l-2 border-border pl-3">
                 {q.header && (

@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { comparePng, runGate } from "../lib/compare.mjs";
+import { comparePng, formatReport, runGate } from "../lib/compare.mjs";
+import { ExpectedChangesError, expectedChangesFromBody } from "../lib/expectedChanges.mjs";
 
 const SIZE = 100;
 let root;
@@ -88,6 +89,118 @@ describe("unchanged gate", () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ x: i * 4, y: 10, rgb: [0, 0, 0] }));
     writePng(path.join(dirs().headDir, "s.png"), WHITE, many);
     expect(gate("unchanged").ok).toBe(false);
+  });
+});
+
+describe("unchanged gate with expected changes (--expect-changed)", () => {
+  // 20 of 10,000 pixels = 0.2% (over the 0.1% tolerance); one pixel = 0.01%.
+  const twentyDots = Array.from({ length: 20 }, (_, i) => ({ x: i * 4, y: 10, rgb: [0, 0, 0] }));
+  const oneDot = [{ x: 1, y: 1, rgb: [0, 0, 0] }];
+  const shoot = (id, headEdits) => {
+    writePng(path.join(dirs().baseDir, `${id}.png`), WHITE);
+    writePng(path.join(dirs().headDir, `${id}.png`), WHITE, headEdits);
+  };
+  const unchanged = (expected, expectChanged) => runGate({ gate: "unchanged", expected, expectChanged, ...dirs() });
+
+  it("lets a declared scenario exceed 0.1% as expected-change and still fails an undeclared one", () => {
+    shoot("a", twentyDots);
+    shoot("b", twentyDots);
+    const outcome = unchanged(["a", "b"], ["a"]);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.rows[0]).toMatchObject({ id: "a", status: "expected-change", expectedBy: "a", changedRatio: 0.002 });
+    expect(outcome.rows[1]).toMatchObject({ id: "b", status: "changed" });
+    expect(outcome.failures).toEqual(["b: 0.2000% changed (> 0.1%)"]);
+    expect(outcome.expectedChanges).toEqual([{ id: "a", changedRatio: 0.002, expectedBy: "a" }]);
+    expect(fs.existsSync(path.join(dirs().diffDir, "a.png"))).toBe(true); // evidence stays
+  });
+
+  it("passes when every change is declared; a prefix glob covers its scenarios", () => {
+    shoot("home--wide--dark", twentyDots);
+    shoot("home--phone--dark", twentyDots);
+    shoot("settings--phone--dark", []);
+    const outcome = unchanged(["home--wide--dark", "home--phone--dark", "settings--phone--dark"], ["home--*"]);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.rows.map((row) => row.status)).toEqual(["expected-change", "expected-change", "ok"]);
+    expect(outcome.rows[0].expectedBy).toBe("home--*");
+    expect(outcome.warnings).toEqual([]);
+  });
+
+  it("warns, without failing, when a declared entry changed nothing beyond 0.1%", () => {
+    shoot("a", []);
+    shoot("b", oneDot);
+    shoot("glob--1", twentyDots);
+    shoot("glob--2", []);
+    shoot("quiet--1", oneDot);
+    const outcome = unchanged(["a", "b", "glob--1", "glob--2", "quiet--1"], ["a", "b", "glob--*", "quiet--*"]);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.rows.map((row) => row.status)).toEqual(["ok", "ok", "expected-change", "ok", "ok"]);
+    expect(outcome.warnings).toEqual([
+      "a: declared as an expected change, but changed 0.0000% (<= 0.1%)",
+      "b: declared as an expected change, but changed 0.0100% (<= 0.1%)",
+      "quiet--*: declared as an expected change, but none of its 1 scenario(s) changed more than 0.1% (max 0.0100%)",
+    ]);
+  });
+
+  it("still fails a declared scenario without a capture", () => {
+    writePng(path.join(dirs().baseDir, "a.png"), WHITE);
+    const outcome = unchanged(["a"], ["a"]);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.rows[0].status).toBe("missing-head");
+    expect(outcome.warnings).toEqual([]);
+  });
+
+  it("refuses an entry that matches no compared scenario (a typo)", () => {
+    shoot("a", twentyDots);
+    expect(() => unchanged(["a"], ["a", "nope--*"])).toThrow(ExpectedChangesError);
+    expect(() => unchanged(["a"], ["a", "nope--*"])).toThrow(/nope--\*/);
+  });
+
+  it("refuses expected changes under the other gates", () => {
+    shoot("a", twentyDots);
+    for (const name of ["reproducibility", "changed"]) {
+      expect(() => runGate({ gate: name, expected: ["a"], expectChanged: ["a"], ...dirs() })).toThrow(/unchanged/);
+    }
+  });
+});
+
+describe("formatReport", () => {
+  const twentyDots = Array.from({ length: 20 }, (_, i) => ({ x: i * 4, y: 10, rgb: [0, 0, 0] }));
+  const labels = { baseLabel: "base", headLabel: "head" };
+
+  it("lists the declared entries, each expected change with its % and the warnings", () => {
+    for (const [id, edits] of [["a", twentyDots], ["b", []]]) {
+      writePng(path.join(dirs().baseDir, `${id}.png`), WHITE);
+      writePng(path.join(dirs().headDir, `${id}.png`), WHITE, edits);
+    }
+    const report = formatReport({ ...runGate({ gate: "unchanged", expected: ["a", "b"], expectChanged: ["a", "b"], ...dirs() }), ...labels });
+    expect(report).toContain("expected changes (--expect-changed): a, b");
+    expect(report).toContain("| a | expected-change | 20 | 0.2000 | 20 |");
+    expect(report).toContain("PASS (2 scenarios, 1 expected change)");
+    expect(report).toContain("Expected changes (1):\n- a: 0.2000% changed");
+    expect(report).toContain("Warnings (1):\n- b: declared as an expected change, but changed 0.0000% (<= 0.1%)");
+  });
+
+  it("ends a failed unchanged gate with the declaration for the changed scenarios, which a pasted report does not make", () => {
+    for (const id of ["a", "b"]) {
+      writePng(path.join(dirs().baseDir, `${id}.png`), WHITE);
+      writePng(path.join(dirs().headDir, `${id}.png`), WHITE, twentyDots);
+    }
+    const report = formatReport({ ...runGate({ gate: "unchanged", expected: ["a", "b"], ...dirs() }), ...labels });
+    expect(report).toContain("FAIL (2 problem(s))");
+    expect(report).toContain("If these changes are intended");
+    expect(report).toMatch(/PR body \(CI\): +ui-expected-changes: a, b\n/);
+    expect(report).toMatch(/locally: +--expect-changed a,b\n/);
+    // Never at the start of a line: a report pasted into the PR body as
+    // evidence must not declare anything by itself.
+    expect(expectedChangesFromBody(report)).toEqual([]);
+  });
+
+  it("adds nothing about expected changes when none were declared", () => {
+    writePng(path.join(dirs().baseDir, "a.png"), WHITE);
+    writePng(path.join(dirs().headDir, "a.png"), WHITE);
+    const report = formatReport({ ...runGate({ gate: "unchanged", expected: ["a"], ...dirs() }), ...labels });
+    expect(report).not.toMatch(/expected change|Warnings|ui-expected-changes/i);
+    expect(report).toContain("PASS (1 scenarios)");
   });
 });
 

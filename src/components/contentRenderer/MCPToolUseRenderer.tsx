@@ -48,7 +48,7 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
             onClick={() => setShowInput(prev => !prev)}
             className={cn(layout.smallText, "flex items-center gap-1 text-tool-mcp cursor-pointer hover:text-tool-mcp/80")}
           >
-            <ChevronRight className={cn("w-3 h-3 transition-transform", showInput && "rotate-90")} />
+            <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showInput && "rotate-90")} />
             {t("mcpToolUseRenderer.showInput")}
           </button>
           {showInput && (

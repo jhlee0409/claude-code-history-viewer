@@ -11,11 +11,22 @@
 import type { ReactNode } from "react";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare } from "lucide-react";
+import { FolderSearch, MessageSquare, Search } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
+import { Button } from "@/components/ui/button";
+import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
+import { cn } from "@/lib/utils";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
+import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
+import {
+  ANALYTICS_SUBTAB_PANEL_ID,
+  analyticsSubTabId,
+} from "@/components/AnalyticsDashboard/analyticsSubTabIds";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
 import { SettingsManager } from "@/components/SettingsManager";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
@@ -23,6 +34,7 @@ import { ArchiveManager } from "@/components/ArchiveManager";
 import type { SessionTokenStats } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { View } from "@/navigation/place";
+import { placeNameKey } from "@/navigation/placeNames";
 
 /** What the shell hands every screen. */
 export interface ViewScreenProps {
@@ -31,6 +43,8 @@ export interface ViewScreenProps {
   analyticsState: UseAnalyticsReturn["state"];
   analyticsActions: UseAnalyticsReturn["actions"];
   onTokenStatClick: (stats: SessionTokenStats) => void;
+  /** The phone layout: analytics' sub-tabs live in the nav row above the screen. */
+  isMobile: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,25 +77,103 @@ export const BareFrame = ({ children }: { children: ReactNode }) => <>{children}
 // Screens
 // ---------------------------------------------------------------------------
 
-/** "Select a session": the empty screen, and a conversation without one. */
-export const EmptyScreen = () => {
-  const { t } = useTranslation();
-  return (
-    <div className="h-full flex">
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center max-w-sm mx-auto">
-          <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-            <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
-          </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            {t("session.select")}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {t("session.selectDescription")}
-          </p>
+/** Centered icon + title + body, the shape of every empty main area. */
+const EmptyState = ({
+  icon,
+  title,
+  children,
+  className,
+}: {
+  icon: typeof MessageSquare;
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) => (
+  <div className="h-full flex">
+    <div className="flex-1 flex items-center justify-center">
+      <div className={cn("text-center max-w-sm mx-auto", className)}>
+        <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+          <Icon icon={icon} size={24} className="text-muted-foreground/50" />
         </div>
+        <h3 className="text-title font-medium text-foreground mb-2">{title}</h3>
+        {children}
       </div>
     </div>
+  </div>
+);
+
+/**
+ * No projects at all: says what was searched and where, instead of asking
+ * for a session the user cannot pick. Until the user has asked for other
+ * providers, only Claude Code was searched (startup never scans the rest),
+ * so the screen says "no Claude Code projects" and offers the same "Find
+ * other providers" action as the project tree.
+ */
+const NoProjectsState = () => {
+  const { t } = useTranslation();
+  const claudePath = useAppStore((s) => s.claudePath);
+  const { discover, isDiscovering, hasSearched } = useProviderDiscovery();
+  const copy = hasSearched
+    ? {
+        title: t("session.noProjects.title"),
+        description: t("session.noProjects.description"),
+        hint: "session.noProjects.hint" as const,
+      }
+    : {
+        title: t("session.noProjects.claudeTitle"),
+        description: t("session.noProjects.claudeDescription"),
+        hint: "session.noProjects.claudeHint" as const,
+      };
+  return (
+    // Korean breaks between words (keep-all), not inside them; Japanese and
+    // Chinese have no spaces and keep the default per-character breaks.
+    <EmptyState icon={FolderSearch} title={copy.title} className="px-4 [&:lang(ko)]:break-keep">
+      <p className="text-body text-muted-foreground">{copy.description}</p>
+      <code className="mt-2 mb-3 inline-block max-w-full break-all rounded-md bg-muted px-2 py-1 text-code text-foreground/80">
+        {claudePath || "~/.claude"}
+      </code>
+      <p className="text-list text-muted-foreground">
+        {t(copy.hint, {
+          settings: t(placeNameKey("settingsManager")),
+          section: t("settings.customDirectories"),
+        })}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-4"
+        onClick={discover}
+        disabled={isDiscovering}
+      >
+        <Icon icon={Search} size={14} aria-hidden="true" />
+        {isDiscovering
+          ? t("project.discoveringProviders")
+          : t("project.discoverProviders")}
+      </Button>
+    </EmptyState>
+  );
+};
+
+/**
+ * The empty screen, and a conversation without a session: "select a
+ * session", or - once loading is over and there are no projects at all -
+ * the no-history state.
+ */
+export const EmptyScreen = () => {
+  const { t } = useTranslation();
+  const hasNoProjects = useAppStore(
+    (s) =>
+      !s.isLoading &&
+      !s.isLoadingProjects &&
+      !s.isDetectingProviders &&
+      s.projects.length === 0
+  );
+  if (hasNoProjects) return <NoProjectsState />;
+  return (
+    <EmptyState icon={MessageSquare} title={t("session.select")}>
+      <p className="text-body text-muted-foreground">{t("session.selectDescription")}</p>
+    </EmptyState>
   );
 };
 
@@ -121,44 +213,75 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
   );
 };
 
-/** Project analytics and global stats: one body, so a switch keeps it mounted. */
-export const AnalyticsScreen = ({ view, analyticsActions }: ViewScreenProps) => (
-  <AnalyticsDashboard
-    isGlobalScope={view === "globalStats"}
-    onRetry={() => void analyticsActions.refreshAnalytics()}
-  />
-);
-
-/** Transitional (plan C1) until token stats becomes an analytics tab (T9b). */
-export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
-  const selectedProject = useAppStore((s) => s.selectedProject);
-  const sessionTokenStats = useAppStore((s) => s.sessionTokenStats);
-  const sessionConversationTokenStats = useAppStore((s) => s.sessionConversationTokenStats);
-  const projectTokenStats = useAppStore((s) => s.projectTokenStats);
-  const projectConversationTokenStats = useAppStore((s) => s.projectConversationTokenStats);
-  const projectTokenStatsSummary = useAppStore((s) => s.projectTokenStatsSummary);
-  const projectConversationTokenStatsSummary = useAppStore(
-    (s) => s.projectConversationTokenStatsSummary
+/**
+ * Project analytics and global stats: one body, so a switch keeps the
+ * dashboard mounted. Project analytics has two sub-tabs (T9b): the overview
+ * dashboard and the token statistics, which were a screen of their own. The
+ * selected one is the place's (`analyticsTab`); choosing one navigates. On
+ * phones the sub-tabs are items of the one analytics nav row above the screen
+ * (`MobileAnalyticsSubNav`, with Edits), so the body draws no tablist there.
+ */
+export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick, isMobile }: ViewScreenProps) => {
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
+  const isProjectAnalytics = view === "analytics";
+  const hasSubTabs = isProjectAnalytics && !isMobile;
+  const showsTokens = isProjectAnalytics && analyticsTab === "tokens";
+  return (
+    <>
+      {hasSubTabs && (
+        <AnalyticsSubTabs
+          value={analyticsTab}
+          onChange={(tab) => {
+            // The sub-tab's loader records its failure on screen (its error
+            // state); the log keeps the cause.
+            analyticsActions.switchToAnalytics(tab).catch((error: unknown) => {
+              console.error("Failed to open the analytics sub-tab:", error);
+            });
+          }}
+        />
+      )}
+      {/* The same element on both screens, so the dashboard stays mounted. */}
+      <div
+        id={hasSubTabs ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
+        role={hasSubTabs ? "tabpanel" : undefined}
+        aria-labelledby={hasSubTabs ? analyticsSubTabId(analyticsTab) : undefined}
+      >
+        {showsTokens ? (
+          <TokenStatsPanel onTokenStatClick={onTokenStatClick} />
+        ) : (
+          <AnalyticsDashboard
+            isGlobalScope={view === "globalStats"}
+            onRetry={() => void analyticsActions.refreshAnalytics()}
+          />
+        )}
+      </div>
+    </>
   );
-  const projectTokenStatsPagination = useAppStore((s) => s.projectTokenStatsPagination);
+};
+
+/** The analytics "tokens" sub-tab: the project's and session's token statistics. */
+const TokenStatsPanel = ({ onTokenStatClick }: Pick<ViewScreenProps, "onTokenStatClick">) => {
+  const selectedProject = useAppStore((s) => s.selectedProject);
+  // Only the open place's stats (`navigation/screenOwner.ts`).
+  const stats = useAppStore(useShallow(selectTokenStats));
   const loadMoreProjectTokenStats = useAppStore((s) => s.loadMoreProjectTokenStats);
-  const isLoadingTokenStats = useAppStore((s) => s.isLoadingTokenStats);
   const dateFilter = useAppStore((s) => s.dateFilter);
   const setDateFilter = useAppStore((s) => s.setDateFilter);
 
   return (
     <div className="p-3 md:p-6">
       <TokenStatsViewer
-        sessionStats={sessionTokenStats}
-        sessionConversationStats={sessionConversationTokenStats}
-        projectStats={projectTokenStats}
-        projectConversationStats={projectConversationTokenStats}
-        projectStatsSummary={projectTokenStatsSummary}
-        projectConversationStatsSummary={projectConversationTokenStatsSummary}
+        sessionStats={stats.sessionStats}
+        sessionConversationStats={stats.sessionConversationStats}
+        projectStats={stats.projectStats}
+        projectConversationStats={stats.projectConversationStats}
+        projectStatsSummary={stats.projectStatsSummary}
+        projectConversationStatsSummary={stats.projectConversationStatsSummary}
         providerId={selectedProject?.provider ?? "claude"}
-        pagination={projectTokenStatsPagination}
+        pagination={stats.pagination}
         onLoadMore={() => selectedProject && loadMoreProjectTokenStats(selectedProject.path)}
-        isLoading={isLoadingTokenStats}
+        isLoading={stats.isLoading}
+        error={stats.error}
         dateFilter={dateFilter}
         setDateFilter={setDateFilter}
         onSessionClick={onTokenStatClick}
@@ -167,20 +290,14 @@ export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
   );
 };
 
-export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => {
-  const selectedProject = useAppStore((s) => s.selectedProject);
-  const loadMoreRecentEdits = useAppStore((s) => s.loadMoreRecentEdits);
-  return (
-    <RecentEditsViewer
-      recentEdits={analyticsState.recentEdits}
-      pagination={analyticsState.recentEditsPagination}
-      onLoadMore={() => selectedProject && loadMoreRecentEdits(selectedProject.path)}
-      isLoading={analyticsState.isLoadingRecentEdits}
-      error={analyticsState.recentEditsError}
-      initialSearchQuery={analyticsState.recentEditsSearchQuery}
-    />
-  );
-};
+/**
+ * The Edits screen: the one recent-edits surface (T9b). It reads its rows
+ * from the store itself, keyed by the request they answer
+ * (`navigation/screenOwner.ts`).
+ */
+export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => (
+  <RecentEditsViewer initialSearchQuery={analyticsState.recentEditsSearchQuery} />
+);
 
 export const BoardScreen = () => <SessionBoard />;
 

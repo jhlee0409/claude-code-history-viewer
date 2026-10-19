@@ -18,6 +18,7 @@
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "pricing:check": "node scripts/check-model-pricing.mjs",
     "ui:capture": "node scripts/ui-capture/run.mjs",
+    "ui:states": "node scripts/ui-capture/states/run.mjs",
     "prepare": "husky"
   },
   "dependencies": {
@@ -52,7 +53,7 @@
     "i18next": "^25.10.10",
     "i18next-browser-languagedetector": "^8.2.1",
     "katex": "^0.16.47",
-    "lucide-react": "^0.300.0",
+    "lucide-react": "1.57.0",
     "marked": "^17.0.6",
     "overlayscrollbars": "^2.16.0",
     "overlayscrollbars-react": "^0.5.6",

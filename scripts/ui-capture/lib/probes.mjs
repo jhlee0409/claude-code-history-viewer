@@ -57,14 +57,34 @@ const LAYOUT_PROBE = `(() => {
     measurementState: {
       sidebarWidth: sidebarBox ? round(sidebarBox.width) : null,
       rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      // The app's font-size setting: a CSS variable on <html>, not the root size.
+      appFontScale: (() => {
+        const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--app-font-scale"));
+        return Number.isFinite(value) ? value : null;
+      })(),
+      // The inspector's record (T9a), else the message navigator's flag
+      // (builds before T9a); reported as "true" / "false".
       inspectorOpenStored: (() => {
         try {
+          const record = localStorage.getItem("inspector.v1");
+          if (record !== null) {
+            const open = JSON.parse(record)?.open;
+            return typeof open === "boolean" ? String(open) : null;
+          }
           return localStorage.getItem("navigator-open");
         } catch {
-          return null; // opaque origin (no storage)
+          return null; // opaque origin (no storage), or an unreadable record
         }
       })(),
       sessionsLayout: document.getElementById("sessions-pane") ? "pane" : "inline",
+      // Conversation tabs (T8): the strip's tabs (md and up), else the
+      // phone toolbar's tab count; null on builds without tabs.
+      tabs: (() => {
+        const strip = document.querySelector('[data-slot="tabs"]');
+        if (strip && strip.checkVisibility()) return strip.querySelectorAll('[role="tab"]').length;
+        const count = document.querySelector("[data-mobile-tabs]");
+        return count && count.checkVisibility() ? Number(count.textContent.trim()) : null;
+      })(),
       selectedProjects: rows.filter((row) => row.getAttribute("aria-selected") === "true").length,
       expandedProjects: rows.filter((row) => row.getAttribute("aria-expanded") === "true").length,
     },
@@ -182,11 +202,21 @@ export function checkMeasurementState(measured, expected, { mobile }) {
     problems.push(`sidebar ${measured.sidebarWidth}px, expected ${expected.sidebarWidthPx}px`);
   }
   if (measured.inspectorOpenStored !== String(expected.inspectorOpen)) {
-    problems.push(`inspector (navigator-open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
+    problems.push(`inspector (stored open) ${measured.inspectorOpenStored}, expected ${expected.inspectorOpen}`);
   }
-  const expectedRootPx = (16 * expected.fontScalePercent) / 100;
-  if (measured.rootFontSize !== expectedRootPx) {
-    problems.push(`root font size ${measured.rootFontSize}px, expected ${expectedRootPx}px (scale ${expected.fontScalePercent}%)`);
+  // The font-size setting scales the type tokens through --app-font-scale;
+  // the root font size stays the browser default at every scale.
+  // 16px unless the --font-scale variant sets the browser text size.
+  const rootFontSizePx = expected.rootFontSizePx ?? 16;
+  if (measured.rootFontSize !== rootFontSizePx) {
+    problems.push(`root font size ${measured.rootFontSize}px, expected ${rootFontSizePx}px`);
+  }
+  if (measured.tabs !== undefined && measured.tabs !== null && expected.tabs !== undefined && measured.tabs !== expected.tabs) {
+    problems.push(`${measured.tabs} tabs open, expected ${expected.tabs}`);
+  }
+  const expectedScale = expected.fontScalePercent / 100;
+  if (measured.appFontScale !== undefined && measured.appFontScale !== null && Math.abs(measured.appFontScale - expectedScale) > 1e-6) {
+    problems.push(`--app-font-scale ${measured.appFontScale}, expected ${expectedScale} (scale ${expected.fontScalePercent}%)`);
   }
   return problems;
 }
@@ -204,28 +234,30 @@ async function sampleFonts(page, accumulator) {
 }
 
 /** Let React, rAF and timer work catch up (page timers run on the paused clock). */
-async function letPageWork(page) {
+async function letPageWork(page, live) {
   await sleep(30);
-  await page.clock.runFor(50);
+  // Live mode (--live) runs on the real clock: nothing to advance.
+  if (live) await sleep(50);
+  else await page.clock.runFor(50);
   await sleep(30);
 }
 
 /** Sample, then open what is collapsed in view and sample the opened content. */
-async function sampleWithExpanded(page, fonts, expandCollapsed) {
+async function sampleWithExpanded(page, fonts, expandCollapsed, live) {
   await sampleFonts(page, fonts);
   if (!expandCollapsed) return;
   const opened = await page.evaluate(EXPAND_COLLAPSED);
   if (opened === 0) return;
   fonts.expandedControls += opened;
   fonts.expandedPositions += 1;
-  await letPageWork(page);
+  await letPageWork(page, live);
   await sampleFonts(page, fonts);
 }
 
-export async function runProbes(page, { maxPositionsPerContainer = 16, expandCollapsed = true } = {}) {
+export async function runProbes(page, { maxPositionsPerContainer = 16, expandCollapsed = true, live = false } = {}) {
   const layout = await page.evaluate(LAYOUT_PROBE);
   const fonts = { min: null, minAt: null, samples: 0, positions: 0, expandedControls: 0, expandedPositions: 0 };
-  await sampleWithExpanded(page, fonts, expandCollapsed);
+  await sampleWithExpanded(page, fonts, expandCollapsed, live);
 
   const containers = await page.evaluate(SCROLLABLES);
   for (let index = 0; index < containers.length; index += 1) {
@@ -241,7 +273,7 @@ export async function runProbes(page, { maxPositionsPerContainer = 16, expandCol
       // Let the virtualizer react: scroll events and React work run in real
       // time, rAF/timer work needs the paused clock to move.
       await letPageWork(page);
-      await sampleWithExpanded(page, fonts, expandCollapsed);
+      await sampleWithExpanded(page, fonts, expandCollapsed, live);
     }
     await page.evaluate((i) => {
       const element = window.__uiCaptureScrollables[i];

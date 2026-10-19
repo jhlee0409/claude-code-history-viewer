@@ -1,22 +1,29 @@
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
 import { selectPlace } from "@/store/slices/navigationSlice";
-import { activeToolbarView, type ToolbarView } from "@/navigation/place";
+import { activeLibraryItem, activeToolbarView, isAppView, type ToolbarView } from "@/navigation/place";
 import { VIEW_PANEL_ID, viewTabId } from "./viewTabIds";
-import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY } from "@/layouts/shell/viewRegistry";
+import { TOOLBAR_TAB_ORDER, VIEW_REGISTRY, screenOf } from "@/layouts/shell/viewRegistry";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
-import { useModal } from "@/contexts/modal";
+import { useCommandRunner } from "@/commands/CommandRunner";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { getAssetPath, isMacOS, isTauri } from "@/utils/platform";
+import { toast } from "sonner";
+import { isActionModifier, isMacOS, isTauri } from "@/utils/platform";
+import { openInNewTab } from "@/navigation/tabs";
+import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
 import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
+import { INSPECTOR_ID, INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
+import { isInspectorPlace } from "@/components/Inspector/inspectorAvailability";
+import { placeNameKey } from "@/navigation/placeNames";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -24,16 +31,33 @@ interface HeaderProps {
   updater: UseUpdaterReturn;
 }
 
-const SHORTCUT_LABEL = isMacOS() ? "⌘+K" : "Ctrl+K";
+const SHORTCUT_LABEL = isMacOS() ? "⌘K" : "Ctrl+K";
 
 // macOS traffic-light buttons overlap the header in Tauri's Overlay
 // titleBarStyle. Reserve space for them only when running in the desktop
 // shell — the WebUI build has no overlay controls.
 const HAS_MACOS_TRAFFIC_LIGHTS = isTauri() && isMacOS();
 
+const InspectorIcon = SCREEN_ICONS.inspector;
+
+/**
+ * The toolbar (plan T7, decision page §1):
+ *
+ *   ‹ ›  location path  │  Conversation · Analytics · Edits · Board  │  ⌘K  ⟳  ▯  ⚙
+ *
+ * - back / forward walk the document history (T2) through the `go.back` /
+ *   `go.forward` commands, the same ones ⌘[ / ⌘] run;
+ * - the location path names where the main area is;
+ * - the screen tabs come from the view registry and switch the screen of the
+ *   current place (the selected tab is a projection of the place, plan C3);
+ * - the palette and inspector buttons run `palette.open` and
+ *   `view.toggleInspector`;
+ * - the gear menu holds preferences only (D8); the Claude Code tools moved to
+ *   the sidebar library, the palette and (T11a) the menu bar.
+ */
 export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderProps) => {
   const { t } = useTranslation();
-  const { openModal } = useModal();
+  const commands = useCommandRunner();
 
   const {
     selectedProject,
@@ -43,24 +67,26 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     isLoadingMessages,
     isRefreshingAllConversations,
     refreshAllConversations,
-    recentEditsMode,
-    toggleRecentEditsDock,
-    setRecentEditsDockOpen,
   } = useAppStore();
+  const canGoBack = useAppStore((s) => s.placeHistory.back.length > 0);
+  const canGoForward = useAppStore((s) => s.placeHistory.forward.length > 0);
+  const isInspectorOpen = useAppStore((s) => s.isInspectorOpen);
+  const view = useAppStore((s) => s.view);
 
   const computed = analyticsComputed;
   // The selected tab is a projection of the place, so global stats, the
   // archive and the Settings Manager (no tab of their own) select none.
   const activeTab = useAppStore((s) => activeToolbarView(selectPlace(s)));
+  const libraryItem = useAppStore((s) => activeLibraryItem(selectPlace(s)));
   const isClaudeProject = (selectedProject?.provider ?? "claude") === "claude";
+  const hasProject = selectedProject != null;
   // One tab stop for the whole tablist (roving tabindex): the selected tab,
   // or the first enabled one while an app screen selects none.
   const tabDisabled: Record<ToolbarView, boolean> = {
-    conversation: false,
-    analytics: computed.isLoadingAnalytics,
-    tokenStats: computed.isLoadingTokenStats,
-    edits: computed.isLoadingRecentEdits,
-    board: !isClaudeProject,
+    conversation: !hasProject,
+    analytics: !hasProject || computed.isLoadingAnalytics,
+    edits: !hasProject || computed.isLoadingRecentEdits,
+    board: !hasProject || !isClaudeProject,
   };
   // The stop roves with focus (APG): the tab the user last focused keeps it,
   // as long as it stays enabled and the place has not moved since. Keyed to
@@ -78,22 +104,13 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     rovingStop ??
     (activeTab && !tabDisabled[activeTab]
       ? activeTab
-      : TOOLBAR_TAB_ORDER.find((view) => !tabDisabled[view]));
-  const roveTo = (view: ToolbarView) => setRoving({ under: activeTab, view });
+      : TOOLBAR_TAB_ORDER.find((tabView) => !tabDisabled[tabView]));
+  const roveTo = (tabView: ToolbarView) => setRoving({ under: activeTab, view: tabView });
   const isRefreshingConversations =
     isRefreshingAllConversations ||
     isLoadingProjects ||
     isLoadingSessions ||
     isLoadingMessages;
-
-  const handleLoadTokenStats = async () => {
-    if (!selectedProject) return;
-    try {
-      await analyticsActions.switchToTokenStats();
-    } catch (error) {
-      console.error("Failed to load token stats:", error);
-    }
-  };
 
   const handleLoadAnalytics = async () => {
     if (!selectedProject) return;
@@ -104,34 +121,10 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     }
   };
 
+  // The Edits screen is the one recent-edits surface (T9b): the tab always
+  // opens it, on every width.
   const handleLoadRecentEdits = async () => {
     if (!selectedProject) return;
-
-    // The button routes on mode. In "docked" mode it toggles the side panel
-    // beside the transcript; in "page" mode it keeps today's behaviour of
-    // taking over the content area.
-    // The dock is CSS-gated at the `xl` breakpoint, so a docked-mode preference
-    // carried over from a wide window (or restored on a narrow one) would
-    // otherwise toggle state that nothing can render. Read the width at click
-    // time rather than holding reactive state for it.
-    const dockCanRender =
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1280px)").matches;
-
-    if (recentEditsMode === "docked" && selectedSession && dockCanRender) {
-      // The dock only renders inside the transcript branch of the layout, so
-      // from any other view (Analytics, Board, Settings) a plain toggle just
-      // flips invisible state and looks like a dead button. Go to the
-      // transcript and open the dock instead of toggling it shut.
-      if (!analyticsComputed.isMessagesView) {
-        setRecentEditsDockOpen(true);
-        analyticsActions.switchToMessages();
-        return;
-      }
-      toggleRecentEditsDock();
-      return;
-    }
-
     try {
       await analyticsActions.switchToRecentEdits();
     } catch (error) {
@@ -162,16 +155,10 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         if (!computed.isAnalyticsView) handleLoadAnalytics();
       },
     },
-    tokenStats: {
-      isLoading: computed.isLoadingTokenStats,
-      onClick: () => {
-        if (!computed.isTokenStatsView) handleLoadTokenStats();
-      },
-    },
     edits: {
       isLoading: computed.isLoadingRecentEdits,
       onClick: () => {
-        if (computed.isRecentEditsView && recentEditsMode !== "docked") {
+        if (computed.isRecentEditsView) {
           analyticsActions.switchToMessages();
         } else {
           handleLoadRecentEdits();
@@ -180,166 +167,196 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     },
     board: {
       // The board reads Claude Code data only; elsewhere the tab says why it is off.
-      label: isClaudeProject
-        ? undefined
-        : t("common.settings.claudeOnly", { name: t("session.board.title") }),
+      label: hasProject && !isClaudeProject
+        ? t("common.settings.claudeOnly", { name: t(placeNameKey("board")) })
+        : undefined,
       onClick: () => {
         if (!computed.isBoardView) handleLoadBoard();
       },
     },
   };
 
+  // Location: library › app screen, or project › session / project screen.
+  const location: string[] = (() => {
+    if (libraryItem || isAppView(view)) {
+      return [t("project.library.title"), t(VIEW_REGISTRY[view].titleKey)];
+    }
+    if (!selectedProject) return [t("common.appName")];
+    const projectName = getProjectDisplayName(selectedProject);
+    if (computed.isMessagesView || computed.isEmptyView) {
+      return selectedSession
+        ? [
+            projectName,
+            selectedSession.summary || `${t("session.title")} ${selectedSession.session_id.slice(-8)}`,
+          ]
+        : [projectName];
+    }
+    return [projectName, t(VIEW_REGISTRY[view].titleKey)];
+  })();
+  const inspectorLabel = t("common.toolbar.inspector");
+  // Where the inspector can show: the rule AppLayout and the command share.
+  // The desktop half is CSS here: on a phone the button is hidden.
+  const isInspectorAvailable = isInspectorPlace({
+    view: screenOf(computed),
+    hasSession: selectedSession != null,
+  });
+
   return (
     <header
       id="app-header"
       role="banner"
       className={cn(
-        "relative h-12 flex items-center justify-between px-4 bg-sidebar border-b border-border/50",
-        HAS_MACOS_TRAFFIC_LIGHTS && "pl-[72px]"
+        "relative h-11 shrink-0 flex items-center gap-2 px-2 md:px-3 bg-sidebar border-b border-border/50",
+        HAS_MACOS_TRAFFIC_LIGHTS && "pl-[76px] md:pl-[76px]"
       )}
     >
       {/* Full-header drag region — sits behind all content so the
-          entire header is draggable. Interactive children (right-side
-          buttons) sit above with their own pointer events; non-interactive
-          children (logo, title) use pointer-events-none so clicks fall
-          through to this layer. */}
+          entire header is draggable. Interactive children sit above with
+          their own pointer events; the location path uses
+          pointer-events-none so drags on it fall through to this layer. */}
       <div data-tauri-drag-region className="absolute inset-0" />
 
-      {/* Left: Logo & Title */}
-      <div className="relative z-10 flex items-center gap-2.5 min-w-0 flex-1 pointer-events-none">
-        <img
-          src={getAssetPath("app-icon.png")}
-          alt=""
-          className="w-6 h-6 hidden md:block"
+      {/* Left: history + location. flex-1 on both sides keeps the tabs centred. */}
+      <div className="relative z-10 flex min-w-0 flex-1 basis-0 items-center gap-1">
+        <ToolbarIconButton
+          icon={ChevronLeft}
+          label={t("common.command.back")}
+          disabled={!canGoBack}
+          onClick={() => commands.run("go.back")}
         />
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-sm font-semibold text-foreground hidden md:block shrink-0">
-              {t('common.appName')}
-            </h1>
-            {selectedProject && (
-              <>
-                <span className="text-muted-foreground/40 hidden md:block">/</span>
-                <span className="text-sm text-muted-foreground truncate min-w-0 pointer-events-auto" title={selectedProject.actual_path}>
-                  {getProjectDisplayName(selectedProject)}
-                </span>
-              </>
-            )}
-            {!selectedProject && (
-              <h1 className="text-sm font-semibold text-foreground md:hidden">
-                {t('common.appName')}
-              </h1>
-            )}
-          </div>
-          {selectedSession ? (
-            <p
-              className="text-2xs text-muted-foreground truncate min-w-0 max-w-[60ch] pointer-events-auto"
-              title={selectedSession.summary || undefined}
-            >
-              <span className="text-muted-foreground/60 hidden md:inline">{t("session.title")}</span>{" "}
-              {selectedSession.summary ||
-                `${t("session.title")} ${selectedSession.session_id.slice(-8)}`}
-            </p>
-          ) : (
-            <p className="text-2xs text-muted-foreground hidden md:block">{t('common.appDescription')}</p>
-          )}
-        </div>
+        <ToolbarIconButton
+          icon={ChevronRight}
+          label={t("common.command.forward")}
+          disabled={!canGoForward}
+          onClick={() => commands.run("go.forward")}
+        />
+        <h1 className="sr-only">{t("common.appName")}</h1>
+        <nav aria-label={t("common.toolbar.location")} className="ml-1 min-w-0 pointer-events-none">
+          <ol className="flex min-w-0 items-center gap-1 text-list">
+            {location.map((segment, index) => {
+              const isLast = index === location.length - 1;
+              return (
+                // Parent segments give way first, but never to nothing: a
+                // segment squeezed to zero left its separator alone, reading
+                // as a third history arrow. A phone shows the current place
+                // only (its tab bar and drawer carry the rest).
+                <li
+                  key={`${index}:${segment}`}
+                  className={cn("flex min-w-0 items-center gap-1", !isLast && "hidden md:flex shrink-[2]")}
+                >
+                  {index > 0 && (
+                    <ChevronRight className="hidden md:block w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  )}
+                  <span
+                    className={cn(
+                      "truncate pointer-events-auto",
+                      isLast ? "font-semibold text-foreground" : "min-w-6 text-muted-foreground"
+                    )}
+                    title={segment}
+                    aria-current={isLast ? "location" : undefined}
+                  >
+                    {segment}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
       </div>
 
-      {/* Center: Quick Stats (when session selected) */}
-      {selectedSession && computed.isMessagesView && (
-        <div className="relative z-10 hidden lg:flex items-center gap-2">
-          <SessionCopyMenu project={selectedProject} session={selectedSession} />
-        </div>
-      )}
+      {/* Centre: the screen tabs (md and up; the mobile bar has its own). */}
+      <div
+        role="tablist"
+        aria-label={t("header.views", "Views")}
+        onKeyDown={moveFocusAcrossTabs}
+        className="relative z-10 hidden md:flex shrink-0 items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+      >
+        {TOOLBAR_TAB_ORDER.map((tabView) => {
+          const { icon, tab: { labelKey } } = VIEW_REGISTRY[tabView];
+          const tab = tabBehaviour[tabView];
+          return (
+            <ViewTab
+              key={tabView}
+              icon={tab.isLoading ? LoaderCircle : icon}
+              label={tab.label ?? t(labelKey)}
+              view={tabView}
+              tabStop={tabStop === tabView}
+              onFocus={roveTo}
+              isActive={activeTab === tabView}
+              isLoading={tab.isLoading}
+              onClick={(event) => {
+                // ⌘+click (Ctrl+click elsewhere): this screen in a new tab
+                // (decision page §2).
+                if (isActionModifier(event)) {
+                  // A failure takes the new tab away again (`openInNewTab`).
+                  openInNewTab(() => analyticsActions.openView(tabView)).catch((error: unknown) => {
+                    console.error(`Failed to open ${tabView} in a new tab:`, error);
+                    toast.error(t("common.tabs.openScreenFailed"));
+                  });
+                  return;
+                }
+                tab.onClick();
+              }}
+              disabled={tabDisabled[tabView]}
+            />
+          );
+        })}
+      </div>
 
-      {/* Right: Actions */}
-      <div className="relative z-10 flex items-center gap-1">
+      {/* Right: actions. */}
+      <div className="relative z-10 flex min-w-0 flex-1 basis-0 items-center justify-end gap-1">
         {selectedSession && computed.isMessagesView && (
-          <div className="lg:hidden">
-            <SessionCopyMenu compact project={selectedProject} session={selectedSession} />
-          </div>
+          <SessionCopyMenu compact project={selectedProject} session={selectedSession} />
         )}
 
-        {/* Search button with shortcut hint */}
         <button
-          onClick={() => openModal("globalSearch")}
-          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 text-xs"
+          type="button"
+          onClick={() => commands.run("palette.open")}
+          className="hidden md:inline-flex h-7 shrink-0 items-center gap-1.5 px-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 text-list"
           aria-label={t("common.commandPalette")}
+          title={t("common.commandPalette")}
         >
-          <Search className="w-3.5 h-3.5" />
-          <span>{t("globalSearch.placeholder")}</span>
-          <kbd className="ml-1 px-1 py-0.5 text-px10 font-mono bg-muted rounded border border-border">
+          <Search className="w-4 h-4" />
+          <span className="hidden lg:inline">{t("common.toolbar.search")}</span>
+          <kbd className="px-1 text-caption font-mono bg-muted rounded border border-border">
             {SHORTCUT_LABEL}
           </kbd>
         </button>
-        <button
-          onClick={() => openModal("globalSearch")}
-          className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label={t("common.commandPalette")}
-        >
-          <Search className="w-5 h-5" />
-        </button>
+        {/* Phones have no tab strip: the open tabs are a sheet away. */}
+        <MobileTabsButton screens={{ openView: analyticsActions.openView }} />
+        <ToolbarIconButton
+          className="md:hidden"
+          icon={Search}
+          label={t("common.commandPalette")}
+          onClick={() => commands.run("palette.open")}
+        />
 
-        {/* Project views — one segmented control, Messages first so the way
-            back from any analytics view is always visible. */}
-        {selectedProject && (
-          <div
-            role="tablist"
-            aria-label={t("header.views", "Views")}
-            onKeyDown={moveFocusAcrossTabs}
-            className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
-          >
-            {TOOLBAR_TAB_ORDER.map((view) => {
-              const { icon, labelKey } = VIEW_REGISTRY[view].tab;
-              const tab = tabBehaviour[view];
-              return (
-                <ViewTab
-                  key={view}
-                  icon={tab.isLoading ? Loader2 : icon}
-                  label={tab.label ?? t(labelKey)}
-                  view={view}
-                  tabStop={tabStop === view}
-                  onFocus={roveTo}
-                  isActive={activeTab === view}
-                  isLoading={tab.isLoading}
-                  onClick={tab.onClick}
-                  disabled={tabDisabled[view]}
-                />
-              );
-            })}
-          </div>
-        )}
-
-        {/* Refresh — rescans projects and reloads the selected session, so a
-            second per-session refresh button is redundant. */}
-        <TooltipButton
+        {/* Refresh — rescans projects and reloads the selected session. */}
+        <ToolbarIconButton
+          icon={RefreshCw}
+          label={t("session.refreshAllConversations", "Refresh all conversations")}
+          disabled={isRefreshingConversations}
+          spinning={isRefreshingConversations}
           onClick={() => {
             void refreshAllConversations();
           }}
-          disabled={isRefreshingConversations}
-          className={cn(
-            "p-2 rounded-md transition-colors",
-            "text-muted-foreground hover:text-foreground hover:bg-muted",
-            isRefreshingConversations && "opacity-70 cursor-not-allowed"
-          )}
-          content={t("session.refreshAllConversations", "Refresh all conversations")}
-        >
-          <RefreshCw className={cn("w-4 h-4", isRefreshingConversations && "animate-spin")} />
-        </TooltipButton>
-
-        {/* App menu: preferences plus the Claude Code tools (Settings
-            Manager, Archive) that used to sit beside them as bare icons. */}
-        <SettingDropdown
-          updater={updater}
-          onOpenSettingsManager={() => {
-            if (!computed.isSettingsView) analyticsActions.switchToSettings();
-          }}
-          onOpenArchive={() => {
-            if (!computed.isArchiveView) analyticsActions.switchToArchive();
-          }}
-          archiveDisabled={!isClaudeProject}
         />
+
+        <ToolbarIconButton
+          className="hidden md:inline-flex"
+          icon={InspectorIcon}
+          label={inspectorLabel}
+          id={INSPECTOR_TOGGLE_ID}
+          // Expanded only while the panel is actually on screen: the saved
+          // preference can be "open" on a screen with no inspector.
+          expanded={isInspectorAvailable && isInspectorOpen}
+          controls={INSPECTOR_ID}
+          disabled={!isInspectorAvailable}
+          onClick={() => commands.run("view.toggleInspector")}
+        />
+
+        {/* App menu: preferences only (plan D8). */}
+        <SettingDropdown updater={updater} />
       </div>
     </header>
   );
@@ -351,6 +368,58 @@ interface TabBehaviour {
   /** Replaces the registry label. */
   label?: string;
 }
+
+/**
+ * A 28px toolbar icon button; its label is the tooltip and the accessible name.
+ *
+ * `expanded`/`controls` make it a disclosure for the panel it opens (the
+ * inspector): `aria-expanded` and `aria-controls`, not `aria-pressed` - a
+ * toggle and a disclosure at once would announce two contradictory states.
+ * Buttons without a panel pass neither and stay plain buttons.
+ */
+const ToolbarIconButton = ({
+  icon: Glyph,
+  label,
+  onClick,
+  disabled = false,
+  expanded,
+  controls,
+  spinning = false,
+  className,
+  id,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  /** Whether the panel this button opens is open. */
+  expanded?: boolean;
+  /** The id of that panel. */
+  controls?: string;
+  spinning?: boolean;
+  className?: string;
+  id?: string;
+}) => (
+  <TooltipButton
+    id={id}
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    aria-expanded={expanded}
+    // Only while the panel is in the document: it is not rendered closed.
+    aria-controls={expanded ? controls : undefined}
+    className={cn(
+      "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+      "text-muted-foreground hover:text-foreground hover:bg-muted",
+      expanded && "bg-muted text-foreground",
+      disabled && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground",
+      className
+    )}
+    content={label}
+  >
+    <Glyph className={cn("w-4 h-4", expanded && "text-accent", spinning && "animate-spin")} />
+  </TooltipButton>
+);
 
 /**
  * Arrow keys / Home / End move focus between the enabled tabs (APG tabs,
@@ -384,7 +453,7 @@ function focusTarget(key: string, current: number, count: number): number | null
   }
 }
 
-/* Segmented view tab: icon always, label from xl up. */
+/* Segmented view tab: icon always, label from lg up. */
 interface ViewTabProps {
   view: ToolbarView;
   /** The tablist's single Tab stop (roving tabindex). */
@@ -395,7 +464,7 @@ interface ViewTabProps {
   label: string;
   isActive?: boolean;
   isLoading?: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   disabled?: boolean;
 }
 
@@ -421,7 +490,7 @@ const ViewTab = ({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap",
+        "flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap",
         isActive
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
@@ -429,8 +498,9 @@ const ViewTab = ({
       )}
       content={label}
     >
-      <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
-      <span className="hidden xl:inline">{label}</span>
+      {/* Selected: the icon takes the accent (#9AA0F0 in dark, decision page 7). */}
+      <Icon className={cn("w-4 h-4", isActive && !isLoading && "text-accent", isLoading && "animate-spin")} />
+      <span className="hidden lg:inline">{label}</span>
     </TooltipButton>
   );
 };

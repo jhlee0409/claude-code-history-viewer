@@ -99,7 +99,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
 
   if (dailyBars.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground py-2 text-center">
+      <div className="text-list text-muted-foreground py-2 text-center">
         {t("analytics.timeline.noActivity")}
       </div>
     );
@@ -262,7 +262,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                 x={cx}
                 y={CHART_HEIGHT + AXIS_HEIGHT - 3}
                 textAnchor="middle"
-                fontSize={9}
+                style={{ fontSize: "var(--text-caption)" }}
                 fontFamily="'JetBrains Mono', ui-monospace, monospace"
                 fill="var(--muted-foreground)"
                 opacity={0.6}

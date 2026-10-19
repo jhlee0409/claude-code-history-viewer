@@ -42,7 +42,7 @@ export const ModelLifecycleBadge: React.FC<ModelLifecycleBadgeProps> = ({ model,
       // The title is mouse-only; give assistive tech the same sentence.
       aria-label={`${label}. ${hint}`}
       className={cn(
-        "inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-px10 uppercase tracking-wide whitespace-nowrap",
+        "inline-flex shrink-0 items-center px-1.5 py-0.5 rounded text-caption uppercase tracking-wide whitespace-nowrap",
         retired
           ? "bg-red-500/10 text-red-700 dark:text-red-300"
           : "bg-amber-500/10 text-amber-700 dark:text-amber-300",

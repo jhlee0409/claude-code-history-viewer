@@ -15,7 +15,6 @@ import type {
   SessionComparison,
   GlobalStatsSummary,
   SearchFilters,
-  PaginatedRecentEdits,
   UserMetadata,
   SessionMetadata,
   ProjectMetadata,
@@ -28,6 +27,7 @@ import type {
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState } from "../../types/analytics";
+import type { OwnedSetter } from "./analyticsSlice";
 import type { UpdateSettings } from "../../types/updateSettings";
 
 // ============================================================================
@@ -96,6 +96,7 @@ export const createEmptySearchState = (
 export interface AppStoreState {
   // Project state
   claudePath: string;
+  homeDir: string | null;
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
@@ -105,6 +106,7 @@ export interface AppStoreState {
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
   isLoadingProjects: boolean;
+  projectsScanned: boolean;
   isLoadingSessions: boolean;
   isLoadingMoreSessions: boolean;
   isRefreshingAllConversations: boolean;
@@ -122,6 +124,15 @@ export interface AppStoreState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
+  projectTokenStatsOwner: string | null;
+  sessionTokenStatsOwner: string | null;
+  /** The session token stats load's failure, and the session file it was for. */
+  sessionTokenStatsError: string | null;
+  sessionTokenStatsErrorOwner: string | null;
+  /** The project token stats load's failure, and the project it was for. */
+  projectTokenStatsError: string | null;
+  projectTokenStatsErrorOwner: string | null;
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
   toolUseToSubagentMap: Map<string, string>;
@@ -173,6 +184,9 @@ export interface AppStoreState {
   selectedMessageId: string | null;
   isMarkdownPretty: boolean;
   boardLoadError: string | null;
+  /** Whose the board and its error are: the project path they were loaded for. */
+  boardOwner: string | null;
+  boardLoadErrorOwner: string | null;
   dateFilter: import("../../types/board.types").DateFilter;
   isTimelineExpanded: boolean;
   boardHoverSession: ClaudeSession | null;
@@ -184,6 +198,7 @@ export interface AppStoreState {
 
   // Navigation state
   view: import("@/navigation/place").View;
+  analyticsTab: import("@/navigation/place").AnalyticsTab;
   navigationEpoch: number;
   placeHistory: {
     back: import("./navigationSlice").PlaceHistoryEntry[];
@@ -191,6 +206,16 @@ export interface AppStoreState {
   };
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
+  targetRequest: number;
+  recentSessions: import("@/navigation/library").RecentEntry[];
+
+  // Conversation tabs (documentSlice)
+  documents: import("@/navigation/documents").TabDocument[];
+  activeDocumentId: string;
+  hydratedDocumentId: string | null;
+  pendingAnchor: import("./documentSlice").PendingAnchor | null;
+  tabsRestorePending: boolean;
+  tabsRestoreReport: { corrupt: boolean; dropped: number };
 
   // Watcher state
   watcherEnabled: boolean;
@@ -198,32 +223,34 @@ export interface AppStoreState {
   activeSessionNearBottom: boolean;
 
   // Navigator state
-  isNavigatorOpen: boolean;
   navigatorViewMode: import('./navigatorSlice').NavigatorViewMode;
   visibleMessageUuid: string | null;
+
+  // Inspector state (plan T9a; window-wide preferences)
+  isInspectorOpen: boolean;
+  inspectorTab: import('./inspectorSlice').InspectorTabId;
+  inspectorWidth: number;
 
   // Minimap state
   isMinimapOpen: boolean;
 
-  // Recent Edits panel state
-  recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
-  recentEditsDensityPage: import('./recentEditsPanelSlice').RecentEditsDensity;
-  recentEditsDensityDock: import('./recentEditsPanelSlice').RecentEditsDensity;
-  recentEditsScope: import('./recentEditsPanelSlice').RecentEditsScope;
-  recentEditsGroupingProject: import('./recentEditsPanelSlice').RecentEditsGrouping;
-  recentEditsGroupingSession: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  // Recent Edits screen state (recentEditsSlice)
+  recentEditsDensity: import('./recentEditsSlice').RecentEditsDensity;
+  recentEditsScope: import('./recentEditsSlice').RecentEditsScope;
+  recentEditsGroupingProject: import('./recentEditsSlice').RecentEditsGrouping;
+  recentEditsGroupingSession: import('./recentEditsSlice').RecentEditsGrouping;
   recentEditsMissingOnly: boolean;
-  isRecentEditsDockOpen: boolean;
-  recentEditsDock: import('./recentEditsPanelSlice').RecentEditsDockResult | null;
-  recentEditsDockRequestedKey: string | null;
-  isLoadingRecentEditsDock: boolean;
-  isLoadingMoreRecentEditsDock: boolean;
-  recentEditsDockError: string | null;
+  recentEditsList: import('./recentEditsSlice').RecentEditsListResult | null;
+  recentEditsRequestedKey: string | null;
+  isLoadingRecentEdits: boolean;
+  isLoadingMoreRecentEdits: boolean;
+  recentEditsError: string | null;
 
   // Provider state
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
   isDetectingProviders: boolean;
+  hasDetectedProviders: boolean;
 
   // Archive state
   archive: import('../slices/archiveSlice').ArchiveSliceState['archive'];
@@ -257,6 +284,10 @@ export interface AppStoreActions {
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
   ) => void;
   clearTargetMessage: () => void;
+  lookUpTargetMessage: () => Promise<boolean>;
+  clearPendingAnchor: (anchor: import("./documentSlice").PendingAnchor) => void;
+  markSessionUnavailable: (sessionPath: string) => void;
+  markProjectUnavailable: (projectPath: string) => void;
 
   // Project actions
   initializeApp: () => Promise<void>;
@@ -324,23 +355,15 @@ export interface AppStoreActions {
   // Analytics actions
   setAnalyticsStatsMode: (mode: StatsMode) => void;
   setAnalyticsMetricMode: (mode: MetricMode) => void;
-  setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
-  setAnalyticsSessionComparison: (comparison: SessionComparison | null) => void;
+  // A value with the place it was loaded for, or a clear (`OwnedSetter`).
+  setAnalyticsProjectSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsProjectConversationSummary: OwnedSetter<ProjectStatsSummary>;
+  setAnalyticsSessionComparison: OwnedSetter<SessionComparison>;
   setAnalyticsLoadingProjectSummary: (loading: boolean) => void;
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
-  setAnalyticsProjectSummaryError: (error: string | null) => void;
-  setAnalyticsSessionComparisonError: (error: string | null) => void;
-  setAnalyticsRecentEdits: (
-    page: PaginatedRecentEdits | null,
-    requestedProjectPath?: string
-  ) => void;
+  setAnalyticsProjectSummaryError: OwnedSetter<string>;
+  setAnalyticsSessionComparisonError: OwnedSetter<string>;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
-  setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
-  setAnalyticsRecentEditsError: (error: string | null) => void;
-  loadRecentEdits: (projectPath: string) => Promise<import("../../types").PaginatedRecentEdits>;
-  loadMoreRecentEdits: (projectPath: string) => Promise<void>;
-  invalidateRecentEdits: (projectPath: string) => void;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 
@@ -372,6 +395,8 @@ export interface AppStoreActions {
     sessionId: string,
     update: Partial<SessionMetadata>
   ) => Promise<void>;
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => Promise<void>;
+  backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
   updateProjectMetadata: (
     projectPath: string,
     update: Partial<ProjectMetadata>
@@ -435,9 +460,13 @@ export interface AppStoreActions {
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
   setActiveSessionNearBottom: (nearBottom: boolean) => void;
 
+  // Inspector actions
+  toggleInspector: () => void;
+  setInspectorOpen: (open: boolean) => void;
+  setInspectorTab: (tab: import('./inspectorSlice').InspectorTabId) => void;
+  setInspectorWidth: (width: number) => void;
+
   // Navigator actions
-  toggleNavigator: () => void;
-  setNavigatorOpen: (open: boolean) => void;
   setNavigatorViewMode: (mode: import('./navigatorSlice').NavigatorViewMode) => void;
   toggleNavigatorViewMode: () => void;
   setVisibleMessageUuid: (uuid: string | null) => void;
@@ -446,28 +475,22 @@ export interface AppStoreActions {
   toggleMinimap: () => void;
   setMinimapOpen: (open: boolean) => void;
 
-  // Recent Edits panel actions
-  setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
-  setRecentEditsDensity: (
-    mode: import('./recentEditsPanelSlice').RecentEditsMode,
-    density: import('./recentEditsPanelSlice').RecentEditsDensity
-  ) => void;
-  setRecentEditsScope: (scope: import('./recentEditsPanelSlice').RecentEditsScope) => void;
+  // Recent Edits screen actions (recentEditsSlice)
+  setRecentEditsDensity: (density: import('./recentEditsSlice').RecentEditsDensity) => void;
+  setRecentEditsScope: (scope: import('./recentEditsSlice').RecentEditsScope) => void;
   setRecentEditsGrouping: (
-    scope: import('./recentEditsPanelSlice').RecentEditsScope,
-    grouping: import('./recentEditsPanelSlice').RecentEditsGrouping
+    scope: import('./recentEditsSlice').RecentEditsScope,
+    grouping: import('./recentEditsSlice').RecentEditsGrouping
   ) => void;
   setRecentEditsMissingOnly: (missingOnly: boolean) => void;
-  setRecentEditsDockOpen: (open: boolean) => void;
-  toggleRecentEditsDock: () => void;
-  loadRecentEditsDock: (
-    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  loadRecentEditsList: (
+    request: import('./recentEditsSlice').RecentEditsRequest,
+    options?: import('./recentEditsSlice').LoadRecentEditsOptions
   ) => Promise<void>;
-  loadMoreRecentEditsDock: (
-    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
-  ) => Promise<void>;
-  clearRecentEditsDock: () => void;
-  markRecentEditsDockFileRestored: (filePath: string) => void;
+  loadMoreRecentEditsList: (request: import('./recentEditsSlice').RecentEditsRequest) => Promise<void>;
+  clearRecentEditsList: () => void;
+  invalidateRecentEdits: (projectPath: string) => void;
+  markRecentEditRestored: (filePath: string) => void;
 
   // Provider actions
   detectProviders: () => Promise<boolean>;

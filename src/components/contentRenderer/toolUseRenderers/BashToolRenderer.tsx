@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Terminal, Clock, Play } from "lucide-react";
+import { SquareTerminal, Clock, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
   return (
     <ToolUseCard
       title={t("tools.terminal")}
-      icon={<Terminal className={cn(layout.iconSize, styles.icon)} />}
+      icon={<SquareTerminal className={cn(layout.iconSize, styles.icon)} />}
       variant="terminal"
       toolId={toolId}
       rightContent={
@@ -56,7 +56,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
       )}
       <div className={cn(layout.rounded, "overflow-hidden")}>
         <div className={cn("px-3 py-1 flex items-center gap-1.5 bg-muted", layout.smallText, "text-muted-foreground")}>
-          <Play className="w-3 h-3" />
+          <Play className="w-3.5 h-3.5" />
           <span>{t("taskOperation.command")}</span>
         </div>
         <Highlight

@@ -52,4 +52,24 @@ describe("providerSlice", () => {
     expect(store.getState().activeProviders).toEqual(["codex"]);
     expect(store.getState().isDetectingProviders).toBe(false);
   });
+
+  it("records that detection completed even when no provider was found", async () => {
+    const store = createTestStore();
+    expect(store.getState().hasDetectedProviders).toBe(false);
+    vi.mocked(api).mockResolvedValue([]);
+
+    await expect(store.getState().detectProviders()).resolves.toBe(true);
+
+    expect(store.getState().providers).toEqual([]);
+    expect(store.getState().hasDetectedProviders).toBe(true);
+  });
+
+  it("does not record completion when detection fails", async () => {
+    const store = createTestStore();
+    vi.mocked(api).mockRejectedValue(new Error("detect failed"));
+
+    await store.getState().detectProviders();
+
+    expect(store.getState().hasDetectedProviders).toBe(false);
+  });
 });

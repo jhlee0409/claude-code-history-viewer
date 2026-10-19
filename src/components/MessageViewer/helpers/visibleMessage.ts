@@ -35,3 +35,25 @@ export function findFirstVisibleMessageUuid(
   const item = flattenedMessages[row.index];
   return item?.type === "message" ? item.message.uuid : null;
 }
+
+/**
+ * Index of the first row the user can see, for the current-date bar: the
+ * first non-collapsed row ending more than TOP_EDGE_TOLERANCE_PX below the
+ * scroll offset (the rule of `findFirstVisibleMessageUuid`, over every row
+ * type, so a date divider at the top counts). The rendered rows include
+ * overscan above the viewport, so the first rendered row is not it. Falls
+ * back to the plain rule, then to the first rendered row (nothing measured
+ * yet).
+ */
+export function findFirstVisibleRowIndex(
+  virtualRows: readonly VirtualItem[],
+  scrollOffset: number,
+): number {
+  const firstEndingPast = (edge: number) =>
+    virtualRows.find((item) => item.size > 0 && item.start + item.size > edge);
+  const row =
+    firstEndingPast(scrollOffset + TOP_EDGE_TOLERANCE_PX) ??
+    firstEndingPast(scrollOffset) ??
+    virtualRows[0];
+  return row?.index ?? -1;
+}

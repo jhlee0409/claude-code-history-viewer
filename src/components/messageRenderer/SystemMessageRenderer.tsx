@@ -1,10 +1,10 @@
 import { memo } from "react";
 import {
   Info,
-  AlertTriangle,
-  AlertCircle,
-  Terminal,
-  StopCircle,
+  TriangleAlert,
+  CircleAlert,
+  SquareTerminal,
+  CircleStop,
   Clock,
   Minimize2,
   Webhook,
@@ -65,13 +65,13 @@ const LEVEL_CONFIG = {
     borderColor: "border-border",
   },
   warning: {
-    icon: AlertTriangle,
+    icon: TriangleAlert,
     color: "text-foreground",
     bgColor: "bg-warning/10",
     borderColor: "border-warning/30",
   },
   error: {
-    icon: AlertCircle,
+    icon: CircleAlert,
     color: "text-destructive",
     bgColor: "bg-destructive/10",
     borderColor: "border-destructive/30",
@@ -89,7 +89,7 @@ const SUBTYPE_CONFIG: Record<
   { icon: typeof Info; color: string; bgColor: string; borderColor: string }
 > = {
   stop_hook_summary: {
-    icon: StopCircle,
+    icon: CircleStop,
     color: "text-destructive",
     bgColor: "bg-destructive/10",
     borderColor: "border-destructive/30",
@@ -113,7 +113,7 @@ const SUBTYPE_CONFIG: Record<
     borderColor: "border-tool-system/30",
   },
   local_command: {
-    icon: Terminal,
+    icon: SquareTerminal,
     color: "text-tool-terminal",
     bgColor: "bg-tool-terminal/10",
     borderColor: "border-tool-terminal/30",
@@ -361,7 +361,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
         />
         {warning && (
           <div className="flex items-start gap-2 border-t border-warning/30 bg-warning/10 px-3 py-2 text-foreground">
-            <AlertTriangle
+            <TriangleAlert
               aria-hidden="true"
               className={cn(
                 layout.iconSizeSmall,

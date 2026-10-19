@@ -6,7 +6,7 @@
  */
 
 import { memo } from "react";
-import { Terminal } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { BashCodeExecutionResult, BashCodeExecutionError } from "../../types";
@@ -32,7 +32,7 @@ export const BashCodeExecutionToolResultRenderer = memo(
       <TerminalExecutionResultRenderer
         toolUseId={toolUseId}
         content={content}
-        icon={<Terminal className={cn(layout.iconSize, systemStyles.icon)} />}
+        icon={<SquareTerminal className={cn(layout.iconSize, systemStyles.icon)} />}
         title={t("bashCodeExecutionToolResultRenderer.title")}
         errorTitle={t("bashCodeExecutionToolResultRenderer.error")}
         noOutputLabel={t("bashCodeExecutionToolResultRenderer.noOutput")}

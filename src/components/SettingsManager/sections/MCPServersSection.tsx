@@ -36,7 +36,7 @@ import {
 import {
   Server,
   Plus,
-  Trash2,
+  Trash,
   Pencil,
   Check,
   X,
@@ -144,8 +144,8 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
     return (
       <div className="rounded-lg border-2 border-accent/40 bg-card/50 p-3 space-y-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium w-28 truncate">{server.name}</span>
-          <Badge variant="outline" className={`text-px10 ${scopeColors[server.scope]}`}>
+          <span className="text-body font-medium w-28 truncate">{server.name}</span>
+          <Badge variant="outline" className={`text-caption ${scopeColors[server.scope]}`}>
             {scopeLabel[server.scope]}
           </Badge>
         </div>
@@ -153,13 +153,13 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
           value={editCommand}
           onChange={(e) => setEditCommand(e.target.value)}
           placeholder={t("settingsManager.mcp.commandPlaceholder")}
-          className="h-7 text-xs font-mono"
+          className="h-7 text-list font-mono"
         />
         <Input
           value={editArgs}
           onChange={(e) => setEditArgs(e.target.value)}
           placeholder={t("settingsManager.mcp.argsPlaceholder")}
-          className="h-7 text-xs font-mono"
+          className="h-7 text-list font-mono"
         />
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleSave} aria-label={t("common.save")}>
@@ -178,8 +178,8 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
       {/* Top row: icon + server name + scope badge + hover actions */}
       <div className="flex items-center gap-2">
         <Server className="w-3.5 h-3.5 text-success/70 shrink-0" />
-        <span className="text-xs font-semibold truncate flex-1">{server.name}</span>
-        <Badge variant="outline" className={`text-px10 shrink-0 ${scopeColors[server.scope]}`}>
+        <span className="text-list font-semibold truncate flex-1">{server.name}</span>
+        <Badge variant="outline" className={`text-caption shrink-0 ${scopeColors[server.scope]}`}>
           {scopeLabel[server.scope]}
         </Badge>
         {!readOnly && (
@@ -189,21 +189,21 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label={t("common.edit")}
             >
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
               aria-label={t("common.delete")}
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
       </div>
       {/* Bottom row: command in monospace */}
       <div className="mt-1.5 pl-5.5">
-        <code className="text-px11 text-muted-foreground/70 font-mono break-all whitespace-normal md:truncate md:whitespace-nowrap block">
+        <code className="text-caption text-muted-foreground/70 font-mono break-all whitespace-normal md:truncate md:whitespace-nowrap block">
           {server.config.command} {server.config.args?.join(" ")}
         </code>
       </div>
@@ -380,12 +380,12 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
             >
               <Server className="w-4 h-4 text-accent" />
             </div>
-            <span className="font-medium text-sm">
+            <span className="font-medium text-body">
               {t("settingsManager.unified.sections.mcp")}
             </span>
           </div>
           {allServers.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-list">
               {allServers.length}
             </Badge>
           )}
@@ -395,13 +395,13 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
           <div className="pl-10 pr-4 pb-4 pt-2 space-y-3">
             {/* Action bar */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-list text-muted-foreground">
                 {t("settingsManager.mcp.description")}
               </span>
               {!readOnly && (
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-list"
                   onClick={() => setIsAddOpen(true)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
@@ -412,7 +412,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
 
             {/* Server List */}
             {allServers.length === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+              <div className="text-center py-4 text-body text-muted-foreground border rounded-lg">
                 {t("settingsManager.mcp.empty")}
               </div>
             ) : (
@@ -437,7 +437,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               {t("settingsManager.mcp.addTitle")}
             </DialogTitle>
             <DialogDescription>
@@ -466,7 +466,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                   value={newServerCommand}
                   onChange={(e) => setNewServerCommand(e.target.value)}
                   placeholder={t("settingsManager.mcp.commandPlaceholder")}
-                  className="mt-1 font-mono text-sm"
+                  className="mt-1 font-mono text-body"
                 />
               </div>
               <div>
@@ -476,7 +476,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                   value={newServerArgs}
                   onChange={(e) => setNewServerArgs(e.target.value)}
                   placeholder={t("settingsManager.mcp.argsPlaceholder")}
-                  className="mt-1 font-mono text-sm"
+                  className="mt-1 font-mono text-body"
                 />
               </div>
 
@@ -486,7 +486,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                     <Label>{t("settingsManager.mcp.envVars")}</Label>
                     {Object.keys(newServerEnv).map((key) => (
                       <div key={key} className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-muted-foreground w-40 truncate">
+                        <span className="text-list font-mono text-muted-foreground w-40 truncate">
                           {key}
                         </span>
                         <Input
@@ -496,7 +496,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                             setNewServerEnv({ ...newServerEnv, [key]: e.target.value })
                           }
                           placeholder={t("settingsManager.mcp.envValuePlaceholder")}
-                          className="flex-1 font-mono text-sm"
+                          className="flex-1 font-mono text-body"
                         />
                       </div>
                     ))}
@@ -531,7 +531,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-list text-muted-foreground mt-1">
                     {saveLocation === "user" && t("settingsManager.mcp.location.userDesc")}
                     {saveLocation === "project" && t("settingsManager.mcp.location.projectDesc")}
                     {saveLocation === "local" && t("settingsManager.mcp.location.localDesc")}
@@ -558,7 +558,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" />
+              <Trash className="w-4 h-4" />
               {t("settingsManager.mcp.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>

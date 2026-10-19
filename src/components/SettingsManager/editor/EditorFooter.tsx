@@ -7,7 +7,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Save, RotateCcw, Code, Eye, Loader2 } from "lucide-react";
+import { Save, RotateCcw, Code, Eye, LoaderCircle } from "lucide-react";
 import type { EditorMode } from "./SettingsEditorPane";
 
 // ============================================================================
@@ -54,7 +54,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           onClick={() => onModeChange("visual")}
         >
           <Eye className="w-3.5 h-3.5" />
-          <span className="text-xs">{t("settingsManager.mode.visual")}</span>
+          <span className="text-list">{t("settingsManager.mode.visual")}</span>
         </Button>
         <Button
           variant={editorMode === "json" ? "secondary" : "ghost"}
@@ -65,7 +65,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           onClick={() => onModeChange("json")}
         >
           <Code className="w-3.5 h-3.5" />
-          <span className="text-xs">{t("settingsManager.mode.json")}</span>
+          <span className="text-list">{t("settingsManager.mode.json")}</span>
         </Button>
       </div>
 
@@ -91,7 +91,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           disabled={!hasUnsavedChanges || readOnly || isSaving || hasJsonError}
         >
           {isSaving ? (
-            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            <LoaderCircle className="w-4 h-4 mr-1.5 animate-spin" />
           ) : (
             <Save className="w-4 h-4 mr-1.5" />
           )}

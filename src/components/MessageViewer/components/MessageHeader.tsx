@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { HelpCircle } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -51,7 +51,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
 
   return (
     <div className={cn(
-      "flex items-center mb-1 text-xs text-muted-foreground",
+      "flex items-center mb-1 text-list text-muted-foreground",
       isLeftAligned ? "justify-between" : "justify-end"
     )}>
       <div className="flex items-center gap-1.5">
@@ -80,7 +80,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
           </TooltipContent>
         </Tooltip>
         {message.isSidechain && (
-          <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning rounded-full">
+          <span className="px-1.5 py-0.5 text-list font-mono bg-warning/20 text-warning rounded-full">
             {t("messageViewer.branch")}
           </span>
         )}
@@ -98,11 +98,11 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 className="inline-flex items-center justify-center cursor-help text-muted-foreground"
                 aria-label={t("assistantMessageDetails.model")}
               >
-                <HelpCircle className="w-3 h-3" />
+                <CircleQuestionMark className="w-3.5 h-3.5" />
               </button>
               <div className={cn(
                 "absolute bottom-full mb-2 right-0 w-52 bg-popover text-popover-foreground",
-                "text-xs rounded-md p-2.5",
+                "text-list rounded-md p-2.5",
                 "transition-opacity shadow-lg z-10 border border-border",
                 isTooltipOpen ? "opacity-100 pointer-events-auto" : "opacity-0 group-hover:opacity-100 pointer-events-none"
               )}>

@@ -124,7 +124,7 @@ const TaskRow = memo(function TaskRow({
         {hasDescription ? (
           <ChevronRight
             className={cn(
-              "w-3 h-3 shrink-0 transition-transform text-muted-foreground",
+              "w-3.5 h-3.5 shrink-0 transition-transform text-muted-foreground",
               expanded && "rotate-90"
             )}
           />

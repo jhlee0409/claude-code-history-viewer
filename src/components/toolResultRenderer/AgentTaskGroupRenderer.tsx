@@ -9,9 +9,9 @@ import { memo, useState } from "react";
 import {
   ChevronRight,
   Bot,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
+  CircleCheck,
+  LoaderCircle,
+  CircleAlert,
   Copy,
   Check,
   FileText,
@@ -36,25 +36,25 @@ interface AgentTaskGroupRendererProps {
 
 const STATUS_CONFIG = {
   async_launched: {
-    icon: Loader2,
+    icon: LoaderCircle,
     color: "text-info",
     animate: true,
     label: "running",
   },
   running: {
-    icon: Loader2,
+    icon: LoaderCircle,
     color: "text-info",
     animate: true,
     label: "running",
   },
   completed: {
-    icon: CheckCircle2,
+    icon: CircleCheck,
     color: "text-success",
     animate: false,
     label: "completed",
   },
   error: {
-    icon: AlertCircle,
+    icon: CircleAlert,
     color: "text-destructive",
     animate: false,
     label: "error",
@@ -93,7 +93,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
       >
         <ChevronRight
           className={cn(
-            "w-3 h-3 shrink-0 transition-transform text-muted-foreground",
+            "w-3.5 h-3.5 shrink-0 transition-transform text-muted-foreground",
             isExpanded && "rotate-90"
           )}
         />
@@ -131,7 +131,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
 
           {task.outputFile && (
             <div className="flex items-center gap-2">
-              <FileText className="w-3 h-3 text-muted-foreground" />
+              <FileText className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">
                 {t("agentTaskGroup.transcript")}
               </span>
@@ -149,11 +149,12 @@ const AgentTaskItem = memo(function AgentTaskItem({
                   "text-muted-foreground hover:text-foreground"
                 )}
                 title={t("agentTaskGroup.copyPath")}
+                aria-label={t("agentTaskGroup.copyPath")}
               >
                 {copied ? (
-                  <Check className="w-3 h-3 text-success" />
+                  <Check className="w-3.5 h-3.5 text-success" />
                 ) : (
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
@@ -242,7 +243,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
 
             {task.outputFile && (
               <div className="flex items-center gap-2 mt-2">
-                <FileText className="w-3 h-3 text-muted-foreground" />
+                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground">
                   {t("agentTaskGroup.transcript")}
                 </span>
@@ -301,13 +302,13 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
 
         {/* Running indicator */}
         {isRunning && (
-          <Loader2 className="w-3.5 h-3.5 text-info animate-spin ml-auto" />
+          <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin ml-auto" />
         )}
         {allCompleted && (
-          <CheckCircle2 className="w-3.5 h-3.5 text-success ml-auto" />
+          <CircleCheck className="w-3.5 h-3.5 text-success ml-auto" />
         )}
         {hasErrors && !isRunning && (
-          <AlertCircle className="w-3.5 h-3.5 text-destructive ml-auto" />
+          <CircleAlert className="w-3.5 h-3.5 text-destructive ml-auto" />
         )}
       </button>
 

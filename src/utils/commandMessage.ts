@@ -35,7 +35,7 @@ const KNOWN_COMMAND_TAG =
   /<(command-name|command-message|command-args|local-command-stdout|local-command-caveat)>/;
 
 /** True when the text carries Claude Code command markup. */
-export const hasCommandTags = (text: string): boolean => KNOWN_COMMAND_TAG.test(text);
+const hasCommandTags = (text: string): boolean => KNOWN_COMMAND_TAG.test(text);
 
 const extractFirst = (text: string, regex: RegExp, tag: string): string | undefined =>
   text.match(regex)?.[0]?.replace(new RegExp(`</?${tag}>`, "g"), "").trim();

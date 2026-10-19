@@ -4,7 +4,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
-import { formatDateCompact } from "../utils/time";
+import { formatDateCompact, formatDurationCompact } from "../utils/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,15 +18,6 @@ const formatNumber = (num: number): string => {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
   return num.toLocaleString();
-};
-
-// Format duration in minutes to readable string
-const formatDuration = (minutes: number): string => {
-  if (minutes < 1) return "<1m";
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
 export interface SessionStatsCardProps {
@@ -81,24 +72,25 @@ export const SessionStatsCard = memo(({
         {/* Main Stats Row */}
         <div className="flex items-center justify-between gap-4">
           {/* Left: Total & Messages & Duration */}
-          <div className="flex items-baseline gap-4">
-            <div>
+          {/* Items never break inside; on a narrow card they wrap as wholes. */}
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <div className="whitespace-nowrap">
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
                 {formatNumber(stats.total_tokens)}
               </span>
-              <span className="text-px10 text-muted-foreground ml-1">tokens</span>
+              <span className="text-caption text-muted-foreground ml-1">{t("analytics.tokens")}</span>
             </div>
-            <div className="text-px11 text-muted-foreground">
+            <div className="text-caption text-muted-foreground whitespace-nowrap">
               <span className="font-mono tabular-nums">{stats.message_count.toLocaleString()}</span>
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
-            <div className="text-px11 text-muted-foreground">
-              <span className="font-mono tabular-nums">{formatDuration(durationMinutes)}</span>
+            <div className="text-caption text-muted-foreground whitespace-nowrap">
+              <span className="font-mono tabular-nums">{formatDurationCompact(durationMinutes)}</span>
             </div>
           </div>
 
           {/* Right: Time */}
-          <div className="text-px10 text-muted-foreground/70 font-mono tabular-nums">
+          <div className="text-caption text-muted-foreground/70 font-mono tabular-nums">
             {formatDateCompact(stats.first_message_time)}
           </div>
         </div>
@@ -110,15 +102,15 @@ export const SessionStatsCard = memo(({
             const percentage = stats.total_tokens > 0 ? (token.value / stats.total_tokens) * 100 : 0;
             return (
               <div key={token.key} className="flex items-center gap-1.5">
-                <Icon className="w-3 h-3 shrink-0" style={{ color: token.color }} />
-                <span className="text-px10 text-muted-foreground">{token.label}</span>
+                <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: token.color }} />
+                <span className="text-caption text-muted-foreground">{token.label}</span>
                 <span
-                  className="font-mono text-px11 font-semibold tabular-nums"
+                  className="font-mono text-caption font-semibold tabular-nums"
                   style={{ color: token.color }}
                 >
                   {formatNumber(token.value)}
                 </span>
-                <span className="text-px9 text-muted-foreground/50 tabular-nums">
+                <span className="text-caption text-muted-foreground/50 tabular-nums">
                   {percentage.toFixed(0)}%
                 </span>
               </div>
@@ -130,12 +122,12 @@ export const SessionStatsCard = memo(({
         {(showSessionId || summary) && (
           <div className="mt-2 pt-2 border-t border-border/20 space-y-1">
             {summary && (
-              <p className="text-px10 text-muted-foreground line-clamp-2">
+              <p className="text-caption text-muted-foreground line-clamp-2">
                 {summary}
               </p>
             )}
             {showSessionId && (
-              <code className="font-mono text-px9 text-muted-foreground/50 select-all block">
+              <code className="font-mono text-caption text-muted-foreground/50 select-all block">
                 {stats.session_id}
               </code>
             )}

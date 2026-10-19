@@ -2,8 +2,10 @@
 // Deterministic UI capture + measurement harness (task T0).
 //
 //   pnpm ui:capture                          capture every scenario
+//   pnpm ui:capture --scenarios scripts/ui-capture/ci-scenarios.mjs   the CI subset
 //   pnpm ui:capture --repro                  capture twice, gate reproducibility (0%)
 //   pnpm ui:capture --base <ref|dir> [--gate reproducibility|unchanged|changed]
+//   pnpm ui:capture --base <ref> --gate unchanged --expect-changed <id,prefix*>   intended changes
 //   pnpm ui:capture --approve | --approve-from <run-dir>
 //
 // See scripts/ui-capture/README.md. Exit code 1 when any scenario fails to
@@ -20,10 +22,18 @@ import { generateFixture, snapshotTree } from "./fixtures/generate.mjs";
 import { createActions } from "./lib/actions.mjs";
 import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
+import { ExpectedChangesError, expectedBy, parseExpectedList, unmatchedPatterns } from "./lib/expectedChanges.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
+import { populationFailures, runInnerProbes } from "./lib/innerProbes.mjs";
+import { TYPOGRAPHY_PROBE, checkTypography } from "./lib/typography.mjs";
 import { withServerAndBrowser } from "./lib/lifecycle.mjs";
+import { splitByActivation } from "./lib/activation.mjs";
+import { SelectionError, selectScenarios } from "./lib/selection.mjs";
+import { VariantError, effectiveVariant, normalizeVariant, parseViewport, variantTag } from "./lib/variant.mjs";
 import { startServer } from "./lib/server.mjs";
+import { artifactModes, prepareArtifacts as prepareBuildArtifacts } from "./lib/artifacts.mjs";
+import { exitAfterFlush } from "./lib/exit.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
@@ -31,6 +41,12 @@ const OUT_ROOT = path.join(REPO, ".ui-capture");
 const FIXTURE_ROOT = path.join(OUT_ROOT, "fixture");
 
 class UsageError extends Error {}
+
+// Order matters: the static probes read the captured view; motionActivity
+// opens the first collapsed row, so it runs before the layout probes (which
+// open every collapsed row); focusVisible moves focus, so it runs last.
+const STATIC_INNER_PROBES = ["absPathLeaks", "toolRowMetrics", "wordBreak", "cjkLeading", "leftEdges", "overflowX", "cards", "chromeSelect", "motionActivity"];
+const INTERACTIVE_INNER_PROBES = ["focusVisible"];
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -42,19 +58,41 @@ const HELP = `usage: pnpm ui:capture [options]
   --base <ref|dir>        compare against a git ref (built + captured in a temp
                           worktree, cached) or a directory of baseline PNGs / a run dir
   --gate <mode>           ${GATES.join(" | ")} (default: reproducibility)
+  --expect-changed <ids>  with --gate unchanged: scenarios this change alters on
+                          purpose (comma list of exact ids or <prefix>*); they
+                          may exceed 0.1% and are reported as expected-change.
+                          An entry matching no selected scenario is an error.
+                          CI takes it from the PR body line
+                          \`ui-expected-changes: <ids>\` (see README "Gates")
   --approved <dir>        approved baselines for --gate changed (default .ui-capture/approved)
   --approve               after capturing, copy this run's PNGs into the approved dir
   --approve-from <dir>    approve an existing run dir without capturing
   --only <a,b,...>        only scenarios whose id contains one of the substrings
-  --scenarios <file>      alternative scenario module (default scripts/ui-capture/scenarios.mjs)
+  --scenarios <file>      alternative scenario module (default scripts/ui-capture/scenarios.mjs);
+                          a module exporting SELECTED_IDS runs exactly those ids,
+                          e.g. scripts/ui-capture/ci-scenarios.mjs (the PR gate)
+  --list                  print the selected scenario ids and exit (no capture)
   --locale <code>         ${SUPPORTED_LOCALES.join(" | ")} (default: scenario file DEFAULT_LOCALE)
   --out <dir>             run directory (default .ui-capture/runs/<timestamp>-<sha>)
-  --no-build              reuse .ui-capture/build/{dist,cchv-server} instead of building
+  --no-build              reuse the head build .ui-capture/build/{dist,cchv-server}
+                          instead of building it; a --base <git-ref> is still
+                          built into .ui-capture/build-base/<sha> when absent
+
+  Variants (plan I0; recorded in the manifest, part of the base cache key):
+  --forced-colors <m>     none | active   (Playwright forcedColors)
+  --contrast <m>          no-preference | more
+  --motion <m>            reduce (default) | full   (prefers-reduced-motion)
+  --font-scale <f>        root font size factor, e.g. 1.25 (browser/OS text size)
+  --timezone <zone>       IANA zone for the browser (default Asia/Seoul)
+  --viewport <WxH>        capture the selected screens at this size instead
+  --inspector <s>         open | closed: the stored inspector state
+  --live                  live interaction mode: real clock, CSS motion not
+                          suppressed (motion tests); never for pixel gates
   --help
 `;
 
 function parseArgs(argv) {
-  const opts = { build: true, approve: false, repro: false, only: [] };
+  const opts = { build: true, approve: false, repro: false, only: [], expectChanged: [], variant: {} };
   const value = (i, flag) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${flag} needs a value`);
@@ -66,6 +104,7 @@ function parseArgs(argv) {
       case "--repro": opts.repro = true; break;
       case "--base": opts.base = value(i, arg); i += 1; break;
       case "--gate": opts.gate = value(i, arg); i += 1; break;
+      case "--expect-changed": opts.expectChanged = expectChangedList(value(i, arg)); i += 1; break;
       case "--approved": opts.approved = path.resolve(value(i, arg)); i += 1; break;
       case "--approve": opts.approve = true; break;
       case "--approve-from": opts.approveFrom = path.resolve(value(i, arg)); i += 1; break;
@@ -74,16 +113,46 @@ function parseArgs(argv) {
       case "--locale": opts.locale = value(i, arg); i += 1; break;
       case "--out": opts.out = path.resolve(value(i, arg)); i += 1; break;
       case "--no-build": opts.build = false; break;
+      case "--forced-colors": opts.variant.forcedColors = value(i, arg); i += 1; break;
+      case "--contrast": opts.variant.contrast = value(i, arg); i += 1; break;
+      case "--motion": opts.variant.motion = value(i, arg); i += 1; break;
+      case "--font-scale": opts.variant.fontScale = Number(value(i, arg)); i += 1; break;
+      case "--timezone": opts.variant.timezone = value(i, arg); i += 1; break;
+      case "--viewport": opts.variant.viewport = value(i, arg); i += 1; break;
+      case "--inspector": opts.variant.inspector = value(i, arg); i += 1; break;
+      case "--live": opts.variant.live = true; break;
+      case "--list": opts.list = true; break;
       case "--help": case "-h": opts.help = true; break;
       default: throw new UsageError(`unknown option ${arg}`);
     }
   }
   if (opts.gate && !GATES.includes(opts.gate)) throw new UsageError(`--gate must be one of ${GATES.join(", ")}`);
   if (opts.gate && !opts.base) throw new UsageError("--gate needs --base (or use --repro)");
+  if (opts.expectChanged.length && opts.gate !== "unchanged") throw new UsageError("--expect-changed applies to --gate unchanged only");
   if (opts.repro && opts.base) throw new UsageError("--repro and --base are exclusive");
   if (opts.locale && !SUPPORTED_LOCALES.includes(opts.locale)) throw new UsageError(`--locale must be one of ${SUPPORTED_LOCALES.join(", ")}`);
+  try {
+    normalizeVariant(opts.variant);
+  } catch (error) {
+    if (error instanceof VariantError) throw new UsageError(error.message);
+    throw error;
+  }
+  if (opts.variant.live && (opts.repro || opts.base)) throw new UsageError("--live is for interaction tests; it cannot feed a pixel gate (--repro / --base)");
   opts.approved ??= path.join(OUT_ROOT, "approved");
   return opts;
+}
+
+/** `--expect-changed` value: at least one entry, each an id or `<prefix>*`. */
+function expectChangedList(text) {
+  let entries;
+  try {
+    entries = parseExpectedList(text);
+  } catch (error) {
+    if (error instanceof ExpectedChangesError) throw new UsageError(error.message);
+    throw error;
+  }
+  if (entries.length === 0) throw new UsageError("--expect-changed needs at least one scenario id");
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,17 +190,44 @@ function runId(state) {
 
 async function loadScenarios(file) {
   const module = await import(pathToFileURL(file ?? path.join(HERE, "scenarios.mjs")).href);
-  const all = module.expandScenarios(module.MATRIX);
+  const expanded = module.expandScenarios(module.MATRIX);
   const ids = new Set();
-  for (const scenario of all) {
+  for (const scenario of expanded) {
     if (ids.has(scenario.id)) throw new UsageError(`duplicate scenario id ${scenario.id}`);
     ids.add(scenario.id);
   }
+  // Later-active scenarios (plan I0 (b)): declared with the task that turns
+  // them on; never run, never part of a gate, always listed in the manifest.
+  const { active: all, inactive } = splitByActivation(expanded);
   return {
     all,
+    inactive,
+    // An exact-id subset (lib/selection.mjs); null = every active scenario.
+    selected: module.SELECTED_IDS ?? null,
     defaultLocale: module.DEFAULT_LOCALE ?? "ko",
-    measurement: { state: module.MEASUREMENT_STATE ?? null, storageSeed: module.STORAGE_SEED ?? {} },
+    measurement: {
+      state: module.MEASUREMENT_STATE ?? null,
+      storageSeed: module.STORAGE_SEED ?? {},
+      // --inspector open|closed seeds the stored inspector through the
+      // scenario file's own helper.
+      inspectorStorage: module.inspectorStorage ?? null,
+    },
   };
+}
+
+/** `--viewport`: the selected screens at one size (ids follow the new size). */
+function applyViewportVariant(scenarios, viewport) {
+  if (!viewport) return scenarios;
+  const vp = typeof viewport === "string" ? parseViewport(viewport) : viewport;
+  const seen = new Set();
+  const out = [];
+  for (const scenario of scenarios) {
+    const id = `${scenario.screen.id}--${vp.id}--${scenario.theme}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ ...scenario, id, viewport: vp, mobile: vp.width < 768 });
+  }
+  return out;
 }
 
 const writeJson = (file, data) => {
@@ -146,28 +242,29 @@ const isAppCacheFile = (relPath) => path.basename(relPath) === ".session_cache.j
 // Build
 // ---------------------------------------------------------------------------
 
-/** Build (or reuse) the dist + server binary for a checkout. */
-function prepareArtifacts({ appDir, buildDir, build }) {
-  const dist = path.join(buildDir, "dist");
-  const serverBin = path.join(buildDir, "cchv-server");
-  if (build) {
-    console.log(`▸ building ${path.relative(REPO, appDir) || "."} -> ${path.relative(REPO, buildDir)}`);
-    const result = spawnSync("bash", [path.join(HERE, "build.sh"), appDir, dist, serverBin, path.join(REPO, "src-tauri", "target")], {
-      stdio: "inherit",
-    });
-    if (result.status !== 0) throw new Error(`build failed for ${appDir} (exit ${result.status})`);
-  }
-  for (const required of [path.join(dist, "index.html"), serverBin]) {
-    if (!fs.existsSync(required)) throw new Error(`missing build artifact ${required} (drop --no-build)`);
-  }
-  return { appDir, dist, serverBin };
+/** build.sh for a checkout into dist + server binary (one shared cargo target dir). */
+function runBuildScript({ appDir, dist, serverBin }) {
+  console.log(`▸ building ${path.relative(REPO, appDir) || "."} -> ${path.relative(REPO, path.dirname(dist))}`);
+  const result = spawnSync("bash", [path.join(HERE, "build.sh"), appDir, dist, serverBin, path.join(REPO, "src-tauri", "target")], {
+    stdio: "inherit",
+  });
+  if (result.status !== 0) throw new Error(`build failed for ${appDir} (exit ${result.status})`);
 }
+
+/** Build (or reuse, see lib/artifacts.mjs) the dist + server binary for a checkout. */
+const prepareArtifacts = ({ appDir, buildDir, mode }) =>
+  prepareBuildArtifacts({ appDir, buildDir, mode, runBuild: runBuildScript, log: (m) => console.log(`▸ ${m.replace(REPO + path.sep, "")}`) });
 
 // ---------------------------------------------------------------------------
 // Capture
 // ---------------------------------------------------------------------------
 
-async function captureRun({ app, scenarios, declared, locale, measurement, runDir, label }) {
+/**
+ * `checkTypography`: fail a scenario whose typography is off (T4: lang, font
+ * order, body line height, steps × scale, min font). On for this checkout's
+ * captures; off for a --base capture, which is the "before" being compared.
+ */
+async function captureRun({ app, scenarios, declared, inactive = [], locale, measurement, runDir, label, variant = {}, checkTypography: enforceTypography = true }) {
   const shotsDir = path.join(runDir, "shots");
   const probesDir = path.join(runDir, "probes");
   const logsDir = path.join(runDir, "logs");
@@ -209,13 +306,16 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
         results.push(result);
         let session;
         try {
+          const v = effectiveVariant(variant, scenario.screen.variant);
+          const inspectorSeed = v.inspector && measurement.inspectorStorage ? measurement.inspectorStorage({ open: v.inspector === "open" }) : {};
           session = await newScenarioPage(browser, {
             scenario,
             origin: server.origin,
             locale,
             fixedNow: fixture.fixedNow,
             injections: scenario.screen.inject,
-            storageSeed: measurement.storageSeed,
+            storageSeed: { ...measurement.storageSeed, ...(scenario.screen.storage ?? {}), ...inspectorSeed },
+            variant: v,
           });
           await session.page.goto(`${server.origin}/`, { waitUntil: "domcontentloaded" });
           const mode = scenario.screen.settle ?? "ready";
@@ -226,19 +326,49 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
           }
           settled = await settle(session, { mode, label: "before capture" });
           await screenshot(session.page, path.join(shotsDir, `${scenario.id}.png`));
-          const probes = await runProbes(session.page);
-          const stateProblems = measurement.state
-            ? checkMeasurementState(probes.measurementState, measurement.state, { mobile: scenario.mobile })
+          // Inner-UI probes (plan I0): see STATIC_INNER_PROBES for the order.
+          const probeCtx = { screen: scenario.screen.id, locale, mobile: scenario.mobile, theme: scenario.theme, viewport: scenario.viewport.id, live: v.live };
+          const inner = await runInnerProbes(session.page, probeCtx, { only: STATIC_INNER_PROBES });
+          const probes = await runProbes(session.page, { live: v.live });
+          Object.assign(inner, await runInnerProbes(session.page, probeCtx, { only: INTERACTIVE_INNER_PROBES }));
+          const emptyPopulations = populationFailures(inner);
+          // Undo what the steps wrote to the shared fixture (a favourite),
+          // so later scenarios start from the same data.
+          for (const step of scenario.screen.cleanup ?? []) {
+            await runStep(step);
+          }
+          const expectedState = measurement.state && {
+            ...measurement.state,
+            fontScalePercent: scenario.screen.fontScalePercent ?? measurement.state.fontScalePercent,
+            tabs: scenario.screen.tabs ?? measurement.state.tabs,
+            inspectorOpen: v.inspector ? v.inspector === "open" : (scenario.screen.inspectorOpen ?? measurement.state.inspectorOpen),
+            rootFontSizePx: 16 * v.fontScale,
+          };
+          const stateProblems = expectedState
+            ? checkMeasurementState(probes.measurementState, expectedState, { mobile: scenario.mobile })
             : [];
+          const typography = await session.page.evaluate(TYPOGRAPHY_PROBE);
+          typography.problems = checkTypography(typography, {
+            locale,
+            scalePercent: expectedState?.fontScalePercent ?? 100,
+            rootScale: v.fontScale, // browser/OS text size (--font-scale)
+            minFontPx: probes.minFontSize.px,
+          });
           writeJson(path.join(probesDir, `${scenario.id}.json`), {
             scenario: scenario.id,
             screen: scenario.screen.id,
             viewport: { width: scenario.viewport.width, height: scenario.viewport.height, deviceScaleFactor: 2 },
             theme: scenario.theme,
             locale,
+            variant: v,
             ...probes,
+            typography,
+            inner,
           });
           if (stateProblems.length) throw new Error(`measurement state: ${stateProblems.join("; ")}`);
+          if (enforceTypography && typography.problems.length) throw new Error(`typography: ${typography.problems.join("; ")}`);
+          // An applicable probe that judged nothing proves nothing (plan I0).
+          if (enforceTypography && emptyPopulations.length) throw new Error(`probes: ${emptyPopulations.join("; ")}`);
           result.ok = true;
           result.readyMarker = settled.readyMarker;
         } catch (error) {
@@ -297,7 +427,10 @@ async function captureRun({ app, scenarios, declared, locale, measurement, runDi
     },
     versions: { node: process.version, playwright: playwrightVersion(), webkit: browserVersion },
     server: { args: serverArgs },
+    variant: normalizeVariant(variant),
     declared,
+    // Later-active scenarios (plan I0 (b)): not run, owner task named.
+    inactive,
     scenarios: results,
     durationMs: Date.now() - started,
   });
@@ -332,7 +465,7 @@ function locateShots(dir) {
 }
 
 /** A directory of PNGs (or a run dir) is used as-is; anything else is a git ref. */
-async function resolveBase({ base, scenarios, declared, locale, measurement, build }) {
+async function resolveBase({ base, scenarios, declared, locale, measurement, buildMode, variant = {} }) {
   if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
     const dir = path.resolve(base);
     const { shotsDir, manifest } = locateShots(dir);
@@ -348,7 +481,8 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
   } catch {
     throw new UsageError(`--base ${base}: neither a directory nor a git ref`);
   }
-  const key = `${sha.slice(0, 12)}-${locale}-${harnessDigest()}`;
+  const tag = variantTag(variant);
+  const key = `${sha.slice(0, 12)}-${locale}-${harnessDigest()}${tag ? `-${tag}` : ""}`;
   const cacheDir = path.join(OUT_ROOT, "baselines", key);
   const cached = path.join(cacheDir, "manifest.json");
   if (fs.existsSync(cached)) {
@@ -371,8 +505,18 @@ async function resolveBase({ base, scenarios, declared, locale, measurement, bui
   try {
     // Inside the try: a partially created worktree is removed as well.
     git(["worktree", "add", "--detach", worktree, sha]);
-    const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), build });
-    const run = await captureRun({ app, scenarios, declared, locale, measurement, runDir: cacheDir, label: `base ${sha.slice(0, 12)}` });
+    const app = prepareArtifacts({ appDir: worktree, buildDir: path.join(OUT_ROOT, "build-base", sha.slice(0, 12)), mode: buildMode });
+    const run = await captureRun({
+      app,
+      scenarios,
+      declared,
+      locale,
+      measurement,
+      variant,
+      runDir: cacheDir,
+      label: `base ${sha.slice(0, 12)}`,
+      checkTypography: false,
+    });
     return { label: `${base} (${sha.slice(0, 12)})`, shotsDir: run.shotsDir, failures: run.failures.map((f) => `base ${f}`) };
   } finally {
     dropWorktree();
@@ -445,10 +589,39 @@ async function main() {
     return 0;
   }
 
-  const { all, defaultLocale, measurement } = await loadScenarios(opts.scenarios);
+  const loaded = await loadScenarios(opts.scenarios);
+  const { defaultLocale, measurement, inactive } = loaded;
+  const all = applyViewportVariant(loaded.all, opts.variant.viewport);
+  // `declared` stays the whole matrix under a SELECTED_IDS subset too, so a
+  // base cache holding the full matrix is not mistaken for removed scenarios.
   const declared = all.map((s) => s.id);
-  const scenarios = opts.only.length ? all.filter((s) => opts.only.some((o) => s.id.includes(o))) : all;
+  let pool = all;
+  if (loaded.selected) {
+    try {
+      pool = applyViewportVariant(selectScenarios(loaded.all, loaded.selected), opts.variant.viewport);
+    } catch (error) {
+      if (error instanceof SelectionError) throw new UsageError(`${path.relative(REPO, opts.scenarios)}: ${error.message}`);
+      throw error;
+    }
+  }
+  const scenarios = opts.only.length ? pool.filter((s) => opts.only.some((o) => s.id.includes(o))) : pool;
   if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
+  // Before anything is built or captured, so a typo fails at once.
+  const unmatched = unmatchedPatterns(opts.expectChanged, scenarios.map((s) => s.id));
+  if (unmatched.length) throw new UsageError(`--expect-changed ${unmatched.join(", ")} matches no selected scenario (--list prints them)`);
+  if (opts.list) {
+    for (const scenario of scenarios) console.log(scenario.id);
+    return 0;
+  }
+  if (opts.expectChanged.length) {
+    const covered = scenarios.filter((s) => expectedBy(s.id, opts.expectChanged)).map((s) => s.id);
+    console.log(`▸ expected changes (--expect-changed ${opts.expectChanged.join(",")}): ${covered.length} scenario(s) may exceed 0.1%: ${covered.join(", ")}`);
+  }
+  if (inactive.length) {
+    const owners = [...new Set(inactive.map((s) => s.activatesWith))].sort();
+    console.log(`▸ ${inactive.length} later-active scenario(s) not run (inactive until ${owners.join(", ")}); listed in manifest.json → inactive`);
+  }
+  if (loaded.selected) console.log(`▸ ${pool.length} of ${all.length} scenarios selected by ${path.relative(REPO, opts.scenarios)} (SELECTED_IDS)`);
   const locale = opts.locale ?? defaultLocale;
   acquireLock();
 
@@ -460,23 +633,26 @@ async function main() {
   }
 
   const state = gitState();
-  const id = runId(state);
+  const tag = variantTag(opts.variant);
+  const id = `${runId(state)}${tag ? `-${tag}` : ""}`;
   const runDir = opts.out ?? path.join(OUT_ROOT, "runs", id);
-  const head = prepareArtifacts({ appDir: REPO, buildDir: path.join(OUT_ROOT, "build"), build: opts.build });
+  const modes = artifactModes({ build: opts.build });
+  const head = prepareArtifacts({ appDir: REPO, buildDir: path.join(OUT_ROOT, "build"), mode: modes.head });
 
   const failures = [];
   let comparison = null;
+  let gateNotes = "";
 
   if (opts.repro) {
-    const first = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
-    const second = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
+    const first = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
+    const second = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir: path.join(runDir, "run-2"), label: "repro run 2" });
     failures.push(...first.failures.map((f) => `run 1 ${f}`), ...second.failures.map((f) => `run 2 ${f}`));
     comparison = { gate: "reproducibility", baseLabel: first.runDir, headLabel: second.runDir, baseDir: first.shotsDir, headDir: second.shotsDir };
   } else {
-    const run = await captureRun({ app: head, scenarios, declared, locale, measurement, runDir, label: "head" });
+    const run = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir, label: "head" });
     failures.push(...run.failures);
     if (opts.base) {
-      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, build: opts.build });
+      const base = await resolveBase({ base: opts.base, scenarios, declared, locale, measurement, buildMode: modes.base, variant: opts.variant });
       failures.push(...base.failures);
       comparison = { gate: opts.gate ?? "reproducibility", baseLabel: base.label, headLabel: run.runDir, baseDir: base.shotsDir, headDir: run.shotsDir };
     }
@@ -492,6 +668,7 @@ async function main() {
       baseDir: comparison.baseDir,
       approvedDir: opts.approved,
       diffDir: path.join(runDir, "compare", "diff"),
+      expectChanged: opts.expectChanged,
     });
     const report = formatReport({ ...outcome, baseLabel: comparison.baseLabel, headLabel: comparison.headLabel });
     fs.mkdirSync(path.join(runDir, "compare"), { recursive: true });
@@ -499,6 +676,10 @@ async function main() {
     writeJson(path.join(runDir, "compare", "report.json"), { ...outcome, base: comparison.baseLabel, head: comparison.headLabel });
     console.log(`\n${report}`);
     failures.push(...outcome.failures.map((f) => `gate ${comparison.gate}: ${f}`));
+    const notes = [];
+    if (outcome.expectedChanges.length) notes.push(`${outcome.expectedChanges.length} expected change(s)`);
+    if (outcome.warnings.length) notes.push(`${outcome.warnings.length} warning(s)`);
+    if (notes.length) gateNotes = ` (${notes.join(", ")}; see the report above)`;
   }
 
   fs.mkdirSync(path.join(OUT_ROOT, "runs"), { recursive: true });
@@ -512,14 +693,14 @@ async function main() {
     for (const failure of failures) console.log(`  - ${failure}`);
     return 1;
   }
-  console.log(`✓ ${scenarios.length} scenarios captured${comparison ? `, gate ${comparison.gate} passed` : ""}`);
+  console.log(`✓ ${scenarios.length} scenarios captured${comparison ? `, gate ${comparison.gate} passed${gateNotes}` : ""}`);
   return 0;
 }
 
 main().then(
-  (code) => process.exit(code),
+  exitAfterFlush,
   (error) => {
     console.error(`✗ ${error?.message ?? error}`);
-    process.exit(error instanceof UsageError ? 2 : 1);
+    exitAfterFlush(error instanceof UsageError ? 2 : 1);
   },
 );

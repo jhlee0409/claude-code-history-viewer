@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   ChevronRight,
   FolderOpen,
-  Loader2,
+  LoaderCircle,
   Search,
 } from 'lucide-react';
 import {
@@ -222,12 +222,12 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                   value={projectSearch}
                   onChange={(e) => setProjectSearch(e.target.value)}
                   placeholder={t('archive.create.projectSearch')}
-                  className="pl-8 h-8 text-sm"
+                  className="pl-8 h-8 text-body"
                 />
               </div>
               <div className="space-y-1">
                 {filteredProjects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-6 text-center">
+                  <p className="text-list text-muted-foreground py-6 text-center">
                     {t('archive.create.noProjectsFound')}
                   </p>
                 ) : (
@@ -251,14 +251,14 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                     >
                       <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{project.name}</p>
-                        <p className="text-2xs text-muted-foreground truncate">
+                        <p className="text-body font-medium truncate">{project.name}</p>
+                        <p className="text-caption text-muted-foreground truncate">
                           {canArchive ? project.actual_path : `${provider} — ${t('archive.create.unsupportedProvider')}`}
                         </p>
                       </div>
                       {canArchive && (
                         <>
-                          <Badge variant="secondary" className="text-2xs shrink-0">
+                          <Badge variant="secondary" className="text-caption shrink-0">
                             {t('archive.create.sessionCount', { count: project.session_count })}
                           </Badge>
                           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -301,7 +301,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                 <div className="flex items-center justify-between">
                   <Label>{t('archive.create.sessions')}</Label>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-2xs">
+                    <Badge variant="secondary" className="text-caption">
                       {t('archive.create.sessionsSelected', {
                         count: selectedSessionPaths.length,
                       })}
@@ -310,7 +310,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-xs"
+                        className="h-6 text-list"
                         onClick={toggleSelectAll}
                       >
                         {selectedSessionPaths.length === mainSessions.length
@@ -323,10 +323,10 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                 <div className="max-h-48 overflow-y-auto border rounded-md p-1 space-y-0.5">
                   {isLoadingSessions ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : mainSessions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground p-3 text-center">
+                    <p className="text-list text-muted-foreground p-3 text-center">
                       {t('archive.create.noSessions')}
                     </p>
                   ) : (
@@ -341,10 +341,10 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                           onChange={() => toggleSessionSelection(session.file_path)}
                           className="rounded border-border"
                         />
-                        <span className="text-xs truncate flex-1">
+                        <span className="text-list truncate flex-1">
                           {session.summary || `Session ${session.session_id.slice(-8)}`}
                         </span>
-                        <span className="text-2xs text-muted-foreground shrink-0">
+                        <span className="text-caption text-muted-foreground shrink-0">
                           {t('archive.browse.sessions.messages', {
                             count: session.message_count,
                           })}
@@ -358,10 +358,10 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
               {/* Subagent toggle */}
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor={`${formId}-subagents`} className="text-sm">
+                  <Label htmlFor={`${formId}-subagents`} className="text-body">
                     {t('archive.create.includeSubagents')}
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-list text-muted-foreground mt-0.5">
                     {t('archive.create.includeSubagentsDescription')}
                   </p>
                 </div>
@@ -390,7 +390,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
             >
               {archive.isCreatingArchive ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   {t('archive.create.creating')}
                 </>
               ) : (

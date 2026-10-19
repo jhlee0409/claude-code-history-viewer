@@ -2,9 +2,11 @@ pub mod cli;
 pub mod cli_args;
 pub mod commands;
 pub mod export;
+pub mod menu;
 pub mod models;
 pub mod providers;
 pub mod utils;
+pub mod window_state;
 pub mod wsl;
 
 #[cfg(feature = "webui-server")]
@@ -174,7 +176,35 @@ fn run_tauri() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        // The native menu bar, built from the command manifest (plan §4.4,
+        // T11a). After the plugins: single-instance stays first. One
+        // app-wide menu-event handler; a rebuilt menu adds no listener.
+        .manage(menu::MenuBridge::new("en"))
+        .manage(menu::MenuJournal::for_this_run())
+        // One setup hook (a second one would replace the first):
+        // 1. The menu, built here because the saved UI language is read from
+        //    the app data folder, whose path resolver does not exist yet when
+        //    `Builder::menu` runs. First, so the menu bar (Windows/Linux) is
+        //    in the decoration the window restore measures.
+        // 2. The window opens hidden; `restore_and_track` restores its saved
+        //    frame, then shows it (T11b). Keep it last, after anything that
+        //    changes the window's decoration.
+        // A menu error is logged, never returned: an `Err` from `setup`
+        // panics before the window is shown. The app runs on without the
+        // native menu (macOS keeps Tauri's default one).
+        .setup(|app| {
+            if let Err(error) = menu::initial_menu(app.handle()).and_then(|menu| app.set_menu(menu))
+            {
+                log::error!("native menu not installed: {error}");
+            }
+            window_state::restore_and_track(app.handle());
+            Ok(())
+        })
+        // Every menu event is journaled (numbered, kept until acknowledged):
+        // a (re)loading page pulls what it has not run, so no page-load hook
+        // or ready state is needed.
+        .on_menu_event(|app, event| menu::handle_menu_event(app, event.id().as_ref()));
 
     builder
         .manage(MetadataState::default())
@@ -283,11 +313,16 @@ fn run_tauri() {
             get_antigravity_session,
             get_antigravity_project_summary,
             // Updater fallback
-            force_quit_and_relaunch
+            force_quit_and_relaunch,
+            // Native menu bridge (WebUI: no-op route)
+            menu::native::sync_menu_state,
+            menu::native::menu_journal,
+            menu::native::ack_menu_events
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            window_state::on_run_event(app, &event);
             // macOS-only: Spotlight / Dock / Finder launches don't re-exec
             // argv, so `tauri-plugin-single-instance` cannot see them. The OS
             // instead delivers the target as an Apple Event that Tauri
@@ -367,6 +402,31 @@ fn linux_ime_environment_updates(
     }
 
     updates
+}
+
+#[cfg(test)]
+mod builder_order_tests {
+    /// T11a keeps the single-instance plugin registered first: a second
+    /// launch must be intercepted before any other plugin (or the menu) does
+    /// work. Checked on the source, as the builder cannot be run headless.
+    #[test]
+    fn single_instance_is_the_first_plugin_and_the_menu_comes_after_the_plugins() {
+        let source = include_str!("lib.rs");
+        let start = source
+            .find("let mut builder = tauri::Builder::default()")
+            .expect("builder");
+        let body = &source[start..];
+        let first_plugin = body.find(".plugin(").expect("a plugin");
+        assert!(
+            body[first_plugin..].starts_with(".plugin(tauri_plugin_single_instance::init("),
+            "single-instance must be the first plugin"
+        );
+        let last_plugin = body
+            .find(".plugin(tauri_plugin_os::init())")
+            .expect("os plugin");
+        let menu = body.find("menu::initial_menu(app.handle())").expect("menu");
+        assert!(menu > last_plugin, "the menu is set up after every plugin");
+    }
 }
 
 #[cfg(test)]

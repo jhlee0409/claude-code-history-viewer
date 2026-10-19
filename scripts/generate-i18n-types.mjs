@@ -4,12 +4,16 @@
  *
  * namespace별 JSON 파일들을 읽어서 TypeScript 타입을 생성합니다.
  * 구조: locales/{lang}/{namespace}.json
+ *
+ * 복수형 묶음(`x_one`·`x_other` …)은 바탕 키 `x` 하나가 된다: 코드는
+ * `t("x", { count })`로 부르고, i18next가 언어에 맞는 형태를 고른다(plan F4a).
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { NAMESPACES } from './i18n-config.mjs';
+import { typeKeys } from './i18n-rules.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(__dirname, '../src/i18n/locales');
@@ -60,7 +64,7 @@ function generateTypes() {
     }
 
     const nsData = JSON.parse(fs.readFileSync(nsPath, 'utf-8'));
-    const keys = Object.keys(nsData);
+    const keys = typeKeys(Object.keys(nsData));
     namespaceKeys.set(ns, keys);
     allKeys = allKeys.concat(keys);
   }
@@ -99,6 +103,8 @@ function generateTypes() {
  * - update: 업데이트 관련 (~65 keys)
  * - feedback: 피드백 (~32 keys)
  * - recentEdits: 최근 편집 (~20 keys)
+ * - archive: 아카이브
+ * - webui: WebUI(브라우저 모드)
  */
 export type I18nNamespace =
 ${NAMESPACES.map(ns => `  | '${ns}'`).join('\n')};
