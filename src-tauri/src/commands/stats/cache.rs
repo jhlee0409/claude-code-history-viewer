@@ -561,7 +561,7 @@ pub(super) fn build_message_file_aggregate(
     session_path: &Path,
     mode: StatsMode,
 ) -> Option<FileAggregate> {
-    let file = fs::File::open(session_path).ok()?;
+    let file = super::session_files::open_regular_file(session_path).ok()?;
     // SAFETY: read-only mmap; the file handle outlives the map. Session
     // files are append-only, and concurrent growth is caught by the
     // (size, mtime) signature taken before this builder runs.

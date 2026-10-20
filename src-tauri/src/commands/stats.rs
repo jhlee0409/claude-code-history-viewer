@@ -4299,6 +4299,8 @@ pub async fn get_session_token_stats(
     }
 
     let session_path_buf = PathBuf::from(&session_path);
+    session_files::open_regular_file(&session_path_buf)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
     let stats = extract_session_token_stats_sync(
         &session_path_buf,
         mode,
@@ -4524,7 +4526,7 @@ fn scan_session_token_accum(
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenAccum> {
-    let file = fs::File::open(session_path).ok()?;
+    let file = session_files::open_regular_file(session_path).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.

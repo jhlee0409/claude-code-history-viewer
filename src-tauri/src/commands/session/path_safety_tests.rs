@@ -648,7 +648,7 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
     fs::create_dir_all(project.join("folder.jsonl")).unwrap();
     mkfifo(&project.join("fifo.jsonl"));
 
-    let readers: [(&'static str, ReadSession); 7] = [
+    let readers: [(&'static str, ReadSession); 8] = [
         ("load_session_messages", |path| {
             refusal(block_on(load_session_messages(path)))
         }),
@@ -673,6 +673,9 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
         ("get_recent_edits", |path| {
             let project = text(Path::new(&path).parent().unwrap());
             refusal(block_on(get_recent_edits(project, None, None, Some(path), None)).map(|_| ()))
+        }),
+        ("get_session_token_stats", |path| {
+            refusal(block_on(stats::get_session_token_stats(path, None, None, None)).map(|_| ()))
         }),
     ];
     let mut read = Vec::new();
