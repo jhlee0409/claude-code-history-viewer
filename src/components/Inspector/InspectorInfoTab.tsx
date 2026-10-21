@@ -20,6 +20,7 @@ import { PathText } from "@/lib/format/PathText";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+import { hasRecordedTime } from "@/lib/format/missingValue";
 
 /**
  * A moment as date and time, each kept on one line: in a narrow column the
@@ -27,15 +28,15 @@ import { Num } from "@/lib/format/Num";
  * The full form with seconds is the tooltip.
  *
  * A missing or unparseable time (subagent sessions are synthesised with
- * empty first/last times) reads "Unknown", with no `<time>` to mislabel.
+ * empty first/last times) reads "Not recorded", with no `<time>` to mislabel.
  */
 const Moment = ({ timestamp }: { timestamp: string }) => {
   const { t } = useTranslation();
   const fmt = useFormat();
-  const date = new Date(timestamp);
-  if (!timestamp || Number.isNaN(date.getTime())) {
-    return <span className="text-muted-foreground">{t("common.unknown")}</span>;
+  if (!hasRecordedTime(timestamp)) {
+    return <span className="text-muted-foreground">{t("common.missingValue.notRecorded")}</span>;
   }
+  const date = new Date(timestamp);
   return (
     <time dateTime={timestamp} title={fmt.dateTimeFull(date)} className="flex flex-wrap gap-x-1.5">
       <span className="whitespace-nowrap"><Num>{fmt.date(date, "long")}</Num></span>
