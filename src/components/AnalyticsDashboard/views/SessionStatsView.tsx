@@ -154,11 +154,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                   {t("analytics.minutesUnit")}
                 </span>}
               </div>
-              <div className="text-caption text-muted-foreground font-mono mt-0.5">
+              {hasDuration && <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.rank", "Rank {{rank}}", {
                   rank: sessionComparison.rank_by_duration,
                 })}
-              </div>
+              </div>}
             </div>
 
             <div className="p-3 rounded-md bg-muted/20">

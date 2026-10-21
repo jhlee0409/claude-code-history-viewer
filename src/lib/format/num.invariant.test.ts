@@ -198,6 +198,24 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
     return { file, sf, receivers: new Set(["fmt"]), functions: new Set(FORMAT_FUNCTIONS), exported: new Set() };
   });
   const byPath = new Map(states.map((s) => [s.file.path, s]));
+  // Bind only these already-parsed files (no libs/types/disk resolution).
+  // Symbols distinguish a callback parameter from unrelated same-named locals.
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [], noEmit: true, jsx: ts.JsxEmit.Preserve };
+  const sourceFor = (name: string) => byPath.get(name.replaceAll("\\", "/").replace(/^\//, ""));
+  const host: ts.CompilerHost = {
+    ...ts.createCompilerHost(options),
+    getCurrentDirectory: () => "/",
+    getSourceFile: (name) => sourceFor(name)?.sf,
+    fileExists: (name) => sourceFor(name) !== undefined,
+    readFile: (name) => sourceFor(name)?.sf.text,
+  };
+  const checker = ts.createProgram(states.map((state) => state.file.path), options, host).getTypeChecker();
+  const adapterParameters = new Set<ts.Symbol>();
+  const isAdapterParameter = (node: ts.Node): boolean => {
+    if (!ts.isIdentifier(node)) return false;
+    const symbol = checker.getSymbolAtLocation(node);
+    return symbol !== undefined && adapterParameters.has(symbol);
+  };
 
   // Formatter bindings: `const f = useFormat()`, `const { count, tokens: tk } = appFormat()`.
   for (const state of states) {
@@ -235,7 +253,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   const isFormatterText = (state: FileState, node: ts.Node): boolean => {
     if (!ts.isCallExpression(node)) return false;
     const callee = unwrap(node.expression);
-    if (ts.isIdentifier(callee)) return state.functions.has(callee.text);
+    if (ts.isIdentifier(callee)) return state.functions.has(callee.text) || isAdapterParameter(callee);
     if (isReceivedFunction(callee)) return true;
     if (!ts.isPropertyAccessExpression(callee) || !FORMATTER_METHODS.has(callee.name.text)) return false;
     const receiver = unwrap(callee.expression);
@@ -376,7 +394,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   const uncalledFormatter = (state: FileState, node: ts.Node): "function" | "formatter" | undefined => {
     if (!(ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) || !usedUncalled(node)) return undefined;
     if (ts.isIdentifier(node)) {
-      if (state.functions.has(node.text)) return "function";
+      if (state.functions.has(node.text) || isAdapterParameter(node)) return "function";
       return state.receivers.has(node.text) ? "formatter" : undefined;
     }
     if (isReceivedFunction(node)) return "function";
@@ -458,11 +476,14 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
         ts.isFunctionDeclaration(statement) && statement.name?.text === name);
       const parameter = fn?.parameters[parent.arguments.indexOf(child as ts.Expression)];
       if (parameter && ts.isIdentifier(parameter.name)) {
-        if (!target.functions.has(parameter.name.text)) {
-          target.functions.add(parameter.name.text);
-          changed = true;
+        const binding = checker.getSymbolAtLocation(parameter.name);
+        if (binding) {
+          if (!adapterParameters.has(binding)) {
+            adapterParameters.add(binding);
+            changed = true;
+          }
+          return;
         }
-        return;
       }
     }
     untrack();
