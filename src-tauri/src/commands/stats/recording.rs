@@ -91,7 +91,12 @@ impl RowEvidence {
             if let Some(usage) = tool.get("usage") {
                 row.apply_json(usage);
             }
-            if !row.covered[0] && !row.covered[1] && usage_u32(tool, &["totalTokens"]).is_some() {
+            // Match extract_token_usage's total-only source domain exactly;
+            // its legacy u64 -> u32 numeric conversion remains unchanged.
+            if !row.covered[0]
+                && !row.covered[1]
+                && tool.get("totalTokens").and_then(Value::as_u64).is_some()
+            {
                 row.covered[usize::from(message.message_type == "assistant")] = true;
                 row.numeric = true;
             }
