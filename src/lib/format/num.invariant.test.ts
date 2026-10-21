@@ -808,6 +808,18 @@ describe("<Num> guard: a formatter function handed on is followed to where it re
 });
 
 describe("formatter callback adapters", () => {
+  it("does not taint unrelated or shadowing same-named parameters", () => {
+    const scan = scanNum([{ path: "src/components/Probe.tsx", text: `
+      export function adapt(value, format) {
+        function label(format) { return <p>{format("plain label")}</p>; }
+        return format(value);
+      }
+      function other(format) { return <p>{format("other label")}</p>; }
+      const A = () => <Num>{adapt(n, fmt.tokens)}</Num>;
+    ` }]);
+    expect(scan.untracked).toEqual([]);
+    expect(scan.bare).toEqual([]);
+  });
   it.each([false, true])("follows a callback through a local/imported adapter (imported=%s)", (imported) => {
     const adapter = "export function adapt(value, format) { return value == null ? '—' : format(value); }";
     const files = imported

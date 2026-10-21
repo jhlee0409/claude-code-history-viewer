@@ -113,6 +113,15 @@ describe("session-owned missing-value matrix", () => {
     expect(view.container).not.toHaveTextContent("NaN");
     expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(3);
     expect(screen.queryByText("Below Average")).toBeNull();
+    expect(screen.queryByText(i18n.t("analytics.rank", { rank: 1 }))).toBeNull();
+  });
+  it("valid zero duration keeps its duration rank", async () => {
+    await i18n.changeLanguage("en");
+    const time = "2026-01-01T00:00:00Z";
+    render(<SessionStatsView sessionStats={{ ...base, token_usage_recording: "recorded", first_message_time: time, last_message_time: time }}
+      sessionComparison={{ session_id: "fixture", percentage_of_project_tokens: 0, percentage_of_project_messages: 0,
+        rank_by_tokens: 1, rank_by_duration: 37, is_above_average: false }} />);
+    expect(screen.getByText(i18n.t("analytics.rank", { rank: 37 }))).toBeInTheDocument();
   });
   it("a settled null response is unavailable, not recorded absence, and is not re-requested", async () => {
     await i18n.changeLanguage("en");
