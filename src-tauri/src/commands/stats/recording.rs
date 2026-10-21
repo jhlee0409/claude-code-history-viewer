@@ -128,3 +128,39 @@ impl TokenRecordingEvidence {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_fold_is_identity_and_unknown_origin_dominates() {
+        let recorded = TokenRecordingEvidence(ACCEPTED | NUMERIC);
+        let absent = TokenRecordingEvidence(ACCEPTED | MISSING);
+        let unknown = TokenRecordingEvidence(ACCEPTED | UNKNOWN);
+        assert_eq!(
+            TokenRecordingEvidence::default().finish(),
+            TokenUsageRecording::Unknown
+        );
+        for (left, right, expected) in [
+            (
+                TokenRecordingEvidence::default(),
+                recorded,
+                TokenUsageRecording::Recorded,
+            ),
+            (
+                recorded,
+                TokenRecordingEvidence::default(),
+                TokenUsageRecording::Recorded,
+            ),
+            (recorded, absent, TokenUsageRecording::Partial),
+            (absent, recorded, TokenUsageRecording::Partial),
+            (recorded, unknown, TokenUsageRecording::Unknown),
+            (unknown, recorded, TokenUsageRecording::Unknown),
+        ] {
+            let mut evidence = left;
+            evidence.merge(right);
+            assert_eq!(evidence.finish(), expected);
+        }
+    }
+}

@@ -5,6 +5,8 @@
  */
 
 export type StatsMode = "billing_total" | "conversation_only";
+/** Native Claude accepted-row counter coverage, not billing completeness. */
+export type TokenUsageRecording = "absent" | "recorded" | "partial" | "unknown";
 export type MetricMode = "tokens" | "cost_estimated";
 
 // ============================================================================
@@ -12,6 +14,9 @@ export type MetricMode = "tokens" | "cost_estimated";
 // ============================================================================
 
 export interface SessionTokenStats {
+  /** Older servers omit this member: treat omission as unknown, never zero/absent.
+   * Session-level only; not evidence of presence for individual components. */
+  token_usage_recording?: TokenUsageRecording;
   session_id: string;
   project_name: string;
   total_input_tokens: number;

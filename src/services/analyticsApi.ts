@@ -25,6 +25,18 @@ import type {
 const DEFAULT_PAGE_SIZE = 20;
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
+function normalizeSessionRecording(stats: SessionTokenStats): SessionTokenStats {
+  // Validate runtime values too: TS types do not validate older/future servers.
+  const recording: unknown = stats.token_usage_recording;
+  return {
+    ...stats,
+    token_usage_recording:
+      recording === "absent" || recording === "recorded" || recording === "partial"
+        ? recording
+        : "unknown",
+  };
+}
+
 async function dedupeInFlight<T>(
   key: string,
   fetcher: () => Promise<T>
@@ -70,7 +82,7 @@ export async function fetchSessionTokenStats(
       console.log(`[API] fetchSessionTokenStats: ${duration.toFixed(1)}ms`);
     }
 
-    return stats;
+    return normalizeSessionRecording(stats);
   });
 }
 
@@ -120,7 +132,7 @@ export async function fetchProjectTokenStats(
       );
     }
 
-    return response;
+    return { ...response, items: response.items.map(normalizeSessionRecording) };
   });
 }
 

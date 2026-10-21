@@ -279,6 +279,143 @@ fn native_recording_cache_filter_dedup_and_descendant_merge() {
 }
 
 #[test]
+fn native_recording_legacy_serde_and_unreviewed_provider_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("project/compat.jsonl");
+    write_rows(
+        &path,
+        &[row(
+            Some(full_usage(13, 7)),
+            "compat",
+            "2025-01-01T12:00:00Z",
+        )],
+    );
+    let root = session_files::own_folder(&path).unwrap();
+    let stats =
+        scan_session_token_stats(&path, &root, StatsMode::BillingTotal, None, None).unwrap();
+    let mut legacy = serde_json::to_value(stats).unwrap();
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("token_usage_recording");
+    let decoded: SessionTokenStats = serde_json::from_value(legacy.clone()).unwrap();
+    assert_eq!(recording(&decoded), "unknown");
+    assert_eq!(decoded.total_tokens, 20);
+    legacy["token_usage_recording"] = json!("future-value");
+    assert_eq!(
+        recording(&serde_json::from_value(legacy).unwrap()),
+        "unknown"
+    );
+    for provider in [
+        StatsProvider::Cursor,
+        StatsProvider::Grok,
+        StatsProvider::Codex,
+        StatsProvider::Zcode,
+        StatsProvider::OpenCode,
+        StatsProvider::Cline,
+        StatsProvider::Gemini,
+        StatsProvider::ForgeCode,
+        StatsProvider::Pi,
+        StatsProvider::Qwen,
+    ] {
+        for (usage, _, total) in usage_cases() {
+            let message = ClaudeMessage::try_from(
+                serde_json::from_value::<RawLogEntry>(row(
+                    usage,
+                    "provider",
+                    "2025-01-01T12:00:00Z",
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+            for mode in [StatsMode::BillingTotal, StatsMode::ConversationOnly] {
+                let stats = build_session_token_stats_from_messages(
+                    SessionTokenStatsOptions {
+                        provider,
+                        session_id: "synthetic".into(),
+                        project_name: "fixture".into(),
+                        summary: None,
+                        mode,
+                        start_date: None,
+                        end_date: None,
+                    },
+                    std::slice::from_ref(&message),
+                )
+                .unwrap();
+                assert_eq!(recording(&stats), "unknown", "{provider:?}");
+                assert_eq!(stats.total_tokens, total);
+            }
+        }
+    }
+}
+
+#[test]
+fn native_recording_cache_invalidation_and_accepted_row_denominator() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("project/invalidation.jsonl");
+    let root_row = row(
+        Some(json!({"input_tokens":0})),
+        "rewrite",
+        "2025-01-01T12:00:00Z",
+    );
+    write_rows(&path, std::slice::from_ref(&root_row));
+    let root = session_files::own_folder(&path).unwrap();
+    let query = || {
+        extract_session_token_accum_sync(&path, &root, StatsMode::BillingTotal, None, None)
+            .unwrap()
+            .into_stats("project".into())
+    };
+    assert_eq!(recording(&query()), "partial");
+    assert_eq!(recording(&query()), "partial");
+    assert_eq!(cache::test_build_count(&path), 1);
+    let before = fs::metadata(&path).unwrap();
+    let mut rewritten = root_row;
+    rewritten["message"]["usage"] = json!({"other_tokens":0});
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    write_rows(&path, std::slice::from_ref(&rewritten));
+    let after = fs::metadata(&path).unwrap();
+    assert_eq!(before.len(), after.len());
+    assert_ne!(before.modified().unwrap(), after.modified().unwrap());
+    assert_eq!(recording(&query()), "absent");
+    assert_eq!(cache::test_build_count(&path), 2);
+    let full = row(Some(full_usage(0, 0)), "zero", "2025-01-02T12:00:00Z");
+    write_rows(&path, &[rewritten, full.clone()]);
+    assert_eq!(recording(&query()), "partial");
+    assert_eq!(query().total_tokens, 0);
+    assert_eq!(cache::test_build_count(&path), 3);
+    let mut user = row(None, "user", "2025-01-01T12:00:00Z");
+    user["type"] = json!("user");
+    user["message"]["role"] = json!("user");
+    for rows in [vec![user.clone(), full.clone()], vec![full.clone(), user]] {
+        write_rows(&path, &rows);
+        for mode in [StatsMode::BillingTotal, StatsMode::ConversationOnly] {
+            let stats = scan_session_token_stats(&path, &root, mode, None, None).unwrap();
+            assert_eq!(
+                recording(&stats),
+                "partial",
+                "ordinary user+assistant is partial, not lost-response evidence"
+            );
+            assert_eq!(stats.total_tokens, 0);
+        }
+    }
+    let mut malformed = full.clone();
+    malformed["message"]["usage"]["input_tokens"] = json!("invalid");
+    write_rows(&path, &[malformed, full]);
+    let stats =
+        scan_session_token_stats(&path, &root, StatsMode::BillingTotal, None, None).unwrap();
+    assert_eq!(
+        stats.message_count, 1,
+        "malformed typed rows retain existing skip policy"
+    );
+    assert_eq!(recording(&stats), "recorded");
+    let start = parse_timestamp_utc("2026-01-01T00:00:00Z").unwrap();
+    assert!(
+        scan_session_token_stats(&path, &root, StatsMode::BillingTotal, Some(&start), None)
+            .is_none()
+    );
+}
+
+#[test]
 fn native_recording_distinguishes_absence_from_explicit_zero() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("project/session.jsonl");
