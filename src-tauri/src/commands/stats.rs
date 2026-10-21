@@ -21,6 +21,8 @@ use std::path::{Path, PathBuf};
 mod cache;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
+#[cfg(test)]
+mod recording_tests;
 pub(crate) mod session_files;
 pub mod usage_breakdown;
 
