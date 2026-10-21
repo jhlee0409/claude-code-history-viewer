@@ -93,7 +93,7 @@ export const InspectorTokensTab = () => {
   );
 
   const body = (() => {
-    if (!stats) return <p className="p-3 text-list text-muted-foreground">{t("common.missingValue.notRecorded")}</p>;
+    if (!stats) return <p className="p-3 text-list text-muted-foreground">{t("analytics.noTokenData")}</p>;
     const total = stats.total_tokens;
     const missing = t("common.missingValue.notRecorded");
     const recordingNote = tokenRecordingNote(stats);

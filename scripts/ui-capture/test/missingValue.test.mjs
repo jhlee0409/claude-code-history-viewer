@@ -13,7 +13,7 @@ import { STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
 const REPO = process.cwd();
 const BIN = path.join(REPO, ".ui-capture/build/cchv-server");
 const DIST = process.env.UI_TEST_DIST ?? path.join(REPO, ".ui-capture/build/dist");
-const ENABLED = fs.existsSync(BIN) && fs.existsSync(path.join(DIST, "index.html")) && fs.existsSync(webkit.executablePath());
+const ENABLED = fs.existsSync(BIN) && fs.existsSync(path.join(DIST, "index.html")) && fs.existsSync(webkit.executablePath()) && fs.existsSync(chromium.executablePath());
 if (!ENABLED && process.env.CI_REQUIRE_BROWSER === "1") throw new Error("Missing-value tests require fresh frontend, server and WebKit");
 const root = path.join(REPO, ".ui-capture/missing-value-fixture");
 const observations = [];
@@ -30,7 +30,7 @@ beforeAll(async () => {
   target.original = fs.readFileSync(target.filePath, "utf8");
   server = await startServer({ binary: BIN, dist: DIST, home: fixture.home, fixtureRoot: root, logFile: path.join(root, "server.log") });
   browsers.webkit = await webkit.launch();
-  if (fs.existsSync(chromium.executablePath())) browsers.chromium = await chromium.launch();
+  browsers.chromium = await chromium.launch();
 });
 afterAll(async () => {
   for (const browser of Object.values(browsers)) await browser.close();
@@ -41,7 +41,7 @@ afterAll(async () => {
 function writeRaw(state) {
   const rows = target.original.trim().split("\n").map(JSON.parse);
   for (const row of rows) {
-    row.timestamp = fixture.fixedNow;
+    row.timestamp = state === "absent" ? "" : fixture.fixedNow;
     if (row.message) {
       delete row.message.usage;
       if (state === "recorded") row.message.usage = zero;
@@ -56,18 +56,14 @@ function writeRaw(state) {
 describe.skipIf(!ENABLED)("truthful recorded absence and numeric zero (real app)", () => {
   for (const engine of ["webkit", "chromium"]) for (const locale of SUPPORTED_LOCALES) for (const width of [1440, 390]) for (const state of states) {
     it(`${engine} ${locale} ${width}px 125% ${state}`, async () => {
-      if (!browsers[engine]) {
-        if (process.env.CI_REQUIRE_BROWSER === "1" && engine === "webkit") throw new Error("WebKit missing");
-        return;
-      }
       writeRaw(state);
-      const response = await fetch(`${server.origin}/api/get_session_token_stats`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionPath: target.filePath, statsMode: "billing" }) });
+      const response = await fetch(`${server.origin}/api/get_session_token_stats`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionPath: target.filePath, statsMode: "billing_total" }) });
       expect(response.status).toBe(200);
       const stats = await response.json();
       expect(stats.token_usage_recording).toBe(state === "positive" ? "partial" : state);
       if (state !== "positive") expect(stats.total_tokens).toBe(0);
       else expect(stats.total_tokens).toBeGreaterThan(0);
-      const scenario = expandScenarios().find((s) => s.id === `inspector-tokens--${width === 390 ? "390x844" : "1440x900"}--dark`);
+      const scenario = expandScenarios().find((s) => s.id === (width === 390 ? "transcript--390x844--dark" : "inspector-tokens--1440x900--dark"));
       const session = await newScenarioPage(browsers[engine], { scenario, origin: server.origin, locale, fixedNow: fixture.fixedNow,
         storageSeed: { ...STORAGE_SEED, ...(scenario.screen.storage ?? {}) }, variant: { fontScale: 1.25 } });
       let rendered = "";
@@ -95,6 +91,16 @@ describe.skipIf(!ENABLED)("truthful recorded absence and numeric zero (real app)
         expect(geometry.pageWidth).toBeLessThanOrEqual(width);
         expect(geometry.overflow).toEqual([]);
         expect(session.log.pageErrors).toEqual([]);
+        if (width === 1440 && state === "absent" && !process.env.UI_MISSING_CAPTURE_ONLY) {
+          await session.page.getByRole("tab", { name: t("common.inspector.tab.info"), exact: true }).click();
+          await settle(session);
+          const panel = session.page.getByRole("tabpanel");
+          expect(await panel.getByText(t("common.missingValue.notRecorded"), { exact: true }).count()).toBe(2);
+          expect(await panel.getByText(t("common.inspector.info.noModels"), { exact: true }).count()).toBe(1);
+          expect(await panel.locator("time").count()).toBe(0);
+          await session.page.getByRole("tab", { name: t("common.inspector.tab.tokens"), exact: true }).click();
+          await settle(session);
+        }
         observations.push({ engine, locale, state, ...geometry, recording: stats.token_usage_recording, total: stats.total_tokens, rendered });
       } finally {
         if (process.env.UI_MISSING_SHOTS) {

@@ -119,6 +119,7 @@ export const InspectorInfoTab = () => {
   const models = (() => {
     if (tokens.error) return <span className="text-muted-foreground">{t("common.inspector.info.modelsUnavailable")}</span>;
     if (tokens.isLoading) return <span className="text-muted-foreground">{t("common.loading")}</span>;
+    if (!tokens.stats) return <span className="text-muted-foreground">{t("common.inspector.info.modelsUnavailable")}</span>;
     if (modelNames.length === 0) return <span className="text-muted-foreground">{t("common.inspector.info.noModels")}</span>;
     return (
       <ul className="space-y-0.5">

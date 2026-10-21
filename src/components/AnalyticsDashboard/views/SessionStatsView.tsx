@@ -17,6 +17,7 @@ import {
 import { supportsConversationBreakdown } from "../../../utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+import { hasRecordedTime, recordedTime, tokenRecordingNote } from "@/lib/format/missingValue";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -35,6 +36,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 }) => {
   const { t } = useTranslation();
   const fmt = useFormat();
+  const missing = t("common.missingValue.notRecorded");
+  const tokensAbsent = sessionStats.token_usage_recording === "absent";
+  const recordingNote = tokenRecordingNote(sessionStats);
+  const hasDuration = hasRecordedTime(sessionStats.first_message_time) && hasRecordedTime(sessionStats.last_message_time)
+    && new Date(sessionStats.last_message_time).getTime() >= new Date(sessionStats.first_message_time).getTime();
 
   // Memoized session metrics calculation
   const { avgTokensPerMessage, durationMinutes, distribution } = useMemo(
@@ -76,13 +82,13 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.performanceInsights")}
               </h3>
               <div className="flex items-center gap-2">
-                {isAboveAverage ? (
+                {!tokensAbsent && (isAboveAverage ? (
                   <TrendingUp className="w-4 h-4" style={{ color: statusColor }} />
                 ) : (
                   <TrendingDown className="w-4 h-4" style={{ color: statusColor }} />
-                )}
+                ))}
                 <span className="text-title font-bold" style={{ color: statusColor }}>
-                  {isAboveAverage ? t("analytics.aboveAverage") : t("analytics.belowAverage")}
+                  {tokensAbsent ? missing : isAboveAverage ? t("analytics.aboveAverage") : t("analytics.belowAverage")}
                 </span>
               </div>
             </div>
@@ -96,7 +102,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.tokenRank")}
               </div>
               <div className="font-mono text-xl font-bold tabular-nums" style={{ color: statusColor }}>
-                #{sessionComparison.rank_by_tokens}
+                {tokensAbsent ? missing : `#${sessionComparison.rank_by_tokens}`}
               </div>
             </div>
           </div>
@@ -111,10 +117,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                <Num>{fmt.percent(sessionComparison.percentage_of_project_tokens / 100)}</Num>
+                <Num>{tokensAbsent ? missing : fmt.percent(sessionComparison.percentage_of_project_tokens / 100)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
-                <Num>{fmt.tokens(sessionStats.total_tokens)}</Num> {t("analytics.tokens")}
+                <Num>{tokensAbsent ? missing : fmt.tokens(sessionStats.total_tokens)}</Num> {t("analytics.tokens")}
               </div>
             </div>
 
@@ -126,7 +132,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                <Num>{fmt.tokens(avgTokensPerMessage)}</Num>
+                <Num>{tokensAbsent ? missing : fmt.tokens(avgTokensPerMessage)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.messageCountShort", "{{count}} msgs", {
@@ -143,10 +149,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {durationMinutes}
-                <span className="text-title text-muted-foreground/50">
+                <Num>{hasDuration ? fmt.count(durationMinutes) : missing}</Num>
+                {hasDuration && <span className="text-title text-muted-foreground/50">
                   {t("analytics.minutesUnit")}
-                </span>
+                </span>}
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.rank", "Rank {{rank}}", {
@@ -163,7 +169,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                <Num>{fmt.percent(percentileRatio)}</Num>
+                <Num>{tokensAbsent ? missing : fmt.percent(percentileRatio)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {
@@ -175,8 +181,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
         </div>
       </div>
 
+      {recordingNote && !tokensAbsent && <p className="text-caption text-muted-foreground">{t(recordingNote)}</p>}
       <BillingBreakdownCard
         billingTokens={billingTokens}
+        billingStats={sessionStats}
+        conversationStats={conversationStats}
         conversationTokens={conversationStats != null ? conversationStats.total_tokens : null}
         billingCost={
           billingCostSummary.pricedModels > 0
@@ -193,7 +202,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
       {/* Token Distribution */}
       <SectionCard title={t("analytics.tokenAnalysis")} icon={ChartColumn} colorVariant="purple">
-        <TokenDistributionChart distribution={distribution} total={sessionStats.total_tokens} />
+        {tokensAbsent ? <p className="text-caption text-muted-foreground">{missing}</p>
+          : <TokenDistributionChart distribution={distribution} total={sessionStats.total_tokens} />}
       </SectionCard>
 
       {/* Session Timeline */}
@@ -207,7 +217,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.startTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                <Num>{fmt.dateTime(sessionStats.first_message_time)}</Num>
+                <Num>{recordedTime(sessionStats.first_message_time, fmt.dateTime, missing)}</Num>
               </div>
             </div>
 
@@ -220,7 +230,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.duration")}
               </div>
               <div className="font-mono text-title font-bold text-foreground">
-                {durationMinutes}<span className="text-body text-muted-foreground/50">{t("analytics.minutesUnit")}</span>
+                <Num>{hasDuration ? fmt.count(durationMinutes) : missing}</Num>{hasDuration && <span className="text-body text-muted-foreground/50">{t("analytics.minutesUnit")}</span>}
               </div>
             </div>
 
@@ -231,7 +241,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.endTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                <Num>{fmt.dateTime(sessionStats.last_message_time)}</Num>
+                <Num>{recordedTime(sessionStats.last_message_time, fmt.dateTime, missing)}</Num>
               </div>
             </div>
           </div>
