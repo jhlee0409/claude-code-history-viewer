@@ -50,8 +50,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
   // Memoized comparison metrics calculation
   const { isAboveAverage, statusColor, percentileRatio } = useMemo(
-    () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
-    [sessionComparison, totalProjectSessions]
+    () => ({
+      ...calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
+      ...(tokensAbsent ? { statusColor: "var(--muted-foreground)" } : {}),
+    }),
+    [sessionComparison, totalProjectSessions, tokensAbsent]
   );
   const billingTokens = sessionStats.total_tokens;
   const billingCostSummary = useMemo(
