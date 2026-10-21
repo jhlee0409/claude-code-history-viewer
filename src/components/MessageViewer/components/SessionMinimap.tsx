@@ -19,6 +19,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import type { Virtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 import { getToolUseBlock } from "@/utils/messageUtils";
 import { previewText, truncatePreview } from "@/components/MessageNavigator/classifiedRows";
 import { getKindLabelKey } from "@/components/MessageNavigator/kindLabels";
@@ -94,14 +96,6 @@ function rowForItem(item: FlattenedMessage): MinimapRow {
   return { kind: info.kind, failed };
 }
 
-/** Hours and minutes, as the Messages panel shows a row's time; empty when unknown. */
-function formatHoverTime(timestamp: string | undefined): string {
-  if (!timestamp) return "";
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
 /** What the pointer is over: a row index, or the not-loaded band. */
 type HoverTarget = number | "band";
 
@@ -123,6 +117,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
     onLoadEarlier,
   }) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const stripRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // The viewport box and the band, both placed from one geometry read.
@@ -504,7 +499,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
     // Tooltip text, recomputed only when the hovered target changes, not on
     // every pointer move: `previewText` runs regexes.
     const hoverTarget = hover?.target ?? null;
-    const tooltip = useMemo<{ title: string; lines: string[] } | null>(() => {
+    const tooltip = useMemo<{ title: string; timestamp?: string; lines: string[] } | null>(() => {
       if (hoverTarget === null) return null;
 
       if (hoverTarget === "band") {
@@ -527,8 +522,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
       const toolName = getToolUseBlock(item.message)?.name || undefined;
       const snippet = truncatePreview(previewText(info, toolName), HOVER_SNIPPET_MAX);
       const label = t(getKindLabelKey(info.kind));
-      const time = formatHoverTime(item.message.timestamp);
-      return { title: time ? `${label} · ${time}` : label, lines: snippet ? [snippet] : [] };
+      return { title: label, timestamp: item.message.timestamp || undefined, lines: snippet ? [snippet] : [] };
     }, [hoverTarget, flattenedMessages, isLoadingMore, unloadedCount, notLoadedMatchCount, t]);
 
     const showBand = hasMore && layout.bandHeight > 0;
@@ -565,7 +559,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: BAND_HATCH }} />
             {layout.bandHeight >= BAND_LABEL_MIN_PX && unloadedCount > 0 && (
               <span className="relative rounded-row bg-background/80 px-1 text-caption font-medium leading-tight tabular-nums text-muted-foreground">
-                {unloadedCount.toLocaleString()}
+                <Num>{fmt.count(unloadedCount)}</Num>
               </span>
             )}
           </div>
@@ -583,6 +577,13 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
           >
             <span className="mb-1 block text-caption font-semibold text-muted-foreground">
               {tooltip.title}
+              {/* The row's time as the Messages panel shows it. */}
+              {tooltip.timestamp && (
+                <>
+                  {" · "}
+                  <Num>{fmt.time(tooltip.timestamp)}</Num>
+                </>
+              )}
             </span>
             {tooltip.lines.map((line, index) => (
               <span key={index} className="block break-words">

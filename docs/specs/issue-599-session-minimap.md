@@ -659,7 +659,8 @@ strip (Risks).
   (`MessageNavigator/classifiedRows.ts:44-52`) and `truncatePreview` (`:24-35`) build its row
   previews, used together at `:87-90`. `getKindLabelKey` (`MessageNavigator/kindLabels.ts:15-17`)
   maps a kind to its `navigator.kind.*` label (`i18n/locales/en/message.json:81-88`).
-  `NavigatorEntry.tsx:56-57` formats a row's time as hours and minutes.
+  `NavigatorEntry.tsx` formats a row's time with `useFormat().time`, the app language's clock
+  time.
 - The strip mounts at `MessageViewer.tsx:1117-1126`, gated by `showMinimapStrip` (`:847`). The
   right gutter is already reserved for ticks: `MINIMAP_TICK_GUTTER_PX = 7`
   (`helpers/minimapLayout.ts:69-70`).
@@ -682,8 +683,8 @@ no band, the map's top is 0 and every PR 1 number is unchanged.
   conflict on a very short strip.
 - It is a DOM `div` over the canvas, not canvas paint, so a test can read its height. It is
   hatched with `--muted-foreground` at reduced opacity and has a bottom border.
-- It shows the unloaded count, with the runtime's default number grouping, when it is at least
-  14px tall.
+- It shows the unloaded count, grouped in the app language (`useFormat().count`), when it is at
+  least 16px tall: the caption chip's 15px line plus a pixel.
 - A click calls `handleLoadEarlier`, passed down as a prop, which loads one older page. A press
   on the band never starts a drag. While a page loads, the band pulses and ignores clicks.
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import type { Virtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { SessionMinimap } from "@/components/MessageViewer/components/SessionMinimap";
+import { formatTime } from "@/lib/format/date";
 import {
   MINIMAP_BAND_MAX_SHARE,
   MINIMAP_BAR_PAD_PX,
@@ -630,7 +631,7 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
 
     it("shows the unloaded count on the band", () => {
       const { getByTestId } = renderStrip(LONG_SESSION);
-      expect(getByTestId("session-minimap-band")).toHaveTextContent((8215).toLocaleString());
+      expect(getByTestId("session-minimap-band")).toHaveTextContent("8,215");
     });
 
     it("starts the viewport box at the band's bottom edge at the top of the list", () => {
@@ -804,6 +805,14 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
       const tooltip = getByTestId("session-minimap-tooltip");
       expect(tooltip).toHaveTextContent("navigator.kind.prompt");
       expect(tooltip).toHaveTextContent("a typed prompt");
+    });
+
+    it("shows the hovered row's time from the shared formatter, inside <Num>", () => {
+      const { getByTestId } = renderStrip();
+      pointer(getByTestId("session-minimap"), "pointermove", 10);
+      const time = getByTestId("session-minimap-tooltip").querySelector("[data-num]");
+      // The sample timestamp, in the test machine's time zone.
+      expect(time?.textContent).toBe(formatTime("2026-09-26T06:29:32.477Z", "en"));
     });
 
     it("follows the pointer to another row", () => {
