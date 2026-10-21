@@ -115,6 +115,28 @@ describe("session-owned missing-value matrix", () => {
     expect(screen.queryByText("Below Average")).toBeNull();
     expect(screen.queryByText(i18n.t("analytics.rank", { rank: 1 }))).toBeNull();
   });
+  for (const recording of ["absent", "recorded", "partial", "unknown", undefined, "future"] as const) {
+    for (const above of [false, true]) {
+      it(`performance colors: ${recording ?? "old response"} ${above ? "above" : "below"} preserves absence neutrality and observed status`, async () => {
+        await i18n.changeLanguage("en");
+        const absent = recording === "absent";
+        const color = absent ? "var(--muted-foreground)" : above ? "var(--metric-green)" : "var(--metric-amber)";
+        const view = render(<SessionStatsView sessionStats={{ ...base, token_usage_recording: recording as SessionTokenStats["token_usage_recording"] }}
+          sessionComparison={{ session_id: "fixture", percentage_of_project_tokens: 0, percentage_of_project_messages: 0,
+            rank_by_tokens: 3, rank_by_duration: 1, is_above_average: above }} />);
+        const banner = view.container.firstElementChild!.firstElementChild!;
+        const label = banner.querySelector("span.text-title") as HTMLElement;
+        const rank = banner.querySelector("div.text-xl") as HTMLElement;
+        const badge = rank.parentElement!;
+        expect(label.style.color).toBe(color);
+        expect(rank.style.color).toBe(color);
+        expect(badge.style.background).toBe(`color-mix(in oklch, ${color} 10%, transparent)`);
+        expect(label).toHaveTextContent(absent ? "Not recorded" : i18n.t(above ? "analytics.aboveAverage" : "analytics.belowAverage"));
+        expect(rank).toHaveTextContent(absent ? "Not recorded" : "#3");
+        expect(banner.querySelectorAll("svg.lucide-trending-down, svg.lucide-trending-up").length).toBe(absent ? 1 : 2);
+      });
+    }
+  }
   it("valid zero duration keeps its duration rank", async () => {
     await i18n.changeLanguage("en");
     const time = "2026-01-01T00:00:00Z";
