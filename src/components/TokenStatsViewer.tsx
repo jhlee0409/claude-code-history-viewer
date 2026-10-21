@@ -487,6 +487,8 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             />
             <BillingBreakdownCard
               billingTokens={sessionStats.total_tokens}
+              billingStats={sessionStats}
+              conversationStats={sessionConversationStats}
               conversationTokens={
                 hasSessionConversationData
                   ? sessionConversationStats?.total_tokens ?? 0
