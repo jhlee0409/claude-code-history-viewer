@@ -24,6 +24,7 @@ export interface SettingsSliceState {
   showSystemMessages: boolean;
   fontScale: number;
   highContrast: boolean;
+  expandLongMessages: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: SessionSortOrder;
   sessionEntrypointFilter: SessionEntrypointFilter;
@@ -34,6 +35,7 @@ export interface SettingsSliceActions {
   setShowSystemMessages: (show: boolean) => void;
   setFontScale: (scale: number) => Promise<void>;
   setHighContrast: (enabled: boolean) => Promise<void>;
+  setExpandLongMessages: (enabled: boolean) => Promise<void>;
   loadUpdateSettings: () => Promise<void>;
   setUpdateSetting: <K extends keyof UpdateSettings>(
     key: K,
@@ -67,6 +69,7 @@ const initialSettingsState: SettingsSliceState = {
   showSystemMessages: false,
   fontScale: DEFAULT_FONT_SCALE,
   highContrast: false,
+  expandLongMessages: false,
   updateSettings: DEFAULT_UPDATE_SETTINGS,
   sessionSortOrder: "newest",
   sessionEntrypointFilter: "all",
@@ -142,6 +145,22 @@ export const createSettingsSlice: StateCreator<
     }
   },
 
+  setExpandLongMessages: async (enabled: boolean) => {
+    set({ expandLongMessages: enabled });
+
+    try {
+      const store = await storageAdapter.load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("expandLongMessages", enabled);
+      await store.save();
+    } catch (error) {
+      // Intentionally non-blocking: the setting is already applied in-memory for current session.
+      console.warn("Failed to save expand long messages setting:", error);
+    }
+  },
+
   loadUpdateSettings: async () => {
     try {
       const store = await storageAdapter.load("settings.json", {
@@ -171,9 +190,11 @@ export const createSettingsSlice: StateCreator<
 
       const savedFontScale = await store.get<number>("fontScale");
       const savedHighContrast = await store.get<boolean>("highContrast");
+      const savedExpandLongMessages = await store.get<boolean>("expandLongMessages");
       set({
         fontScale: normalizeFontScale(savedFontScale),
         highContrast: savedHighContrast === true,
+        expandLongMessages: savedExpandLongMessages === true,
       });
     } catch (error) {
       console.warn("Failed to load persisted settings:", error);

@@ -135,6 +135,8 @@
   "common.settings.theme.title": "主題",
   "common.settings.title": "設定",
   "common.settings.updateSettings": "更新設定",
+  "common.settings.view.expandLongMessages": "預設展開長訊息",
+  "common.settings.view.expandLongMessagesDescription": "完整顯示長訊息，而非摺疊的預覽。仍可個別摺疊每則訊息。",
   "common.settings.view.minimapShortcutHint": "按 {{keys}} 切換小地圖顯示。",
   "common.settings.view.showMinimap": "顯示會話小地圖",
   "common.settings.view.title": "檢視",

@@ -135,6 +135,8 @@
   "common.settings.theme.title": "테마",
   "common.settings.title": "설정",
   "common.settings.updateSettings": "업데이트 설정",
+  "common.settings.view.expandLongMessages": "긴 메시지 기본으로 펼치기",
+  "common.settings.view.expandLongMessagesDescription": "긴 메시지를 접힌 미리보기 대신 전체로 표시합니다. 각 메시지는 여전히 접을 수 있습니다.",
   "common.settings.view.minimapShortcutHint": "{{keys}}: 미니맵을 켜고 끕니다.",
   "common.settings.view.showMinimap": "세션 미니맵 표시",
   "common.settings.view.title": "보기",

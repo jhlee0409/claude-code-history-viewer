@@ -140,6 +140,7 @@ export interface AppStoreState {
   showSystemMessages: boolean;
   fontScale: number;
   highContrast: boolean;
+  expandLongMessages: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
   sessionEntrypointFilter: import("../../types/metadata.types").SessionEntrypointFilter;
@@ -318,6 +319,7 @@ export interface AppStoreActions {
   setShowSystemMessages: (show: boolean) => void;
   setFontScale: (scale: number) => Promise<void>;
   setHighContrast: (enabled: boolean) => Promise<void>;
+  setExpandLongMessages: (enabled: boolean) => Promise<void>;
   loadUpdateSettings: () => Promise<void>;
   setUpdateSetting: <K extends keyof UpdateSettings>(
     key: K,

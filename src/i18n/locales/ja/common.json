@@ -135,6 +135,8 @@
   "common.settings.theme.title": "テーマ",
   "common.settings.title": "設定",
   "common.settings.updateSettings": "アップデート設定",
+  "common.settings.view.expandLongMessages": "長いメッセージをデフォルトで展開",
+  "common.settings.view.expandLongMessagesDescription": "長いメッセージを折りたたんだプレビューではなく全文で表示します。個別に折りたたむこともできます。",
   "common.settings.view.minimapShortcutHint": "{{keys}}でミニマップの表示を切り替えます。",
   "common.settings.view.showMinimap": "セッションミニマップを表示",
   "common.settings.view.title": "表示",

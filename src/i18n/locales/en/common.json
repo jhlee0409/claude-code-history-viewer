@@ -135,6 +135,8 @@
   "common.settings.theme.title": "Theme",
   "common.settings.title": "Settings",
   "common.settings.updateSettings": "Update Settings",
+  "common.settings.view.expandLongMessages": "Expand long messages by default",
+  "common.settings.view.expandLongMessagesDescription": "Show long messages in full instead of a collapsed preview. You can still collapse each one.",
   "common.settings.view.minimapShortcutHint": "{{keys}} toggles the minimap.",
   "common.settings.view.showMinimap": "Show session minimap",
   "common.settings.view.title": "View",

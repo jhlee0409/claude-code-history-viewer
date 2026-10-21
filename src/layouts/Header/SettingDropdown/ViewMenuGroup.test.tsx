@@ -3,7 +3,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { ViewMenuGroup } from "./ViewMenuGroup";
 
 const { storeState } = vi.hoisted(() => ({
-  storeState: { isMinimapOpen: false, toggleMinimap: vi.fn() },
+  storeState: {
+    isMinimapOpen: false,
+    toggleMinimap: vi.fn(),
+    expandLongMessages: false,
+    setExpandLongMessages: vi.fn(),
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -64,7 +69,13 @@ describe("ViewMenuGroup", () => {
     cleanup();
     vi.clearAllMocks();
     storeState.isMinimapOpen = false;
+    storeState.expandLongMessages = false;
   });
+
+  const minimapItem = () =>
+    screen.getByText("common.settings.view.showMinimap").closest("[role=menuitemcheckbox]")!;
+  const expandItem = () =>
+    screen.getByText("common.settings.view.expandLongMessages").closest("[role=menuitemcheckbox]")!;
 
   it("renders its own View heading", () => {
     render(<ViewMenuGroup />);
@@ -73,19 +84,33 @@ describe("ViewMenuGroup", () => {
 
   it("activating the item calls toggleMinimap", () => {
     render(<ViewMenuGroup />);
-    screen.getByRole("menuitemcheckbox").click();
+    (minimapItem() as HTMLElement).click();
     expect(storeState.toggleMinimap).toHaveBeenCalledTimes(1);
   });
 
   it("aria-checked follows the store", () => {
     storeState.isMinimapOpen = true;
     render(<ViewMenuGroup />);
-    expect(screen.getByRole("menuitemcheckbox")).toHaveAttribute("aria-checked", "true");
+    expect(minimapItem()).toHaveAttribute("aria-checked", "true");
   });
 
   it("aria-checked is false when the store flag is off", () => {
     storeState.isMinimapOpen = false;
     render(<ViewMenuGroup />);
-    expect(screen.getByRole("menuitemcheckbox")).toHaveAttribute("aria-checked", "false");
+    expect(minimapItem()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("activating the expand item toggles expandLongMessages", () => {
+    render(<ViewMenuGroup />);
+    (expandItem() as HTMLElement).click();
+    expect(storeState.setExpandLongMessages).toHaveBeenCalledWith(true);
+  });
+
+  it("expand item aria-checked follows the store", () => {
+    storeState.expandLongMessages = true;
+    render(<ViewMenuGroup />);
+    expect(expandItem()).toHaveAttribute("aria-checked", "true");
+    (expandItem() as HTMLElement).click();
+    expect(storeState.setExpandLongMessages).toHaveBeenCalledWith(false);
   });
 });
