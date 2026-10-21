@@ -688,9 +688,11 @@ no band, the map's top is 0 and every PR 1 number is unchanged.
   on the band never starts a drag. While a page loads, the band pulses and ignores clicks.
 
 **Search ticks.**
-- `MessageViewer` passes `matchedUuids`, `currentMatchUuid`, and `uuidToIndexMap`. Each
-  matched uuid resolves through `uuidToIndexMap` to a row, and then to that row's `start` in
+- `MessageViewer` passes `matchedUuids`, `currentMatchUuid`, and `getScrollIndex`. Each
+  matched uuid resolves through `getScrollIndex` to a row, and then to that row's `start` in
   `measurementsCache`, plus the list offset PR 1 already applies.
+- A member of a collapsed agent task or progress group resolves to its group's leader, as a jump to the
+  match does. The member's own row is zero-height, so a tick there would sit below the leader.
 - One tick per matched message: several matches inside one message share its tick.
 - A tick is 5px wide and 2px tall, in the right gutter, 2px from the strip's edge, as the
   prototype draws it.

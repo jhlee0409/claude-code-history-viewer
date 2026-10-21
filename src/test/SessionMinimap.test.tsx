@@ -708,12 +708,18 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
       ["r1", 1],
       ["t1", 2],
     ]);
+    /** `getScrollIndex` for the sample rows, none of which is in a collapsed group. */
+    const scrollIndexOf = (uuid: string) => UUID_TO_INDEX.get(uuid) ?? null;
+    /** Treats "t1" as a collapsed group member led by "r1", as `getScrollIndex` resolves one. */
+    const scrollIndexWithGroup = (uuid: string) => (uuid === "t1" ? 1 : scrollIndexOf(uuid));
+    /** Row 1's top on the strip: 300px of content on a 200px strip, no band, no list offset. */
+    const LEADER_Y = Math.floor(SAMPLE_MEASUREMENTS[1].start * (STRIP_HEIGHT / SAMPLE_TOTAL_SIZE));
 
     it("paints one tick per matched row in the right gutter, the current one taller", () => {
       const { rafQueue, ctx } = renderStrip({
         matchedUuids: new Set(["p1", "t1"]),
         currentMatchUuid: "t1",
-        uuidToIndexMap: UUID_TO_INDEX,
+        getScrollIndex: scrollIndexOf,
       });
       rafQueue.flush();
 
@@ -732,7 +738,7 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
       const { rafQueue, ctx } = renderStrip({
         matchedUuids: new Set(["p1"]),
         currentMatchUuid: "p1",
-        uuidToIndexMap: UUID_TO_INDEX,
+        getScrollIndex: scrollIndexOf,
       });
       rafQueue.flush();
       const tickX = minimapTickX(STRIP_WIDTH);
@@ -745,7 +751,7 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
       const { rafQueue, ctx } = renderStrip({
         matchedUuids: new Set(["p1", "t1"]),
         currentMatchUuid: "t1",
-        uuidToIndexMap: UUID_TO_INDEX,
+        getScrollIndex: scrollIndexOf,
       });
       rafQueue.flush();
       const tickX = minimapTickX(STRIP_WIDTH);
@@ -758,10 +764,35 @@ describe("SessionMinimap PR 2: not-loaded band, search ticks, hover previews", (
       const { rafQueue, ctx } = renderStrip({
         matchedUuids: new Set(["unloaded-uuid"]),
         currentMatchUuid: "unloaded-uuid",
-        uuidToIndexMap: UUID_TO_INDEX,
+        getScrollIndex: scrollIndexOf,
       });
       rafQueue.flush();
       expect(ctx.paints.filter((paint) => paint.x >= minimapTickX(STRIP_WIDTH) - 1)).toHaveLength(0);
+    });
+
+    it("puts a collapsed group member's tick on its group's leader", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["t1"]),
+        getScrollIndex: scrollIndexWithGroup,
+      });
+      rafQueue.flush();
+      const tickX = minimapTickX(STRIP_WIDTH);
+      const ticks = ctx.paints.filter((paint) => paint.x === tickX && paint.h === MINIMAP_TICK_HEIGHT_PX);
+      expect(ticks.map((paint) => paint.y)).toEqual([LEADER_Y]);
+    });
+
+    it("puts a collapsed group member's current-match tick on its group's leader", () => {
+      const { rafQueue, ctx } = renderStrip({
+        matchedUuids: new Set(["t1"]),
+        currentMatchUuid: "t1",
+        getScrollIndex: scrollIndexWithGroup,
+      });
+      rafQueue.flush();
+      const tickX = minimapTickX(STRIP_WIDTH);
+      const current = ctx.paints.filter(
+        (paint) => paint.x === tickX && paint.h === MINIMAP_CURRENT_TICK_HEIGHT_PX,
+      );
+      expect(current.map((paint) => paint.y)).toEqual([LEADER_Y]);
     });
   });
 

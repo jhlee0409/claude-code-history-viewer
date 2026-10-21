@@ -66,8 +66,12 @@ interface SessionMinimapProps {
   matchedUuids?: ReadonlySet<string>;
   /** PR 2 search ticks: the current match's message, drawn taller. */
   currentMatchUuid?: string | null;
-  /** Resolves a matched uuid to its row in `flattenedMessages`. */
-  uuidToIndexMap?: ReadonlyMap<string, number>;
+  /**
+   * Resolves a matched uuid to its row in `flattenedMessages`, or null when it
+   * has none. A collapsed group member resolves to its group's leader, the row
+   * a jump to the match scrolls to (`useMessageVirtualization`).
+   */
+  getScrollIndex?: (uuid: string) => number | null;
   /** Matches in unloaded pages; they draw no tick, and the band's tooltip counts them. */
   notLoadedMatchCount?: number;
   /** PR 2 not-loaded band: `pagination.hasMore`. */
@@ -110,7 +114,7 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
     getScrollElement,
     matchedUuids,
     currentMatchUuid = null,
-    uuidToIndexMap,
+    getScrollIndex,
     notLoadedMatchCount = 0,
     hasMore = false,
     isLoadingMore = false,
@@ -135,19 +139,20 @@ export const SessionMinimap: React.FC<SessionMinimapProps> = React.memo(
 
     // Matched rows, resolved by uuid: `SearchMatch.messageIndex` indexes the
     // full session, not these rows. A uuid with no row (an unloaded page, or
-    // a row the display filter hides) gets no tick.
+    // a row the display filter hides) gets no tick. A collapsed group member's
+    // own row is zero-height, so its tick goes on the group's leader instead.
     const tickRows = useMemo(() => {
       const indices: number[] = [];
-      if (matchedUuids && uuidToIndexMap) {
+      if (matchedUuids && getScrollIndex) {
         for (const uuid of matchedUuids) {
-          const index = uuidToIndexMap.get(uuid);
-          if (index !== undefined) indices.push(index);
+          const index = getScrollIndex(uuid);
+          if (index !== null) indices.push(index);
         }
       }
       const current =
-        currentMatchUuid != null ? (uuidToIndexMap?.get(currentMatchUuid) ?? -1) : -1;
+        currentMatchUuid != null ? (getScrollIndex?.(currentMatchUuid) ?? -1) : -1;
       return { indices, current };
-    }, [matchedUuids, uuidToIndexMap, currentMatchUuid]);
+    }, [matchedUuids, getScrollIndex, currentMatchUuid]);
 
     // The strip maps the whole scroll content, in scroll coordinates. Row
     // measurements start after the list header (the virtualizer's

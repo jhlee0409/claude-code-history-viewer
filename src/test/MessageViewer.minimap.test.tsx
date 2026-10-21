@@ -413,7 +413,7 @@ describe("MessageViewer minimap PR 2 wiring", () => {
     expect(props?.totalCount).toBe(500);
     expect(props?.currentMatchUuid).toBe("m1");
     expect([...(props?.matchedUuids as Set<string>)].sort()).toEqual(["m1", "old-1"]);
-    expect((props?.uuidToIndexMap as Map<string, number>).get("m1")).toBe(0);
+    expect((props?.getScrollIndex as (uuid: string) => number | null)("m1")).toBe(0);
     expect(typeof props?.onLoadEarlier).toBe("function");
     // Both occurrences inside "old-1" count; the loaded "m1" does not.
     expect(props?.notLoadedMatchCount).toBe(2);
