@@ -175,6 +175,110 @@ fn recording(stats: &SessionTokenStats) -> Value {
 }
 
 #[test]
+fn native_recording_cache_matrix_fresh_warm_and_mode_slots() {
+    let temp = tempfile::tempdir().unwrap();
+    for (index, (usage, expected, total)) in usage_cases().into_iter().enumerate() {
+        let path = temp.path().join(format!("project/case-{index}.jsonl"));
+        write_rows(&path, &[row(usage, "same", "2025-01-01T12:00:00Z")]);
+        let root = session_files::own_folder(&path).unwrap();
+        // Alternate order to catch cross-mode evidence reuse.
+        let modes = if index % 2 == 0 {
+            [StatsMode::BillingTotal, StatsMode::ConversationOnly]
+        } else {
+            [StatsMode::ConversationOnly, StatsMode::BillingTotal]
+        };
+        for (slot, mode) in modes.into_iter().enumerate() {
+            let scan = scan_session_token_stats(&path, &root, mode, None, None).unwrap();
+            for _ in 0..2 {
+                let composed = extract_session_token_accum_sync(&path, &root, mode, None, None)
+                    .unwrap()
+                    .into_stats(claude_session_project_name(&path));
+                assert_eq!(recording(&composed), expected, "case {index}");
+                assert_eq!(composed.total_tokens, total);
+                assert_eq!(
+                    serde_json::to_value(&composed).unwrap(),
+                    serde_json::to_value(&scan).unwrap()
+                );
+            }
+            assert_eq!(
+                cache::test_build_count(&path),
+                slot as u64 + 1,
+                "real warm hit + mode slot"
+            );
+        }
+    }
+}
+
+#[test]
+fn native_recording_cache_filter_dedup_and_descendant_merge() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("project/parent.jsonl");
+    let absent = row(None, "first", "2025-01-01T12:00:00Z");
+    let full = row(Some(full_usage(13, 7)), "second", "2025-01-02T12:00:00Z");
+    write_rows(&path, &[absent.clone(), full.clone()]);
+    let root = session_files::own_folder(&path).unwrap();
+    for mode in [StatsMode::BillingTotal, StatsMode::ConversationOnly] {
+        for (start, end, expected, total) in [
+            (None, None, "partial", 20),
+            (
+                Some("2025-01-01T00:00:00Z"),
+                Some("2025-01-01T23:59:59Z"),
+                "absent",
+                0,
+            ),
+            (Some("2025-01-02T00:00:00Z"), None, "recorded", 20),
+            (Some("2025-01-01T13:00:00Z"), None, "recorded", 20),
+        ] {
+            let start = start.and_then(parse_timestamp_utc);
+            let end = end.and_then(parse_timestamp_utc);
+            let composed =
+                extract_session_token_accum_sync(&path, &root, mode, start.as_ref(), end.as_ref())
+                    .unwrap()
+                    .into_stats(claude_session_project_name(&path));
+            let scan =
+                scan_session_token_stats(&path, &root, mode, start.as_ref(), end.as_ref()).unwrap();
+            assert_eq!(recording(&composed), expected);
+            assert_eq!(composed.total_tokens, total);
+            assert_eq!(
+                serde_json::to_value(composed).unwrap(),
+                serde_json::to_value(scan).unwrap()
+            );
+        }
+    }
+    // All accepted rows remain in the coverage denominator before dedup growth.
+    for (rows, expected) in [
+        (vec![full.clone(), full.clone()], "recorded"),
+        (
+            vec![row(None, "second", "2025-01-02T12:00:00Z"), full.clone()],
+            "partial",
+        ),
+        (
+            vec![full.clone(), row(None, "second", "2025-01-02T12:00:00Z")],
+            "partial",
+        ),
+    ] {
+        write_rows(&path, &rows);
+        let scan =
+            scan_session_token_stats(&path, &root, StatsMode::BillingTotal, None, None).unwrap();
+        assert_eq!(recording(&scan), expected);
+        assert_eq!(scan.total_tokens, 20);
+    }
+    write_rows(&path, &[absent]);
+    write_rows(
+        &temp.path().join("project/parent/subagents/agent.jsonl"),
+        &[full],
+    );
+    for (mode, expected, total) in [
+        (StatsMode::BillingTotal, "partial", 20),
+        (StatsMode::ConversationOnly, "absent", 0),
+    ] {
+        let stats = extract_session_token_stats_sync(&path, &root, mode, None, None).unwrap();
+        assert_eq!(recording(&stats), expected);
+        assert_eq!(stats.total_tokens, total);
+    }
+}
+
+#[test]
 fn native_recording_distinguishes_absence_from_explicit_zero() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("project/session.jsonl");
