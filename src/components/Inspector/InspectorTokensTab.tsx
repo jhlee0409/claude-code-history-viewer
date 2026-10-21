@@ -187,9 +187,10 @@ export const InspectorTokensTab = () => {
             )}
           </dl>
           {conversationStats && tokenRecordingNote(conversationStats) && (
-            <p className="text-caption text-muted-foreground break-keep break-words">
-              {t("analytics.conversationOnly")}: {t(tokenRecordingNote(conversationStats)!)}
-            </p>
+            <div className="text-caption text-muted-foreground break-keep break-words">
+              <p>{t("analytics.conversationOnly")}</p>
+              <p>{t(tokenRecordingNote(conversationStats)!)}</p>
+            </div>
           )}
           {!supportsConversationBreakdown(providerId) && (
             <p className="text-caption text-muted-foreground break-keep">

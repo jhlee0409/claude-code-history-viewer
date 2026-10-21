@@ -435,6 +435,36 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
     }
     // items.map(fmt.count): its results are formatter text.
     if (ts.isCallExpression(parent) && parent.arguments[0] === child && ["map", "flatMap"].includes(calleeName(parent))) return follow(state, parent);
+    // A resolvable adapter's positional callback is followed into its real
+    // parameter and back through its return/export, not exempted by name.
+    // Unresolved/external calls remain untracked below.
+    if (ts.isCallExpression(parent) && ts.isIdentifier(parent.expression)) {
+      let target = state;
+      let name = parent.expression.text;
+      for (const statement of state.sf.statements) {
+        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+        const bindings = statement.importClause?.namedBindings;
+        if (!bindings || !ts.isNamedImports(bindings)) continue;
+        const binding = bindings.elements.find((element) => element.name.text === name);
+        if (!binding) continue;
+        const path = resolveImport(state.file.path, statement.moduleSpecifier.text, known);
+        if (path) {
+          target = byPath.get(path)!;
+          name = (binding.propertyName ?? binding.name).text;
+        }
+        break;
+      }
+      const fn = target.sf.statements.find((statement): statement is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(statement) && statement.name?.text === name);
+      const parameter = fn?.parameters[parent.arguments.indexOf(child as ts.Expression)];
+      if (parameter && ts.isIdentifier(parameter.name)) {
+        if (!target.functions.has(parameter.name.text)) {
+          target.functions.add(parameter.name.text);
+          changed = true;
+        }
+        return;
+      }
+    }
     untrack();
   };
 
