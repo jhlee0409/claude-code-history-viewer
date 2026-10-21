@@ -370,6 +370,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
           {/* Project Selector Dropdown */}
           <Select value={selectValue} onValueChange={handleSelectChange}>
             <SelectTrigger
+              aria-label={t("settingsManager.context.selectProject")}
               className={cn(
                 "w-full h-9 text-body",
                 "border-border/50 hover:border-border",

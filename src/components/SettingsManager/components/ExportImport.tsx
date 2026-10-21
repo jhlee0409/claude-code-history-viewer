@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { saveFileDialog, openFileDialog } from "@/utils/fileDialog";
@@ -54,6 +54,8 @@ export const ExportImport: React.FC<ExportImportProps> = ({
   onImport,
 }) => {
   const { t } = useTranslation();
+  const importScopeId = useId();
+  const exportScopeId = useId();
   const [exportScope, setExportScope] = useState<SettingsScope>("user");
   const [excludeSensitive, setExcludeSensitive] = useState(true);
   const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
@@ -348,9 +350,9 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             {/* Export Scope Selection */}
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <Label className="text-body">{t("settingsManager.exportImport.exportScope")}</Label>
+                <Label htmlFor={exportScopeId} className="text-body">{t("settingsManager.exportImport.exportScope")}</Label>
                 <Select value={exportScope} onValueChange={(v) => setExportScope(v as SettingsScope)}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger id={exportScopeId} className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -492,9 +494,9 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-hidden">
             <div>
-              <Label>{t("settingsManager.exportImport.targetScope")}</Label>
+              <Label htmlFor={importScopeId}>{t("settingsManager.exportImport.targetScope")}</Label>
               <Select value={importScope} onValueChange={(v) => setImportScope(v as SettingsScope)}>
-                <SelectTrigger>
+                <SelectTrigger id={importScopeId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

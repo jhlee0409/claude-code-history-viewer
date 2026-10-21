@@ -192,6 +192,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
   readOnly,
 }) => {
   const { t } = useTranslation();
+  const defaultModeId = React.useId();
   const [newDirectory, setNewDirectory] = useState("");
   const [dirConfirmIndex, setDirConfirmIndex] = useState<number | null>(null);
 
@@ -299,7 +300,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
 
             {/* Default Permission Mode */}
             <div className="space-y-2">
-              <Label className="text-body">
+              <Label htmlFor={defaultModeId} className="text-body">
                 {t("settingsManager.permissions.defaultMode")}
               </Label>
               <Select
@@ -307,7 +308,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                 onValueChange={handleDefaultModeChange}
                 disabled={readOnly}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id={defaultModeId} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

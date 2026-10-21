@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { PNG } from "pngjs";
 import { CHANNEL_DELTA, focusChange, pixelChange } from "../lib/statesJudge.mjs";
-import { summarizeStates } from "../states/judge.mjs";
+import { contractStates, summarizeContract, summarizeStates } from "../states/judge.mjs";
 
 const solid = (w, h, rgb, paint) => {
   const png = new PNG({ width: w, height: h });
@@ -55,5 +55,53 @@ describe("summarizeStates", () => {
     expect(summary.hover).toEqual({ population: 3, visible: 2 });
     expect(summary.active).toEqual({ population: 2, visible: 1 });
     expect(summarizeStates([]).failures).toEqual(["empty gallery: no controls measured"]);
+  });
+});
+
+describe("summarizeContract (F2a: Button, Input, Textarea, Select, Switch)", () => {
+  const seen = { visible: true };
+  const unseen = { visible: false };
+  const focus = (extra = {}) => ({ visible: true, reached: true, inView: true, covered: false, ...extra });
+  const row = (ctl, overrides = {}) => ({ ctl, src: "default", focusable: true, focus: focus(), hover: seen, active: seen, ...overrides });
+
+  it("passes when every contract control shows focus, hover and pressed; other controls do not count", () => {
+    const contract = summarizeContract(
+      [row("button:default"), row("input:default"), row("switch:default", { src: "checked" }), { ctl: "badge:muted", src: "default", focusable: false, hover: unseen }],
+      "webkit-light",
+    );
+    expect(contract.failures).toEqual([]);
+    expect(contract.population).toBe(3);
+    expect(contract.focus).toEqual({ population: 3, visible: 3 });
+    expect(contract.hover).toEqual({ population: 3, visible: 3 });
+    expect(contract.active).toEqual({ population: 3, visible: 3 });
+  });
+
+  it.each([
+    ["no visible focus", { focus: focus({ visible: false }) }, "F2a contract focus: button:ghost:default: no visible focus"],
+    ["focus not reached by the key", { focus: focus({ reached: false }) }, "F2a contract focus: button:ghost:default: not reached by the keyboard"],
+    ["ring outside the viewport", { focus: focus({ inView: false }) }, "F2a contract focus: button:ghost:default: focus ring outside the viewport"],
+    ["covered", { focus: focus({ covered: true }) }, "F2a contract focus: button:ghost:default: covered by another element"],
+    ["not focusable", { focusable: false, focus: undefined }, "F2a contract focus: button:ghost:default: not focusable"],
+    ["no hover", { hover: unseen }, "F2a contract hover: button:ghost:default: no visible hover state"],
+    ["no pressed", { active: unseen }, "F2a contract pressed: button:ghost:default: no visible pressed state"],
+    ["pressed not measured", { active: undefined }, "F2a contract pressed: button:ghost:default: pressed not measured"],
+    ["a probe error", { error: "no box" }, "F2a contract: button:ghost:default: no box"],
+  ])("fails on %s", (_name, overrides, failure) => {
+    const contract = summarizeContract([row("button:default"), row("button:ghost", overrides)], "webkit-dark");
+    expect(contract.failures).toEqual([failure]);
+  });
+
+  it("judges only focus in forced colours (fills are system colours there)", () => {
+    expect(contractStates("chromium-forced-light")).toEqual(["focus"]);
+    expect(contractStates("webkit-light")).toEqual(["focus", "hover", "active"]);
+    const contract = summarizeContract([row("select:default", { hover: unseen, active: unseen })], "chromium-forced-dark");
+    expect(contract.failures).toEqual([]);
+    expect(contract.hover).toBeUndefined();
+  });
+
+  it("fails an empty population", () => {
+    expect(summarizeContract([{ ctl: "badge:muted", src: "default" }], "webkit-light").failures).toEqual([
+      "F2a contract: no Button/Input/Textarea/Select/Switch measured",
+    ]);
   });
 });

@@ -3,23 +3,42 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Badge (inner-UI plan F2a, G-ST6 · plan-review-3): a pill label, no shadow.
+ *
+ * - neutral: a quiet count or tag (--secondary);
+ * - muted: secondary information (--muted, --fg-2);
+ * - danger / warning / info: the status tokens (surface, fg, line);
+ * - outline: a --line-input border only.
+ * There is no success badge: success is said with text or a Notice.
+ * Older names keep rendering until F2b renames their call sites:
+ * default and secondary → neutral, destructive → danger, success and
+ * accent → neutral.
+ */
+const NEUTRAL = "border-transparent bg-secondary text-secondary-foreground";
+const DANGER = "border-status-danger-line bg-status-danger-surface text-status-danger-fg";
+
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-list font-medium transition-colors focus:outline-none",
+  "inline-flex items-center rounded-pill border font-medium",
   {
     variants: {
       variant: {
-        default:
-          "border border-transparent bg-primary text-primary-foreground shadow-sm",
-        secondary:
-          "border border-transparent bg-secondary text-secondary-foreground",
-        destructive:
-          "border border-transparent bg-destructive/10 text-destructive",
-        outline: "border border-border text-foreground",
-        accent: "border border-transparent bg-accent/10 text-accent",
-        success: "border border-transparent bg-success/10 text-success",
-        warning: "border border-transparent bg-warning/10 text-warning",
-        info: "border border-transparent bg-info/10 text-info",
-        muted: "border border-transparent bg-muted text-muted-foreground",
+        neutral: NEUTRAL,
+        muted: "border-transparent bg-muted text-fg-2",
+        danger: DANGER,
+        warning: "border-status-warning-line bg-status-warning-surface text-status-warning-fg",
+        info: "border-status-info-line bg-status-info-surface text-status-info-fg",
+        outline: "border-line-input bg-transparent text-foreground",
+        /** @deprecated Older name for `neutral` (F2b renames the call sites). */
+        default: NEUTRAL,
+        /** @deprecated Older name for `neutral`. */
+        secondary: NEUTRAL,
+        /** @deprecated Older name for `danger`. */
+        destructive: DANGER,
+        /** @deprecated No success badge: renders `neutral`. */
+        success: NEUTRAL,
+        /** @deprecated Renders `neutral`. */
+        accent: NEUTRAL,
       },
       size: {
         default: "px-2.5 py-0.5 text-list",
@@ -28,7 +47,7 @@ const badgeVariants = cva(
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: "neutral",
       size: "default",
     },
   }
@@ -41,6 +60,7 @@ export interface BadgeProps
 function Badge({ className, variant, size, ...props }: BadgeProps) {
   return (
     <div
+      data-slot="badge"
       className={cn(badgeVariants({ variant, size }), className)}
       {...props}
     />

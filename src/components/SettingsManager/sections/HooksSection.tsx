@@ -195,6 +195,7 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
   readOnly,
 }) => {
   const { t } = useTranslation();
+  const hookTypeId = React.useId();
 
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -343,9 +344,9 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>{t("settingsManager.unified.hooks.hookType")}</Label>
+              <Label htmlFor={hookTypeId}>{t("settingsManager.unified.hooks.hookType")}</Label>
               <Select value={newHookType} onValueChange={setNewHookType}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger id={hookTypeId} className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

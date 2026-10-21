@@ -3,6 +3,7 @@
 
 // Primitives
 export * from "./button";
+export * from "./field";
 export * from "./input";
 export * from "./label";
 export * from "./textarea";
@@ -18,7 +19,9 @@ export * from "./separator";
 
 // Feedback
 export * from "./alert";
+export * from "./notice";
 export * from "./skeleton";
+export * from "./spinner";
 export * from "./loading";
 
 // Overlay

@@ -226,6 +226,8 @@ PresetItem.displayName = "PresetItem";
 
 export const PresetPanel: React.FC = () => {
   const { t } = useTranslation();
+  const targetProjectId = React.useId();
+  const targetScopeId = React.useId();
   const {
     allSettings,
     saveSettings,
@@ -1001,7 +1003,7 @@ export const PresetPanel: React.FC = () => {
           <div className="space-y-4 py-2">
             {/* Scope Selection */}
             <div>
-              <Label className="text-body font-medium">
+              <Label htmlFor={targetScopeId} className="text-body font-medium">
                 {t("settingsManager.unified.presets.targetScope")}
               </Label>
               <Select
@@ -1015,7 +1017,7 @@ export const PresetPanel: React.FC = () => {
                   }
                 }}
               >
-                <SelectTrigger className="mt-1.5">
+                <SelectTrigger id={targetScopeId} className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1034,7 +1036,7 @@ export const PresetPanel: React.FC = () => {
             {/* Project Selection */}
             {needsProject && (
               <div>
-                <Label className="text-body font-medium">
+                <Label htmlFor={targetProjectId} className="text-body font-medium">
                   {t("settingsManager.unified.presets.targetProject")}
                 </Label>
                 <Select
@@ -1043,7 +1045,7 @@ export const PresetPanel: React.FC = () => {
                     setTargetProject(value || undefined)
                   }
                 >
-                  <SelectTrigger className="mt-1.5">
+                  <SelectTrigger id={targetProjectId} className="mt-1.5">
                     <SelectValue
                       placeholder={t(
                         "settingsManager.unified.presets.selectProject"

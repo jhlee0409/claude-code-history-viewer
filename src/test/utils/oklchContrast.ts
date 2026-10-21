@@ -69,6 +69,46 @@ export function contrast(x: Oklch, y: Oklch): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// ---------------------------------------------------------------------------
+// Painted 8-bit sRGB and alpha compositing (state layers: `bg-x/85`)
+// ---------------------------------------------------------------------------
+
+/** 8-bit gamma-encoded sRGB, as a screenshot pixel. */
+export type Srgb8 = [number, number, number];
+
+/** The 8-bit sRGB pixel a browser paints for an opaque oklch colour. */
+export function srgb8(color: Oklch): Srgb8 {
+  return linearSrgb(color).map((v) => {
+    const encoded = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.max(v, 0) ** (1 / 2.4) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, encoded)) * 255);
+  }) as Srgb8;
+}
+
+/**
+ * `top` at `alpha` over the opaque `back`, blended in gamma-encoded sRGB the
+ * way a browser composites a translucent background (Tailwind's `bg-x/85` is
+ * x at 85% alpha).
+ */
+export function over(top: Srgb8, alpha: number, back: Srgb8): Srgb8 {
+  return top.map((v, i) => Math.round(alpha * v + (1 - alpha) * (back[i] ?? 0))) as Srgb8;
+}
+
+/** The largest per-channel difference of two pixels (0-255). */
+export const channelDelta = (x: Srgb8, y: Srgb8) => Math.max(...x.map((v, i) => Math.abs(v - (y[i] ?? 0))));
+
+/** WCAG 2 contrast ratio of two 8-bit sRGB pixels. */
+export function contrastSrgb8(x: Srgb8, y: Srgb8): number {
+  const lum = (c: Srgb8) => {
+    const [r, g, b] = c.map((v) => {
+      const s = v / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    }) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 /** CIELAB (D65) of the painted colour. */
 function cielab(color: Oklch): [number, number, number] {
   const [r, g, b] = paintedLinear(color);

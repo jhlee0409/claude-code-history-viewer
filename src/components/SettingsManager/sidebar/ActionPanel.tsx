@@ -39,6 +39,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const ActionPanel: React.FC = () => {
   const { t } = useTranslation();
+  const importScopeId = React.useId();
   const { allSettings, activeScope, projectPath, loadSettings } = useSettingsManager();
 
   // State
@@ -256,12 +257,12 @@ export const ActionPanel: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-hidden">
             <div>
-              <Label>{t("settingsManager.exportImport.targetScope")}</Label>
+              <Label htmlFor={importScopeId}>{t("settingsManager.exportImport.targetScope")}</Label>
               <Select
                 value={importScope}
                 onValueChange={(v) => setImportScope(v as SettingsScope)}
               >
-                <SelectTrigger className="mt-1">
+                <SelectTrigger id={importScopeId} className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

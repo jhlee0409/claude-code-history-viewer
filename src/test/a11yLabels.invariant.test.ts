@@ -11,6 +11,12 @@
  *   exceptions are names that are the same in every language (tool names,
  *   keyboard keys), listed in LITERAL_ALLOWED.
  *
+ * - A `<SelectTrigger>` (a combobox) has an accessible name: `aria-label` /
+ *   `aria-labelledby`, an `id` that a `<label htmlFor>` / `<Label htmlFor>`
+ *   in the same file points at, or a `<Field label=…>` around it (the
+ *   Field wires its label to the trigger). A placeholder is not a name
+ *   (inner-UI plan F2a, G-SR4).
+ *
  * A child counts as text when it is non-blank JSX text, or an expression that
  * is not plainly JSX (a `t()` call, a variable, a template). Conditionals and
  * `&&` count as text when any branch does. Buttons that spread props or use
@@ -122,6 +128,77 @@ function scan(): Findings {
   return findings;
 }
 
+// ---------------------------------------------------------------------------
+// Select triggers (comboboxes) need a name
+// ---------------------------------------------------------------------------
+
+const LABEL_TAGS = new Set(["label", "Label"]);
+
+/** The attribute `name` of a JSX opening/self-closing element, or undefined. */
+function attribute(attributes: ts.JsxAttributes, name: string): ts.JsxAttribute | undefined {
+  return attributes.properties.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText() === name);
+}
+
+/** The initializer of an attribute as comparable text (`"x"` → x, `{selectId}` → selectId). */
+function attributeValue(attr: ts.JsxAttribute | undefined): string | null {
+  const init = attr?.initializer;
+  if (!init) return null;
+  if (ts.isStringLiteral(init)) return init.text;
+  if (ts.isJsxExpression(init) && init.expression) {
+    const e = init.expression;
+    return ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) ? e.text : e.getText();
+  }
+  return null;
+}
+
+/** Is an attribute present with a value that can name something (not `""`)? */
+const hasName = (attr: ts.JsxAttribute | undefined) => !!attr && attributeValue(attr) !== "";
+
+/**
+ * `<SelectTrigger>` elements of one TSX source without an accessible name
+ * (see the file header), as `file:line`.
+ *
+ * Limit of a static scan: an expression id is compared by its source text
+ * (`htmlFor={scopeId}` ↔ `id={scopeId}`) across the whole file, so two
+ * components in one file that reuse the same variable name can pair a label
+ * with the other component's trigger. That never fails a named trigger, but
+ * it can hide a missing name; give each label/trigger pair a distinct id
+ * name (`useId()` per pair, as the settings dialogs do).
+ */
+function unnamedSelectTriggers(sourceText: string, fileName = "fixture.tsx"): string[] {
+  const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const labelTargets = new Set<string>();
+  const triggers: Array<{ attributes: ts.JsxAttributes; node: ts.Node; inField: boolean }> = [];
+  const visit = (node: ts.Node, inField: boolean) => {
+    const opening = ts.isJsxElement(node) ? node.openingElement : ts.isJsxSelfClosingElement(node) ? node : null;
+    let childInField = inField;
+    if (opening) {
+      const tag = opening.tagName.getText();
+      if (LABEL_TAGS.has(tag)) {
+        const target = attributeValue(attribute(opening.attributes, "htmlFor"));
+        if (target) labelTargets.add(target);
+      }
+      if (tag === "Field" && hasName(attribute(opening.attributes, "label"))) childInField = true;
+      if (tag === "SelectTrigger") triggers.push({ attributes: opening.attributes, node: opening, inField });
+    }
+    ts.forEachChild(node, (child) => visit(child, childInField));
+  };
+  visit(source, false);
+  return triggers
+    .filter(({ attributes, inField }) => {
+      if (inField) return false;
+      if (attributes.properties.some((p) => ts.isJsxSpreadAttribute(p))) return false;
+      if (hasName(attribute(attributes, "aria-label")) || hasName(attribute(attributes, "aria-labelledby"))) return false;
+      const id = attributeValue(attribute(attributes, "id"));
+      return !(id && labelTargets.has(id));
+    })
+    .map(({ node }) => `${fileName}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
+}
+
+function scanSelectTriggers(): string[] {
+  return appTsxFiles(SRC).flatMap((file) => unnamedSelectTriggers(readFileSync(file, "utf8"), relative(ROOT, file).split(sep).join("/")));
+}
+
 describe("accessible names", () => {
   const findings = scan();
 
@@ -131,5 +208,43 @@ describe("accessible names", () => {
 
   it("translates every title and aria-label", () => {
     expect(findings.literalLabels.join("\n")).toBe("");
+  });
+
+  it("names every Select trigger (combobox)", () => {
+    expect(scanSelectTriggers().join("\n")).toBe("");
+  });
+});
+
+describe("unnamedSelectTriggers (fixtures)", () => {
+  const select = (trigger: string, around = (x: string) => x) => `
+    const A = () => (
+      <div>
+        ${around(`<Select><${trigger}><SelectValue placeholder={t("x.placeholder")} /></SelectTrigger></Select>`)}
+      </div>
+    );`;
+  const trigger = (attrs: string) => `SelectTrigger ${attrs}`;
+
+  it.each([
+    ["no name at all", select(trigger('className="w-32"'))],
+    ["a placeholder only", select(trigger(""))],
+    ["an id no label points at", select(trigger('id="range"'))],
+    ["a label for another id", select(trigger('id="range"'), (x) => `<Label htmlFor="other">Range</Label>${x}`)],
+    ["a label without htmlFor", select(trigger('className="mt-1"'), (x) => `<Label>Range</Label>${x}`)],
+    ["an empty aria-label", select(trigger('aria-label=""'))],
+    ["a Field without a label", select(trigger(""), (x) => `<Field help="h">${x}</Field>`)],
+  ])("flags %s", (_name, source) => {
+    expect(unnamedSelectTriggers(source)).toHaveLength(1);
+  });
+
+  it.each([
+    ["aria-label", select(trigger('aria-label={t("board.tool")}'))],
+    ["aria-labelledby", select(trigger('aria-labelledby="range-label"'))],
+    ["a <Label htmlFor> string id", select(trigger('id="range"'), (x) => `<Label htmlFor="range">Range</Label>${x}`)],
+    ["a <label htmlFor> expression id", select(trigger("id={selectId}"), (x) => `<label htmlFor={selectId}>Range</label>${x}`)],
+    ["a label after the trigger", select(trigger('id="range"'), (x) => `${x}<Label htmlFor="range">Range</Label>`)],
+    ["a surrounding Field with a label", select(trigger(""), (x) => `<Field label={t("x.range")}>${x}</Field>`)],
+    ["spread props", select(trigger("{...triggerProps}"))],
+  ])("accepts %s", (_name, source) => {
+    expect(unnamedSelectTriggers(source)).toEqual([]);
   });
 });

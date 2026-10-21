@@ -108,7 +108,7 @@ export const BoardControls = ({
                         value={activeBrush?.type === 'tool' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'tool', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger aria-label={t("session.board.controls.tool")} className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.tool")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -132,7 +132,7 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'mcp' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'mcp', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger aria-label={t("session.board.controls.mcp")} className="h-7 w-32 text-caption bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.mcp")} />
                             </SelectTrigger>
                             <SelectContent>
@@ -157,7 +157,7 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'command' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'command', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger aria-label={t("session.board.controls.command")} className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.command")} />
                             </SelectTrigger>
                             <SelectContent>
@@ -181,7 +181,7 @@ export const BoardControls = ({
                         value={activeBrush?.type === 'file' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'file', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger aria-label={t("session.board.controls.file")} className="h-7 w-40 text-caption bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.file")} />
                         </SelectTrigger>
                         <SelectContent>

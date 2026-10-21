@@ -6,8 +6,10 @@
 //!   time_created, time_updated, time_archived)` — `directory` is the session
 //!   cwd, `title` a generated/first-input title, epoch-ms timestamps.
 //! - `message(id, session_id, sequence, time_created, data)` — `data` JSON:
-//!   `{role, time:{created,completed}, parentID, modelID, tokens:{...},
-//!   finish}`.
+//!   `{role, time:{created,completed}, parentID, modelId, tokens:{...},
+//!   finish}`. Z Code writes the assistant model as camelCase `modelId`
+//!   (only `parentID` keeps the opencode-style capital D); older databases
+//!   still carry `modelID`, so both spellings are accepted.
 //! - `part(id, message_id, session_id, sequence, data)` — content blocks in
 //!   order: `{type:"text"|"reasoning"|"tool"|"file"|"timeline"|"step-start"|
 //!   "step-finish", ...}`. A `tool` part merges the call and its result:
@@ -479,8 +481,13 @@ fn append_message(
         return;
     }
 
+    // Z Code stores the assistant model as camelCase `modelId` — only
+    // `parentID` keeps the opencode-style capital D. Older databases, and rows
+    // the model-selection migration never rewrote, still carry `modelID`, so
+    // accept both spellings and prefer the current one.
     let model = rec
-        .get("modelID")
+        .get("modelId")
+        .or_else(|| rec.get("modelID"))
         .and_then(Value::as_str)
         .map(str::to_string);
     let mut msg = build_provider_message(
@@ -897,6 +904,79 @@ mod tests {
         assert_eq!(rb[0]["tool_use_id"], "call-1");
         assert_eq!(rb[0]["content"], "line1");
         assert_eq!(rb[0]["is_error"], false);
+    }
+
+    #[test]
+    fn load_messages_accepts_camelcase_model_field() {
+        // Z Code writes the assistant model as camelCase `modelId` (only
+        // `parentID` keeps the opencode-style capital D). The parser must
+        // accept that spelling, otherwise `model` stays empty and the whole
+        // message-details row — model name, token usage, cost, duration —
+        // silently disappears from the viewer.
+        let conn = test_db();
+        seed(&conn);
+        insert_message(
+            &conn,
+            "m8",
+            "sess-1",
+            2,
+            concat!(
+                r#"{"role":"assistant","time":{"created":1788599956241,"completed":1788599961259},"#,
+                r#""parentID":"m2","modelId":"GLM-5.3-Flash","#,
+                r#""tokens":{"input":32028,"output":1481,"reasoning":7,"cache":{"read":30000,"write":28}}}"#
+            ),
+        );
+        insert_part(
+            &conn,
+            "p8",
+            "m8",
+            "sess-1",
+            0,
+            r#"{"type":"text","text":"done"}"#,
+        );
+
+        let messages = load_messages_conn(&conn, "sess-1").unwrap();
+        let a = messages.iter().find(|m| m.uuid == "m8").unwrap();
+        assert_eq!(a.model.as_deref(), Some("GLM-5.3-Flash"));
+        assert_eq!(a.stop_reason.as_deref(), None);
+        let usage = a.usage.as_ref().unwrap();
+        assert_eq!(usage.input_tokens, Some(2028)); // 32028 - 30000 cached
+        assert_eq!(usage.output_tokens, Some(1481));
+        assert_eq!(usage.cache_read_input_tokens, Some(30000));
+        assert_eq!(usage.cache_creation_input_tokens, Some(28));
+        assert_eq!(usage.reasoning_tokens, Some(7));
+    }
+
+    #[test]
+    fn load_messages_prefers_camelcase_model_field_over_legacy_spelling() {
+        // Z Code's model-selection migration patches `modelId` into the stored
+        // row without removing the legacy `modelID`, so both spellings can be
+        // present at once. The current contract wins when they disagree.
+        let conn = test_db();
+        seed(&conn);
+        insert_message(
+            &conn,
+            "m9",
+            "sess-1",
+            3,
+            concat!(
+                r#"{"role":"assistant","time":{"created":1788599956241},"#,
+                r#""modelID":"legacy-name","modelId":"GLM-5.3-Flash","#,
+                r#""tokens":{"input":10,"output":5,"reasoning":0,"cache":{"read":0,"write":0}}}"#
+            ),
+        );
+        insert_part(
+            &conn,
+            "p9",
+            "m9",
+            "sess-1",
+            0,
+            r#"{"type":"text","text":"done"}"#,
+        );
+
+        let messages = load_messages_conn(&conn, "sess-1").unwrap();
+        let a = messages.iter().find(|m| m.uuid == "m9").unwrap();
+        assert_eq!(a.model.as_deref(), Some("GLM-5.3-Flash"));
     }
 
     #[test]

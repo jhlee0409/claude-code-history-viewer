@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { fieldControlClasses, useFieldControl } from "./field";
 
 const Select = SelectPrimitive.Root;
 
@@ -10,30 +11,40 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
+/**
+ * The select's button (a combobox; inner-UI plan F2a): the shared field
+ * control states, an --line-selected border while open, and a name - inside
+ * a Field it points at the Field's label (aria-labelledby); elsewhere it
+ * needs `aria-label`/`aria-labelledby` or a `<Label htmlFor>` for its `id`
+ * (src/test/a11yLabels.invariant.test.ts). A placeholder is not a name.
+ */
 const SelectTrigger = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md",
-      "border border-input bg-background px-3 py-2",
-      "text-body",
-      "placeholder:text-muted-foreground",
-      "focus:outline-none",
-      "disabled:cursor-not-allowed disabled:opacity-50",
-      "[&>span]:line-clamp-1",
-      className
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+>(({ className, children, ...props }, ref) => {
+  const field = useFieldControl(props, { labelledBy: true });
+  return (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "flex h-10 w-full items-center justify-between rounded-md",
+        "border bg-background px-3 py-2",
+        "text-body transition-colors",
+        fieldControlClasses,
+        "data-[state=open]:border-line-selected",
+        "[&>span]:line-clamp-1",
+        className
+      )}
+      {...props}
+      {...field}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = React.forwardRef<
