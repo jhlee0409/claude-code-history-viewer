@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import i18n from "@/i18n";
 import type { SessionTokenStats } from "@/types";
+import { SessionStatsView } from "@/components/AnalyticsDashboard/views/SessionStatsView";
 import { SessionStatsCard } from "@/components/SessionStatsCard";
 
 import { InspectorInfoTab } from "@/components/Inspector/InspectorInfoTab";
@@ -87,6 +88,15 @@ describe("session-owned missing-value matrix", () => {
       expect(format).not.toHaveBeenCalled();
     });
   }
+  it("session analytics does not print NaN or zero for absent records", async () => {
+    await i18n.changeLanguage("en");
+    const view = render(<SessionStatsView sessionStats={{ ...base, token_usage_recording: "absent" }}
+      sessionComparison={{ session_id: "fixture", percentage_of_project_tokens: 0, percentage_of_project_messages: 0,
+        rank_by_tokens: 1, rank_by_duration: 1, is_above_average: false }} />);
+    expect(view.container).not.toHaveTextContent("NaN");
+    expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(3);
+    expect(screen.queryByText("Below Average")).toBeNull();
+  });
   it("a settled null response is unavailable, not recorded absence, and is not re-requested", async () => {
     await i18n.changeLanguage("en");
     useAppStore.setState({ sessionTokenStatsOwner: session.file_path, sessionTokenStats: null });
