@@ -144,7 +144,7 @@ fn native_recording_fallback_precedence_and_invalid_values() {
         evidence.observe(&message);
         assert_eq!(serde_json::to_value(evidence.finish()).unwrap(), expected);
     }
-    for total in [0, 20] {
+    for total in [0_u64, 20, 4_294_967_296, 4_294_967_297] {
         let message = ClaudeMessage {
             message_type: "assistant".into(),
             tool_use_result: Some(json!({"totalTokens":total})),
@@ -153,7 +153,12 @@ fn native_recording_fallback_precedence_and_invalid_values() {
         let mut evidence = TokenRecordingEvidence::default();
         evidence.observe(&message);
         assert_eq!(serde_json::to_value(evidence.finish()).unwrap(), "partial");
-        assert_eq!(token_usage_totals(&extract_token_usage(&message)).5, total);
+        // Preserve the existing total-only fallback's u64 -> u32 numeric policy.
+        // Presence must follow that selected source, not silently narrow it.
+        assert_eq!(
+            token_usage_totals(&extract_token_usage(&message)).5,
+            u64::from(total as u32)
+        );
     }
     let message = ClaudeMessage {
         usage: Some(TokenUsage::default()),
