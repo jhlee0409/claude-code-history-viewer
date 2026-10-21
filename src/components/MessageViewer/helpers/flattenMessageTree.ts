@@ -487,7 +487,8 @@ export function findGroupLeaderIndex(
   uuid: string,
   flattenedMessages: FlattenedMessage[],
   agentTaskGroups: Map<string, AgentTaskGroupResult>,
-  agentProgressGroups: Map<string, AgentProgressGroupResult>
+  agentProgressGroups: Map<string, AgentProgressGroupResult>,
+  taskOperationGroups: Map<string, TaskOperationGroupResult> = new Map()
 ): number | null {
   // Check if this UUID belongs to an agent task group
   for (const [leaderId, group] of agentTaskGroups.entries()) {
@@ -501,6 +502,16 @@ export function findGroupLeaderIndex(
 
   // Check if this UUID belongs to an agent progress group
   for (const [leaderId, group] of agentProgressGroups.entries()) {
+    if (group.messageUuids.has(uuid)) {
+      const leaderIndex = flattenedMessages.findIndex(
+        (item) => item.type === "message" && item.message.uuid === leaderId
+      );
+      return leaderIndex >= 0 ? leaderIndex : null;
+    }
+  }
+
+  // Task Operations renders its non-leader messages as zero-height rows too.
+  for (const [leaderId, group] of taskOperationGroups.entries()) {
     if (group.messageUuids.has(uuid)) {
       const leaderIndex = flattenedMessages.findIndex(
         (item) => item.type === "message" && item.message.uuid === leaderId

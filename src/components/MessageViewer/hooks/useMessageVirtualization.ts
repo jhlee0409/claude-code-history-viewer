@@ -182,12 +182,13 @@ export const useMessageVirtualization = ({
       if (directIndex !== undefined) {
         const item = flattenedMessages[directIndex];
         // If this is a group member, find the leader instead
-        if (item?.type === "message" && (item.isGroupMember || item.isProgressGroupMember)) {
+        if (item?.type === "message" && (item.isGroupMember || item.isProgressGroupMember || item.isTaskOperationGroupMember)) {
           const leaderIndex = findGroupLeaderIndex(
             uuid,
             flattenedMessages,
             agentTaskGroups,
-            agentProgressGroups
+            agentProgressGroups,
+            taskOperationGroups
           );
           return leaderIndex ?? directIndex;
         }
@@ -200,6 +201,7 @@ export const useMessageVirtualization = ({
       flattenedMessages,
       agentTaskGroups,
       agentProgressGroups,
+      taskOperationGroups,
     ]
   );
 
