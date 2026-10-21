@@ -87,6 +87,15 @@ describe("session-owned missing-value matrix", () => {
       expect(format).not.toHaveBeenCalled();
     });
   }
+  it("a settled null response is unavailable, not recorded absence, and is not re-requested", async () => {
+    await i18n.changeLanguage("en");
+    useAppStore.setState({ sessionTokenStatsOwner: session.file_path, sessionTokenStats: null });
+    render(<><InspectorTokensTab /><InspectorInfoTab /></>);
+    expect(screen.getByText(i18n.t("analytics.noTokenData"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("common.inspector.info.modelsUnavailable"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("common.inspector.info.noModels"))).toBeNull();
+    expect(load).not.toHaveBeenCalled();
+  });
   it("refresh preserves existing numeric zero and model data", async () => {
     await i18n.changeLanguage("en");
     const owned = { ...base, token_usage_recording: "partial" as const,
