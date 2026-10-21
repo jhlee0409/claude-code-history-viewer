@@ -3,6 +3,8 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import i18n from "@/i18n";
 import type { SessionTokenStats } from "@/types";
 import { SessionStatsView } from "@/components/AnalyticsDashboard/views/SessionStatsView";
+import { recordedDuration, recordedTime, tokenRecordingNote } from "@/lib/format/missingValue";
+import { NO_VALUE } from "@/lib/format/locale";
 import { SessionStatsCard } from "@/components/SessionStatsCard";
 
 import { InspectorInfoTab } from "@/components/Inspector/InspectorInfoTab";
@@ -32,6 +34,21 @@ const labels = {
 };
 afterEach(cleanup);
 describe("missing values are not recorded zero", () => {
+  it("shared adapters preserve duration zero and real epoch, reject missing/invalid/reversed intervals", () => {
+    const time = "1970-01-01T00:00:00.000Z";
+    const format = vi.fn(String);
+    expect(recordedTime(time, format)).toBe(time);
+    expect(recordedDuration(time, time, format)).toBe("0");
+    expect(format).toHaveBeenCalledWith(0);
+    format.mockClear();
+    for (const invalid of ["", " ", "invalid"]) {
+      expect(recordedTime(invalid, format)).toBe(NO_VALUE);
+      expect(recordedDuration(invalid, time, format)).toBe(NO_VALUE);
+    }
+    expect(recordedDuration("2026-01-01T00:00:00Z", time, format)).toBe(NO_VALUE);
+    expect(format).not.toHaveBeenCalled();
+    expect(tokenRecordingNote({ ...base, token_usage_recording: "future" as SessionTokenStats["token_usage_recording"] })).toBe("common.missingValue.unknownTokens");
+  });
   for (const [locale, absent] of Object.entries(labels)) {
     it(`${locale}: absent total and invalid times have localized absence, not numeric zero`, async () => {
       await i18n.changeLanguage(locale);
