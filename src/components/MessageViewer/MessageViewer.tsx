@@ -52,6 +52,7 @@ import {
 import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
+import { scrollBehavior } from "@/utils/motion";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 /** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
@@ -880,7 +881,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         }, 200);
 
         const finalPass = setTimeout(() => {
-          virtualizer.scrollToIndex(index, { align: "start", behavior: "smooth" });
+          virtualizer.scrollToIndex(index, { align: "start", behavior: scrollBehavior() });
         }, 450);
 
         // Auto-clear the target after a few seconds so the highlight fades

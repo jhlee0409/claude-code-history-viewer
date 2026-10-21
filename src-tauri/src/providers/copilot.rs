@@ -19,6 +19,7 @@
 //! storage hashes into the project URL.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::{copilot_cli, vscode, ProviderInfo};
 use crate::utils::parse_rfc3339_utc;
 use base64::Engine;
@@ -197,16 +198,27 @@ fn tag<I: IntoIterator<Item = ClaudeProject>>(
 
 /// Scan all three Copilot sub-providers and return one merged project list.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what the sub-scanners could not
+/// read — a sub-scanner that fails is one of them, not an empty source.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let mut all = Vec::new();
-    if let Ok(p) = copilot_cli::scan_projects() {
-        all.extend(tag(SourceKind::Cli, p));
-    }
-    if let Ok(p) = copilot_cli::scan_desktop_projects() {
-        all.extend(tag(SourceKind::Desktop, p));
-    }
-    if let Ok(p) = vscode::scan_projects() {
-        all.extend(tag(SourceKind::VsCode, p));
-    }
+    let mut add = |kind: SourceKind, scanned: Result<Vec<ClaudeProject>, String>| match scanned {
+        Ok(projects) => all.extend(tag(kind, projects)),
+        Err(error) => report.unread(error),
+    };
+    add(
+        SourceKind::Cli,
+        copilot_cli::scan_projects_reporting(report),
+    );
+    add(
+        SourceKind::Desktop,
+        copilot_cli::scan_desktop_projects_reporting(report),
+    );
+    add(SourceKind::VsCode, vscode::scan_projects_reporting(report));
     Ok(merge_projects(all))
 }
 
@@ -243,20 +255,39 @@ pub fn load_sessions(project_path: &str, exclude: bool) -> Result<Vec<ClaudeSess
         // don't break in case stale URLs survive in any cache.
         return Ok(load_sessions_fallback(project_path, exclude));
     };
+    Ok(load_sources(project_ref, &ScanReport::default()))
+}
 
+/// [`load_sessions`], recording in `report` what the sub-loaders could not
+/// read — a sub-source that fails to load is one of them.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let Some(project_ref) = decode_project_ref(project_path) else {
+        return Ok(load_sessions_fallback(project_path, false));
+    };
+    Ok(load_sources(project_ref, report))
+}
+
+fn load_sources(project_ref: ProjectRef, report: &ScanReport) -> Vec<ClaudeSession> {
     let mut sessions = Vec::new();
     for src in project_ref.sources {
         let result = match src.kind {
-            SourceKind::Cli | SourceKind::Desktop => copilot_cli::load_sessions(&src.path, exclude),
-            SourceKind::VsCode => vscode::load_sessions(&src.path, exclude),
+            SourceKind::Cli | SourceKind::Desktop => {
+                copilot_cli::load_sessions_reporting(&src.path, report)
+            }
+            SourceKind::VsCode => vscode::load_sessions_reporting(&src.path, report),
         };
-        if let Ok(s) = result {
-            sessions.extend(s);
+        match result {
+            Ok(s) => sessions.extend(s),
+            Err(error) => report.unread(error),
         }
     }
 
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-    Ok(sessions)
+    sessions
 }
 
 /// Legacy fallback: if a caller hands us a project URL without an embedded

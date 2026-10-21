@@ -19,27 +19,33 @@ export const SESSION_ROW = {
   paddingY: 2 * 10,
   gap: 6,
   name: { lines: 2, tokenPx: 13, lineHeight: 1.625 },
-  meta: { tokenPx: 12, lineHeight: 1.4, badgePaddingY: 2 * 2 },
+  // text-caption's line height: 1.4, or 1.5 in Korean / Japanese / Chinese (index.css --leading-caption, F1b)
+  meta: { tokenPx: 12, lineHeight: 1.4, cjkLineHeight: 1.5, badgePaddingY: 2 * 2 },
   safety: 4,
 } as const;
 
+/** The caption step's line height in an app language (BCP 47 tag). */
+export function metaLineHeight(language = "en"): number {
+  return /^(ko|ja|zh)\b/i.test(language) ? SESSION_ROW.meta.cjkLineHeight : SESSION_ROW.meta.lineHeight;
+}
+
 /** Content height of the worst-case row at a font scale (1 = 100 %), unrounded. */
-export function sessionItemContentHeight(scale: number): number {
+export function sessionItemContentHeight(scale: number, language = "en"): number {
   const { paddingY, gap, name, meta } = SESSION_ROW;
   const nameHeight = name.lines * name.tokenPx * name.lineHeight * scale;
-  const metaHeight = meta.tokenPx * meta.lineHeight * scale + meta.badgePaddingY;
+  const metaHeight = meta.tokenPx * metaLineHeight(language) * scale + meta.badgePaddingY;
   return paddingY + nameHeight + gap + metaHeight;
 }
 
-/** Row height (px) for a font-scale percentage. */
-export function sessionItemHeight(fontScalePercent: number): number {
+/** Row height (px) for a font-scale percentage and the app language. */
+export function sessionItemHeight(fontScalePercent: number, language = "en"): number {
   const scale = Number.isFinite(fontScalePercent) ? fontScalePercent / 100 : 1;
-  return Math.ceil(sessionItemContentHeight(scale) + SESSION_ROW.safety);
+  return Math.ceil(sessionItemContentHeight(scale, language) + SESSION_ROW.safety);
 }
 
 /**
  * Row height (px) of the sidebar's one-line session row (`SessionItem`
  * `variant="compact"`, `h-7`). Rem-sized, so it does not follow the font
- * scale: one line of text-list (13px × 1.4) fits it up to 150 %.
+ * scale: one line of text-list (13px × 1.4, 1.5 in CJK) fits it up to 140 %.
  */
 export const COMPACT_SESSION_ROW_HEIGHT = 28;

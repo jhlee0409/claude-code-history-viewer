@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { SCROLL_HIGHLIGHT_DELAY_MS } from "../types";
+import { scrollBehavior } from "@/utils/motion";
 
 // Scroll behavior constants
 const SCROLL_RETRY_DELAY_MS = 50;
@@ -150,7 +151,7 @@ export const useScrollNavigation = ({
     // Fallback to DOM-based scrolling
     const viewport = getScrollViewport();
     if (viewport) {
-      viewport.scrollTo({ top: 0, behavior: "smooth" });
+      viewport.scrollTo({ top: 0, behavior: scrollBehavior() });
     }
   }, [getScrollViewport, virtualizer]);
 
@@ -172,7 +173,7 @@ export const useScrollNavigation = ({
     // message into view, which caused a visible double-scroll. (#429)
     const activeHighlight = viewport ? findActiveHighlight(viewport) : null;
     if (activeHighlight) {
-      activeHighlight.scrollIntoView({ behavior: "smooth", block: "center" });
+      activeHighlight.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
       return;
     }
 
@@ -187,13 +188,13 @@ export const useScrollNavigation = ({
           if (!vp) return;
           const highlightElement = findActiveHighlight(vp);
           if (highlightElement) {
-            highlightElement.scrollIntoView({ behavior: "smooth", block: "center" });
+            highlightElement.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
             return;
           }
           // No highlight in the now-rendered message (e.g. match outside the
           // visible text window) — center the message as a fallback.
           const messageElement = vp.querySelector(messageSelector);
-          messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+          messageElement?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
         }, 100);
         return;
       }
@@ -201,7 +202,7 @@ export const useScrollNavigation = ({
 
     // DOM-only fallback (no virtualizer): center the message.
     const messageElement = viewport?.querySelector(messageSelector);
-    messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+    messageElement?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
   }, [getScrollViewport, virtualizer, getScrollIndex]);
 
   // 메시지 로드 완료 후 스크롤 실행

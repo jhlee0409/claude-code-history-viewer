@@ -197,12 +197,15 @@ const STATIC_PROBES = {
     return { population, selector, value: { byLang } };
   })()`,
   cjkLeading: `(() => {
-    const selector = "body (visible multi-line CJK text nodes)";
+    // A node counts when it or its element wraps: with Korean keep-all a
+    // text run often sits on one line inside a wrapped paragraph, and that
+    // paragraph's line height is what a reader sees.
+    const selector = "body (visible CJK text nodes in a multi-line element)";
     let population = 0;
     const tight = [];
     for (const node of textNodes(document.body)) {
       if (!cjkLanguage(node.nodeValue, "")) continue;
-      if (lineCount(node) < 2) continue;
+      if (lineCount(node) < 2 && lineCount(node.parentElement) < 2) continue;
       population += 1;
       const s = getComputedStyle(node.parentElement);
       const ratio = parseFloat(s.lineHeight) / parseFloat(s.fontSize);

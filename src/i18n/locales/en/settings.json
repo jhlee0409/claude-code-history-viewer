@@ -144,6 +144,7 @@
   "settingsManager.exportImport.exportDescription": "Save current settings as a JSON file",
   "settingsManager.exportImport.exportFailed": "Export failed",
   "settingsManager.exportImport.exportScope": "Export Scope",
+  "settingsManager.exportImport.exportedAt": "Exported: {{date}}",
   "settingsManager.exportImport.import": "Import Settings",
   "settingsManager.exportImport.importAll": "Import All Settings",
   "settingsManager.exportImport.importAllButton": "Import All",

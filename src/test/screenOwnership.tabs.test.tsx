@@ -61,7 +61,10 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 import { activateTab, openInNewTab, type TabScreens } from "@/navigation/tabs";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
-import { formatNumber } from "@/components/AnalyticsDashboard/utils";
+import { formatCount } from "@/lib/format/number";
+
+// Message totals are counts: grouped in the app language (`777,001`).
+const countText = (value: number) => formatCount(value, "en");
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
 import { AnalyticsScreen, RecentEditsScreen } from "@/layouts/shell/screens";
 import { ThemeProvider } from "@/contexts/theme";
@@ -280,7 +283,7 @@ async function settle() {
   }
 }
 
-const xTotal = () => screen.queryByText(formatNumber(X_MESSAGES));
+const xTotal = () => screen.queryByText(countText(X_MESSAGES));
 
 describe("project analytics shows only its own project's summary", () => {
   it("held: B shows loading, never X's totals - while B's session list loads, then while its summary loads", async () => {
@@ -304,7 +307,7 @@ describe("project analytics shows only its own project's summary", () => {
 
     await act(async () => summary.resolve(summaryOf(Y, Y_MESSAGES)));
     await act(async () => void (await switching));
-    expect(screen.getByText(formatNumber(Y_MESSAGES))).toBeInTheDocument();
+    expect(screen.getByText(countText(Y_MESSAGES))).toBeInTheDocument();
     expect(xTotal()).not.toBeInTheDocument();
   });
 
@@ -354,7 +357,7 @@ describe("project analytics shows only its own project's summary", () => {
     // B's place shows B's own earlier summary (or its loading), never X's failure.
     expect(screen.queryByText("x summary failed")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByText(formatNumber(Y_MESSAGES))).toBeInTheDocument();
+    expect(screen.getByText(countText(Y_MESSAGES))).toBeInTheDocument();
     await act(async () => summary.resolve(summaryOf(Y, Y_MESSAGES)));
     await act(async () => void (await switching));
   });

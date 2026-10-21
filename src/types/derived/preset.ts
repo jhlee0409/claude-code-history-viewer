@@ -265,34 +265,3 @@ export function parsePresetContent(preset: UnifiedPresetData): {
     return { settings: {}, mcpServers: {} };
   }
 }
-
-/**
- * Format preset date for display
- */
-export function formatPresetDate(isoDate: string): string {
-  const date = new Date(isoDate);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Format preset timestamp for display (with time)
- */
-export function formatMCPPresetDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/**
- * @deprecated Use formatPresetDate or formatMCPPresetDate
- */
-export const formatUnifiedPresetDate = formatPresetDate;

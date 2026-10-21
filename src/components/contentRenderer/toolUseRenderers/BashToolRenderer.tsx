@@ -7,6 +7,8 @@ import { getVariantStyles, codeTheme, layout } from "@/components/renderers";
 import { useTheme } from "@/contexts/theme";
 import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
 import { ToolUseCard } from "./ToolUseCard";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface BashToolInput {
   command?: string;
@@ -22,6 +24,7 @@ interface Props {
 
 export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const { isDarkMode } = useTheme();
   const styles = getVariantStyles("terminal");
   const command = input.command ?? "";
@@ -42,8 +45,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
           {input.timeout != null && (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Clock className={layout.iconSizeSmall} />
-              {(input.timeout / 1000).toFixed(0)}
-              {t("rendererLabels.secondsShort")}
+              <Num>{fmt.duration(input.timeout)}</Num>
             </span>
           )}
         </>

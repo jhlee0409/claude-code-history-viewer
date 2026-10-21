@@ -52,7 +52,6 @@ describe("global cost calculations", () => {
     expect(summary.coveredTokens).toBe(2_000_000);
     expect(summary.unpricedTokens).toBe(0);
     expect(metrics.price).toBe(0);
-    expect(metrics.formattedPrice).toBe("$0.00");
     expect(metrics.pricingStatus).toBe("exact");
   });
 
@@ -106,7 +105,7 @@ describe("global cost calculations", () => {
       1_000,
     );
 
-    expect(metrics.formattedPrice).toBe("—");
+    expect(metrics.price).toBeNull();
     expect(metrics.pricingStatus).toBe("unavailable");
   });
 

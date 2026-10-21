@@ -31,7 +31,7 @@ describe("SystemMessageRenderer compaction boundary", () => {
     );
 
     expect(container.textContent).toContain("Earlier work summarized");
-    expect(container.textContent).toContain("50,000 → 12,000 tokens");
+    expect(container.textContent).toContain("50K → 12K tokens");
     expect(container.textContent).not.toContain("threshold");
 
     const toggle = container.querySelector<HTMLButtonElement>(

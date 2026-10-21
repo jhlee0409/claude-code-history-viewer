@@ -1,6 +1,9 @@
 # 0002 — Usage breakdown: priced buckets over frontend-supplied local-day intervals
 
-- **Status**: accepted
+- **Status**: accepted; partially superseded by
+  [ADR 0003](0003-usage-breakdown-session-cap.md) (§10 response size: `sessions` capped at 100
+  plus a remainder row; §5 narrowed: an ordering-only price mirror in Rust; §9 amended: symlinks
+  are never followed, unreadable parts of a root are reported, and a fifth status `not_found`)
 - **Date**: 2026-10-19
 - **Plan reference**: inner-UI plan v3, ADR ④ (§4.7 usage-breakdown contract, §4.8 local-day
   intervals; review items R2, R3, C2). AN0a fixes the contract; AN0b implements it.

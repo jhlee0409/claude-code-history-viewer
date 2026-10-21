@@ -1,4 +1,5 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
@@ -22,9 +23,15 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Get Cursor user data path
 pub fn get_base_path() -> Option<PathBuf> {
+    base_path_reporting(&ScanReport::default())
+}
+
+/// [`get_base_path`], recording in `report` a candidate that may not be
+/// looked at.
+fn base_path_reporting(report: &ScanReport) -> Option<PathBuf> {
     if let Ok(env_val) = std::env::var("CURSOR_USER_DIR") {
         let path = PathBuf::from(env_val);
-        if path.is_dir() {
+        if report.is_dir(&path) {
             return Some(path.canonicalize().unwrap_or(path));
         }
     }
@@ -40,7 +47,7 @@ pub fn get_base_path() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     let base = home.join("AppData/Roaming/Cursor/User");
 
-    if base.is_dir() {
+    if report.is_dir(&base) {
         Some(base)
     } else {
         None
@@ -50,10 +57,16 @@ pub fn get_base_path() -> Option<PathBuf> {
 /// Scan Cursor projects from migrated global Composer data.
 /// Falls back to legacy workspace `allComposers` only when global storage is empty.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let base = get_base_path().ok_or("Cursor not found")?;
-    let mut projects = scan_projects_from_global(&base)?;
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` the databases, workspaces and
+/// rows it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    let base = base_path_reporting(report).ok_or("Cursor not found")?;
+    let mut projects = scan_projects_from_global(&base, report)?;
     if projects.is_empty() {
-        projects = scan_projects_in(&base.join("workspaceStorage"))?;
+        projects = scan_projects_in(&base.join("workspaceStorage"), report)?;
     }
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
@@ -76,7 +89,7 @@ pub fn display_name_for_project_path(project_path: &str) -> Option<String> {
         return Some("Cursor".to_string());
     }
     let workspace_json = PathBuf::from(ws_path).join("workspace.json");
-    read_workspace_folder(&workspace_json).and_then(|folder| {
+    read_workspace_folder(&workspace_json, &ScanReport::default()).and_then(|folder| {
         PathBuf::from(&folder)
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -84,14 +97,14 @@ pub fn display_name_for_project_path(project_path: &str) -> Option<String> {
     })
 }
 
-fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
-    if !ws_dir.is_dir() {
+fn scan_projects_in(ws_dir: &Path, report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    if !report.is_dir(ws_dir) {
         return Ok(Vec::new());
     }
 
     let ws_paths: Vec<PathBuf> = fs::read_dir(ws_dir)
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|entry| report.read(ws_dir, entry))
         .map(|entry| entry.path())
         .collect();
 
@@ -99,7 +112,7 @@ fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
     // locked), so with many workspaces the sequential loop dominated startup.
     // Bounded parallel map; a broken workspace still just yields None.
     let mut projects: Vec<ClaudeProject> =
-        crate::utils::par_map_bounded(ws_paths, |ws_path| scan_workspace(&ws_path))
+        crate::utils::par_map_bounded(ws_paths, |ws_path| scan_workspace(&ws_path, report))
             .into_iter()
             .flatten()
             .collect();
@@ -108,9 +121,12 @@ fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
     Ok(projects)
 }
 
-fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> {
+fn scan_projects_from_global(
+    base: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     let global_db = base.join("globalStorage/state.vscdb");
-    if !global_db.is_file() {
+    if !report.is_file(&global_db) {
         return Ok(Vec::new());
     }
 
@@ -133,7 +149,7 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
     let mut by_workspace: std::collections::HashMap<String, GlobalWorkspaceAcc> =
         std::collections::HashMap::new();
 
-    for row in rows.flatten() {
+    for row in rows.filter_map(|row| report.db(&global_db, row)) {
         let (key, value) = row;
         let Some(composer_id) = key.strip_prefix("composerData:") else {
             continue;
@@ -176,7 +192,7 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
                 "Cursor".to_string(),
             )
         } else if ws_path.is_dir() {
-            let folder = read_workspace_folder(&ws_path.join("workspace.json"))
+            let folder = read_workspace_folder(&ws_path.join("workspace.json"), report)
                 .unwrap_or_else(|| acc.folder_path.clone());
             let name = PathBuf::from(&folder)
                 .file_name()
@@ -231,19 +247,19 @@ struct GlobalWorkspaceAcc {
 
 /// One workspace dir → one project, or `None` when the workspace has no
 /// (readable) composer data. All failure modes skip the workspace, never the
-/// whole scan.
-fn scan_workspace(ws_path: &Path) -> Option<ClaudeProject> {
-    if crate::utils::is_symlink(ws_path) || !ws_path.is_dir() {
+/// whole scan; what could not be read is recorded in `report`.
+fn scan_workspace(ws_path: &Path, report: &ScanReport) -> Option<ClaudeProject> {
+    if crate::utils::is_symlink(ws_path) || !report.is_dir(ws_path) {
         return None;
     }
 
     // Read workspace.json to get project folder
     let workspace_json = ws_path.join("workspace.json");
-    let project_folder = read_workspace_folder(&workspace_json)?;
+    let project_folder = read_workspace_folder(&workspace_json, report)?;
 
     // Read composer list from workspace state DB
     let ws_db_path = ws_path.join("state.vscdb");
-    let composers = read_workspace_composers(&ws_db_path).ok()?;
+    let composers = read_workspace_composers(&ws_db_path, report).ok()?;
 
     if composers.is_empty() {
         return None;
@@ -288,6 +304,15 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the workspace files and
+/// database rows it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let ws_path = project_path
         .strip_prefix("cursor://")
         .unwrap_or(project_path);
@@ -313,19 +338,19 @@ pub fn load_sessions(
                     .unwrap_or_default(),
             );
             let workspace_json = ws_path_buf.join("workspace.json");
-            let project_name = read_workspace_folder(&workspace_json)
+            let project_name = read_workspace_folder(&workspace_json, report)
                 .and_then(|folder| {
                     PathBuf::from(&folder)
                         .file_name()
                         .map(|n| n.to_string_lossy().to_string())
                 })
                 .unwrap_or_else(|| "Cursor".to_string());
-            let legacy = read_workspace_composers(&ws_path_buf.join("state.vscdb"))?;
+            let legacy = read_workspace_composers(&ws_path_buf.join("state.vscdb"), report)?;
             (workspace_id, project_name, legacy)
         };
 
     let composers = if legacy_composers.is_empty() {
-        read_global_composers_for_workspace(&workspace_id)?
+        read_global_composers_for_workspace(&workspace_id, report)?
     } else {
         legacy_composers
     };
@@ -445,7 +470,9 @@ fn resolve_project_display_name(ws_root: &Path, workspace_id: &str, folder_path:
     }
     let ws_path = ws_root.join(workspace_id);
     if ws_path.is_dir() {
-        if let Some(folder) = read_workspace_folder(&ws_path.join("workspace.json")) {
+        if let Some(folder) =
+            read_workspace_folder(&ws_path.join("workspace.json"), &ScanReport::default())
+        {
             if let Some(name) = PathBuf::from(&folder)
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
@@ -708,8 +735,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // Private helpers
 // ============================================================================
 
-fn read_workspace_folder(workspace_json_path: &Path) -> Option<String> {
-    let data = fs::read_to_string(workspace_json_path).ok()?;
+/// The folder a workspace is for; a `workspace.json` that is there but
+/// cannot be read is recorded in `report`.
+fn read_workspace_folder(workspace_json_path: &Path, report: &ScanReport) -> Option<String> {
+    let data = report.read_to_string(workspace_json_path)?;
     let json: Value = serde_json::from_str(&data).ok()?;
     let folder = json.get("folder").and_then(Value::as_str)?;
     // "file:///Users/jack/project" → "/Users/jack/project"
@@ -750,13 +779,22 @@ fn load_composer_value(session_path: &str) -> Result<(String, Value), String> {
     Ok((composer_id, composer))
 }
 
-fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
-    if !ws_db_path.is_file() {
+/// A workspace database's legacy composer list. A database that cannot be
+/// opened is an error; it and any later read failure are also recorded in
+/// `report` (composer data that does not parse is an error, not recorded).
+fn read_workspace_composers(ws_db_path: &Path, report: &ScanReport) -> Result<Vec<Value>, String> {
+    if !report.is_file(ws_db_path) {
         return Ok(Vec::new());
     }
 
-    let conn = Connection::open_with_flags(ws_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| format!("Failed to open workspace DB: {e}"))?;
+    let conn = match Connection::open_with_flags(ws_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY) {
+        Ok(conn) => conn,
+        Err(error) => {
+            let message = format!("Failed to open workspace DB: {error}");
+            report.db(ws_db_path, Err::<(), _>(error));
+            return Err(message);
+        }
+    };
     let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
     let data: Result<String, _> = conn.query_row(
@@ -765,9 +803,8 @@ fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
         |row| row.get(0),
     );
 
-    let data = match data {
-        Ok(d) => d,
-        Err(_) => return Ok(Vec::new()),
+    let Some(data) = report.db(ws_db_path, data) else {
+        return Ok(Vec::new());
     };
 
     let json: Value = parse_cursor_json(&data)?;
@@ -781,10 +818,13 @@ fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
     Ok(composers)
 }
 
-fn read_global_composers_for_workspace(workspace_id: &str) -> Result<Vec<Value>, String> {
-    let base = get_base_path().ok_or("Cursor not found")?;
+fn read_global_composers_for_workspace(
+    workspace_id: &str,
+    report: &ScanReport,
+) -> Result<Vec<Value>, String> {
+    let base = base_path_reporting(report).ok_or("Cursor not found")?;
     let global_db = base.join("globalStorage/state.vscdb");
-    if !global_db.is_file() {
+    if !report.is_file(&global_db) {
         return Ok(Vec::new());
     }
 
@@ -804,7 +844,7 @@ fn read_global_composers_for_workspace(workspace_id: &str) -> Result<Vec<Value>,
         .map_err(|e| format!("Query failed: {e}"))?;
 
     let mut composers = Vec::new();
-    for row in rows.flatten() {
+    for row in rows.filter_map(|row| report.db(&global_db, row)) {
         let (key, value) = row;
         let Some(composer_id) = key.strip_prefix("composerData:") else {
             continue;
@@ -1550,7 +1590,7 @@ mod tests {
         .unwrap();
         fs::write(broken.join("state.vscdb"), b"this is not a sqlite database").unwrap();
 
-        let projects = scan_projects_in(&ws_dir).unwrap();
+        let projects = scan_projects_in(&ws_dir, &ScanReport::default()).unwrap();
         let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(
             names,

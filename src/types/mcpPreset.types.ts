@@ -52,17 +52,3 @@ export function parseMCPServers(serversJson: string): Record<string, MCPServerCo
     return {};
   }
 }
-
-/**
- * Format date for MCP preset display
- */
-export function formatMCPPresetDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}

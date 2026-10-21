@@ -41,6 +41,7 @@ import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import { getCompactRelativeTime, formatClockTime, formatTimestamp } from "./utils";
 import type { EditViewMode } from "./types";
 import type { RecentFileEdit } from "../../types";
+import { Num } from "@/lib/format/Num";
 
 export interface FileEditRowCompactProps {
   edit: RecentFileEdit;
@@ -231,7 +232,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
                 className="ml-2 tabular-nums"
                 title={formatTimestamp(edit.timestamp)}
               >
-                {timeLabel}
+                <Num>{timeLabel}</Num>
               </span>
             </span>
           </div>

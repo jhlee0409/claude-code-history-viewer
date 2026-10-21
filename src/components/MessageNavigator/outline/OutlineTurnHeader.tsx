@@ -6,6 +6,8 @@ import { getKindLabelKey } from "../kindLabels";
 import { KIND_STYLES } from "../kindStyles";
 import { getTurnHeaderLabel } from "./turnHeaderLabel";
 import type { TurnGroup } from "./types";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface CountChipProps {
   icon: LucideIcon;
@@ -61,6 +63,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
   ariaSetSize,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const handleClick = useCallback(() => onActivate(), [onActivate]);
 
   const labelText = getTurnHeaderLabel(turn, hasMore, totalTurns, t);
@@ -68,7 +71,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
   const kindStyle = header ? (KIND_STYLES[header.kind] ?? KIND_STYLES.system) : null;
   const kindLabel = header ? t(getKindLabelKey(header.kind)) : "";
   const formattedTime = header?.timestamp
-    ? new Date(header.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    ? fmt.time(header.timestamp)
     : "";
 
   const { counts } = turn;
@@ -109,7 +112,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
         />
         <span className="text-list font-medium text-foreground truncate flex-1">{labelText}</span>
         {formattedTime && (
-          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60"><Num>{formattedTime}</Num></span>
         )}
       </div>
       {header && (

@@ -34,6 +34,7 @@ import { useProjectSessions } from '@/hooks/useProjectSessions';
 import { toast } from 'sonner';
 import { supportsArchiveCreation } from '@/utils/providers';
 import type { ClaudeProject } from '@/types';
+import { appFormat } from "@/lib/format/useFormat";
 
 interface ArchiveCreateDialogProps {
   open: boolean;
@@ -105,7 +106,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
       setCreateName(
         t('archive.create.autoName', {
           name: project.name,
-          date: new Date().toLocaleDateString(),
+          date: appFormat().date(Date.now()),
         })
       );
       setSelectedSessionPaths([]);

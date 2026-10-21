@@ -63,6 +63,7 @@ import type {
   UnifiedPresetInput,
 } from "@/types";
 import { useAppStore } from "@/store/useAppStore";
+import { appFormat } from "@/lib/format/useFormat";
 
 // ============================================================================
 // Types
@@ -549,7 +550,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
         ...mcpServers.localClaudeJson,
       };
       const input: UnifiedPresetInput = {
-        name: t("settingsManager.analyzer.backupName", { date: new Date().toLocaleDateString() }),
+        name: t("settingsManager.analyzer.backupName", { date: appFormat().date(Date.now()) }),
         description: t("settingsManager.analyzer.backupDescription"),
         settings: JSON.stringify(effectiveSettings),
         mcpServers: JSON.stringify(allMcpServers),

@@ -18,6 +18,7 @@ import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
@@ -240,11 +241,13 @@ export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick, isMo
           }}
         />
       )}
-      {/* The same element on both screens, so the dashboard stays mounted. */}
+      {/* The same element on both screens, so the dashboard stays mounted.
+          Its numbers copy without the formatter's word joiners. */}
       <div
         id={hasSubTabs ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
         role={hasSubTabs ? "tabpanel" : undefined}
         aria-labelledby={hasSubTabs ? analyticsSubTabId(analyticsTab) : undefined}
+        {...numberCopyBoundary}
       >
         {showsTokens ? (
           <TokenStatsPanel onTokenStatClick={onTokenStatClick} />

@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import type { BoardSessionData } from "../../types/board.types";
 import type { DateFilter } from "../../types/board.types";
+import { useTranslation } from "react-i18next";
+import { formatMonthName } from "@/lib/format/date";
+import { localDayIntervals, localDayKey } from "@/lib/format/localDay";
 
 export interface WeeklyGridCell {
   date: string;
@@ -39,11 +42,9 @@ interface DailyBucket {
   totalTokens: number;
 }
 
-// Generate localized month names using Intl.DateTimeFormat
-function getLocalizedMonthNames(): string[] {
-  return Array.from({ length: 12 }, (_, i) =>
-    new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(2000, i, 1))
-  );
+// Month names in the app language
+function getLocalizedMonthNames(language: string): string[] {
+  return Array.from({ length: 12 }, (_, i) => formatMonthName(i, language));
 }
 
 /**
@@ -60,18 +61,16 @@ export function getFilterEndMs(end: Date): number {
     end.getSeconds() === 0 &&
     end.getMilliseconds() === 0
   ) {
-    const nextDay = new Date(end);
-    nextDay.setDate(nextDay.getDate() + 1);
-    return nextDay.getTime();
+    // The local day's half-open end (23 or 25 hours on DST days).
+    const day = toDateString(end);
+    return localDayIntervals({ from: day, to: day })[0]!.end_utc;
   }
   return end.getTime() + 1;
 }
 
+/** The local calendar date (`YYYY-MM-DD`) of `date`. */
 export function toDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return localDayKey(date) as string;
 }
 
 function parseDate(dateStr: string): Date {
@@ -151,6 +150,8 @@ export function useActivityData(
   allSortedSessionIds: string[],
   dateFilter: DateFilter
 ): ActivityData {
+  const { i18n } = useTranslation();
+  const language = i18n.language || "en";
   return useMemo(() => {
     if (allSortedSessionIds.length === 0) {
       return {
@@ -203,7 +204,7 @@ export function useActivityData(
     // Step 3: Build weekly grid
     const weeklyGrid: WeeklyGridCell[][] = [];
     const monthLabels: MonthLabel[] = [];
-    const MONTH_NAMES = getLocalizedMonthNames();
+    const MONTH_NAMES = getLocalizedMonthNames(language);
 
     let maxCount = 0;
     for (const bucket of dailyMap.values()) {
@@ -314,5 +315,5 @@ export function useActivityData(
       totalSessions: filteredTotalSessions,
       maxSessionsPerDay: maxCount,
     };
-  }, [boardSessions, allSortedSessionIds, dateFilter]);
+  }, [boardSessions, allSortedSessionIds, dateFilter, language]);
 }

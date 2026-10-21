@@ -20,13 +20,12 @@ import { Brain, Database, Eye, TrendingUp, Zap, type LucideIcon } from "lucide-r
 import { useAppStore } from "@/store/useAppStore";
 import { LoadingState } from "@/components/ui/loading";
 import { calculateGlobalCostSummary } from "@/components/AnalyticsDashboard/utils";
-import { formatCurrency, formatNumber } from "@/components/AnalyticsDashboard/utils/calculations";
 import { supportsConversationBreakdown } from "@/utils/providers";
-import { formatDurationCompact } from "@/utils/time";
 import type { SessionTokenStats } from "@/types";
 import { useSessionTokenStats } from "./useSessionTokenStats";
-
-const percent = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
+import { useFormat } from "@/lib/format/useFormat";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
+import { Num } from "@/lib/format/Num";
 
 const estimatedCost = (stats: SessionTokenStats | null): number | null => {
   if (!stats) return null;
@@ -67,15 +66,16 @@ const MetricRow = ({
     </dt>
     <dd className="shrink-0 whitespace-nowrap font-mono text-list tabular-nums">
       <span style={color ? { color } : undefined} className={color ? undefined : "text-foreground"}>
-        {value}
+        <Num>{value}</Num>
       </span>
-      {detail !== undefined && <span className="ml-1.5 text-caption text-muted-foreground">{detail}</span>}
+      {detail !== undefined && <span className="ml-1.5 text-caption text-muted-foreground"><Num>{detail}</Num></span>}
     </dd>
   </div>
 );
 
 export const InspectorTokensTab = () => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const { stats, conversationStats, isLoading, error, retry } = useSessionTokenStats();
   const providerId = useAppStore(
     (s) => s.selectedSession?.provider ?? s.selectedProject?.provider ?? "claude",
@@ -104,22 +104,22 @@ export const InspectorTokensTab = () => {
       { key: "reasoning", label: t("analytics.reasoning", "Reasoning"), value: stats.total_reasoning_tokens, icon: Brain, color: "var(--metric-pink)" },
     ].filter((row) => row.value > 0);
     const conversationTokens = conversationStats?.total_tokens ?? null;
-    const costText = (cost: number | null) => (cost === null ? undefined : formatCurrency(cost));
+    const costText = (cost: number | null) => (cost === null ? undefined : fmt.cost(cost));
 
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" {...numberCopyBoundary}>
         <section aria-label={t("analytics.totalTokens")}>
           <p className="whitespace-nowrap font-mono text-title font-semibold tabular-nums text-foreground">
-            {formatNumber(total)}
+            <Num>{fmt.tokens(total)}</Num>
             <span className="ml-1 font-sans text-caption font-normal text-muted-foreground">{t("analytics.tokens")}</span>
           </p>
           <p className="flex flex-wrap gap-x-2 text-caption text-muted-foreground">
             <span className="whitespace-nowrap">
-              <span className="font-mono tabular-nums">{stats.message_count.toLocaleString()}</span>{" "}
+              <span className="font-mono tabular-nums"><Num>{fmt.count(stats.message_count)}</Num></span>{" "}
               {t("analytics.messages")}
             </span>
             {Number.isFinite(durationMinutes) && durationMinutes >= 0 && (
-              <span className="whitespace-nowrap">{formatDurationCompact(durationMinutes)}</span>
+              <span className="whitespace-nowrap"><Num>{fmt.minutes(durationMinutes)}</Num></span>
             )}
           </p>
         </section>
@@ -133,8 +133,8 @@ export const InspectorTokensTab = () => {
                   label={row.label}
                   icon={row.icon}
                   color={row.color}
-                  value={formatNumber(row.value)}
-                  detail={`${percent(row.value, total)}%`}
+                  value={fmt.tokens(row.value)}
+                  detail={fmt.percent(total > 0 ? row.value / total : 0)}
                 />
               ))}
             </dl>
@@ -149,8 +149,8 @@ export const InspectorTokensTab = () => {
                   key={`${model.model_name}-${model.service_tier ?? ""}`}
                   label={<span className="min-w-0 truncate font-mono">{model.model_name}</span>}
                   title={model.model_name}
-                  value={formatNumber(model.token_count)}
-                  detail={`${percent(model.token_count, total)}%`}
+                  value={fmt.tokens(model.token_count)}
+                  detail={fmt.percent(total > 0 ? model.token_count / total : 0)}
                 />
               ))}
             </dl>
@@ -161,23 +161,23 @@ export const InspectorTokensTab = () => {
           <dl className="space-y-1">
             <MetricRow
               label={t("analytics.billingTotal", "Billing Total")}
-              value={formatNumber(total)}
+              value={fmt.tokens(total)}
               detail={costText(billingCost)}
             />
             {conversationTokens !== null && (
               <>
                 <MetricRow
                   label={t("analytics.conversationOnly", "Conversation Only")}
-                  value={formatNumber(conversationTokens)}
+                  value={fmt.tokens(conversationTokens)}
                   detail={costText(conversationCost)}
                 />
                 <MetricRow
                   label={t("analytics.nonConversation", "Non-conversation")}
-                  value={formatNumber(Math.max(0, total - conversationTokens))}
+                  value={fmt.tokens(Math.max(0, total - conversationTokens))}
                   detail={
                     billingCost === null
                       ? undefined
-                      : formatCurrency(Math.max(0, billingCost - (conversationCost ?? 0)))
+                      : fmt.cost(Math.max(0, billingCost - (conversationCost ?? 0)))
                   }
                 />
               </>

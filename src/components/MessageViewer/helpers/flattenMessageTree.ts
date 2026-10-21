@@ -28,7 +28,7 @@ interface GroupContext {
 import { getParentUuid } from "./messageHelpers";
 import { getAgentIdFromProgress } from "./agentProgressHelpers";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
-import { isSameDay } from "../../../utils/time";
+import { isSameLocalDay } from "@/lib/format/date";
 
 interface FlattenOptions {
   messages: ClaudeMessage[];
@@ -275,7 +275,7 @@ function maybeDateDivider(
   }
 
   // Insert divider when date changes
-  if (!isSameDay(lastTimestamp, message.timestamp)) {
+  if (!isSameLocalDay(lastTimestamp, message.timestamp)) {
     return {
       type: "date-divider",
       timestamp: message.timestamp,

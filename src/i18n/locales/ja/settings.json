@@ -144,6 +144,7 @@
   "settingsManager.exportImport.exportDescription": "現在の設定をJSONファイルとして保存",
   "settingsManager.exportImport.exportFailed": "エクスポートに失敗しました",
   "settingsManager.exportImport.exportScope": "エクスポート範囲",
+  "settingsManager.exportImport.exportedAt": "エクスポート日時: {{date}}",
   "settingsManager.exportImport.import": "設定をインポート",
   "settingsManager.exportImport.importAll": "すべての設定をインポート",
   "settingsManager.exportImport.importAllButton": "すべてインポート",

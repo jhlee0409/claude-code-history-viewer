@@ -30,11 +30,12 @@ import { Label } from '@/components/ui/label';
 import { useAppStore } from '@/store/useAppStore';
 import { archiveApi } from '@/services/archiveApi';
 import { api } from '@/services/api';
-import { formatBytes } from '@/utils/formatters';
 import { toast } from 'sonner';
 import { isTauri } from '@/utils/platform';
 import { ArchiveCreateDialog } from './ArchiveCreateDialog';
 import type { ArchiveEntry, ArchiveSessionInfo } from '@/types';
+import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 const joinArchivePath = (...parts: string[]) =>
   parts
@@ -279,9 +280,9 @@ export const ArchiveBrowser: React.FC = () => {
                   <p className="text-body font-medium truncate">{entry.name}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-caption text-muted-foreground">
-                      {t('archive.browse.card.created', {
-                        date: new Date(entry.createdAt).toLocaleDateString(),
-                      })}
+                      <Num>{t('archive.browse.card.created', {
+                        date: appFormat().date(entry.createdAt),
+                      })}</Num>
                     </span>
                     <span className="text-muted-foreground/40">·</span>
                     <span className="text-caption text-muted-foreground">
@@ -289,7 +290,7 @@ export const ArchiveBrowser: React.FC = () => {
                     </span>
                     <span className="text-muted-foreground/40">·</span>
                     <span className="text-caption text-muted-foreground">
-                      {formatBytes(entry.totalSizeBytes)}
+                      <Num>{appFormat().bytes(entry.totalSizeBytes)}</Num>
                     </span>
                   </div>
                 </div>
@@ -371,7 +372,7 @@ export const ArchiveBrowser: React.FC = () => {
                                 )}
                                 <span className="text-muted-foreground/40">·</span>
                                 <span className="text-caption text-muted-foreground">
-                                  {formatBytes(session.sizeBytes)}
+                                  <Num>{appFormat().bytes(session.sizeBytes)}</Num>
                                 </span>
                               </div>
                             </div>
@@ -412,7 +413,7 @@ export const ArchiveBrowser: React.FC = () => {
                                         </span>
                                         <span className="text-muted-foreground/30">·</span>
                                         <span className="text-caption text-muted-foreground/60">
-                                          {formatBytes(subagent.sizeBytes)}
+                                          <Num>{appFormat().bytes(subagent.sizeBytes)}</Num>
                                         </span>
                                       </div>
                                     </div>

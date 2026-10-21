@@ -56,7 +56,8 @@ export const calculateSessionMetrics = (stats: SessionTokenStats): SessionMetric
 export interface SessionComparisonMetrics {
   isAboveAverage: boolean;
   statusColor: string;
-  percentile: number;
+  /** Share of the project's sessions ranked below this one (0-1), shown with formatPercent. */
+  percentileRatio: number;
 }
 
 /**
@@ -69,14 +70,12 @@ export const calculateSessionComparisonMetrics = (
   const isAboveAverage = comparison.is_above_average;
   const statusColor = isAboveAverage ? "var(--metric-green)" : "var(--metric-amber)";
 
-  const percentile =
-    totalProjectSessions > 0
-      ? Math.round(100 - (comparison.rank_by_tokens / totalProjectSessions) * 100)
-      : 0;
+  const percentileRatio =
+    totalProjectSessions > 0 ? 1 - comparison.rank_by_tokens / totalProjectSessions : 0;
 
   return {
     isAboveAverage,
     statusColor,
-    percentile,
+    percentileRatio,
   };
 };

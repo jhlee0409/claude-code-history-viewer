@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { HighlightedText } from "../common/HighlightedText";
 import { AnsiText } from "@/components/common/AnsiText";
 import { stripAnsiCodes } from "@/utils/ansiToHtml";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 type Props = {
   command: string;
@@ -31,6 +33,7 @@ export const TerminalStreamRenderer = ({
   currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   return (
     <Renderer className="bg-tool-terminal/10 border-tool-terminal/30">
@@ -47,7 +50,7 @@ export const TerminalStreamRenderer = ({
             )}
             {timestamp && (
               <span className={`${layout.smallText} text-muted-foreground`}>
-                {new Date(String(timestamp)).toLocaleTimeString()}
+                <Num>{fmt.time(String(timestamp))}</Num>
               </span>
             )}
           </div>

@@ -1,3 +1,5 @@
+import { appFormat } from "@/lib/format/useFormat";
+
 /**
  * Size thresholds for rendering large tool/file content.
  *
@@ -18,7 +20,5 @@ export const isTooLargeToHighlight = (content: string): boolean =>
 /** "12.3 KB" / "4.5 MB" style label for a JS string's UTF-16 length. */
 export const formatCharSize = (chars: number): string => {
   if (chars < 1024) return `${chars} chars`;
-  const kb = chars / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
+  return appFormat().bytes(chars);
 };

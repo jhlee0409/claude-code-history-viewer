@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
+
+### Fixed
+- **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+
+## [1.32.2] - 2026-10-20
+
+Patch release for Recent Edits; upgrade if you use Codex, OpenCode or Kilo.
+
+### Fixed
+- **Restore in Recent Edits only writes a recorded whole-file version** (desktop and WebUI). For an edit recorded as a patch or a partial change (Codex patches, OpenCode and Kilo edits, or an edit whose result could not be reconstructed), the Restore button is disabled and says why, and restoring such content is refused instead of writing it over the file. Recorded whole-file versions (Claude edits and writes, OpenCode and Kilo writes) restore as before. (#682, backported; #705)
+
+## [1.32.1] - 2026-10-20
+
+Patch release for the WebUI server mode (`--serve`); upgrade if you run the WebUI.
+
+### Security
+- **History readers stay inside the history folders** (desktop and WebUI). The session list, subagent list, project list, message search, recent edits, usage statistics, archives and the list of sessions about to expire no longer read a session or subagent file through a symbolic link inside a Claude history folder. A project folder under `projects/` that is itself a link is no longer counted in the global summary; that project's own statistics are unchanged. (#691, backported; #696)
+
+### Fixed
+- **A folder named like a session file no longer stalls loading.** History readers open regular files only: an entry in a history folder that is named like a session but is not a file is skipped by the lists and archives and refused when opened directly, instead of stalling the request. (#696)
+- **WebUI: an empty Claude folder means the default one.** Requests that leave the Claude folder empty (project list, search, global statistics) read `~/.claude` instead of a `projects` folder in the server's working directory. (#693)
+
 ## [1.32.0] - 2026-10-11
 
 ### Added

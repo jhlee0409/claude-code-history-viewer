@@ -91,16 +91,6 @@ export const supportedLanguages = {
 
 export type SupportedLanguage = keyof typeof supportedLanguages;
 
-export const languageLocaleMap: Record<string, string> = {
-  en: 'en-US',
-  ko: 'ko-KR',
-  ja: 'ja-JP',
-  'zh-CN': 'zh-CN',
-  'zh-TW': 'zh-TW',
-  'zh-HK': 'zh-HK',
-  'zh-MO': 'zh-MO',
-};
-
 /**
  * Namespace 목록
  *

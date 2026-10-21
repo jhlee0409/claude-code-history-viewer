@@ -6,7 +6,6 @@
 
 import {
   calculateModelPrice,
-  formatNumber,
   getModelLifecycle,
   hasExplicitModelPricing,
   type ModelLifecycle,
@@ -20,8 +19,6 @@ import type { ModelContextStats } from "../../../types";
 export interface ModelDisplayMetrics {
   percentage: number;
   price: number | null;
-  formattedPrice: string;
-  formattedTokens: string;
   pricingStatus: "exact" | "estimated" | "unavailable";
 }
 
@@ -171,16 +168,9 @@ export const calculateModelMetrics = (
 
   const percentage = (tokenCount / Math.max(totalTokens, 1)) * 100;
 
-  const formattedPrice = price == null
-    ? "—"
-    : `$${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)}`;
-  const formattedTokens = formatNumber(tokenCount);
-
   return {
     percentage,
     price,
-    formattedPrice,
-    formattedTokens,
     pricingStatus: hasSourceCost
       ? "exact"
       : price == null

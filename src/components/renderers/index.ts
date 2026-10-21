@@ -49,7 +49,6 @@ export {
   isFileSearchResult,
   parseFilePath,
   truncate,
-  formatLineCount,
   safeStringify,
   isPlainObject,
 } from "./utils";

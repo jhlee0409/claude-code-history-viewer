@@ -7,8 +7,10 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { useFormat } from "@/lib/format/useFormat";
 import { cn } from "@/lib/utils";
 import type { GrowthTrend, MetricCardProps } from "../types";
+import { Num } from "@/lib/format/Num";
 
 type TrendDirection = "up" | "down" | "flat";
 
@@ -36,6 +38,7 @@ const formatMultiple = (pct: number): string => {
  */
 const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   if (!trend || trend.kind === "none") return null;
 
   const chip = (direction: TrendDirection, content: React.ReactNode, description?: string) => {
@@ -76,7 +79,9 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
           t("analytics.trend.timesDescription", { value: multiple })
         );
       }
-      return chip(direction, <span>{Math.abs(trend.value)}%</span>, description);
+      // `trend.value` is the whole-percent change (`changePercent`); the arrow
+      // carries the sign, the chip its size in the app language.
+      return chip(direction, <span><Num>{fmt.percent(Math.abs(trend.value) / 100)}</Num></span>, description);
     }
     case "new":
       return chip(
@@ -131,7 +136,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
         {/* Value */}
         <div className="font-mono text-2xl leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
-          {value}
+          <Num>{String(value)}</Num>
         </div>
 
         {/* Label */}
@@ -143,7 +148,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         {subValue && (
           <div className="mt-3 pt-3 border-t border-border/30">
             <div className="font-mono text-caption text-muted-foreground/70">
-              {subValue}
+              <Num>{subValue}</Num>
             </div>
           </div>
         )}

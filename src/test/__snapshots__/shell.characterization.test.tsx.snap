@@ -224,6 +224,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
               </div>
               <div
                 aria-labelledby="analytics-subtab-overview"
+                data-number-copy=""
                 id="analytics-subtab-panel"
                 role="tabpanel"
               >
@@ -523,6 +524,7 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
               </div>
               <div
                 aria-labelledby="analytics-subtab-tokens"
+                data-number-copy=""
                 id="analytics-subtab-panel"
                 role="tabpanel"
               >
@@ -826,6 +828,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
               </div>
               <div
                 aria-labelledby="analytics-subtab-overview"
+                data-number-copy=""
                 id="analytics-subtab-panel"
                 role="tabpanel"
               >
@@ -2039,7 +2042,9 @@ exports[`shell characterization > desktop > global stats 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":true}"
@@ -2336,6 +2341,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
               </div>
               <div
                 aria-labelledby="analytics-subtab-overview"
+                data-number-copy=""
                 id="analytics-subtab-panel"
                 role="tabpanel"
               >
@@ -3278,7 +3284,9 @@ exports[`shell characterization > mobile > analytics 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"
@@ -3595,7 +3603,9 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   class="p-3 md:p-6"
                 >
@@ -3916,7 +3926,9 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"
@@ -5005,7 +5017,9 @@ exports[`shell characterization > mobile > global stats 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":true}"
@@ -5322,7 +5336,9 @@ exports[`shell characterization > mobile > loading stats 1`] = `
               style="margin-right: 0px; margin-bottom: 0px; margin-left: 0px; top: 0px; right: auto; left: 0px; width: calc(100% + 0px); padding: 0px 0px 0px 0px;"
               tabindex="-1"
             >
-              <div>
+              <div
+                data-number-copy=""
+              >
                 <div
                   data-handlers="onRetry"
                   data-props="{"isGlobalScope":false}"

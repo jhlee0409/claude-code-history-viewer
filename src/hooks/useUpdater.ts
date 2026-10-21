@@ -198,10 +198,8 @@ export function useUpdater(): UseUpdaterReturn {
             if (Number.isFinite(chunkLength) && chunkLength > 0) {
               downloaded += chunkLength;
             }
-            const progress =
-              contentLength > 0
-                ? Math.round((downloaded / contentLength) * 100)
-                : 0;
+            // format-guard: not-a-share — download progress (0-100) for the progress bar and its label
+            const progress = contentLength > 0 ? Math.round((downloaded / contentLength) * 100) : 0;
             setState((prev) => ({ ...prev, downloadProgress: progress }));
             break;
           }

@@ -73,7 +73,7 @@ use crate::commands::{
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
         get_global_stats_summary, get_project_stats_summary, get_project_token_stats,
-        get_session_comparison, get_session_token_stats,
+        get_session_comparison, get_session_token_stats, usage_breakdown::get_usage_breakdown,
     },
     unified_presets::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
@@ -236,6 +236,7 @@ fn run_tauri() {
             get_project_stats_summary,
             get_session_comparison,
             get_global_stats_summary,
+            get_usage_breakdown,
             send_feedback,
             get_system_info,
             open_github_issues,

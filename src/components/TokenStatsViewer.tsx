@@ -25,6 +25,8 @@ import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBre
 import { calculateGlobalCostSummary } from "./AnalyticsDashboard/utils";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -99,6 +101,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const sessions = useAppStore((state) => state.sessions);
   const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
@@ -162,13 +165,6 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       onLoadMore();
     }
   }, [onLoadMore, hasMoreSessions, isLoadingMore]);
-
-  // Format large numbers
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toLocaleString();
-  };
 
   // Use static token colors for metrics display
   const tokenColors = TOKEN_COLORS;
@@ -247,7 +243,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       { label: t("analytics.outputTokens"), value: totalStats.total_output_tokens, color: tokenColors.output.base },
       { label: t("analytics.cacheCreation"), value: totalStats.total_cache_creation_tokens, color: tokenColors.cacheWrite.base },
       { label: t("analytics.reasoning", "Reasoning"), value: totalStats.total_reasoning_tokens, color: tokenColors.reasoning.base },
-      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)" },
+      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)", isCount: true },
     ];
 
     return (
@@ -287,7 +283,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label={`${metric.label}: ${metric.value.toLocaleString()}`}
+                      aria-label={`${metric.label}: ${fmt.count(metric.value)}`}
                       className={cn(
                         "relative w-full appearance-none p-4 rounded-xl text-center text-inherit",
                         "bg-card/80 backdrop-blur-sm",
@@ -301,11 +297,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-b"
                         style={{ background: metric.color }}
                       />
+                      {/* One unit: where the tile is narrower than the value (a
+                          phone at the largest font size) it runs into the
+                          padding, as in every language, instead of wrapping. */}
                       <div
-                        className="font-mono text-2xl font-bold tracking-tight"
+                        className="font-mono text-2xl font-bold tracking-tight whitespace-nowrap"
                         style={{ color: i === 0 ? "var(--foreground)" : metric.color }}
                       >
-                        {formatNumber(metric.value)}
+                        <Num>{"isCount" in metric ? fmt.count(metric.value) : fmt.tokens(metric.value)}</Num>
                       </div>
                       <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
@@ -313,7 +312,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="font-mono text-list">
-                    {metric.value.toLocaleString()}
+                    <Num>{fmt.count(metric.value)}</Num>
                   </TooltipContent>
                 </Tooltip>
               ))}

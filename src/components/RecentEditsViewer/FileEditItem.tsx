@@ -43,6 +43,7 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+import { Num } from "@/lib/format/Num";
 
 export const FileEditItem: React.FC<FileEditItemProps> = ({
   edit,
@@ -298,7 +299,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           >
             <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3.5 h-3.5" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
-              {getRelativeTime(edit.timestamp, tCommon)}
+              <Num>{getRelativeTime(edit.timestamp, tCommon)}</Num>
             </span>
           </div>
 
@@ -544,7 +545,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               </span>
               <span>{language}</span>
             </div>
-            <div className="text-muted-foreground">{formatTimestamp(edit.timestamp)}</div>
+            <div className="text-muted-foreground"><Num>{formatTimestamp(edit.timestamp)}</Num></div>
           </div>
         </div>
       )}

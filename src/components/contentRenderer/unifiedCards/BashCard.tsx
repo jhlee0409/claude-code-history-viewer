@@ -9,9 +9,12 @@ import type { Props } from "./shared";
 import { str, num, truncate, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const command = str(input, "command") ?? "";
   const description = str(input, "description");
@@ -37,7 +40,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {timeout != null && (
-              <span className="text-muted-foreground">{(timeout / 1000).toFixed(0)}s</span>
+              <span className="text-muted-foreground"><Num>{fmt.duration(timeout)}</Num></span>
             )}
             <StatusBadge results={toolResults} />
           </div>

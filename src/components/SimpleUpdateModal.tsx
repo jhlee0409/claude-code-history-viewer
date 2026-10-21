@@ -97,6 +97,8 @@ export function SimpleUpdateModal({
   const localizedError = updater.state.error
     ? resolveUpdateErrorMessage(updater.state.error, t)
     : null;
+  // format-guard: not-a-share — download progress (0-100), how far the update has got
+  const downloadingLabel = t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress });
   const shouldShowManualRestartNotice =
     updater.state.requiresManualRestart && !updater.state.isRestarting;
 
@@ -217,7 +219,7 @@ export function SimpleUpdateModal({
               <div className="flex items-center gap-2 text-list">
                 <Download className="w-3.5 h-3.5 animate-bounce text-foreground" />
                 <span className="text-muted-foreground">
-                  {t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress })}
+                  {downloadingLabel}
                 </span>
               </div>
               <LoadingProgress

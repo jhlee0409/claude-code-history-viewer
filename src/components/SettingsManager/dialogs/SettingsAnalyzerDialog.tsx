@@ -51,6 +51,7 @@ import { mergeSettings } from "@/utils/settingsMerger";
 import { detectSettingsIssues } from "@/utils/settingsIssueDetector";
 import type { SettingsIssue, IssueSeverity } from "@/utils/settingsIssueDetector";
 import type { ClaudeCodeSettings, MCPServerConfig, UnifiedPresetInput } from "@/types";
+import { appFormat } from "@/lib/format/useFormat";
 
 // ============================================================================
 // Types
@@ -408,7 +409,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
 
       const input: UnifiedPresetInput = {
         name: t("settingsManager.analyzer.backupName", {
-          date: new Date().toLocaleDateString(),
+          date: appFormat().date(Date.now()),
         }),
         description: t("settingsManager.analyzer.backupDescription"),
         settings: JSON.stringify(effectiveSettings),

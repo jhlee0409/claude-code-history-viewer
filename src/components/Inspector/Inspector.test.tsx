@@ -302,21 +302,22 @@ describe("Tokens tab (owned by the open session)", () => {
         dt.textContent,
         dt.nextElementSibling?.textContent,
       ]);
-    expect(within(body).getByRole("region", { name: "Total Tokens" }).textContent).toContain("2.0M");
+    expect(within(body).getByRole("region", { name: "Total Tokens" }).textContent).toContain("2M");
     // One metric per row: label, then value and share.
     expect(rows("Breakdown")).toEqual([
-      ["Input Tokens", "1.0M50%"],
-      ["Output Tokens", "1.0M50%"],
+      ["Input Tokens", "1M50%"],
+      ["Output Tokens", "1M50%"],
     ]);
     expect(rows("By model")).toEqual([
       ["claude-opus-4", "1.5M75%"],
-      ["claude-haiku-4", "500.0K25%"],
+      ["claude-haiku-4", "500K25%"],
     ]);
     // Billing: total, conversation, the rest (no cost without priced models).
-    expect(rows("Billing Breakdown").map(([label, value]) => [label, value?.slice(0, 4)])).toEqual([
-      ["Billing Total", "2.0M"],
+    // Compact token amounts from 10K up (`2M`, `500K`).
+    expect(rows("Billing Breakdown").map(([label, value]) => [label, value?.match(/^[\d.]+[KM]?/)?.[0]])).toEqual([
+      ["Billing Total", "2M"],
       ["Conversation Only", "1.5M"],
-      ["Non-conversation", "500."],
+      ["Non-conversation", "500K"],
     ]);
     expect(loadSessionTokenStats).not.toHaveBeenCalled();
   });

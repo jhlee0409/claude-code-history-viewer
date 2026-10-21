@@ -23,6 +23,7 @@
 //! provider (`copilot-cli://<cwd>`).
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
@@ -335,63 +336,79 @@ fn classify_client(meta: &WorkspaceMetadata) -> ClientKind {
 
 /// Group sessions by `cwd` to expose virtual `copilot-cli://<cwd>` projects.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Cli)
+    scan_projects_filtered(&base, None, ClientKind::Cli, report)
 }
 
 /// Group sessions by `cwd` to expose virtual `copilot-desktop://<cwd>` projects.
 pub fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_desktop_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_desktop_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_desktop_projects_reporting(
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Desktop)
+    scan_projects_filtered(&base, None, ClientKind::Desktop, report)
 }
 
 pub fn scan_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Cli)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Cli,
+        &ScanReport::default(),
+    )
 }
 
 pub fn scan_desktop_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Desktop)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Desktop,
+        &ScanReport::default(),
+    )
 }
 
+/// The projects of one client's sessions; the session directories and
+/// event logs it could not read are recorded in `report`.
 #[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
 fn scan_projects_filtered(
     base_path: &str,
     custom_directory_label: Option<&str>,
     client: ClientKind,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeProject>, String> {
     let root = get_session_root_from_base(base_path);
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parse files in parallel; cache hits are essentially free, misses dominate
     // on first scan where there's a big multi-MB events.jsonl in the mix.
     let infos: Vec<SessionInfo> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .collect();
 
@@ -436,10 +453,35 @@ fn scan_projects_filtered(
     Ok(projects)
 }
 
+/// Every `<session>/events.jsonl` under the session root; what the walk
+/// cannot read is recorded in `report`.
+fn session_event_logs(root: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    report
+        .walk(
+            WalkDir::new(root)
+                .follow_links(false)
+                .min_depth(2)
+                .max_depth(2),
+        )
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| is_events_jsonl(e.path()))
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
 /// Load every session whose recorded `cwd` matches `project_path`.
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read: an
+/// event log that cannot be read may belong to the project.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let (base_path, target_cwd, client) = parse_project_path(project_path)?;
     let root = match base_path {
@@ -455,26 +497,17 @@ pub fn load_sessions(
             Err(_) => return Ok(Vec::new()),
         },
     };
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parallel cached extraction. After the first scan most calls hit the
     // mtime cache and return instantly.
     let mut sessions: Vec<ClaudeSession> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .filter(|info| info.cwd.as_deref().unwrap_or("unknown") == target_cwd)
         .map(|info| ClaudeSession {

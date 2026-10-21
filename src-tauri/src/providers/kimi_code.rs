@@ -46,6 +46,7 @@
 //! skipped, never propagated as scan errors.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
 use chrono::{TimeZone, Utc};
 use serde_json::{json, Value};
@@ -99,8 +100,14 @@ pub(crate) fn default_root() -> Option<PathBuf> {
 
 /// The sessions root (`<root>/sessions`), when it exists as a directory.
 fn sessions_root(root: &Path) -> Option<PathBuf> {
+    sessions_root_reporting(root, &ScanReport::default())
+}
+
+/// [`sessions_root`], recording in `report` a root that may not be looked
+/// into.
+fn sessions_root_reporting(root: &Path, report: &ScanReport) -> Option<PathBuf> {
     let root = root.join(SESSIONS_DIR);
-    (!is_symlink(&root) && root.is_dir()).then_some(root)
+    (!is_symlink(&root) && report.is_dir(&root)).then_some(root)
 }
 
 /// True when the default kimi-code root looks like a kimi-code store.
@@ -112,9 +119,10 @@ pub(crate) fn is_available() -> bool {
 
 /// At least one `wd_*/session_*` directory exists under the sessions root.
 fn has_any_session_dir(sessions_root: &Path) -> bool {
-    list_workspace_dirs(sessions_root)
+    let unreported = ScanReport::default();
+    list_workspace_dirs(sessions_root, &unreported)
         .iter()
-        .any(|dir| !list_session_dirs(dir).is_empty())
+        .any(|dir| !list_session_dirs(dir, &unreported).is_empty())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,19 +132,32 @@ fn has_any_session_dir(sessions_root: &Path) -> bool {
 /// Kimi-code projects, one per `wd_<hash>` workspace directory. Tolerant: a
 /// missing or unreadable store yields an empty list, never an error.
 pub fn scan_projects() -> Vec<ClaudeProject> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Vec<ClaudeProject> {
     default_root()
-        .and_then(|root| sessions_root(&root))
-        .map(|root| scan_projects_from_root(&root))
+        .and_then(|root| sessions_root_reporting(&root, report))
+        .map(|root| scan_projects_from_root(&root, report))
         .unwrap_or_default()
 }
 
 /// Sessions for one workspace — the `kimi-code://`-stripped workspace dir.
 pub fn load_sessions(workspace_dir: &str) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(workspace_dir, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    workspace_dir: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let Some(root) = default_root() else {
         return Ok(Vec::new());
     };
     let workspace = resolve_workspace_dir(&root, workspace_dir)?;
-    Ok(load_sessions_from_dir(&workspace))
+    Ok(load_sessions_from_dir(&workspace, report))
 }
 
 /// True when `session_path` is a valid kimi-code session directory under
@@ -166,16 +187,21 @@ pub fn search(query: &str, limit: usize) -> Vec<ClaudeMessage> {
 // Root-parameterized implementation (fixture-testable)
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub(crate) fn scan_projects_from_root(sessions_root: &Path) -> Vec<ClaudeProject> {
+/// The projects under a sessions root; the workspace and session
+/// directories and wires that could not be read are recorded in `report`.
+pub(crate) fn scan_projects_from_root(
+    sessions_root: &Path,
+    report: &ScanReport,
+) -> Vec<ClaudeProject> {
     // Workspace roots come from workspaces.json (`root`/`name`); per-session
     // state.json cwd values are the fallback for unindexed workspaces.
     let workspace_map = read_workspace_roots(sessions_root.parent().unwrap_or(sessions_root));
 
     let mut projects = Vec::new();
-    for workspace_dir in list_workspace_dirs(sessions_root) {
-        let sessions: Vec<ClaudeSession> = list_session_dirs(&workspace_dir)
+    for workspace_dir in list_workspace_dirs(sessions_root, report) {
+        let sessions: Vec<ClaudeSession> = list_session_dirs(&workspace_dir, report)
             .into_iter()
-            .filter_map(|dir| build_session(&dir))
+            .filter_map(|dir| build_session(&dir, report))
             .map(CodeSession::into_claude_session)
             .collect();
         if sessions.is_empty() {
@@ -222,10 +248,15 @@ pub(crate) fn scan_projects_from_root(sessions_root: &Path) -> Vec<ClaudeProject
     projects
 }
 
-pub(crate) fn load_sessions_from_dir(workspace_dir: &Path) -> Vec<ClaudeSession> {
-    let mut sessions: Vec<ClaudeSession> = list_session_dirs(workspace_dir)
+/// The sessions of one workspace directory; the session directories and
+/// wires that could not be read are recorded in `report`.
+pub(crate) fn load_sessions_from_dir(
+    workspace_dir: &Path,
+    report: &ScanReport,
+) -> Vec<ClaudeSession> {
+    let mut sessions: Vec<ClaudeSession> = list_session_dirs(workspace_dir, report)
         .into_iter()
-        .filter_map(|dir| build_session(&dir))
+        .filter_map(|dir| build_session(&dir, report))
         .map(CodeSession::into_claude_session)
         .collect();
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
@@ -260,6 +291,7 @@ pub(crate) fn load_messages_from_root(
         blobs_dir_for(&session_dir),
         &session_id,
         &fallback_ts,
+        &ScanReport::default(),
     ))
 }
 
@@ -272,10 +304,11 @@ pub(crate) fn search_from_root(
     let workspace_map = read_workspace_roots(sessions_root.parent().unwrap_or(sessions_root));
 
     let mut results = Vec::new();
-    for workspace_dir in list_workspace_dirs(sessions_root) {
+    let unreported = ScanReport::default();
+    for workspace_dir in list_workspace_dirs(sessions_root, &unreported) {
         let project_name = project_name_for_workspace(&workspace_dir, &workspace_map);
-        for session_dir in list_session_dirs(&workspace_dir) {
-            let Some(session) = build_session(&session_dir) else {
+        for session_dir in list_session_dirs(&workspace_dir, &unreported) {
+            let Some(session) = build_session(&session_dir, &unreported) else {
                 continue;
             };
             for mut message in session.messages {
@@ -365,10 +398,11 @@ impl CodeSession {
 }
 
 /// Fold one session directory's main wire into a `CodeSession`; `None` when
-/// the session has no readable wire or produces no viewer messages.
-fn build_session(session_dir: &Path) -> Option<CodeSession> {
+/// the session has no readable wire or produces no viewer messages. A wire
+/// that cannot be read is recorded in `report`.
+fn build_session(session_dir: &Path, report: &ScanReport) -> Option<CodeSession> {
     let wire = main_wire_path(session_dir)?;
-    if !wire.is_file() {
+    if !report.is_file(&wire) {
         return None;
     }
 
@@ -383,7 +417,7 @@ fn build_session(session_dir: &Path) -> Option<CodeSession> {
 
     // Scanning and search only read text metadata back out of the fold, so
     // they pass no blob store and leave `blobref:` parts verbatim.
-    let messages = fold_wire_messages(&wire, None, &session_id, &fallback_ts);
+    let messages = fold_wire_messages(&wire, None, &session_id, &fallback_ts, report);
     if messages.is_empty() {
         return None;
     }
@@ -432,13 +466,12 @@ fn build_session(session_dir: &Path) -> Option<CodeSession> {
     })
 }
 
-/// `wd_*` directories under the sessions root, sorted for stable output.
-fn list_workspace_dirs(sessions_root: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(sessions_root) else {
-        return Vec::new();
-    };
-    let mut dirs: Vec<PathBuf> = entries
-        .flatten()
+/// `wd_*` directories under the sessions root, sorted for stable output;
+/// what the listing cannot read is recorded in `report`.
+fn list_workspace_dirs(sessions_root: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = report
+        .read_dir(sessions_root)
+        .into_iter()
         .filter(|entry| {
             entry
                 .file_type()
@@ -455,13 +488,12 @@ fn list_workspace_dirs(sessions_root: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-/// `session_*` directories under one workspace dir, sorted for stable output.
-fn list_session_dirs(workspace_dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(workspace_dir) else {
-        return Vec::new();
-    };
-    let mut dirs: Vec<PathBuf> = entries
-        .flatten()
+/// `session_*` directories under one workspace dir, sorted for stable
+/// output; what the listing cannot read is recorded in `report`.
+fn list_session_dirs(workspace_dir: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = report
+        .read_dir(workspace_dir)
+        .into_iter()
         .filter(|entry| {
             entry
                 .file_type()
@@ -515,7 +547,7 @@ fn read_state_json(session_dir: &Path) -> Option<Value> {
 /// First non-empty `state.json` `cwd` among a workspace's sessions — the
 /// fallback project root when `workspaces.json` has no entry.
 fn read_state_cwd(workspace_dir: &Path) -> Option<String> {
-    list_session_dirs(workspace_dir)
+    list_session_dirs(workspace_dir, &ScanReport::default())
         .into_iter()
         .find_map(|dir| {
             read_state_json(&dir)?
@@ -659,13 +691,14 @@ fn fold_wire_messages(
     blobs_dir: Option<PathBuf>,
     session_id: &str,
     fallback_ts: &str,
+    report: &ScanReport,
 ) -> Vec<ClaudeMessage> {
-    if is_symlink(wire_path) || !wire_path.is_file() {
+    if is_symlink(wire_path) || !report.is_file(wire_path) {
         return Vec::new();
     }
     // Streamed line-by-line: scan folds every session's journal, so whole
     // journal buffering would multiply peak memory by the session count.
-    let Ok(file) = fs::File::open(wire_path) else {
+    let Some(file) = report.read(wire_path, fs::File::open(wire_path)) else {
         return Vec::new();
     };
     let reader = std::io::BufReader::new(file);
@@ -1498,7 +1531,7 @@ mod tests {
         // A workspace with no valid sessions is not a project.
         fs::create_dir_all(sessions_root(&root).join("wd_empty")).expect("empty workspace");
 
-        let mut projects = scan_projects_from_root(&sessions_root(&root));
+        let mut projects = scan_projects_from_root(&sessions_root(&root), &ScanReport::default());
         projects.sort_by(|a, b| a.path.cmp(&b.path));
 
         assert_eq!(projects.len(), 2);
@@ -1541,7 +1574,7 @@ mod tests {
             &full_turn_wire(),
         );
 
-        let projects = scan_projects_from_root(&sessions_root(&root));
+        let projects = scan_projects_from_root(&sessions_root(&root), &ScanReport::default());
 
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "my-repo");
@@ -1561,7 +1594,10 @@ mod tests {
             &full_turn_wire(),
         );
 
-        let sessions = load_sessions_from_dir(&sessions_root(&root).join("wd_demo_abc123"));
+        let sessions = load_sessions_from_dir(
+            &sessions_root(&root).join("wd_demo_abc123"),
+            &ScanReport::default(),
+        );
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].session_id, "session_one");
@@ -1597,7 +1633,10 @@ mod tests {
             &full_turn_wire(),
         );
 
-        let sessions = load_sessions_from_dir(&sessions_root(&root).join("wd_demo_abc123"));
+        let sessions = load_sessions_from_dir(
+            &sessions_root(&root).join("wd_demo_abc123"),
+            &ScanReport::default(),
+        );
 
         let by_id = |id: &str| sessions.iter().find(|s| s.session_id == id).unwrap();
         assert_eq!(
@@ -1623,7 +1662,10 @@ mod tests {
             &full_turn_wire(),
         );
 
-        let sessions = load_sessions_from_dir(&sessions_root(&root).join("wd_demo_abc123"));
+        let sessions = load_sessions_from_dir(
+            &sessions_root(&root).join("wd_demo_abc123"),
+            &ScanReport::default(),
+        );
 
         assert_eq!(sessions[0].summary.as_deref(), Some("Custom title"));
     }
@@ -2266,7 +2308,7 @@ mod tests {
                 "a symlinked `{link_at}` directory must not be traversed"
             );
             assert!(
-                scan_projects_from_root(&sessions_root(&root)).is_empty(),
+                scan_projects_from_root(&sessions_root(&root), &ScanReport::default()).is_empty(),
                 "scanning must skip a session behind a symlinked `{link_at}`"
             );
         }
@@ -2323,7 +2365,7 @@ mod tests {
         fs::create_dir_all(&session_dir).expect("create session dir");
         fs::write(session_dir.join(STATE_FILE), default_state()).expect("write state");
 
-        let projects = scan_projects_from_root(&sessions_root(&root));
+        let projects = scan_projects_from_root(&sessions_root(&root), &ScanReport::default());
         assert!(projects.is_empty());
     }
 }

@@ -9,6 +9,8 @@ import { SmartJsonDisplay } from "../SmartJsonDisplay";
 import { ToolIcon } from "../ToolIcon";
 import { useTranslation } from "react-i18next";
 import { getToolUseBlock, isClaudeAssistantMessage } from "../../utils/messageUtils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ExpandedCard = memo(({
     message,
@@ -38,6 +40,7 @@ export const ExpandedCard = memo(({
     onNavigate?: () => void;
 }) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const { setMarkdownPretty } = useAppStore();
     const [position, setPosition] = useState<{ x: number; y: number; anchorY: 'top' | 'bottom' } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -183,7 +186,7 @@ export const ExpandedCard = memo(({
                                 {toolUseBlock ? toolUseBlock.name : role}
                             </span>
                             <span className="text-caption text-muted-foreground font-mono leading-none">
-                                {new Date(message.timestamp).toLocaleTimeString()}
+                                <Num>{fmt.time(message.timestamp)}</Num>
                             </span>
                         </div>
                         {editedMdFile && (

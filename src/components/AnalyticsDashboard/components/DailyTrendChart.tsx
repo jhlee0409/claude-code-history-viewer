@@ -9,7 +9,10 @@ import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { DailyStatData } from "../types";
-import { formatNumber } from "../utils";
+import { localDayKey } from "@/lib/format/localDay";
+import { dayKeyWeekday } from "@/lib/format/date";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface DailyTrendChartProps {
   dailyData: DailyStatData[];
@@ -19,8 +22,9 @@ const BAR_HEIGHT = 48; // px
 
 export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
-  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const today = useMemo(() => localDayKey(Date.now()), []);
 
   if (!dailyData.length) return null;
 
@@ -31,8 +35,8 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
 
   const getDayName = (dateStr: string) => {
     const dayNames = t("analytics.weekdayNamesShort", { returnObjects: true }) as string[];
-    const day = new Date(dateStr).getDay();
-    return dayNames[day] || "";
+    const day = dayKeyWeekday(dateStr);
+    return day == null ? "" : dayNames[day] || "";
   };
 
   return (
@@ -81,13 +85,13 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
                 </div>
               </TooltipTrigger>
               <ChartTooltip
-                title={stat.date}
+                title={fmt.dayKey(stat.date)}
                 subtitle={`(${getDayName(stat.date)})`}
                 className="z-50"
                 rows={[
-                  { label: t("analytics.tooltip.tokens"), value: formatNumber(stat.total_tokens), color: "#22c55e" },
-                  { label: t("analytics.tooltip.messages"), value: stat.message_count },
-                  { label: t("analytics.tooltip.sessions"), value: stat.session_count },
+                  { label: t("analytics.tooltip.tokens"), value: fmt.tokens(stat.total_tokens), color: "#22c55e" },
+                  { label: t("analytics.tooltip.messages"), value: fmt.count(stat.message_count) },
+                  { label: t("analytics.tooltip.sessions"), value: fmt.count(stat.session_count) },
                 ]}
               />
             </Tooltip>
@@ -96,15 +100,15 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
       </div>
 
       {/* Summary row */}
-      <div className="flex items-center justify-between text-caption pt-2 border-t border-border/20">
+      <div data-daily-trend-summary className="flex items-center justify-between text-caption pt-2 border-t border-border/20">
         <div className="flex items-center gap-4">
           <div>
             <span className="text-muted-foreground">{t("analytics.dailyAvgTokens")}: </span>
-            <span className="font-mono font-semibold text-foreground">{formatNumber(Math.round(totalTokens / dailyData.length))}</span>
+            <span className="font-mono font-semibold text-foreground"><Num>{fmt.tokens(Math.round(totalTokens / dailyData.length))}</Num></span>
           </div>
           <div>
             <span className="text-muted-foreground">{t("analytics.dailyAvgMessages")}: </span>
-            <span className="font-mono font-semibold text-foreground">{Math.round(totalMessages / dailyData.length)}</span>
+            <span className="font-mono font-semibold text-foreground"><Num>{fmt.count(Math.round(totalMessages / dailyData.length))}</Num></span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground/60">

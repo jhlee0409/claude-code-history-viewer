@@ -141,6 +141,13 @@ describe.skipIf(!req.enabled)("probes on a fake page (real WebKit)", () => {
     expect(r.value.below15).toBe(1);
   });
 
+  it("cjkLeading: a one-line CJK run inside a wrapped paragraph counts (Korean keep-all)", async () => {
+    const code = "<code>a-very-long-identifier-that-takes-a-whole-line</code>";
+    const r = await run("cjkLeading", `<p style="width:200px;line-height:1.4;word-break:keep-all">짧은 문장 ${code} 끝</p><p>한 줄</p>`);
+    expect(r.population).toBe(2);
+    expect(r.value.below15).toBe(2);
+  });
+
   it("overflowX: a clipped box counts, a scroller and an ellipsis do not", async () => {
     const r = await run(
       "overflowX",

@@ -15,6 +15,7 @@
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::opencode::{self, ChildSession};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use std::path::{Path, PathBuf};
 
@@ -108,13 +109,25 @@ fn rebrand_session(mut session: ClaudeSession) -> ClaudeSession {
 
 /// Scan Kilo projects from the default store root.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Kilo base path not found")?;
-    scan_projects_at(&base)
+    scan_projects_at_reporting(&base, report)
 }
 
 /// [`scan_projects`] against an explicit store root.
 pub fn scan_projects_at(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
-    opencode::scan_projects_from_store(base_path, DB_FILE)
+    scan_projects_at_reporting(base_path, &ScanReport::default())
+}
+
+fn scan_projects_at_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
+    opencode::scan_projects_from_store_reporting(base_path, DB_FILE, report)
         .map(|projects| projects.into_iter().map(rebrand_project).collect())
         .map_err(rebrand_error)
 }
@@ -128,20 +141,32 @@ pub fn load_sessions(
     load_sessions_at(&base_path, project_path, exclude_sidechain)
 }
 
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let base_path = get_base_path().ok_or_else(|| "Kilo not found".to_string())?;
+    load_sessions_at_reporting(&base_path, project_path, report)
+}
+
 /// [`load_sessions`] against an explicit store root.
 pub fn load_sessions_at(
     base_path: &str,
     project_path: &str,
-    exclude_sidechain: bool,
+    _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    opencode::load_sessions_at(
-        base_path,
-        DB_FILE,
-        &to_store_scheme(project_path),
-        exclude_sidechain,
-    )
-    .map(|sessions| sessions.into_iter().map(rebrand_session).collect())
-    .map_err(rebrand_error)
+    load_sessions_at_reporting(base_path, project_path, &ScanReport::default())
+}
+
+fn load_sessions_at_reporting(
+    base_path: &str,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    opencode::load_sessions_at_reporting(base_path, DB_FILE, &to_store_scheme(project_path), report)
+        .map(|sessions| sessions.into_iter().map(rebrand_session).collect())
+        .map_err(rebrand_error)
 }
 
 /// Load messages for a Kilo session (`kilo://<project_id>/<session_id>` or
@@ -212,7 +237,13 @@ pub(crate) mod test_support {
     use std::path::Path;
 
     pub(crate) fn create_test_db(dir: &Path) -> rusqlite::Connection {
-        let conn = rusqlite::Connection::open(dir.join(DB_FILE)).expect("open kilo.db");
+        create_db(&dir.join(DB_FILE))
+    }
+
+    /// An `OpenCode`-core database at `path` (`kilo.db`, or `opencode.db`
+    /// for an `OpenCode` store: the schema is the same).
+    pub(crate) fn create_db(path: &Path) -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open(path).expect("open the OpenCode-core db");
         conn.execute_batch(
             "CREATE TABLE project (
                 id TEXT PRIMARY KEY, worktree TEXT NOT NULL, name TEXT,

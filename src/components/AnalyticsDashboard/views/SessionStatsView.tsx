@@ -8,15 +8,15 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartColumn, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
-import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
 import {
   calculateGlobalCostSummary,
-  formatNumber,
   calculateSessionMetrics,
   calculateSessionComparisonMetrics,
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -34,6 +34,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   // Memoized session metrics calculation
   const { avgTokensPerMessage, durationMinutes, distribution } = useMemo(
@@ -42,7 +43,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   );
 
   // Memoized comparison metrics calculation
-  const { isAboveAverage, statusColor, percentile } = useMemo(
+  const { isAboveAverage, statusColor, percentileRatio } = useMemo(
     () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
     [sessionComparison, totalProjectSessions]
   );
@@ -110,10 +111,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
+                <Num>{fmt.percent(sessionComparison.percentage_of_project_tokens / 100)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
+                <Num>{fmt.tokens(sessionStats.total_tokens)}</Num> {t("analytics.tokens")}
               </div>
             </div>
 
@@ -125,7 +126,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {avgTokensPerMessage.toLocaleString()}
+                <Num>{fmt.tokens(avgTokensPerMessage)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.messageCountShort", "{{count}} msgs", {
@@ -162,7 +163,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {percentile}%
+                <Num>{fmt.percent(percentileRatio)}</Num>
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {
@@ -206,7 +207,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.startTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {formatTime(sessionStats.first_message_time)}
+                <Num>{fmt.dateTime(sessionStats.first_message_time)}</Num>
               </div>
             </div>
 
@@ -230,7 +231,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.endTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {formatTime(sessionStats.last_message_time)}
+                <Num>{fmt.dateTime(sessionStats.last_message_time)}</Num>
               </div>
             </div>
           </div>

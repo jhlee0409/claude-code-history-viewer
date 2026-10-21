@@ -21,6 +21,9 @@ import { str, isError } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 import { ToolIdBadge } from "./ToolIdBadge";
+import { useFormat } from "@/lib/format/useFormat";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
+import { Num } from "@/lib/format/Num";
 
 function extractAgentResultText(results: ToolResultLike[]): string | null {
   for (const r of results) {
@@ -38,21 +41,10 @@ function extractAgentResultText(results: ToolResultLike[]): string | null {
   return null;
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return s % 60 > 0 ? `${m}m ${s % 60}s` : `${m}m`;
-}
-function formatTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(1)}M`;
-}
 
 export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isResultOpen, setIsResultOpen] = useState(false);
 
@@ -141,8 +133,8 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               <CircleCheck className="w-3.5 h-3.5 text-success" />
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
               <div className={cn("flex items-center gap-2 ml-auto", layout.smallText)}>
-                {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3.5 h-3.5" />{formatDuration(totalDurationMs)}</span>}
-                {totalTokens != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" />{formatTokens(totalTokens)}</span>}
+                {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3.5 h-3.5" /><Num>{fmt.duration(totalDurationMs)}</Num></span>}
+                {totalTokens != null && <span {...numberCopyBoundary} className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" /><Num>{fmt.tokens(totalTokens)}</Num></span>}
                 {totalToolUseCount != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Hammer className="w-3.5 h-3.5" />{totalToolUseCount}</span>}
               </div>
             </button>

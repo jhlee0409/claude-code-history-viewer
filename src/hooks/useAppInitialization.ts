@@ -4,6 +4,7 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { type SupportedLanguage } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useFileWatcher } from "./useFileWatcher";
+import { useEffectiveHighContrast } from "./useHighContrast";
 
 /**
  * App initialization side effects:
@@ -22,7 +23,7 @@ export function useAppInitialization(deps: {
   const initializeApp = useAppStore((s) => s.initializeApp);
   const reloadCurrent = useAppStore((s) => s.reloadCurrent);
   const fontScale = useAppStore((s) => s.fontScale);
-  const highContrast = useAppStore((s) => s.highContrast);
+  const highContrast = useEffectiveHighContrast();
   const watcherEnabled = useAppStore((s) => s.watcherEnabled);
   const triggerSessionRefresh = useAppStore((s) => s.triggerSessionRefresh);
 
@@ -66,7 +67,7 @@ export function useAppInitialization(deps: {
     );
   }, [fontScale]);
 
-  // High contrast mode
+  // High contrast mode: the user's choice, else the OS prefers-contrast setting
   useEffect(() => {
     document.documentElement.classList.toggle("high-contrast", highContrast);
   }, [highContrast]);

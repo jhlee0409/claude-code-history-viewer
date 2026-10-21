@@ -8,25 +8,16 @@ import {
   hasExplicitModelPricing,
 } from '@/components/AnalyticsDashboard/utils/calculations';
 import { ModelLifecycleBadge } from '@/components/ModelLifecycleBadge';
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface AssistantMessageDetailsProps {
   message: ClaudeMessage;
 }
 
-const formatDuration = (ms: number): string => {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
-};
-
-const formatCost = (usd: number): string => {
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
-  return `$${usd.toFixed(2)}`;
-};
-
 export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = ({ message }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   if (message.type !== 'assistant') {
     return null;
@@ -115,7 +106,7 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
           title={isEstimated ? t('assistantMessageDetails.costEstimated', { defaultValue: 'Estimated from token usage; the source JSONL did not include costUSD.' }) : undefined}
         >
           <DollarSign className={layout.iconSizeSmall} />
-          <span>{isEstimated ? `~${formatCost(displayCost)}` : formatCost(displayCost)}</span>
+          <span><Num>{isEstimated ? `~${fmt.cost(displayCost)}` : fmt.cost(displayCost)}</Num></span>
         </span>
       )}
 
@@ -123,7 +114,7 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
       {durationMs !== undefined && durationMs > 0 && (
         <span className={`flex items-center text-info ${layout.iconSpacing}`}>
           <Clock className={layout.iconSizeSmall} />
-          <span>{formatDuration(durationMs)}</span>
+          <span><Num>{fmt.duration(durationMs)}</Num></span>
         </span>
       )}
 
@@ -144,19 +135,19 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-popover text-popover-foreground ${layout.smallText} ${layout.rounded} ${layout.containerPadding} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none shadow-lg z-10 border border-border`}
           >
             <p><strong>{t('assistantMessageDetails.tokenUsage')}</strong></p>
-            {usage.input_tokens ? <p>{t('assistantMessageDetails.input')}: {usage.input_tokens.toLocaleString()}</p> : null}
-            {usage.output_tokens ? <p>{t('assistantMessageDetails.output')}: {usage.output_tokens.toLocaleString()}</p> : null}
-            {cacheCreationTokens ? <p>{t('assistantMessageDetails.cacheCreation')}: {cacheCreationTokens.toLocaleString()}</p> : null}
-            {usage.cache_read_input_tokens ? <p>{t('assistantMessageDetails.cacheRead')}: {usage.cache_read_input_tokens.toLocaleString()}</p> : null}
-            {usage.reasoning_tokens ? <p>{t('assistantMessageDetails.reasoning', { defaultValue: 'Reasoning' })}: {usage.reasoning_tokens.toLocaleString()}</p> : null}
+            {usage.input_tokens ? <p>{t('assistantMessageDetails.input')}: <Num>{fmt.count(usage.input_tokens)}</Num></p> : null}
+            {usage.output_tokens ? <p>{t('assistantMessageDetails.output')}: <Num>{fmt.count(usage.output_tokens)}</Num></p> : null}
+            {cacheCreationTokens ? <p>{t('assistantMessageDetails.cacheCreation')}: <Num>{fmt.count(cacheCreationTokens)}</Num></p> : null}
+            {usage.cache_read_input_tokens ? <p>{t('assistantMessageDetails.cacheRead')}: <Num>{fmt.count(usage.cache_read_input_tokens)}</Num></p> : null}
+            {usage.reasoning_tokens ? <p>{t('assistantMessageDetails.reasoning', { defaultValue: 'Reasoning' })}: <Num>{fmt.count(usage.reasoning_tokens)}</Num></p> : null}
             {usage.service_tier ? <p>{t('assistantMessageDetails.tier')}: {usage.service_tier}</p> : null}
             {displayCost != null && (
               <p className="mt-1 pt-1 border-t border-border">
-                {t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {isEstimated ? `~${formatCost(displayCost)}` : formatCost(displayCost)}
+                {t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: <Num>{isEstimated ? `~${fmt.cost(displayCost)}` : fmt.cost(displayCost)}</Num>
                 {isEstimated ? <span className="ml-1 opacity-70">({t('assistantMessageDetails.estimated', { defaultValue: 'estimated' })})</span> : null}
               </p>
             )}
-            {durationMs !== undefined && <p>{t('assistantMessageDetails.duration', { defaultValue: 'Duration' })}: {formatDuration(durationMs)}</p>}
+            {durationMs !== undefined && <p>{t('assistantMessageDetails.duration', { defaultValue: 'Duration' })}: <Num>{fmt.duration(durationMs)}</Num></p>}
             <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover" aria-hidden="true"></div>
           </div>
         </div>

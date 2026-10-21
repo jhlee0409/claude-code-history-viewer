@@ -74,6 +74,27 @@ fn require_claude_bases(
         .try_for_each(|c| require_claude_base(&c.path))
 }
 
+/// The usage breakdown reads the same paths as the old stats commands, so it
+/// is guarded the same way: a Claude project must be a history path and an
+/// `all` scope's Claude roots must be history roots (provider projects are
+/// resolved by their own provider store).
+fn require_usage_scope(scope: &commands::stats::usage_breakdown::UsageScope) -> Result<(), String> {
+    use commands::stats::usage_breakdown::UsageScope;
+    match scope {
+        UsageScope::Project { project_path, .. } => {
+            if commands::stats::is_claude_project_path(project_path) {
+                require_history_path(project_path)?;
+            }
+            Ok(())
+        }
+        UsageScope::All {
+            claude_path,
+            custom_claude_paths,
+            ..
+        } => require_claude_bases(Some(claude_path), Some(custom_claude_paths)),
+    }
+}
+
 // ─── Known-project guard ──────────────────────────────────────────────────────
 
 /// The one message returned for any project directory the history does not
@@ -240,6 +261,11 @@ macro_rules! handler_json {
 }
 
 // ─── Parameter structs ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct UsageBreakdownParams {
+    pub request: commands::stats::usage_breakdown::UsageBreakdownRequest,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1075,6 +1101,15 @@ handler_json!(
             p.custom_claude_paths,
         )
         .await
+    }
+);
+
+handler_json!(
+    get_usage_breakdown,
+    UsageBreakdownParams,
+    |p: UsageBreakdownParams| async move {
+        require_usage_scope(&p.request.scope)?;
+        commands::stats::usage_breakdown::get_usage_breakdown(p.request).await
     }
 );
 

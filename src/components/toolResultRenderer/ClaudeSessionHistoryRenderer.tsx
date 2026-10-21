@@ -3,9 +3,10 @@ import { MessageCircle, User, Bot, Wrench, X, ChevronRight } from "lucide-react"
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
-import { formatTime } from "../../utils/time";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /** Controlled alternative to <details> for error fallback — uses local state
  *  since this only renders in the catch path where ExpandKeyProvider may be absent */
@@ -36,6 +37,7 @@ type Props = {
 
 export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   try {
     // Split by lines and filter out empty lines
     const lines = content.split("\n").filter((line) => line.trim());
@@ -98,7 +100,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 </span>
                 {typeof msg.timestamp === "string" && (
                   <span className={cn(layout.smallText, "text-muted-foreground")}>
-                    {formatTime(msg.timestamp)}
+                    <Num>{fmt.dateTime(msg.timestamp)}</Num>
                   </span>
                 )}
               </div>

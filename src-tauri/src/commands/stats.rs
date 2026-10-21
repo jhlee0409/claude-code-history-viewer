@@ -7,6 +7,7 @@ use crate::models::{
     SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
 };
 use crate::providers;
+use crate::providers::scan_report::ScanReport;
 use crate::utils::find_line_ranges;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use memmap2::Mmap;
@@ -16,9 +17,11 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 mod cache;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
+pub(crate) mod session_files;
 pub mod usage_breakdown;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -1168,15 +1171,18 @@ fn claude_session_project_name(session_path: &Path) -> String {
 /// Process a session file into the lightweight global stats representation.
 /// Served from the per-file daily-aggregate cache when the file is unchanged
 /// and the date filter composes from daily buckets; otherwise falls back to
-/// the full scan (see the `cache` module design note).
+/// the full scan (see the `cache` module design note). `root` is the
+/// canonical directory the file was found under: it is read inside it only
+/// (`session_files::open_session_file`).
 fn process_session_file_for_global_stats(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionFileStats> {
     if let Some(aggregate) = cache::global_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_global_file_aggregate(session_path, mode)
+        cache::build_global_file_aggregate(session_path, root, mode)
     }) {
         if let cache::Composed::Ready(stats) = cache::compose_global(
             &aggregate,
@@ -1187,7 +1193,7 @@ fn process_session_file_for_global_stats(
             return Some(stats);
         }
     }
-    scan_session_file_for_global_stats(session_path, mode, s_limit, e_limit)
+    scan_session_file_for_global_stats(session_path, root, mode, s_limit, e_limit)
 }
 
 /// Process a single session file using lightweight deserialization for global stats.
@@ -1196,11 +1202,12 @@ fn process_session_file_for_global_stats(
 /// Full-scan path for global stats (cache miss / non-composable date filter).
 fn scan_session_file_for_global_stats(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionFileStats> {
-    let file = fs::File::open(session_path).ok()?;
+    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -1640,6 +1647,47 @@ fn load_stats_sessions(
     }
 }
 
+/// The provider's own store detection (`providers::<id>::detect`, the one
+/// the provider list uses): where its store is and whether it holds history.
+/// `None` when the provider cannot even locate a store. The scanners above
+/// answer `Ok([])` both for an empty store and for a missing one, so a
+/// caller that reports coverage asks this first.
+fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderInfo> {
+    match provider {
+        StatsProvider::Aider => providers::aider::detect(),
+        StatsProvider::AmazonQ => providers::amazon_q::detect(),
+        StatsProvider::Cline => providers::cline::detect(),
+        StatsProvider::Codebuddy => providers::codebuddy::detect(),
+        StatsProvider::Codex => providers::codex::detect(),
+        StatsProvider::Continue => providers::continue_dev::detect(),
+        StatsProvider::ForgeCode => providers::forgecode::detect(),
+        StatsProvider::Kilo => providers::kilo::detect(),
+        StatsProvider::OpenCode => providers::opencode::detect(),
+        StatsProvider::OpenHands => providers::openhands::detect(),
+        StatsProvider::OpenInterpreter => providers::openinterpreter::detect(),
+        StatsProvider::PearAI => providers::pearai::detect(),
+        StatsProvider::Qwen => providers::qwen::detect(),
+        StatsProvider::Zcode => providers::zcode::detect(),
+        StatsProvider::Trae => providers::trae::detect(),
+        StatsProvider::Vibe => providers::vibe::detect(),
+        StatsProvider::Zed => providers::zed::detect(),
+        StatsProvider::Crush => providers::crush::detect(),
+        StatsProvider::CursorAgent => providers::cursor_agent::detect(),
+        StatsProvider::Goose => providers::goose::detect(),
+        StatsProvider::Kiro => providers::kiro::detect(),
+        StatsProvider::Llm => providers::llm::detect(),
+        StatsProvider::Grok => providers::grok::detect(),
+        StatsProvider::Kimi => providers::kimi::detect(),
+        StatsProvider::Antigravity => providers::antigravity::detect(),
+        StatsProvider::Copilot => providers::copilot::detect(),
+        StatsProvider::Ompi => providers::ompi::detect(),
+        StatsProvider::Pi => providers::pi::detect(),
+        StatsProvider::Gemini => providers::gemini::detect(),
+        StatsProvider::Cursor => providers::cursor::detect(),
+        StatsProvider::Claude => providers::claude::detect(),
+    }
+}
+
 fn load_stats_messages(
     provider: StatsProvider,
     session_path: &str,
@@ -1905,22 +1953,24 @@ struct ProjectSessionFileStats {
 
 /// Process a session file into project-level stats.
 /// Served from the per-file daily-aggregate cache when possible; falls back
-/// to the full scan (see the `cache` module design note).
+/// to the full scan (see the `cache` module design note). Read inside `root`
+/// only, as [`process_session_file_for_global_stats`].
 fn process_session_file_for_project_stats(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<ProjectSessionFileStats> {
     if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, mode)
+        cache::build_message_file_aggregate(session_path, root, mode)
     }) {
         if let cache::Composed::Ready(stats) = cache::compose_project(&aggregate, s_limit, e_limit)
         {
             return stats;
         }
     }
-    scan_session_file_for_project_stats(session_path, mode, s_limit, e_limit)
+    scan_session_file_for_project_stats(session_path, root, mode, s_limit, e_limit)
 }
 
 /// Process a single session file for project stats
@@ -1928,11 +1978,12 @@ fn process_session_file_for_project_stats(
 /// Full-scan path for project stats (cache miss / non-composable date filter).
 fn scan_session_file_for_project_stats(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<ProjectSessionFileStats> {
-    let file = fs::File::open(session_path).ok()?;
+    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -2527,11 +2578,39 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
 fn load_antigravity_usage_records(
     session_path: &str,
 ) -> Result<Vec<AntigravityUsageRecord>, String> {
-    let Some(usage_path) = providers::antigravity::resolve_usage_jsonl_path(session_path) else {
+    load_antigravity_usage_records_reporting(session_path, &ScanReport::default())
+}
+
+/// [`load_antigravity_usage_records`] for a caller that reports coverage: a
+/// session whose usage file is there but cannot be looked for is an error,
+/// not a session without usage (`providers::scan_report`).
+fn load_antigravity_usage_records_checked(
+    session_path: &str,
+) -> Result<Vec<AntigravityUsageRecord>, String> {
+    let report = ScanReport::default();
+    let records = load_antigravity_usage_records_reporting(session_path, &report)?;
+    if records.is_empty() && !report.is_empty() {
+        return Err(format!(
+            "cannot read the usage of {session_path}: {}",
+            report.into_unread().join("; ")
+        ));
+    }
+    Ok(records)
+}
+
+fn load_antigravity_usage_records_reporting(
+    session_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<AntigravityUsageRecord>, String> {
+    let Some(usage_path) =
+        providers::antigravity::resolve_usage_jsonl_path_reporting(session_path, report)
+    else {
         return Ok(vec![]);
     };
 
-    let content = fs::read_to_string(&usage_path)
+    let mut content = String::new();
+    session_files::open_history_file(&usage_path)
+        .and_then(|mut file| std::io::Read::read_to_string(&mut file, &mut content))
         .map_err(|e| format!("Failed to read {}: {}", usage_path.display(), e))?;
     let mut records = Vec::new();
 
@@ -4255,9 +4334,17 @@ pub async fn get_session_token_stats(
         .ok_or_else(|| "No valid messages found in session".to_string());
     }
 
+    // The session opens as a regular file inside its own folder, or the
+    // command says why not: a FIFO named like the session no longer stalls
+    // it, and a folder is refused instead of read as an empty session (#700).
+    // Its subagent transcripts are read inside the same folder.
     let session_path_buf = PathBuf::from(&session_path);
+    let root = session_files::own_folder(&session_path_buf)
+        .map_err(|e| format!("{}: {e}", session_path_buf.display()))?;
+    session_files::open_session_file(&session_path_buf, &root)?;
     let stats = extract_session_token_stats_sync(
         &session_path_buf,
+        &root,
         mode,
         s_limit.as_ref(),
         e_limit.as_ref(),
@@ -4411,20 +4498,22 @@ impl SessionTokenAccum {
 
 /// Token stats for one Claude session. Under `billing_total` the session's
 /// subagent transcripts (`<session>/subagents/**`, found the same way the
-/// `SubAgent Sessions` panel finds them) are folded in, since their usage is
+/// `SubAgent Sessions` panel finds them, never through a symlinked folder:
+/// `session_files::regular_subagent_files`) are folded in, since their usage is
 /// billed sidechain usage; under `conversation_only` only the session's own
-/// transcript counts (#577).
+/// transcript counts (#577). Every transcript is read inside `root`.
 fn extract_session_token_stats_sync(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
-    let mut accum = extract_session_token_accum_sync(session_path, mode, s_limit, e_limit);
+    let mut accum = extract_session_token_accum_sync(session_path, root, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::regular_subagent_files(session_path) {
             let Some(subagent) =
-                extract_session_token_accum_sync(&subagent_path, mode, s_limit, e_limit)
+                extract_session_token_accum_sync(&subagent_path, root, mode, s_limit, e_limit)
             else {
                 continue;
             };
@@ -4442,12 +4531,13 @@ fn extract_session_token_stats_sync(
 /// `cache` module design note).
 fn extract_session_token_accum_sync(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenAccum> {
     if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, mode)
+        cache::build_message_file_aggregate(session_path, root, mode)
     }) {
         if let cache::Composed::Ready(accum) =
             cache::compose_session_token_accum(&aggregate, s_limit, e_limit)
@@ -4455,7 +4545,7 @@ fn extract_session_token_accum_sync(
             return accum;
         }
     }
-    scan_session_token_accum(session_path, mode, s_limit, e_limit)
+    scan_session_token_accum(session_path, root, mode, s_limit, e_limit)
 }
 
 /// Full-scan session token stats for one transcript, finalised (the cache
@@ -4463,11 +4553,12 @@ fn extract_session_token_accum_sync(
 #[cfg(test)]
 fn scan_session_token_stats(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
-    scan_session_token_accum(session_path, mode, s_limit, e_limit)
+    scan_session_token_accum(session_path, root, mode, s_limit, e_limit)
         .map(|accum| accum.into_stats(claude_session_project_name(session_path)))
 }
 
@@ -4476,11 +4567,12 @@ fn scan_session_token_stats(
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn scan_session_token_accum(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenAccum> {
-    let file = fs::File::open(session_path).ok()?;
+    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -4631,14 +4723,8 @@ pub async fn get_project_token_stats(
 
     // Collect all session files; subagent transcripts are folded into their
     // owning session's item rather than listed as sessions (#577).
-    let session_files: Vec<PathBuf> = claude_session_heads(
-        WalkDir::new(&project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
-    );
+    let project = claude_project_session_files(&project_path_buf);
+    let session_files: Vec<PathBuf> = claude_session_heads(project.files);
 
     #[cfg(debug_assertions)]
     let scan_time = start.elapsed();
@@ -4651,7 +4737,13 @@ pub async fn get_project_token_stats(
     let all_stats: Vec<SessionTokenStats> = session_files
         .par_iter()
         .filter_map(|path| {
-            extract_session_token_stats_sync(path, mode, s_limit.as_ref(), e_limit.as_ref())
+            extract_session_token_stats_sync(
+                path,
+                &project.root,
+                mode,
+                s_limit.as_ref(),
+                e_limit.as_ref(),
+            )
         })
         .collect();
 
@@ -4729,12 +4821,8 @@ pub async fn get_project_stats_summary(
     let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    let project = claude_project_session_files(&project_path_buf);
+    let session_files: Vec<PathBuf> = project.files;
     let scan_time = start.elapsed();
 
     // Subagent transcripts count toward the project's usage but belong to
@@ -4756,8 +4844,14 @@ pub async fn get_project_stats_summary(
     let file_stats: Vec<(PathBuf, ProjectSessionFileStats)> = session_files
         .par_iter()
         .filter_map(|path| {
-            process_session_file_for_project_stats(path, mode, s_limit.as_ref(), e_limit.as_ref())
-                .map(|stats| (path.clone(), stats))
+            process_session_file_for_project_stats(
+                path,
+                &project.root,
+                mode,
+                s_limit.as_ref(),
+                e_limit.as_ref(),
+            )
+            .map(|stats| (path.clone(), stats))
         })
         .collect();
     let process_time = start.elapsed();
@@ -4967,19 +5061,69 @@ fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
         .collect()
 }
 
+/// A Claude project's session files for the stats commands, and the
+/// canonical directory every one of them is read inside.
+struct ProjectSessionFiles {
+    root: PathBuf,
+    files: Vec<PathBuf>,
+}
+
+/// Every Claude session file under `project_dir` for the stats commands:
+/// regular files only, symlinks never followed (`session_files`); what the
+/// walk skipped or could not read is logged. `get_usage_breakdown` uses the
+/// same walk and reports the skipped part in its coverage. The root is
+/// resolved before the walk, so that a folder swapped for a link after the
+/// walk is not read through (#698).
+fn claude_project_session_files(project_dir: &Path) -> ProjectSessionFiles {
+    let root = match fs::canonicalize(project_dir) {
+        Ok(root) => root,
+        Err(error) => {
+            log::warn!("stats: cannot read {}: {error}", project_dir.display());
+            return ProjectSessionFiles {
+                root: project_dir.to_path_buf(),
+                files: Vec::new(),
+            };
+        }
+    };
+    let walk = session_files::walk_session_files(project_dir);
+    log_skipped_history(project_dir, &walk.links, &walk.errors);
+    let files = walk
+        .files
+        .into_iter()
+        .filter(|path| session_files::is_regular_file(path))
+        .collect();
+    ProjectSessionFiles { root, files }
+}
+
+fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
+    for link in links {
+        log::warn!(
+            "stats: not following symlink {} under {}",
+            link.display(),
+            dir.display()
+        );
+    }
+    for error in errors {
+        log::warn!("stats: cannot read part of {}: {error}", dir.display());
+    }
+}
+
 /// Comparison stats for one Claude session, with its subagent transcripts'
-/// tokens and messages folded in under `billing_total` (#577).
+/// tokens and messages folded in under `billing_total` (#577), never through
+/// a symlinked folder (`session_files::regular_subagent_files`). Every
+/// transcript is read inside `root`.
 fn session_comparison_with_subagents(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionComparisonStats> {
-    let mut stats = process_session_file_for_comparison(session_path, mode, s_limit, e_limit);
+    let mut stats = process_session_file_for_comparison(session_path, root, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::regular_subagent_files(session_path) {
             let Some(subagent) =
-                process_session_file_for_comparison(&subagent_path, mode, s_limit, e_limit)
+                process_session_file_for_comparison(&subagent_path, root, mode, s_limit, e_limit)
             else {
                 continue;
             };
@@ -5000,12 +5144,13 @@ fn session_comparison_with_subagents(
 /// to the full scan (see the `cache` module design note).
 fn process_session_file_for_comparison(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionComparisonStats> {
     if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, mode)
+        cache::build_message_file_aggregate(session_path, root, mode)
     }) {
         if let cache::Composed::Ready(stats) =
             cache::compose_comparison(&aggregate, s_limit, e_limit)
@@ -5013,7 +5158,7 @@ fn process_session_file_for_comparison(
             return stats;
         }
     }
-    scan_session_file_for_comparison(session_path, mode, s_limit, e_limit)
+    scan_session_file_for_comparison(session_path, root, mode, s_limit, e_limit)
 }
 
 /// Process a single session file for comparison stats (lightweight)
@@ -5021,11 +5166,12 @@ fn process_session_file_for_comparison(
 /// Full-scan path for comparison stats (cache miss / non-composable filter).
 fn scan_session_file_for_comparison(
     session_path: &PathBuf,
+    root: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionComparisonStats> {
-    let file = fs::File::open(session_path).ok()?;
+    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -5133,21 +5279,21 @@ pub async fn get_session_comparison(
     let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = claude_session_heads(
-        WalkDir::new(&project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
-    );
+    let project = claude_project_session_files(Path::new(&project_path));
+    let session_files: Vec<PathBuf> = claude_session_heads(project.files);
     let scan_time = start.elapsed();
 
     // Phase 2: Process all session files in parallel with per-message date filtering
     let all_sessions: Vec<SessionComparisonStats> = session_files
         .par_iter()
         .filter_map(|path| {
-            session_comparison_with_subagents(path, mode, s_limit.as_ref(), e_limit.as_ref())
+            session_comparison_with_subagents(
+                path,
+                &project.root,
+                mode,
+                s_limit.as_ref(),
+                e_limit.as_ref(),
+            )
         })
         .collect();
     let process_time = start.elapsed();
@@ -5306,59 +5452,41 @@ pub async fn get_global_stats_summary(
     // Claude root AND any user-configured custom Claude directories (#362). Without
     // the custom roots the global summary undercounts everything for users who added
     // extra Claude directories, even though the project list and search honor them.
-    let mut session_files: Vec<PathBuf> = Vec::new();
+    let mut projects: Vec<ProjectSessionFiles> = Vec::new();
     let mut project_names: HashSet<String> = HashSet::new();
 
     let collect_claude_base = |projects_path: &Path,
-                               session_files: &mut Vec<PathBuf>,
+                               projects: &mut Vec<ProjectSessionFiles>,
                                project_names: &mut HashSet<String>| {
         if !projects_path.exists() {
             return;
         }
-        match fs::read_dir(projects_path) {
-            Ok(entries) => {
-                for project_entry in entries {
-                    let project_entry = match project_entry {
-                        Ok(entry) => entry,
-                        Err(e) => {
-                            log::warn!("Skipping unreadable Claude project entry: {e}");
-                            continue;
-                        }
-                    };
-                    let project_path = project_entry.path();
-
-                    if !project_path.is_dir() {
-                        continue;
-                    }
-
-                    let project_name = project_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("Unknown")
-                        .to_string();
-                    project_names.insert(format!("claude:{project_name}"));
-
-                    for entry in WalkDir::new(&project_path)
-                        .into_iter()
-                        .filter_map(std::result::Result::ok)
-                        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-                    {
-                        session_files.push(entry.path().to_path_buf());
-                    }
-                }
-            }
+        // Symlinked project directories are never walked (session_files).
+        let listing = match session_files::claude_project_dirs(projects_path) {
+            Ok(listing) => listing,
             Err(e) => {
                 log::warn!("Failed to read Claude projects directory: {e}");
+                return;
             }
+        };
+        log_skipped_history(projects_path, &listing.links, &listing.errors);
+        for project_path in listing.dirs {
+            let project_name = project_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string();
+            project_names.insert(format!("claude:{project_name}"));
+            projects.push(claude_project_session_files(&project_path));
         }
     };
 
     if providers_to_include.contains(&StatsProvider::Claude) {
-        collect_claude_base(
-            &PathBuf::from(&claude_path).join("projects"),
-            &mut session_files,
-            &mut project_names,
-        );
+        // Empty is the default root, never a path relative to the working
+        // directory (#693).
+        if let Some(base) = crate::providers::claude::base_path_or_default(&claude_path) {
+            collect_claude_base(&base.join("projects"), &mut projects, &mut project_names);
+        }
 
         if let Some(ref custom_paths) = custom_claude_paths {
             for custom in custom_paths {
@@ -5367,11 +5495,7 @@ pub async fn get_global_stats_summary(
                     log::warn!("Skipping invalid custom Claude path for global stats: {e}");
                     continue;
                 }
-                collect_claude_base(
-                    &base.join("projects"),
-                    &mut session_files,
-                    &mut project_names,
-                );
+                collect_claude_base(&base.join("projects"), &mut projects, &mut project_names);
             }
         }
     }
@@ -5379,9 +5503,18 @@ pub async fn get_global_stats_summary(
     // Phase 2: Process all session files in parallel
     let s_ref = s_limit.as_ref();
     let e_ref = e_limit.as_ref();
+    let session_files: Vec<(&PathBuf, &Path)> = projects
+        .iter()
+        .flat_map(|project| {
+            let root = project.root.as_path();
+            project.files.iter().map(move |file| (file, root))
+        })
+        .collect();
     let mut file_stats: Vec<SessionFileStats> = session_files
         .par_iter()
-        .filter_map(|path| process_session_file_for_global_stats(path, mode, s_ref, e_ref))
+        .filter_map(|&(path, root)| {
+            process_session_file_for_global_stats(path, root, mode, s_ref, e_ref)
+        })
         .collect();
 
     if providers_to_include.contains(&StatsProvider::Codebuddy) {

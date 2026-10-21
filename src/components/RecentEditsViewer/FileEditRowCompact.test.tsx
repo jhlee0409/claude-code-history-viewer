@@ -24,6 +24,7 @@ vi.mock("@/utils/platform", () => ({
 
 import { FileEditRowCompact } from "./FileEditRowCompact";
 import type { RecentFileEdit } from "../../types";
+import { appFormat } from "@/lib/format/useFormat";
 
 const PROJECT = "/Users/alex/Projects/my-app";
 
@@ -102,10 +103,8 @@ describe("FileEditRowCompact", () => {
       />
     );
 
-    const expected = at.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    // The app language's clock time (not the OS locale's).
+    const expected = appFormat().time(at);
     expect(screen.getByText(expected)).toBeTruthy();
   });
 

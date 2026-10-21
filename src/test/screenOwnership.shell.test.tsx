@@ -56,7 +56,10 @@ import App from "@/App";
 import { ModalProvider } from "@/contexts/modal/ModalProvider";
 import { ThemeProvider } from "@/contexts/theme";
 import { useAppStore } from "@/store/useAppStore";
-import { formatNumber } from "@/components/AnalyticsDashboard/utils";
+import { formatCount } from "@/lib/format/number";
+
+// Message totals are counts: grouped in the app language (`777,001`).
+const countText = (value: number) => formatCount(value, "en");
 import { openInNewTab } from "@/navigation/tabs";
 import type { View } from "@/navigation/place";
 
@@ -216,7 +219,7 @@ async function twoTabs(view: View, xVisible: () => boolean): Promise<string> {
 }
 
 describe("the real shell shows only the active tab's screen data", () => {
-  const xTotal = () => screen.queryAllByText(formatNumber(X_MESSAGES)).length > 0;
+  const xTotal = () => screen.queryAllByText(countText(X_MESSAGES)).length > 0;
 
   it("analytics: clicking tab B with Y's summary held shows B loading, then Y's failure shows B's error - never X's totals", async () => {
     await renderShell();

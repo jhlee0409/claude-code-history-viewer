@@ -17,33 +17,29 @@ import { getProviderLabel } from "@/utils/providers";
 import { getProjectDisplayName } from "@/utils/pathUtils";
 import type { PathContext } from "@/lib/format/path";
 import { PathText } from "@/lib/format/PathText";
-import i18n from "@/i18n";
-import { getLocale } from "@/utils/time";
 import { useSessionTokenStats } from "./useSessionTokenStats";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * A moment as date and time, each kept on one line: in a narrow column the
  * pair wraps between them, never inside the time ("01:24:42") or the date.
- * The same fields as `formatTime`.
+ * The full form with seconds is the tooltip.
  *
  * A missing or unparseable time (subagent sessions are synthesised with
  * empty first/last times) reads "Unknown", with no `<time>` to mislabel.
  */
 const Moment = ({ timestamp }: { timestamp: string }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const date = new Date(timestamp);
   if (!timestamp || Number.isNaN(date.getTime())) {
     return <span className="text-muted-foreground">{t("common.unknown")}</span>;
   }
-  const locale = getLocale(i18n.language || "en");
   return (
-    <time dateTime={timestamp} className="flex flex-wrap gap-x-1.5">
-      <span className="whitespace-nowrap">
-        {date.toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}
-      </span>
-      <span className="whitespace-nowrap">
-        {date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-      </span>
+    <time dateTime={timestamp} title={fmt.dateTimeFull(date)} className="flex flex-wrap gap-x-1.5">
+      <span className="whitespace-nowrap"><Num>{fmt.date(date, "long")}</Num></span>
+      <span className="whitespace-nowrap"><Num>{fmt.time(date)}</Num></span>
     </time>
   );
 };
@@ -102,6 +98,7 @@ const CopyableValue = ({
 
 export const InspectorInfoTab = () => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const session = useAppStore((s) => s.selectedSession);
   const project = useAppStore((s) => s.selectedProject);
   const homeDir = useAppStore((s) => s.homeDir);
@@ -155,7 +152,7 @@ export const InspectorInfoTab = () => {
         </Row>
         <Row label={t("common.inspector.info.models")}>{models}</Row>
         <Row label={t("common.inspector.info.messages")}>
-          <span className="tabular-nums">{session.message_count.toLocaleString()}</span>
+          <span className="tabular-nums"><Num>{fmt.count(session.message_count)}</Num></span>
         </Row>
         <Row label={t("common.inspector.info.created")}>
           <Moment timestamp={session.first_message_time} />

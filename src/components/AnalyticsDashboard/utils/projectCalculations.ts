@@ -7,6 +7,7 @@
 import type { ProjectStatsSummary, DailyStats } from "../../../types";
 import type { DailyStatData, GrowthTrend } from "../types";
 import { calculateGrowthTrend } from "./calculations";
+import { dayKeysBetween, isDayKey, localDayKey, shiftDayKey } from "@/lib/format/localDay";
 
 // ============================================================================
 // Daily Stats Processing
@@ -18,58 +19,26 @@ import { calculateGrowthTrend } from "./calculations";
  * When the backend returns daily_stats that span a specific date range (e.g.
  * because a date filter is active), the trend covers the actual data range
  * rather than a hardcoded "today − N days" window.  When dailyStats is empty
- * or absent the original "today − maxDays" behaviour is preserved.
+ * or absent the window is the last `maxDays` **local** calendar days ending
+ * today (`timeZone`, default: the system zone) — not the UTC date, which is
+ * still yesterday for the first hours of a day east of Greenwich.
+ *
+ * Rows are keyed by the backend's `YYYY-MM-DD` and handled as calendar dates
+ * (no `Date` round trip, so no time-zone shift).
  */
 export const generateTrendData = (
   dailyStats: DailyStats[] | undefined,
-  maxDays: number = 7
+  maxDays: number = 7,
+  timeZone?: string
 ): DailyStatData[] => {
   if (maxDays <= 0) return [];
 
-  const formatUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
-  const fallbackYear = new Date().getUTCFullYear();
-
-  const parseDailyDate = (value: string): Date | null => {
-    const parts = value.split("-");
-    const parsePart = (part: string | undefined, fallback: number): number | null => {
-      if (part == null || part.trim() === "") {
-        return fallback;
-      }
-      const parsed = Number(part);
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-
-    const year = parsePart(parts[0], fallbackYear);
-    const month = parsePart(parts[1], 1);
-    const day = parsePart(parts[2], 1);
-
-    if (year == null || month == null || day == null) {
-      return null;
-    }
-
-    if (year <= 1970 || month < 1 || month > 12 || day < 1 || day > 31) {
-      return null;
-    }
-
-    const parsed = new Date(Date.UTC(year, month - 1, day));
-    if (
-      parsed.getUTCFullYear() !== year ||
-      parsed.getUTCMonth() !== month - 1 ||
-      parsed.getUTCDate() !== day
-    ) {
-      return null;
-    }
-
-    return parsed;
-  };
-
   const statsByDate = new Map<string, DailyStatData>();
   (dailyStats ?? []).forEach((stat) => {
-    const parsedDate = parseDailyDate(stat.date);
-    if (parsedDate == null) {
+    const dateKey = normalizeDailyDate(stat.date);
+    if (dateKey == null) {
       throw new Error(`Invalid daily_stats date: ${stat.date}`);
     }
-    const dateKey = formatUtcDate(parsedDate);
     statsByDate.set(dateKey, {
       date: dateKey,
       total_tokens: stat.total_tokens || 0,
@@ -79,51 +48,44 @@ export const generateTrendData = (
     });
   });
 
-  // Determine the date range to display.
   // If the backend returned data, use its actual range so that date-filtered
   // results are displayed correctly. Otherwise fall back to "today − maxDays".
-  let endDate: Date;
-  let startDate: Date;
-
   const sortedDates = Array.from(statsByDate.keys()).sort();
-  if (sortedDates.length > 0) {
-    const firstDateStr = sortedDates[0]!;
-    const lastDateStr = sortedDates[sortedDates.length - 1]!;
-    const firstDate = parseDailyDate(firstDateStr);
-    const lastDate = parseDailyDate(lastDateStr);
-    if (firstDate == null || lastDate == null) {
-      throw new Error(
-        `Invalid daily_stats range: first=${firstDateStr}, last=${lastDateStr}`
-      );
-    }
-    startDate = firstDate;
-    endDate = lastDate;
-  } else {
-    endDate = new Date();
-    endDate.setUTCHours(0, 0, 0, 0);
-    startDate = new Date(endDate);
-    startDate.setUTCDate(endDate.getUTCDate() - (maxDays - 1));
-  }
+  const today = localDayKey(Date.now(), timeZone) as string;
+  const range =
+    sortedDates.length > 0
+      ? dayKeysBetween(sortedDates[0]!, sortedDates[sortedDates.length - 1]!)
+      : dayKeysBetween(shiftDayKey(today, -(maxDays - 1)), today);
 
-  const trendData: DailyStatData[] = [];
-  const cursor = new Date(startDate);
-  while (cursor <= endDate) {
-    const dateKey = formatUtcDate(cursor);
-    const existing = statsByDate.get(dateKey);
-
-    trendData.push(
-      existing ?? {
+  return range.map(
+    (dateKey) =>
+      statsByDate.get(dateKey) ?? {
         date: dateKey,
         total_tokens: 0,
         message_count: 0,
         session_count: 0,
         active_hours: 0,
       }
-    );
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
+  );
+};
 
-  return trendData;
+/**
+ * A backend date (`YYYY-MM-DD`, month/day optional and defaulting to 1, year
+ * defaulting to the current one) as a canonical day key; `null` if invalid.
+ */
+const normalizeDailyDate = (value: string): string | null => {
+  const parts = value.split("-");
+  const parsePart = (part: string | undefined, fallback: number): number | null => {
+    if (part == null || part.trim() === "") return fallback;
+    const parsed = Number(part);
+    return Number.isInteger(parsed) ? parsed : null;
+  };
+  const year = parsePart(parts[0], new Date().getFullYear());
+  const month = parsePart(parts[1], 1);
+  const day = parsePart(parts[2], 1);
+  if (year == null || month == null || day == null || year <= 1970) return null;
+  const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return isDayKey(key) ? key : null;
 };
 
 // ============================================================================
@@ -149,12 +111,6 @@ const NO_GROWTH: GrowthMetrics = {
   messageGrowth: { kind: "none" },
 };
 
-/** `YYYY-MM-DD` of the calendar day before `date` (also `YYYY-MM-DD`). */
-const previousCalendarDay = (date: string): string => {
-  const ms = Date.parse(`${date}T00:00:00Z`) - 24 * 60 * 60 * 1000;
-  return new Date(ms).toISOString().slice(0, 10);
-};
-
 /**
  * Calculate day-over-day growth trends for tokens and messages.
  *
@@ -169,7 +125,7 @@ export const calculateDailyGrowth = (dailyStats: DailyStats[]): GrowthMetrics =>
     return NO_GROWTH;
   }
 
-  const baselineDate = previousCalendarDay(lastDayStats.date);
+  const baselineDate = shiftDayKey(lastDayStats.date, -1);
   const prevDayStats = dailyStats.find((stats) => stats.date === baselineDate);
   const prevTokens = prevDayStats?.total_tokens ?? 0;
   const prevMessages = prevDayStats?.message_count ?? 0;

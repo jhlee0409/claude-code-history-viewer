@@ -29,7 +29,7 @@ export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) 
       <Renderer.Content>
         <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>
           <FolderSearch className={cn(layout.iconSizeSmall, "text-tool-file shrink-0")} />
-          <code className={cn(layout.monoText, "text-tool-file font-semibold")}>{pattern}</code>
+          <code className={cn(layout.monoText, "text-tool-file font-semibold wrap-anywhere")}>{pattern}</code>
           {path && (
             <span className={cn(layout.smallText, "text-muted-foreground ml-1 truncate")}>in {path}</span>
           )}

@@ -1,5 +1,6 @@
 //! Session search functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, RawLogEntry};
 use crate::utils::find_line_ranges;
 use aho_corasick::AhoCorasick;
@@ -16,7 +17,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use uuid::Uuid;
-use walkdir::WalkDir;
 
 /// Initial buffer capacity for JSON parsing (4KB covers most messages)
 const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
@@ -141,13 +141,14 @@ fn extract_project_name(file_path: &PathBuf) -> Option<String> {
 ///
 /// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
 /// Accepts a pre-built `AhoCorasick` matcher to avoid rebuilding per file.
+/// `root` is the canonical `projects/` folder the file was found under: the
+/// file is read inside it only (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
+fn search_in_file(file_path: &PathBuf, root: &Path, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
     let project_name = extract_project_name(file_path);
 
-    let file = match fs::File::open(file_path) {
-        Ok(f) => f,
-        Err(_) => return Vec::new(),
+    let Ok((file, _)) = session_files::open_session_file(file_path, root) else {
+        return Vec::new();
     };
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -474,17 +475,24 @@ fn search_messages_blocking(
     let max_results = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     validate_search_filters(&filters)?;
 
-    let projects_path = PathBuf::from(&claude_path).join("projects");
+    // Empty is the default root, never a path relative to the working
+    // directory (#693).
+    let Some(claude_base) = crate::providers::claude::base_path_or_default(&claude_path) else {
+        return Ok(vec![]);
+    };
+    let projects_path = claude_base.join("projects");
     if !projects_path.exists() {
         return Ok(vec![]);
     }
 
-    let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // Regular files only, no symlink followed (`session_files`): a linked
+    // `*.jsonl` entry would be read wherever it points, and a FIFO named
+    // like a session would block the search. Each is read inside the
+    // `projects/` folder, resolved before the walk.
+    let Ok(root) = fs::canonicalize(&projects_path) else {
+        return Ok(vec![]);
+    };
+    let file_paths: Vec<PathBuf> = session_files::regular_session_files(&projects_path);
 
     let key = cache_key(&claude_path, &query);
     let cached_files: HashMap<PathBuf, FileMatches> = SEARCH_CACHE
@@ -532,7 +540,10 @@ fn search_messages_blocking(
         .map(|idx| {
             #[cfg(test)]
             note_scan(&file_paths[idx]);
-            (idx, Arc::new(search_in_file(&file_paths[idx], &matcher)))
+            (
+                idx,
+                Arc::new(search_in_file(&file_paths[idx], &root, &matcher)),
+            )
         })
         .collect();
     for (idx, matches) in scanned {
@@ -1075,5 +1086,72 @@ mod tests {
         );
         assert_eq!(test_scan_count(&file_a), 1, "untouched file a stays cached");
         assert_eq!(test_scan_count(&file_c), 1);
+    }
+
+    /// A session file linked into the history root from elsewhere is never
+    /// searched; only the files that are there are (#696 review).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_search_never_reads_a_session_file_through_a_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("p");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(
+            project_dir.join("inside.jsonl"),
+            create_sample_user_message("uuid-in", "inside", "needle inside") + "\n",
+        )
+        .unwrap();
+        let outside = TempDir::new().unwrap();
+        let outside_file = outside.path().join("private.jsonl");
+        std::fs::write(
+            &outside_file,
+            create_sample_user_message("uuid-out", "private", "needle outside") + "\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside_file, project_dir.join("escaped.jsonl")).unwrap();
+
+        let messages = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "needle".to_string(),
+            serde_json::json!({}),
+            None,
+        )
+        .await
+        .unwrap();
+        let sessions: Vec<&str> = messages.iter().map(|m| m.session_id.as_str()).collect();
+        assert_eq!(sessions, ["inside"]);
+    }
+
+    /// The root itself may be reached through a symlink (a symlinked
+    /// `~/.claude` or `projects/`, #355): its files are still searched.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_search_reads_a_root_reached_through_a_symlink() {
+        let real = TempDir::new().unwrap();
+        let real_projects = real.path().join("real-projects");
+        let project_dir = real_projects.join("p");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(
+            project_dir.join("inside.jsonl"),
+            create_sample_user_message("uuid-in", "inside", "needle inside") + "\n",
+        )
+        .unwrap();
+        let base = TempDir::new().unwrap();
+        std::os::unix::fs::symlink(&real_projects, base.path().join("projects")).unwrap();
+        let linked_base = TempDir::new().unwrap();
+        let linked = linked_base.path().join("claude");
+        std::os::unix::fs::symlink(base.path(), &linked).unwrap();
+
+        for claude_path in [base.path().to_path_buf(), linked] {
+            let messages = search_messages(
+                claude_path.to_string_lossy().to_string(),
+                "needle".to_string(),
+                serde_json::json!({}),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(messages.len(), 1, "{}", claude_path.display());
+        }
     }
 }

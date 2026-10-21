@@ -150,7 +150,8 @@ export interface AppStoreState {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   fontScale: number;
-  highContrast: boolean;
+  /** The gear-menu choice; null = never chosen, so the OS prefers-contrast decides (useEffectiveHighContrast). */
+  highContrast: boolean | null;
   updateSettings: UpdateSettings;
   sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
   sessionEntrypointFilter: import("../../types/metadata.types").SessionEntrypointFilter;

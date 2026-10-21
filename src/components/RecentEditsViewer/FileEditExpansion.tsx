@@ -27,6 +27,7 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+import { Num } from "@/lib/format/Num";
 
 export interface FileEditExpansionProps {
   edit: RecentFileEdit;
@@ -279,7 +280,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
 
       <div className="flex items-center justify-between border-t border-border px-2 py-1 text-caption text-muted-foreground">
         <span>{language}</span>
-        <span>{formatTimestamp(edit.timestamp)}</span>
+        <span><Num>{formatTimestamp(edit.timestamp)}</Num></span>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::commands::session::NativeRenameResult;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
@@ -85,14 +86,27 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan `ForgeCode` projects from the detected base path.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` a database that is there but
+/// cannot be read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode base path not found".to_string())?;
-    scan_projects_from_path(&base_path)
+    scan_projects_from_path_reporting(&base_path, report)
 }
 
 /// Scan `ForgeCode` projects from an explicit base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "ForgeCode base path")?;
-    if let Some(projects) = scan_projects_from_db(base_path) {
+    if let Some(projects) = scan_projects_from_db(base_path, report) {
         return Ok(projects);
     }
     log::debug!("ForgeCode: no projects found or DB unavailable at {base_path}");
@@ -104,11 +118,20 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` a database that is there but
+/// cannot be read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
     let workspace_id = parse_workspace_project_path(project_path)
         .ok_or_else(|| format!("Invalid ForgeCode project path: {project_path}"))?;
 
-    if let Some(sessions) = load_sessions_from_db(&base_path, &workspace_id) {
+    if let Some(sessions) = load_sessions_from_db(&base_path, &workspace_id, report) {
         return Ok(sessions);
     }
     log::debug!("ForgeCode: no sessions found for workspace {workspace_id}");
@@ -339,16 +362,29 @@ fn delete_conversation_from_path(base_path: &str, session_path: &str) -> Result<
 
 /// Open the `ForgeCode` `SQLite` database in read-only mode.
 fn open_db(base_path: &str) -> Option<Connection> {
+    open_db_reporting(base_path, &ScanReport::default())
+}
+
+/// [`open_db`], recording in `report` a database that is there but cannot
+/// be opened or read (its header is read here, not at the first query).
+fn open_db_reporting(base_path: &str, report: &ScanReport) -> Option<Connection> {
     let db_path = Path::new(base_path).join(".forge.db");
-    if !db_path.is_file() {
+    if !report.is_file(&db_path) {
         return None;
     }
 
-    Connection::open_with_flags(
-        db_path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .ok()
+    let conn = report.db(
+        &db_path,
+        Connection::open_with_flags(
+            &db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        ),
+    )?;
+    report.db(
+        &db_path,
+        conn.query_row("PRAGMA schema_version", [], |row| row.get::<_, i64>(0)),
+    )?;
+    Some(conn)
 }
 
 /// Open the `ForgeCode` `SQLite` database in read-write mode.
@@ -369,10 +405,11 @@ fn open_db_read_write(base_path: &str) -> Result<Connection, String> {
 }
 
 /// Build project summaries from `ForgeCode` conversation rows.
-fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
-    let conn = open_db(base_path)?;
+fn scan_projects_from_db(base_path: &str, report: &ScanReport) -> Option<Vec<ClaudeProject>> {
+    let conn = open_db_reporting(base_path, report)?;
+    let db_path = Path::new(base_path).join(".forge.db");
     let columns = resolve_conversation_columns(&conn)?;
-    let rows = load_project_rows(&conn, &columns)?;
+    let rows = load_project_rows(&conn, &columns, &db_path, report)?;
 
     let mut workspaces: BTreeMap<String, ProjectAccumulator> = BTreeMap::new();
 
@@ -420,10 +457,15 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
 }
 
 /// Load `ForgeCode` session summaries for a workspace.
-fn load_sessions_from_db(base_path: &str, workspace_id: &str) -> Option<Vec<ClaudeSession>> {
-    let conn = open_db(base_path)?;
+fn load_sessions_from_db(
+    base_path: &str,
+    workspace_id: &str,
+    report: &ScanReport,
+) -> Option<Vec<ClaudeSession>> {
+    let conn = open_db_reporting(base_path, report)?;
+    let db_path = Path::new(base_path).join(".forge.db");
     let columns = resolve_conversation_columns(&conn)?;
-    let rows = load_workspace_rows(&conn, &columns, workspace_id)?;
+    let rows = load_workspace_rows(&conn, &columns, workspace_id, &db_path, report)?;
     let project_name = resolve_workspace_display_name_from_rows(workspace_id, &rows);
 
     let mut sessions: Vec<ClaudeSession> = rows
@@ -509,10 +551,13 @@ fn resolve_conversation_columns(conn: &Connection) -> Option<ConversationColumns
     })
 }
 
-/// Load per-workspace aggregation rows from the conversations table.
+/// Load per-workspace aggregation rows from the conversations table; a
+/// query or row the database cannot read is recorded in `report`.
 fn load_project_rows(
     conn: &Connection,
     columns: &ConversationColumns,
+    db_path: &Path,
+    report: &ScanReport,
 ) -> Option<Vec<ConversationRow>> {
     let query = format!(
         "SELECT {workspace_id}, {context}, {created_at}, {updated_at}
@@ -526,29 +571,31 @@ fn load_project_rows(
         context_raw = quote_ident(&columns.context),
     );
 
-    let mut stmt = conn.prepare(&query).ok()?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(ConversationRow {
-                conversation_id: String::new(),
-                workspace_id: row.get(0)?,
-                title: None,
-                context_json: row.get(1)?,
-                metrics_json: None,
-                created_at: row.get(2)?,
-                updated_at: row.get(3)?,
-            })
+    let mut stmt = report.db(db_path, conn.prepare(&query))?;
+    let rows = stmt.query_map([], |row| {
+        Ok(ConversationRow {
+            conversation_id: String::new(),
+            workspace_id: row.get(0)?,
+            title: None,
+            context_json: row.get(1)?,
+            metrics_json: None,
+            created_at: row.get(2)?,
+            updated_at: row.get(3)?,
         })
-        .ok()?;
+    });
+    let rows = report.db(db_path, rows)?;
 
-    Some(rows.filter_map(std::result::Result::ok).collect())
+    Some(rows.filter_map(|row| report.db(db_path, row)).collect())
 }
 
-/// Load conversation rows for a single `ForgeCode` workspace.
+/// Load conversation rows for a single `ForgeCode` workspace; a query or row
+/// the database cannot read is recorded in `report`.
 fn load_workspace_rows(
     conn: &Connection,
     columns: &ConversationColumns,
     workspace_id: &str,
+    db_path: &Path,
+    report: &ScanReport,
 ) -> Option<Vec<ConversationRow>> {
     let query = format!(
         "SELECT {conversation_id}, {workspace_id}, {title}, {context}, {metrics}, {created_at}, {updated_at}
@@ -568,22 +615,21 @@ fn load_workspace_rows(
         created_at_raw = optional_order_expr(columns.created_at.as_deref()),
     );
 
-    let mut stmt = conn.prepare(&query).ok()?;
-    let rows = stmt
-        .query_map([workspace_id], |row| {
-            Ok(ConversationRow {
-                conversation_id: row.get(0)?,
-                workspace_id: row.get(1)?,
-                title: empty_to_none(row.get::<_, String>(2)?),
-                context_json: row.get(3)?,
-                metrics_json: empty_to_none(row.get::<_, String>(4)?),
-                created_at: row.get(5)?,
-                updated_at: row.get(6)?,
-            })
+    let mut stmt = report.db(db_path, conn.prepare(&query))?;
+    let rows = stmt.query_map([workspace_id], |row| {
+        Ok(ConversationRow {
+            conversation_id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            title: empty_to_none(row.get::<_, String>(2)?),
+            context_json: row.get(3)?,
+            metrics_json: empty_to_none(row.get::<_, String>(4)?),
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
         })
-        .ok()?;
+    });
+    let rows = report.db(db_path, rows)?;
 
-    Some(rows.filter_map(std::result::Result::ok).collect())
+    Some(rows.filter_map(|row| report.db(db_path, row)).collect())
 }
 
 /// Load a single `ForgeCode` conversation row by workspace and conversation id.
@@ -2055,7 +2101,8 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects =
+            scan_projects_from_db(&tmp.path().to_string_lossy(), &ScanReport::default()).unwrap();
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0].name, "banana-prompting-service");
         assert_eq!(projects[0].path, "forgecode://workspace/workspace-alpha");
@@ -2086,8 +2133,12 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let sessions =
-            load_sessions_from_db(&tmp.path().to_string_lossy(), "workspace-alpha").unwrap();
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            "workspace-alpha",
+            &ScanReport::default(),
+        )
+        .unwrap();
         assert_eq!(sessions.len(), 2);
         assert_eq!(
             sessions[0].session_id,

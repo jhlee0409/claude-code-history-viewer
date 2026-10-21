@@ -15,7 +15,6 @@ import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatTimeAgo as formatTimeAgoUtil } from "../../utils/time";
 import { isProjectTemporary } from "../../utils/pathUtils";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
@@ -40,6 +39,7 @@ import {
   normalizeProviderIds,
   PROVIDER_IDS,
 } from "../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
 
 type ProviderTabId = "all" | ProviderId;
 
@@ -100,6 +100,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onOpenHelp,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const keyboardHelpId = `${asideId}-keyboard-help`;
   const projectsHeadingId = `${asideId}-projects-heading`;
   const isGlobalStatsActive = libraryItem === "globalStats";
@@ -405,9 +406,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     () => sortProjects(filteredUngroupedProjects, projectSort),
     [filteredUngroupedProjects, projectSort]
   );
-
-  // Re-created per render so the label follows the active language.
-  const formatTimeAgo = (dateStr: string) => formatTimeAgoUtil(dateStr);
 
   // Open a project (the context menu's provider switch; the rows decide
   // between opening and expanding themselves, see GroupedProjectList). The
@@ -888,7 +886,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   onSessionSelect={handleSessionSelect}
                   onSessionHover={onSessionHover}
                   onLoadMoreSessions={onLoadMoreSessions}
-                  formatTimeAgo={formatTimeAgo}
+                  formatTimeAgo={fmt.relative}
                   inlineSessions={inlineSessions}
                   isSelectionRetained={isSelectionRetained}
                 />

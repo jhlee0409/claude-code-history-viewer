@@ -265,13 +265,6 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 /**
- * Format line count
- */
-export function formatLineCount(count: number): string {
-  return count === 1 ? "1 line" : `${count.toLocaleString()} lines`;
-}
-
-/**
  * Safely stringify unknown values for display
  */
 export function safeStringify(value: unknown, pretty = true): string {

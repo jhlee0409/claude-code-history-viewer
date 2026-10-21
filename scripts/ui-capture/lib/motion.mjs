@@ -23,13 +23,27 @@ const INSTALL = `(() => {
   window.__uiMotion = state;
 })()`;
 
+// Only time-based animations move on their own: a scroll-driven one (its
+// timeline is a ScrollTimeline, e.g. OverlayScrollbars' handle) follows the
+// scroll position and runs forever, so it is not motion.
 const READ = `(() => {
   const s = window.__uiMotion;
+  const timeBased = (a) => !a.timeline || a.timeline instanceof DocumentTimeline;
   return {
-    animations: document.getAnimations().filter((a) => a.playState === "running" || a.playState === "pending").length,
+    animations: document.getAnimations().filter((a) => timeBased(a) && (a.playState === "running" || a.playState === "pending")).length,
     transitionEvents: s.transitions,
     animationEvents: s.animations,
     scrollFrames: s.scrollFrames.size,
+    // Longest run of consecutive frames with a scroll event: a smooth scroll
+    // glides over many frames in a row; instant jumps (a virtual list
+    // correcting its offset) land on separate frames.
+    scrollRun: (() => {
+      const frames = [...s.scrollFrames].sort((a, b) => a - b);
+      let best = 0;
+      let run = 0;
+      frames.forEach((f, i) => { run = i > 0 && f === frames[i - 1] + 1 ? run + 1 : 1; best = Math.max(best, run); });
+      return best;
+    })(),
   };
 })()`;
 
@@ -62,6 +76,7 @@ export async function measureMotion(page, interact, { realClock = true } = {}) {
     transitionEvents: end.transitionEvents,
     animationEvents: end.animationEvents,
     scrollFrames: end.scrollFrames,
+    scrollRun: end.scrollRun,
   };
   result.observed = animationsAt.some((n) => n > 0) || result.transitionEvents > 0 || result.animationEvents > 0 || result.scrollFrames > 1;
   return result;

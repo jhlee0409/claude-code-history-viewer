@@ -5,6 +5,7 @@
  */
 
 import pricingTable from "@/data/model-pricing.json";
+import { changePercent } from "@/lib/format/number";
 import type { GrowthTrend } from "../types";
 
 /**
@@ -25,17 +26,7 @@ export const calculateGrowthTrend = (
     if (current < previous) return { kind: "down-small-base" };
     return { kind: "flat" };
   }
-  // `+ 0` normalizes a rounded `-0` to `0`.
-  return { kind: "pct", value: Math.round(((current - previous) / previous) * 100) + 0 };
-};
-
-/**
- * Format large numbers with precision (K, M suffixes)
- */
-export const formatNumber = (num: number): string => {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
+  return { kind: "pct", value: changePercent(previous, current) };
 };
 
 /**
@@ -276,15 +267,6 @@ export const calculateModelPrice = (
 
   return inputCost + outputCost + cacheWriteCost + cacheReadCost;
 };
-
-/**
- * Format a number as a currency string (USD)
- */
-export const formatCurrency = (value: number): string =>
-  `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-  })}`;
 
 type HeatLevel = "empty" | "low" | "medium" | "high";
 

@@ -17,6 +17,7 @@ import type { ActiveBrush } from "../../types/board.types";
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { openBoardMessage } from "./openBoardMessage";
+import { scrollBehavior } from "@/utils/motion";
 
 export const SessionBoard = () => {
     // Only the open project's board (`navigation/screenOwner.ts`): another
@@ -330,7 +331,7 @@ export const SessionBoard = () => {
             if (index !== -1) {
                 // Small timeout to ensure virtualizer is ready and layout is stable
                 requestAnimationFrame(() => {
-                    columnVirtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' });
+                    columnVirtualizer.scrollToIndex(index, { align: 'center', behavior: scrollBehavior() });
                 });
             }
         }

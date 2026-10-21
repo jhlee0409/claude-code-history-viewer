@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Check, Ellipsis, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { Num } from "@/lib/format/Num";
 import { NativeRenameDialog } from "@/components/NativeRenameDialog";
 import { useAppStore } from "@/store/useAppStore";
 import { useSessionEditing } from "./hooks/useSessionEditing";
@@ -261,7 +262,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         )}
         {favoriteMark}
         <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-          {formatTimeAgo(session.last_modified)}
+          <Num>{formatTimeAgo(session.last_modified)}</Num>
         </span>
         {!isSelectionMode && !editing.isEditing && (
           // The tap route to the row menu (a pointer right-clicks, the

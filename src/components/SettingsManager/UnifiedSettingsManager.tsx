@@ -37,6 +37,7 @@ import {
   OPEN_SETTINGS_SECTION_EVENT,
   consumeRequestedSettingsSection,
 } from "./settingsNavigation";
+import { scrollBehavior } from "@/utils/motion";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -213,7 +214,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         setTimeout(() => {
           document
             .getElementById("session-resume-settings")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
         }, 100);
       }
     };

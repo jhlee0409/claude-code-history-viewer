@@ -18,6 +18,7 @@
 //! sessions are grouped per real project directory.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{
     build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
@@ -69,6 +70,12 @@ pub fn get_base_paths() -> Vec<PathBuf> {
 }
 
 fn get_user_data_roots() -> Vec<UserDataRoot> {
+    user_data_roots(&ScanReport::default())
+}
+
+/// [`get_user_data_roots`], recording in `report` a candidate that may not
+/// be looked at.
+fn user_data_roots(report: &ScanReport) -> Vec<UserDataRoot> {
     let Some(home) = crate::utils::home_dir() else {
         return Vec::new();
     };
@@ -117,7 +124,7 @@ fn get_user_data_roots() -> Vec<UserDataRoot> {
 
     candidates
         .into_iter()
-        .filter(|candidate| candidate.path.is_dir())
+        .filter(|candidate| report.is_dir(&candidate.path))
         .collect()
 }
 
@@ -271,16 +278,17 @@ fn dedup_prefer_jsonl(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
 /// Collect the chat-session files of one `chatSessions` dir (both formats,
 /// deduped), skipping symlinks and non-files. A symlinked `chatSessions`
 /// directory itself is refused — following it would let a crafted workspace
-/// read files outside workspaceStorage as sessions.
-fn chat_session_files(chat_dir: &Path) -> Result<Vec<PathBuf>, String> {
+/// read files outside workspaceStorage as sessions. An entry that cannot be
+/// read is recorded in `report`.
+fn chat_session_files(chat_dir: &Path, report: &ScanReport) -> Result<Vec<PathBuf>, String> {
     if is_symlink(chat_dir) {
         return Ok(Vec::new());
     }
     let mut paths: Vec<PathBuf> = fs::read_dir(chat_dir)
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|entry| report.read(chat_dir, entry))
         .map(|entry| entry.path())
-        .filter(|p| !is_symlink(p) && p.is_file() && is_chat_session_file(p))
+        .filter(|p| !is_symlink(p) && report.is_file(p) && is_chat_session_file(p))
         .collect();
     paths.sort();
     Ok(dedup_prefer_jsonl(paths))
@@ -289,20 +297,36 @@ fn chat_session_files(chat_dir: &Path) -> Result<Vec<PathBuf>, String> {
 /// Resolved final state of a chat session file, whichever format it uses.
 fn read_session_state(path: &Path) -> Result<Value, String> {
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    session_state_from(path, &raw)
+}
+
+/// [`read_session_state`] of contents already read.
+fn session_state_from(path: &Path, raw: &str) -> Result<Value, String> {
     if session_file_extension(path).as_deref() == Some("json") {
         // Legacy format: the document IS the final state (same shape as the
         // patch log's kind:0 snapshot `v`).
-        return serde_json::from_str(&raw).map_err(|e| format!("Invalid VS Code session: {e}"));
+        return serde_json::from_str(raw).map_err(|e| format!("Invalid VS Code session: {e}"));
     }
-    replay_session(&raw)
+    replay_session(raw)
 }
 
 /// One workspace folder → one project.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` the workspaces, workspace
+/// files and chat sessions it could not read. A `chatSessions` directory
+/// that cannot be listed still fails the scan, as it always has.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
-    for root in get_user_data_roots() {
+    for root in user_data_roots(report) {
         let label = (root.label != "VS Code").then_some(root.label);
-        projects.extend(scan_projects_from_user_data_path(&root.path, label)?);
+        projects.extend(scan_projects_in(
+            &root.path.join("workspaceStorage"),
+            label,
+            report,
+        )?);
     }
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
@@ -315,20 +339,22 @@ pub fn scan_projects_from_user_data_path(
     scan_projects_in(
         &user_data_path.join("workspaceStorage"),
         custom_directory_label,
+        &ScanReport::default(),
     )
 }
 
 fn scan_projects_in(
     ws_root: &Path,
     custom_directory_label: Option<&str>,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeProject>, String> {
-    if !ws_root.is_dir() {
+    if !report.is_dir(ws_root) {
         return Ok(Vec::new());
     }
 
     let ws_paths: Vec<PathBuf> = fs::read_dir(ws_root)
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|entry| report.read(ws_root, entry))
         .map(|entry| entry.path())
         .collect();
 
@@ -338,7 +364,7 @@ fn scan_projects_in(
     // dir still fails the scan (first error in input order), while workspaces
     // without usable sessions are skipped.
     let results = crate::utils::par_map_bounded(ws_paths, |ws_path| {
-        scan_workspace(&ws_path, custom_directory_label)
+        scan_workspace(&ws_path, custom_directory_label, report)
     });
 
     let mut projects = Vec::new();
@@ -357,17 +383,18 @@ fn scan_projects_in(
 fn scan_workspace(
     ws_path: &Path,
     custom_directory_label: Option<&str>,
+    report: &ScanReport,
 ) -> Result<Option<ClaudeProject>, String> {
-    if is_symlink(ws_path) || !ws_path.is_dir() {
+    if is_symlink(ws_path) || !report.is_dir(ws_path) {
         return Ok(None);
     }
 
-    let Some(folder) = read_workspace_folder(&ws_path.join("workspace.json")) else {
+    let Some(folder) = read_workspace_folder(&ws_path.join("workspace.json"), report) else {
         return Ok(None);
     };
 
     let chat_dir = ws_path.join("chatSessions");
-    if !chat_dir.is_dir() {
+    if !report.is_dir(&chat_dir) {
         return Ok(None);
     }
 
@@ -375,8 +402,8 @@ fn scan_workspace(
     let mut last_modified_ms: u64 = 0;
     let mut message_count = 0usize;
 
-    for session_path in chat_session_files(&chat_dir)? {
-        let info = match probe_session_metadata(&session_path) {
+    for session_path in chat_session_files(&chat_dir, report)? {
+        let info = match probe_session_metadata(&session_path, report) {
             Some(i) => i,
             None => continue,
         };
@@ -420,22 +447,32 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the workspace files and chat
+/// sessions it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let roots = get_workspace_storage_roots().unwrap_or_default();
-    load_sessions_in(project_path, &roots)
+    load_sessions_in(project_path, &roots, report)
 }
 
 fn load_sessions_in(
     project_path: &str,
     workspace_storage_roots: &[PathBuf],
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let ws_path_buf = validate_workspace_path_in(project_path, workspace_storage_roots)?;
 
     let chat_dir = ws_path_buf.join("chatSessions");
-    if !chat_dir.is_dir() {
+    if !report.is_dir(&chat_dir) {
         return Ok(Vec::new());
     }
 
-    let folder = read_workspace_folder(&ws_path_buf.join("workspace.json"));
+    let folder = read_workspace_folder(&ws_path_buf.join("workspace.json"), report);
     let project_name = folder
         .as_deref()
         .and_then(|f| {
@@ -446,8 +483,8 @@ fn load_sessions_in(
         .unwrap_or_else(|| "VS Code".to_string());
 
     let mut sessions = Vec::new();
-    for session_path in chat_session_files(&chat_dir)? {
-        let info = match probe_session_metadata(&session_path) {
+    for session_path in chat_session_files(&chat_dir, report)? {
+        let info = match probe_session_metadata(&session_path, report) {
             Some(i) => i,
             None => continue,
         };
@@ -542,7 +579,7 @@ fn search_workspace_storage(
             continue;
         }
 
-        for session_path in chat_session_files(&chat_dir)? {
+        for session_path in chat_session_files(&chat_dir, &ScanReport::default())? {
             if let Ok(messages) = load_messages(&session_path.to_string_lossy()) {
                 for msg in messages {
                     if results.len() >= limit {
@@ -942,8 +979,10 @@ fn build_assistant_message(
 // Helpers shared with cursor.rs (kept private to avoid a cross-cutting refactor)
 // ============================================================================
 
-fn read_workspace_folder(workspace_json_path: &Path) -> Option<String> {
-    let data = fs::read_to_string(workspace_json_path).ok()?;
+/// The folder a workspace is for; a `workspace.json` that is there but
+/// cannot be read is recorded in `report`.
+fn read_workspace_folder(workspace_json_path: &Path, report: &ScanReport) -> Option<String> {
+    let data = report.read_to_string(workspace_json_path)?;
     let json: Value = serde_json::from_str(&data).ok()?;
     // Single-folder windows store `folder`; multi-root windows store
     // `workspace` (the `.code-workspace` file URI) instead — without the
@@ -990,9 +1029,12 @@ struct SessionMetadata {
     summary: Option<String>,
 }
 
-/// Cheap metadata probe — replays the patch log and walks the final state once.
-fn probe_session_metadata(session_path: &Path) -> Option<SessionMetadata> {
-    let state = read_session_state(session_path).ok()?;
+/// Cheap metadata probe — replays the patch log and walks the final state
+/// once. A session file that cannot be read is recorded in `report`; one
+/// that does not replay is not a session.
+fn probe_session_metadata(session_path: &Path, report: &ScanReport) -> Option<SessionMetadata> {
+    let raw = report.read_to_string(session_path)?;
+    let state = session_state_from(session_path, &raw).ok()?;
 
     let session_id = state
         .get("sessionId")
@@ -1252,7 +1294,7 @@ mod tests {
         )
         .unwrap();
 
-        let metadata = probe_session_metadata(&session_path).unwrap();
+        let metadata = probe_session_metadata(&session_path, &ScanReport::default()).unwrap();
         assert_eq!(metadata.message_count, 1);
     }
 
@@ -1262,7 +1304,7 @@ mod tests {
         let ws_json = tmp.path().join("workspace.json");
         fs::write(&ws_json, r#"{"folder":"file:///Users/me/my%20project"}"#).unwrap();
         assert_eq!(
-            read_workspace_folder(&ws_json).as_deref(),
+            read_workspace_folder(&ws_json, &ScanReport::default()).as_deref(),
             Some("/Users/me/my project")
         );
     }
@@ -1313,7 +1355,12 @@ mod tests {
         .unwrap();
 
         let roots = vec![tmp.path().to_path_buf()];
-        let sessions = load_sessions_in(&tmp.path().to_string_lossy(), &roots).unwrap();
+        let sessions = load_sessions_in(
+            &tmp.path().to_string_lossy(),
+            &roots,
+            &ScanReport::default(),
+        )
+        .unwrap();
         let ids: Vec<&str> = sessions
             .iter()
             .map(|s| s.actual_session_id.as_str())
@@ -1385,7 +1432,7 @@ mod tests {
         )
         .unwrap();
 
-        let projects = scan_projects_in(ws_root.path(), None).unwrap();
+        let projects = scan_projects_in(ws_root.path(), None, &ScanReport::default()).unwrap();
         let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
         assert!(
             !names.contains(&"empty-repo"),
@@ -1461,13 +1508,14 @@ mod tests {
         )
         .unwrap();
 
-        let projects = scan_projects_in(ws_root.path(), None).unwrap();
+        let projects = scan_projects_in(ws_root.path(), None, &ScanReport::default()).unwrap();
         assert_eq!(projects.len(), 1, "legacy .json workspace must surface");
         assert_eq!(projects[0].name, "legacy-repo");
         assert_eq!(projects[0].session_count, 1);
 
         let roots = vec![ws_root.path().to_path_buf()];
-        let sessions = load_sessions_in(&ws.to_string_lossy(), &roots).unwrap();
+        let sessions =
+            load_sessions_in(&ws.to_string_lossy(), &roots, &ScanReport::default()).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(
             sessions[0].actual_session_id,
@@ -1521,7 +1569,8 @@ mod tests {
         .unwrap();
 
         let roots = vec![ws_root.path().to_path_buf()];
-        let sessions = load_sessions_in(&ws.to_string_lossy(), &roots).unwrap();
+        let sessions =
+            load_sessions_in(&ws.to_string_lossy(), &roots, &ScanReport::default()).unwrap();
         assert_eq!(sessions.len(), 1, "dual-format session must list once");
         assert_eq!(
             sessions[0].message_count, 2,
@@ -1553,7 +1602,7 @@ mod tests {
         )
         .unwrap();
 
-        let projects = scan_projects_in(ws_root.path(), None).unwrap();
+        let projects = scan_projects_in(ws_root.path(), None, &ScanReport::default()).unwrap();
         assert_eq!(projects.len(), 1, "multi-root workspace must surface");
         assert_eq!(
             projects[0].actual_path,

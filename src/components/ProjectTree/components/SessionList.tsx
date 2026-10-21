@@ -231,7 +231,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   density = "default",
 }) => {
   const compact = density === "compact";
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const lastAutoLoadLengthRef = useRef(0);
   const {
@@ -243,7 +243,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   } = useAppStore();
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
   const fontScale = useAppStore((s) => s.fontScale);
-  const itemHeight = compact ? COMPACT_SESSION_ROW_HEIGHT : sessionItemHeight(fontScale);
+  const itemHeight = compact ? COMPACT_SESSION_ROW_HEIGHT : sessionItemHeight(fontScale, i18n?.language);
   const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);

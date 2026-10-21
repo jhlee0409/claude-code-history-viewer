@@ -19,11 +19,12 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, ContentItem } from "@/types";
 import { getProviderLabel } from "@/utils/providers";
 import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
-import { getLocale } from "@/utils/time";
 import { MESSAGE_PREVIEW_LIMIT, MORE_MESSAGES_VALUE, RETRY_MESSAGES_VALUE } from "@/commands/paletteSources";
 import { messageItemValue } from "./paletteMessageValues";
 import { FailedLoad, PALETTE_GROUP_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
 import type { MessageSearchView } from "./usePaletteMessageSearch";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 // Conversation titles per project, shared across palette opens. Keyed by
 // path + last_modified so a rescan that touched the project refetches.
@@ -113,7 +114,8 @@ export function PaletteMessageGroup({
   notSearched,
   scopeProvider,
 }: PaletteMessageGroupProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const fmt = useFormat();
   const { projects, getSessionDisplayName } = useAppStore();
   const providerName = useCallback(
     (provider: string) => getProviderLabel((key, fallback) => t(key, fallback), provider),
@@ -267,12 +269,7 @@ export function PaletteMessageGroup({
   const formatTimestamp = (timestamp: string): string => {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString(getLocale(i18n.language || "en"), {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return fmt.dateTime(date);
   };
 
   if (view.status === "idle") return null;
@@ -343,7 +340,7 @@ export function PaletteMessageGroup({
                       {result.type === "assistant" && <Bot className="w-3.5 h-3.5" />}
                       {result.type}
                     </span>
-                    <span className="text-list text-muted-foreground">{formatTimestamp(result.timestamp)}</span>
+                    <span className="text-list text-muted-foreground"><Num>{formatTimestamp(result.timestamp)}</Num></span>
                   </div>
                   {name && (
                     <p className="flex items-center gap-1 text-list text-muted-foreground/70 mb-0.5">

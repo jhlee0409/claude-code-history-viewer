@@ -124,7 +124,7 @@ export const CommandRenderer = ({
                   <span className={cn("text-caption font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.arguments")}
                   </span>
-                  <code className={cn("px-1.5 py-0.5 text-caption", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
+                  <code className={cn("px-1.5 py-0.5 text-caption", layout.rounded, "font-mono whitespace-pre-wrap wrap-anywhere", colors.argBg)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.args}

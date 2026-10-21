@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database, Sparkles, Bot } from "lucide-react";
 import { LoadingState } from "@/components/ui/loading";
 import type { ProjectStatsSummary, ProviderId } from "../../../types";
-import { formatDuration, formatDurationCompact } from "../../../utils/time";
 import {
   MetricCard,
   SectionCard,
@@ -21,11 +20,11 @@ import {
 } from "../components";
 import {
   calculateGlobalCostSummary,
-  formatNumber,
   generateTrendData,
   extractProjectGrowth,
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
@@ -48,6 +47,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   // Generate full range daily data using utility function
   const dailyData = useMemo(
@@ -102,14 +102,14 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
         <MetricCard
           icon={MessageCircle}
           label={t("analytics.totalMessages")}
-          value={formatNumber(projectSummary.total_messages)}
+          value={fmt.count(projectSummary.total_messages)}
           trend={messageGrowth}
           colorVariant="purple"
         />
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
-          value={formatNumber(projectSummary.total_tokens)}
+          value={fmt.tokens(projectSummary.total_tokens)}
           trend={tokenGrowth}
           subValue={t("analytics.sessionCount", "{{count}} sessions", {
             count: projectSummary.total_sessions,
@@ -119,9 +119,10 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
         <MetricCard
           icon={Clock}
           label={t("analytics.totalSessionTime")}
-          value={formatDurationCompact(projectSummary.total_session_duration)}
-          subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${formatDuration(
-            projectSummary.avg_session_duration
+          value={fmt.minutes(projectSummary.total_session_duration)}
+          subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${fmt.minutes(
+            projectSummary.avg_session_duration,
+            { style: "long" },
           )}`}
           colorVariant="green"
         />

@@ -144,6 +144,7 @@
   "settingsManager.exportImport.exportDescription": "将当前设置保存为 JSON 文件",
   "settingsManager.exportImport.exportFailed": "导出失败",
   "settingsManager.exportImport.exportScope": "导出范围",
+  "settingsManager.exportImport.exportedAt": "导出时间：{{date}}",
   "settingsManager.exportImport.import": "导入设置",
   "settingsManager.exportImport.importAll": "导入全部设置",
   "settingsManager.exportImport.importAllButton": "全部导入",

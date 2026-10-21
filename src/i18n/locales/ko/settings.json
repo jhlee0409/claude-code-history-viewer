@@ -144,6 +144,7 @@
   "settingsManager.exportImport.exportDescription": "현재 설정을 JSON 파일로 저장",
   "settingsManager.exportImport.exportFailed": "내보내기 실패",
   "settingsManager.exportImport.exportScope": "내보내기 범위",
+  "settingsManager.exportImport.exportedAt": "내보낸 시각: {{date}}",
   "settingsManager.exportImport.import": "설정 가져오기",
   "settingsManager.exportImport.importAll": "전체 설정 가져오기",
   "settingsManager.exportImport.importAllButton": "전체 가져오기",

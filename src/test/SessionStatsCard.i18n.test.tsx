@@ -43,4 +43,31 @@ describe("SessionStatsCard in Korean", () => {
     expect(screen.getByText("추론")).toBeInTheDocument();
     expect(text).not.toMatch(/Reasoning/i);
   });
+
+  it("renders each compact numeral joined to its 만 suffix (U+2060, no break between them)", () => {
+    const { container } = render(<SessionStatsCard stats={stats} />);
+    const text = container.textContent ?? "";
+    for (const value of ["1.8", "50.1", "220", "3980"]) {
+      expect(text).toContain(`${value}\u2060만`);
+    }
+    expect(text).not.toMatch(/\d만/);
+  });
+});
+
+describe("SessionStatsCard in Japanese", () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage("ja");
+  });
+  afterAll(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("renders each compact numeral joined to its 万 suffix (U+2060, no break between them)", () => {
+    const { container } = render(<SessionStatsCard stats={stats} />);
+    const text = container.textContent ?? "";
+    for (const value of ["1.8", "50.1", "220", "3980"]) {
+      expect(text).toContain(`${value}\u2060万`);
+    }
+    expect(text).not.toMatch(/\d万/);
+  });
 });

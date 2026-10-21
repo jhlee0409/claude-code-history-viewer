@@ -45,6 +45,32 @@ fn contract_fixture_response_round_trips_through_rust_types() {
     assert_eq!(serde_json::to_value(&parsed).unwrap(), raw);
 }
 
+/// Every coverage status, in the order the contract fixture lists them;
+/// the TypeScript contract test reads the same list. The `match` makes a new
+/// variant a compile error here until it is listed.
+#[test]
+fn every_provider_scan_status_is_on_the_contract() {
+    use ProviderScanStatus as S;
+    let listed: Vec<ProviderScanStatus> =
+        serde_json::from_value(contract()["provider_scan_statuses"].clone())
+            .expect("statuses parse");
+    for status in &listed {
+        match status {
+            S::Scanned | S::Partial | S::Unreadable | S::NotSupported | S::NotFound => {}
+        }
+    }
+    assert_eq!(
+        listed,
+        [
+            S::Scanned,
+            S::Partial,
+            S::Unreadable,
+            S::NotSupported,
+            S::NotFound
+        ]
+    );
+}
+
 #[test]
 fn custom_claude_path_label_may_be_omitted() {
     let mut raw = contract()["requests"][1].clone();
@@ -105,6 +131,15 @@ fn unknown_enum_values_are_rejected() {
 #[test]
 fn command_name_is_stable() {
     assert_eq!(USAGE_BREAKDOWN_COMMAND, "get_usage_breakdown");
+}
+
+#[test]
+fn contract_limits_match_the_rust_constants() {
+    // The TypeScript contract test compares the same values with
+    // MAX_USAGE_INTERVALS / MAX_USAGE_SESSIONS.
+    let limits = &contract()["limits"];
+    assert_eq!(limits["max_intervals"], json!(MAX_INTERVALS));
+    assert_eq!(limits["max_sessions"], json!(MAX_SESSIONS));
 }
 
 // ---- request validation ---------------------------------------------------

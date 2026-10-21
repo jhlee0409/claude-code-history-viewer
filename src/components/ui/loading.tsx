@@ -141,13 +141,15 @@ const LoadingProgress = React.forwardRef<HTMLDivElement, LoadingProgressProps>(
     ref
   ) => {
     const clampedProgress = Math.min(100, Math.max(0, progress));
+    // format-guard: not-a-share — progress bar label, how far a task has got (0-100)
+    const label = `${Math.round(clampedProgress)}%`;
 
     return (
       <div ref={ref} className={cn("w-full", className)} {...props}>
         {showLabel && !indeterminate && (
           <div className="flex justify-end mb-1">
             <span className="text-list text-muted-foreground tabular-nums">
-              {Math.round(clampedProgress)}%
+              {label}
             </span>
           </div>
         )}

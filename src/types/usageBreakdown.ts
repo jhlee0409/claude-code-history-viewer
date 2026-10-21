@@ -6,7 +6,8 @@
  * `src-tauri/src/commands/stats/usage_breakdown.rs`; the shared fixture
  * `src/test/fixtures/usageBreakdown.contract.json` pins both sides.
  *
- * The command is not registered until AN0b; nothing calls it yet.
+ * Registered as a Tauri command and an Axum route (read-only allowlist) of
+ * the same name; AN1 is the first caller.
  */
 
 import type { CustomClaudePath } from "./core/project";
@@ -18,11 +19,18 @@ export const USAGE_BREAKDOWN_COMMAND = "get_usage_breakdown";
 /** Same cap as the backend's `MAX_INTERVALS`. */
 export const MAX_USAGE_INTERVALS = 1_000;
 
+/**
+ * Same cap as the backend's `MAX_SESSIONS` (ADR 0003): sessions listed per
+ * response; the rest are merged into `session_remainder`.
+ */
+export const MAX_USAGE_SESSIONS = 100;
+
 export type UsageScope =
   | { kind: "project"; project_path: string; provider: string }
   | {
       kind: "all";
       providers: string[];
+      /** The default Claude root (`~/.claude`-shaped); empty means `~/.claude` itself. */
       claude_path: string;
       /** Same shape as `get_global_stats_summary`'s `customClaudePaths`. */
       custom_claude_paths: CustomClaudePath[];
@@ -89,7 +97,27 @@ export interface SessionUsage {
   message_count: number;
 }
 
-export type ProviderScanStatus = "scanned" | "partial" | "unreadable" | "not_supported";
+/**
+ * Coverage status per provider (ADR 0002 §9, ADR 0003 §7), in the order of
+ * the contract fixture's `provider_scan_statuses`:
+ *
+ * - `scanned`: the store was read completely (it may hold no usage);
+ * - `partial`: some sessions, files or directories could not be read, or a
+ *   symlink out of the history root was refused;
+ * - `unreadable`: nothing could be read;
+ * - `not_supported`: the history format records no token usage;
+ * - `not_found`: no store of the provider on this machine, or the requested
+ *   project directory does not exist — nothing to read, never a zero.
+ */
+export const PROVIDER_SCAN_STATUSES = [
+  "scanned",
+  "partial",
+  "unreadable",
+  "not_supported",
+  "not_found",
+] as const;
+
+export type ProviderScanStatus = (typeof PROVIDER_SCAN_STATUSES)[number];
 
 export type SourceCostCoverage = "all" | "some" | "none";
 
@@ -110,9 +138,27 @@ export interface UsageCoverage {
   unknown_model_tokens: number;
 }
 
+/**
+ * The sessions of a response that `sessions` does not list (ADR 0003),
+ * merged like an interval: one bucket per (provider, model, tier, pricing
+ * source), so source and estimate stay apart. Always present; all zero with
+ * no buckets when nothing was cut. `sessions` + this row = the intervals.
+ */
+export interface SessionRemainder {
+  models: PricedModelStats[];
+  message_count: number;
+  session_count: number;
+}
+
 export interface UsageBreakdownResponse {
   intervals: IntervalUsage[];
+  /**
+   * At most `MAX_USAGE_SESSIONS`, ranked by cost (source + estimate, priced
+   * like `summarizeBucketCost`), then tokens, then the latest `last_ts`,
+   * then `ref` (ADR 0003).
+   */
   sessions: SessionUsage[];
+  session_remainder: SessionRemainder;
   coverage: UsageCoverage;
 }
 
@@ -141,13 +187,23 @@ export const USAGE_BREAKDOWN_WIRE_KEYS = {
   } satisfies Keys<Extract<UsageScope, { kind: "all" }>>,
   customClaudePath: { path: true, label: true } satisfies Keys<CustomClaudePath>,
   interval: { key: true, start_utc: true, end_utc: true } satisfies Keys<UsageInterval>,
-  response: { intervals: true, sessions: true, coverage: true } satisfies Keys<UsageBreakdownResponse>,
+  response: {
+    intervals: true,
+    sessions: true,
+    session_remainder: true,
+    coverage: true,
+  } satisfies Keys<UsageBreakdownResponse>,
   intervalUsage: {
     key: true,
     models: true,
     message_count: true,
     session_count: true,
   } satisfies Keys<IntervalUsage>,
+  sessionRemainder: {
+    models: true,
+    message_count: true,
+    session_count: true,
+  } satisfies Keys<SessionRemainder>,
   pricedModelStats: { pricing_source: true, stats: true } satisfies Keys<PricedModelStats>,
   sessionUsage: {
     ref: true,

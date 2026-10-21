@@ -1,14 +1,13 @@
 //! Reconciliation reference tests (ADR 0002 §8).
 //!
-//! Green now: the reference scan reproduces the **old** commands on the same
-//! rows (inclusive filter, dedup, per-model cost), pins the old inclusive end
-//! and the old $1 merge of a mixed source-cost group, and shows that the
+//! The reference scan reproduces the **old** commands on the same rows
+//! (inclusive filter, dedup, per-model cost), pins the old inclusive end and
+//! the old $1 merge of a mixed source-cost group, and shows that the
 //! half-open split keeps range totals.
 //!
-//! Ignored with the reason `AN0b`: the same fixtures against the new command. They are
-//! written against [`usage_breakdown`], which `AN0b` replaces with the real
-//! command; until then they would fail, so they stay ignored rather than
-//! pretending to pass.
+//! The `an0b_*` tests run the same fixtures through the real command
+//! ([`get_usage_breakdown`]) and compare it with the reference scan and the
+//! old commands (ADR §8).
 
 use super::fixture::*;
 use super::*;
@@ -18,14 +17,7 @@ use serial_test::serial;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
-/// `AN0b`: replace with `crate::commands::stats::usage_breakdown::get_usage_breakdown`.
-fn usage_breakdown(
-    _request: UsageBreakdownRequest,
-) -> impl std::future::Future<Output = Result<UsageBreakdownResponse, String>> {
-    std::future::ready(Err(format!(
-        "AN0b: {USAGE_BREAKDOWN_COMMAND} is not implemented"
-    )))
-}
+use super::get_usage_breakdown as usage_breakdown;
 
 /// Keeps provider detection away from the developer's home (#540).
 struct HomeGuard(Option<OsString>);
@@ -606,11 +598,10 @@ async fn legacy_summary_stamps_undated_rows_but_reference_only_counts_them() {
     assert_eq!(summary.total_tokens - dated, 7);
 }
 
-// ---- AN0b: the new command against the same fixtures ----------------------
+// ---- the new command against the same fixtures ----------------------------
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_interval_sum_equals_range_and_session_sums() {
     let fixture = UsageFixture::write("an0b-sums", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -623,9 +614,22 @@ async fn an0b_interval_sum_equals_range_and_session_sums() {
     ))
     .await
     .expect("AN0b");
+    // Fewer sessions than the cap (ADR 0003): every session is listed and
+    // the remainder row is present with zero values.
+    assert_eq!(days.sessions.len(), 3);
+    assert_eq!(
+        serde_json::to_value(&days).unwrap()["session_remainder"],
+        serde_json::json!({ "models": [], "message_count": 0, "session_count": 0 }),
+        "nothing cut: an all-zero remainder row, never null or absent"
+    );
     let by_days = bucket_map(days.intervals.iter().map(|i| &i.models));
     let once = bucket_map(range.intervals.iter().map(|i| &i.models));
-    let by_sessions = bucket_map(days.sessions.iter().map(|s| &s.models));
+    let by_sessions = bucket_map(
+        days.sessions
+            .iter()
+            .map(|s| &s.models)
+            .chain([&days.session_remainder.models]),
+    );
     assert_bucket_maps_eq(&by_days, &once);
     assert_bucket_maps_eq(&by_sessions, &once);
     assert_bucket_maps_eq(
@@ -636,7 +640,6 @@ async fn an0b_interval_sum_equals_range_and_session_sums() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_matches_legacy_on_same_policy_fixture() {
     let fixture = UsageFixture::write("an0b-legacy", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -659,7 +662,6 @@ async fn an0b_matches_legacy_on_same_policy_fixture() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_mixed_source_cost_by_day_splits_source_and_estimate_buckets() {
     let fixture = UsageFixture::write("an0b-mixed-day", mixed_by_day_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -683,7 +685,6 @@ async fn an0b_mixed_source_cost_by_day_splits_source_and_estimate_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_mixed_source_cost_by_turn_in_one_day_splits_buckets() {
     let fixture = UsageFixture::write("an0b-mixed-turn", mixed_by_turn_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -698,7 +699,6 @@ async fn an0b_mixed_source_cost_by_turn_in_one_day_splits_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_row_exactly_at_end_belongs_to_next_interval_only() {
     let fixture = UsageFixture::write("an0b-edges", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -719,7 +719,6 @@ async fn an0b_row_exactly_at_end_belongs_to_next_interval_only() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_sub_millisecond_row_before_end_stays_in_its_day() {
     let fixture = UsageFixture::write("an0b-sub-ms", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -737,7 +736,6 @@ async fn an0b_sub_millisecond_row_before_end_stays_in_its_day() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_zero_length_interval_is_returned_empty_and_in_order() {
     let fixture = UsageFixture::write("an0b-zero", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -758,7 +756,6 @@ async fn an0b_zero_length_interval_is_returned_empty_and_in_order() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_undated_rows_are_only_counted_in_coverage() {
     let rows = vec![
         row("s1", "dated", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -784,7 +781,6 @@ async fn an0b_undated_rows_are_only_counted_in_coverage() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_rows_without_model_count_unknown_model_tokens() {
     let rows = vec![
         row("s1", "named", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -807,7 +803,6 @@ async fn an0b_rows_without_model_count_unknown_model_tokens() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_streamed_turn_across_midnight_is_split_without_double_count() {
     let fixture = UsageFixture::write("an0b-dedup", dedup_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -836,7 +831,6 @@ async fn an0b_streamed_turn_across_midnight_is_split_without_double_count() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_dedup_identity_follows_production_key_rules() {
     // Empty message id, message-id/uuid collision, one id in two sessions,
     // rows without any id: each row is its own identity.
@@ -862,7 +856,6 @@ async fn an0b_dedup_identity_follows_production_key_rules() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_conversation_only_excludes_sidechain_like_legacy() {
     let rows = vec![
         row("s1", "main", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -895,7 +888,6 @@ async fn an0b_conversation_only_excludes_sidechain_like_legacy() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_session_with_several_models_and_tiers_keeps_separate_buckets() {
     let rows = vec![
         row("s1", "x1", "2026-10-15T12:00:00Z")
@@ -922,7 +914,6 @@ async fn an0b_session_with_several_models_and_tiers_keeps_separate_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_source_cost_only_provider_reports_source_cost_all() {
     let rows = vec![
         row("s1", "p1", "2026-10-15T12:00:00Z")
@@ -953,7 +944,6 @@ async fn an0b_source_cost_only_provider_reports_source_cost_all() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_unreadable_session_file_reports_partial_coverage() {
     let fixture = UsageFixture::write("an0b-partial", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -974,7 +964,6 @@ async fn an0b_unreadable_session_file_reports_partial_coverage() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_all_scope_uses_default_and_custom_claude_roots_like_legacy() {
     let default_root = UsageFixture::write("default-root", same_policy_rows());
     let custom_root = UsageFixture::write("custom-root", mixed_by_day_rows());
@@ -1015,7 +1004,6 @@ async fn an0b_all_scope_uses_default_and_custom_claude_roots_like_legacy() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_invalid_request_is_rejected_before_reading_files() {
     let fixture = UsageFixture::write("an0b-invalid", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -1029,4 +1017,187 @@ async fn an0b_invalid_request_is_rejected_before_reading_files() {
         usage_breakdown(request).await.expect_err("rejected"),
         expected
     );
+}
+
+// ---- session cap (ADR 0003) -------------------------------------------------
+
+/// `count` estimate sessions `listed-NNN`, one Sonnet row of 10,000+ input
+/// each (≥ $0.03), spread over the three days.
+fn priced_sessions(count: usize) -> Vec<FixtureRow> {
+    (0..count)
+        .map(|i| {
+            let ts = format!("2026-10-{}T12:00:00Z", 15 + i % 3);
+            row(&format!("listed-{i:03}"), &format!("l{i}"), &ts).tokens(10_000 + i as u64, 0, 0, 0)
+        })
+        .collect()
+}
+
+/// The three cheapest sessions, which the cap cuts: a Sonnet estimate
+/// ($0.003), a Sonnet source session ($0.001 reported) and a token-heavy
+/// Haiku session (two rows of 100,000 cache reads, $0.002 at Haiku's
+/// short-context rate) that would rank first by tokens.
+fn cheap_sessions() -> Vec<FixtureRow> {
+    vec![
+        row("cheap-sonnet-estimate", "ce1", "2026-10-15T08:00:00Z").tokens(1_000, 0, 0, 0),
+        row("cheap-sonnet-source", "cs1", "2026-10-16T08:00:00Z")
+            .tokens(1_000, 0, 0, 0)
+            .cost(0.001),
+        row("cheap-haiku-heavy", "ch1", "2026-10-17T08:00:00Z")
+            .model(HAIKU)
+            .tokens(0, 0, 0, 100_000),
+        row("cheap-haiku-heavy", "ch2", "2026-10-17T08:05:00Z")
+            .model(HAIKU)
+            .tokens(0, 0, 0, 100_000),
+    ]
+}
+
+/// The most expensive session with the fewest tokens: 5,000 Sonnet output
+/// ($0.075). Ranked by tokens it would be cut.
+fn expensive_light_session() -> FixtureRow {
+    row("expensive-light", "x1", "2026-10-16T09:00:00Z").tokens(0, 5_000, 0, 0)
+}
+
+const CHEAP_SESSIONS: usize = 3;
+
+/// `MAX_SESSIONS` + 3 sessions: the cap cuts exactly [`cheap_sessions`].
+fn over_cap_rows() -> Vec<FixtureRow> {
+    let mut rows = priced_sessions(MAX_SESSIONS - 1);
+    rows.push(expensive_light_session());
+    rows.extend(cheap_sessions());
+    rows
+}
+
+fn file_stem(session: &SessionUsage) -> &str {
+    std::path::Path::new(&session.session_ref.file_path)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .expect("session file stem")
+}
+
+#[tokio::test]
+#[serial]
+async fn cap_lists_max_sessions_and_merges_the_rest_into_one_remainder_row() {
+    let fixture = UsageFixture::write("cap-over", over_cap_rows());
+    let _home = HomeGuard::set(fixture.root());
+    let response = usage_breakdown(project_request(&fixture, utc_days_15_to_17()))
+        .await
+        .expect("breakdown");
+
+    assert_eq!(response.sessions.len(), MAX_SESSIONS);
+    assert!(
+        response
+            .sessions
+            .iter()
+            .all(|s| !file_stem(s).starts_with("cheap-")),
+        "the three cheapest sessions are the ones cut"
+    );
+    let remainder = &response.session_remainder;
+    assert_eq!(
+        (remainder.session_count, remainder.message_count),
+        (CHEAP_SESSIONS as u64, 4)
+    );
+    // Merged like an interval: one bucket per (model, tier, pricing source),
+    // so Sonnet's source and estimate parts stay apart.
+    let expected = reference_scan(&cheap_sessions(), every_dated_row).buckets;
+    assert_eq!(expected.len(), 3, "Sonnet source, Sonnet estimate, Haiku");
+    assert_bucket_maps_eq(&bucket_map([&remainder.models]), &expected);
+}
+
+#[tokio::test]
+#[serial]
+async fn cap_listed_sessions_plus_remainder_equal_interval_sums_to_the_cent() {
+    let fixture = UsageFixture::write("cap-sums", over_cap_rows());
+    let _home = HomeGuard::set(fixture.root());
+    let response = usage_breakdown(project_request(&fixture, utc_days_15_to_17()))
+        .await
+        .expect("breakdown");
+    assert!(
+        response.session_remainder.session_count > 0,
+        "a fixture over the cap"
+    );
+
+    // Tokens and message counts exactly, provider cost within 1e-9, per
+    // (model, tier, pricing source).
+    let by_intervals = bucket_map(response.intervals.iter().map(|i| &i.models));
+    let by_sessions = bucket_map(
+        response
+            .sessions
+            .iter()
+            .map(|s| &s.models)
+            .chain([&response.session_remainder.models]),
+    );
+    assert_bucket_maps_eq(&by_sessions, &by_intervals);
+    assert_bucket_maps_eq(
+        &by_intervals,
+        &reference_scan(&fixture.rows, every_dated_row).buckets,
+    );
+
+    let listed_messages: u64 = response.sessions.iter().map(|s| s.message_count).sum();
+    let interval_messages: u64 = response.intervals.iter().map(|i| i.message_count).sum();
+    assert_eq!(
+        listed_messages + response.session_remainder.message_count,
+        interval_messages
+    );
+    assert_eq!(
+        response.sessions.len() as u64 + response.session_remainder.session_count,
+        (MAX_SESSIONS + CHEAP_SESSIONS) as u64
+    );
+
+    // Source + estimate cost, priced like the frontend: the sum is kept.
+    let listed_cost: f64 = response
+        .sessions
+        .iter()
+        .map(|s| super::ranking::session_cost(&s.models))
+        .sum();
+    let remainder_cost = super::ranking::session_cost(&response.session_remainder.models);
+    let interval_cost: f64 = response
+        .intervals
+        .iter()
+        .map(|i| super::ranking::session_cost(&i.models))
+        .sum();
+    assert!(remainder_cost > 0.0);
+    assert!(
+        (listed_cost + remainder_cost - interval_cost).abs() < 1e-9,
+        "{listed_cost} + {remainder_cost} != {interval_cost}"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn cap_ranks_by_cost_so_an_expensive_light_session_survives_the_cut() {
+    let fixture = UsageFixture::write("cap-cost-first", over_cap_rows());
+    let _home = HomeGuard::set(fixture.root());
+    let response = usage_breakdown(project_request(&fixture, utc_days_15_to_17()))
+        .await
+        .expect("breakdown");
+    assert_eq!(file_stem(&response.sessions[0]), "expensive-light");
+    let haiku = (HAIKU.to_string(), None, PricingSource::Estimate);
+    assert_eq!(
+        bucket_map([&response.session_remainder.models])[&haiku].cache_read,
+        200_000,
+        "the session with the most tokens is cut for its cost"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn sessions_are_ranked_by_cost_not_tokens() {
+    // Under the cap: the order alone. By tokens it would be the reverse.
+    let mut rows = vec![
+        expensive_light_session(),
+        row("mid", "m1", "2026-10-15T10:00:00Z").tokens(10_000, 0, 0, 0),
+    ];
+    rows.extend(
+        cheap_sessions()
+            .into_iter()
+            .filter(|r| r.file == "cheap-haiku-heavy"),
+    );
+    let fixture = UsageFixture::write("rank-order", rows);
+    let _home = HomeGuard::set(fixture.root());
+    let response = usage_breakdown(project_request(&fixture, utc_days_15_to_17()))
+        .await
+        .expect("breakdown");
+    let order: Vec<&str> = response.sessions.iter().map(file_stem).collect();
+    assert_eq!(order, ["expensive-light", "mid", "cheap-haiku-heavy"]);
+    assert_eq!(response.session_remainder.session_count, 0);
 }

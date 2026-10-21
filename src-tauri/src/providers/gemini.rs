@@ -1,4 +1,5 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use serde_json::Value;
@@ -31,13 +32,22 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan for all Gemini CLI projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the project and chat
+/// directories and session files it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Gemini base path")?;
 
     let tmp_dir = PathBuf::from(base_path).join("tmp");
 
-    let is_real_dir = std::fs::symlink_metadata(&tmp_dir)
-        .map(|m| m.file_type().is_dir())
-        .unwrap_or(false);
+    let is_real_dir = report
+        .symlink_metadata(&tmp_dir)
+        .is_some_and(|m| m.file_type().is_dir());
     if !is_real_dir {
         return Ok(Vec::new());
     }
@@ -53,12 +63,12 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         }
 
         let project_dir = entry.path();
-        if !project_dir.is_dir() {
+        if !report.is_dir(&project_dir) {
             continue;
         }
 
         let chats_dir = project_dir.join("chats");
-        if is_symlink(&chats_dir) || !chats_dir.is_dir() {
+        if is_symlink(&chats_dir) || !report.is_dir(&chats_dir) {
             continue;
         }
 
@@ -76,21 +86,19 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         let mut message_count = 0usize;
         let mut last_modified = String::new();
 
-        if let Ok(entries) = fs::read_dir(&chats_dir) {
-            for chat_entry in entries.flatten() {
-                let path = chat_entry.path();
-                if !is_session_file(&chat_entry) {
+        for chat_entry in report.read_dir(&chats_dir) {
+            let path = chat_entry.path();
+            if !is_session_file(&chat_entry) {
+                continue;
+            }
+            if let Some(meta) = extract_session_metadata(&path, report) {
+                if meta.kind == "subagent" {
                     continue;
                 }
-                if let Some(meta) = extract_session_metadata(&path) {
-                    if meta.kind == "subagent" {
-                        continue;
-                    }
-                    session_count += 1;
-                    message_count += meta.message_count;
-                    if meta.last_updated > last_modified {
-                        last_modified = meta.last_updated;
-                    }
+                session_count += 1;
+                message_count += meta.message_count;
+                if meta.last_updated > last_modified {
+                    last_modified = meta.last_updated;
                 }
             }
         }
@@ -118,14 +126,28 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
 /// Scan for all Gemini CLI projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Could not determine Gemini base path")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_reporting(&base, report)
 }
 
 /// Load sessions for a Gemini project
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the chat directory and session
+/// files it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let dir = project_path
         .strip_prefix("gemini://")
@@ -135,7 +157,7 @@ pub fn load_sessions(
     let project_dir = validate_gemini_path(dir)?;
     let chats_dir = project_dir.join("chats");
 
-    if is_symlink(&chats_dir) || !chats_dir.is_dir() {
+    if is_symlink(&chats_dir) || !report.is_dir(&chats_dir) {
         return Ok(Vec::new());
     }
 
@@ -149,7 +171,7 @@ pub fn load_sessions(
 
     let mut entries: Vec<_> = fs::read_dir(&chats_dir)
         .map_err(|e| format!("Failed to read chats dir: {e}"))?
-        .filter_map(Result::ok)
+        .filter_map(|entry| report.read(&chats_dir, entry))
         .filter(is_session_file)
         .collect();
 
@@ -159,7 +181,7 @@ pub fn load_sessions(
         let path = entry.path();
 
         // W-3: lightweight metadata extraction instead of full file parse
-        let meta = match extract_session_metadata(&path) {
+        let meta = match extract_session_metadata(&path, report) {
             Some(m) => m,
             None => continue,
         };
@@ -473,9 +495,10 @@ struct SessionMetadata {
 /// Extract metadata fields from a session file.
 /// Note: this reads and parses the full JSON file. The "lightweight" aspect is
 /// that it only inspects top-level fields and message-level `toolCalls` presence,
-/// avoiding per-message content conversion.
-fn extract_session_metadata(path: &Path) -> Option<SessionMetadata> {
-    let data = fs::read_to_string(path).ok()?;
+/// avoiding per-message content conversion. A file that cannot be read is
+/// recorded in `report`; one that does not parse is not a session.
+fn extract_session_metadata(path: &Path, report: &ScanReport) -> Option<SessionMetadata> {
+    let data = report.read_to_string(path)?;
     let (record, messages) = parse_gemini_session(&data)?;
 
     let session_id = record

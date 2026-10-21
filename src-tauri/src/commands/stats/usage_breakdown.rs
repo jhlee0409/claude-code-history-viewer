@@ -1,26 +1,49 @@
-//! Usage-breakdown data contract (ADR 0002).
+//! Usage breakdown (ADR 0002): priced per-interval and per-session usage over
+//! **frontend-supplied** `[start, end)` intervals.
 //!
-//! Types for the `get_usage_breakdown` command: priced per-interval and
-//! per-session usage over **frontend-supplied** `[start, end)` intervals.
-//! `AN0a` fixes the wire shape, the request validation and the half-open
-//! membership rule; the computation, the contribution cache and the
-//! Tauri/Axum registration land in `AN0b`. Nothing here is registered as a
-//! command yet.
+//! - this file: the wire contract, request validation, the half-open
+//!   membership rule and the [`get_usage_breakdown`] command (Tauri and the
+//!   Axum route `/api/get_usage_breakdown` call the same function);
+//! - [`contribution`]: one record per accepted row, file-wide dedup and
+//!   pricing source before any interval is applied;
+//! - [`contribution_cache`]: per-file cache, `(size, mtime)`-validated, 64 MiB LRU;
+//! - [`sources`]: scope → session files per provider, and what failed;
+//! - [`aggregate`]: contributions → intervals, sessions and coverage, and
+//!   the session cap with its remainder row (ADR 0003);
+//! - [`ranking`]: the session order of the cap, priced like the frontend.
 //!
 //! The wire shape is pinned against the TypeScript types by the shared
 //! fixture `src/test/fixtures/usageBreakdown.contract.json`.
 
 use crate::commands::multi_provider::CustomClaudePathParam;
+use crate::commands::stats::StatsMode;
 use crate::models::ModelStats;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 
+mod aggregate;
+mod availability;
+mod contribution;
+mod contribution_cache;
+mod ranking;
+mod sources;
+
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
+mod golden_tests;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
+#[cfg(test)]
+mod perf_tests;
+#[cfg(test)]
+mod provider_tests;
+#[cfg(test)]
 mod reconciliation_tests;
+#[cfg(all(test, unix))]
+mod store_failure_tests;
 #[cfg(test)]
 mod tests;
 
@@ -29,6 +52,12 @@ pub const USAGE_BREAKDOWN_COMMAND: &str = "get_usage_breakdown";
 
 /// Upper bound on intervals per request (a year of days plus split days).
 pub const MAX_INTERVALS: usize = 1_000;
+
+/// Sessions listed per response (ADR 0003); every other session of the
+/// response is merged into [`UsageBreakdownResponse::session_remainder`].
+/// 100 keeps the reference fixture under the 1 MiB budget even when every
+/// session mixes three models (the asserted perf gate); AN1 lists 5.
+pub const MAX_SESSIONS: usize = 100;
 
 /// Which history the breakdown reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +72,8 @@ pub enum UsageScope {
     /// `get_global_stats_summary` (default root + user custom roots).
     All {
         providers: Vec<String>,
+        /// The default Claude root (`~/.claude`-shaped); empty means
+        /// `~/.claude` itself.
         claude_path: String,
         custom_claude_paths: Vec<CustomClaudePathParam>,
     },
@@ -203,7 +234,8 @@ pub struct IntervalUsage {
     pub session_count: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Field order is the ref tie-break of the session ranking (ADR 0003).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SessionRef {
     pub provider: String,
     pub file_path: String,
@@ -231,6 +263,10 @@ pub enum ProviderScanStatus {
     Partial,
     Unreadable,
     NotSupported,
+    /// No history store of the provider on this machine, or the requested
+    /// project directory does not exist: nothing to read, which is not the
+    /// same as a store that was read and held no usage (ADR 0003 §7).
+    NotFound,
 }
 
 /// How much of a provider's priced usage is in [`PricingSource::Source`]
@@ -262,9 +298,83 @@ pub struct UsageCoverage {
     pub unknown_model_tokens: u64,
 }
 
+/// The sessions of a response that `sessions` does not list (ADR 0003),
+/// merged: buckets by (provider, model, tier, pricing source) like an
+/// interval's, so source and estimate stay apart. All zero, with no
+/// buckets, when nothing was cut; never absent or null.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionRemainder {
+    pub models: Vec<PricedModelStats>,
+    pub message_count: u64,
+    pub session_count: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageBreakdownResponse {
     pub intervals: Vec<IntervalUsage>,
+    /// At most [`MAX_SESSIONS`], ranked by cost (source + estimate), then
+    /// tokens, then the latest last row, then the ref (ADR 0003).
     pub sessions: Vec<SessionUsage>,
+    pub session_remainder: SessionRemainder,
     pub coverage: UsageCoverage,
+}
+
+impl UsageStatsMode {
+    fn stats_mode(self) -> StatsMode {
+        match self {
+            Self::BillingTotal => StatsMode::BillingTotal,
+            Self::ConversationOnly => StatsMode::ConversationOnly,
+        }
+    }
+}
+
+/// Priced usage per requested interval and per session, with coverage
+/// (ADR 0002); `sessions` capped at [`MAX_SESSIONS`] plus the remainder row
+/// (ADR 0003). Read-only. The request is validated (intervals and scope)
+/// before any file is read; the scan runs on the blocking pool with per-file
+/// parallelism.
+#[tauri::command]
+pub async fn get_usage_breakdown(
+    request: UsageBreakdownRequest,
+) -> Result<UsageBreakdownResponse, String> {
+    breakdown(request, MAX_SESSIONS).await
+}
+
+/// [`get_usage_breakdown`] with the session cap as a parameter, so a golden
+/// scenario can show a cut on a small fixture.
+async fn breakdown(
+    request: UsageBreakdownRequest,
+    max_sessions: usize,
+) -> Result<UsageBreakdownResponse, String> {
+    request.validate().map_err(|error| error.to_string())?;
+    let plan = sources::ScopePlan::parse(&request.scope)?;
+    tauri::async_runtime::spawn_blocking(move || compute(&request, &plan, max_sessions))
+        .await
+        .map_err(|error| format!("usage breakdown: task failed: {error}"))
+}
+
+fn compute(
+    request: &UsageBreakdownRequest,
+    plan: &sources::ScopePlan,
+    max_sessions: usize,
+) -> UsageBreakdownResponse {
+    let started = std::time::Instant::now();
+    let collected = sources::collect(plan, request.stats_mode.stats_mode());
+    let response = aggregate::aggregate(
+        &request.intervals,
+        &collected.sessions,
+        &collected.scans,
+        max_sessions,
+    );
+    let cache = contribution_cache::contribution_cache().usage();
+    log::debug!(
+        "{USAGE_BREAKDOWN_COMMAND}: {} intervals, {} sessions listed + {} in the remainder, {} ms; cache {} files, {} bytes",
+        request.intervals.len(),
+        response.sessions.len(),
+        response.session_remainder.session_count,
+        started.elapsed().as_millis(),
+        cache.entries,
+        cache.bytes
+    );
+    response
 }

@@ -1,3 +1,4 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::utils::{
@@ -100,16 +101,25 @@ fn has_any_loadable_session(sessions_root: &Path) -> bool {
         };
         sessions
             .flatten()
-            .any(|session| extract_session_info(&session.path()).is_some())
+            .any(|session| extract_session_info(&session.path(), &ScanReport::default()).is_some())
     })
 }
 
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the session
+/// directories and files it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Kimi base path")?;
     let base = Path::new(base_path);
     let sessions_root = base.join(SESSIONS_DIR);
 
-    if is_symlink(&sessions_root) || !sessions_root.is_dir() {
+    if is_symlink(&sessions_root) || !report.is_dir(&sessions_root) {
         return Ok(Vec::new());
     }
 
@@ -144,7 +154,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             {
                 continue;
             }
-            if let Some(info) = extract_session_info(&session_entry.path()) {
+            if let Some(info) = extract_session_info(&session_entry.path(), report) {
                 infos.push(info);
             }
         }
@@ -193,38 +203,62 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 }
 
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`] over both stores, recording in `report` what it could
+/// not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     match get_base_path() {
         Some(base) => {
-            let mut projects = scan_projects_from_path(&base)?;
+            let mut projects = scan_projects_from_path_reporting(&base, report)?;
             // Kimi-code workspaces coexist with the old CLI's sessions;
             // re-sort the merged list so both stores interleave by
             // last_modified instead of kimi-code always trailing.
-            projects.extend(super::kimi_code::scan_projects());
+            projects.extend(super::kimi_code::scan_projects_reporting(report));
             projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
             Ok(projects)
         }
         // A kimi-code-only install still surfaces through this provider.
-        None => Ok(super::kimi_code::scan_projects()),
+        None => Ok(super::kimi_code::scan_projects_reporting(report)),
     }
 }
 
 pub fn load_sessions(
     project_path: &str,
-    exclude_sidechain: bool,
+    _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     // Kimi-code workspace paths carry the `kimi-code://` scheme and route
     // to the wire-based loader; everything else is the old CLI layout.
     if let Some(workspace) = project_path.strip_prefix(super::kimi_code::SCHEME) {
-        return super::kimi_code::load_sessions(workspace);
+        return super::kimi_code::load_sessions_reporting(workspace, report);
     }
     let base = get_base_path().ok_or("Kimi base path not found")?;
-    load_sessions_from_base_path(&base, project_path, exclude_sidechain)
+    load_sessions_from_base_path_reporting(&base, project_path, report)
 }
 
 pub fn load_sessions_from_base_path(
     base_path: &str,
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_from_base_path_reporting(base_path, project_path, &ScanReport::default())
+}
+
+/// [`load_sessions_from_base_path`], recording in `report` the session
+/// directories and files it could not read.
+fn load_sessions_from_base_path_reporting(
+    base_path: &str,
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     crate::utils::require_absolute_path(base_path, "Kimi base path")?;
     let base = Path::new(base_path);
@@ -252,7 +286,7 @@ pub fn load_sessions_from_base_path(
         }
 
         let session_dir = entry.path();
-        let Some(info) = extract_session_info(&session_dir) else {
+        let Some(info) = extract_session_info(&session_dir, report) else {
             continue;
         };
         let project_name = info
@@ -389,12 +423,14 @@ struct SessionInfo {
     summary: Option<String>,
 }
 
-fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
-    if is_symlink(session_dir) || !session_dir.is_dir() {
+/// A session directory's listing metadata. A context file that cannot be
+/// read is recorded in `report`.
+fn extract_session_info(session_dir: &Path, report: &ScanReport) -> Option<SessionInfo> {
+    if is_symlink(session_dir) || !report.is_dir(session_dir) {
         return None;
     }
     let context_path = session_dir.join(CONTEXT_FILE);
-    if is_symlink(&context_path) || !context_path.is_file() {
+    if is_symlink(&context_path) || !report.is_file(&context_path) {
         return None;
     }
 
@@ -412,7 +448,7 @@ fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
     let mut message_count = 0usize;
     let mut has_tool_use = false;
 
-    let values = read_jsonl_values(&context_path).ok()?;
+    let values = report.read(&context_path, read_jsonl_values(&context_path))?;
     for value in values {
         let role = value.get("role").and_then(Value::as_str).unwrap_or("");
         if role == "_system_prompt" && cwd.is_none() {

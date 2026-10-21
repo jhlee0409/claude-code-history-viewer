@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import { Activity, Hash, Coins, ArrowDownToLine, ArrowUpFromLine, Brain, Database } from "lucide-react";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface OpenCodeStepProps {
   reason: string;
@@ -20,6 +22,7 @@ interface OpenCodeStepProps {
 export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
   ({ reason, snapshot, cost, tokens }) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const styles = getVariantStyles("system");
     const hasTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache_read + tokens.cache_write > 0;
 
@@ -41,7 +44,7 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
           {hasTokens && (
             <span className={cn(layout.smallText, "font-mono text-muted-foreground")}>
               <Coins size={14} className="inline mr-0.5" />
-              ${cost.toFixed(4)}
+              <Num>{fmt.cost(cost)}</Num>
             </span>
           )}
         </div>
@@ -73,11 +76,15 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
 OpenCodeStepRenderer.displayName = "OpenCodeStepRenderer";
 
 function TokenBadge({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; value: number }) {
+  const fmt = useFormat();
   if (value === 0) return null;
   return (
     <span className="text-caption text-muted-foreground font-mono flex items-center gap-0.5">
       <Icon size={14} />
-      {label}: {value.toLocaleString()}
+      {/* One flex item, as the bare text run was: the space after the colon stays. */}
+      <span>
+        {label}: <Num>{fmt.count(value)}</Num>
+      </span>
     </span>
   );
 }

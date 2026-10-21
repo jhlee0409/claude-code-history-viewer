@@ -2,6 +2,7 @@ use crate::models::{
     AntigravityProjectSummary, AntigravitySessionInfo, AntigravityState, PersistedSessionState,
     SessionLifecycle, SessionLifecycleStatus, SessionTotals,
 };
+use crate::providers::scan_report::ScanReport;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -396,10 +397,13 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
 
 /// Scans the `brain/` directory for session candidates, returning them sorted
 /// by last modification time (newest first).
-fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
+fn scan_brain_candidates(
+    root: &Path,
+    report: &ScanReport,
+) -> Result<Vec<SessionCandidate>, String> {
     let brain_dir = root.join("brain");
     let conversations_dir = root.join("conversations");
-    if !brain_dir.exists() {
+    if report.metadata(&brain_dir).is_none() {
         return Ok(vec![]);
     }
 
@@ -407,8 +411,8 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
         .map_err(|e| format!("Failed to read {}: {}", brain_dir.display(), e))?;
     let mut sessions = Vec::new();
 
-    for entry in entries.flatten() {
-        let Ok(file_type) = entry.file_type() else {
+    for entry in entries.filter_map(|entry| report.read(&brain_dir, entry)) {
+        let Some(file_type) = report.read(&entry.path(), entry.file_type()) else {
             continue;
         };
         if file_type.is_symlink() || !file_type.is_dir() {
@@ -622,24 +626,31 @@ fn build_session_state(
 
 /// Builds the full `AntigravityState` by scanning the antigravity root directory:
 /// first from `brain/` candidates, then from the RPC cache directory.
-fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityState, String> {
+/// Sessions from the `brain/` directory and the rpc cache. A path that is
+/// there but cannot be looked at is recorded in `report` (it passes for an
+/// absent one otherwise).
+fn build_state_from_token_monitor_sources(
+    root: &Path,
+    report: &ScanReport,
+) -> Result<AntigravityState, String> {
     let rpc_root = get_antigravity_rpc_cache_root(root);
     let mut sessions = HashMap::new();
     let mut seen_ids = HashSet::new();
+    let exists = |path: &Path| report.metadata(path).is_some();
 
-    for candidate in scan_brain_candidates(root)? {
+    for candidate in scan_brain_candidates(root, report)? {
         let rpc_dir = rpc_root.join(&candidate.session_id);
         let manifest = read_rpc_manifest(&rpc_dir);
         let usage_path = rpc_dir.join("usage.jsonl");
         let steps_path = rpc_dir.join("steps.jsonl");
-        let has_rpc_artifact = usage_path.exists() || steps_path.exists();
+        let has_rpc_artifact = exists(&usage_path) || exists(&steps_path);
 
         let (token_file_paths, source, effective_last_modified) = if has_rpc_artifact {
             let mut token_paths = Vec::new();
-            if usage_path.exists() {
+            if exists(&usage_path) {
                 token_paths.push(usage_path.clone());
             }
-            if steps_path.exists() {
+            if exists(&steps_path) {
                 token_paths.push(steps_path.clone());
             }
             let last_modified = [
@@ -691,12 +702,12 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
         sessions.insert(candidate.session_id, persisted);
     }
 
-    if rpc_root.exists() {
+    if exists(&rpc_root) {
         let entries = std::fs::read_dir(&rpc_root)
             .map_err(|e| format!("Failed to read {}: {}", rpc_root.display(), e))?;
-        for entry in entries.flatten() {
+        for entry in entries.filter_map(|entry| report.read(&rpc_root, entry)) {
             let session_dir = entry.path();
-            let Ok(file_type) = entry.file_type() else {
+            let Some(file_type) = report.read(&session_dir, entry.file_type()) else {
                 continue;
             };
             if file_type.is_symlink() || !file_type.is_dir() {
@@ -716,10 +727,10 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
             let usage_path = session_dir.join("usage.jsonl");
             let steps_path = session_dir.join("steps.jsonl");
             let mut token_paths = Vec::new();
-            if usage_path.exists() {
+            if exists(&usage_path) {
                 token_paths.push(usage_path.clone());
             }
-            if steps_path.exists() {
+            if exists(&steps_path) {
                 token_paths.push(steps_path.clone());
             }
             if token_paths.is_empty() {
@@ -759,8 +770,11 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
 
 /// Alias for `build_state_from_token_monitor_sources` — discovers sessions
 /// from both the `brain/` directory and the RPC cache.
-fn build_state_from_rpc_cache(root: &Path) -> Result<AntigravityState, String> {
-    build_state_from_token_monitor_sources(root)
+fn build_state_from_rpc_cache(
+    root: &Path,
+    report: &ScanReport,
+) -> Result<AntigravityState, String> {
+    build_state_from_token_monitor_sources(root, report)
 }
 
 /// 从单个 JSON 文件读取 `AntigravityState`
@@ -773,26 +787,37 @@ pub fn load_state_file(path: &Path) -> Result<AntigravityState, String> {
 
 /// 读取活跃状态 `monitor-state.json`
 pub fn load_active_state(root: &Path) -> Option<AntigravityState> {
+    load_active_state_reporting(root, &ScanReport::default())
+}
+
+/// [`load_active_state`], recording in `report` a state file that is there
+/// but cannot be read (one that does not parse is not a state).
+fn load_active_state_reporting(root: &Path, report: &ScanReport) -> Option<AntigravityState> {
     let active_path = root.join("monitor-state.json");
     // Defense-in-depth: refuse to follow a symlinked monitor-state.json
     // even though the parent directory is trusted. `symlink_metadata`
     // also implicitly checks for existence.
-    let meta = std::fs::symlink_metadata(&active_path).ok()?;
+    let meta = report.symlink_metadata(&active_path)?;
     if meta.file_type().is_symlink() || !meta.file_type().is_file() {
         return None;
     }
-    load_state_file(&active_path).ok()
+    read_state_file(&active_path, report)
+}
+
+/// A state file's contents: a read failure is recorded in `report`.
+fn read_state_file(path: &Path, report: &ScanReport) -> Option<AntigravityState> {
+    serde_json::from_str(&report.read_to_string(path)?).ok()
 }
 
 /// 扫描并读取所有归档文件 `monitor-state.archive-YYYY-MM.json`
 pub fn load_archive_states(root: &Path) -> Vec<AntigravityState> {
-    let entries = match std::fs::read_dir(root) {
-        Ok(e) => e,
-        Err(_) => return vec![],
-    };
+    load_archive_states_reporting(root, &ScanReport::default())
+}
 
+/// [`load_archive_states`], recording in `report` what it cannot read.
+fn load_archive_states_reporting(root: &Path, report: &ScanReport) -> Vec<AntigravityState> {
     let mut named = Vec::new();
-    for entry in entries.flatten() {
+    for entry in report.read_dir(root) {
         let name = entry.file_name();
         let name_str = name.to_string_lossy().to_string();
         if name_str.starts_with("monitor-state.archive-")
@@ -804,13 +829,13 @@ pub fn load_archive_states(root: &Path) -> Vec<AntigravityState> {
             // Same defense-in-depth as load_active_state: refuse
             // symlinked archive files regardless of platform
             // (DirEntry::file_type follows symlinks on some targets).
-            let Ok(meta) = std::fs::symlink_metadata(&archive_path) else {
+            let Some(meta) = report.symlink_metadata(&archive_path) else {
                 continue;
             };
             if meta.file_type().is_symlink() || !meta.file_type().is_file() {
                 continue;
             }
-            if let Ok(state) = load_state_file(&archive_path) {
+            if let Some(state) = read_state_file(&archive_path, report) {
                 named.push((name_str, state));
             }
         }
@@ -913,23 +938,32 @@ pub fn compute_project_summary(state: &AntigravityState) -> AntigravityProjectSu
 
 /// 加载并合并状态（可注入根路径，便于测试）
 pub fn load_antigravity_state_impl(root: &Path) -> Result<AntigravityState, String> {
-    if root.exists() {
-        let active = load_active_state(root);
-        let archive_states = load_archive_states(root);
+    load_antigravity_state_reporting(root, &ScanReport::default())
+}
+
+/// [`load_antigravity_state_impl`], recording in `report` the state files,
+/// directories and session artifacts that are there but cannot be read.
+pub(crate) fn load_antigravity_state_reporting(
+    root: &Path,
+    report: &ScanReport,
+) -> Result<AntigravityState, String> {
+    if report.metadata(root).is_some() {
+        let active = load_active_state_reporting(root, report);
+        let archive_states = load_archive_states_reporting(root, report);
         let merged = merge_states(archive_states, active);
         if !merged.sessions.is_empty() {
             return Ok(merged);
         }
 
-        let rpc_state = build_state_from_rpc_cache(root)?;
+        let rpc_state = build_state_from_rpc_cache(root, report)?;
         if !rpc_state.sessions.is_empty() {
             return Ok(rpc_state);
         }
     }
 
     for external_root in discover_external_state_dirs() {
-        let external_active = load_active_state(&external_root);
-        let external_archives = load_archive_states(&external_root);
+        let external_active = load_active_state_reporting(&external_root, report);
+        let external_archives = load_archive_states_reporting(&external_root, report);
         let external_merged = merge_states(external_archives, external_active);
         if !external_merged.sessions.is_empty() {
             return Ok(external_merged);
@@ -1287,7 +1321,7 @@ mod tests {
         // Drop a minimal text-bearing file so the candidate is admitted.
         std::fs::write(session_dir.join("task.md"), "# Test session\n").unwrap();
 
-        let state = build_state_from_token_monitor_sources(root).unwrap();
+        let state = build_state_from_token_monitor_sources(root, &ScanReport::default()).unwrap();
         assert!(state.sessions.contains_key("sess-fs"));
         let session = state.sessions.get("sess-fs").unwrap();
         assert_eq!(session.latest.source, "filesystem");
@@ -1321,7 +1355,7 @@ mod tests {
         std::fs::create_dir_all(&good).unwrap();
         std::fs::write(good.join("task.md"), "# good\n").unwrap();
 
-        let candidates = scan_brain_candidates(root).unwrap();
+        let candidates = scan_brain_candidates(root, &ScanReport::default()).unwrap();
         let ids: Vec<&str> = candidates.iter().map(|c| c.session_id.as_str()).collect();
         assert_eq!(ids, vec!["good-session-1"]);
     }

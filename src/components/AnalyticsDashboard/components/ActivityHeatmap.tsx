@@ -11,7 +11,9 @@ import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import { cn } from "@/lib/utils";
 import type { DailyStats } from "../../../types";
-import { formatNumber, getHeatColor, getHeatTextColor } from "../utils";
+import { getHeatColor, getHeatTextColor } from "../utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ActivityHeatmapProps {
   data: DailyStats[];
@@ -112,13 +114,6 @@ function buildMonthGrid(
   return weeks;
 }
 
-/** Format "YYYY-MM" into a localized month+year label */
-function formatMonthLabel(yearMonth: string): string {
-  const [year, month] = yearMonth.split("-").map(Number);
-  const date = new Date(year ?? 2000, (month ?? 1) - 1, 1);
-  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short" }).format(date);
-}
-
 const MonthBlock: React.FC<{
   yearMonth: string;
   weeks: CalendarDay[][];
@@ -126,12 +121,13 @@ const MonthBlock: React.FC<{
   weekdayLabels: string[];
 }> = React.memo(({ yearMonth, weeks, maxActivity, weekdayLabels }) => {
   const { t } = useTranslation();
-  const monthLabel = formatMonthLabel(yearMonth);
+  const fmt = useFormat();
+  const monthLabel = fmt.month(yearMonth);
 
   return (
     <div className="flex flex-col gap-1">
       <div className="text-caption font-semibold text-foreground/80 mb-0.5">
-        {monthLabel}
+        <Num>{monthLabel}</Num>
       </div>
 
       {/* Day-of-week headers */}
@@ -184,15 +180,15 @@ const MonthBlock: React.FC<{
                   </button>
                 </TooltipTrigger>
                 <ChartTooltip
-                  title={cell.date}
+                  title={cell.date ? fmt.dayKey(cell.date) : ""}
                   rows={[
                     {
                       label: t("analytics.tooltip.messages"),
-                      value: cell.messageCount,
+                      value: fmt.count(cell.messageCount),
                       color: intensity > 0.3 ? "var(--metric-green)" : undefined,
                     },
-                    { label: t("analytics.tooltip.sessions"), value: cell.sessionCount },
-                    { label: t("analytics.tooltip.tokens"), value: formatNumber(cell.totalTokens) },
+                    { label: t("analytics.tooltip.sessions"), value: fmt.count(cell.sessionCount) },
+                    { label: t("analytics.tooltip.tokens"), value: fmt.tokens(cell.totalTokens) },
                   ]}
                 />
               </Tooltip>

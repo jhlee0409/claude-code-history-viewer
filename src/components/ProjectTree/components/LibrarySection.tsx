@@ -13,7 +13,8 @@ import { openInNewTab } from "@/navigation/tabs";
 import { isActionModifier } from "@/utils/platform";
 import type { LibraryItem } from "@/navigation/place";
 import { placeNameKey } from "@/navigation/placeNames";
-import { formatTimeAgo } from "@/utils/time";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export interface LibrarySectionProps {
   /** The library row the open screen is (plan C3), or null. */
@@ -42,6 +43,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
   onNavigate,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const headingId = useId();
   const recent = useAppStore((s) => s.recentSessions);
   const userMetadata = useAppStore((s) => s.userMetadata);
@@ -85,7 +87,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
                 title: entry.title,
                 // The store's list is validated on load; a time no Date can
                 // hold still renders, without its caption.
-                caption: isDateTime(entry.openedAt) ? formatTimeAgo(new Date(entry.openedAt).toISOString()) : "",
+                caption: isDateTime(entry.openedAt) ? fmt.relative(entry.openedAt) : "",
                 open: (inNewTab) => openEntry(() => openSessionRef(entry.ref), inNewTab),
               }))}
             />
@@ -313,7 +315,9 @@ const EntryList = ({ entries, emptyLabel }: { entries: Entry[]; emptyLabel: stri
                 </span>
               ) : (
                 entry.caption && (
-                  <span className="shrink-0 text-caption tabular-nums text-muted-foreground">{entry.caption}</span>
+                  <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                    <Num>{entry.caption}</Num>
+                  </span>
                 )
               )}
             </button>

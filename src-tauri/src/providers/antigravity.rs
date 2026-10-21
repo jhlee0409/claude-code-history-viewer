@@ -1,7 +1,8 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::commands::antigravity::{
     antigravity_root_from_path, get_antigravity_rpc_cache_root, load_antigravity_state_impl,
-    resolve_antigravity_root,
+    load_antigravity_state_reporting, resolve_antigravity_root,
 };
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use serde_json::{json, Value};
@@ -166,8 +167,14 @@ pub(crate) fn ms_to_rfc3339(ms: u64) -> String {
 /// the CLI projects (and vice versa, the CLI side is tolerant by design)
 /// rather than hiding one layout behind the other's error.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what the desktop scan could not
+/// read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let cli_projects = super::antigravity_cli::scan_projects();
-    match scan_desktop_projects() {
+    match scan_desktop_projects(report) {
         Ok(mut projects) => {
             projects.extend(cli_projects);
             Ok(projects)
@@ -175,17 +182,18 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         Err(err) if cli_projects.is_empty() => Err(err),
         Err(err) => {
             log::warn!("Antigravity desktop scan failed; returning CLI projects only: {err}");
+            report.unread(&err);
             Ok(cli_projects)
         }
     }
 }
 
 /// Return a single "Antigravity" project representing all rpc-cache sessions.
-fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
+fn scan_desktop_projects(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let Some(root) = resolve_antigravity_root() else {
         return Ok(vec![]);
     };
-    let state = load_antigravity_state_impl(&root)?;
+    let state = load_antigravity_state_reporting(&root, report)?;
     if state.sessions.is_empty() {
         return Ok(vec![]);
     }
@@ -362,6 +370,15 @@ fn merge_tool_names_into_messages(
 /// route to the transcript-based loader; everything else is the desktop
 /// rpc-cache layout.
 pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the desktop state files,
+/// directories and session artifacts that are there but cannot be read.
+pub(crate) fn load_sessions_reporting(
+    path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     if let Some(workspace) = path.strip_prefix(super::antigravity_cli::SCHEME) {
         return super::antigravity_cli::load_sessions(workspace);
     }
@@ -369,7 +386,7 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
         Some(root) => root,
         None => return Ok(vec![]),
     };
-    let state = load_antigravity_state_impl(&root)?;
+    let state = load_antigravity_state_reporting(&root, report)?;
     // Titles, step counts and the latest agent message come from Antigravity's
     // own editor storage; the rpc-cache knows only token counters, which is why
     // sessions used to render as bare UUIDs (#564).
@@ -445,8 +462,8 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
 /// file. `Path::exists()` follows symlinks; we use `symlink_metadata` so a
 /// symlinked file in either candidate location cannot redirect the read
 /// outside the antigravity root.
-fn admit_usage_jsonl(path: &Path) -> Option<PathBuf> {
-    let meta = std::fs::symlink_metadata(path).ok()?;
+fn admit_usage_jsonl(path: &Path, report: &ScanReport) -> Option<PathBuf> {
+    let meta = report.symlink_metadata(path)?;
     if meta.file_type().is_symlink() || !meta.is_file() {
         return None;
     }
@@ -467,14 +484,24 @@ fn admit_usage_jsonl(path: &Path) -> Option<PathBuf> {
 /// - **File-level**: both candidates are admitted via
 ///   [`admit_usage_jsonl`], which rejects symlinks and non-regular files.
 pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
+    resolve_usage_jsonl_path_reporting(session_path, &ScanReport::default())
+}
+
+/// [`resolve_usage_jsonl_path`], recording in `report` a candidate that is
+/// there but cannot be looked at — it would otherwise pass for a session
+/// without a usage file.
+pub(crate) fn resolve_usage_jsonl_path_reporting(
+    session_path: &str,
+    report: &ScanReport,
+) -> Option<PathBuf> {
     let dir = PathBuf::from(session_path);
 
     // Prefer an in-session `usage.jsonl`. Validate the canonical form
     // against a marker-rooted antigravity root before any IO on the
     // candidate file.
-    if let Ok(canonical_dir) = std::fs::canonicalize(&dir) {
+    if let Some(canonical_dir) = report.read(&dir, std::fs::canonicalize(&dir)) {
         if marker_rooted_path(&canonical_dir.to_string_lossy()).is_some() {
-            if let Some(path) = admit_usage_jsonl(&canonical_dir.join("usage.jsonl")) {
+            if let Some(path) = admit_usage_jsonl(&canonical_dir.join("usage.jsonl"), report) {
                 return Some(path);
             }
         }
@@ -490,6 +517,7 @@ pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
         &get_antigravity_rpc_cache_root(&root)
             .join(&session_id)
             .join("usage.jsonl"),
+        report,
     )
 }
 

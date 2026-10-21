@@ -2,6 +2,7 @@ import React from "react";
 import { Clock, Hash, Wrench, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { Num } from "@/lib/format/Num";
 import {
   normalizeEntrypoint,
   ENTRYPOINT_BADGE_META,
@@ -33,7 +34,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
         <span title={t("session.item.lastModified")}>
           <Clock className="w-3.5 h-3.5" />
         </span>
-        {formatTimeAgo(session.last_modified)}
+        <Num>{formatTimeAgo(session.last_modified)}</Num>
       </span>
       <span
         className={cn(

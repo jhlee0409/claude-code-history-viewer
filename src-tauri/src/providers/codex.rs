@@ -1,3 +1,4 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{
@@ -213,6 +214,15 @@ pub(crate) struct ProjectScanInfo {
 
 /// Scan Codex projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the session
+/// directories and rollouts it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Codex base path")?;
     let base = Path::new(base_path);
 
@@ -222,9 +232,9 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     let session_dirs: Vec<PathBuf> = [sessions_dir, archived_sessions_dir]
         .into_iter()
         .filter(|path| {
-            std::fs::symlink_metadata(path)
-                .map(|m| m.file_type().is_dir())
-                .unwrap_or(false)
+            report
+                .symlink_metadata(path)
+                .is_some_and(|m| m.file_type().is_dir())
         })
         .collect();
 
@@ -236,16 +246,14 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     let mut project_map: HashMap<String, Vec<ProjectScanInfo>> = HashMap::new();
 
     for session_dir in session_dirs {
-        for entry in WalkDir::new(session_dir)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
+        for entry in report
+            .walk(WalkDir::new(session_dir).min_depth(1))
             .filter(|e| e.file_type().is_file())
             .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
-            if let Ok(info) = extract_project_scan_info(rollout_path) {
+            if let Some(info) = report.read(rollout_path, extract_project_scan_info(rollout_path)) {
                 let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
                 project_map.entry(cwd).or_default().push(info);
             }
@@ -290,14 +298,29 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
 /// Scan Codex projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Codex base path not found")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_reporting(&base, report)
 }
 
 /// Load sessions for a Codex project (filtered by cwd)
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the session directories and
+/// rollouts it could not read: a rollout that cannot be read may belong to
+/// the project.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let session_dirs = get_existing_session_dirs()?;
     let title_index = get_base_path()
@@ -316,10 +339,8 @@ pub fn load_sessions(
     let rollout_paths: Vec<PathBuf> = session_dirs
         .iter()
         .flat_map(|session_dir| {
-            WalkDir::new(session_dir)
-                .min_depth(1)
-                .into_iter()
-                .filter_map(Result::ok)
+            report
+                .walk(WalkDir::new(session_dir).min_depth(1))
                 .filter(|e| e.file_type().is_file())
                 .filter(|e| is_discoverable_rollout(e.path()))
                 .map(walkdir::DirEntry::into_path)
@@ -334,7 +355,7 @@ pub fn load_sessions(
                 Ok(_) | Err(_) => {}
             }
 
-            let info = extract_session_info(rollout_path).ok()?;
+            let info = report.read(rollout_path, extract_session_info(rollout_path))?;
             let native_title = title_index.get(&info.session_id);
             let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
             if session_cwd != target_cwd {

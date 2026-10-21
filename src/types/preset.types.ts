@@ -69,15 +69,3 @@ export const createPresetInput = (
 export const extractSettings = (preset: PresetData): UserSettings => {
   return jsonToSettings(preset.settings);
 };
-
-/** Helper to format preset timestamp for display */
-export const formatPresetDate = (isoDate: string): string => {
-  const date = new Date(isoDate);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};

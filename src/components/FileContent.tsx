@@ -20,6 +20,7 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+import { Num } from "@/lib/format/Num";
 
 export const FileContent = ({
   fileData,
@@ -273,11 +274,11 @@ export const FileContent = ({
                 // (line numbers are dropped in this fallback).
                 <div className="bg-tool-file/5">
                   <div className="px-4 pt-2 text-list text-muted-foreground">
-                    {t("sizeGuard.highlightDisabled", {
+                    <Num>{t("sizeGuard.highlightDisabled", {
                       size: formatCharSize(displayContent.length),
                       defaultValue:
                         "Syntax highlighting disabled for large content ({{size}})",
-                    })}
+                    })}</Num>
                   </div>
                   <TruncatedPre
                     content={displayContent}

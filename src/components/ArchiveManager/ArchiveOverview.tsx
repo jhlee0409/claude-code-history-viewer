@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
-import { formatBytes } from '@/utils/formatters';
 import { api } from '@/services/api';
 import { archiveApi } from '@/services/archiveApi';
 import type { ClaudeSession } from '@/types';
@@ -36,6 +35,8 @@ import {
   isValidCleanupPeriod,
   parseCleanupPeriodInput,
 } from '@/utils/cleanupPeriod';
+import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -237,7 +238,7 @@ export const ArchiveOverview: React.FC = () => {
   const handleArchiveAll = async (includeSubagents: boolean) => {
     if (!selectedProject || archive.expiringSessions.length === 0) return;
     const batchName = t('archive.create.expiringBatchName', {
-      date: new Date().toLocaleDateString(),
+      date: appFormat().date(Date.now()),
     });
     try {
       await createArchive({
@@ -267,7 +268,7 @@ export const ArchiveOverview: React.FC = () => {
     }
     if (claudeProjects.length === 0) return;
 
-    const date = new Date().toLocaleDateString();
+    const date = appFormat().date(Date.now());
     let okProjects = 0;
     let okSessions = 0;
     const failed: string[] = [];
@@ -394,7 +395,7 @@ export const ArchiveOverview: React.FC = () => {
               {t('archive.overview.fullBackup.noProjects')}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Switch
                   id={backupSubagentsId}
@@ -447,7 +448,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {formatBytes(archive.diskUsage.totalBytes)}
+                  <Num>{appFormat().bytes(archive.diskUsage.totalBytes)}</Num>
                 </Badge>
                 <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSize')}
@@ -587,12 +588,12 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                           </div>
                         </div>
@@ -629,12 +630,12 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                             <span className="text-caption text-muted-foreground">
                               {t('archive.browse.sessions.subagents', { count: expiring.subagentCount })}

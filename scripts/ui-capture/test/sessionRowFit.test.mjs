@@ -166,7 +166,7 @@ describe.skipIf(!HAS_WEBKIT)("session row fits its virtual-list slot (real WebKi
       await page.goto(`${origin}/${locale}`);
       const overflows = [];
       for (const scale of SCALES) {
-        const slot = sessionItemHeight(scale);
+        const slot = sessionItemHeight(scale, locale);
         for (const row of await measureRows(page, scale)) {
           expect(row.nameLines, `${locale} ${scale}% ${row.variant}: two-line name`).toBe(2);
           if (row.height > slot) overflows.push(`${scale}% ${row.variant}: ${row.height}px > ${slot}px slot`);

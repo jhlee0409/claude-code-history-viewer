@@ -14,9 +14,10 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { formatDateDivider } from "../../../utils/time";
+import { formatDateDivider } from "@/lib/format/date";
 import { findFirstVisibleRowIndex } from "../helpers/visibleMessage";
 import type { FlattenedMessage } from "../types";
+import { Num } from "@/lib/format/Num";
 
 type CurrentDateBarProps = {
   virtualRows: VirtualItem[];
@@ -59,7 +60,7 @@ export const CurrentDateBar: React.FC<CurrentDateBarProps> = React.memo(
     const dateLabel = useMemo(() => {
       if (firstVisibleIndex < 0) return null;
       const timestamp = resolveCurrentDate(firstVisibleIndex, flattenedMessages);
-      return timestamp ? formatDateDivider(timestamp, language) : null;
+      return timestamp ? formatDateDivider(timestamp, language || "en") : null;
     }, [firstVisibleIndex, flattenedMessages, language]);
 
     // The row keeps its height while the label is still unknown, so the list
@@ -73,7 +74,7 @@ export const CurrentDateBar: React.FC<CurrentDateBarProps> = React.memo(
         aria-atomic="true"
       >
         <span className="truncate text-caption font-medium text-muted-foreground">
-          {dateLabel ?? ""}
+          <Num>{dateLabel ?? ""}</Num>
         </span>
       </div>
     );

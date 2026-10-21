@@ -23,6 +23,7 @@
 //! `conversation_only` does not.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
@@ -51,8 +52,14 @@ fn runtime_base() -> Option<PathBuf> {
 }
 
 fn db_path() -> Option<PathBuf> {
+    db_path_reporting(&ScanReport::default())
+}
+
+/// [`db_path`], recording in `report` a directory on the way to the
+/// database that may not be looked into.
+fn db_path_reporting(report: &ScanReport) -> Option<PathBuf> {
     let path = runtime_base()?.join("cli").join("db").join("db.sqlite");
-    path.is_file().then_some(path)
+    report.is_file(&path).then_some(path)
 }
 
 /// Open the store read-only (WAL readers are fine alongside a live writer).
@@ -62,6 +69,18 @@ fn open_db(path: &Path) -> Result<Connection, String> {
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(|e| format!("Failed to set Z Code db busy timeout: {e}"))?;
     Ok(conn)
+}
+
+/// The database for a scan that records what it cannot read: `None` when
+/// there is none, or when it is there but cannot be opened (recorded).
+fn open_db_reporting(report: &ScanReport) -> Option<(PathBuf, Connection)> {
+    let path = db_path_reporting(report)?;
+    let conn = report.db(
+        &path,
+        Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY),
+    )?;
+    report.db(&path, conn.busy_timeout(Duration::from_secs(5)))?;
+    Some((path, conn))
 }
 
 /// Detect a Z Code installation.
@@ -90,8 +109,27 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_conn(&conn)
 }
 
+/// [`scan_projects`], recording in `report` a database, or a row of it,
+/// that cannot be read. Unlike [`scan_projects`], a database that cannot be
+/// opened is no projects, not an error: for a caller that counts the report
+/// only.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    match open_db_reporting(report) {
+        Some((path, conn)) => scan_projects_conn_reporting(&conn, &path, report),
+        None => Ok(vec![]),
+    }
+}
+
 /// Projects (one row per session `directory`) with session/message counts.
 fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_conn_reporting(conn, Path::new(""), &ScanReport::default())
+}
+
+fn scan_projects_conn_reporting(
+    conn: &Connection,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     // One row per directory already: GROUP BY aggregates the counts and
     // `WHERE s.m_cnt > 0` keeps only sessions that would appear when loaded.
     let mut stmt = conn
@@ -115,7 +153,7 @@ fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
             ))
         })
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|row| report.db(db, row))
         .map(|(dir, sessions, messages, updated)| {
             let name = Path::new(&dir)
                 .file_name()
@@ -153,8 +191,32 @@ pub fn load_sessions(
     load_sessions_conn(&conn, directory)
 }
 
+/// [`load_sessions`], recording in `report` a database, or a row of it,
+/// that cannot be read. Unlike [`load_sessions`], a database that cannot be
+/// opened is no sessions, not an error: for a caller that counts the report
+/// only.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let directory = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
+    match open_db_reporting(report) {
+        Some((path, conn)) => load_sessions_conn_reporting(&conn, directory, &path, report),
+        None => Ok(vec![]),
+    }
+}
+
 /// Sessions of one Z Code project (`directory`), newest first.
 fn load_sessions_conn(conn: &Connection, directory: &str) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_conn_reporting(conn, directory, Path::new(""), &ScanReport::default())
+}
+
+fn load_sessions_conn_reporting(
+    conn: &Connection,
+    directory: &str,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT s.id, s.title, s.title_source, s.time_created, s.time_updated, \
@@ -185,7 +247,7 @@ fn load_sessions_conn(conn: &Connection, directory: &str) -> Result<Vec<ClaudeSe
             ))
         })
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|row| report.db(db, row))
         .filter(|(_, _, _, _, _, msg_cnt, _)| *msg_cnt > 0)
         .map(
             |(id, title, title_source, created, updated, msg_cnt, has_tool)| {

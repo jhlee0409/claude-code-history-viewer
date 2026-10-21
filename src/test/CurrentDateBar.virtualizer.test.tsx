@@ -17,7 +17,10 @@ import { CurrentDateBar } from "@/components/MessageViewer/components/CurrentDat
 import { VIRTUALIZER_OVERSCAN } from "@/components/MessageViewer/helpers/heightEstimation";
 import type { FlattenedMessage } from "@/components/MessageViewer/types";
 import type { ClaudeMessage } from "@/types";
-import { formatDateDivider } from "@/utils/time";
+import { formatDateDivider as formatDivider } from "@/lib/format/date";
+
+const formatDateDivider = (timestamp: string, language: string = i18n.language || "en") =>
+  formatDivider(timestamp, language);
 
 const ROW_PX = 100;
 const VIEWPORT_PX = 400;

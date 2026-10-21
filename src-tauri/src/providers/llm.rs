@@ -12,11 +12,12 @@
 //! token usage + model).
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const PROVIDER: &str = "llm";
 const SCHEME: &str = "llm://";
@@ -66,6 +67,22 @@ fn open_db() -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// The logs database for a scan that records what it cannot read: `None`
+/// when there is none, or when it is there but cannot be opened (recorded
+/// in `report`, as is a directory that may not be looked into).
+fn open_db_reporting(report: &ScanReport) -> Option<(PathBuf, Connection)> {
+    let path = get_db_path()?;
+    if !report.is_file(&path) {
+        return None;
+    }
+    let conn = report.db(
+        &path,
+        Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY),
+    )?;
+    report.db(&path, conn.busy_timeout(std::time::Duration::from_secs(5)))?;
+    Some((path, conn))
+}
+
 /// `datetime_utc` is a UTC value stored without a timezone designator (e.g.
 /// `2026-06-20T10:00:00`). Mark it explicitly UTC so downstream date parsing
 /// doesn't treat it as local time. Values that already carry a tz, or have no
@@ -88,8 +105,27 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_in_conn(&open_db()?)
 }
 
+/// [`scan_projects`], recording in `report` a logs database that is there
+/// but cannot be read. Unlike [`scan_projects`], no database (or one that
+/// cannot be opened) is no projects, not an error: for a caller that counts
+/// the report only.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    match open_db_reporting(report) {
+        Some((path, conn)) => scan_in_conn_reporting(&conn, &path, report),
+        None => Ok(Vec::new()),
+    }
+}
+
 fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
-    let (session_count, message_count, last) = project_stats(conn)?;
+    scan_in_conn_reporting(conn, Path::new(""), &ScanReport::default())
+}
+
+fn scan_in_conn_reporting(
+    conn: &Connection,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
+    let (session_count, message_count, last) = project_stats(conn, db, report)?;
     if message_count == 0 {
         return Ok(Vec::new());
     }
@@ -107,29 +143,43 @@ fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     }])
 }
 
-/// Session-count / message-count / latest-time for the synthetic project.
-fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
+/// Session-count / message-count / latest-time for the synthetic project. A
+/// count the database `db` cannot be read for is recorded in `report`.
+fn project_stats(
+    conn: &Connection,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<(usize, usize, String), String> {
     // Sessions = distinct conversations + 1 for the orphan bucket (if any exist).
-    let convs: usize = conn
-        .query_row(
-            "SELECT COUNT(DISTINCT conversation_id) FROM responses WHERE conversation_id IS NOT NULL",
-            [],
-            |r| r.get(0),
+    let convs: usize = report
+        .db(
+            db,
+            conn.query_row(
+                "SELECT COUNT(DISTINCT conversation_id) FROM responses WHERE conversation_id IS NOT NULL",
+                [],
+                |r| r.get(0),
+            ),
         )
         .unwrap_or(0);
-    let orphans: usize = conn
-        .query_row(
-            "SELECT COUNT(*) FROM responses WHERE conversation_id IS NULL",
-            [],
-            |r| r.get(0),
+    let orphans: usize = report
+        .db(
+            db,
+            conn.query_row(
+                "SELECT COUNT(*) FROM responses WHERE conversation_id IS NULL",
+                [],
+                |r| r.get(0),
+            ),
         )
         .unwrap_or(0);
     // Each response yields a user + assistant message.
     let responses: usize = conn
         .query_row("SELECT COUNT(*) FROM responses", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
-    let last: Option<String> = conn
-        .query_row("SELECT MAX(datetime_utc) FROM responses", [], |r| r.get(0))
+    let last: Option<String> = report
+        .db(
+            db,
+            conn.query_row("SELECT MAX(datetime_utc) FROM responses", [], |r| r.get(0)),
+        )
         .unwrap_or(None);
     let session_count = convs + usize::from(orphans > 0);
     Ok((
@@ -147,7 +197,29 @@ pub fn load_sessions(
     load_sessions_conn(&open_db()?)
 }
 
+/// [`load_sessions`], recording in `report` a logs database, or a row of
+/// it, that cannot be read. Unlike [`load_sessions`], no database (or one
+/// that cannot be opened) is no sessions, not an error: for a caller that
+/// counts the report only.
+pub(crate) fn load_sessions_reporting(
+    _project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    match open_db_reporting(report) {
+        Some((path, conn)) => load_sessions_conn_reporting(&conn, &path, report),
+        None => Ok(Vec::new()),
+    }
+}
+
 fn load_sessions_conn(conn: &Connection) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_conn_reporting(conn, Path::new(""), &ScanReport::default())
+}
+
+fn load_sessions_conn_reporting(
+    conn: &Connection,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT r.conversation_id, c.name, MIN(r.datetime_utc) AS first, \
@@ -167,7 +239,7 @@ fn load_sessions_conn(conn: &Connection) -> Result<Vec<ClaudeSession>, String> {
             Ok((conv_id, name, first, last, cnt))
         })
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|row| report.db(db, row))
         .map(|(conv_id, name, first, last, cnt)| {
             let id = conv_id
                 .clone()

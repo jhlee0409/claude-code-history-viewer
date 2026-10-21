@@ -11,6 +11,7 @@
 //! the provider on the result. Projects group rollouts by `cwd`, like Codex.
 
 use super::codex;
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use std::collections::HashMap;
@@ -44,7 +45,7 @@ pub fn detect() -> Option<ProviderInfo> {
     Some(ProviderInfo {
         id: PROVIDER.to_string(),
         display_name: "Open Interpreter".to_string(),
-        is_available: !session_dirs().is_empty(),
+        is_available: !session_dirs(&ScanReport::default()).is_empty(),
         base_path: base.to_string_lossy().to_string(),
     })
 }
@@ -54,25 +55,25 @@ pub fn get_base_path() -> Option<String> {
     home_dir().map(|p| p.to_string_lossy().to_string())
 }
 
-/// The existing `sessions/` and `archived_sessions/` roots under the OI home.
-fn session_dirs() -> Vec<PathBuf> {
+/// The existing `sessions/` and `archived_sessions/` roots under the OI
+/// home; one that may not be looked at is recorded in `report`.
+fn session_dirs(report: &ScanReport) -> Vec<PathBuf> {
     let Some(base) = home_dir() else {
         return Vec::new();
     };
     [base.join("sessions"), base.join("archived_sessions")]
         .into_iter()
-        .filter(|p| p.is_dir())
+        .filter(|p| report.is_dir(p))
         .collect()
 }
 
-/// All `rollout-*.jsonl` files under the OI session roots.
-fn rollout_files() -> Vec<PathBuf> {
+/// All `rollout-*.jsonl` files under the OI session roots; what the walk
+/// cannot read is recorded in `report`.
+fn rollout_files(report: &ScanReport) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for dir in session_dirs() {
-        for entry in WalkDir::new(dir)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
+    for dir in session_dirs(report) {
+        for entry in report
+            .walk(WalkDir::new(dir).min_depth(1))
             .filter(|e| e.file_type().is_file())
             .filter(|e| codex::is_discoverable_rollout(e.path()))
         {
@@ -84,6 +85,12 @@ fn rollout_files() -> Vec<PathBuf> {
 
 /// Scan Open Interpreter projects (rollouts grouped by `cwd`).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     struct Agg {
         session_count: usize,
         message_count: usize,
@@ -91,8 +98,8 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     }
     let mut by_cwd: HashMap<String, Agg> = HashMap::new();
 
-    for path in rollout_files() {
-        if let Ok(info) = codex::extract_project_scan_info(&path) {
+    for path in rollout_files(report) {
+        if let Some(info) = report.read(&path, codex::extract_project_scan_info(&path)) {
             let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
             let e = by_cwd.entry(cwd).or_insert_with(|| Agg {
                 session_count: 0,
@@ -138,16 +145,26 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read: a
+/// rollout that cannot be read may belong to the project.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let target_cwd = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
     let mut sessions = Vec::new();
 
-    for path in rollout_files() {
+    for path in rollout_files(report) {
         if let Ok(Some(cwd)) = codex::extract_session_cwd(&path) {
             if cwd != target_cwd {
                 continue;
             }
         }
-        if let Ok(info) = codex::extract_session_info(&path) {
+        if let Some(info) = report.read(&path, codex::extract_session_info(&path)) {
             if info.cwd.as_deref().unwrap_or("unknown") != target_cwd {
                 continue;
             }
@@ -201,7 +218,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for path in rollout_files() {
+    for path in rollout_files(&ScanReport::default()) {
         let Ok(messages) = load_messages(&path.to_string_lossy()) else {
             continue;
         };
@@ -231,7 +248,7 @@ fn validate_under_base(path: &Path) -> Result<PathBuf, String> {
             path.display()
         ));
     }
-    let allowed: Vec<PathBuf> = session_dirs()
+    let allowed: Vec<PathBuf> = session_dirs(&ScanReport::default())
         .into_iter()
         .filter_map(|d| d.canonicalize().ok())
         .collect();
