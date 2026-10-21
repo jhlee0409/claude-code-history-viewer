@@ -3,6 +3,7 @@ source: src/models/snapshot_tests.rs
 expression: stats
 ---
 {
+  "token_usage_recording": "unknown",
   "session_id": "session-stats",
   "project_name": "stats-project",
   "total_input_tokens": 5000,

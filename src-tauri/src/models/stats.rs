@@ -1,7 +1,22 @@
 use serde::{Deserialize, Serialize};
 
+/// Accepted-row counter coverage for native Claude, not billing completeness.
+/// Other providers remain unknown until original-format fidelity is established.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenUsageRecording {
+    Absent,
+    Recorded,
+    Partial,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionTokenStats {
+    #[serde(default)]
+    pub token_usage_recording: TokenUsageRecording,
     pub session_id: String,
     pub project_name: String,
     pub total_input_tokens: u64,
@@ -192,6 +207,7 @@ mod tests {
     #[test]
     fn test_session_token_stats_serialization() {
         let stats = SessionTokenStats {
+            token_usage_recording: TokenUsageRecording::Unknown,
             session_id: "session-123".to_string(),
             project_name: "my-project".to_string(),
             total_input_tokens: 1000,

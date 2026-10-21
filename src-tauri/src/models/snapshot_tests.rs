@@ -461,6 +461,7 @@ mod stats_snapshots {
     #[test]
     fn snapshot_session_token_stats() {
         let stats = SessionTokenStats {
+            token_usage_recording: crate::models::TokenUsageRecording::Unknown,
             session_id: "session-stats".to_string(),
             project_name: "stats-project".to_string(),
             total_input_tokens: 5000,
