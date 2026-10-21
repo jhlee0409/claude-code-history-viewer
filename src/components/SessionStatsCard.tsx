@@ -7,6 +7,7 @@ import type { SessionTokenStats } from "../types";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+import { recordedDuration, recordedTime, recordedTokens, tokenRecordingNote } from "@/lib/format/missingValue";
 
 /**
  * SessionStatsCard - Compact token usage card
@@ -44,9 +45,8 @@ export const SessionStatsCard = memo(({
 
   const activeTokens = tokenData.filter(t => t.value > 0);
 
-  // Calculate session duration
-  const durationMs = new Date(stats.last_message_time).getTime() - new Date(stats.first_message_time).getTime();
-  const durationMinutes = durationMs / (1000 * 60);
+  const missing = t("common.missingValue.notRecorded");
+  const recordingNote = tokenRecordingNote(stats);
 
   return (
     <div
@@ -72,7 +72,7 @@ export const SessionStatsCard = memo(({
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <div className="whitespace-nowrap">
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
-                <Num>{fmt.tokens(stats.total_tokens)}</Num>
+                <Num>{recordedTokens(stats, fmt.tokens, missing)}</Num>
               </span>
               <span className="text-caption text-muted-foreground ml-1">{t("analytics.tokens")}</span>
             </div>
@@ -81,17 +81,21 @@ export const SessionStatsCard = memo(({
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
             <div className="text-caption text-muted-foreground whitespace-nowrap">
-              <span className="font-mono tabular-nums"><Num>{fmt.minutes(durationMinutes)}</Num></span>
+              <span className="font-mono tabular-nums"><Num>{recordedDuration(stats.first_message_time, stats.last_message_time, fmt.minutes, missing)}</Num></span>
             </div>
           </div>
 
           {/* Right: Time */}
           <div className="text-caption text-muted-foreground/70 font-mono tabular-nums">
-            <Num>{fmt.dateTime(stats.first_message_time)}</Num>
+            <Num>{recordedTime(stats.first_message_time, fmt.dateTime, missing)}</Num>
           </div>
         </div>
 
-        {/* Token Breakdown - 2 Column Grid */}
+        {recordingNote && stats.token_usage_recording !== "absent" && (
+          <p className="mt-2 text-caption text-muted-foreground break-keep break-words">{t(recordingNote)}</p>
+        )}
+
+        {/* Positive observed components only: aggregate coverage is not per-field presence. */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2 pt-2 border-t border-border/30">
           {activeTokens.map((token) => {
             const Icon = token.icon;

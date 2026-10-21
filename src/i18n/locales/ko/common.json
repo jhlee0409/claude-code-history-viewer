@@ -312,5 +312,8 @@
   "common.menu.syncFailed": "메뉴 막대를 업데이트하지 못했습니다. 키보드 단축키는 계속 작동합니다.",
   "common.command.zoomIn": "확대",
   "common.command.zoomOut": "축소",
-  "common.command.actualSize": "실제 크기"
+  "common.command.actualSize": "실제 크기",
+  "common.missingValue.notRecorded": "기록 없음",
+  "common.missingValue.partialTokens": "토큰이 일부만 기록되어 관측된 소계를 표시합니다.",
+  "common.missingValue.unknownTokens": "토큰 기록 범위를 확인할 수 없어 기존 값을 표시합니다."
 }

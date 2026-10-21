@@ -312,5 +312,8 @@
   "common.menu.syncFailed": "無法更新選單列。鍵盤快速鍵仍可使用。",
   "common.command.zoomIn": "放大",
   "common.command.zoomOut": "縮小",
-  "common.command.actualSize": "實際大小"
+  "common.command.actualSize": "實際大小",
+  "common.missingValue.notRecorded": "未記錄",
+  "common.missingValue.partialTokens": "僅記錄了部分權杖，顯示已觀測的小計。",
+  "common.missingValue.unknownTokens": "無法確定權杖記錄範圍，顯示現有值。"
 }

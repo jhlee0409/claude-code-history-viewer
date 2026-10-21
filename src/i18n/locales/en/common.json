@@ -312,5 +312,8 @@
   "common.menu.syncFailed": "The menu bar could not be updated. Keyboard shortcuts still work.",
   "common.command.zoomIn": "Zoom In",
   "common.command.zoomOut": "Zoom Out",
-  "common.command.actualSize": "Actual Size"
+  "common.command.actualSize": "Actual Size",
+  "common.missingValue.notRecorded": "Not recorded",
+  "common.missingValue.partialTokens": "Partial token recording; values are observed subtotals.",
+  "common.missingValue.unknownTokens": "Token recording coverage is unknown; existing values are shown."
 }

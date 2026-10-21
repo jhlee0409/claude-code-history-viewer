@@ -312,5 +312,8 @@
   "common.menu.syncFailed": "无法更新菜单栏。键盘快捷键仍可使用。",
   "common.command.zoomIn": "放大",
   "common.command.zoomOut": "缩小",
-  "common.command.actualSize": "实际大小"
+  "common.command.actualSize": "实际大小",
+  "common.missingValue.notRecorded": "未记录",
+  "common.missingValue.partialTokens": "仅记录了部分令牌，显示已观测的小计。",
+  "common.missingValue.unknownTokens": "无法确定令牌记录范围，显示现有值。"
 }
