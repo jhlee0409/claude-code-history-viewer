@@ -777,6 +777,20 @@ describe("<Num> guard: a formatter function handed on is followed to where it re
   });
 });
 
+describe("formatter callback adapters", () => {
+  it.each([false, true])("follows a callback through a local/imported adapter (imported=%s)", (imported) => {
+    const adapter = "export function adapt(value, format) { return value == null ? '—' : format(value); }";
+    const files = imported
+      ? [{ path: "src/lib/adapter.ts", text: adapter }, { path: "src/components/Probe.tsx", text: "import { adapt as display } from '@/lib/adapter'; const A = () => <p>{display(n, fmt.tokens)}</p>;" }]
+      : [{ path: "src/components/Probe.tsx", text: adapter + " const A = () => <p>{adapt(n, fmt.tokens)}</p>;" }];
+    const scan = scanNum(files);
+    expect(scan.untracked).toEqual([]);
+    expect(scan.bare.length).toBe(1);
+    const wrapped = files.map((f) => ({ ...f, text: f.text.replace('<p>{', '<Num>{').replace('}</p>', '}</Num>') }));
+    expect(scanNum(wrapped).bare).toEqual([]);
+  });
+});
+
 describe("<Num> guard on the app", () => {
   it("scans the source tree", () => {
     expect(appSources().length).toBeGreaterThan(300);
