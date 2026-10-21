@@ -101,6 +101,10 @@ impl RowEvidence {
 }
 
 impl TokenRecordingEvidence {
+    pub(super) fn merge(&mut self, other: Self) {
+        self.0 |= other.0;
+    }
+
     pub(super) fn observe(&mut self, message: &ClaudeMessage) {
         let row = RowEvidence::from_message(message);
         self.0 |= ACCEPTED;

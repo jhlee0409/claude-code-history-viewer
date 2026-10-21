@@ -4432,6 +4432,7 @@ impl SessionTokenAccum {
     /// Fold another transcript of the same session into this one. Identity
     /// (`session_id`, `summary`) stays with `self`, the main transcript.
     fn merge(&mut self, other: SessionTokenAccum) {
+        self.recording.merge(other.recording);
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.cache_creation_tokens += other.cache_creation_tokens;

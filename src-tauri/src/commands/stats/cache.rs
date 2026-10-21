@@ -87,6 +87,7 @@ const MAX_CACHE_ENTRIES: usize = 16_384;
 /// Filter-independent aggregates for one UTC day (or the undated bucket).
 #[derive(Default)]
 pub(super) struct DayBucket {
+    recording: super::TokenRecordingEvidence,
     message_count: u32,
     input_tokens: u64,
     output_tokens: u64,
@@ -646,6 +647,7 @@ pub(super) fn build_message_file_aggregate(
             Some(&message.session_id),
             row_seq,
         );
+        bucket.recording.observe(&message);
         let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
         if message.model.is_some() || totals.5 > 0 || deduped_source_cost.is_some() {
             bucket.record_model_usage(
@@ -999,6 +1001,7 @@ pub(super) fn compose_session_token_accum(
         .chain(undated_iter)
     {
         accum.message_count += bucket.message_count as usize;
+        accum.recording.merge(bucket.recording);
         accum.input_tokens += bucket.input_tokens;
         accum.output_tokens += bucket.output_tokens;
         accum.cache_creation_tokens += bucket.cache_creation_tokens;
@@ -1275,6 +1278,10 @@ mod tests {
     }
 
     fn assert_token_stats_eq(a: &SessionTokenStats, b: &SessionTokenStats) {
+        assert_eq!(
+            a.token_usage_recording, b.token_usage_recording,
+            "recording"
+        );
         assert_eq!(a.session_id, b.session_id, "session_id");
         assert_eq!(a.project_name, b.project_name, "project_name");
         assert_eq!(a.total_input_tokens, b.total_input_tokens);
