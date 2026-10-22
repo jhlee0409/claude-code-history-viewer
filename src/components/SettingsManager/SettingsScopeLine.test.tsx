@@ -62,6 +62,20 @@ describe("settings write-scope line through the actual editor", () => {
     expect(line()).toHaveTextContent("settingsManager.writeScope.clean");
   });
 
+  it("never associates a late project response with a newer selection", async () => {
+    const requests = new Map<string, (value: AllSettingsResponse) => void>();
+    apiMock.mockImplementation((command: string, args: { projectPath?: string }) => command === "get_all_settings" ? new Promise(resolve => { requests.set(args.projectPath!, resolve); }) : Promise.resolve({}));
+    const view = render(<UnifiedSettingsManager projectPath="/old" />);
+    view.rerender(<UnifiedSettingsManager projectPath="/new" />);
+    const newer = fixture();
+    newer.metadata!.serverHome = "/new/home";
+    newer.metadata!.scopes.user.path = "/new/home/.claude/settings.json";
+    await act(async () => requests.get("/new")!(newer));
+    expect(line().querySelector("[data-path]")).toHaveAttribute("data-path", "/new/home/.claude/settings.json");
+    await act(async () => requests.get("/old")!(fixture()));
+    expect(line().querySelector("[data-path]")).toHaveAttribute("data-path", "/new/home/.claude/settings.json");
+  });
+
   it("keeps the line visible but hides all unconfirmed paths while loading and on request failure", async () => {
     let reject!: (error: Error) => void;
     apiMock.mockImplementation((command: string) => command === "get_all_settings" ? new Promise((_, r) => { reject = r; }) : Promise.resolve({}));
