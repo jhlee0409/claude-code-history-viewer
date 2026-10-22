@@ -1011,6 +1011,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn settings_metadata_distinguishes_missing_from_empty_without_writes() {
+        let temp = setup_test_env();
+        let missing = serde_json::to_value(get_all_settings(None).await.unwrap()).unwrap();
+        assert_eq!(missing["user"], "{}");
+        assert_eq!(
+            missing["metadata"]["serverHome"],
+            temp.path().to_string_lossy().as_ref()
+        );
+        assert_eq!(missing["metadata"]["scopes"]["user"]["state"], "missing");
+        assert_eq!(
+            missing["metadata"]["scopes"]["project"]["state"],
+            "no_project"
+        );
+        assert!(!temp.path().join(".claude").exists());
+
+        fs::create_dir(temp.path().join(".claude")).unwrap();
+        fs::write(temp.path().join(".claude/settings.json"), "{}").unwrap();
+        let empty = serde_json::to_value(get_all_settings(None).await.unwrap()).unwrap();
+        assert_eq!(empty["user"], missing["user"]);
+        assert_eq!(empty["metadata"]["scopes"]["user"]["state"], "present");
+        assert_eq!(empty["metadata"]["scopes"]["managed"]["readOnly"], true);
+    }
+
+    #[tokio::test]
     async fn test_get_all_settings_empty() {
         let temp = setup_test_env();
         let result = get_all_settings(None).await;
