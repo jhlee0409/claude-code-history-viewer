@@ -28,6 +28,7 @@ import type {
 } from "@/types";
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
+import { SettingsScopeLine } from "./SettingsScopeLine";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
@@ -124,6 +125,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Pending changes state (shared across components for dirty tracking)
   const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
+  const [editorDirty, setEditorDirty] = React.useState(false);
 
   // Sync with initial prop if it changes
   React.useEffect(() => {
@@ -337,6 +339,15 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           </div>
         </div>
 
+        <SettingsScopeLine
+          allSettings={allSettings}
+          scope={activeScope}
+          dirty={hasUnsavedChanges || (activePanel === "editor" && editorDirty)}
+          readOnly={isReadOnly}
+          loading={isLoading}
+          error={!!error}
+        />
+
         {/* Content */}
         {isLoading ? (
           <LoadingState
@@ -388,7 +399,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <SettingsSidebar availableScopes={availableScopes} />
 
               {/* Main Content Area */}
-              {activePanel === "editor" ? <SettingsEditorPane /> : <SettingsDiagnosticsPanel />}
+              {activePanel === "editor" ? <SettingsEditorPane onDirtyChange={setEditorDirty} /> : <SettingsDiagnosticsPanel />}
             </div>
           </div>
         )}

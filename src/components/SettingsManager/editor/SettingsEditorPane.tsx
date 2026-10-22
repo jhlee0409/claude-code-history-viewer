@@ -79,7 +79,7 @@ type SaveResult = {
   message: string;
 } | null;
 
-export const SettingsEditorPane: React.FC = () => {
+export const SettingsEditorPane: React.FC<{ onDirtyChange?: (dirty: boolean) => void }> = ({ onDirtyChange }) => {
   const { t } = useTranslation();
   const {
     allSettings,
@@ -284,6 +284,13 @@ export const SettingsEditorPane: React.FC = () => {
     }
   }, [editorMode, currentSettings, jsonHistory, setPendingSettings]);
 
+  // One predicate for the footer and the always-visible write-scope line.
+  // Publish before paint so raw/invalid JSON edits cannot flash as saved.
+  const editorHasUnsavedChanges = hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2));
+  React.useLayoutEffect(() => {
+    onDirtyChange?.(editorHasUnsavedChanges);
+  }, [onDirtyChange, editorHasUnsavedChanges]);
+
   // If no settings exist for this scope
   if (!hasSettings) {
     return (
@@ -435,7 +442,7 @@ export const SettingsEditorPane: React.FC = () => {
         <EditorFooter
           editorMode={editorMode}
           onModeChange={handleModeChange}
-          hasUnsavedChanges={hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2))}
+          hasUnsavedChanges={editorHasUnsavedChanges}
           onSave={handleSave}
           onReset={handleReset}
           readOnly={isReadOnly}

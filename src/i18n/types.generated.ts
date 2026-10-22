@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-21T15:02:06.397Z
- * 총 키 개수: 2337
+ * 생성 시간: 2026-10-22T10:25:51.791Z
+ * 총 키 개수: 2358
  * Namespace 수: 13
  */
 
@@ -871,7 +871,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (553개)
+ * settings namespace의 번역 키 (574개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -1427,7 +1427,28 @@ export type SettingsKeys =
   | 'settingsManager.visual.denyList'
   | 'settingsManager.visual.model'
   | 'settingsManager.visual.saved'
-  | 'settingsManager.visual.selectModel';
+  | 'settingsManager.visual.selectModel'
+  | 'settingsManager.writeScope.clean'
+  | 'settingsManager.writeScope.dirty'
+  | 'settingsManager.writeScope.editing'
+  | 'settingsManager.writeScope.label'
+  | 'settingsManager.writeScope.loadError'
+  | 'settingsManager.writeScope.loading'
+  | 'settingsManager.writeScope.mergeNote'
+  | 'settingsManager.writeScope.missing'
+  | 'settingsManager.writeScope.noSources'
+  | 'settingsManager.writeScope.noWrite'
+  | 'settingsManager.writeScope.no_project'
+  | 'settingsManager.writeScope.present'
+  | 'settingsManager.writeScope.readOnly'
+  | 'settingsManager.writeScope.read_error'
+  | 'settingsManager.writeScope.resolve_error'
+  | 'settingsManager.writeScope.saveTarget'
+  | 'settingsManager.writeScope.sources'
+  | 'settingsManager.writeScope.sourcesUnknown'
+  | 'settingsManager.writeScope.targetUnconfirmed'
+  | 'settingsManager.writeScope.unknown'
+  | 'settingsManager.writeScope.unsupported';
 
 /**
  * tools namespace의 번역 키 (69개)
@@ -4522,6 +4543,27 @@ export type TranslationKey =
   | 'settingsManager.visual.model'
   | 'settingsManager.visual.saved'
   | 'settingsManager.visual.selectModel'
+  | 'settingsManager.writeScope.clean'
+  | 'settingsManager.writeScope.dirty'
+  | 'settingsManager.writeScope.editing'
+  | 'settingsManager.writeScope.label'
+  | 'settingsManager.writeScope.loadError'
+  | 'settingsManager.writeScope.loading'
+  | 'settingsManager.writeScope.mergeNote'
+  | 'settingsManager.writeScope.missing'
+  | 'settingsManager.writeScope.noSources'
+  | 'settingsManager.writeScope.noWrite'
+  | 'settingsManager.writeScope.no_project'
+  | 'settingsManager.writeScope.present'
+  | 'settingsManager.writeScope.readOnly'
+  | 'settingsManager.writeScope.read_error'
+  | 'settingsManager.writeScope.resolve_error'
+  | 'settingsManager.writeScope.saveTarget'
+  | 'settingsManager.writeScope.sources'
+  | 'settingsManager.writeScope.sourcesUnknown'
+  | 'settingsManager.writeScope.targetUnconfirmed'
+  | 'settingsManager.writeScope.unknown'
+  | 'settingsManager.writeScope.unsupported'
   | 'simpleUpdateModal.changes'
   | 'simpleUpdateModal.close'
   | 'simpleUpdateModal.currentVersion'
