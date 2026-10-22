@@ -18,11 +18,24 @@ export interface ToolUseContent {
   input: Record<string, unknown>;
 }
 
+export interface ToolUseResultSource {
+  messageUuid: string;
+  sessionId: string;
+  contentIndex: number;
+  /** Source-record association, not proof of matching call identity or status. */
+  association: "single_result" | "unassigned";
+  resultContentIndices?: number[];
+  unassignedToolUseResult?: unknown;
+}
+
 export interface ToolResultContent {
   type: "tool_result";
   tool_use_id: string;
   content: string;
   is_error?: boolean;
+  /** Exact source JSON; absent/null/false/zero/empty are distinct. */
+  toolUseResult?: unknown;
+  toolUseResultSource?: ToolUseResultSource;
 }
 
 export interface ClaudeToolUseResult {

@@ -10,6 +10,8 @@
  */
 
 import type { TextContent } from "./content.types";
+import type { ToolUseResultSource } from "./core/tool";
+export type { ToolUseResultSource } from "./core/tool";
 
 // ============================================================================
 // Basic Tool Types
@@ -27,6 +29,8 @@ export interface ToolResultContent {
   tool_use_id: string;
   content: string;
   is_error?: boolean;
+  toolUseResult?: unknown;
+  toolUseResultSource?: ToolUseResultSource;
 }
 
 export interface ClaudeToolUseResult {

@@ -1143,6 +1143,63 @@ mod tests {
         assert!(!body.contains("do not leak"), "{body}");
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn result_metadata_http_matches_native_for_claude_and_codex_windows() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_source_metadata, CLAUDE_FIXTURE, CODEX_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        for (provider, relative, fixture) in [
+            (
+                "claude",
+                ".claude/projects/contract/s.jsonl",
+                CLAUDE_FIXTURE,
+            ),
+            ("codex", ".codex/sessions/s.jsonl", CODEX_FIXTURE),
+        ] {
+            let path = home.path().join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, fixture).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (10, 3), (99, 2)] {
+                let direct = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_read_only("load_provider_messages_paginated", serde_json::json!({
+                    "provider": provider, "sessionPath": path.to_string_lossy(), "offset": offset, "limit": limit, "excludeSidechain": false,
+                })).await;
+                assert_eq!(status, StatusCode::OK, "{response}");
+                assert_eq!(
+                    response,
+                    serde_json::to_value(direct).unwrap(),
+                    "{provider} offset {offset} limit {limit}"
+                );
+                if provider == "claude" {
+                    assert_source_metadata(&response);
+                }
+            }
+        }
+        // The additive contract must not widen history-root authorization.
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("secret.jsonl");
+        std::fs::write(&path, CLAUDE_FIXTURE).unwrap();
+        let (status, response) = post_read_only(
+            "load_provider_messages_paginated",
+            serde_json::json!({
+                "provider":"claude", "sessionPath":path.to_string_lossy(), "offset":0, "limit":200,
+            }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+        assert!(!response.to_string().contains("unassignable"));
+    }
+
     /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
     /// shared `--serve` instance runs in. The body is `Null` when it is not
     /// JSON.

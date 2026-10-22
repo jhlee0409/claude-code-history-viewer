@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+/// `Option<Value>` normally collapses JSON null into absence. Raw metadata must not.
+fn deserialize_present_json<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenUsage {
     #[serde(alias = "inputTokens", alias = "input")]
@@ -80,7 +88,11 @@ pub struct RawLogEntry {
     pub message: Option<MessageContent>,
     #[serde(rename = "toolUse")]
     pub tool_use: Option<serde_json::Value>,
-    #[serde(rename = "toolUseResult")]
+    #[serde(
+        rename = "toolUseResult",
+        default,
+        deserialize_with = "deserialize_present_json"
+    )]
     pub tool_use_result: Option<serde_json::Value>,
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
@@ -214,6 +226,20 @@ pub struct ClaudeMessage {
     /// Provider identifier (claude, codex, opencode)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+}
+
+/// Provenance of a user message's raw tool metadata, not a call-status verdict.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolUseResultSource {
+    pub message_uuid: String,
+    pub session_id: String,
+    pub content_index: usize,
+    pub association: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_content_indices: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unassigned_tool_use_result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

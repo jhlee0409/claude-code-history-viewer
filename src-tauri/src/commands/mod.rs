@@ -18,4 +18,4 @@ pub mod wsl;
 #[cfg(test)]
 mod proptest_examples;
 #[cfg(test)]
-mod tool_result_metadata_tests;
+pub(crate) mod tool_result_metadata_tests;

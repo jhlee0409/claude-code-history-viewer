@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-01T00:00:00Z","type":"session_meta","payload":{"id":"codex-fixture","cwd":"/fixture"}}
+{"timestamp":"2026-10-01T00:00:01Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","call_id":"c1","arguments":"{\"command\":\"pwd\"}"}}
+{"timestamp":"2026-10-01T00:00:02Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"  unchanged\n\n"}}
+{"timestamp":"2026-10-01T00:00:03Z","type":"response_item","payload":{"type":"function_call_output","call_id":"orphan","output":{"future":[0,false,null]}}}
