@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnifiedSettingsManager, useSettingsManager } from "./UnifiedSettingsManager";
 import type { AllSettingsResponse, SettingsScope } from "@/types";
+import { SettingsScopeLine } from "./SettingsScopeLine";
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
 vi.mock("@/services/api", () => ({ api: apiMock }));
@@ -33,6 +34,23 @@ beforeEach(() => {
 });
 
 describe("settings write-scope line through the actual editor", () => {
+  it("clears a prior project's pending snapshot even when it was equal and clean", async () => {
+    apiMock.mockImplementation((command: string, args: { projectPath?: string }) => {
+      const settings = fixture();
+      if (args?.projectPath === "/new") settings.user = '{"model":"opus"}';
+      return Promise.resolve(command === "get_all_settings" ? settings : {});
+    });
+    const view = render(<UnifiedSettingsManager projectPath="/old" />);
+    fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
+    const editor = screen.getByRole("textbox", { name: "settingsManager.mode.json" });
+    fireEvent.blur(editor);
+    expect(line()).toHaveTextContent("settingsManager.writeScope.clean");
+    view.rerender(<UnifiedSettingsManager projectPath="/new" />);
+    await screen.findByRole("button", { name: "settingsManager.mode.json" });
+    expect(line()).toHaveTextContent("settingsManager.writeScope.clean");
+    expect(screen.getByRole("button", { name: "settingsManager.unified.footer.save" })).toBeDisabled();
+  });
+
   it("does not carry another scope's JSON text into the new save target", async () => {
     render(<UnifiedSettingsManager projectPath="/work/team" />);
     fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
@@ -93,5 +111,51 @@ describe("settings write-scope line through the actual editor", () => {
     await act(async () => reject(new Error("offline")));
     expect(line()).toHaveTextContent("settingsManager.writeScope.loadError");
     expect(within(line()).queryByText("settingsManager.writeScope.clean")).toBeNull();
+  });
+});
+
+describe("settings file evidence and preview provenance", () => {
+  it.each(["missing", "present", "read_error", "no_project", "unsupported", "resolve_error", "unknown"] as const)("keeps %s distinct without guessing a target", state => {
+    const settings = fixture();
+    const scope = state === "no_project" ? "project" : state === "unsupported" ? "managed" : "user";
+    settings.metadata!.scopes[scope] = { path: ["present", "missing", "read_error"].includes(state) ? "/confirmed/settings.json" : null, state, readOnly: scope === "managed" };
+    render(<SettingsScopeLine allSettings={settings} scope={scope} dirty={false} readOnly={scope === "managed"} />);
+    expect(line()).toHaveTextContent(`settingsManager.writeScope.${state}`);
+    expect(line().querySelectorAll("[data-path]")).toHaveLength(["present", "missing", "read_error"].includes(state) ? 1 : 0);
+    if (scope !== "managed") expect(line()).toHaveTextContent(["present", "missing"].includes(state) ? "settingsManager.writeScope.saveTarget" : "settingsManager.writeScope.targetUnconfirmed");
+  });
+
+  it("uses legacy unknown metadata rather than synthesizing a home or a file", () => {
+    const settings = fixture();
+    delete settings.metadata;
+    render(<SettingsScopeLine allSettings={settings} scope="user" dirty={false} readOnly={false} />);
+    expect(line()).toHaveTextContent("settingsManager.writeScope.unknown");
+    expect(line()).toHaveTextContent("settingsManager.writeScope.sourcesUnknown");
+    expect(line().querySelector("[data-path]")).toBeNull();
+  });
+
+  it("reports composite sources, not every present file or only the scalar winner", () => {
+    const settings = fixture();
+    settings.project = '{"model":"opus","env":{"TEAM":"yes"}}';
+    settings.local = '{"permissions":{"allow":["Read"]}}';
+    render(<SettingsScopeLine allSettings={settings} scope="project" dirty readOnly={false} />);
+    const sources = screen.getByTestId("settings-preview-sources");
+    expect(sources).toHaveTextContent("settingsManager.scope.project");
+    expect(sources).toHaveTextContent("settingsManager.scope.local");
+    expect(sources).not.toHaveTextContent("settingsManager.scope.user");
+    expect(sources).not.toHaveTextContent("settingsManager.scope.managed");
+    expect(sources).toHaveTextContent("settingsManager.writeScope.mergeNote");
+  });
+
+  it("retains actual managed contributions alongside merged user permissions", () => {
+    const settings = fixture();
+    settings.user = '{"permissions":{"deny":["Write"]}}';
+    settings.managed = '{"model":"sonnet"}';
+    render(<SettingsScopeLine allSettings={settings} scope="managed" dirty={false} readOnly />);
+    const sources = screen.getByTestId("settings-preview-sources");
+    expect(sources).toHaveTextContent("settingsManager.scope.managed");
+    expect(sources).toHaveTextContent("settingsManager.scope.user");
+    expect(line()).toHaveTextContent("settingsManager.writeScope.noWrite");
+    expect(line()).not.toHaveTextContent("settingsManager.writeScope.saveTarget");
   });
 });
