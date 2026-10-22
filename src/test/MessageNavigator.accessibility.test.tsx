@@ -199,6 +199,37 @@ describe("MessageNavigator accessibility", () => {
     expect(virtualizerOptions.current?.getItemKey?.(2)).toBe("message-3");
   });
 
+  it("keeps the item-key function across a focus move, so measurements are not rebuilt", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          { uuid: "message-1", type: "user", content: "First", timestamp: "2026-02-27T10:00:00Z" } as never,
+          { uuid: "message-2", type: "assistant", content: "Second", timestamp: "2026-02-27T10:01:00Z" } as never,
+          { uuid: "message-3", type: "assistant", content: "Third", timestamp: "2026-02-27T10:02:00Z" } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+    // The virtualizer rebuilds every row's measurement when this function's
+    // identity changes (@tanstack/virtual-core getMeasurementOptions).
+    const getItemKey = virtualizerOptions.current?.getItemKey;
+
+    const currentEntry = screen.getAllByRole("option")[1];
+    act(() => {
+      currentEntry.focus();
+    });
+    act(() => {
+      fireEvent.keyDown(currentEntry, { key: "ArrowDown" });
+    });
+
+    expect(screen.getAllByRole("option")[2]).toHaveAttribute("tabindex", "0");
+    expect(virtualizerOptions.current?.getItemKey).toBe(getItemKey);
+  });
+
   it("hides Parallel Tasks entries and exposes a header toggle", () => {
     storeState.showParallelTasksInNavigator = false;
 

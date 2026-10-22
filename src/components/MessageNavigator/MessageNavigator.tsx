@@ -195,15 +195,19 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     return BASE_ENTRY_HEIGHT + estimatedLines * PREVIEW_LINE_HEIGHT;
   }, [entries]);
 
+  // Rows are measured, and a measured size belongs to its message, not its
+  // index, so a load-earlier prepend cannot hand it to another row. Kept
+  // stable across renders: the virtualizer rebuilds every row's measurement
+  // when this function changes.
+  const getItemKey = useCallback((index: number) => entries[index]?.uuid ?? index, [entries]);
+
   // Initialize virtualizer
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize,
     overscan: 5,
-    // Rows are measured, and a measured size belongs to its message, not its
-    // index, so a load-earlier prepend cannot hand it to another row.
-    getItemKey: (index) => entries[index]?.uuid ?? index,
+    getItemKey,
     // Keep the row holding tabIndex=0 rendered after it scrolls away, as
     // the outline does; otherwise Tab cannot reach a row.
     rangeExtractor: (range) => includeIndex(defaultRangeExtractor(range), focusedIndex, range.count),
