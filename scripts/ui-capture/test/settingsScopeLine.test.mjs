@@ -133,6 +133,44 @@ describe.skipIf(!enabled)("settings write scope in real WebKit at 390px / 125%",
     }, 90_000);
   }
 
+  it.each(SUPPORTED_LOCALES)("%s: sticky scope line never covers the focused control", async locale => {
+    const session = await open(locale);
+    const { page, run } = session;
+    try {
+      await run({ do: "settingsToggle" });
+      const header = page.getByTestId("settings-scope-line");
+      const input = page.locator("main").last().getByRole("textbox").first();
+      const measureFocus = () => page.evaluate(() => {
+        const scope = document.querySelector('[data-testid="settings-scope-line"]').getBoundingClientRect();
+        const active = document.activeElement, field = active.getBoundingClientRect();
+        const hit = document.elementFromPoint(field.x + field.width / 2, field.y + field.height / 2);
+        return { tag: active.tagName, scope: { top: scope.top, bottom: scope.bottom }, field: { top: field.top, bottom: field.bottom }, hit: active === hit || active.contains(hit) };
+      });
+      // Positive control: the same native focus is unobscured without sticky.
+      await header.evaluate(element => { element.style.position = "static"; });
+      await input.focus(); await settle(session);
+      const control = await measureFocus();
+      expect(control.field.top >= control.scope.bottom || control.field.bottom <= control.scope.top).toBe(true);
+      expect(control.hit).toBe(true);
+      await header.evaluate(element => { element.style.removeProperty("position"); });
+      await page.getByRole("button", { name: session.t("settingsManager.mode.json"), exact: true }).focus();
+      await input.focus(); await settle(session);
+      const positions = [];
+      for (const key of [null, "Shift+Tab", "Tab"]) {
+        if (key) { await page.keyboard.press(key); await settle(session); }
+        const position = await measureFocus(); positions.push({ key, ...position });
+        // Native WebKit can leave the document at the first/last Tab stop.
+        // Keep that attempt in the report, but it is not a focused field.
+        if (["BODY", "HTML"].includes(position.tag)) continue;
+        expect(position.field.top >= position.scope.bottom || position.field.bottom <= position.scope.top, JSON.stringify(position)).toBe(true);
+        expect(position.hit).toBe(true);
+      }
+      expect(positions.some(position => position.tag === "INPUT")).toBe(true);
+      await inspect(session, `${locale}-keyboard-fields`);
+      reports[reports.length - 1].focusPositions = positions;
+    } finally { await session.context.close(); }
+  }, 60_000);
+
   it.each(SUPPORTED_LOCALES)("%s: legacy metadata stays unconfirmed without a fabricated path", async locale => {
     const session = await open(locale, { legacy: true });
     try {
