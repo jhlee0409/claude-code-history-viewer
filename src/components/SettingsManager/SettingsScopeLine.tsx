@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { PathText } from "@/lib/format/PathText";
 import { normalizeSettingsMetadata } from "@/services/settingsMetadata";
@@ -45,6 +45,29 @@ function previewSources(settings: AllSettingsResponse | null): SettingsScope[] |
 
 export function SettingsScopeLine({ allSettings, scope, dirty, readOnly, loading, error }: SettingsScopeLineProps) {
   const { t } = useTranslation();
+  const lineRef = useRef<HTMLElement>(null);
+  // Reserve this line's measured height for native focus/scroll-into-view.
+  // The existing margin is the gap role; no fixed locale/zoom height is guessed.
+  useLayoutEffect(() => {
+    const line = lineRef.current;
+    const scroller = line?.parentElement;
+    if (!line || !scroller) return;
+    const previous = scroller.style.scrollPaddingTop;
+    let owned = previous;
+    const update = () => {
+      owned = `${line.getBoundingClientRect().height + (Number.parseFloat(getComputedStyle(line).marginBottom) || 0)}px`;
+      if (scroller.style.scrollPaddingTop !== owned) scroller.style.scrollPaddingTop = owned;
+    };
+    update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(line);
+    window.addEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+      if (scroller.style.scrollPaddingTop === owned) scroller.style.scrollPaddingTop = previous;
+    };
+  }, [t, scope, dirty, readOnly, loading, error, allSettings]);
   const metadata = normalizeSettingsMetadata(allSettings?.metadata);
   const file = metadata.scopes[scope];
   const sources = useMemo(() => previewSources(allSettings), [allSettings]);
@@ -56,7 +79,7 @@ export function SettingsScopeLine({ allSettings, scope, dirty, readOnly, loading
     item.state === "present" || item.state === "missing" || item.state === "no_project" || item.state === "unsupported");
 
   return (
-    <section data-testid="settings-scope-line" aria-label={t("settingsManager.writeScope.label")}
+    <section ref={lineRef} data-testid="settings-scope-line" aria-label={t("settingsManager.writeScope.label")}
       className="sticky top-0 z-10 shrink-0 mb-4 rounded-lg border border-border bg-card p-3 text-body space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
         <span className="font-medium">{t("settingsManager.writeScope.editing", { scope: t(`settingsManager.scope.${scope}`) })}</span>
