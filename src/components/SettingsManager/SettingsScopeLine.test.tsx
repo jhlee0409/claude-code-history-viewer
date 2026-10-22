@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnifiedSettingsManager, useSettingsManager } from "./UnifiedSettingsManager";
 import type { AllSettingsResponse, SettingsScope } from "@/types";
@@ -34,6 +35,26 @@ beforeEach(() => {
 });
 
 describe("settings write-scope line through the actual editor", () => {
+  it("does not let an unmounted saving editor clear the new editor's visual edits in StrictMode", async () => {
+    let finishSave!: () => void;
+    apiMock.mockImplementation((command: string) => command === "save_settings" ? new Promise<void>(resolve => { finishSave = resolve; }) : Promise.resolve(command === "get_all_settings" ? fixture() : {}));
+    const view = render(<StrictMode><UnifiedSettingsManager projectPath="/old" /></StrictMode>);
+    fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "settingsManager.mode.json" }), { target: { value: '{"model":"opus"}' } });
+    fireEvent.click(screen.getByRole("button", { name: "settingsManager.unified.footer.save" }));
+    view.rerender(<StrictMode><UnifiedSettingsManager projectPath="/new" /></StrictMode>);
+    fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
+    const editor = screen.getByRole("textbox", { name: "settingsManager.mode.json" });
+    fireEvent.change(editor, { target: { value: '{"model":"haiku"}' } });
+    fireEvent.blur(editor);
+    fireEvent.click(screen.getByRole("button", { name: "settingsManager.mode.visual" }));
+    expect(line()).toHaveTextContent("settingsManager.writeScope.dirty");
+    await act(async () => finishSave());
+    expect(line()).toHaveTextContent("settingsManager.writeScope.dirty");
+    expect(screen.getByRole("button", { name: "settingsManager.unified.footer.save" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "settingsManager.mode.json" }));
+    expect(screen.getByRole("textbox", { name: "settingsManager.mode.json" })).toHaveValue(JSON.stringify({ model: "haiku" }, null, 2));
+  });
   it("does not let an old save refresh invalidate the newly selected project's pending load", async () => {
     let finishSave!: () => void;
     let finishNew!: (settings: AllSettingsResponse) => void;
