@@ -70,6 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ubuntu apt source regression tests
+        run: python3 -B -m unittest discover -s scripts/ci -p test_ubuntu_apt_sources.py -v
+
       - name: Install pnpm
         # No `version:` — `packageManager` in package.json is the source of truth
         # (pinning here has historically conflicted with it).
@@ -159,6 +162,19 @@ jobs:
       # 2. Rust stable + the same Linux packages as rust-tests.yml
       - name: Install system dependencies
         run: |
+          # The hosted runner's mirror+file list can fall back for InRelease
+          # but pick the stalled Azure mirror again for Packages. Normalize
+          # active Ubuntu URIs (deb822 and .list), retaining all repo metadata.
+          sudo python3 -B scripts/ci/ubuntu-apt-sources.py --apt-root /etc/apt
+          # Persist transport bounds for Playwright's later apt invocation too.
+          # Incomplete indexes must fail, not silently install from stale data.
+          sudo tee /etc/apt/apt.conf.d/zz-cchv-network > /dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          APT::Update::Error-Mode "any";
+          EOF
+          apt-config dump Acquire::Retries Acquire::http::Timeout Acquire::https::Timeout APT::Update::Error-Mode
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev \
