@@ -411,9 +411,12 @@ export const SCOPE_PRIORITY: Record<SettingsScope, number> = {
  * All settings response from backend
  *
  * Returns raw JSON strings for each scope level.
- * Null indicates the settings file doesn't exist at that scope.
+ * Missing files historically return "{}"; null also covers unavailable/read failures.
+ * Use metadata for presence, not raw JSON truthiness.
  */
 export interface AllSettingsResponse {
+  /** Additive backend contract; optional for older responses and fixtures. */
+  metadata?: import("./settingsMetadata").SettingsMetadata;
   /** User-level settings JSON */
   user: string | null;
   /** Project-level settings JSON */

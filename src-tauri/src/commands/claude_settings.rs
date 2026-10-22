@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 
 use crate::utils::strip_windows_extended_prefix;
 
+mod metadata;
+pub use metadata::SettingsMetadata;
+
 /// All settings scopes in a single structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllSettings {
@@ -17,6 +20,9 @@ pub struct AllSettings {
     pub project: Option<String>,
     pub local: Option<String>,
     pub managed: Option<String>,
+    /// Optional only for deserializing older responses; current commands always populate it.
+    #[serde(default)]
+    pub metadata: Option<SettingsMetadata>,
 }
 
 /// MCP servers from both settings.json and .mcp.json
@@ -334,30 +340,12 @@ pub async fn save_settings(
 #[tauri::command]
 pub async fn get_all_settings(project_path: Option<String>) -> Result<AllSettings, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let user = get_user_settings_path()
-            .ok()
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let project = project_path
-            .as_deref()
-            .and_then(|pp| get_settings_path("project", Some(pp)).ok())
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let local = project_path
-            .as_deref()
-            .and_then(|pp| get_settings_path("local", Some(pp)).ok())
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let managed = get_managed_settings_path()
-            .ok()
-            .and_then(|p| read_settings_file(&p).ok());
-
-        Ok(AllSettings {
-            user,
-            project,
-            local,
-            managed,
-        })
+        Ok(metadata::collect_settings(
+            settings_home_dir(),
+            project_path.as_deref(),
+            cfg!(target_os = "macos"),
+            |scope| get_settings_path(scope, project_path.as_deref()),
+        ))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
