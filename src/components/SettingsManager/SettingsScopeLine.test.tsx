@@ -158,6 +158,17 @@ describe("settings write-scope line through the actual editor", () => {
 });
 
 describe("settings file evidence and preview provenance", () => {
+  it.each(["", "{}"])("keeps an empty managed file (%j) present without hiding known inherited sources", raw => {
+    const settings = fixture();
+    settings.managed = raw;
+    render(<SettingsScopeLine allSettings={settings} scope="managed" dirty={false} readOnly />);
+    expect(line()).toHaveTextContent("settingsManager.writeScope.present");
+    expect(line().querySelector("[data-path]")).toHaveAttribute("data-path", "/policy/managed-settings.json");
+    const sources = screen.getByTestId("settings-preview-sources");
+    expect(sources).toHaveTextContent("settingsManager.scope.user");
+    expect(sources).not.toHaveTextContent("settingsManager.scope.managed");
+    expect(sources).not.toHaveTextContent("settingsManager.writeScope.sourcesUnknown");
+  });
   it.each(["missing", "present", "read_error", "no_project", "unsupported", "resolve_error", "unknown"] as const)("keeps %s distinct without guessing a target", state => {
     const settings = fixture();
     const scope = state === "no_project" ? "project" : state === "unsupported" ? "managed" : "user";
