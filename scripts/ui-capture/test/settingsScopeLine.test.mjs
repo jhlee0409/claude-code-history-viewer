@@ -171,6 +171,27 @@ describe.skipIf(!enabled)("settings write scope in real WebKit at 390px / 125%",
     } finally { await session.context.close(); }
   }, 60_000);
 
+  it.each(SUPPORTED_LOCALES)("%s: native focus keeps the whole dirty-editor input inside its scroll viewport", async locale => {
+    const session = await open(locale);
+    try {
+      await session.run({ do: "settingsToggle" });
+      const input = session.page.locator("main").last().getByRole("textbox").first();
+      // No static-header control or screenshot helper may reposition this path.
+      await input.focus(); await settle(session);
+      const position = await input.evaluate(element => {
+        const field = element.getBoundingClientRect();
+        const line = document.querySelector('[data-testid="settings-scope-line"]');
+        const scope = line.getBoundingClientRect(), viewport = line.parentElement.getBoundingClientRect();
+        return { field: { top: field.top, bottom: field.bottom }, scope: { top: scope.top, bottom: scope.bottom }, viewport: { top: viewport.top, bottom: viewport.bottom } };
+      });
+      expect(position.field.top, JSON.stringify(position)).toBeGreaterThanOrEqual(position.scope.bottom);
+      expect(position.field.bottom, JSON.stringify(position)).toBeLessThanOrEqual(position.viewport.bottom);
+      expect(position.scope.top).toBeGreaterThanOrEqual(0);
+      expect(position.scope.bottom).toBeLessThanOrEqual(844);
+      expect(session.log.pageErrors).toEqual([]);
+    } finally { await session.context.close(); }
+  }, 60_000);
+
   it.each(SUPPORTED_LOCALES)("%s: legacy metadata stays unconfirmed without a fabricated path", async locale => {
     const session = await open(locale, { legacy: true });
     try {
