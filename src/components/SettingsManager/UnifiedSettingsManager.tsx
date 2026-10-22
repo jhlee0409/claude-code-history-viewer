@@ -149,6 +149,9 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Load settings
   const loadSettings = React.useCallback(async () => {
+    // A save started under a previous project can finish after selection moves.
+    // Its refresh must not cancel the current selection's request generation.
+    if (selectedProjectRef.current !== projectPath) return;
     const request = ++settingsRequestRef.current;
     const ownsSelection = () => request === settingsRequestRef.current && selectedProjectRef.current === projectPath;
     try {
