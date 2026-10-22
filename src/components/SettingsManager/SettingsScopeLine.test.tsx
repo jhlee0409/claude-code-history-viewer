@@ -33,6 +33,14 @@ beforeEach(() => {
 });
 
 describe("settings write-scope line through the actual editor", () => {
+  it("does not carry another scope's JSON text into the new save target", async () => {
+    render(<UnifiedSettingsManager projectPath="/work/team" />);
+    fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
+    fireEvent.click(screen.getByRole("button", { name: "project" }));
+    expect(line()).toHaveTextContent("settingsManager.writeScope.clean");
+    expect(screen.queryByRole("textbox", { name: "settingsManager.mode.json" })).toBeNull();
+    expect(screen.getByRole("button", { name: "settingsManager.unified.footer.save" })).toBeDisabled();
+  });
   it.each(["user", "project", "local", "managed"] as const)("shows the exact %s resolver file and scope, not a browser-derived path", async scope => {
     render(<UnifiedSettingsManager projectPath="/work/team" />);
     await screen.findByRole("button", { name: scope });
