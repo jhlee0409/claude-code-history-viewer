@@ -41,6 +41,15 @@ pub struct SettingsMetadata {
     pub scopes: SettingsScopesMetadata,
 }
 
+/// Classify an unsuccessful target probe independently of raw legacy contents.
+fn state_for_read_error(_path: &std::path::Path, error: &std::io::Error) -> SettingsFileState {
+    if error.kind() == std::io::ErrorKind::NotFound {
+        SettingsFileState::Missing
+    } else {
+        SettingsFileState::ReadError
+    }
+}
+
 /// Injection keeps fixtures independent of process environment and real managed files.
 /// Production passes the same resolver used by `get_settings_by_scope` and `save_settings`.
 pub(super) fn collect_settings(
@@ -71,11 +80,7 @@ pub(super) fn collect_settings(
         evidence.path = Some(path.to_string_lossy().into_owned());
         match fs::metadata(&path) {
             Err(error) => {
-                evidence.state = if error.kind() == std::io::ErrorKind::NotFound {
-                    SettingsFileState::Missing
-                } else {
-                    SettingsFileState::ReadError
-                };
+                evidence.state = state_for_read_error(&path, &error);
                 // Preserve read_settings_file's legacy exists() fallback, including
                 // inaccessible or non-directory parents. Metadata retains the error.
                 let legacy = (!path.exists()).then(|| "{}".to_string());

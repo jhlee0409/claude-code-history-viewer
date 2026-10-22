@@ -105,6 +105,40 @@ fn settings_metadata_unavailable_and_resolver_errors_never_fabricate_paths() {
 }
 
 #[test]
+fn settings_metadata_not_found_error_with_a_file_parent_is_not_missing() {
+    use std::io::{Error, ErrorKind};
+    let temp = TempDir::new().unwrap();
+    let blocked = temp.path().join("not-a-directory");
+    fs::write(&blocked, "parent file").unwrap();
+    // Windows reports NotFound for this structural read failure. Supply that
+    // observed error kind portably while checking real isolated ancestors.
+    let ambiguous = Error::from(ErrorKind::NotFound);
+    assert_eq!(
+        serde_json::to_value(state_for_read_error(
+            &blocked.join("nested/settings.json"),
+            &ambiguous
+        ))
+        .unwrap(),
+        "read_error"
+    );
+    let absent = temp.path().join("not-created/nested/settings.json");
+    assert_eq!(
+        serde_json::to_value(state_for_read_error(&absent, &ambiguous)).unwrap(),
+        "missing"
+    );
+    assert_eq!(
+        serde_json::to_value(state_for_read_error(
+            &absent,
+            &Error::from(ErrorKind::PermissionDenied)
+        ))
+        .unwrap(),
+        "read_error"
+    );
+    assert!(!temp.path().join("not-created").exists());
+    assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+}
+
+#[test]
 fn settings_metadata_read_errors_are_distinct_from_missing_and_keep_legacy_contents() {
     let temp = TempDir::new().unwrap();
     for scope in SCOPES {
