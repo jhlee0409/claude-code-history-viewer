@@ -201,6 +201,13 @@ export const SettingsEditorPane: React.FC<{ onDirtyChange?: (dirty: boolean) => 
 
   // Section refs for scrolling
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // A retired editor's save may settle after another scope/project mounts.
+  // Reset in setup too: StrictMode replays layout effects on the same instance.
+  const editorMountedRef = useRef(false);
+  React.useLayoutEffect(() => {
+    editorMountedRef.current = true;
+    return () => { editorMountedRef.current = false; };
+  }, []);
 
   // Clear save result after delay
   React.useEffect(() => {
@@ -255,7 +262,7 @@ export const SettingsEditorPane: React.FC<{ onDirtyChange?: (dirty: boolean) => 
 
     try {
       await saveSettings(settingsToSave);
-      setPendingSettings(null);
+      if (editorMountedRef.current) setPendingSettings(null);
       if (editorMode === "json") {
         jsonHistory.reset(JSON.stringify(settingsToSave, null, 2));
         setJsonError(null);
