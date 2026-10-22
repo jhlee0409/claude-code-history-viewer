@@ -217,10 +217,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     return JSON.stringify(pendingSettings) !== JSON.stringify(currentSettings);
   }, [pendingSettings, currentSettings]);
 
-  // Reset pending settings when scope changes
+  // A pending snapshot belongs to this scope AND project, even if it was clean.
   React.useEffect(() => {
     setPendingSettings(null);
-  }, [activeScope]);
+  }, [activeScope, projectPath]);
 
   // Listen for open-settings-section events to expand and scroll to target card
   React.useEffect(() => {
