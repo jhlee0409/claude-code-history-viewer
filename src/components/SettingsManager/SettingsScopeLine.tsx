@@ -54,10 +54,15 @@ export function SettingsScopeLine({ allSettings, scope, dirty, readOnly, loading
     const scroller = line?.parentElement;
     if (!line || !scroller) return;
     const previous = scroller.style.scrollPaddingTop;
+    const previousBottom = scroller.style.scrollPaddingBottom;
     let owned = previous;
+    let ownedBottom = previousBottom;
     const update = () => {
-      owned = `${line.getBoundingClientRect().height + (Number.parseFloat(getComputedStyle(line).marginBottom) || 0)}px`;
+      const gap = Number.parseFloat(getComputedStyle(line).marginBottom) || 0;
+      owned = `${line.getBoundingClientRect().height + gap}px`;
+      ownedBottom = `${gap}px`;
       if (scroller.style.scrollPaddingTop !== owned) scroller.style.scrollPaddingTop = owned;
+      if (scroller.style.scrollPaddingBottom !== ownedBottom) scroller.style.scrollPaddingBottom = ownedBottom;
     };
     update();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
@@ -67,6 +72,7 @@ export function SettingsScopeLine({ allSettings, scope, dirty, readOnly, loading
       observer?.disconnect();
       window.removeEventListener("resize", update);
       if (scroller.style.scrollPaddingTop === owned) scroller.style.scrollPaddingTop = previous;
+      if (scroller.style.scrollPaddingBottom === ownedBottom) scroller.style.scrollPaddingBottom = previousBottom;
     };
   }, [t, scope, dirty, readOnly, loading, error, allSettings]);
   const metadata = normalizeSettingsMetadata(allSettings?.metadata);
