@@ -495,6 +495,11 @@ const INNER_SCREENS = [
     steps: [{ do: "openProject", project: "featured" }, { do: "appMenu", item: "settingsManager" }, { do: "settingsToggle" }],
   },
   {
+    id: "settings-inherited",
+    title: "Project settings file with inherited user defaults (SE0b)",
+    steps: [{ do: "openProject", project: "featured" }, { do: "appMenu", item: "settingsManager" }, { do: "settingsProject", project: "featured" }],
+  },
+  {
     id: "archive-error",
     title: "Archive manager when the archive list cannot be read",
     inject: [{ command: "list_archives", fail: { status: 500, error: "Permission denied (os error 13)" } }],
@@ -522,7 +527,7 @@ export const LATER_SCREENS = [
   { id: "partial-provider", activatesWith: "SX1", before: "new-surface", title: "One provider failed to scan, the others listed", steps: [] },
   { id: "stale-data", activatesWith: "SX1", before: "new-surface", title: "Data older than the source on disk", steps: [] },
   { id: "settings-invalid", activatesWith: "SE1", before: "settings", title: "Settings with an invalid value", steps: [] },
-  { id: "settings-inherited", activatesWith: "SE1", before: "settings", title: "Settings showing a value inherited from another scope", steps: [] },
+
   { id: "archive-progress", activatesWith: "AR1", before: "archive", title: "Archive being created (progress)", steps: [] },
   { id: "archive-result", activatesWith: "AR1", before: "archive", title: "Archive created (result)", steps: [] },
 ];

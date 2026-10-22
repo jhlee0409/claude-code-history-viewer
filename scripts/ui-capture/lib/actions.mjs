@@ -203,6 +203,12 @@ export function createActions({ session, scenario, manifest, t }) {
     async settingsToggle() {
       await click(main().getByRole("switch").first(), "toggle the first setting");
     },
+    /** Select the real project's file; user defaults then remain inherited. */
+    async settingsProject({ project: key = "featured" }) {
+      const target = project(key);
+      await click(page.getByRole("combobox", { name: t("settingsManager.context.selectProject"), exact: true }), "settings project selector");
+      await click(page.getByRole("option", { name: target.name, exact: true }).last(), `settings project ${target.name}`);
+    },
     async collapseProjects() {
       await steps.openSidebar();
       // The tree's own keyboard contract: ArrowLeft collapses an expanded row.
