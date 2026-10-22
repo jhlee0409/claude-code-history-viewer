@@ -34,6 +34,28 @@ beforeEach(() => {
 });
 
 describe("settings write-scope line through the actual editor", () => {
+  it("does not let an old save refresh invalidate the newly selected project's pending load", async () => {
+    let finishSave!: () => void;
+    let finishNew!: (settings: AllSettingsResponse) => void;
+    apiMock.mockImplementation((command: string, args: { projectPath?: string }) => {
+      if (command === "save_settings") return new Promise<void>(resolve => { finishSave = resolve; });
+      if (command === "get_all_settings") return args.projectPath === "/new" ? new Promise(resolve => { finishNew = resolve; }) : Promise.resolve(fixture());
+      return Promise.resolve({});
+    });
+    const view = render(<UnifiedSettingsManager projectPath="/old" />);
+    fireEvent.click(await screen.findByRole("button", { name: "settingsManager.mode.json" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "settingsManager.mode.json" }), { target: { value: '{"model":"opus"}' } });
+    fireEvent.click(screen.getByRole("button", { name: "settingsManager.unified.footer.save" }));
+    expect(apiMock).toHaveBeenCalledWith("save_settings", expect.anything());
+    view.rerender(<UnifiedSettingsManager projectPath="/new" />);
+    await act(async () => finishSave());
+    const newer = fixture();
+    newer.metadata!.serverHome = "/new-home";
+    newer.metadata!.scopes.user.path = "/new-home/.claude/settings.json";
+    await act(async () => finishNew(newer));
+    expect(line()).not.toHaveTextContent("settingsManager.writeScope.loading");
+    expect(line().querySelector("[data-path]")).toHaveAttribute("data-path", "/new-home/.claude/settings.json");
+  });
   it("clears a prior project's pending snapshot even when it was equal and clean", async () => {
     apiMock.mockImplementation((command: string, args: { projectPath?: string }) => {
       const settings = fixture();
