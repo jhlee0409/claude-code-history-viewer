@@ -23,15 +23,17 @@ is introduced. The server home is exposed only with that existing settings respo
 The example is a macOS server, not a portable path template. Never construct these
 paths from browser OS, browser home, a selected custom history directory, or the
 unrelated `.claude.json` response. `serverHome` is the backend settings home; use it
-as the home argument to `formatPath` with `kind: "home"` in the future UI.
+as `homeDir` in `formatPath(path, { homeDir: metadata.serverHome })` in the future
+UI. `kind: "home"` is a formatter result, not an input option; paths outside that
+home (for example managed settings) remain absolute.
 
 ## Scope states
 
 | state | Meaning | path |
 |---|---|---|
 | `present` | A regular file was read successfully; even empty, `{}`, invalid JSON, numeric JSON or `null` JSON | exact resolver result |
-| `missing` | Filesystem target not found, including a dangling final symlink | exact resolver result |
-| `read_error` | Metadata/read failure, invalid UTF-8 or a nonregular target | exact resolver result |
+| `missing` | Filesystem target not found and the nearest existing ancestor is a directory; includes a dangling final symlink | exact resolver result |
+| `read_error` | Metadata/read failure, invalid UTF-8, nonregular target, or a non-directory/inaccessible parent (even when the OS reports `NotFound`) | exact resolver result |
 | `no_project` | No project was selected (project/local only) | null |
 | `unsupported` | Managed settings unsupported on the server platform | null |
 | `resolve_error` | Existing path resolver failed (e.g. invalid project path or unavailable home) | null |

@@ -42,12 +42,28 @@ pub struct SettingsMetadata {
 }
 
 /// Classify an unsuccessful target probe independently of raw legacy contents.
-fn state_for_read_error(_path: &std::path::Path, error: &std::io::Error) -> SettingsFileState {
-    if error.kind() == std::io::ErrorKind::NotFound {
-        SettingsFileState::Missing
-    } else {
-        SettingsFileState::ReadError
+fn state_for_read_error(path: &std::path::Path, error: &std::io::Error) -> SettingsFileState {
+    if error.kind() != std::io::ErrorKind::NotFound {
+        return SettingsFileState::ReadError;
     }
+    // Windows may report NotFound when an ancestor is a file, whereas Unix
+    // reports NotADirectory. Establish the nearest existing parent before
+    // treating this as ordinary absence. Only metadata is probed: no content
+    // opens, canonicalized imaginary paths, directory creation or write grants.
+    for ancestor in path.ancestors().skip(1) {
+        match fs::metadata(ancestor) {
+            Ok(meta) => {
+                return if meta.is_dir() {
+                    SettingsFileState::Missing
+                } else {
+                    SettingsFileState::ReadError
+                };
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return SettingsFileState::ReadError,
+        }
+    }
+    SettingsFileState::ReadError
 }
 
 /// Injection keeps fixtures independent of process environment and real managed files.
