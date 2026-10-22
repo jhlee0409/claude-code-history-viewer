@@ -57,7 +57,7 @@ export function SettingsScopeLine({ allSettings, scope, dirty, readOnly, loading
 
   return (
     <section data-testid="settings-scope-line" aria-label={t("settingsManager.writeScope.label")}
-      className="shrink-0 mb-4 rounded-lg border border-border bg-card p-3 text-body space-y-2">
+      className="sticky top-0 z-10 shrink-0 mb-4 rounded-lg border border-border bg-card p-3 text-body space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
         <span className="font-medium">{t("settingsManager.writeScope.editing", { scope: t(`settingsManager.scope.${scope}`) })}</span>
         {settled && file.path && <PathText path={file.path} ctx={{ homeDir: metadata.serverHome ?? undefined }} />}
