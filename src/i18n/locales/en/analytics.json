@@ -144,7 +144,7 @@
   "analytics.tokenDistributionByType": "Token Distribution by Type",
   "analytics.tokenRank": "Token Rank",
   "analytics.tokens": "tokens",
-  "analytics.tokensPerMessage": "Tokens/Message",
+  "analytics.tokensPerMessage": "Tokens / Message",
   "analytics.tokenTypeDistribution": "Token Type Distribution",
   "analytics.tokenUsage": "Token Usage",
   "analytics.tokenUsageDetailed": "Project token usage analysis and session detailed statistics",

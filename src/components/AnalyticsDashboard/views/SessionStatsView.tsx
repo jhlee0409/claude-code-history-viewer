@@ -104,8 +104,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <Zap className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <Zap className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
+                <span className="min-w-0 break-words text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.projectShare")}
                 </span>
               </div>
@@ -119,8 +119,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <MessageSquare className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
+                <span className="min-w-0 break-words text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.tokensPerMessage")}
                 </span>
               </div>
@@ -136,8 +136,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <Timer className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <Timer className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
+                <span className="min-w-0 break-words text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.sessionTime")}
                 </span>
               </div>
@@ -156,8 +156,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <TrendingUp className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
+                <span className="min-w-0 break-words text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.percentile", "Percentile")}
                 </span>
               </div>
