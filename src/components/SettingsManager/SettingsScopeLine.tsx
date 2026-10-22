@@ -21,7 +21,8 @@ function previewSources(settings: AllSettingsResponse | null): SettingsScope[] |
   try {
     for (const scope of ["user", "project", "local", "managed"] as const) {
       const raw = settings[scope];
-      if (raw !== null) {
+      // Match the merger's empty-content handling, not file existence.
+      if (raw !== null && raw !== "") {
         const parsed: unknown = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
       }
