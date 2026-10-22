@@ -116,6 +116,11 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Project path state - allows changing project within the component
   const [projectPath, setProjectPath] = React.useState<string | undefined>(initialProjectPath);
+  const [loadedProjectPath, setLoadedProjectPath] = React.useState<string | undefined>();
+  const selectedProjectRef = React.useRef(projectPath);
+  selectedProjectRef.current = projectPath;
+  const settingsRequestRef = React.useRef(0);
+  const settingsLoading = isLoading || loadedProjectPath !== projectPath;
 
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
@@ -144,20 +149,29 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Load settings
   const loadSettings = React.useCallback(async () => {
+    const request = ++settingsRequestRef.current;
+    const ownsSelection = () => request === settingsRequestRef.current && selectedProjectRef.current === projectPath;
     try {
       setIsLoading(true);
       setError(null);
       const settingsResult = await api<AllSettingsResponse>("get_all_settings", { projectPath });
-      setAllSettings(settingsResult);
+      if (ownsSelection()) {
+        setAllSettings(settingsResult);
+        setLoadedProjectPath(projectPath);
+      }
     } catch (err) {
-      setError(String(err));
+      if (ownsSelection()) {
+        setError(String(err));
+        setLoadedProjectPath(projectPath);
+      }
     } finally {
-      setIsLoading(false);
+      if (ownsSelection()) setIsLoading(false);
     }
   }, [projectPath]);
 
   React.useEffect(() => {
     loadSettings();
+    return () => { settingsRequestRef.current += 1; };
   }, [loadSettings]);
 
   // Parse current settings
@@ -344,12 +358,12 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           scope={activeScope}
           dirty={hasUnsavedChanges || (activePanel === "editor" && editorDirty)}
           readOnly={isReadOnly}
-          loading={isLoading}
+          loading={settingsLoading}
           error={!!error}
         />
 
         {/* Content */}
-        {isLoading ? (
+        {settingsLoading ? (
           <LoadingState
             isLoading={isLoading}
             error={error}
