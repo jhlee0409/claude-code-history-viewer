@@ -118,7 +118,9 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   const [projectPath, setProjectPath] = React.useState<string | undefined>(initialProjectPath);
   const [loadedProjectPath, setLoadedProjectPath] = React.useState<string | undefined>();
   const selectedProjectRef = React.useRef(projectPath);
-  selectedProjectRef.current = projectPath;
+  React.useLayoutEffect(() => {
+    selectedProjectRef.current = projectPath;
+  }, [projectPath]);
   const settingsRequestRef = React.useRef(0);
   const settingsLoading = isLoading || loadedProjectPath !== projectPath;
 
