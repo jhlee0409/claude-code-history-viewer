@@ -413,7 +413,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <SettingsSidebar availableScopes={availableScopes} />
 
               {/* Main Content Area */}
-              {activePanel === "editor" ? <SettingsEditorPane onDirtyChange={setEditorDirty} /> : <SettingsDiagnosticsPanel />}
+              {activePanel === "editor" ? <SettingsEditorPane key={JSON.stringify([projectPath, activeScope])} onDirtyChange={setEditorDirty} /> : <SettingsDiagnosticsPanel />}
             </div>
           </div>
         )}
