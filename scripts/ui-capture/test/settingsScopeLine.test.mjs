@@ -115,6 +115,11 @@ describe.skipIf(!enabled)("settings write scope in real WebKit at 390px / 125%",
         await page.getByRole("button", { name: t("settingsManager.mode.json"), exact: true }).click();
         const editor = page.getByRole("textbox", { name: t("settingsManager.mode.json"), exact: true });
         await editor.fill('{"model":');
+        // Do not scroll back to the header: the write scope must remain visible
+        // at the actual editing position, not only when a screenshot asks for it.
+        const scopeBox = await header.boundingBox();
+        expect(scopeBox.y, "write-scope line scrolled out while editing").toBeGreaterThanOrEqual(0);
+        expect(scopeBox.y + scopeBox.height).toBeLessThanOrEqual(844);
         expect(await header.innerText()).toContain(t("settingsManager.writeScope.dirty"));
         expect(await page.getByRole("button", { name: t("settingsManager.unified.footer.save"), exact: true }).isDisabled()).toBe(true);
         await inspect(session, `${locale}-json-invalid-dirty`);
