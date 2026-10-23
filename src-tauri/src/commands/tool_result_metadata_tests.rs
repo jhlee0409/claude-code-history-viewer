@@ -79,6 +79,7 @@ async fn result_metadata_keeps_ambiguous_payload_once_and_exact_source_across_pa
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn result_metadata_does_not_change_codex_normalized_results() {
     let home = crate::test_utils::SandboxHome::new();
     let path = home.path().join(".codex/sessions/codex.jsonl");
@@ -107,6 +108,81 @@ async fn result_metadata_does_not_change_codex_normalized_results() {
         assert!(block.get("toolUseResult").is_none());
         assert!(block.get("toolUseResultSource").is_none());
     }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn result_metadata_null_keeps_legacy_discovery_search_and_stats() {
+    let home = crate::test_utils::SandboxHome::new();
+    let claude = home.path().join(".claude");
+    let mut observed = Vec::new();
+    for (label, raw, expected) in [
+        ("missing", None, false),
+        ("null", Some(Value::Null), false),
+        ("object", Some(json!({})), true),
+        ("false", Some(json!(false)), true),
+        ("zero", Some(json!(0)), true),
+        ("empty", Some(json!("")), true),
+    ] {
+        let project = claude.join("projects").join(label);
+        std::fs::create_dir_all(&project).unwrap();
+        let path = project.join("plain.jsonl");
+        let mut record = json!({"uuid":label,"sessionId":label,"timestamp":"2026-10-01T00:00:00Z","type":"user","message":{"role":"user","content":format!("needle-{label}")}});
+        if let Some(value) = &raw {
+            record["toolUseResult"] = value.clone();
+        }
+        std::fs::write(&path, format!("{record}\n")).unwrap();
+        let sessions =
+            crate::commands::session::load_project_sessions(project.to_string_lossy().into(), None)
+                .await
+                .unwrap();
+        assert_eq!(sessions.len(), 1);
+        let matches = crate::commands::session::search_messages(
+            claude.to_string_lossy().into(),
+            format!("needle-{label}"),
+            json!({"hasToolCalls":true}),
+            Some(100),
+        )
+        .await
+        .unwrap();
+        // A separate explicit tool record exercises legacy success counting.
+        record["uuid"] = json!(format!("stats-{label}"));
+        record["toolUse"] = json!({"name":"Synthetic"});
+        let stats_path = project.join("stats.jsonl");
+        std::fs::write(&stats_path, format!("{record}\n")).unwrap();
+        let stats = crate::commands::stats::get_session_token_stats(
+            stats_path.to_string_lossy().into(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let tool = stats
+            .most_used_tools
+            .iter()
+            .find(|tool| tool.tool_name == "Synthetic")
+            .unwrap();
+        observed.push((
+            label,
+            sessions[0].has_tool_use,
+            matches.len(),
+            tool.success_rate,
+            expected,
+        ));
+    }
+    assert_eq!(
+        observed,
+        vec![
+            ("missing", false, 0, 0.0, false),
+            ("null", false, 0, 0.0, false),
+            ("object", true, 1, 100.0, true),
+            ("false", true, 1, 100.0, true),
+            ("zero", true, 1, 100.0, true),
+            ("empty", true, 1, 100.0, true)
+        ],
+        "raw null preservation must not change legacy discovery/search/numeric semantics"
+    );
 }
 
 #[tokio::test]
