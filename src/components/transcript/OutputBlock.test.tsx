@@ -104,9 +104,9 @@ describe("OutputBlock: stderr zone", () => {
     expect(container.querySelector("[data-stderr]")).toBeNull();
   });
 
-  it("puts a recorded exit code in the meta line", () => {
-    const { container } = wrap(<OutputBlock text="ok" errorText="warning: x" recordedExitCode={0} />);
-    expect(container.querySelector("[data-output] [data-meta]")?.textContent).toContain("Exit code 0");
+  it("its meta carries no outcome facts (the ToolRow detail owns the exit code)", () => {
+    const { container } = wrap(<OutputBlock text="Exit code 1 is text here" errorText="warning: x" />);
+    expect(container.querySelector("[data-output] [data-meta]")?.textContent).not.toMatch(/exit code/i);
   });
 });
 

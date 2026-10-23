@@ -8,7 +8,8 @@
  *
  * stderr gets its own zone — danger text and a left rule — whatever the
  * verdict: a warning beside exit code 0 stays visible, and so does E15's
- * fatal stderr with no exit code. A recorded exit code sits in the meta line.
+ * fatal stderr with no exit code. Recorded outcome facts (exit code …) are
+ * not the output's: the ToolRow detail that holds it shows them, once.
  * Long output is capped at `lineCap` lines per zone with "Show all n lines";
  * a search match past the cap opens it.
  */
@@ -36,8 +37,6 @@ export interface OutputBlockProps {
   text?: string;
   /** stderr, shown in its own zone. */
   errorText?: string;
-  /** An exit code recorded for this output (never inferred). */
-  recordedExitCode?: number;
   searchQuery?: string;
   lineCap?: number;
   /** Capture-registry key for the show-all state. */
@@ -73,7 +72,6 @@ function Zone({ text, className }: { text: string; className?: string }) {
 export function OutputBlock({
   text,
   errorText,
-  recordedExitCode,
   searchQuery,
   lineCap = DEFAULT_LINE_CAP,
   expandKey = "output",
@@ -112,7 +110,6 @@ export function OutputBlock({
       <div data-meta="" className="flex min-w-0 flex-wrap items-center gap-2 px-3 pt-2 text-caption text-fg-3">
         {kindLabel && <span>{kindLabel}</span>}
         <span>{total === 0 ? t("outputBlock.empty") : t("outputBlock.lineCount", { count: total })}</span>
-        {recordedExitCode !== undefined && <span>{t("toolOutcome.exitCode", { code: recordedExitCode })}</span>}
         <button
           type="button"
           onClick={onCopy}

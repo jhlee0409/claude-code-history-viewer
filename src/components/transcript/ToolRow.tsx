@@ -9,8 +9,10 @@
  * Outcome (from `toolOutcome`, never read from the result here):
  * - succeeded / unknown: nothing in the row — no pill, no "Completed".
  *   Opened, the detail states neutral facts: "Result not verified · No exit
- *   code recorded" when a process left no exit code. A recorded exit code is
- *   shown once, in the meta of the output it belongs to (OutputBlock).
+ *   code recorded" when a process left no exit code.
+ * - The opened detail's meta owns the recorded outcome facts: a recorded exit
+ *   code (0 included) is shown there once, whatever the verdict and whether
+ *   or not any output exists; outputs (OutputBlock) never repeat it.
  * - failed: a danger icon + "Failed", "Failed · exit code N" (only a recorded
  *   N) or "Failed · <API error code>".
  * - interrupted: a warning icon + "Interrupted". no result: an `--fg-3`
@@ -110,11 +112,12 @@ function RowStatus({ outcome }: { outcome: ToolOutcome }) {
 }
 
 /**
- * Neutral facts for the opened detail. A recorded exit code is not one of
- * them: the output it belongs to shows it in its meta, once.
+ * Facts for the opened detail's meta: the recorded exit code (shown here and
+ * nowhere else in the detail), then "not verified" and "parts disagree".
  */
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
   const facts: string[] = [];
+  if (outcome.exitCode !== undefined) facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
   if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && outcome.reason === "no-exit-code") {
     facts.push(t("toolOutcome.notVerifiedNoExitCode"));
   } else if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && family === "process") {
