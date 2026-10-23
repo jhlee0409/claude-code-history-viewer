@@ -168,6 +168,20 @@ describe("OutputBlock: line cap and copy", () => {
     expect(body(container).textContent).not.toContain("needle");
   });
 
+  it("after a collapse, a different matching query reveals past the cap again (review round 7)", () => {
+    const text = `${twenty}\nneedle otherword`;
+    const { container, rerender } = wrap(<OutputBlock text={text} lineCap={15} expandKey="search-requery" searchQuery="needle" />);
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+    expect(body(container).textContent).not.toContain("otherword");
+    rerender(
+      <ExpandKeyProvider value="msg-out">
+        <OutputBlock text={text} lineCap={15} expandKey="search-requery" searchQuery="otherword" />
+      </ExpandKeyProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
+    expect(body(container).textContent).toContain("otherword");
+  });
+
   it("offers a copy button", () => {
     wrap(<OutputBlock text="x" />);
     expect(screen.queryByRole("button", { name: "Copy output" })).not.toBeNull();

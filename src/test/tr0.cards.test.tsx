@@ -547,6 +547,22 @@ describe("TR9: StringRenderer says 'File Structure' once, in one box", () => {
     expect(button.getAttribute("aria-expanded")).toBe("false");
     expect(container.querySelector("[data-output]")).toBeNull();
   });
+
+  it("after a collapse, a different matching query opens it again (review round 7)", () => {
+    const result = "alpha\nNeedle Otherword line";
+    const { container, rerender } = wrap(<StringRenderer result={result} searchQuery="needle" />);
+    const button = container.querySelector("button[aria-expanded]") as HTMLElement;
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    rerender(
+      <ExpandKeyProvider value="msg-cards">
+        <StringRenderer result={result} searchQuery="otherword" />
+      </ExpandKeyProvider>,
+    );
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector("[data-output]")?.textContent).toContain("Otherword");
+  });
+
   it("opened file tree: the label once, and no bordered card around the well", () => {
     const { container } = wrap(<StringRenderer result={"src/\n├── a.ts\n└── b.ts"} />);
     const button = container.querySelector("button[aria-expanded='false']");
