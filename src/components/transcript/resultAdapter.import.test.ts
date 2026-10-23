@@ -5,31 +5,45 @@
  * `error_code`, exit-code aliases, `interrupted`, stdout/stderr and the #727
  * inline per-result metadata (`toolUseResult`); the provenance envelope
  * (`toolUseResultSource`, `unassignedToolUseResult`) is read by nothing in
- * the transcript UI, the adapter included. The transcript components and the cards that
- * adopted ToolRow/OutputBlock must go through it: this static scan fails on
- * any read of those fields elsewhere — property access, element access,
- * destructuring, an `in` check or the field name as a string handed to a
- * helper (`str(r, "stdout")`, `Reflect.get`, a key constant). A key built
- * from constant parts (`"exit" + "Code"`, a template literal of constants,
- * a `const` holding either) is folded to the name it spells first.
+ * the transcript UI, the adapter included. Every module under
+ * `src/components/transcript/` (recursively) and the cards that adopted
+ * ToolRow/OutputBlock (plus StringRenderer) must go through it: this static
+ * scan fails on any read of those fields elsewhere — property access,
+ * element access, destructuring, an `in` check or the field name as a
+ * string handed to a helper (`str(r, "stdout")`, `Reflect.get`, a key
+ * constant). A key built from constant parts (`"exit" + "Code"`, a template
+ * literal of constants, a `const` holding either) is folded to the name it
+ * spells first.
  *
- * `code` is the bare exit-code alias. The scanned files are only the
- * transcript modules and the adopting cards — everything they handle that
- * may carry a `code` is a tool result or its content — so a `code` read
- * there is a result read too, unless its receiver is an adapter output or a
- * type declared outside these files names `code` itself (an error object,
- * a key event). Code outside the scan (services, error handling) is not
- * scanned at all.
+ * Reads of the adapter's own outputs (`NormalizedResult`, `ToolOutcome`,
+ * `ResultContent`, `ContentPart`) are allowed. The receiver is judged by the
+ * real TypeScript program — the app's tsconfig, its lib, node_modules types
+ * and the real in-tree modules — so a field read is judged by what it reads
+ * from, not by its name alone.
  *
- * Reads of the adapter's own outputs (`NormalizedResult`, `ToolOutcome`) are
- * allowed; the TypeScript checker decides the receiver type, so a field read
- * is judged by what it reads from, not by its name alone.
+ * `code` is the bare exit-code alias, and also a common field of other
+ * things (an error object, a key event). A `code` read fails when its
+ * receiver is result-like: `any` / `unknown` / an unresolved type, a type
+ * with an index signature (`Record<string, unknown>`, `ToolResultLike`
+ * wherever it is declared), a type that does not declare `code` itself, or
+ * a cast / `const` alias whose source is any of these. A receiver whose type
+ * declares `code` (an imported error interface, a DOM or React key event, a
+ * local event interface) passes.
  *
- * The scanner is proved both ways with in-memory fixtures: every known bypass
- * form must be reported, every legitimate form must pass.
+ * Limits, stated rather than claimed away: a key computed at run time
+ * (`r[key()]`) cannot be resolved statically and is not reported; and a
+ * value already typed with a hand-written interface that declares `code`
+ * (a parameter `x: { code: number }` handed in from elsewhere) is judged by
+ * that type, since the scan cannot see where the value came from across a
+ * call boundary.
+ *
+ * The scanner is proved both ways with in-memory fixtures (resolved against
+ * the real modules): every known bypass form must be reported, every
+ * legitimate form must pass.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
@@ -64,18 +78,17 @@ const GUARDED = new Set([
 const CODE_ALIAS = "code";
 const isGuardedName = (name: string) => GUARDED.has(name) || name === CODE_ALIAS;
 
-/** Is `fileName` one of the files under the ownership rule (or a fixture standing in for one)? */
-const inScanScope = (fileName: string) =>
-  norm(fileName).startsWith(`${norm(TRANSCRIPT_DIR)}/`) || ADOPTERS.some((a) => norm(a) === norm(fileName));
-
 const isSourceFile = (name: string) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name) && !name.endsWith(".d.ts");
 
+/** Every source module under `dir`, recursively (tests and declarations excluded). */
+function sourcesUnder(dir: string): string[] {
+  return (readdirSync(dir, { recursive: true }) as string[])
+    .map((rel) => join(dir, rel))
+    .filter((file) => isSourceFile(file) && statSync(file).isFile());
+}
+
 function scannedFiles(): string[] {
-  const own = readdirSync(TRANSCRIPT_DIR)
-    .filter(isSourceFile)
-    .map((n) => join(TRANSCRIPT_DIR, n))
-    .filter((f) => f !== ADAPTER);
-  return [...own, ...ADOPTERS];
+  return [...sourcesUnder(TRANSCRIPT_DIR).filter((f) => f !== ADAPTER), ...ADOPTERS];
 }
 
 interface Violation {
@@ -88,43 +101,32 @@ interface Violation {
 const norm = (p: string) => p.replace(/\\/g, "/");
 
 /**
- * A small program: real files from disk plus virtual fixtures. Only imports
- * that lead to the adapter resolve (the checker needs its types); everything
- * else (React, lucide, other app modules) stays unresolved, so no lib or
- * node_modules parsing is needed.
+ * The real program: the app's tsconfig (lib, `@/` paths, node_modules
+ * types) and the real in-tree modules, with the in-memory fixtures laid over
+ * the file system.
  */
 function createScanProgram(virtual: Record<string, string>, roots: string[]) {
-  const options: ts.CompilerOptions = {
-    noLib: true,
-    jsx: ts.JsxEmit.ReactJSX,
-    target: ts.ScriptTarget.ES2022,
-    module: ts.ModuleKind.ESNext,
-    strict: true,
-    noEmit: true,
-    types: [],
-  };
+  const config = ts.getParsedCommandLineOfConfigFile(join(ROOT, "tsconfig.app.json"), {}, {
+    ...ts.sys,
+    onUnRecoverableConfigFileDiagnostic: (d) => {
+      throw new Error(ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+    },
+  });
+  if (!config) throw new Error("tsconfig.app.json did not parse");
+  const options: ts.CompilerOptions = { ...config.options, noEmit: true, incremental: false, composite: false, tsBuildInfoFile: undefined };
   const host = ts.createCompilerHost(options, true);
-  const readText = (fileName: string) => virtual[norm(fileName)] ?? (existsSync(fileName) ? readFileSync(fileName, "utf8") : undefined);
-  host.fileExists = (fileName) => norm(fileName) in virtual || existsSync(fileName);
-  host.readFile = (fileName) => readText(fileName);
-  host.getSourceFile = (fileName, languageVersion) => {
-    const text = readText(fileName);
-    return text === undefined ? undefined : ts.createSourceFile(fileName, text, languageVersion, true);
+  const base = { fileExists: host.fileExists, readFile: host.readFile, getSourceFile: host.getSourceFile };
+  host.fileExists = (fileName) => norm(fileName) in virtual || base.fileExists(fileName);
+  host.readFile = (fileName) => virtual[norm(fileName)] ?? base.readFile(fileName);
+  host.getSourceFile = (fileName, languageVersion, ...rest) => {
+    const text = virtual[norm(fileName)];
+    return text === undefined ? base.getSourceFile(fileName, languageVersion, ...rest) : ts.createSourceFile(fileName, text, languageVersion, true);
   };
-  host.resolveModuleNames = (moduleNames, containingFile) =>
-    moduleNames.map((name) => {
-      const base = name.startsWith("@/")
-        ? join(ROOT, "src", name.slice(2))
-        : name.startsWith(".")
-          ? resolve(dirname(containingFile), name)
-          : null;
-      if (!base) return undefined;
-      const candidate = [base, `${base}.ts`, `${base}.tsx`].find((c) => norm(c) === norm(ADAPTER) || norm(c) in virtual);
-      if (!candidate) return undefined;
-      return { resolvedFileName: norm(candidate) === norm(ADAPTER) ? ADAPTER : norm(candidate), extension: candidate.endsWith(".tsx") ? ts.Extension.Tsx : ts.Extension.Ts, isExternalLibraryImport: false };
-    });
   return ts.createProgram({ rootNames: [...roots, ADAPTER], options, host });
 }
+
+/** The adapter's raw input types: declared there, but they are the result shapes themselves. */
+const ADAPTER_INPUTS = new Set(["ToolResultLike", "ToolUseLike"]);
 
 function findResultReads(program: ts.Program, fileName: string): Violation[] {
   const checker = program.getTypeChecker();
@@ -134,8 +136,16 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
   const report = (node: ts.Node, field: string, form: string) =>
     out.push({ file: norm(fileName), line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1, field, form });
 
+  /** The interface / type alias a declaration sits in (or is). */
+  const enclosingTypeName = (node: ts.Node): string | undefined => {
+    for (let n: ts.Node | undefined = node; n && !ts.isSourceFile(n); n = n.parent) {
+      if (ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n)) return n.name.text;
+    }
+    return undefined;
+  };
+  /** Declared by the adapter, and not one of its raw input types. */
   const inAdapter = (symbol: ts.Symbol | undefined) =>
-    !!symbol?.declarations?.some((d) => norm(d.getSourceFile().fileName) === norm(ADAPTER));
+    !!symbol?.declarations?.some((d) => norm(d.getSourceFile().fileName) === norm(ADAPTER) && !ADAPTER_INPUTS.has(enclosingTypeName(d) ?? ""));
   const fromAdapter = (type: ts.Type): boolean => {
     if (inAdapter(type.aliasSymbol)) return true;
     const t = checker.getNonNullableType(type);
@@ -195,14 +205,45 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
     ts.forEachChild(node, markSubtree);
   };
   /**
-   * May `field` be read from `receiver` here? Adapter outputs always; `code`
-   * also when the receiver's type declares it outside the scanned files.
+   * Could a value of this type be a tool result (or its content)? `any` /
+   * `unknown` / unresolved, an index signature, or no own `code` declaration.
    */
-  const allowedRead = (receiver: ts.Type, field: string): boolean => {
+  const resultLikeType = (type: ts.Type): boolean => {
+    const t = checker.getNonNullableType(type);
+    if (t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return true;
+    if (t.isUnion()) return t.types.some(resultLikeType);
+    if (fromAdapter(t)) return false;
+    if (checker.getIndexInfosOfType(t).length > 0) return true;
+    return (t.getProperty(CODE_ALIAS)?.declarations ?? []).length === 0;
+  };
+  /** Is the value result-like, or a cast / variable alias of one? */
+  const resultLikeSource = (expr: ts.Expression, depth = 0): boolean => {
+    if (depth > 16) return true;
+    if (resultLikeType(checker.getTypeAtLocation(expr))) return true;
+    if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr) || ts.isTypeAssertionExpression(expr) || ts.isSatisfiesExpression(expr) || ts.isNonNullExpression(expr)) {
+      return resultLikeSource(expr.expression, depth + 1);
+    }
+    if (ts.isIdentifier(expr)) {
+      const decl = checker.getSymbolAtLocation(expr)?.valueDeclaration;
+      if (decl && (ts.isVariableDeclaration(decl) || ts.isParameter(decl)) && decl.initializer) return resultLikeSource(decl.initializer, depth + 1);
+    }
+    return false;
+  };
+  /**
+   * May `field` be read from `receiver` here? Adapter outputs always; `code`
+   * also when the receiver is not result-like (its type declares `code`, and
+   * it is not a cast or alias of a result-like value).
+   */
+  const allowedRead = (receiver: ts.Type, field: string, source?: ts.Expression): boolean => {
     if (fromAdapter(receiver)) return true;
     if (field !== CODE_ALIAS) return false;
-    const declarations = checker.getNonNullableType(receiver).getProperty(field)?.declarations ?? [];
-    return declarations.length > 0 && declarations.every((d) => !inScanScope(d.getSourceFile().fileName));
+    if (resultLikeType(receiver)) return false;
+    return source === undefined || !resultLikeSource(source);
+  };
+  /** The value a binding pattern destructures, when it has one (`const { a } = value`). */
+  const patternSource = (pattern: ts.ObjectBindingPattern): ts.Expression | undefined => {
+    const owner = pattern.parent;
+    return (ts.isVariableDeclaration(owner) || ts.isParameter(owner) || ts.isBindingElement(owner)) && owner.initializer ? owner.initializer : undefined;
   };
   const EQUALITY = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]);
   /**
@@ -230,13 +271,13 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
 
     if (ts.isPropertyAccessExpression(node) && isGuardedName(node.name.text)) {
-      if (!allowedRead(checker.getTypeAtLocation(node.expression), node.name.text)) report(node, node.name.text, "property access");
+      if (!allowedRead(checker.getTypeAtLocation(node.expression), node.name.text, node.expression)) report(node, node.name.text, "property access");
     }
     if (ts.isElementAccessExpression(node)) {
       const key = foldKey(node.argumentExpression);
       if (key !== null && isGuardedName(key)) {
         markSubtree(node.argumentExpression);
-        if (!allowedRead(checker.getTypeAtLocation(node.expression), key)) report(node, key, "element access");
+        if (!allowedRead(checker.getTypeAtLocation(node.expression), key, node.expression)) report(node, key, "element access");
       }
     }
     if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
@@ -244,7 +285,7 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
       const field = ts.isIdentifier(nameNode) ? nameNode.text : ts.isComputedPropertyName(nameNode) ? foldKey(nameNode.expression) : literalText(nameNode);
       if (field !== null && isGuardedName(field)) {
         if (nameNode !== node.name) markSubtree(nameNode);
-        if (!allowedRead(checker.getTypeAtLocation(node.parent), field)) report(node, field, "destructuring");
+        if (!allowedRead(checker.getTypeAtLocation(node.parent), field, patternSource(node.parent))) report(node, field, "destructuring");
       }
     }
     // A key built from constant parts is judged whole, once (its parts are not names).
@@ -377,6 +418,18 @@ describe("result adapter ownership scan", () => {
     const fields = new Set(findResultReads(program, ADAPTER).map((v) => v.field));
     expect(fields.has("toolUseResultSource")).toBe(false);
     expect(fields.has("unassignedToolUseResult")).toBe(false);
+  });
+
+  it("the scope is recursive: a module in a nested transcript folder is scanned", () => {
+    const dir = mkdtempSync(join(tmpdir(), "scan-scope-"));
+    try {
+      mkdirSync(join(dir, "nested/deeper"), { recursive: true });
+      for (const file of ["a.ts", "nested/b.tsx", "nested/deeper/c.ts", "nested/b.test.tsx", "nested/types.d.ts"]) writeFileSync(join(dir, file), "export {};\n");
+      const found = sourcesUnder(dir).map((f) => norm(f).replace(`${norm(dir)}/`, "")).sort();
+      expect(found).toEqual(["a.ts", "nested/b.tsx", "nested/deeper/c.ts"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("covers every transcript module and every adopting card", () => {
