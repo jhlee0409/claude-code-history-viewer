@@ -94,12 +94,11 @@ describe("ToolRow: no success claims", () => {
     expect(screen.queryByText("Result not verified · No exit code recorded")).not.toBeNull();
   });
 
-  it("succeeded: the detail shows the recorded exit code as neutral meta", () => {
+  it("succeeded: the row stays quiet; the opened detail's meta is neutral", () => {
     const { container } = row(OUTCOMES.succeeded, "succeeded");
     expect(header(container).textContent).not.toMatch(/exit code/i);
     fireEvent.click(toggle());
     const meta = container.querySelector("[data-tool-detail] [data-meta]");
-    expect(meta?.textContent).toContain("Exit code 0");
     expect(meta?.getAttribute("class")).toContain("text-fg-3");
   });
 });
@@ -212,6 +211,22 @@ describe("ToolRow: shape and disclosure", () => {
     fireEvent.click(toggle());
     expect(screen.queryByRole("button", { name: /copy tool id/i })).not.toBeNull();
     expect(container.textContent).not.toContain("toolu_01ABCDEF");
+  });
+
+  it("the copy control says what it copies in visible words, not a bare '#' icon", () => {
+    row(OUTCOMES.unknown, "toolid-label");
+    fireEvent.click(toggle());
+    const copy = screen.getByRole("button", { name: /copy tool id/i });
+    expect(copy.textContent?.trim()).toBe("Copy tool ID");
+  });
+
+  it("succeeded / interrupted: no exit-code fact in the row detail (the output's meta carries it once)", () => {
+    for (const [outcome, key] of [[OUTCOMES.succeeded, "dedupe-ok"], [OUTCOMES.interrupted, "dedupe-int"]] as const) {
+      const { container, unmount } = row(outcome, key);
+      fireEvent.click(toggle());
+      expect(container.querySelector("[data-tool-detail] [data-meta]")?.textContent ?? "").not.toMatch(/exit code/i);
+      unmount();
+    }
   });
 });
 

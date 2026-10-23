@@ -82,6 +82,17 @@ describe("Bash card", () => {
     expect(container.textContent).toContain("Exit code 0");
   });
 
+  it("an exit code shows once in the opened detail (the output's meta), not twice", () => {
+    const count = (text: string, word: string) => text.split(word).length - 1;
+    const ok = card("Bash", { command: "pnpm lint" }, [{ content: "ok", ...own({ stdout: "ok", stderr: "", interrupted: false, isImage: false, exitCode: 0 }) }]);
+    open(ok.container);
+    expect(count(ok.container.textContent ?? "", "Exit code 0")).toBe(1);
+    ok.unmount();
+    const int = card("Bash", { command: "pnpm e2e" }, [{ content: "Running 48 tests", ...own({ stdout: "Running 48 tests", stderr: "", interrupted: true, isImage: false, exitCode: 130 }) }]);
+    open(int.container);
+    expect(count(int.container.textContent ?? "", "Exit code 130")).toBe(1);
+  });
+
   it("no result: 'No result recorded' instead of a Pending pill", () => {
     const { container } = card("Bash", { command: "pnpm release --dry-run" }, []);
     expect(within(rowOf(container)).queryByText("No result recorded")).not.toBeNull();
