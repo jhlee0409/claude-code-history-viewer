@@ -35,7 +35,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} />
+      <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} failed={outcome.verdict === "failed"} />
     </ToolRow>
   );
 });

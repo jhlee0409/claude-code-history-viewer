@@ -50,7 +50,7 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
           <PathText path={path} ctx={pathCtx} className="text-code" />
         </p>
       ))}
-      <ToolResultOutputs results={otherResults} family={family} expandKey={expandKey} />
+      <ToolResultOutputs results={otherResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
     </ToolRow>
   );
 });

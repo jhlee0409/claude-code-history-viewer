@@ -35,7 +35,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
     >
       {description && <p className="text-list text-fg-2">{description}</p>}
       {command && <TargetWell text={command} />}
-      <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} />
+      <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} failed={outcome.verdict === "failed"} />
     </ToolRow>
   );
 });

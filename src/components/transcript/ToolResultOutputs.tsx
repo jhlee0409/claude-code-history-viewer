@@ -36,6 +36,8 @@ interface ToolResultOutputsProps {
   expandKey: string;
   /** `false`: each output line stays one line and the well scrolls sideways (OutputBlock `wrap`). */
   wrap?: boolean;
+  /** The row's verdict is `failed` (OutputBlock `failed`: danger-styled stderr). */
+  failed?: boolean;
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
@@ -65,7 +67,7 @@ function shownByStreams(stdout: string, stderr: string): (part: ContentPart) => 
   return (part) => part.kind === "text" && forms.has(trimTrailingNewlines(part.text));
 }
 
-function ResultOutput({ result, family, source, blockKey, wrap }: { result: ToolResultLike; family: ToolFamily; source?: OutputSource; blockKey: string; wrap?: boolean }) {
+function ResultOutput({ result, family, source, blockKey, wrap, failed }: { result: ToolResultLike; family: ToolFamily; source?: OutputSource; blockKey: string; wrap?: boolean; failed?: boolean }) {
   const options = { bareCodeIsExitCode: family === "process" };
   const n = normalizeResult(result, options);
   const content = resultContent(result, options);
@@ -82,7 +84,7 @@ function ResultOutput({ result, family, source, blockKey, wrap }: { result: Tool
   const firstText = streamText ? -1 : parts.findIndex((part) => part.kind === "text");
   return (
     <>
-      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} />}
+      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} failed={failed} />}
       {parts.map((part, index) =>
         part.kind === "text" ? (
           <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} />
@@ -97,12 +99,12 @@ function ResultOutput({ result, family, source, blockKey, wrap }: { result: Tool
   );
 }
 
-export function ToolResultOutputs({ results, family, source, expandKey, wrap }: ToolResultOutputsProps) {
+export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed }: ToolResultOutputsProps) {
   return (
     <>
       {results.map((result, index) => {
         const key = `${expandKey}-result-${index}`;
-        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} />;
+        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} />;
       })}
     </>
   );

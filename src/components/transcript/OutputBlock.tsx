@@ -6,12 +6,13 @@
  * the app's existing file-tree / JSON / table (and, for command output,
  * test / build / package) detection only adds a quiet label.
  *
- * stderr gets its own zone — danger text and a left rule — whatever the
- * verdict: a warning beside exit code 0 stays visible, and so does E15's
- * fatal stderr with no exit code. The zone is labelled with the stream's
- * name, the code literal `stderr`, in every locale: a word like "error
- * output" would call a warning beside exit code 0 an error (renderer audit
- * TC6). Recorded outcome facts (exit code …) are not the output's: the
+ * stderr always gets its own zone with a left rule: a warning beside exit
+ * code 0 stays visible, and so does E15's fatal stderr with no exit code.
+ * The zone is labelled with the stream's name, the code literal `stderr`, in
+ * every locale: a word like "error output" would call a warning beside exit
+ * code 0 an error (renderer audit TC6). Danger styling (rule and text) is
+ * the failed verdict's alone (`failed`, plan amendment #1); otherwise the
+ * zone is neutral. Recorded outcome facts (exit code …) are not the output's: the
  * ToolRow detail that holds it shows them, once.
  * Long output is capped at `lineCap` lines per zone with "Show all n lines";
  * a search match past the cap opens it.
@@ -54,6 +55,8 @@ export interface OutputBlockProps {
   wrap?: boolean;
   /** `false`: the meta leaves out the line count (the caller already shows it). */
   showLineCount?: boolean;
+  /** The row's verdict is `failed`: the stderr zone takes the danger rule and text. */
+  failed?: boolean;
 }
 
 const LABELLED: Record<OutputSource, ReadonlySet<OutputKind>> = {
@@ -96,6 +99,7 @@ export function OutputBlock({
   source = "text",
   wrap = true,
   showLineCount = true,
+  failed = false,
 }: OutputBlockProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
@@ -145,11 +149,11 @@ export function OutputBlock({
       </div>
       {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" />}
       {stderr !== "" && (
-        <div data-stderr="" className="mx-3 mb-2 border-l-2 border-status-danger-line pl-2">
+        <div data-stderr="" className={cn("mx-3 mb-2 border-l-2 pl-2", failed ? "border-status-danger-line" : "border-line")}>
           <code data-mono="code" className="text-caption text-fg-3">
             stderr
           </code>
-          <Zone id={errId} text={cap(errLines, stderr)} wrap={wrap} className="text-status-danger-fg" />
+          <Zone id={errId} text={cap(errLines, stderr)} wrap={wrap} className={failed ? "text-status-danger-fg" : undefined} />
         </div>
       )}
       {main === "" && stderr === "" && <div className="pb-2" />}

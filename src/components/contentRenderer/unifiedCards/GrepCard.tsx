@@ -55,7 +55,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
     >
       {pattern && <TargetWell text={pattern} />}
       {/* Content-mode matches are records: one line each, the well scrolls sideways (TC13). */}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} wrap={outputMode !== "content"} />
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} wrap={outputMode !== "content"} />
     </ToolRow>
   );
 });

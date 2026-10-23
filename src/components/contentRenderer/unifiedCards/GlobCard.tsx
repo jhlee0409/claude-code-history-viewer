@@ -32,7 +32,7 @@ export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) 
       expandKey={expandKey}
     >
       {pattern && <TargetWell text={pattern} />}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} />
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
     </ToolRow>
   );
 });
