@@ -196,7 +196,7 @@ function CopyToolId({ toolId }: { toolId: string }) {
     <button
       type="button"
       onClick={onCopy}
-      className="ml-auto inline-flex min-h-6 items-center rounded-row px-1 text-caption text-fg-3 hover:bg-surface-hover hover:text-fg"
+      className="inline-flex min-h-6 items-center rounded-row px-1 text-caption text-fg-3 hover:bg-surface-hover hover:text-fg"
     >
       {copied ? t("toolRow.toolIdCopied") : t("toolRow.copyToolId")}
     </button>
