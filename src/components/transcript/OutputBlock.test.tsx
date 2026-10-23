@@ -158,6 +158,16 @@ describe("OutputBlock: line cap and copy", () => {
     expect(body(container).textContent).toContain("needle");
   });
 
+  it("a search-opened block says so on its toggle and the user can still collapse it (review round 6 sweep)", () => {
+    const text = `${twenty}\nneedle`;
+    const { container } = wrap(<OutputBlock text={text} lineCap={15} expandKey="search-collapse" searchQuery="needle" />);
+    const toggle = screen.getByRole("button", { name: "Show less" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: /Show all/ }).getAttribute("aria-expanded")).toBe("false");
+    expect(body(container).textContent).not.toContain("needle");
+  });
+
   it("offers a copy button", () => {
     wrap(<OutputBlock text="x" />);
     expect(screen.queryByRole("button", { name: "Copy output" })).not.toBeNull();
