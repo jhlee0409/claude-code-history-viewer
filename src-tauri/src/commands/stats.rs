@@ -5412,7 +5412,8 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             message_type: log_entry.message_type.clone(),
             content: log_entry.message.map(|m| m.content).or(log_entry.content),
             tool_use: log_entry.tool_use,
-            tool_use_result: log_entry.tool_use_result,
+            // Stats retains legacy null-as-absent semantics; the load API preserves raw null.
+            tool_use_result: log_entry.tool_use_result.filter(|value| !value.is_null()),
             is_sidechain: log_entry.is_sidechain,
             usage,
             role,
