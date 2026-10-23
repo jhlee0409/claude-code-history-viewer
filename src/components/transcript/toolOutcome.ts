@@ -212,6 +212,65 @@ export function normalizeResult(
 }
 
 // ---------------------------------------------------------------------------
+// The content, split for display
+// ---------------------------------------------------------------------------
+
+/**
+ * What a result's `content` records, split for display. Nothing is dropped:
+ * whatever is not text goes to `rest` for the existing result renderers.
+ */
+export interface ResultContent {
+  /** `content` is present (not `undefined` / `null`). */
+  recorded: boolean;
+  /** A string content, or the text blocks of an array in order, joined by "\n". */
+  text?: string;
+  /**
+   * Everything else: an array's non-text blocks (image, document,
+   * search_result, unknown types …), or an object content that is not the
+   * stream record itself.
+   */
+  rest?: unknown[] | Record<string, unknown>;
+}
+
+const blockText = (block: unknown): string | null => {
+  if (typeof block === "string") return block;
+  if (isPlainObject(block) && block.type === "text" && typeof block.text === "string") return block.text;
+  return null;
+};
+
+/** An object that holds stream fields itself (or in its nested `result`). */
+const holdsStreams = (o: Record<string, unknown>): boolean =>
+  typeof o.stdout === "string" || typeof o.stderr === "string" || (isPlainObject(o.result) && holdsStreams(o.result));
+
+export function resultContent(result: ToolResultLike): ResultContent {
+  const content = result.content;
+  if (content === undefined || content === null) return { recorded: false };
+  if (typeof content === "string") return { recorded: true, text: content };
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    const rest: unknown[] = [];
+    for (const block of content) {
+      const text = blockText(block);
+      if (text === null) rest.push(block);
+      else texts.push(text);
+    }
+    return {
+      recorded: true,
+      ...(texts.length > 0 ? { text: texts.join("\n") } : {}),
+      ...(rest.length > 0 ? { rest } : {}),
+    };
+  }
+  if (isPlainObject(content)) {
+    const text = blockText(content);
+    if (text !== null) return { recorded: true, text };
+    // The stream record is shown through its zones (normalizeResult), once.
+    return holdsStreams(content) ? { recorded: true } : { recorded: true, rest: content };
+  }
+  // A number or boolean content: shown as recorded.
+  return { recorded: true, text: String(content) };
+}
+
+// ---------------------------------------------------------------------------
 // The verdict (plan §4.2 order: the first rule that applies wins)
 // ---------------------------------------------------------------------------
 
