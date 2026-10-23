@@ -10,6 +10,7 @@ import i18n from "@/i18n";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { OutputBlock } from "./OutputBlock";
+import { detectCommandOutputKind } from "./outputKind";
 
 const wrap = (ui: ReactNode) => render(<ExpandKeyProvider value="msg-out">{ui}</ExpandKeyProvider>);
 const body = (container: HTMLElement) => {
@@ -131,5 +132,27 @@ describe("OutputBlock: line cap and copy", () => {
   it("offers a copy button", () => {
     wrap(<OutputBlock text="x" />);
     expect(screen.queryByRole("button", { name: "Copy output" })).not.toBeNull();
+  });
+});
+
+describe("detectCommandOutputKind keeps CommandOutputDisplay's old rules (independent review)", () => {
+  /** CommandOutputDisplay's predicates before the extraction, verbatim in order. */
+  const old = (s: string) => {
+    if (s.trim().startsWith("{") && s.trim().endsWith("}")) {
+      try {
+        JSON.parse(s);
+        return "json";
+      } catch {
+        // falls through to the keyword checks
+      }
+    }
+    if (s.includes("Test Suites:") || s.includes("jest") || s.includes("coverage")) return "test";
+    if (s.includes("webpack") || s.includes("build") || s.includes("compile")) return "build";
+    if (s.includes("npm") || s.includes("yarn") || s.includes("pnpm")) return "package";
+    if (s.includes("|") && s.includes("-") && s.split("\n").length > 2) return "table";
+    return "terminal";
+  };
+  it.each(['{"build":"jest pnpm"}', "{invalid jest}", "jest build pnpm", "build pnpm", "pnpm", "| a |\n| - |\n| b |", "plain", "src/\n├── a"])("%j", (s) => {
+    expect(detectCommandOutputKind(s)).toBe(old(s));
   });
 });

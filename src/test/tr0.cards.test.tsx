@@ -14,6 +14,7 @@ import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { useAppStore } from "@/store/useAppStore";
 import { UnifiedToolExecutionRenderer } from "@/components/contentRenderer/UnifiedToolExecutionRenderer";
 import { StringRenderer } from "@/components/toolResultRenderer/StringRenderer";
+import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 
 const CWD = "/Users/dev/work/kiln";
 const wrap = (ui: ReactNode) => render(<ExpandKeyProvider value="msg-cards">{ui}</ExpandKeyProvider>);
@@ -195,4 +196,56 @@ describe("StringRenderer: neutral header (plan D3: no success claim, no tool col
       expect(icons[0]?.getAttribute("class")).toContain("text-fg-3");
     });
   }
+});
+
+describe("inline per-result metadata beside an unassigned envelope (review F2)", () => {
+  it("Bash: the block's own exit code 2 and stdout are shown; the outer payload is not", () => {
+    const { container } = card("Bash", { command: "git status --porcelain" }, [
+      {
+        content: "INLINE_CONTENT",
+        toolUseResult: { exitCode: 2, stdout: "INLINE_FAILED", stderr: "" },
+        toolUseResultSource: { messageUuid: "u", sessionId: "s", contentIndex: 0, association: "unassigned", resultContentIndices: [0], unassignedToolUseResult: { exitCode: 0, stdout: "OUTER_UNASSIGNED_DO_NOT_USE" } },
+      },
+    ]);
+    expect(rowOf(container).getAttribute("data-tool-verdict")).toBe("failed");
+    expect(within(rowOf(container)).queryByText("Failed · exit code 2")).not.toBeNull();
+    open(container);
+    expect(container.querySelector("[data-output]")?.textContent).toContain("INLINE_FAILED");
+    expect(container.textContent).not.toContain("OUTER_UNASSIGNED_DO_NOT_USE");
+    expect(container.textContent).not.toContain("No exit code recorded");
+  });
+});
+
+describe("aliased tool names use their normalized evidence (independent review)", () => {
+  it.each([
+    ["Bash", { content: "done" }, "unknown"],
+    ["shell", { content: "done" }, "unknown"],
+    ["bash", { content: "permission denied", is_error: true }, "failed"],
+    ["read", { content: "file text" }, "succeeded"],
+    ["read_file", { content: "file text" }, "succeeded"],
+    ["grep", { content: "missing", is_error: true }, "failed"],
+    ["glob", { content: "src/a.ts" }, "succeeded"],
+  ] as const)("%s → %s, no process status invented", (name, result, verdict) => {
+    const { container } = card(name, { command: "probe", path: "a.txt" }, [result]);
+    expect(rowOf(container).getAttribute("data-tool-verdict")).toBe(verdict);
+  });
+});
+
+describe("non-tool content keeps its renderers (StringRenderer callers)", () => {
+  it("prose, image, document and an unknown block in a message", () => {
+    const { container } = wrap(
+      <ClaudeContentArrayRenderer
+        content={[
+          { type: "text", text: "plain prose" },
+          { type: "image", source: { type: "url", url: "https://example.com/image.png" } },
+          { type: "document", source: { type: "text", media_type: "text/plain", data: "docpayload" }, title: "Probe document" },
+          { type: "novel-type", marker: "unknownpayload" },
+        ]}
+      />,
+    );
+    expect(container.textContent).toContain("plain prose");
+    expect(container.querySelector("img")).not.toBeNull();
+    expect(container.textContent).toContain("Probe document");
+    expect(container.textContent).toContain("unknownpayload");
+  });
 });

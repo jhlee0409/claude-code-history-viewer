@@ -100,8 +100,9 @@ function createScanProgram(virtual: Record<string, string>, roots: string[]) {
           ? resolve(dirname(containingFile), name)
           : null;
       if (!base) return undefined;
-      const candidate = [base, `${base}.ts`, `${base}.tsx`].find((c) => norm(c) === norm(ADAPTER));
-      return candidate ? { resolvedFileName: ADAPTER, extension: ts.Extension.Ts, isExternalLibraryImport: false } : undefined;
+      const candidate = [base, `${base}.ts`, `${base}.tsx`].find((c) => norm(c) === norm(ADAPTER) || norm(c) in virtual);
+      if (!candidate) return undefined;
+      return { resolvedFileName: norm(candidate) === norm(ADAPTER) ? ADAPTER : norm(candidate), extension: candidate.endsWith(".tsx") ? ts.Extension.Tsx : ts.Extension.Ts, isExternalLibraryImport: false };
     });
   return ts.createProgram({ rootNames: [...roots, ADAPTER], options, host });
 }
@@ -187,6 +188,10 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
 // ---------------------------------------------------------------------------
 
 const FIXTURE_DIR = join(TRANSCRIPT_DIR, "__scan_fixtures__");
+/** A module outside the scanned files that declares a non-result `code` (an error type). */
+const SCAN_TYPES_IMPORT = "@/__scan_types__/errors";
+const SCAN_TYPES = norm(join(ROOT, "src/__scan_types__/errors.ts"));
+const SCAN_TYPES_TEXT = `export interface FsError { code: string; message: string }\n`;
 const HEADER = `import { normalizeResult, toolOutcome, type ToolOutcome, type NormalizedResult } from "@/components/transcript/toolOutcome";\ntype R = Record<string, unknown>;\ndeclare const r: R;\ndeclare function str(o: R, k: string): string | null;\n`;
 
 /** Each must be reported at least once. */
@@ -208,6 +213,25 @@ const BYPASSES: Record<string, string> = {
   reflectGet: `export const f = () => Reflect.get(r, "exit_code");`,
   unassigned: `declare const src: { unassignedToolUseResult?: unknown }; export const f = () => src.unassignedToolUseResult;`,
   adapterTypedButWiderUnion: `declare const x: NormalizedResult | R; export const f = () => x.stderr;`,
+  // A key built from constant parts is the field name (review F3).
+  computedConcat: `export const probe = r["exit" + "Code"];`,
+  computedConstConcat: `const a = "exit"; const b = "Code"; export const f = () => r[a + b];`,
+  computedTemplate: "export const f = () => r[`std${\"out\"}`];",
+  computedTemplateConst: "const p = \"std\"; export const f = () => r[`${p}err`];",
+  computedKeyToHelper: `const k = "exit" + "_code"; export const f = () => Reflect.get(r, k);`,
+  computedInCheck: `export const f = () => ("inter" + "rupted") in r;`,
+  computedParenthesized: `export const f = () => r[("return" + "_") + ("code" as const)];`,
+  // The bare `code` exit-code alias on a result (review F3).
+  bareCode: `export const probe = r.code;`,
+  bareCodeOptional: `export const f = () => r?.code;`,
+  bareCodeElement: `export const f = () => r["code"];`,
+  bareCodeDestructure: `const { code } = r; export const f = () => code;`,
+  bareCodeRenamed: `const { code: c } = r; export const f = () => c;`,
+  bareCodeAny: `export const f = () => (r as any).code;`,
+  bareCodeTypeLiteral: `export const f = () => (r.content as { code?: number }).code;`,
+  bareCodeLocalInterface: `interface Shaped { code?: number } export const f = () => (r as Shaped).code;`,
+  bareCodeHelper: `export const f = () => str(r, "code");`,
+  bareCodeInCheck: `export const f = () => "code" in r;`,
 };
 
 /** Each must pass with no report. */
@@ -223,12 +247,22 @@ const LEGIT: Record<string, string> = {
   lifecycleSwitch: `const o = toolOutcome(null, [r], "process"); export function f() { switch (o.lifecycle) { case "interrupted": return 1; default: return 0; } }`,
   jsxAttributeText: `export const el = <span data-outcome-icon="interrupted" data-zone="stderr" />;`,
   lifecycleValue: `export const o: ToolOutcome = { lifecycle: "interrupted", verdict: "unknown", reason: "interrupted" };`,
+  // Constant folding only reports what folds to a guarded name.
+  unguardedConcat: `declare function t(k: string): string; export const f = () => t("renderers." + "toolRow.exitCode");`,
+  dynamicTemplate: "const n = normalizeResult(r); export const f = () => `${n.exitCode}`;",
+  adapterValueConcat: `const o = toolOutcome(null, [r], "process"); export const f = () => o.lifecycle === "inter" + "rupted";`,
+  // `code` that is not a result's: a type declared outside the transcript UI
+  // (an error object, a key event), an i18n value, a DOM attribute.
+  foreignErrorCode: `import type { FsError } from "${SCAN_TYPES_IMPORT}"; declare const err: FsError; export const f = () => err.code;`,
+  foreignErrorDestructure: `import type { FsError } from "${SCAN_TYPES_IMPORT}"; declare const err: FsError; const { code } = err; export const f = () => code;`,
+  i18nCodeValue: `declare function t(k: string, o: object): string; const o = toolOutcome(null, [r], "process"); export const f = () => t("toolOutcome.failedExitCode", { code: o.exitCode });`,
+  codeDataAttribute: `export const el = <span data-mono="code" className="font-mono text-code" />;`,
 };
 
 const fixturePath = (kind: string, name: string) => norm(join(FIXTURE_DIR, `${kind}.${name}.tsx`));
 
 describe("result adapter ownership scan", () => {
-  const virtual: Record<string, string> = {};
+  const virtual: Record<string, string> = { [SCAN_TYPES]: SCAN_TYPES_TEXT };
   for (const [name, body] of Object.entries(BYPASSES)) virtual[fixturePath("bypass", name)] = HEADER + body;
   for (const [name, body] of Object.entries(LEGIT)) virtual[fixturePath("legit", name)] = HEADER + body;
   const real = scannedFiles();

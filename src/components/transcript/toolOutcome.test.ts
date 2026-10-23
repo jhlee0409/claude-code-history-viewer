@@ -298,7 +298,9 @@ const ROWS: Row[] = [
     run: false,
   },
   {
-    name: "a toolUseResult beside an unassigned envelope is not per-result data",
+    // The block's own inline field is its evidence; `unassigned` describes
+    // only the outer payload kept in the envelope (contract, "Ambiguous source").
+    name: "a block's own inline toolUseResult beside an unassigned envelope is that block's evidence",
     use: call("Read"),
     results: [
       result("inline", {
@@ -307,8 +309,49 @@ const ROWS: Row[] = [
       }),
     ],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
-    run: true,
+    expected: { lifecycle: "completed", verdict: "failed", reason: "api-error-code", exitCode: 2, errorCode: "x" },
+    run: false,
+  },
+  {
+    name: "inline exit code 2 wins; the unassigned outer exit code 0 is never read (review F2)",
+    use: call("Bash"),
+    results: [
+      result("x", {
+        toolUseResult: { exitCode: 2 },
+        toolUseResultSource: { association: "unassigned", unassignedToolUseResult: { exitCode: 0 } },
+      }),
+    ],
+    family: "process",
+    expected: { lifecycle: "completed", verdict: "failed", reason: "exit-nonzero", exitCode: 2 },
+    run: false,
+  },
+  {
+    name: "the unassigned outer payload alone (inline absent) decides nothing, even an error",
+    use: call("Bash"),
+    results: [
+      result("x", {
+        toolUseResultSource: { association: "unassigned", unassignedToolUseResult: { exitCode: 0, is_error: true, interrupted: true } },
+      }),
+    ],
+    family: "process",
+    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" },
+    run: false,
+  },
+  {
+    name: "an inline toolUseResult without any source envelope is that block's evidence",
+    use: call("Bash"),
+    results: [result("x", { toolUseResult: { exitCode: 2 } })],
+    family: "process",
+    expected: { lifecycle: "completed", verdict: "failed", reason: "exit-nonzero", exitCode: 2 },
+    run: false,
+  },
+  {
+    name: "inline E15 without a source envelope: streams kept, still no exit code",
+    use: call("Bash"),
+    results: [result(E15.stderr, { toolUseResult: { ...E15 } })],
+    family: "process",
+    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" },
+    run: false,
   },
   {
     name: "prose `Exit code 1` and stderr never become an exit code",
@@ -414,6 +457,74 @@ describe("normalizeResult: present 0 / false / \"\" / null / absent stay distinc
       }),
     );
     expect(n).toStrictEqual({ text: "out" });
+  });
+
+  it("the inline field beside an unassigned envelope is read; the outer payload never", () => {
+    const n = normalizeResult(
+      result("x", {
+        toolUseResult: { exitCode: 2, stdout: "INLINE_FAILED", stderr: "" },
+        toolUseResultSource: { association: "unassigned", unassignedToolUseResult: { exitCode: 0, stdout: "OUTER_UNASSIGNED_DO_NOT_USE", interrupted: true } },
+      }),
+    );
+    expect(n).toStrictEqual({ text: "x", exitCode: 2, stdout: "INLINE_FAILED", stderr: "" });
+  });
+
+  it("an inline field with no source envelope is read too", () => {
+    expect(normalizeResult(result("x", { toolUseResult: { exitCode: 2, stderr: "boom" } }))).toStrictEqual({ text: "x", exitCode: 2, stderr: "boom" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The independent review's §4.2 matrix (PR #728), kept as committed rows.
+// ---------------------------------------------------------------------------
+
+describe("independent review matrix (§4.2)", () => {
+  const use = call("Bash", "review");
+  const done = (verdict: string, reason: string, extra: Record<string, unknown> = {}) => ({ lifecycle: "completed", verdict, reason, ...extra });
+  const rows: Array<[string, ToolResultLike[], ToolFamily, unknown]> = [
+    ["no results", [], "process", { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" }],
+    ["interrupted masks error", [result({ interrupted: true }, { is_error: true })], "process", { lifecycle: "interrupted", verdict: "unknown", reason: "interrupted" }],
+    ["interrupted zero", [result({ interrupted: true, exit_code: 0 })], "process", { lifecycle: "interrupted", verdict: "unknown", reason: "interrupted", exitCode: 0 }],
+    ["interrupted nonzero", [result({ interrupted: true, exit_code: 2 })], "process", { lifecycle: "interrupted", verdict: "failed", reason: "interrupted", exitCode: 2 }],
+    ["provider error", [result("nothing", { is_error: true })], "process", done("failed", "provider-error")],
+    ["api error", [result({ error_code: "unavailable" })], "read-search", done("failed", "api-error-code", { errorCode: "unavailable" })],
+    ["error word", [result("ERROR: missing")], "process", done("failed", "error-content")],
+    ["error word boundary", [result("errors: none")], "read-search", done("succeeded", "no-error-signal")],
+    ["zero plus warning", [result("raw", own({ exitCode: 0, stderr: "fatal warning", stdout: "" }))], "process", done("succeeded", "exit-zero", { exitCode: 0 })],
+    ["nonzero", [result({ exit_code: 1 })], "process", done("failed", "exit-nonzero", { exitCode: 1 })],
+    ["missing process status", [result("success")], "process", done("unknown", "no-exit-code")],
+    ["E15 exact", [result(E15.stderr, own({ ...E15 }))], "process", done("unknown", "no-exit-code")],
+    ["false error vs exit 2", [result({ exitCode: 2 }, { is_error: false })], "process", done("failed", "conflict", { exitCode: 2 })],
+    ["true error vs exit 0", [result({ exitCode: 0 }, { is_error: true })], "process", done("failed", "conflict", { exitCode: 0 })],
+    ["read succeeds without process status", [result("abc")], "read-search", done("succeeded", "no-error-signal")],
+    ["prose is not a status", [result("Exit code 1\nfatal", own({ stderr: "exit code 2" }))], "process", done("unknown", "no-exit-code")],
+    ["unassigned envelope ignored", [result("raw", { toolUseResultSource: { association: "unassigned", unassignedToolUseResult: { interrupted: true, exitCode: 2, error_code: "fail" } } })], "process", done("unknown", "no-exit-code")],
+    ["HTTP code is not an exit code", [result({ code: 200 })], "read-search", done("succeeded", "no-error-signal")],
+  ];
+  it.each(rows)("%s", (_label, results, family, expected) => {
+    expect(toolOutcome(use, results, family)).toEqual(expected);
+  });
+
+  it.each(["return_code", "exitCode", "returncode", "exit_code", "code"])("alias %s: in the content and nested in own metadata", (alias) => {
+    expect(toolOutcome(use, [result({ [alias]: 0 })], "process")).toEqual(done("succeeded", "exit-zero", { exitCode: 0 }));
+    expect(toolOutcome(use, [result("x", own({ result: { [alias]: 2 } }))], "process")).toEqual(done("failed", "exit-nonzero", { exitCode: 2 }));
+  });
+
+  it.each([false, "", null, undefined])("an exit code of %s is not zero", (value) => {
+    const r = result("", own(value === undefined ? {} : { exitCode: value }));
+    expect(toolOutcome(use, [r], "process")).toEqual(done("unknown", "no-exit-code"));
+    expect(normalizeResult(r)).not.toHaveProperty("exitCode");
+  });
+
+  it("zero / false / empty are kept; absent stays absent", () => {
+    expect(normalizeResult(result("", { is_error: false, ...own({ exitCode: 0, interrupted: false, stdout: "", stderr: "" }) }))).toEqual({ text: "", isError: false, exitCode: 0, interrupted: false, stdout: "", stderr: "" });
+    expect(normalizeResult(result(null, own(null)))).toEqual({});
+  });
+
+  it("orphans cannot fold; paired successful reads can", () => {
+    expect(isToolRunEligible(null, [result("x")], "read-search")).toBe(false);
+    expect(isToolRunEligible(use, [result("x")], "read-search")).toBe(true);
+    expect(isToolRunEligible(use, [result("x", own({ interrupted: true }))], "read-search")).toBe(false);
   });
 });
 
