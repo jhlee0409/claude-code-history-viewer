@@ -32,7 +32,11 @@ type Props = {
 export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
   const ambient = useContext(RendererDefaultsContext);
-  const [open, toggle] = useToggle("renderer", ambient.defaultExpanded);
+  const [isOpen, toggle] = useToggle("renderer", ambient.defaultExpanded);
+  // A search hit inside the text opens the result, as before TR0 (CodeRabbit
+  // 4362895001); same match rule as OutputBlock's reveal.
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const open = isOpen || (query !== "" && result.toLowerCase().includes(query));
   const contentId = useId();
   const Icon = isFileTreeText(result) ? Folder : FileText;
 
