@@ -9,7 +9,17 @@
  * adopted ToolRow/OutputBlock must go through it: this static scan fails on
  * any read of those fields elsewhere — property access, element access,
  * destructuring, an `in` check or the field name as a string handed to a
- * helper (`str(r, "stdout")`, `Reflect.get`, a key constant).
+ * helper (`str(r, "stdout")`, `Reflect.get`, a key constant). A key built
+ * from constant parts (`"exit" + "Code"`, a template literal of constants,
+ * a `const` holding either) is folded to the name it spells first.
+ *
+ * `code` is the bare exit-code alias. The scanned files are only the
+ * transcript modules and the adopting cards — everything they handle that
+ * may carry a `code` is a tool result or its content — so a `code` read
+ * there is a result read too, unless its receiver is an adapter output or a
+ * type declared outside these files names `code` itself (an error object,
+ * a key event). Code outside the scan (services, error handling) is not
+ * scanned at all.
  *
  * Reads of the adapter's own outputs (`NormalizedResult`, `ToolOutcome`) are
  * allowed; the TypeScript checker decides the receiver type, so a field read
@@ -49,6 +59,14 @@ const GUARDED = new Set([
   "toolUseResultSource",
   "unassignedToolUseResult",
 ]);
+
+/** The bare exit-code alias; guarded on result receivers only (see above). */
+const CODE_ALIAS = "code";
+const isGuardedName = (name: string) => GUARDED.has(name) || name === CODE_ALIAS;
+
+/** Is `fileName` one of the files under the ownership rule (or a fixture standing in for one)? */
+const inScanScope = (fileName: string) =>
+  norm(fileName).startsWith(`${norm(TRANSCRIPT_DIR)}/`) || ADOPTERS.some((a) => norm(a) === norm(fileName));
 
 const isSourceFile = (name: string) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name) && !name.endsWith(".d.ts");
 
@@ -132,6 +150,60 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
   const literalText = (node: ts.Node): string | null =>
     ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
   const handled = new Set<ts.Node>();
+  /**
+   * The string a key expression spells when every part is constant: string /
+   * number literals, `+`, template literals, parentheses and type assertions,
+   * and `const` variables holding any of these. `null` when any part is not.
+   */
+  const foldKey = (node: ts.Node, depth = 0): string | null => {
+    if (depth > 16) return null;
+    const literal = literalText(node);
+    if (literal !== null) return literal;
+    if (ts.isNumericLiteral(node)) return node.text;
+    if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node)) {
+      return foldKey(node.expression, depth + 1);
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      const left = foldKey(node.left, depth + 1);
+      const right = left === null ? null : foldKey(node.right, depth + 1);
+      return left === null || right === null ? null : left + right;
+    }
+    if (ts.isTemplateExpression(node)) {
+      let text = node.head.text;
+      for (const span of node.templateSpans) {
+        const part = foldKey(span.expression, depth + 1);
+        if (part === null) return null;
+        text += part + span.literal.text;
+      }
+      return text;
+    }
+    if (ts.isIdentifier(node)) {
+      let symbol = checker.getSymbolAtLocation(node);
+      if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+      const decl = symbol?.valueDeclaration;
+      if (decl && ts.isVariableDeclaration(decl) && decl.initializer && ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) {
+        return foldKey(decl.initializer, depth + 1);
+      }
+    }
+    return null;
+  };
+  /** `a + b` or a template literal with substitutions: a key built from parts. */
+  const isCompound = (node: ts.Node) =>
+    (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) || ts.isTemplateExpression(node);
+  const markSubtree = (node: ts.Node) => {
+    handled.add(node);
+    ts.forEachChild(node, markSubtree);
+  };
+  /**
+   * May `field` be read from `receiver` here? Adapter outputs always; `code`
+   * also when the receiver's type declares it outside the scanned files.
+   */
+  const allowedRead = (receiver: ts.Type, field: string): boolean => {
+    if (fromAdapter(receiver)) return true;
+    if (field !== CODE_ALIAS) return false;
+    const declarations = checker.getNonNullableType(receiver).getProperty(field)?.declarations ?? [];
+    return declarations.length > 0 && declarations.every((d) => !inScanScope(d.getSourceFile().fileName));
+  };
   const EQUALITY = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]);
   /**
    * A literal that is a value of an adapter type, not a field name: compared
@@ -157,26 +229,34 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
 
-    if (ts.isPropertyAccessExpression(node) && GUARDED.has(node.name.text)) {
-      if (!fromAdapter(checker.getTypeAtLocation(node.expression))) report(node, node.name.text, "property access");
+    if (ts.isPropertyAccessExpression(node) && isGuardedName(node.name.text)) {
+      if (!allowedRead(checker.getTypeAtLocation(node.expression), node.name.text)) report(node, node.name.text, "property access");
     }
     if (ts.isElementAccessExpression(node)) {
-      const key = literalText(node.argumentExpression);
-      if (key !== null && GUARDED.has(key)) {
-        handled.add(node.argumentExpression);
-        if (!fromAdapter(checker.getTypeAtLocation(node.expression))) report(node, key, "element access");
+      const key = foldKey(node.argumentExpression);
+      if (key !== null && isGuardedName(key)) {
+        markSubtree(node.argumentExpression);
+        if (!allowedRead(checker.getTypeAtLocation(node.expression), key)) report(node, key, "element access");
       }
     }
     if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
       const nameNode = node.propertyName ?? node.name;
-      const field = ts.isIdentifier(nameNode) ? nameNode.text : literalText(nameNode);
-      if (field !== null && GUARDED.has(field)) {
-        if (nameNode !== node.name) handled.add(nameNode);
-        if (!fromAdapter(checker.getTypeAtLocation(node.parent))) report(node, field, "destructuring");
+      const field = ts.isIdentifier(nameNode) ? nameNode.text : ts.isComputedPropertyName(nameNode) ? foldKey(nameNode.expression) : literalText(nameNode);
+      if (field !== null && isGuardedName(field)) {
+        if (nameNode !== node.name) markSubtree(nameNode);
+        if (!allowedRead(checker.getTypeAtLocation(node.parent), field)) report(node, field, "destructuring");
+      }
+    }
+    // A key built from constant parts is judged whole, once (its parts are not names).
+    if (isCompound(node) && !handled.has(node)) {
+      const folded = foldKey(node);
+      if (folded !== null) {
+        markSubtree(node);
+        if (isGuardedName(folded) && !isAdapterValue(node)) report(node, folded, "computed field name");
       }
     }
     const text = literalText(node);
-    if (text !== null && GUARDED.has(text) && !handled.has(node) && !isAdapterValue(node)) report(node, text, "field name as a string");
+    if (text !== null && isGuardedName(text) && !handled.has(node) && !isAdapterValue(node)) report(node, text, "field name as a string");
 
     ts.forEachChild(node, visit);
   };
@@ -279,7 +359,7 @@ describe("result adapter ownership scan", () => {
 
   it("sees the reads in the adapter itself (positive control)", () => {
     const fields = new Set(findResultReads(program, ADAPTER).map((v) => v.field));
-    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "interrupted", "stdout", "stderr", "toolUseResult"]) {
+    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "code", "interrupted", "stdout", "stderr", "toolUseResult"]) {
       expect(fields, field).toContain(field);
     }
   });
