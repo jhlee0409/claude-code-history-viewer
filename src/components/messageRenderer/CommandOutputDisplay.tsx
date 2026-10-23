@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
 import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
 import { AnsiText } from "@/components/common/AnsiText";
+import { detectCommandOutputKind } from "@/components/transcript/outputKind";
 
 interface CommandOutputDisplayProps {
   stdout: string;
@@ -31,25 +32,8 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
 
-  // 다양한 출력 유형 감지
-  const isTestOutput =
-    stdout.includes("Test Suites:") ||
-    stdout.includes("jest") ||
-    stdout.includes("coverage");
-  const isBuildOutput =
-    stdout.includes("webpack") ||
-    stdout.includes("build") ||
-    stdout.includes("compile");
-  const isPackageOutput =
-    stdout.includes("npm") ||
-    stdout.includes("yarn") ||
-    stdout.includes("pnpm");
-  const isJsonOutput =
-    stdout.trim().startsWith("{") && stdout.trim().endsWith("}");
-  const isTableOutput =
-    stdout.includes("|") &&
-    stdout.includes("-") &&
-    stdout.split("\n").length > 2;
+  // 다양한 출력 유형 감지 (shared with OutputBlock: transcript/outputKind.ts)
+  const kind = detectCommandOutputKind(stdout);
 
   // Get variant styles
   const neutralStyles = getVariantStyles("neutral");
@@ -57,7 +41,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   const terminalStyles = getVariantStyles("terminal");
 
   // JSON 출력 처리
-  if (isJsonOutput) {
+  if (kind === "json") {
     try {
       const parsed = JSON.parse(stdout);
       return (
@@ -115,7 +99,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   }
 
   // 테스트 출력 처리
-  if (isTestOutput) {
+  if (kind === "test") {
     return (
       <div className="bg-card rounded border border-border">
         <div
@@ -143,7 +127,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   }
 
   // 빌드 출력 처리
-  if (isBuildOutput) {
+  if (kind === "build") {
     return (
       <div className="bg-card rounded border border-border">
         <div
@@ -173,7 +157,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   }
 
   // 패키지 매니저 출력 처리
-  if (isPackageOutput) {
+  if (kind === "package") {
     return (
       <div className="bg-card rounded border border-border">
         <div
@@ -203,7 +187,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   }
 
   // 테이블 형태 출력 처리
-  if (isTableOutput) {
+  if (kind === "table") {
     return (
       <div className="bg-card rounded border border-border">
         <div
