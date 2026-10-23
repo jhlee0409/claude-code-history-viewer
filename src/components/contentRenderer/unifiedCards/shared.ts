@@ -1,3 +1,5 @@
+import { ERROR_TEXT_PATTERN } from "../../transcript/toolOutcome";
+
 export const PREVIEW_MAX_LEN = 6000;
 
 export type ToolResultLike = Record<string, unknown>;
@@ -59,7 +61,7 @@ export const summarizeToolInput = (input: Record<string, unknown>): string | und
 export const isError = (result: ToolResultLike) => {
   if (result.is_error === true) return true;
   const c = result.content;
-  if (typeof c === "string" && /^error\b/i.test(c)) return true;
+  if (typeof c === "string" && ERROR_TEXT_PATTERN.test(c)) return true;
   if (c && typeof c === "object" && "error_code" in c) return true;
   return false;
 };
