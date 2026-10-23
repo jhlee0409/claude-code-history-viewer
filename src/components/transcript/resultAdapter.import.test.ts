@@ -114,15 +114,43 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
   const report = (node: ts.Node, field: string, form: string) =>
     out.push({ file: norm(fileName), line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1, field, form });
 
+  const inAdapter = (symbol: ts.Symbol | undefined) =>
+    !!symbol?.declarations?.some((d) => norm(d.getSourceFile().fileName) === norm(ADAPTER));
   const fromAdapter = (type: ts.Type): boolean => {
+    if (inAdapter(type.aliasSymbol)) return true;
     const t = checker.getNonNullableType(type);
+    if (inAdapter(t.aliasSymbol)) return true;
     if (t.isUnion()) return t.types.every(fromAdapter);
-    const symbol = t.aliasSymbol ?? t.getSymbol();
-    return !!symbol?.declarations?.some((d) => norm(d.getSourceFile().fileName) === norm(ADAPTER));
+    return inAdapter(t.getSymbol());
   };
+  /** An expression that reads a member the adapter declares (`o.lifecycle`). */
+  const adapterMember = (expr: ts.Expression): boolean =>
+    (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) && inAdapter(checker.getSymbolAtLocation(ts.isPropertyAccessExpression(expr) ? expr.name : expr));
+  const adapterOperand = (expr: ts.Expression) => adapterMember(expr) || fromAdapter(checker.getTypeAtLocation(expr));
   const literalText = (node: ts.Node): string | null =>
     ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
   const handled = new Set<ts.Node>();
+  const EQUALITY = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]);
+  /**
+   * A literal that is a value of an adapter type, not a field name: compared
+   * with (`o.lifecycle === "interrupted"`), switched on, or assigned to an
+   * adapter-typed slot (`lifecycle: "interrupted"`); or a data-/aria- attribute's text.
+   */
+  const isAdapterValue = (literal: ts.Node): boolean => {
+    const parent = literal.parent;
+    // A DOM data-/aria- attribute's text (`data-outcome-icon="interrupted"`)
+    // reads nothing; a component prop could hand a field name on, so it counts.
+    if (ts.isJsxAttribute(parent)) return /^(data|aria)-/.test(parent.name.getText());
+    if (ts.isBinaryExpression(parent) && EQUALITY.has(parent.operatorToken.kind)) {
+      const other = parent.left === literal ? parent.right : parent.left;
+      return adapterOperand(other);
+    }
+    if (ts.isCaseClause(parent) && parent.expression === literal) {
+      return adapterOperand(parent.parent.parent.expression);
+    }
+    const contextual = ts.isExpression(literal) ? checker.getContextualType(literal) : undefined;
+    return contextual !== undefined && fromAdapter(contextual);
+  };
 
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
@@ -146,7 +174,7 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
       }
     }
     const text = literalText(node);
-    if (text !== null && GUARDED.has(text) && !handled.has(node)) report(node, text, "field name as a string");
+    if (text !== null && GUARDED.has(text) && !handled.has(node) && !isAdapterValue(node)) report(node, text, "field name as a string");
 
     ts.forEachChild(node, visit);
   };
@@ -174,6 +202,8 @@ const BYPASSES: Record<string, string> = {
   renamedDestructure: `const { stdout: out } = r; export const f = () => out;`,
   nestedDestructure: `const { toolUseResultSource: { association } } = r as { toolUseResultSource: { association: string } }; export const f = () => association;`,
   inCheck: `export const f = () => "interrupted" in r;`,
+  fieldNameAsProp: `declare function Field(p: { name: string }): null; export const el = <Field name="stdout" />;`,
+  compareKeyOnResult: `declare const k: string; export const f = () => k === "stderr" ? r[k] : null;`,
   helperString: `export const f = () => str(r, "stdout");`,
   reflectGet: `export const f = () => Reflect.get(r, "exit_code");`,
   unassigned: `declare const src: { unassignedToolUseResult?: unknown }; export const f = () => src.unassignedToolUseResult;`,
@@ -189,6 +219,10 @@ const LEGIT: Record<string, string> = {
   i18nKey: `declare function t(k: string): string; export const f = () => t("renderers.toolRow.exitCode");`,
   construct: `const n = normalizeResult(r); export const props = { errorText: n.stderr, text: n.stdout };`,
   otherFields: `export const f = () => [r.content, r.tool_use_id, r.type];`,
+  lifecycleCompare: `const o = toolOutcome(null, [r], "process"); export const f = () => o.lifecycle === "interrupted" || "interrupted" !== o.lifecycle;`,
+  lifecycleSwitch: `const o = toolOutcome(null, [r], "process"); export function f() { switch (o.lifecycle) { case "interrupted": return 1; default: return 0; } }`,
+  jsxAttributeText: `export const el = <span data-outcome-icon="interrupted" data-zone="stderr" />;`,
+  lifecycleValue: `export const o: ToolOutcome = { lifecycle: "interrupted", verdict: "unknown", reason: "interrupted" };`,
 };
 
 const fixturePath = (kind: string, name: string) => norm(join(FIXTURE_DIR, `${kind}.${name}.tsx`));
