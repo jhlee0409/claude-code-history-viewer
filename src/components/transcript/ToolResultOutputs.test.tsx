@@ -1,13 +1,19 @@
 /**
  * The opened detail never loses a result's recorded content (plan §4.3:
- * image / document / unknown fallbacks stay reachable; PR #728 review F1).
+ * image / document / unknown fallbacks stay reachable; PR #728 reviews F1,
+ * R2-F1, R2-F2).
  *
- * Stream fields (stdout / stderr) are extra evidence, not a replacement for
- * the content: with stream text the OutputBlock zones show it and every
- * non-text content block still goes through the existing result renderers
- * below; with empty streams the content itself is shown (text in an
- * OutputBlock, the rest through the renderers). "No output" only when
- * nothing at all is recorded.
+ * The content renders as an ordered sequence of parts, in recorded order:
+ * each contiguous text run is one OutputBlock, every non-text part goes
+ * through the existing result renderers, in place. Stream fields (stdout /
+ * stderr, as `normalizeResult` reads them) are extra evidence: with stream
+ * text the OutputBlock zones show it (the content's text is that output and
+ * is not repeated). A content object is left out only when it is exactly
+ * what the stream path showed — every key a recognized stream / outcome
+ * field at the level the normalizer reads, with the value it shows; any
+ * extra key, deeper nesting or other value keeps it in the parts. "No
+ * output" only when there are no parts and no stream text. Recorded outcome
+ * facts (exit code …) are the ToolRow detail's, not the OutputBlock's.
  *
  * Each fallback case first renders the same result through the existing
  * `ResultBlock` as a control, so the marker is something those renderers
@@ -106,10 +112,10 @@ describe("ToolResultOutputs: empty streams never hide the content", () => {
     expect(text).toContain("PRESERVE_ME_UNKNOWN");
   });
 
-  it("a string content beside empty streams is shown with the recorded exit code", () => {
+  it("a string content beside empty streams is shown; the exit code is not the OutputBlock's", () => {
     const view = outputs([result("(no output)", own({ stdout: "", stderr: "", exitCode: 0 }))], "process");
     expect(view.container.querySelector("[data-output]")?.textContent).toContain("(no output)");
-    expect(view.container.textContent).toMatch(/exit code 0/i);
+    expect(view.container.textContent).not.toMatch(/exit code/i);
     expect(view.container.textContent).not.toContain("No output");
   });
 
@@ -136,7 +142,7 @@ describe("ToolResultOutputs: stream text is added, the content's non-text blocks
     expect(output, "an OutputBlock").not.toBeNull();
     expect(output.textContent).toContain("OUT");
     expect(within(output).getByText("ERR").closest("[data-stderr]")).not.toBeNull();
-    expect(output.textContent).toMatch(/exit code 1/i);
+    expect(output.textContent, "the exit code is the ToolRow detail's").not.toMatch(/exit code/i);
     expect(shows(view.container, marker)).toBe(true);
   });
 
@@ -157,7 +163,101 @@ describe("ToolResultOutputs: stream text is added, the content's non-text blocks
     const r = result({ stdout: "ONLY_ONCE", stderr: "", exit_code: 0 });
     const view = outputs([r], "process");
     expect((view.container.textContent ?? "").split("ONLY_ONCE").length - 1).toBe(1);
-    expect(view.container.querySelector("[data-output]")?.textContent).toMatch(/exit code 0/i);
+    expect(view.container.querySelectorAll("[data-output]").length).toBe(1);
+  });
+
+  it("a content object whose immediate `result` is the stream record is shown once, as zones", () => {
+    const r = result({ result: { stdout: "NESTED_ONCE", stderr: "", exitCode: 0, interrupted: false } });
+    const view = outputs([r], "process");
+    expect((view.container.textContent ?? "").split("NESTED_ONCE").length - 1).toBe(1);
+  });
+});
+
+const DOC = { type: "document", title: "MIDDLE_DOCUMENT", source: { type: "text", media_type: "text/plain", data: "DOC_BODY" } };
+const at = (text: string, ...markers: string[]) => markers.map((m) => text.indexOf(m));
+
+describe("ToolResultOutputs: the content is an ordered sequence of parts (review R2-F1)", () => {
+  it("text / document / text keep their recorded order", () => {
+    const view = outputs([result([{ type: "text", text: "BEFORE_TEXT" }, DOC, { type: "text", text: "AFTER_TEXT" }])], "process");
+    const [before, middle, after] = at(view.container.textContent ?? "", "BEFORE_TEXT", "MIDDLE_DOCUMENT", "AFTER_TEXT");
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(before).toBeLessThan(middle);
+    expect(middle).toBeLessThan(after);
+    expect(view.container.querySelectorAll("[data-output]").length, "one OutputBlock per text run").toBe(2);
+  });
+
+  it("a leading document stays before the text that follows it", () => {
+    const view = outputs([result([DOC, { type: "text", text: "AFTER_TEXT" }])]);
+    const [middle, after] = at(view.container.textContent ?? "", "MIDDLE_DOCUMENT", "AFTER_TEXT");
+    expect(middle).toBeGreaterThanOrEqual(0);
+    expect(middle).toBeLessThan(after);
+  });
+
+  it("contiguous text blocks are one run (one OutputBlock), then the non-text part", () => {
+    const view = outputs([result([{ type: "text", text: "RUN_ONE" }, { type: "text", text: "RUN_TWO" }, DOC])]);
+    const blocks = view.container.querySelectorAll("[data-output]");
+    expect(blocks.length).toBe(1);
+    expect(blocks[0]?.textContent).toContain("RUN_ONE\nRUN_TWO");
+    const [two, middle] = at(view.container.textContent ?? "", "RUN_TWO", "MIDDLE_DOCUMENT");
+    expect(two).toBeLessThan(middle);
+  });
+
+  it("with stream text, non-text parts keep their order after the stream zones", () => {
+    const r = result([{ type: "novel-type", marker: "FIRST_PART" }, { type: "text", text: "STREAM_ZONE_TEXT" }, DOC], own({ stdout: "STREAM_ZONE_TEXT", stderr: "" }));
+    const text = outputs([r], "process").container.textContent ?? "";
+    const [first, middle] = at(text, "FIRST_PART", "MIDDLE_DOCUMENT");
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThan(middle);
+    expect(text.split("STREAM_ZONE_TEXT").length - 1).toBe(1);
+  });
+});
+
+describe("ToolResultOutputs: only content the stream path showed is left out (review R2-F2)", () => {
+  it("a stream record two `result` levels deep is not read by the normalizer, so it stays visible", () => {
+    const r = result({ result: { result: { stdout: "DEEP_RECORDED_VALUE" } } });
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("DEEP_RECORDED_VALUE");
+    expect(text).not.toContain("No output");
+  });
+
+  it("an extra key beside empty stream fields keeps the object visible", () => {
+    const r = result({ stdout: "", stderr: "", marker: "EXTRA_RECORDED_VALUE" });
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("EXTRA_RECORDED_VALUE");
+    expect(text).not.toContain("No output");
+  });
+
+  it("an extra key beside stream text: the zones and the object both show", () => {
+    const r = result({ stdout: "STREAM_OUT", marker: "EXTRA_RECORDED_VALUE" });
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("STREAM_OUT");
+    expect(text).toContain("EXTRA_RECORDED_VALUE");
+  });
+
+  it("an extra key in the immediate `result` keeps the object visible", () => {
+    const r = result({ result: { stdout: "NESTED_OUT", note: "NESTED_EXTRA" } });
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("NESTED_OUT");
+    expect(text).toContain("NESTED_EXTRA");
+  });
+
+  it("a stream field the normalizer does not show (another source wins) keeps the object visible", () => {
+    const r = result({ stdout: "CONTENT_STDOUT_NOT_SHOWN" }, own({ stdout: "OWN_STDOUT" }));
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("OWN_STDOUT");
+    expect(text).toContain("CONTENT_STDOUT_NOT_SHOWN");
+  });
+
+  it("a stream key with a value the normalizer does not read keeps the object visible", () => {
+    const r = result({ stdout: ["ARRAY_STDOUT_VALUE"] });
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("ARRAY_STDOUT_VALUE");
+    expect(text).not.toContain("No output");
+  });
+
+  it("'No output' when the only content is a consumed, empty stream record", () => {
+    const view = outputs([result({ stdout: "", stderr: "", exitCode: 0, interrupted: false, isImage: false })], "process");
+    expect(view.container.textContent).toContain("No output");
   });
 });
 

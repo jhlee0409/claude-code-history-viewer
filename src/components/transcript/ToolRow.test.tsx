@@ -7,6 +7,8 @@
  *   colour alone, and "exit code N" only when N was recorded;
  * - the header is a disclosure (`aria-expanded` + `aria-controls`) with a
  *   minimum height (`min-h-row-tool`), no fixed height, no fill or border;
+ * - a recorded exit code (0 included) is a fact of the opened detail's meta,
+ *   shown there once whether or not any output exists;
  * - the tool id is reachable only through "copy" in the opened detail;
  * - a path target reads relative, with the full path in `title`.
  */
@@ -220,11 +222,29 @@ describe("ToolRow: shape and disclosure", () => {
     expect(copy.textContent?.trim()).toBe("Copy tool ID");
   });
 
-  it("succeeded / interrupted: no exit-code fact in the row detail (the output's meta carries it once)", () => {
-    for (const [outcome, key] of [[OUTCOMES.succeeded, "dedupe-ok"], [OUTCOMES.interrupted, "dedupe-int"]] as const) {
+  it("a recorded exit code (0 included) is a fact of the opened detail's meta, once, whatever the verdict", () => {
+    const cases = [
+      [OUTCOMES.succeeded, "facts-ok", "Exit code 0"],
+      [OUTCOMES.interrupted, "facts-int", "Exit code 130"],
+      [OUTCOMES.failedExit, "facts-failed", "Exit code 1"],
+      [OUTCOMES.conflict, "facts-conflict", "Exit code 2"],
+    ] as const;
+    for (const [outcome, key, words] of cases) {
+      const { container, unmount } = row(outcome, key);
+      expect(container.querySelector("[data-tool-detail] > [data-meta]"), "collapsed: no detail meta").toBeNull();
+      fireEvent.click(toggle());
+      const meta = container.querySelector("[data-tool-detail] > [data-meta]")?.textContent ?? "";
+      expect(meta.split(words).length - 1, `${key}: ${meta}`).toBe(1);
+      expect((container.textContent ?? "").split(words).length - 1, key).toBe(1);
+      unmount();
+    }
+  });
+
+  it("no recorded exit code: no exit-code fact is invented in the detail", () => {
+    for (const [outcome, key] of [[OUTCOMES.readOk, "nofacts-read"], [OUTCOMES.failedPlain, "nofacts-failed"], [OUTCOMES.noResult, "nofacts-none"]] as const) {
       const { container, unmount } = row(outcome, key);
       fireEvent.click(toggle());
-      expect(container.querySelector("[data-tool-detail] [data-meta]")?.textContent ?? "").not.toMatch(/exit code/i);
+      expect(container.querySelector("[data-tool-detail] > [data-meta]")?.textContent ?? "").not.toMatch(/exit code \d/i);
       unmount();
     }
   });

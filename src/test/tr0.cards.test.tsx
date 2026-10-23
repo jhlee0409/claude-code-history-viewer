@@ -40,6 +40,8 @@ const open = (container: HTMLElement) => {
   fireEvent.click(button as HTMLElement);
 };
 const SUCCESS = /completed|success|성공|완료/i;
+/** The opened ToolRow detail's own meta line (not an OutputBlock's). */
+const detailMeta = (container: HTMLElement) => container.querySelector("[data-tool-detail] > [data-meta]")?.textContent ?? "";
 
 const E15 = { stdout: "", stderr: "fatal: not a git repository (or any of the parent directories): .git", interrupted: false };
 
@@ -83,15 +85,36 @@ describe("Bash card", () => {
     expect(container.textContent).toContain("Exit code 0");
   });
 
-  it("an exit code shows once in the opened detail (the output's meta), not twice", () => {
+  it("an exit code shows once in the opened detail (the row detail's meta), not twice", () => {
     const count = (text: string, word: string) => text.split(word).length - 1;
     const ok = card("Bash", { command: "pnpm lint" }, [{ content: "ok", ...own({ stdout: "ok", stderr: "", interrupted: false, isImage: false, exitCode: 0 }) }]);
     open(ok.container);
     expect(count(ok.container.textContent ?? "", "Exit code 0")).toBe(1);
+    expect(detailMeta(ok.container)).toContain("Exit code 0");
     ok.unmount();
     const int = card("Bash", { command: "pnpm e2e" }, [{ content: "Running 48 tests", ...own({ stdout: "Running 48 tests", stderr: "", interrupted: true, isImage: false, exitCode: 130 }) }]);
     open(int.container);
     expect(count(int.container.textContent ?? "", "Exit code 130")).toBe(1);
+    expect(detailMeta(int.container)).toContain("Exit code 130");
+  });
+
+  it("exit code 0 with non-text-only content: the document and 'Exit code 0' both show, once (review R2-F3)", () => {
+    const doc = { type: "document", title: "ZERO_DOCUMENT", source: { type: "text", media_type: "text/plain", data: "DOC_BODY" } };
+    const { container } = card("Bash", { command: "probe-zero-nontext" }, [{ content: [doc], ...own({ exitCode: 0, stdout: "", stderr: "" }) }]);
+    expect(rowOf(container).getAttribute("data-tool-verdict")).toBe("succeeded");
+    expect(rowOf(container).textContent).not.toMatch(/exit code/i);
+    open(container);
+    expect(container.textContent).toContain("ZERO_DOCUMENT");
+    expect(detailMeta(container)).toContain("Exit code 0");
+    expect((container.textContent ?? "").split("Exit code 0").length - 1).toBe(1);
+  });
+
+  it("a failed exit code with no output text: 'Exit code 2' in the opened detail's meta", () => {
+    const { container } = card("Bash", { command: "probe-failed-empty" }, [{ content: [], ...own({ exitCode: 2, stdout: "", stderr: "" }) }]);
+    expect(within(rowOf(container)).queryByText("Failed · exit code 2")).not.toBeNull();
+    open(container);
+    expect(detailMeta(container)).toContain("Exit code 2");
+    expect((container.textContent ?? "").split("Exit code 2").length - 1).toBe(1);
   });
 
   it("no result: 'No result recorded' instead of a Pending pill", () => {

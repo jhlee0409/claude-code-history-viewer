@@ -269,10 +269,6 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
 // ---------------------------------------------------------------------------
 
 const FIXTURE_DIR = join(TRANSCRIPT_DIR, "__scan_fixtures__");
-/** A module outside the scanned files that declares a non-result `code` (an error type). */
-const SCAN_TYPES_IMPORT = "@/__scan_types__/errors";
-const SCAN_TYPES = norm(join(ROOT, "src/__scan_types__/errors.ts"));
-const SCAN_TYPES_TEXT = `export interface FsError { code: string; message: string }\n`;
 const HEADER = `import { normalizeResult, toolOutcome, type ToolOutcome, type NormalizedResult } from "@/components/transcript/toolOutcome";\ntype R = Record<string, unknown>;\ndeclare const r: R;\ndeclare function str(o: R, k: string): string | null;\n`;
 
 /** Each must be reported at least once. */
@@ -313,6 +309,14 @@ const BYPASSES: Record<string, string> = {
   bareCodeLocalInterface: `interface Shaped { code?: number } export const f = () => (r as Shaped).code;`,
   bareCodeHelper: `export const f = () => str(r, "code");`,
   bareCodeInCheck: `export const f = () => "code" in r;`,
+  // A raw result type, wherever it is declared, is result-like (review R2-F4).
+  rawResultTypeAdapter: `import type { ToolResultLike } from "@/components/transcript/toolOutcome"; declare const x: ToolResultLike; export const f = () => [x.is_error, x.code];`,
+  rawResultTypeCards: `import type { ToolResultLike } from "@/components/contentRenderer/unifiedCards/shared"; declare const x: ToolResultLike; export const f = () => x.code;`,
+  cardPropsResult: `import type { Props } from "@/components/contentRenderer/unifiedCards/shared"; export const f = ({ toolResults }: Props) => toolResults[0]?.code;`,
+  // A result value cast to a type that names `code`: the cast's source decides.
+  bareCodeCastAlias: `interface Shaped { code?: number } const s = r as Shaped; export const f = () => s.code;`,
+  bareCodeUnknownCast: `declare const u: unknown; export const f = () => (u as { code: number }).code;`,
+  bareCodeCastDestructure: `interface Shaped { code?: number } const { code } = r as Shaped; export const f = () => code;`,
 };
 
 /** Each must pass with no report. */
@@ -332,10 +336,15 @@ const LEGIT: Record<string, string> = {
   unguardedConcat: `declare function t(k: string): string; export const f = () => t("renderers." + "toolRow.exitCode");`,
   dynamicTemplate: "const n = normalizeResult(r); export const f = () => `${n.exitCode}`;",
   adapterValueConcat: `const o = toolOutcome(null, [r], "process"); export const f = () => o.lifecycle === "inter" + "rupted";`,
-  // `code` that is not a result's: a type declared outside the transcript UI
-  // (an error object, a key event), an i18n value, a DOM attribute.
-  foreignErrorCode: `import type { FsError } from "${SCAN_TYPES_IMPORT}"; declare const err: FsError; export const f = () => err.code;`,
-  foreignErrorDestructure: `import type { FsError } from "${SCAN_TYPES_IMPORT}"; declare const err: FsError; const { code } = err; export const f = () => code;`,
+  // `code` that is not a result's: a type that declares `code` itself (an
+  // error object, a key event), resolved through the real modules; an i18n
+  // value; a DOM attribute.
+  realModuleCode: `import { extractCodeFromNumberedLines } from "@/components/renderers/utils"; export const f = (s: string) => extractCodeFromNumberedLines(s).code;`,
+  realModuleDestructure: `import { extractCodeFromNumberedLines } from "@/components/renderers/utils"; export const f = (s: string) => { const { code } = extractCodeFromNumberedLines(s); return code; };`,
+  domKeyEvent: `export const f = (e: KeyboardEvent) => e.code;`,
+  reactKeyEvent: `import type { KeyboardEvent } from "react"; export const f = (e: KeyboardEvent<HTMLElement>) => e.code;`,
+  localEventInterface: `interface KeyEventLike { code: string; key: string } declare const e: KeyEventLike; export const f = () => e.code;`,
+  localEventDestructure: `interface KeyEventLike { code: string } export const f = ({ code }: KeyEventLike) => code;`,
   i18nCodeValue: `declare function t(k: string, o: object): string; const o = toolOutcome(null, [r], "process"); export const f = () => t("toolOutcome.failedExitCode", { code: o.exitCode });`,
   codeDataAttribute: `export const el = <span data-mono="code" className="font-mono text-code" />;`,
 };
@@ -343,7 +352,7 @@ const LEGIT: Record<string, string> = {
 const fixturePath = (kind: string, name: string) => norm(join(FIXTURE_DIR, `${kind}.${name}.tsx`));
 
 describe("result adapter ownership scan", () => {
-  const virtual: Record<string, string> = { [SCAN_TYPES]: SCAN_TYPES_TEXT };
+  const virtual: Record<string, string> = {};
   for (const [name, body] of Object.entries(BYPASSES)) virtual[fixturePath("bypass", name)] = HEADER + body;
   for (const [name, body] of Object.entries(LEGIT)) virtual[fixturePath("legit", name)] = HEADER + body;
   const real = scannedFiles();
