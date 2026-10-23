@@ -117,10 +117,11 @@ export function OutputBlock({
   const query = searchQuery?.trim().toLowerCase() ?? "";
   const searchHit = query !== "" && `${main}\n${stderr}`.toLowerCase().includes(query);
   // A search hit past the cap opens the whole block once; the toggle then says
-  // so and still collapses it (review round 6).
+  // so and still collapses it (review round 6); a new matching query reveals
+  // again (review round 7).
   useEffect(() => {
     if (searchHit) setShowAll(true);
-  }, [searchHit, setShowAll]);
+  }, [searchHit, query, setShowAll]);
   const open = showAll;
   const cap = (lines: string[], whole: string) => (open || lines.length <= lineCap ? whole : lines.slice(0, lineCap).join("\n"));
 

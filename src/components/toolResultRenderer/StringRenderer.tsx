@@ -34,13 +34,14 @@ export const StringRenderer = memo(function StringRenderer({ result, searchQuery
   const ambient = useContext(RendererDefaultsContext);
   const [open, toggle, setOpen] = useToggle("renderer", ambient.defaultExpanded);
   // A search hit inside the text opens the result once, as before TR0
-  // (CodeRabbit 4362895001); the user can still collapse it (review round 6).
+  // (CodeRabbit 4362895001); the user can still collapse it (review round 6), and a new matching query
+  // opens it again (review round 7).
   // Same match rule as OutputBlock's reveal.
   const query = searchQuery?.trim().toLowerCase() ?? "";
   const searchHit = query !== "" && result.toLowerCase().includes(query);
   useEffect(() => {
     if (searchHit) setOpen(true);
-  }, [searchHit, setOpen]);
+  }, [searchHit, query, setOpen]);
   const contentId = useId();
   const Icon = isFileTreeText(result) ? Folder : FileText;
 
