@@ -298,9 +298,13 @@ export function toolOutcome(
   }
 
   // 3. Recorded error signals; an exit code 0 beside one is a conflict.
+  //    For a process tool, output text that merely starts with `error` is
+  //    not a signal once an exit code is recorded: the recorded code decides
+  //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
   const providerError = normalized.some((n) => n.isError === true);
   const errorCode = normalized.find((n) => n.errorCode !== undefined)?.errorCode;
-  const errorContent = normalized.some((n) => n.errorText !== undefined);
+  const textOutrankedByExit = family === "process" && exitCode !== undefined;
+  const errorContent = !textOutrankedByExit && normalized.some((n) => n.errorText !== undefined);
   if (providerError || errorCode !== undefined || errorContent) {
     const reason: OutcomeReason =
       exitCode === 0 || codesDisagree
