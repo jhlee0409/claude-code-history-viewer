@@ -166,3 +166,22 @@ describe("StringRenderer: raw output, not Markdown", () => {
     expect(pre?.textContent).toBe("# heading\n  two  spaces\n**x**");
   });
 });
+
+describe("StringRenderer: neutral header (plan D3: no success claim, no tool colour)", () => {
+  const TOOL_COLOUR = "[class*='tool-']";
+  for (const [label, text, title] of [
+    ["plain output", "ok: 3 files changed\nsecond line", "Tool Execution Result"],
+    ["file tree", "src/\n├── a.ts\n└── b.ts", "File Structure"],
+  ] as const) {
+    it(`${label}: no check mark, no tool-colour fill or title, neutral --fg-3 icon`, () => {
+      const { container } = wrap(<StringRenderer result={text} />);
+      expect(screen.queryByText(title), "the neutral label stays").not.toBeNull();
+      expect(container.querySelector("svg.lucide-check"), "a check mark claims success").toBeNull();
+      expect(container.querySelector(TOOL_COLOUR), "tool-colour fill / border / title").toBeNull();
+      const header = container.querySelector("button[aria-expanded]") as HTMLElement;
+      const icons = [...header.querySelectorAll("svg")].filter((svg) => !svg.classList.contains("lucide-chevron-right"));
+      expect(icons).toHaveLength(1);
+      expect(icons[0]?.getAttribute("class")).toContain("text-fg-3");
+    });
+  }
+});
