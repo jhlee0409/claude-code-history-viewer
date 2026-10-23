@@ -3,8 +3,9 @@
  *
  * `normalizeResult` in toolOutcome.ts is the single reader of `is_error`,
  * `error_code`, exit-code aliases, `interrupted`, stdout/stderr and the #727
- * per-result metadata (`toolUseResult`, `toolUseResultSource`,
- * `unassignedToolUseResult`). The transcript components and the cards that
+ * inline per-result metadata (`toolUseResult`); the provenance envelope
+ * (`toolUseResultSource`, `unassignedToolUseResult`) is read by nothing in
+ * the transcript UI, the adapter included. The transcript components and the cards that
  * adopted ToolRow/OutputBlock must go through it: this static scan fails on
  * any read of those fields elsewhere — property access, element access,
  * destructuring, an `in` check or the field name as a string handed to a
@@ -278,9 +279,15 @@ describe("result adapter ownership scan", () => {
 
   it("sees the reads in the adapter itself (positive control)", () => {
     const fields = new Set(findResultReads(program, ADAPTER).map((v) => v.field));
-    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "interrupted", "stdout", "stderr", "toolUseResult", "toolUseResultSource"]) {
+    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "interrupted", "stdout", "stderr", "toolUseResult"]) {
       expect(fields, field).toContain(field);
     }
+  });
+
+  it("the adapter itself never reads the provenance envelope or the unassigned payload", () => {
+    const fields = new Set(findResultReads(program, ADAPTER).map((v) => v.field));
+    expect(fields.has("toolUseResultSource")).toBe(false);
+    expect(fields.has("unassignedToolUseResult")).toBe(false);
   });
 
   it("covers every transcript module and every adopting card", () => {

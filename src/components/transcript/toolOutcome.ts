@@ -8,11 +8,13 @@
  *
  * `normalizeResult` is the only reader of tool-result shapes in the
  * transcript UI (`resultAdapter.import.test.ts` scans for others). It reads
- * the block itself and its own per-result metadata from the #727 contract
- * (docs/contracts/tool-result-metadata.md): `toolUseResult` when the source
- * record held exactly that one result (`association: "single_result"`). An
- * `unassigned` payload belongs to a multi-result source record and is never
- * attributed to any single result.
+ * the block itself and the block's own inline `toolUseResult` from the #727
+ * contract (docs/contracts/tool-result-metadata.md). That inline field is the
+ * block's evidence whatever its provenance envelope says, and with no
+ * envelope at all: `association` describes where the source record's *outer*
+ * payload went. The outer payload of an ambiguous record
+ * (`toolUseResultSource.unassignedToolUseResult`) belongs to no single result
+ * and is never read.
  *
  * Present `0`, `false`, `""`, `null` and absent stay distinct, and nothing is
  * synthesized: no exit code from stderr or from prose like "Exit code 1".
@@ -125,13 +127,13 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 const EXIT_CODE_KEYS = ["exitCode", "exit_code", "return_code", "returncode"] as const;
 
 /**
- * The result's own metadata: `toolUseResult` only when the source record held
- * exactly this result. A payload beside an `unassigned` envelope, or without
- * a source, is not per-result evidence.
+ * The result's own metadata: its inline `toolUseResult`. The backend copies
+ * the record's payload there only for a `single_result` record and never
+ * overwrites a field the block already had, so an inline field is this
+ * block's own under any envelope. `toolUseResultSource` (and the
+ * `unassignedToolUseResult` it may carry) is deliberately not consulted.
  */
 function ownMetadata(result: ToolResultLike): Record<string, unknown> | null {
-  const source = result.toolUseResultSource;
-  if (!isPlainObject(source) || source.association !== "single_result") return null;
   const own = result.toolUseResult;
   return isPlainObject(own) ? own : null;
 }
