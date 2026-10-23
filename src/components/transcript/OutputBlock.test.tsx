@@ -83,14 +83,15 @@ describe("OutputBlock: ANSI and detection kept", () => {
 });
 
 describe("OutputBlock: stderr zone", () => {
-  it("shows stderr in its own zone with the danger colour and a left rule", () => {
+  it("shows stderr in its own zone with a neutral left rule unless the verdict is failed (plan amendment #1)", () => {
     const { container } = wrap(<OutputBlock text="out" errorText="fatal: not a git repository" />);
     const zone = container.querySelector("[data-stderr]");
     expect(zone, "the stderr zone").not.toBeNull();
     expect(zone?.textContent).toContain("fatal: not a git repository");
     expect(zone?.getAttribute("class")).toMatch(/border-l/);
-    expect(zone?.getAttribute("class")).toContain("border-status-danger-line");
-    expect(zone?.querySelector("pre")?.getAttribute("class")).toContain("text-status-danger-fg");
+    expect(zone?.getAttribute("class")).toContain("border-line");
+    expect(zone?.getAttribute("class")).not.toContain("danger");
+    expect(zone?.querySelector("pre")?.getAttribute("class")).not.toContain("danger");
     expect(body(container).textContent).toBe("out");
   });
 
@@ -113,8 +114,8 @@ describe("OutputBlock: stderr zone", () => {
       expect(label.textContent).toBe("stderr");
       expect(label.matches("code[data-mono='code']"), label.outerHTML).toBe(true);
       expect(zone.textContent).not.toMatch(/error output|오류 출력|エラー出力|错误输出|錯誤輸出/i);
-      // The danger rule and colour stay (plan §4.3); only the word changed.
-      expect(zone.getAttribute("class")).toContain("border-status-danger-line");
+      // Its own zone with a left rule; danger styling is the failed verdict's alone (amendment #1).
+      expect(zone.getAttribute("class")).toMatch(/border-l/);
     } finally {
       await i18n.changeLanguage("en");
     }

@@ -529,3 +529,43 @@ describe("TC4: the Edit row's +a −d agrees with the box's change counts", () =
     expect({ row: `+${counts?.[1]} −${counts?.[2]}`, box: `${box.added} ${box.removed}` }).toEqual({ row: `+${added} −${removed}`, box: `+${added} -${removed}` });
   });
 });
+
+/**
+ * Plan amendment #1 (renderer re-audit, owner-approved): the stderr zone is
+ * always its own visible zone labelled `stderr`, and it takes the danger
+ * rule and colour only when the row's verdict is `failed`. A warning beside
+ * exit code 0 and E15's stderr with no exit code (unknown) stay neutral.
+ */
+describe("amendment #1: the stderr zone is danger-styled only when the verdict is failed", () => {
+  const zoneOf = (container: HTMLElement) => {
+    const zone = container.querySelector("[data-tool-detail] [data-stderr]") as HTMLElement | null;
+    expect(zone, "the stderr zone").not.toBeNull();
+    return zone as HTMLElement;
+  };
+  const dangerClasses = (zone: HTMLElement) =>
+    [zone, ...zone.querySelectorAll("*")].flatMap((el) => (el.getAttribute("class") ?? "").split(/\s+/)).filter((c) => c.includes("danger"));
+
+  it.each([
+    ["E15 (unknown)", { content: E15.stderr, ...own({ ...E15 }) }, "unknown"],
+    ["a warning beside exit code 0 (succeeded)", { content: "✔ No problems found", ...own({ stdout: "✔ No problems found", stderr: "warning: React version not specified", interrupted: false, isImage: false, exitCode: 0 }) }, "succeeded"],
+  ] as const)("%s: neutral zone, still shown with its label", (_label, r, verdict) => {
+    const { container } = card("Bash", { command: "probe" }, [r]);
+    expect(rowOf(container).getAttribute("data-tool-verdict")).toBe(verdict);
+    open(container);
+    const zone = zoneOf(container);
+    expect(zone.firstElementChild?.textContent).toBe("stderr");
+    expect(dangerClasses(zone), zone.outerHTML.slice(0, 300)).toEqual([]);
+    expect(zone.getAttribute("class")).toContain("border-line");
+  });
+
+  it("a failed row (exit 1): danger rule and danger text", () => {
+    const { container } = card("Bash", { command: "pnpm build" }, [
+      { content: "Exit code 1\nerror TS2322", is_error: true, ...own({ stdout: "", stderr: "error TS2322", interrupted: false, isImage: false, exitCode: 1 }) },
+    ]);
+    expect(rowOf(container).getAttribute("data-tool-verdict")).toBe("failed");
+    open(container);
+    const zone = zoneOf(container);
+    expect(zone.getAttribute("class")).toContain("border-status-danger-line");
+    expect(zone.querySelector("pre")?.getAttribute("class")).toContain("text-status-danger-fg");
+  });
+});
