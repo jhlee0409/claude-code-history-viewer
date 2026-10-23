@@ -526,6 +526,18 @@ describe("TC15: Write shows its line count once and no absolute-path confirmatio
 });
 
 describe("TR9: StringRenderer says 'File Structure' once, in one box", () => {
+  it("a collapsed string result opens itself when the search query matches it (CodeRabbit 4362895001)", () => {
+    const { container } = wrap(<StringRenderer result={"alpha\nNeedle line\nomega"} searchQuery="  needle " />);
+    const button = container.querySelector("button[aria-expanded]") as HTMLElement;
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector("[data-output]")?.textContent).toContain("Needle line");
+  });
+
+  it("a non-matching query leaves it collapsed (a control)", () => {
+    const { container } = wrap(<StringRenderer result={"alpha\nomega"} searchQuery="needle" />);
+    expect(container.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector("[data-output]")).toBeNull();
+  });
   it("opened file tree: the label once, and no bordered card around the well", () => {
     const { container } = wrap(<StringRenderer result={"src/\n├── a.ts\n└── b.ts"} />);
     const button = container.querySelector("button[aria-expanded='false']");
