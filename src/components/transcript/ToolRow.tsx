@@ -87,23 +87,49 @@ const TargetCutContext = createContext(false);
 /**
  * Whether the row's code target does not show all of its text: only part of
  * it is shown, or the ellipsis cut it (scrollWidth > clientWidth). Measured
- * while the detail is open and again whenever the target's box changes size.
+ * while the detail is open, again whenever the target's box changes size, and
+ * whenever the target changes (re-render or DOM text / partial mark), since
+ * its box may keep the same size.
  */
-function useTargetCut(scope: RefObject<HTMLElement | null>, active: boolean): boolean {
+function useTargetCut(scope: RefObject<HTMLElement | null>, active: boolean, target: unknown): boolean {
   const [cut, setCut] = useState(false);
   useLayoutEffect(() => {
-    const target = active ? scope.current?.querySelector<HTMLElement>("[data-row-target]") : null;
-    if (!target) {
+    const root = active ? scope.current : null;
+    if (!root) {
       setCut(false);
       return;
     }
-    const measure = () => setCut(target.hasAttribute("data-row-target-partial") || target.scrollWidth > target.clientWidth);
+    let resize: ResizeObserver | null = null;
+    let observed: HTMLElement | null = null;
+    const measure = () => {
+      const target = root.querySelector<HTMLElement>("[data-row-target]");
+      if (target !== observed) {
+        resize?.disconnect();
+        observed = target;
+        if (target && typeof ResizeObserver !== "undefined") {
+          resize = new ResizeObserver(measure);
+          resize.observe(target);
+        }
+      }
+      setCut(target ? target.hasAttribute("data-row-target-partial") || target.scrollWidth > target.clientWidth : false);
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [scope, active]);
+    const mutation =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(measure);
+    mutation?.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["data-row-target-partial", "title"],
+    });
+    return () => {
+      mutation?.disconnect();
+      resize?.disconnect();
+    };
+  }, [scope, active, target]);
   return cut;
 }
 
@@ -211,7 +237,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
   const detailId = useId();
   const facts = open ? detailFacts(outcome, family, t) : [];
   const targetRef = useRef<HTMLSpanElement>(null);
-  const targetCut = useTargetCut(targetRef, open);
+  const targetCut = useTargetCut(targetRef, open, target);
 
   return (
     <div data-tool-row-wrapper="" className="mt-1">

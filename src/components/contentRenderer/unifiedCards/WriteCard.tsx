@@ -4,7 +4,7 @@ import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome, writeConfirmationPath } from "../../transcript/toolOutcome";
+import { normalizeResult, toolFamily, toolOutcome, writeConfirmationPath } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
@@ -30,7 +30,14 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
   const outcome = toolOutcome(toolUse, toolResults, family);
   const expandKey = `unified-${toolId}`;
   const confirmations = toolResults.map((result) => writeConfirmationPath(result));
-  const otherResults = toolResults.filter((_, index) => confirmations[index] === null);
+  // A confirmation sentence is left out, not its result: the same result's own
+  // stdout / stderr (and any other recorded parts) still render (review round 4).
+  const otherResults = toolResults.flatMap((result, index) => {
+    if (confirmations[index] === null) return [result];
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
   const otherPaths = confirmations.filter((path): path is string => path !== null && path !== filePath);
 
   return (
