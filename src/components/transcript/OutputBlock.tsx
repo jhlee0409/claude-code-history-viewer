@@ -22,7 +22,7 @@
  * records (Grep content-mode matches: a soft-wrapped match would read as the
  * next match, TC13).
  */
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -116,7 +116,12 @@ export function OutputBlock({
   const overCap = mainLines.length > lineCap || errLines.length > lineCap;
   const query = searchQuery?.trim().toLowerCase() ?? "";
   const searchHit = query !== "" && `${main}\n${stderr}`.toLowerCase().includes(query);
-  const open = showAll || searchHit;
+  // A search hit past the cap opens the whole block once; the toggle then says
+  // so and still collapses it (review round 6).
+  useEffect(() => {
+    if (searchHit) setShowAll(true);
+  }, [searchHit, setShowAll]);
+  const open = showAll;
   const cap = (lines: string[], whole: string) => (open || lines.length <= lineCap ? whole : lines.slice(0, lineCap).join("\n"));
 
   const kind = main === "" ? null : detectOutputKind(main);
@@ -157,7 +162,7 @@ export function OutputBlock({
         </div>
       )}
       {main === "" && stderr === "" && <div className="pb-2" />}
-      {overCap && !searchHit && (
+      {overCap && (
         <div className="px-3 pb-2">
           <button
             type="button"

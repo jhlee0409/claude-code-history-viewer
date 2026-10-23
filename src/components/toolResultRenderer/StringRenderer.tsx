@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useContext, useId } from "react";
+import { memo, useContext, useEffect, useId } from "react";
 import { ChevronRight, Folder, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
@@ -32,11 +32,15 @@ type Props = {
 export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
   const ambient = useContext(RendererDefaultsContext);
-  const [isOpen, toggle] = useToggle("renderer", ambient.defaultExpanded);
-  // A search hit inside the text opens the result, as before TR0 (CodeRabbit
-  // 4362895001); same match rule as OutputBlock's reveal.
+  const [open, toggle, setOpen] = useToggle("renderer", ambient.defaultExpanded);
+  // A search hit inside the text opens the result once, as before TR0
+  // (CodeRabbit 4362895001); the user can still collapse it (review round 6).
+  // Same match rule as OutputBlock's reveal.
   const query = searchQuery?.trim().toLowerCase() ?? "";
-  const open = isOpen || (query !== "" && result.toLowerCase().includes(query));
+  const searchHit = query !== "" && result.toLowerCase().includes(query);
+  useEffect(() => {
+    if (searchHit) setOpen(true);
+  }, [searchHit, setOpen]);
   const contentId = useId();
   const Icon = isFileTreeText(result) ? Folder : FileText;
 
