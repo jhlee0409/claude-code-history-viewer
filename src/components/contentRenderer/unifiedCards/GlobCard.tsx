@@ -1,41 +1,37 @@
 import { memo } from "react";
-import { FolderSearch } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
+import { CodeTarget, ToolRow } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { useToolPathContext } from "../../transcript/pathContext";
+import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
-import { str, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
+import { str } from "./shared";
 
 export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) {
+  const pathCtx = useToolPathContext();
+  const name = (toolUse.name as string) || "Glob";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   // Claude Code: {pattern, path?}; oh-my-pi/pi: {path} where path is the glob.
   const pattern = str(input, "pattern") ?? str(input, "path") ?? "";
   const path = str(input, "pattern") ? str(input, "path") : null;
-  const styles = getVariantStyles("file");
-
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family);
+  const expandKey = `unified-${toolId}`;
 
   return (
-    <Renderer className={styles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title="Glob"
-        icon={<ToolIcon toolName="Glob" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={<StatusBadge results={toolResults} />}
-      />
-      <Renderer.Content>
-        <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>
-          <FolderSearch className={cn(layout.iconSizeSmall, "text-tool-file shrink-0")} />
-          <code className={cn(layout.monoText, "text-tool-file font-semibold wrap-anywhere")}>{pattern}</code>
-          {path && (
-            <span className={cn(layout.smallText, "text-muted-foreground ml-1 truncate")}>in {path}</span>
-          )}
-        </div>
-        <ResultBlock results={toolResults} />
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="Glob" className="w-4 h-4" />}
+      verb={name}
+      target={pattern ? <CodeTarget text={pattern} /> : undefined}
+      meta={path ? <PathText path={path} ctx={pathCtx} /> : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+    >
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} />
+    </ToolRow>
   );
 });
