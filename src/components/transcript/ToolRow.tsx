@@ -8,8 +8,9 @@
  *
  * Outcome (from `toolOutcome`, never read from the result here):
  * - succeeded / unknown: nothing in the row — no pill, no "Completed".
- *   Opened, the detail states neutral facts: "Exit code 0", or "Result not
- *   verified · No exit code recorded" when a process left no exit code.
+ *   Opened, the detail states neutral facts: "Result not verified · No exit
+ *   code recorded" when a process left no exit code. A recorded exit code is
+ *   shown once, in the meta of the output it belongs to (OutputBlock).
  * - failed: a danger icon + "Failed", "Failed · exit code N" (only a recorded
  *   N) or "Failed · <API error code>".
  * - interrupted: a warning icon + "Interrupted". no result: an `--fg-3`
@@ -17,7 +18,8 @@
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The tool
- * id is reachable only through "Copy tool ID" in the opened detail.
+ * id is reachable only through "Copy tool ID" (in words, not a bare icon) in
+ * the opened detail.
  */
 import { useCallback, useContext, useId, useState, type ReactNode } from "react";
 import { Check, ChevronRight, CircleDashed, CirclePause, CircleX, Hash } from "lucide-react";
@@ -107,14 +109,13 @@ function RowStatus({ outcome }: { outcome: ToolOutcome }) {
   return null;
 }
 
-/** Neutral facts for the opened detail. */
+/**
+ * Neutral facts for the opened detail. A recorded exit code is not one of
+ * them: the output it belongs to shows it in its meta, once.
+ */
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
   const facts: string[] = [];
-  if (outcome.lifecycle === "interrupted" && outcome.exitCode !== undefined) {
-    facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
-  } else if (outcome.verdict === "succeeded" && outcome.exitCode !== undefined) {
-    facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
-  } else if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && outcome.reason === "no-exit-code") {
+  if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && outcome.reason === "no-exit-code") {
     facts.push(t("toolOutcome.notVerifiedNoExitCode"));
   } else if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && family === "process") {
     facts.push(t("toolOutcome.notVerified"));
@@ -135,15 +136,16 @@ function CopyToolId({ toolId }: { toolId: string }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [toolId]);
+  const label = copied ? t("toolRow.toolIdCopied") : t("toolRow.copyToolId");
   return (
     <button
       type="button"
       onClick={onCopy}
-      aria-label={t("toolRow.copyToolId")}
-      title={copied ? t("toolRow.toolIdCopied") : t("toolRow.copyToolId")}
-      className="ml-auto inline-flex size-6 items-center justify-center rounded-row text-fg-3 hover:bg-surface-hover hover:text-fg"
+      title={label}
+      className="inline-flex min-h-6 items-center gap-1 rounded-row px-1 text-fg-3 hover:bg-surface-hover hover:text-fg"
     >
-      {copied ? <Check className="w-3.5 h-3.5" /> : <Hash className="w-3.5 h-3.5" />}
+      {copied ? <Check aria-hidden="true" className="w-3.5 h-3.5 shrink-0" /> : <Hash aria-hidden="true" className="w-3.5 h-3.5 shrink-0" />}
+      <span>{label}</span>
     </button>
   );
 }
