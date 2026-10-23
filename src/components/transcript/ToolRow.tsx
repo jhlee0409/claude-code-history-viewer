@@ -58,6 +58,19 @@ export function CodeTarget({ text }: { text: string }) {
   );
 }
 
+/**
+ * The whole command, pattern or query in the opened detail: the row may
+ * shorten it, the detail never does. Identifiers wrap anywhere so a long
+ * token stays inside the transcript column.
+ */
+export function CodeWell({ text }: { text: string }) {
+  return (
+    <pre className="m-0 whitespace-pre-wrap wrap-anywhere rounded-row bg-surface-well px-3 py-2 font-mono text-code text-fg">
+      <code data-mono="code">{text}</code>
+    </pre>
+  );
+}
+
 function failedLabel(outcome: ToolOutcome, t: TFunction): string {
   if (outcome.errorCode !== undefined) return t("toolOutcome.failedErrorCode", { code: outcome.errorCode });
   if (outcome.exitCode !== undefined) return t("toolOutcome.failedExitCode", { code: outcome.exitCode });

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { ToolIcon } from "../../ToolIcon";
-import { CodeTarget, ToolRow } from "../../transcript/ToolRow";
+import { CodeTarget, CodeWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
@@ -34,11 +34,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
       expandKey={expandKey}
     >
       {description && <p className="text-list text-fg-2">{description}</p>}
-      {command && (
-        <pre data-mono="code" className="m-0 overflow-x-auto whitespace-pre-wrap break-words rounded-row bg-surface-well px-3 py-2 font-mono text-code text-fg">
-          {command}
-        </pre>
-      )}
+      {command && <CodeWell text={command} />}
       <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} />
     </ToolRow>
   );

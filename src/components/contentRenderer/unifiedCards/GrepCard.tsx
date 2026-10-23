@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { ToolIcon } from "../../ToolIcon";
-import { CodeTarget, ToolRow } from "../../transcript/ToolRow";
+import { CodeTarget, CodeWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
@@ -38,6 +38,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
+      {pattern && <CodeWell text={pattern} />}
       <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} />
     </ToolRow>
   );
