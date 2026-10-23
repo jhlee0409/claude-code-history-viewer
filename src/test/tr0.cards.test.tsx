@@ -109,12 +109,12 @@ describe("Bash card", () => {
     expect((container.textContent ?? "").split("Exit code 0").length - 1).toBe(1);
   });
 
-  it("a failed exit code with no output text: 'Exit code 2' in the opened detail's meta", () => {
+  it("a failed exit code with no output text: the header's 'Failed · exit code 2' is its only mention when opened (R3-F2: exactly once)", () => {
     const { container } = card("Bash", { command: "probe-failed-empty" }, [{ content: [], ...own({ exitCode: 2, stdout: "", stderr: "" }) }]);
     expect(within(rowOf(container)).queryByText("Failed · exit code 2")).not.toBeNull();
     open(container);
-    expect(detailMeta(container)).toContain("Exit code 2");
-    expect((container.textContent ?? "").split("Exit code 2").length - 1).toBe(1);
+    expect(detailMeta(container)).not.toMatch(/exit code 2/i);
+    expect((container.textContent ?? "").match(/exit code 2/gi)).toHaveLength(1);
   });
 
   it("no result: 'No result recorded' instead of a Pending pill", () => {
@@ -270,5 +270,261 @@ describe("non-tool content keeps its renderers (StringRenderer callers)", () => 
     expect(container.querySelector("img")).not.toBeNull();
     expect(container.textContent).toContain("Probe document");
     expect(container.textContent).toContain("unknownpayload");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review round 3 (R3-F2) and the renderer audit items TR0 created
+// (TC6/7/8/10/12/13/15, TR9).
+// ---------------------------------------------------------------------------
+
+const DOC = { type: "document", title: "MIDDLE_DOCUMENT", source: { type: "text", media_type: "text/plain", data: "BODY" } };
+
+describe("recorded outcome facts survive in the opened row (review R3-F2)", () => {
+  it("interrupted + error_code + exit 2: 'Interrupted' in the header; exit code and error code in the detail, each once", () => {
+    const { container } = card("Bash", { command: "probe" }, [{ content: "", ...own({ interrupted: true, error_code: "INTERRUPT_ERROR", exitCode: 2 }) }]);
+    expect(within(rowOf(container)).queryByText("Interrupted")).not.toBeNull();
+    open(container);
+    const text = container.textContent ?? "";
+    expect(text.match(/INTERRUPT_ERROR/g), text).toHaveLength(1);
+    expect(text.match(/exit code 2/gi), text).toHaveLength(1);
+    expect(text.match(/interrupted/gi), text).toHaveLength(1);
+    expect(detailMeta(container)).toContain("INTERRUPT_ERROR");
+    expect(detailMeta(container)).toContain("Exit code 2");
+  });
+
+  it("an API error code beside exit 0: 'Failed · EACCES' in the header, 'Exit code 0' in the detail, each once", () => {
+    const { container } = card("Read", { file_path: "a.txt" }, [{ content: [DOC], ...own({ error_code: "EACCES", exitCode: 0 }) }]);
+    open(container);
+    const text = container.textContent ?? "";
+    expect(text.match(/EACCES/g), text).toHaveLength(1);
+    expect(detailMeta(container)).toMatch(/exit code 0/i);
+    expect(text.match(/exit code 0/gi), text).toHaveLength(1);
+  });
+
+  for (const name of ["Bash", "Read", "Write"]) {
+    for (const content of ["", "RAW_OUTPUT", [DOC]]) {
+      it(`${name}: a recorded exit code 0 shows once in the detail beside ${JSON.stringify(content).slice(0, 24)}`, () => {
+        const { container } = card(name, { command: "probe", file_path: "a.txt", content: "INPUT" }, [{ content, ...own({ exitCode: 0, stdout: "", stderr: "" }) }]);
+        open(container);
+        const detail = container.querySelector("[data-tool-detail]")?.textContent ?? "";
+        expect(detail.match(/exit code 0/gi)).toHaveLength(1);
+      });
+    }
+  }
+});
+
+describe("TC7: an interrupted result's own sentence is not hidden by its stdout (fixture: e2e)", () => {
+  it("opened: the stdout zone, then '[Request interrupted by user for tool use]'", () => {
+    const { container } = card("Bash", { command: "pnpm e2e" }, [
+      { content: "[Request interrupted by user for tool use]", is_error: true, ...own({ stdout: "Running 48 tests using 4 workers", stderr: "", interrupted: true, isImage: false, exitCode: 130 }) },
+    ]);
+    open(container);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Running 48 tests using 4 workers");
+    expect(text).toContain("[Request interrupted by user for tool use]");
+  });
+});
+
+/**
+ * TC8 (owner default): the opened detail repeats the command / pattern in a
+ * well only when the row's target does not show all of it — cut by the
+ * ellipsis (measured: scrollWidth > clientWidth) or only its first line
+ * shown. The target's `title` always holds the full text. jsdom has no
+ * layout, so the row target's geometry is stubbed: 8 px per character in a
+ * 200 px box.
+ */
+describe("TC8: the full-target well appears only when the row's target is cut", () => {
+  const descriptors = {
+    scrollWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth"),
+    clientWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth"),
+  };
+  const inRowTarget = (el: HTMLElement) => el.tagName === "CODE" && el.closest("[data-tool-row]") !== null;
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return inRowTarget(this) ? (this.textContent ?? "").length * 8 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return inRowTarget(this) ? 200 : 0;
+      },
+    });
+  });
+  afterAll(() => {
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor);
+    }
+  });
+  /** Every element in the opened detail that shows `text` whole (the well). */
+  const wells = (container: HTMLElement, text: string) =>
+    [...container.querySelectorAll("[data-tool-detail] pre")].filter((el) => el.textContent === text);
+  const LONG = "pnpm exec vitest run src/components/transcript --reporter=verbose --coverage";
+
+  it.each([
+    ["Bash", { command: "pnpm build" }, "pnpm build"],
+    ["Grep", { pattern: "renderPreview" }, "renderPreview"],
+    ["Glob", { pattern: "**/*.test.ts" }, "**/*.test.ts"],
+  ] as const)("%s: a target that fits: no duplicate well when opened; the title still holds it", (name, input, text) => {
+    const { container } = card(name, input, [{ content: "ok" }]);
+    open(container);
+    expect(wells(container, text), "no well").toHaveLength(0);
+    expect(rowOf(container).querySelector(`[title="${text}"]`)).not.toBeNull();
+  });
+
+  it.each([
+    ["Bash", { command: LONG }, LONG],
+    ["Grep", { pattern: LONG }, LONG],
+    ["Glob", { pattern: LONG }, LONG],
+  ] as const)("%s: a target cut by the ellipsis: the opened detail shows it whole", (name, input, text) => {
+    const { container } = card(name, input, [{ content: "ok" }]);
+    open(container);
+    expect(wells(container, text)).toHaveLength(1);
+    expect(rowOf(container).querySelector("code")?.getAttribute("title")).toBe(text);
+  });
+
+  it("Bash: a multi-line command shows its first line in the row, the whole command in the title and in the well", () => {
+    const command = "cd src\npnpm build";
+    const { container } = card("Bash", { command }, [{ content: "ok" }]);
+    const target = rowOf(container).querySelector("code") as HTMLElement;
+    expect(target.textContent).toBe("cd src");
+    expect(target.getAttribute("title")).toBe(command);
+    open(container);
+    expect(wells(container, command)).toHaveLength(1);
+  });
+});
+
+describe("TC12: Grep's output mode reads as words, not the raw input enum", () => {
+  const meta = (container: HTMLElement) => rowOf(container).textContent ?? "";
+  it.each([
+    ["files_with_matches", "Files with matches"],
+    ["content", "Matching lines"],
+    ["count", "Match counts"],
+  ])("%s → %s", (mode, words) => {
+    const { container } = card("Grep", { pattern: "x", output_mode: mode }, [{ content: "a" }]);
+    expect(meta(container)).toContain(words);
+    const raw = [...rowOf(container).querySelectorAll("*")].filter((el) => el.textContent === mode);
+    expect(raw, `the raw enum ${mode} as its own text`).toHaveLength(0);
+  });
+
+  it("speaks Korean", async () => {
+    await i18n.changeLanguage("ko");
+    try {
+      const { container } = card("Grep", { pattern: "x", output_mode: "files_with_matches" }, [{ content: "a" }]);
+      expect(meta(container)).toContain("일치하는 파일");
+      expect(meta(container)).not.toContain("files_with_matches");
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("an unknown mode is shown as recorded, as a code literal", () => {
+    const { container } = card("Grep", { pattern: "x", output_mode: "novel_mode" }, [{ content: "a" }]);
+    const literal = [...rowOf(container).querySelectorAll("code[data-mono='code'], [data-mono='code']")].find((el) => el.textContent === "novel_mode");
+    expect(literal, rowOf(container).innerHTML).toBeDefined();
+  });
+});
+
+describe("TC13: Grep content-mode match lines never soft-wrap into a look-alike next match", () => {
+  const out = "/Users/dev/work/kiln/src/components/InteractionCard.tsx:48:      className=\"flex min-w-0 items-center gap-2 rounded-row px-1 text-left\"\nsrc/b.ts:2:y";
+  it("content mode: each match line stays one line (white-space: pre) in a well that scrolls sideways", () => {
+    const { container } = card("Grep", { pattern: "className", output_mode: "content" }, [{ content: out }]);
+    open(container);
+    const pre = container.querySelector("[data-tool-detail] [data-output] pre[data-output-text]") as HTMLElement;
+    const cls = (pre.getAttribute("class") ?? "").split(/\s+/);
+    expect(cls).toContain("whitespace-pre");
+    expect(cls).not.toContain("whitespace-pre-wrap");
+    expect(cls).toContain("overflow-x-auto");
+    expect(pre.textContent).toBe(out);
+  });
+
+  it("files mode keeps wrapping (a control)", () => {
+    const { container } = card("Grep", { pattern: "x", output_mode: "files_with_matches" }, [{ content: "src/a.ts\nsrc/b.ts" }]);
+    open(container);
+    const pre = container.querySelector("[data-tool-detail] [data-output] pre[data-output-text]") as HTMLElement;
+    expect((pre.getAttribute("class") ?? "").split(/\s+/)).toContain("whitespace-pre-wrap");
+  });
+});
+
+describe("TC15: Write shows its line count once and no absolute-path confirmation well", () => {
+  it("the count is the header's alone; the confirmation of the header's own file is left out", () => {
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "a\nb\nc" }, [{ content: `File created successfully at: ${CWD}/notes.md` }]);
+    open(container);
+    const text = container.textContent ?? "";
+    expect(text.match(/3 lines/g), text).toHaveLength(1);
+    expect(rowOf(container).textContent).toContain("3 lines");
+    expect(text).not.toContain("File created successfully");
+    expect(text).not.toContain(CWD);
+    expect(container.querySelector("[data-tool-detail] [data-output] pre")?.textContent).toBe("a\nb\nc");
+  });
+
+  it("the updated-file sentence with Claude's trailing note is a confirmation too", () => {
+    const sentence = `The file ${CWD}/notes.md has been updated successfully. (file state is current in your context — no need to Read it back)`;
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "a" }, [{ content: [{ type: "text", text: sentence }] }]);
+    open(container);
+    expect(container.textContent).not.toContain("has been updated");
+  });
+
+  it("a confirmation naming another file shows that path relative (PathText), not the sentence", () => {
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "a" }, [{ content: `File created successfully at: ${CWD}/docs/other.md` }]);
+    open(container);
+    const detail = container.querySelector("[data-tool-detail]") as HTMLElement;
+    expect(detail.textContent).toContain("docs/other.md");
+    expect(detail.textContent).not.toContain(CWD);
+    expect(detail.querySelector(`[title="${CWD}/docs/other.md"]`)).not.toBeNull();
+  });
+
+  it("anything else (an error) stays as recorded", () => {
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "a" }, [{ content: "EACCES: permission denied, open 'notes.md'", is_error: true }]);
+    open(container);
+    expect(container.textContent).toContain("EACCES: permission denied");
+  });
+});
+
+describe("TR9: StringRenderer says 'File Structure' once, in one box", () => {
+  it("opened file tree: the label once, and no bordered card around the well", () => {
+    const { container } = wrap(<StringRenderer result={"src/\n├── a.ts\n└── b.ts"} />);
+    const button = container.querySelector("button[aria-expanded='false']");
+    if (button) fireEvent.click(button);
+    const well = container.querySelector("[data-output]") as HTMLElement;
+    expect(well, "the OutputBlock well").not.toBeNull();
+    expect((container.textContent ?? "").match(/File Structure/g)).toHaveLength(1);
+    for (let el = well.parentElement; el && el !== container; el = el.parentElement) {
+      expect((el.getAttribute("class") ?? "").split(/\s+/), el.outerHTML.slice(0, 120)).not.toContain("border");
+    }
+  });
+});
+
+/**
+ * TC4: the Edit row's "+a −d" and the change counts of the diff box below it
+ * (still the old FileEditRenderer body until TR2a) come from one source, so
+ * they agree. A multi-line replacement is where they used to differ: the row
+ * counted lines (+3 −2), the box counted changed blocks (+1 −1).
+ */
+describe("TC4: the Edit row's +a −d agrees with the box's change counts", () => {
+  /** The value printed under a statistics label in the opened box. */
+  const stat = (container: HTMLElement, label: string) => {
+    const el = [...container.querySelectorAll("[data-tool-detail] div")].find((d) => d.textContent === label && d.childElementCount === 0);
+    expect(el, `the box's '${label}' statistic`).toBeDefined();
+    return el?.nextElementSibling?.textContent ?? "";
+  };
+
+  it.each([
+    ["a multi-line replacement", "a\nb\nc\n", "a\nB\nC\nD\n", 3, 2],
+    ["a one-line replacement (fixture)", "  return input.trim();\n", "  return input.trim().replace(/\\s+/g, \" \");\n", 1, 1],
+    // The row ignores a missing newline at the end; the box must count the same way.
+    ["no trailing newline on one side", "x\ny", "x\ny\nz\n", 1, 0],
+  ] as const)("%s", (_label, oldString, newString, added, removed) => {
+    const { container } = card("Edit", { file_path: `${CWD}/src/a.ts`, old_string: oldString, new_string: newString }, [{ content: "ok" }]);
+    // The visible "+a −d" (its spoken form is a separate sr-only sentence).
+    const row = rowOf(container).querySelector("[aria-hidden='true'][data-mono='code']")?.textContent ?? "";
+    const counts = /^\+(\d+) −(\d+)$/.exec(row);
+    expect(counts, row).not.toBeNull();
+    open(container);
+    const box = { added: stat(container, "Additions"), removed: stat(container, "Deletions") };
+    expect({ row: `+${counts?.[1]} −${counts?.[2]}`, box: `${box.added} ${box.removed}` }).toEqual({ row: `+${added} −${removed}`, box: `+${added} -${removed}` });
   });
 });

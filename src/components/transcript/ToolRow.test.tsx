@@ -222,20 +222,45 @@ describe("ToolRow: shape and disclosure", () => {
     expect(copy.textContent?.trim()).toBe("Copy tool ID");
   });
 
-  it("a recorded exit code (0 included) is a fact of the opened detail's meta, once, whatever the verdict", () => {
-    const cases = [
-      [OUTCOMES.succeeded, "facts-ok", "Exit code 0"],
-      [OUTCOMES.interrupted, "facts-int", "Exit code 130"],
-      [OUTCOMES.failedExit, "facts-failed", "Exit code 1"],
-      [OUTCOMES.conflict, "facts-conflict", "Exit code 2"],
-    ] as const;
-    for (const [outcome, key, words] of cases) {
+  it("each recorded fact shows exactly once when opened, counting the header label and the detail meta (R3-F2)", () => {
+    const interruptedError: ToolOutcome = { lifecycle: "interrupted", verdict: "failed", reason: "interrupted", exitCode: 2, errorCode: "INTERRUPT_ERROR" };
+    const conflictApi: ToolOutcome = { lifecycle: "completed", verdict: "failed", reason: "conflict", exitCode: 0, errorCode: "EACCES" };
+    // [outcome, key, facts the detail meta must hold, words that must appear once in the whole opened row]
+    const cases: Array<[ToolOutcome, string, string[], RegExp[]]> = [
+      [OUTCOMES.succeeded, "facts-ok", ["Exit code 0"], [/exit code 0/gi]],
+      [OUTCOMES.interrupted, "facts-int", ["Exit code 130"], [/exit code 130/gi, /interrupted/gi]],
+      [OUTCOMES.failedExit, "facts-failed", [], [/exit code 1/gi]],
+      [OUTCOMES.conflict, "facts-conflict", ["Result parts disagree"], [/exit code 2/gi]],
+      [interruptedError, "facts-int-error", ["Exit code 2", "Error code INTERRUPT_ERROR"], [/exit code 2/gi, /INTERRUPT_ERROR/g, /interrupted/gi]],
+      [conflictApi, "facts-conflict-api", ["Exit code 0", "Result parts disagree"], [/exit code 0/gi, /EACCES/g]],
+      [OUTCOMES.unknown, "facts-unknown", ["Result not verified · No exit code recorded"], [/not verified/gi]],
+    ];
+    for (const [outcome, key, detailFacts, once] of cases) {
       const { container, unmount } = row(outcome, key);
       expect(container.querySelector("[data-tool-detail] > [data-meta]"), "collapsed: no detail meta").toBeNull();
       fireEvent.click(toggle());
       const meta = container.querySelector("[data-tool-detail] > [data-meta]")?.textContent ?? "";
-      expect(meta.split(words).length - 1, `${key}: ${meta}`).toBe(1);
-      expect((container.textContent ?? "").split(words).length - 1, key).toBe(1);
+      for (const fact of detailFacts) expect(meta, `${key}: detail meta`).toContain(fact);
+      const all = container.textContent ?? "";
+      for (const word of once) expect(all.match(word)?.length ?? 0, `${key}: ${word} in ${all}`).toBe(1);
+      unmount();
+    }
+  });
+
+  it("'Copy tool ID' is not the first line of the opened detail: it ends the detail meta line as a small ghost text button (TC10)", () => {
+    for (const [outcome, key] of [[OUTCOMES.readOk, "copy-last-nofacts"], [OUTCOMES.unknown, "copy-last-facts"], [OUTCOMES.succeeded, "copy-last-exit"]] as const) {
+      const { container, unmount } = row(outcome, key, outcome === OUTCOMES.readOk ? "read-search" : "process");
+      fireEvent.click(toggle());
+      const detail = container.querySelector("[data-tool-detail]") as HTMLElement;
+      expect((detail.textContent ?? "").startsWith("Copy tool ID"), `${key}: ${detail.textContent}`).toBe(false);
+      expect((detail.textContent ?? "").startsWith("detail body"), `${key}: the detail opens with its content`).toBe(true);
+      const copy = within(detail).getByRole("button", { name: /copy tool id/i });
+      const meta = detail.querySelector(":scope > [data-meta]") as HTMLElement;
+      expect(meta.contains(copy), `${key}: the copy control sits in the detail meta line`).toBe(true);
+      expect(meta.lastElementChild, `${key}: and ends it`).toBe(copy);
+      expect(copy.querySelector("svg"), `${key}: a text button, no icon`).toBeNull();
+      expect(copy.className).toContain("text-caption");
+      expect(copy.className).not.toMatch(/(^|\s)(bg-|border(\s|-|$))/);
       unmount();
     }
   });

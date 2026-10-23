@@ -261,6 +261,76 @@ describe("ToolResultOutputs: only content the stream path showed is left out (re
   });
 });
 
+/**
+ * Review round 3 (R3-F1) and the renderer audit's TC7: beside stream text, a
+ * content text run is left out only when it is identical to what the stream
+ * zones show — stdout, stderr, or their combined Claude form (stdout +
+ * stderr as real Claude history records it; stdout + "\n" + stderr), each
+ * compared after trimming trailing newlines. Every other run stays, in
+ * recorded order, after the stream block.
+ */
+describe("ToolResultOutputs: a text run is left out only when the stream zones show exactly it (R3-F1, TC7)", () => {
+  it("distinct text around a document beside stdout: stdout first, then every part in order (review repro)", () => {
+    const r = result([{ type: "text", text: "BEFORE_DISTINCT" }, DOC, { type: "text", text: "AFTER_DISTINCT" }], own({ stdout: "STREAM_FIRST", stderr: "" }));
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text).toContain("BEFORE_DISTINCT");
+    expect(text).toContain("AFTER_DISTINCT");
+    const [stream, before, middle, after] = at(text, "STREAM_FIRST", "BEFORE_DISTINCT", "MIDDLE_DOCUMENT", "AFTER_DISTINCT");
+    expect(stream).toBeGreaterThanOrEqual(0);
+    expect(stream).toBeLessThan(before);
+    expect(before).toBeLessThan(middle);
+    expect(middle).toBeLessThan(after);
+  });
+
+  it("the run equal to stdout is shown once; a different run beside it stays (review control)", () => {
+    const r = result([{ type: "text", text: "STREAM_FIRST" }, DOC, { type: "text", text: "DIFFERENT_TAIL" }], own({ stdout: "STREAM_FIRST" }));
+    const text = outputs([r], "process").container.textContent ?? "";
+    expect(text.split("STREAM_FIRST").length - 1).toBe(1);
+    expect(text).toContain("DIFFERENT_TAIL");
+  });
+
+  it("an interrupted result's own sentence stays beside its stdout (TC7)", () => {
+    const r = result("[Request interrupted by user for tool use]", {
+      is_error: true,
+      ...own({ stdout: "Running 48 tests using 4 workers", stderr: "", interrupted: true, isImage: false, exitCode: 130 }),
+    });
+    const view = outputs([r], "process");
+    const text = view.container.textContent ?? "";
+    expect(text).toContain("[Request interrupted by user for tool use]");
+    const [stream, sentence] = at(text, "Running 48 tests using 4 workers", "[Request interrupted by user for tool use]");
+    expect(stream).toBeGreaterThanOrEqual(0);
+    expect(stream).toBeLessThan(sentence);
+  });
+
+  it.each([
+    ["stdout + stderr (real Claude history: stderr carries its own leading newline)", "out line", "\nShell cwd was reset to /w", "out line\nShell cwd was reset to /w"],
+    ["stdout + newline + stderr", "OUT_A", "ERR_B", "OUT_A\nERR_B"],
+    ["stdout with a trailing newline only", "OUT_TRAIL\n", "", "OUT_TRAIL"],
+    ["stderr alone", "", "ERR_ONLY", "ERR_ONLY\n"],
+  ])("identical to the zones — %s: not repeated", (_label, stdout, stderr, content) => {
+    const view = outputs([result(content, own({ stdout, stderr }))], "process");
+    expect(view.container.querySelectorAll("[data-output]").length, view.container.textContent ?? "").toBe(1);
+  });
+
+  it("a run that only contains the stream text (an added prefix) is not identical: it stays", () => {
+    const stdout = " FAIL  src/a.test.ts";
+    const view = outputs([result(`Exit code 1\n${stdout}`, { is_error: true, ...own({ stdout, stderr: "", exitCode: 1 }) })], "process");
+    expect(view.container.querySelectorAll("[data-output]").length).toBe(2);
+    expect(view.container.textContent).toContain("Exit code 1\n FAIL");
+  });
+
+  it("a second distinct run keeps its own show-all state (not the stream block's key)", () => {
+    const long = Array.from({ length: 30 }, (_, i) => `distinct ${i}`).join("\n");
+    const stdout = Array.from({ length: 30 }, (_, i) => `stream ${i}`).join("\n");
+    const view = outputs([result(long, own({ stdout, stderr: "" }))], "process");
+    const showAll = view.container.querySelectorAll("[data-output] button:not([aria-label])");
+    expect(showAll.length).toBe(2);
+    fireEvent.click(showAll[0] as HTMLElement);
+    expect(view.container.textContent).toContain("stream 29");
+    expect(view.container.textContent).not.toContain("distinct 29");
+  });
+});
+
 describe("adopted cards keep the content (real dispatch)", () => {
   const card = (name: string, input: Record<string, unknown>, r: ToolResultLike) => {
     const view = wrap(<UnifiedToolExecutionRenderer toolUse={{ type: "tool_use", id: `toolu_${name}`, name, input }} toolResults={[r]} />);

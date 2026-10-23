@@ -104,6 +104,22 @@ describe("OutputBlock: stderr zone", () => {
     expect(container.querySelector("[data-stderr]")).toBeNull();
   });
 
+  it.each(["en", "ko", "ja", "zh-CN", "zh-TW"])("%s: the zone's label is the neutral code literal `stderr`, not a word claiming an error (TC6)", async (locale) => {
+    await i18n.changeLanguage(locale);
+    try {
+      const { container } = wrap(<OutputBlock text="✔ No problems found" errorText="warning: React version not specified" />);
+      const zone = container.querySelector("[data-stderr]") as HTMLElement;
+      const label = zone.firstElementChild as HTMLElement;
+      expect(label.textContent).toBe("stderr");
+      expect(label.matches("code[data-mono='code']"), label.outerHTML).toBe(true);
+      expect(zone.textContent).not.toMatch(/error output|오류 출력|エラー出力|错误输出|錯誤輸出/i);
+      // The danger rule and colour stay (plan §4.3); only the word changed.
+      expect(zone.getAttribute("class")).toContain("border-status-danger-line");
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
   it("its meta carries no outcome facts (the ToolRow detail owns the exit code)", () => {
     const { container } = wrap(<OutputBlock text="Exit code 1 is text here" errorText="warning: x" />);
     expect(container.querySelector("[data-output] [data-meta]")?.textContent).not.toMatch(/exit code/i);
@@ -121,6 +137,18 @@ describe("OutputBlock: line cap and copy", () => {
     fireEvent.click(showAll as HTMLElement);
     expect(visibleLines(body(container))).toHaveLength(20);
     expect(screen.queryByRole("button", { name: "Show less" })).not.toBeNull();
+  });
+
+  it("'Show all' is a disclosure: aria-expanded + aria-controls naming every zone it opens", () => {
+    const { container } = wrap(<OutputBlock text={twenty} errorText={twenty} lineCap={15} expandKey="aria" />);
+    const showAll = screen.getByRole("button", { name: "Show all 40 lines" });
+    expect(showAll.getAttribute("aria-expanded")).toBe("false");
+    const ids = (showAll.getAttribute("aria-controls") ?? "").split(/\s+/).filter(Boolean);
+    expect(ids).toHaveLength(2);
+    const zones = [...container.querySelectorAll("pre[data-output-text]")];
+    expect(ids.map((id) => container.querySelector(`[id="${id}"]`))).toEqual(zones);
+    fireEvent.click(showAll);
+    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
   });
 
   it("opens fully when a search match sits past the cap", () => {

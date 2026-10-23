@@ -18,6 +18,7 @@ import {
   type ToolResultLike,
   type ToolUseLike,
 } from "./toolOutcome";
+import * as adapter from "./toolOutcome";
 
 const call = (name: string, id = "toolu_1"): ToolUseLike => ({ type: "tool_use", id, name, input: {} });
 
@@ -584,5 +585,57 @@ describe("toolFamily", () => {
     ["", "other"],
   ] as const)("%s → %s", (name, family) => {
     expect(toolFamily(name)).toBe(family);
+  });
+});
+
+describe("review R3-F2: every recorded outcome fact survives interruption", () => {
+  it("interrupted + error_code + exit 2: interruption first, the error code and the exit code kept", () => {
+    const r = result("", own({ interrupted: true, error_code: "INTERRUPT_ERROR", exitCode: 2 }));
+    expect(toolOutcome(call("Bash"), [r], "process")).toEqual({
+      lifecycle: "interrupted",
+      verdict: "failed",
+      reason: "interrupted",
+      exitCode: 2,
+      errorCode: "INTERRUPT_ERROR",
+    });
+  });
+
+  it("interrupted + error_code without an exit code keeps the error code", () => {
+    const r = result("[Request interrupted by user for tool use]", own({ interrupted: true, error_code: "INTERRUPT_ERROR" }));
+    expect(toolOutcome(call("Bash"), [r], "process")).toMatchObject({ lifecycle: "interrupted", reason: "interrupted", errorCode: "INTERRUPT_ERROR" });
+  });
+
+  it("interrupted without an error code adds none", () => {
+    const r = result("x", own({ interrupted: true, exitCode: 130 }));
+    expect(toolOutcome(call("Bash"), [r], "process")).not.toHaveProperty("errorCode");
+  });
+});
+
+describe("writeConfirmationPath: Claude's Write confirmation sentence (renderer audit TC15)", () => {
+  /** The adapter owns this read of result content (resultAdapter.import.test). */
+  const writeConfirmationPath = (r: ToolResultLike): string | null => {
+    const read = (adapter as Record<string, unknown>).writeConfirmationPath;
+    expect(read, "the adapter exports writeConfirmationPath").toBeTypeOf("function");
+    return (read as (r: ToolResultLike) => string | null)(r);
+  };
+  const P = "/Users/dev/work/kiln/notes.md";
+  it.each([
+    [`File created successfully at: ${P}`],
+    [`File created successfully at: ${P} (file state is current in your context — no need to Read it back)`],
+    [`The file ${P} has been updated successfully.`],
+    [`The file ${P} has been updated successfully. (file state is current in your context — no need to Read it back)`],
+  ])("%s → the path", (content) => {
+    expect(writeConfirmationPath(result(content))).toBe(P);
+    expect(writeConfirmationPath(result([{ type: "text", text: content }]))).toBe(P);
+  });
+
+  it.each([
+    ["an error", result(`File created successfully at: ${P}`, { is_error: true })],
+    ["more text after the sentence", result(`File created successfully at: ${P}\nand more`)],
+    ["another sentence", result("Permission denied")],
+    ["two text blocks", result([{ type: "text", text: `File created successfully at: ${P}` }, { type: "text", text: "x" }])],
+    ["an object", result({ filePath: P })],
+  ])("%s → null", (_label, r) => {
+    expect(writeConfirmationPath(r)).toBeNull();
   });
 });
