@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-23T12:48:01.903Z
- * 총 키 개수: 2378
+ * 생성 시간: 2026-10-23T16:47:42.209Z
+ * 총 키 개수: 2381
  * Namespace 수: 13
  */
 
@@ -1705,7 +1705,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (452개)
+ * renderers namespace의 번역 키 (455개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1961,7 +1961,6 @@ export type RenderersKeys =
   | 'outputBlock.lineCount'
   | 'outputBlock.showAll'
   | 'outputBlock.showLess'
-  | 'outputBlock.stderr'
   | 'progressRenderer.status.completed'
   | 'progressRenderer.status.error'
   | 'progressRenderer.status.running'
@@ -2129,6 +2128,7 @@ export type RenderersKeys =
   | 'toolError.urlNotAllowed'
   | 'toolError.urlTooLong'
   | 'toolOutcome.conflict'
+  | 'toolOutcome.errorCode'
   | 'toolOutcome.exitCode'
   | 'toolOutcome.failed'
   | 'toolOutcome.failedErrorCode'
@@ -2138,6 +2138,9 @@ export type RenderersKeys =
   | 'toolOutcome.notVerified'
   | 'toolOutcome.notVerifiedNoExitCode'
   | 'toolRow.copyToolId'
+  | 'toolRow.grepModeContent'
+  | 'toolRow.grepModeCount'
+  | 'toolRow.grepModeFiles'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'
@@ -3599,7 +3602,6 @@ export type TranslationKey =
   | 'outputBlock.lineCount'
   | 'outputBlock.showAll'
   | 'outputBlock.showLess'
-  | 'outputBlock.stderr'
   | 'progressRenderer.status.completed'
   | 'progressRenderer.status.error'
   | 'progressRenderer.status.running'
@@ -4728,6 +4730,7 @@ export type TranslationKey =
   | 'toolError.urlNotAllowed'
   | 'toolError.urlTooLong'
   | 'toolOutcome.conflict'
+  | 'toolOutcome.errorCode'
   | 'toolOutcome.exitCode'
   | 'toolOutcome.failed'
   | 'toolOutcome.failedErrorCode'
@@ -4762,6 +4765,9 @@ export type TranslationKey =
   | 'toolResult.taskUpdated'
   | 'toolResult.toolExecutionResult'
   | 'toolRow.copyToolId'
+  | 'toolRow.grepModeContent'
+  | 'toolRow.grepModeCount'
+  | 'toolRow.grepModeFiles'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'

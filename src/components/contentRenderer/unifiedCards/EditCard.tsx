@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { diffLines } from "diff";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
@@ -10,18 +9,7 @@ import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { FileEditRenderer } from "../../toolResultRenderer/FileEditRenderer";
 import type { Props } from "./shared";
 import { str, strAny } from "./shared";
-
-/** Added / removed line counts of one old → new replacement. */
-function lineChanges(oldText: string, newText: string): { added: number; removed: number } {
-  let added = 0;
-  let removed = 0;
-  for (const part of diffLines(oldText, newText, { ignoreNewlineAtEof: true })) {
-    const lines = part.count ?? 0;
-    if (part.added) added += lines;
-    else if (part.removed) removed += lines;
-  }
-  return { added, removed };
-}
+import { changeCounts, lineDiff } from "@/utils/lineChanges";
 
 /** Every old → new pair of the input: Edit's own, or MultiEdit's `edits`. */
 function replacements(input: Record<string, unknown>): Array<[string, string]> {
@@ -52,7 +40,8 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
   const pairs = replacements(input);
   const counts = pairs.reduce(
     (sum, [oldText, newText]) => {
-      const c = lineChanges(oldText, newText);
+      // The diff box below counts this same diff (TC4).
+      const c = changeCounts(lineDiff(oldText, newText));
       return { added: sum.added + c.added, removed: sum.removed + c.removed };
     },
     { added: 0, removed: 0 },

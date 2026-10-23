@@ -10,21 +10,31 @@
  * - succeeded / unknown: nothing in the row — no pill, no "Completed".
  *   Opened, the detail states neutral facts: "Result not verified · No exit
  *   code recorded" when a process left no exit code.
- * - The opened detail's meta owns the recorded outcome facts: a recorded exit
- *   code (0 included) is shown there once, whatever the verdict and whether
- *   or not any output exists; outputs (OutputBlock) never repeat it.
+ * - Every recorded outcome fact shows exactly once when the row is open,
+ *   counting the header label and the detail meta (review R3-F2): the
+ *   header label states what it states ("Failed · exit code 1",
+ *   "Failed · <API error code>", "Interrupted"); the detail meta adds every
+ *   other recorded fact — an exit code (0 included), an error code, "not
+ *   verified", "parts disagree" — whatever the verdict and whether or not any
+ *   output exists. Outputs (OutputBlock) never repeat them.
  * - failed: a danger icon + "Failed", "Failed · exit code N" (only a recorded
  *   N) or "Failed · <API error code>".
  * - interrupted: a warning icon + "Interrupted". no result: an `--fg-3`
  *   icon + "No result recorded". Each state has its own icon shape and words.
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
- * state lives in the capture expand registry like every renderer. The tool
- * id is reachable only through "Copy tool ID" (in words, not a bare icon) in
- * the opened detail.
+ * state lives in the capture expand registry like every renderer. The
+ * opened detail is its content, then one meta line: the facts, ended by
+ * "Copy tool ID" — a small ghost text button, the only way to the tool id,
+ * never the detail's first line (renderer audit TC10).
+ *
+ * A command / pattern target (`CodeTarget`) may be cut: by the ellipsis, or
+ * because only its first line fits the row. The row measures it while open
+ * (ResizeObserver) and its `TargetWell` repeats the whole text in the detail
+ * only then (renderer audit TC8); the target's `title` always holds it.
  */
-import { useCallback, useContext, useId, useState, type ReactNode } from "react";
-import { Check, ChevronRight, CircleDashed, CirclePause, CircleX, Hash } from "lucide-react";
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { ChevronRight, CircleDashed, CirclePause, CircleX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
@@ -53,21 +63,58 @@ export interface ToolRowProps {
   children?: ReactNode;
 }
 
-/** A command or query target, in the code font. */
-export function CodeTarget({ text }: { text: string }) {
+/**
+ * A command or query target, in the code font. `text` is what the row shows
+ * (Bash: the first line); `full` is the whole recorded text, kept in `title`.
+ */
+export function CodeTarget({ text, full = text }: { text: string; full?: string }) {
   return (
-    <code data-mono="code" className="truncate font-mono text-code text-fg" title={text}>
+    <code
+      data-mono="code"
+      data-row-target=""
+      data-row-target-partial={text.trim() === full.trim() ? undefined : ""}
+      className="truncate font-mono text-code text-fg"
+      title={full}
+    >
       {text}
     </code>
   );
 }
 
+/** Is the open row's `CodeTarget` cut? Provided by ToolRow to its detail. */
+const TargetCutContext = createContext(false);
+
 /**
- * The whole command, pattern or query in the opened detail: the row may
- * shorten it, the detail never does. Identifiers wrap anywhere so a long
- * token stays inside the transcript column.
+ * Whether the row's code target does not show all of its text: only part of
+ * it is shown, or the ellipsis cut it (scrollWidth > clientWidth). Measured
+ * while the detail is open and again whenever the target's box changes size.
  */
-export function CodeWell({ text }: { text: string }) {
+function useTargetCut(scope: RefObject<HTMLElement | null>, active: boolean): boolean {
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const target = active ? scope.current?.querySelector<HTMLElement>("[data-row-target]") : null;
+    if (!target) {
+      setCut(false);
+      return;
+    }
+    const measure = () => setCut(target.hasAttribute("data-row-target-partial") || target.scrollWidth > target.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [scope, active]);
+  return cut;
+}
+
+/**
+ * The whole command, pattern or query in the opened detail, shown only when
+ * the row's target is cut (otherwise the row already shows all of it).
+ * Identifiers wrap anywhere so a long token stays inside the transcript column.
+ */
+export function TargetWell({ text }: { text: string }) {
+  const cut = useContext(TargetCutContext);
+  if (!cut) return null;
   return (
     <pre className="m-0 whitespace-pre-wrap wrap-anywhere rounded-row bg-surface-well px-3 py-2 font-mono text-code text-fg">
       <code data-mono="code">{text}</code>
@@ -112,12 +159,18 @@ function RowStatus({ outcome }: { outcome: ToolOutcome }) {
 }
 
 /**
- * Facts for the opened detail's meta: the recorded exit code (shown here and
- * nowhere else in the detail), then "not verified" and "parts disagree".
+ * Facts for the opened detail's meta: each recorded fact the header label
+ * does not already state (exactly once when open, R3-F2), then "not
+ * verified" and "parts disagree".
  */
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
+  const failed = outcome.lifecycle === "completed" && outcome.verdict === "failed";
+  // What the header label already says (`failedLabel`, RowStatus).
+  const headerSaysErrorCode = failed && outcome.errorCode !== undefined;
+  const headerSaysExitCode = failed && !headerSaysErrorCode && outcome.exitCode !== undefined;
   const facts: string[] = [];
-  if (outcome.exitCode !== undefined) facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
+  if (outcome.exitCode !== undefined && !headerSaysExitCode) facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
+  if (outcome.errorCode !== undefined && !headerSaysErrorCode) facts.push(t("toolOutcome.errorCode", { code: outcome.errorCode }));
   if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && outcome.reason === "no-exit-code") {
     facts.push(t("toolOutcome.notVerifiedNoExitCode"));
   } else if (outcome.verdict === "unknown" && outcome.lifecycle === "completed" && family === "process") {
@@ -139,16 +192,13 @@ function CopyToolId({ toolId }: { toolId: string }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [toolId]);
-  const label = copied ? t("toolRow.toolIdCopied") : t("toolRow.copyToolId");
   return (
     <button
       type="button"
       onClick={onCopy}
-      title={label}
-      className="inline-flex min-h-6 items-center gap-1 rounded-row px-1 text-fg-3 hover:bg-surface-hover hover:text-fg"
+      className="ml-auto inline-flex min-h-6 items-center rounded-row px-1 text-caption text-fg-3 hover:bg-surface-hover hover:text-fg"
     >
-      {copied ? <Check aria-hidden="true" className="w-3.5 h-3.5 shrink-0" /> : <Hash aria-hidden="true" className="w-3.5 h-3.5 shrink-0" />}
-      <span>{label}</span>
+      {copied ? t("toolRow.toolIdCopied") : t("toolRow.copyToolId")}
     </button>
   );
 }
@@ -160,6 +210,8 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
   const open = isOpen || autoExpand === true;
   const detailId = useId();
   const facts = open ? detailFacts(outcome, family, t) : [];
+  const targetRef = useRef<HTMLSpanElement>(null);
+  const targetCut = useTargetCut(targetRef, open);
 
   return (
     <div data-tool-row-wrapper="" className="mt-1">
@@ -181,7 +233,11 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
             {icon}
           </span>
           <span className="shrink-0 font-medium text-fg-2">{verb}</span>
-          {target && <span className="flex min-w-0 flex-1 items-center">{target}</span>}
+          {target && (
+            <span ref={targetRef} className="flex min-w-0 flex-1 items-center">
+              {target}
+            </span>
+          )}
         </button>
         <div className="flex shrink-0 items-center gap-2 text-caption text-fg-3">
           {meta}
@@ -190,7 +246,8 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
       </div>
       <div id={detailId} data-tool-detail="" hidden={!open} className="pl-6">
         {open && (
-          <>
+          <TargetCutContext.Provider value={targetCut}>
+            <div className="space-y-2 pb-2">{children}</div>
             {(facts.length > 0 || toolId) && (
               <div data-meta="" className="flex min-h-row-list flex-wrap items-center gap-2 text-caption text-fg-3">
                 {facts.map((fact) => (
@@ -199,8 +256,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
                 {toolId && <CopyToolId toolId={toolId} />}
               </div>
             )}
-            <div className="space-y-2 pb-2">{children}</div>
-          </>
+          </TargetCutContext.Provider>
         )}
       </div>
     </div>

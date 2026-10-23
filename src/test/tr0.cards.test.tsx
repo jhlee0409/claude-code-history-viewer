@@ -206,7 +206,8 @@ describe("StringRenderer: neutral header (plan D3: no success claim, no tool col
   const TOOL_COLOUR = "[class*='tool-']";
   for (const [label, text, title] of [
     ["plain output", "ok: 3 files changed\nsecond line", "Tool Execution Result"],
-    ["file tree", "src/\n├── a.ts\n└── b.ts", "File Structure"],
+    // TR9: what the text is (a file tree) is the opened well's label; the header stays neutral.
+    ["file tree", "src/\n├── a.ts\n└── b.ts", "Tool Execution Result"],
   ] as const) {
     it(`${label}: no check mark, no tool-colour fill or title, neutral --fg-3 icon`, () => {
       const { container } = wrap(<StringRenderer result={text} />);

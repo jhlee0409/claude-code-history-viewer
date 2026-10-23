@@ -8,12 +8,20 @@
  *
  * stderr gets its own zone — danger text and a left rule — whatever the
  * verdict: a warning beside exit code 0 stays visible, and so does E15's
- * fatal stderr with no exit code. Recorded outcome facts (exit code …) are
- * not the output's: the ToolRow detail that holds it shows them, once.
+ * fatal stderr with no exit code. The zone is labelled with the stream's
+ * name, the code literal `stderr`, in every locale: a word like "error
+ * output" would call a warning beside exit code 0 an error (renderer audit
+ * TC6). Recorded outcome facts (exit code …) are not the output's: the
+ * ToolRow detail that holds it shows them, once.
  * Long output is capped at `lineCap` lines per zone with "Show all n lines";
  * a search match past the cap opens it.
+ *
+ * Text wraps by default. `wrap={false}` keeps each recorded line on one
+ * visual line and lets the well scroll sideways, for output whose lines are
+ * records (Grep content-mode matches: a soft-wrapped match would read as the
+ * next match, TC13).
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -42,6 +50,10 @@ export interface OutputBlockProps {
   /** Capture-registry key for the show-all state. */
   expandKey?: string;
   source?: OutputSource;
+  /** `false`: no soft wrapping — one line per recorded line, the well scrolls sideways. */
+  wrap?: boolean;
+  /** `false`: the meta leaves out the line count (the caller already shows it). */
+  showLineCount?: boolean;
 }
 
 const LABELLED: Record<OutputSource, ReadonlySet<OutputKind>> = {
@@ -61,9 +73,15 @@ const KIND_LABEL_KEY = {
 
 const linesOf = (text: string) => (text === "" ? [] : text.split("\n"));
 
-function Zone({ text, className }: { text: string; className?: string }) {
+function Zone({ id, text, wrap, className }: { id: string; text: string; wrap: boolean; className?: string }) {
   return (
-    <pre data-output-text="" className={cn("m-0 overflow-x-auto whitespace-pre-wrap break-words font-mono text-code", className)}>
+    <pre
+      id={id}
+      data-output-text=""
+      // An unwrapped well scrolls sideways: keep it reachable from the keyboard.
+      tabIndex={wrap ? undefined : 0}
+      className={cn("m-0 overflow-x-auto font-mono text-code", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre", className)}
+    >
       {hasAnsiCodes(text) ? <AnsiText text={text} /> : text}
     </pre>
   );
@@ -76,10 +94,15 @@ export function OutputBlock({
   lineCap = DEFAULT_LINE_CAP,
   expandKey = "output",
   source = "text",
+  wrap = true,
+  showLineCount = true,
 }: OutputBlockProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
   const [copied, setCopied] = useState(false);
+  const zoneId = useId();
+  const mainId = `${zoneId}-out`;
+  const errId = `${zoneId}-err`;
 
   const main = text ?? "";
   const stderr = errorText ?? "";
@@ -109,7 +132,7 @@ export function OutputBlock({
     <div data-output="" className="rounded-row bg-surface-well text-fg">
       <div data-meta="" className="flex min-w-0 flex-wrap items-center gap-2 px-3 pt-2 text-caption text-fg-3">
         {kindLabel && <span>{kindLabel}</span>}
-        <span>{total === 0 ? t("outputBlock.empty") : t("outputBlock.lineCount", { count: total })}</span>
+        {total === 0 ? <span>{t("outputBlock.empty")}</span> : showLineCount && <span>{t("outputBlock.lineCount", { count: total })}</span>}
         <button
           type="button"
           onClick={onCopy}
@@ -120,11 +143,13 @@ export function OutputBlock({
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
-      {main !== "" && <Zone text={cap(mainLines, main)} className="px-3 py-2" />}
+      {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" />}
       {stderr !== "" && (
         <div data-stderr="" className="mx-3 mb-2 border-l-2 border-status-danger-line pl-2">
-          <span className="text-caption text-fg-3">{t("outputBlock.stderr")}</span>
-          <Zone text={cap(errLines, stderr)} className="text-status-danger-fg" />
+          <code data-mono="code" className="text-caption text-fg-3">
+            stderr
+          </code>
+          <Zone id={errId} text={cap(errLines, stderr)} wrap={wrap} className="text-status-danger-fg" />
         </div>
       )}
       {main === "" && stderr === "" && <div className="pb-2" />}
@@ -133,6 +158,8 @@ export function OutputBlock({
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
+            aria-expanded={showAll}
+            aria-controls={[main !== "" && mainId, stderr !== "" && errId].filter(Boolean).join(" ")}
             className="text-caption text-fg-2 hover:text-fg"
           >
             {showAll ? t("outputBlock.showLess") : t("outputBlock.showAll", { count: total })}

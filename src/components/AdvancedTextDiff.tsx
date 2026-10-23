@@ -6,6 +6,7 @@ import { FilePen } from "lucide-react";
 import * as Diff from "diff";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
+import { changeCounts, lineDiff } from "@/utils/lineChanges";
 
 type DiffMode =
   | "chars"
@@ -37,7 +38,8 @@ export const AdvancedTextDiff = ({
   const getDiffResults = () => {
     switch (currentMode) {
       case "lines":
-        return Diff.diffLines(oldText, newText);
+        // The same diff the Edit row counts (one source, TC4).
+        return lineDiff(oldText, newText);
       case "trimmedLines":
         return Diff.diffTrimmedLines(oldText, newText);
       case "chars":
@@ -54,15 +56,9 @@ export const AdvancedTextDiff = ({
   };
 
   const diffResults = getDiffResults();
-  const stats = diffResults.reduce(
-    (acc, part) => {
-      if (part.added) acc.additions++;
-      else if (part.removed) acc.deletions++;
-      else acc.unchanged++;
-      return acc;
-    },
-    { additions: 0, deletions: 0, unchanged: 0 }
-  );
+  // Units of the current mode (lines by default), counted like the Edit row's "+a −d".
+  const counts = changeCounts(diffResults);
+  const stats = { additions: counts.added, deletions: counts.removed, unchanged: counts.unchanged };
 
   const renderDiffPart = (part: Diff.Change, index: number) => {
     const baseClasses = "inline";

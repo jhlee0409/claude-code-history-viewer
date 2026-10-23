@@ -122,7 +122,8 @@ describe("TR0 reachability (plan §6)", () => {
     expect((copy as HTMLButtonElement).tabIndex).toBeGreaterThanOrEqual(0);
     fireEvent.click(copy as HTMLButtonElement);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(id));
-    await waitFor(() => expect((copy as HTMLElement).getAttribute("title")).toBe("도구 ID 복사됨"));
+    // The confirmation is the ghost button's own visible words (TC10), not a tooltip.
+    await waitFor(() => expect((copy as HTMLElement).textContent).toBe("도구 ID 복사됨"));
   });
 
   it("결과 없는 도구: '결과 기록 없음' with a neutral --fg-3 icon, no Pending pill", () => {

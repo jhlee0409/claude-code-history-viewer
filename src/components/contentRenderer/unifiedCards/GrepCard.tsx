@@ -1,12 +1,27 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
-import { CodeTarget, CodeWell, ToolRow } from "../../transcript/ToolRow";
+import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
 import { str } from "./shared";
+
+/** Grep's `output_mode` values, in words (renderer audit TC12). */
+const OUTPUT_MODE_KEYS = {
+  files_with_matches: "toolRow.grepModeFiles",
+  content: "toolRow.grepModeContent",
+  count: "toolRow.grepModeCount",
+} as const;
+
+/** The output mode in words; a mode this list does not know, as recorded (a code literal). */
+function OutputMode({ mode }: { mode: string }) {
+  const { t } = useTranslation();
+  const key = Object.hasOwn(OUTPUT_MODE_KEYS, mode) ? OUTPUT_MODE_KEYS[mode as keyof typeof OUTPUT_MODE_KEYS] : null;
+  return key ? <span>{t(key)}</span> : <code data-mono="code" className="font-mono">{mode}</code>;
+}
 
 export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) {
   const pathCtx = useToolPathContext();
@@ -30,7 +45,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
         <>
           {path && <PathText path={path} ctx={pathCtx} />}
           {glob && <span data-mono="code" className="font-mono">{glob}</span>}
-          {outputMode && <span>{outputMode}</span>}
+          {outputMode && <OutputMode mode={outputMode} />}
         </>
       }
       outcome={outcome}
@@ -38,8 +53,9 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      {pattern && <CodeWell text={pattern} />}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} />
+      {pattern && <TargetWell text={pattern} />}
+      {/* Content-mode matches are records: one line each, the well scrolls sideways (TC13). */}
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} wrap={outputMode !== "content"} />
     </ToolRow>
   );
 });

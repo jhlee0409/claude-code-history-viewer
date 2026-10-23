@@ -40,7 +40,11 @@ export interface ToolOutcome {
   reason: OutcomeReason;
   /** The recorded exit code (non-zero wins when recorded codes disagree). */
   exitCode?: number;
-  /** A recorded API error code (`error_code`), shown as "Failed · <code>". */
+  /**
+   * A recorded API error code (`error_code`): "Failed · <code>" in the row,
+   * or a fact of the opened detail when the row says something else
+   * (an interruption).
+   */
   errorCode?: string;
 }
 
@@ -317,6 +321,28 @@ export function resultContent(result: ToolResultLike, options: { bareCodeIsExitC
   return { recorded: true, parts: [{ kind: "text", text: String(content) }] };
 }
 
+/**
+ * Claude's Write confirmation, as its tool records it (real history:
+ * "File created successfully at: <path>" and "The file <path> has been
+ * updated successfully.", either optionally followed by the note below).
+ */
+const WRITE_CONFIRMATION = /^(?:File created successfully at: (.+?)|The file (.+?) has been updated successfully\.)(?: \(file state is current in your context — no need to Read it back\))?$/;
+
+/**
+ * The path a Write result confirms, when its whole content is exactly that
+ * confirmation sentence (a string or one text block) and nothing records an
+ * error; otherwise `null`, and the result is shown as recorded (renderer
+ * audit TC15).
+ */
+export function writeConfirmationPath(result: ToolResultLike): string | null {
+  if (result.is_error === true) return null;
+  const content = result.content;
+  const text = Array.isArray(content) ? (content.length === 1 ? blockText(content[0]) : null) : blockText(content);
+  if (text === null) return null;
+  const match = WRITE_CONFIRMATION.exec(text.replace(/\n+$/, ""));
+  return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
 // ---------------------------------------------------------------------------
 // The verdict (plan §4.2 order: the first rule that applies wins)
 // ---------------------------------------------------------------------------
@@ -338,10 +364,14 @@ export function toolOutcome(
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
   const withExit = (o: ToolOutcome): ToolOutcome => (exitCode === undefined ? o : { ...o, exitCode });
 
-  // 2. Interrupted.
+  const errorCode = normalized.find((n) => n.errorCode !== undefined)?.errorCode;
+  const withCodes = (o: ToolOutcome): ToolOutcome => (errorCode === undefined ? withExit(o) : { ...withExit(o), errorCode });
+
+  // 2. Interrupted. It decides the lifecycle; every other recorded fact (an
+  //    exit code, an API error code) is kept beside it (review R3-F2).
   if (normalized.some((n) => n.interrupted === true)) {
     const verdict = exitCode !== undefined && exitCode !== 0 ? "failed" : "unknown";
-    return withExit({ lifecycle: "interrupted", verdict, reason: "interrupted" });
+    return withCodes({ lifecycle: "interrupted", verdict, reason: "interrupted" });
   }
 
   // 3. Recorded error signals; an exit code 0 beside one is a conflict.
@@ -349,7 +379,6 @@ export function toolOutcome(
   //    not a signal once an exit code is recorded: the recorded code decides
   //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
   const providerError = normalized.some((n) => n.isError === true);
-  const errorCode = normalized.find((n) => n.errorCode !== undefined)?.errorCode;
   const textOutrankedByExit = family === "process" && exitCode !== undefined;
   const errorContent = !textOutrankedByExit && normalized.some((n) => n.errorText !== undefined);
   if (providerError || errorCode !== undefined || errorContent) {
@@ -361,8 +390,7 @@ export function toolOutcome(
           : errorCode !== undefined
             ? "api-error-code"
             : "error-content";
-    const outcome = withExit({ lifecycle: "completed", verdict: "failed", reason });
-    return errorCode === undefined ? outcome : { ...outcome, errorCode };
+    return withCodes({ lifecycle: "completed", verdict: "failed", reason });
   }
 
   // 4. A recorded exit code decides; `is_error: false` beside a non-zero code

@@ -1,11 +1,12 @@
 "use client";
 
-import { memo } from "react";
-import { Folder, FileText } from "lucide-react";
+import { memo, useContext, useId } from "react";
+import { ChevronRight, Folder, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { useToggle } from "@/hooks/useToggle";
+import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { OutputBlock } from "../transcript/OutputBlock";
 import { isFileTreeText } from "../transcript/outputKind";
 
@@ -20,29 +21,45 @@ type Props = {
  * Markdown; ANSI colour and the file-tree / table detection stay. The line
  * cap, "Show all n lines" and the search reveal live in OutputBlock.
  *
- * The header is a neutral label (plan D3): a plain string result carries no
- * verdict, so no check mark, no tool-colour fill, border or title.
+ * The header is a neutral disclosure (plan D3: a plain string result carries
+ * no verdict, so no check mark, no tool-colour fill or title) with
+ * `aria-expanded` + `aria-controls`. The result is one box, the OutputBlock's
+ * well — no bordered card around it — and the header always says "Tool
+ * Execution Result": what the text is (a file tree, a table) is the well's
+ * own label, said once (renderer audit TR9). The open state lives in the
+ * capture expand registry under the key the shared renderer header used.
  */
 export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
-  const isFileTree = isFileTreeText(result);
+  const ambient = useContext(RendererDefaultsContext);
+  const [open, toggle] = useToggle("renderer", ambient.defaultExpanded);
+  const contentId = useId();
+  const Icon = isFileTreeText(result) ? Folder : FileText;
 
   return (
-    <Renderer>
-      <Renderer.Header
-        title={isFileTree ? t("toolResult.fileStructure") : t("toolResult.toolExecutionResult")}
-        icon={
-          isFileTree ? (
-            <Folder className={cn(layout.iconSize, "shrink-0 text-fg-3")} />
-          ) : (
-            <FileText className={cn(layout.iconSize, "shrink-0 text-fg-3")} />
-          )
-        }
-        titleClassName="text-fg-2"
-      />
-      <Renderer.Content>
-        <OutputBlock text={result} searchQuery={searchQuery} expandKey="string-output" />
-      </Renderer.Content>
-    </Renderer>
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={contentId}
+        className={cn(
+          "flex w-full items-center rounded-row text-left hover:bg-surface-hover",
+          layout.iconGap,
+          layout.headerPadding,
+          layout.headerHeight,
+        )}
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={cn(layout.iconSize, "shrink-0 text-fg-3 transition-transform", open && "rotate-90")}
+        />
+        <Icon aria-hidden="true" className={cn(layout.iconSize, "shrink-0 text-fg-3")} />
+        <span className={cn(layout.titleText, "truncate text-fg-2")}>{t("toolResult.toolExecutionResult")}</span>
+      </button>
+      <div id={contentId} hidden={!open} className={open ? layout.contentPadding : undefined}>
+        {open && <OutputBlock text={result} searchQuery={searchQuery} expandKey="string-output" />}
+      </div>
+    </div>
   );
 });
