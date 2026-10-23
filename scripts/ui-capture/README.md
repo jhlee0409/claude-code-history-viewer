@@ -87,7 +87,8 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
 - Mobile adds `sidebar` (project drawer open).
 - Inner-UI (plan I0): `transcript-mixed-turn`, `x-transcript-edit-expanded`,
   `transcript-run-open`, `transcript-failure`, `transcript-unknown-outcome`,
-  `transcript-cjk`, `subagent`, `no-matches`, `unreadable-source`,
+  `transcript-failure-open`, `transcript-unknown-outcome-open` (TR0: the
+  failed / interrupted / no-result and E15 rows opened), `transcript-cjk`, `subagent`, `no-matches`, `unreadable-source`,
   `analytics-lowdata`, `edits-patch-only`, `settings-dirty`, `archive-error`
   at 1440×900 dark/light, 1180×760 dark and 390×844 dark, and `gear`
   (desktop). New steps: `expandToolRows`, `gearMenu`, `transcriptSearch`,

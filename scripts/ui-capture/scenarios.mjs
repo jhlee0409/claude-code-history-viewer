@@ -454,6 +454,16 @@ const INNER_SCREENS = [
     steps: [{ do: "openSession", session: "unknown-outcome" }],
   },
   {
+    id: "transcript-failure-open",
+    title: "The failed build, the interrupted run and the call with no result, opened (their details)",
+    steps: [{ do: "openSession", session: "outcomes" }, { do: "expandToolRows", match: ["pnpm build", "pnpm e2e", "pnpm release"] }],
+  },
+  {
+    id: "transcript-unknown-outcome-open",
+    title: "E15 opened: the stderr zone and what the detail says about the result",
+    steps: [{ do: "openSession", session: "unknown-outcome" }, { do: "expandToolRows", match: ["git status"], limit: 1 }],
+  },
+  {
     id: "transcript-cjk",
     title: "Korean session mixing prose, paths and code (D12)",
     steps: [{ do: "openSession", session: "cjk-ko" }],
