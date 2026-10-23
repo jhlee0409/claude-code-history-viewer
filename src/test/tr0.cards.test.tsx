@@ -396,6 +396,25 @@ describe("TC8: the full-target well appears only when the row's target is cut", 
     open(container);
     expect(wells(container, command)).toHaveLength(1);
   });
+
+  it("an open row re-measures when its full target changes but the shown first line does not (review round 4)", () => {
+    const id = "toolu_bash_rerender";
+    const ui = (command: string) => (
+      <ExpandKeyProvider value="msg-cards">
+        <UnifiedToolExecutionRenderer
+          toolUse={{ type: "tool_use", id, name: "Bash", input: { command } }}
+          toolResults={[{ type: "tool_result", tool_use_id: id, content: "ok" }]}
+        />
+      </ExpandKeyProvider>
+    );
+    const view = render(ui("short"));
+    open(view.container);
+    expect(wells(view.container, "short"), "fits: no well").toHaveLength(0);
+    view.rerender(ui("short\necho second-line"));
+    expect(wells(view.container, "short\necho second-line"), "now only partly shown: the well").toHaveLength(1);
+    view.rerender(ui("short"));
+    expect(wells(view.container, "short"), "fits again: no well").toHaveLength(0);
+  });
 });
 
 describe("TC12: Grep's output mode reads as words, not the raw input enum", () => {
@@ -476,6 +495,27 @@ describe("TC15: Write shows its line count once and no absolute-path confirmatio
     expect(detail.textContent).toContain("docs/other.md");
     expect(detail.textContent).not.toContain(CWD);
     expect(detail.querySelector(`[title="${CWD}/docs/other.md"]`)).not.toBeNull();
+  });
+
+  it("leaving out the confirmation sentence keeps the same result's own stdout / stderr (review round 4)", () => {
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "INPUT" }, [
+      { content: `File created successfully at: ${CWD}/notes.md`, ...own({ stdout: "WRITE_DISTINCT_STDOUT", stderr: "WRITE_WARNING", exitCode: 0 }) },
+    ]);
+    open(container);
+    const text = container.textContent ?? "";
+    expect(text).toContain("WRITE_DISTINCT_STDOUT");
+    expect(text).toContain("WRITE_WARNING");
+    expect(container.querySelector("[data-tool-detail] [data-stderr]")).not.toBeNull();
+    expect(text).not.toContain("File created successfully");
+  });
+
+  it("a confirmation with empty streams still adds nothing (no 'No output')", () => {
+    const { container } = card("Write", { file_path: `${CWD}/notes.md`, content: "INPUT" }, [
+      { content: `File created successfully at: ${CWD}/notes.md`, ...own({ stdout: "", stderr: "" }) },
+    ]);
+    open(container);
+    expect(container.textContent).not.toContain("No output");
+    expect(container.textContent).not.toContain("File created successfully");
   });
 
   it("anything else (an error) stays as recorded", () => {
