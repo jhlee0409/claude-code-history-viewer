@@ -132,7 +132,7 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
         icon={<ToolIcon toolName={toolName} className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
             <OutcomeStatus outcome={outcome} />
             <ToolIdBadge
               toolId={toolId}

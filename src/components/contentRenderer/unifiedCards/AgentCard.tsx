@@ -77,7 +77,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         icon={<Bot className={cn(layout.iconSize, taskStyles.icon)} />}
         titleClassName={taskStyles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
             {subagentType && (
               <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-caption uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
                 <SubIcon className="w-3.5 h-3.5" />{subagentType}

@@ -104,6 +104,11 @@ type RendererHeaderProps = {
   title: string;
   icon: React.ReactNode;
   titleClassName?: string;
+  /**
+   * Right-hand group (badges, outcome status, copy-ID button). Its box is
+   * capped to the header row: a group wider than the card wraps inside it
+   * (the group's own `flex-wrap`) instead of being clipped by the card.
+   */
   rightContent?: React.ReactNode;
   /** One-line preview of the payload, shown only while collapsed. */
   summary?: string;
@@ -139,7 +144,7 @@ const RendererHeader = ({
             {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
           </span>
         </div>
-        <div className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}>
+        <div className={cn("flex items-center shrink-0 ml-auto max-w-full min-w-0", layout.iconGap, layout.smallText)}>
           {rightContent}
         </div>
       </div>
@@ -199,7 +204,7 @@ const RendererHeader = ({
       </button>
       {rightContent && (
         <div
-          className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}
+          className={cn("flex items-center shrink-0 ml-auto max-w-full min-w-0", layout.iconGap, layout.smallText)}
           onClick={(e) => e.stopPropagation()}
         >
           {rightContent}

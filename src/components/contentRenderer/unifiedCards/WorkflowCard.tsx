@@ -54,7 +54,7 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults }:
         icon={<WorkflowIcon className={cn(layout.iconSize, taskStyles.icon)} />}
         titleClassName={taskStyles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
             {workflowName && (
               <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, taskStyles.badge, taskStyles.badgeText)}>
                 {workflowName}
