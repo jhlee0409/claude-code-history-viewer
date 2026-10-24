@@ -6,8 +6,9 @@ import { ToolIcon } from "../../ToolIcon";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { truncate, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
+import { CARD_FRAME, truncate, summarizeToolInput } from "./shared";
+import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { ResultBlock } from "./ResultBlock";
 import { ToolIdBadge } from "./ToolIdBadge";
 import { HighlightedText } from "../../common/HighlightedText";
@@ -25,6 +26,7 @@ export const DefaultCard = memo(function DefaultCard({
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const variant = getToolVariant(toolName);
   const styles = getVariantStyles(variant);
+  const outcome = toolOutcome(toolUse, toolResults, toolFamily(toolName));
 
   const inputJson = truncate(JSON.stringify(input, null, 2));
   // Reveal + highlight the input when the in-session search term is inside it,
@@ -35,8 +37,8 @@ export const DefaultCard = memo(function DefaultCard({
 
   return (
     <Renderer
-      className={styles.container}
-      hasError={toolResults.length > 0 && toolResults.some(isError)}
+      className={CARD_FRAME}
+      hasError={outcome.verdict === "failed"}
       expandKey={`unified-${(toolUse.id as string) || ""}`}
       autoExpand={inputMatchesSearch}
     >
@@ -47,7 +49,7 @@ export const DefaultCard = memo(function DefaultCard({
         summary={summarizeToolInput(input)}
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
-            <StatusBadge results={toolResults} />
+            <OutcomeStatus outcome={outcome} />
             <ToolIdBadge
               toolId={toolId}
               searchQuery={searchQuery}

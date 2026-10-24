@@ -1,4 +1,4 @@
-import { ERROR_TEXT_PATTERN } from "../../transcript/toolOutcome";
+import { getVariantStyles } from "../../renderers";
 
 export const PREVIEW_MAX_LEN = 6000;
 
@@ -58,10 +58,11 @@ export const summarizeToolInput = (input: Record<string, unknown>): string | und
   return firstLine.length > SUMMARY_MAX_LEN ? `${firstLine.slice(0, SUMMARY_MAX_LEN)}…` : firstLine;
 };
 
-export const isError = (result: ToolResultLike) => {
-  if (result.is_error === true) return true;
-  const c = result.content;
-  if (typeof c === "string" && ERROR_TEXT_PATTERN.test(c)) return true;
-  if (c && typeof c === "object" && "error_code" in c) return true;
-  return false;
-};
+/**
+ * The frame of a card that keeps its own container (WebFetch, WebSearch,
+ * Agent, AskUserQuestion, Workflow, Default): the neutral variant's surface,
+ * never a tool tint or a status fill (TR0b). Its outcome is stated by
+ * `OutcomeStatus`; the Renderer swaps in the error frame only when
+ * `toolOutcome` says failed.
+ */
+export const CARD_FRAME = getVariantStyles("neutral").container;

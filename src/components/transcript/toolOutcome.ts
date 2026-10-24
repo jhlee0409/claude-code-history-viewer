@@ -78,7 +78,7 @@ export interface NormalizedResult {
   text?: string;
 }
 
-/** The existing error-string rule (shared with `unifiedCards/shared.ts` `isError`). */
+/** The existing error-string rule: a result whose content starts with `error`. */
 export const ERROR_TEXT_PATTERN = /^error\b/i;
 
 // ---------------------------------------------------------------------------
