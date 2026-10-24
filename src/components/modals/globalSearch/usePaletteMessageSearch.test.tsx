@@ -102,7 +102,7 @@ describe("buildMessageSearchRequest", () => {
       command: "search_all_providers",
       args: expect.objectContaining({
         activeProviders: ["codex"],
-        filters: { projects: ["repo"], messageType: "user" },
+        filters: { projectPaths: ["codex:///work/repo"], messageType: "user" },
       }),
     });
     // Claude Code alone: the one-provider command.
@@ -110,8 +110,24 @@ describe("buildMessageSearchRequest", () => {
       buildMessageSearchRequest(input({ scope: "project", project: project() }), { ...config, activeProviders: ["claude"] }),
     ).toEqual({
       command: "search_messages",
-      args: expect.objectContaining({ filters: { projects: ["-Users-me-alpha"] } }),
+      args: expect.objectContaining({ filters: { projectPaths: [project().path] } }),
     });
+  });
+
+  it("preserves name-only filtering for search adapters without path metadata", () => {
+    const legacy = project({ provider: "gemini", path: "gemini:///work/repo", name: "repo" });
+    expect(buildMessageSearchRequest(input({ scope: "project", project: legacy }), config)?.args).toMatchObject({
+      activeProviders: ["gemini"], filters: { projects: ["repo"] },
+    });
+  });
+
+  it("keeps same-named project scopes distinct without rewriting their paths", () => {
+    for (const path of ["codex:///work/client-a/app", "codex:///work/client-b/app", "codex://C:\\work\\app", "\\\\server\\share\\.claude\\projects\\app"]) {
+      const scoped = project({ provider: "codex", path, name: "app" });
+      expect(buildMessageSearchRequest(input({ scope: "project", project: scoped }), config)?.args).toMatchObject({
+        filters: { projectPaths: [path] },
+      });
+    }
   });
 });
 
@@ -185,7 +201,7 @@ describe("usePaletteMessageSearch", () => {
     rerender(input({ scope: "project", project: project() }));
     await flushDebounce();
     await act(async () => all.resolve([message("everywhere")]));
-    expect(mockApi.mock.calls[1]?.[1]).toMatchObject({ filters: { projects: ["-Users-me-alpha"] } });
+    expect(mockApi.mock.calls[1]?.[1]).toMatchObject({ filters: { projectPaths: [project().path] } });
     expect(result.current.view).toMatchObject({ status: "done", results: [message("scoped")] });
   });
 

@@ -405,7 +405,11 @@ mod tests {
     #[test]
     fn the_longest_matching_key_wins() {
         let (mini, base) = (entry("gpt-5-mini"), entry("gpt-5"));
-        assert_ne!(mini.input, base.input, "the fixture must tell them apart");
+        assert_ne!(
+            mini.input.to_bits(),
+            base.input.to_bits(),
+            "the fixture must tell them apart"
+        );
         assert_price(
             bucket_cost(&input_only("gpt-5-mini-2025-08-07", M)),
             mini.input,
@@ -432,7 +436,7 @@ mod tests {
     fn each_context_bucket_uses_its_own_context_tier() {
         let p = entry("claude-haiku-5-5");
         let long = &p.context_tiers[0];
-        assert_ne!(long.input, p.input);
+        assert_ne!(long.input.to_bits(), p.input.to_bits());
         let two_tiers = bucket(
             "claude-haiku-5-5",
             vec![
@@ -462,7 +466,7 @@ mod tests {
     fn fast_and_priority_tiers_use_the_fast_rates() {
         let p = entry("claude-opus-5-5");
         let fast = p.service_tiers["fast"].input;
-        assert_ne!(fast, p.input);
+        assert_ne!(fast.to_bits(), p.input.to_bits());
         for tier in ["fast", "priority", " FAST "] {
             assert_price(
                 bucket_cost(&with_tier(input_only("claude-opus-5-5", M), tier)),
@@ -572,7 +576,7 @@ mod tests {
         ];
         let expected = 0.5 + entry("claude-sonnet-4-5").input;
         assert!((session_cost(&models) - expected).abs() < 1e-12);
-        assert_eq!(session_cost(&[]), 0.0);
+        assert_eq!(session_cost(&[]).to_bits(), 0.0_f64.to_bits());
     }
 
     /// The two rule lists that live in TypeScript code, read from

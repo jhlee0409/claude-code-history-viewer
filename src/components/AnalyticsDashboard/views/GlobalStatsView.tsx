@@ -401,7 +401,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                 const medal = getRankMedal(index);
                 return (
                   <div
-                    key={project.project_name}
+                    key={JSON.stringify([project.provider_id, project.project_path || project.project_name])}
                     className={cn(
                       "flex items-center justify-between p-2.5 rounded-lg",
                       "bg-muted/30 hover:bg-muted/50 transition-colors"
@@ -427,9 +427,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {project.project_name}
+                            {project.project_path || project.project_name}
                           </TooltipContent>
                         </Tooltip>
+                        {project.project_path && (
+                          <p className="text-caption text-muted-foreground truncate" title={project.project_path}>
+                            {project.project_path}
+                          </p>
+                        )}
                         <p className="text-caption text-muted-foreground">
                           <Num>{t(
                             "analytics.topProjectMeta",

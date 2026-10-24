@@ -1159,6 +1159,7 @@ struct SessionFileStats {
     first_message: Option<DateTime<Utc>>,
     last_message: Option<DateTime<Utc>>,
     project_name: String,
+    project_path: String,
     provider: StatsProvider,
 }
 
@@ -1167,6 +1168,15 @@ fn claude_session_project_name(session_path: &Path) -> String {
     session_path
         .parent()
         .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string()
+}
+
+/// Display name of the scanned Claude project, including for nested session files.
+fn claude_project_name(project_path: &Path) -> String {
+    project_path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("Unknown")
         .to_string()
@@ -1181,6 +1191,7 @@ fn claude_session_project_name(session_path: &Path) -> String {
 fn process_session_file_for_global_stats(
     session_path: &PathBuf,
     root: &Path,
+    project_path: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
@@ -1190,14 +1201,15 @@ fn process_session_file_for_global_stats(
     }) {
         if let cache::Composed::Ready(stats) = cache::compose_global(
             &aggregate,
-            claude_session_project_name(session_path),
+            claude_project_name(project_path),
+            project_path.to_string_lossy().to_string(),
             s_limit,
             e_limit,
         ) {
             return Some(stats);
         }
     }
-    scan_session_file_for_global_stats(session_path, root, mode, s_limit, e_limit)
+    scan_session_file_for_global_stats(session_path, root, project_path, mode, s_limit, e_limit)
 }
 
 /// Process a single session file using lightweight deserialization for global stats.
@@ -1207,6 +1219,7 @@ fn process_session_file_for_global_stats(
 fn scan_session_file_for_global_stats(
     session_path: &PathBuf,
     root: &Path,
+    project_path: &Path,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
@@ -1218,7 +1231,8 @@ fn scan_session_file_for_global_stats(
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut stats = SessionFileStats {
-        project_name: claude_session_project_name(session_path),
+        project_name: claude_project_name(project_path),
+        project_path: project_path.to_string_lossy().to_string(),
         provider: StatsProvider::Claude,
         ..Default::default()
     };
@@ -1415,6 +1429,7 @@ fn calculate_session_duration(
 fn build_global_session_file_stats_from_messages(
     provider: StatsProvider,
     project_name: String,
+    project_path: String,
     messages: &[ClaudeMessage],
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
@@ -1426,6 +1441,7 @@ fn build_global_session_file_stats_from_messages(
 
     let mut stats = SessionFileStats {
         project_name,
+        project_path,
         provider,
         ..Default::default()
     };
@@ -1746,17 +1762,13 @@ fn collect_provider_global_file_stats(
             return (Vec::new(), project_keys);
         };
         let mut all_stats = Vec::with_capacity(sessions.len());
-        for (project_display_name, messages) in sessions {
-            project_keys.insert(format!(
-                "cursor:{}",
-                project_display_name
-                    .strip_suffix(" [cursor]")
-                    .unwrap_or(&project_display_name)
-            ));
+        for session in sessions {
+            project_keys.insert(format!("cursor:{}", session.project_path));
             if let Some(stats) = build_global_session_file_stats_from_messages(
                 StatsProvider::Cursor,
-                project_display_name,
-                &messages,
+                session.project_name,
+                session.project_path,
+                &session.messages,
                 mode,
                 s_limit,
                 e_limit,
@@ -1783,7 +1795,7 @@ fn collect_provider_global_file_stats(
         project_keys.insert(format!(
             "{}:{}",
             stats_provider_id(provider),
-            "Antigravity [antigravity]"
+            root.to_string_lossy()
         ));
 
         let mut all_stats = Vec::new();
@@ -1803,6 +1815,7 @@ fn collect_provider_global_file_stats(
 
             let mut stats = SessionFileStats {
                 project_name: "Antigravity [antigravity]".to_string(),
+                project_path: root.to_string_lossy().to_string(),
                 provider,
                 ..Default::default()
             };
@@ -1903,8 +1916,8 @@ fn collect_provider_global_file_stats(
 
     let provider_tag = stats_provider_id(provider);
 
-    // Collect all (project_display_name, session_file_path) pairs first
-    let mut session_tasks: Vec<(String, String)> = Vec::new();
+    // Keep the project identity with every session while loading in parallel.
+    let mut session_tasks: Vec<(String, String, String)> = Vec::new();
 
     for project in projects {
         let project_display_name = format!("{} [{}]", project.name, provider_tag);
@@ -1913,19 +1926,24 @@ fn collect_provider_global_file_stats(
         let sessions = load_stats_sessions(provider, &project.path).unwrap_or_default();
 
         for session in sessions {
-            session_tasks.push((project_display_name.clone(), session.file_path));
+            session_tasks.push((
+                project_display_name.clone(),
+                project.path.clone(),
+                session.file_path,
+            ));
         }
     }
 
     // Process all sessions in parallel
     let all_stats: Vec<SessionFileStats> = session_tasks
         .par_iter()
-        .filter_map(|(project_name, file_path)| {
+        .filter_map(|(project_name, project_path, file_path)| {
             let messages = load_stats_messages(provider, file_path).unwrap_or_default();
 
             build_global_session_file_stats_from_messages(
                 provider,
                 project_name.clone(),
+                project_path.clone(),
                 &messages,
                 mode,
                 s_limit,
@@ -5072,10 +5090,11 @@ fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
         .collect()
 }
 
-/// A Claude project's session files for the stats commands, and the
+/// A Claude project's logical identity and session files, plus the
 /// canonical directory every one of them is read inside.
 struct ProjectSessionFiles {
     root: PathBuf,
+    project_path: PathBuf,
     files: Vec<PathBuf>,
 }
 
@@ -5092,6 +5111,7 @@ fn claude_project_session_files(project_dir: &Path) -> ProjectSessionFiles {
             log::warn!("stats: cannot read {}: {error}", project_dir.display());
             return ProjectSessionFiles {
                 root: project_dir.to_path_buf(),
+                project_path: project_dir.to_path_buf(),
                 files: Vec::new(),
             };
         }
@@ -5103,7 +5123,11 @@ fn claude_project_session_files(project_dir: &Path) -> ProjectSessionFiles {
         .into_iter()
         .filter(|path| session_files::is_regular_file(path))
         .collect();
-    ProjectSessionFiles { root, files }
+    ProjectSessionFiles {
+        root,
+        project_path: project_dir.to_path_buf(),
+        files,
+    }
 }
 
 fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
@@ -5483,12 +5507,7 @@ pub async fn get_global_stats_summary(
         };
         log_skipped_history(projects_path, &listing.links, &listing.errors);
         for project_path in listing.dirs {
-            let project_name = project_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("Unknown")
-                .to_string();
-            project_names.insert(format!("claude:{project_name}"));
+            project_names.insert(format!("claude:{}", project_path.to_string_lossy()));
             projects.push(claude_project_session_files(&project_path));
         }
     };
@@ -5515,17 +5534,21 @@ pub async fn get_global_stats_summary(
     // Phase 2: Process all session files in parallel
     let s_ref = s_limit.as_ref();
     let e_ref = e_limit.as_ref();
-    let session_files: Vec<(&PathBuf, &Path)> = projects
+    let session_files: Vec<(&PathBuf, &Path, &Path)> = projects
         .iter()
         .flat_map(|project| {
             let root = project.root.as_path();
-            project.files.iter().map(move |file| (file, root))
+            let project_path = project.project_path.as_path();
+            project
+                .files
+                .iter()
+                .map(move |file| (file, root, project_path))
         })
         .collect();
     let mut file_stats: Vec<SessionFileStats> = session_files
         .par_iter()
-        .filter_map(|&(path, root)| {
-            process_session_file_for_global_stats(path, root, mode, s_ref, e_ref)
+        .filter_map(|&(path, root, project_path)| {
+            process_session_file_for_global_stats(path, root, project_path, mode, s_ref, e_ref)
         })
         .collect();
 
@@ -5655,15 +5678,9 @@ pub async fn get_global_stats_summary(
         file_stats.retain(|s| s.total_messages > 0);
     }
 
-    let active_project_keys: HashSet<String> = file_stats
+    let active_project_keys: HashSet<(StatsProvider, String)> = file_stats
         .iter()
-        .map(|stats| {
-            format!(
-                "{}:{}",
-                stats_provider_id(stats.provider),
-                stats.project_name
-            )
-        })
+        .map(|stats| (stats.provider, stats.project_path.clone()))
         .collect();
 
     // Phase 3: Aggregate results
@@ -5680,7 +5697,7 @@ pub async fn get_global_stats_summary(
     let mut model_context_map: HashMap<(StatsProvider, String), HashMap<u64, ModelContextStats>> =
         HashMap::new();
     let mut model_cost_map: HashMap<(StatsProvider, String), f64> = HashMap::new();
-    let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
+    let mut project_stats_map: HashMap<(StatsProvider, String), ProjectRanking> = HashMap::new();
     let mut provider_stats_map: HashMap<StatsProvider, (u32, u32, u64)> = HashMap::new();
     let mut provider_projects_map: HashMap<StatsProvider, HashSet<String>> = HashMap::new();
     let mut global_first_message: Option<DateTime<Utc>> = None;
@@ -5689,6 +5706,7 @@ pub async fn get_global_stats_summary(
     for stats in file_stats {
         let provider = stats.provider;
         let project_name = stats.project_name.clone();
+        let project_path = stats.project_path.clone();
 
         summary.total_messages += stats.total_messages;
         summary.total_tokens += stats.total_tokens;
@@ -5788,13 +5806,22 @@ pub async fn get_global_stats_summary(
         provider_projects_map
             .entry(provider)
             .or_default()
-            .insert(project_name.clone());
+            .insert(project_path.clone());
 
         // Aggregate project stats
-        let project_entry = project_stats_map.entry(project_name).or_insert((0, 0, 0));
-        project_entry.0 += 1; // sessions
-        project_entry.1 += stats.total_messages; // messages
-        project_entry.2 += stats.total_tokens; // tokens
+        let project_entry = project_stats_map
+            .entry((provider, project_path.clone()))
+            .or_insert_with(|| ProjectRanking {
+                project_name,
+                project_path,
+                provider_id: stats_provider_id(provider).to_string(),
+                sessions: 0,
+                messages: 0,
+                tokens: 0,
+            });
+        project_entry.sessions += 1;
+        project_entry.messages += stats.total_messages;
+        project_entry.tokens += stats.total_tokens;
 
         // Track global first/last message
         if let Some(first) = stats.first_message {
@@ -5890,17 +5917,7 @@ pub async fn get_global_stats_summary(
         .model_distribution
         .sort_by_key(|model| Reverse(model.token_count));
 
-    summary.top_projects = project_stats_map
-        .into_iter()
-        .map(
-            |(project_name, (sessions, messages, tokens))| ProjectRanking {
-                project_name,
-                sessions,
-                messages,
-                tokens,
-            },
-        )
-        .collect();
+    summary.top_projects = project_stats_map.into_values().collect();
     summary
         .top_projects
         .sort_by_key(|project| Reverse(project.tokens));
@@ -5984,6 +6001,7 @@ mod tests {
             message_type: message_type.to_string(),
             content: None,
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -6344,6 +6362,7 @@ mod tests {
             message_type: "assistant".to_string(),
             content: None,
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,
@@ -8145,13 +8164,155 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
+    async fn test_global_summary_keeps_same_named_codex_projects_separate() {
+        let temp = TempDir::new().expect("temp dir");
+        let codex_home = temp.path().join("codex");
+        let sessions = codex_home.join("sessions/2026/08");
+        fs::create_dir_all(&sessions).unwrap();
+        let _home = EnvVarGuard::set("CCHV_TEST_HOME", temp.path());
+        let _codex = EnvVarGuard::set("CODEX_HOME", &codex_home);
+        for (id, cwd, day, input) in [
+            ("first", "/work/client-a/app", "13", 10),
+            ("second", "/work/client-b/app", "14", 20),
+        ] {
+            let timestamp = format!("2026-08-{day}T10:00:00Z");
+            let lines = [
+                json!({"type": "session_meta", "timestamp": timestamp,
+                    "payload": {"id": id, "cwd": cwd}}),
+                json!({"type": "response_item", "timestamp": timestamp, "payload": {
+                "type": "message", "role": "assistant", "content": [
+                    {"type": "output_text", "text": "separate project"}
+                ]}}),
+                json!({"type": "event_msg", "timestamp": timestamp, "payload": {
+                "type": "token_count", "info": {"total_token_usage": {
+                    "input_tokens": input, "output_tokens": input / 10
+                }}}}),
+            ];
+            let content = lines
+                .iter()
+                .map(serde_json::Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            fs::write(
+                sessions.join(format!("rollout-2026-08-{day}T10-00-00-{id}.jsonl")),
+                format!("{content}\n"),
+            )
+            .unwrap();
+        }
+        let claude = temp.path().join("claude");
+        // Same public label as a Codex row; provider identity also belongs in the key.
+        write_claude_session(&claude, "app [codex]", 30, 3);
+        for _ in 0..2 {
+            let summary = get_global_stats_summary(
+                claude.to_string_lossy().to_string(),
+                Some(vec!["claude".into(), "codex".into()]),
+                Some("billing_total".into()),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(summary.total_projects, 3);
+            assert_eq!(summary.total_sessions, 3);
+            assert_eq!(
+                summary.total_tokens, 66,
+                "separating identities must preserve the token sum"
+            );
+            assert_eq!(summary.top_projects.len(), 3);
+            let codex = summary
+                .provider_distribution
+                .iter()
+                .find(|p| p.provider_id == "codex")
+                .unwrap();
+            assert_eq!((codex.projects, codex.sessions, codex.tokens), (2, 2, 33));
+            let rows: HashMap<_, _> = summary
+                .top_projects
+                .iter()
+                .map(|p| ((p.provider_id.as_str(), p.project_path.as_str()), p.tokens))
+                .collect();
+            assert_eq!(
+                rows.get(&("codex", "codex:///work/client-a/app")),
+                Some(&11)
+            );
+            assert_eq!(
+                rows.get(&("codex", "codex:///work/client-b/app")),
+                Some(&22)
+            );
+            assert!(summary
+                .top_projects
+                .iter()
+                .all(|p| p.project_name == "app [codex]"));
+        }
+        let filtered = get_global_stats_summary(
+            claude.to_string_lossy().to_string(),
+            Some(vec!["claude".into(), "codex".into()]),
+            Some("billing_total".into()),
+            Some("2026-08-13T00:00:00Z".into()),
+            Some("2026-08-13T23:59:59.999Z".into()),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (
+                filtered.total_projects,
+                filtered.total_sessions,
+                filtered.total_tokens
+            ),
+            (1, 1, 11)
+        );
+        assert_eq!(
+            filtered.top_projects[0].project_path,
+            "codex:///work/client-a/app"
+        );
+        assert_eq!(filtered.provider_distribution[0].projects, 1);
+    }
+
+    #[tokio::test]
+    async fn test_global_summary_nested_claude_sessions_keep_the_scanned_project() {
+        let temp = TempDir::new().unwrap();
+        write_claude_session(temp.path(), "app", 10, 1);
+        write_claude_session(temp.path(), "app/session/subagents", 20, 2);
+        let expected_path = temp
+            .path()
+            .join("projects/app")
+            .to_string_lossy()
+            .to_string();
+        for _ in 0..2 {
+            let summary = get_global_stats_summary(
+                temp.path().to_string_lossy().to_string(),
+                Some(vec!["claude".into()]),
+                Some("billing_total".into()),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                (
+                    summary.total_projects,
+                    summary.total_sessions,
+                    summary.total_tokens
+                ),
+                (1, 2, 33)
+            );
+            assert_eq!(summary.top_projects[0].project_path, expected_path);
+            assert_eq!(summary.top_projects[0].project_name, "app");
+        }
+    }
+
+    #[tokio::test]
     /// Global summary must aggregate custom Claude directories, not just the default
     /// root (#362) — and must NOT when no custom paths are supplied.
     async fn test_global_summary_includes_custom_claude_paths() {
         let default_dir = TempDir::new().expect("default tempdir");
         let custom_dir = TempDir::new().expect("custom tempdir");
-        write_claude_session(default_dir.path(), "proj-default", 10, 1);
-        write_claude_session(custom_dir.path(), "proj-custom", 20, 2);
+        // The same encoded folder can exist under two configured Claude roots.
+        write_claude_session(default_dir.path(), "same-project", 10, 1);
+        write_claude_session(custom_dir.path(), "same-project", 20, 2);
 
         let customs = Some(vec![
             crate::commands::multi_provider::CustomClaudePathParam {
@@ -8173,6 +8334,10 @@ mod tests {
         assert_eq!(with_custom.total_projects, 2);
         assert_eq!(with_custom.total_sessions, 2);
         assert_eq!(with_custom.total_tokens, 11 + 22);
+        assert_eq!(with_custom.top_projects.len(), 2);
+        assert_eq!(with_custom.provider_distribution[0].projects, 2);
+        assert_eq!(with_custom.top_projects[0].tokens, 22);
+        assert_eq!(with_custom.top_projects[1].tokens, 11);
 
         // Control: without custom paths, only the default root is aggregated.
         let default_only = get_global_stats_summary(
@@ -8608,6 +8773,7 @@ mod tests {
         let stats = build_global_session_file_stats_from_messages(
             StatsProvider::Claude,
             "test-project".to_string(),
+            "/fixture/project".to_string(),
             &messages,
             StatsMode::BillingTotal,
             None,
@@ -8658,6 +8824,7 @@ mod tests {
         let stats = build_global_session_file_stats_from_messages(
             StatsProvider::Claude,
             "test-project".to_string(),
+            "/fixture/project".to_string(),
             &messages,
             StatsMode::BillingTotal,
             None,
@@ -8696,6 +8863,7 @@ mod tests {
         let stats = build_global_session_file_stats_from_messages(
             StatsProvider::Claude,
             "test-project".to_string(),
+            "/fixture/project".to_string(),
             &messages,
             StatsMode::BillingTotal,
             None,
@@ -8726,6 +8894,7 @@ mod tests {
         let stats = build_global_session_file_stats_from_messages(
             StatsProvider::Qwen,
             "qwen-project".to_string(),
+            "/fixture/project".to_string(),
             &[message],
             StatsMode::BillingTotal,
             None,

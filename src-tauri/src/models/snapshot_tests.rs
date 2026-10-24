@@ -41,6 +41,7 @@ mod claude_message_snapshots {
                 {"type": "text", "text": "Hello! How can I help you today?"}
             ])),
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -97,6 +98,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: Some(json!({
                 "type": "tool_use",
                 "id": "tool-456",
@@ -168,6 +170,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,
@@ -225,6 +228,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: Some(json!({
                 "name": "Read",
                 "input": {"file_path": "/path/to/file.rs"}

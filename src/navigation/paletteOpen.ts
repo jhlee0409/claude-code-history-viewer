@@ -19,6 +19,7 @@ import type { ClaudeMessage, ClaudeProject, ClaudeSession } from "@/types";
 import type { SessionTarget } from "@/commands/paletteSources";
 import { openSessionRef } from "./openSessionRef";
 import { ownPlace } from "./ownership";
+import { projectForSearchResult, projectIdentityKey } from "@/utils/projectIdentity";
 import { openInNewTab } from "./tabs";
 
 /** How the shell opens a project and a session (its sidebar handlers). */
@@ -56,16 +57,21 @@ export async function openMessageResult(result: ClaudeMessage): Promise<boolean>
   const owns = () => get().navigationEpoch === epoch;
   const messageId = result.uuid ?? null;
   try {
-    const { sessions, projects, excludeSidechain } = get();
-    const loaded = sessions.find(sameSession(result));
+    const { sessions, projects, selectedProject, excludeSidechain } = get();
+    const provider = result.provider ?? "claude";
+    const exactProject = projectForSearchResult(result, projects);
+    const loadedProjectMatches = selectedProject != null &&
+      (selectedProject.provider ?? "claude") === provider &&
+      (result.projectPath != null
+        ? selectedProject.path === result.projectPath
+        : exactProject != null && projectIdentityKey(selectedProject) === projectIdentityKey(exactProject));
+    const loaded = loadedProjectMatches ? sessions.find(sameSession(result)) : undefined;
     if (loaded) {
       return await get().navigate({ view: "conversation", session: loaded, messageId }, { epoch });
     }
 
-    // The result carries its project's folder name and provider: the
-    // matching projects first, so the common case is one request; the rest
-    // in parallel batches with an early exit.
-    const provider = result.provider ?? "claude";
+    // A path-qualified result must never fall back to a same-named directory.
+    // Legacy name-only results retain their session lookup within the provider.
     const rank = (project: ClaudeProject): number => {
       if ((project.provider ?? "claude") !== provider) return 3;
       if (result.projectName && project.name === result.projectName) return 0;
@@ -77,7 +83,9 @@ export async function openMessageResult(result: ClaudeMessage): Promise<boolean>
       }
       return 2;
     };
-    const candidates = [...projects].sort((a, b) => rank(a) - rank(b));
+    const candidates = result.projectPath != null
+      ? (exactProject ? [exactProject] : [])
+      : projects.filter((project) => (project.provider ?? "claude") === provider).sort((a, b) => rank(a) - rank(b));
     const findIn = async (project: ClaudeProject) => {
       try {
         const session = (await loadSessionsFor(project, excludeSidechain)).find(sameSession(result));
