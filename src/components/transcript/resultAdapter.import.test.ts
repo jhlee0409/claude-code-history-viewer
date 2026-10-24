@@ -6,8 +6,10 @@
  * inline per-result metadata (`toolUseResult`); the provenance envelope
  * (`toolUseResultSource`, `unassignedToolUseResult`) is read by nothing in
  * the transcript UI, the adapter included. Every module under
- * `src/components/transcript/` (recursively) and the cards that adopted
- * ToolRow/OutputBlock (plus StringRenderer) must go through it: this static
+ * `src/components/transcript/` (recursively), every module of the unified
+ * cards folder (TR0's ToolRow cards and, since TR0b, the six cards that state
+ * their outcome through it, their shared helpers included) and StringRenderer
+ * must go through it: this static
  * scan fails on any read of those fields elsewhere — property access,
  * element access, destructuring, an `in` check or the field name as a
  * string handed to a helper (`str(r, "stdout")`, `Reflect.get`, a key
@@ -52,9 +54,15 @@ const TRANSCRIPT_DIR = join(ROOT, "src/components/transcript");
 const ADAPTER = join(TRANSCRIPT_DIR, "toolOutcome.ts");
 const CARDS_DIR = join(ROOT, "src/components/contentRenderer/unifiedCards");
 
-/** Files that must not read result shapes themselves. */
+/**
+ * Files that must not read result shapes themselves (beyond the transcript
+ * folder): every card, named so a renamed or dropped card fails the coverage
+ * test, and StringRenderer. The whole cards folder is scanned as well.
+ */
 const ADOPTERS = [
   ...["BashCard", "ReadCard", "GrepCard", "GlobCard", "WriteCard", "EditCard"].map((n) => join(CARDS_DIR, `${n}.tsx`)),
+  // TR0b: their status and error frame come from toolOutcome.
+  ...["WebFetchCard", "WebSearchCard", "AgentCard", "AskUserQuestionCard", "WorkflowCard", "DefaultCard"].map((n) => join(CARDS_DIR, `${n}.tsx`)),
   join(ROOT, "src/components/toolResultRenderer/StringRenderer.tsx"),
 ];
 
@@ -88,7 +96,7 @@ function sourcesUnder(dir: string): string[] {
 }
 
 function scannedFiles(): string[] {
-  return [...sourcesUnder(TRANSCRIPT_DIR).filter((f) => f !== ADAPTER), ...ADOPTERS];
+  return [...new Set([...sourcesUnder(TRANSCRIPT_DIR).filter((f) => f !== ADAPTER), ...sourcesUnder(CARDS_DIR), ...ADOPTERS])];
 }
 
 interface Violation {
@@ -435,6 +443,8 @@ describe("result adapter ownership scan", () => {
   it("covers every transcript module and every adopting card", () => {
     expect(real.length).toBeGreaterThanOrEqual(ADOPTERS.length + 2);
     for (const file of real) expect(existsSync(file), file).toBe(true);
+    // The cards folder is scanned whole: its shared helpers too.
+    expect(real).toContain(join(CARDS_DIR, "shared.ts"));
   });
 
   it("no transcript module or adopting card reads result fields outside the adapter", () => {
