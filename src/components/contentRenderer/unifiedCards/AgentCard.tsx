@@ -17,8 +17,9 @@ import { getVariantStyles, layout } from "../../renderers";
 import { Markdown } from "../../common/Markdown";
 import { getSubagentStyle } from "@/utils/agentStyles";
 import type { ToolResultLike, Props } from "./shared";
-import { str, isError } from "./shared";
-import { StatusBadge } from "./StatusBadge";
+import { CARD_FRAME, str } from "./shared";
+import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { ResultBlock } from "./ResultBlock";
 import { ToolIdBadge } from "./ToolIdBadge";
 import { useFormat } from "@/lib/format/useFormat";
@@ -60,6 +61,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const badge = getSubagentStyle(subagentType);
   const SubIcon = badge.icon;
   const taskStyles = getVariantStyles("task");
+  const outcome = toolOutcome(toolUse, toolResults, toolFamily((toolUse.name as string) || "Agent"));
 
   const hasResult = toolResults.length > 0;
   const resultText = hasResult ? extractAgentResultText(toolResults) : null;
@@ -69,13 +71,13 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const totalToolUseCount = first?.totalToolUseCount as number | undefined;
 
   return (
-    <Renderer className={taskStyles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
+    <Renderer className={CARD_FRAME} hasError={outcome.verdict === "failed"} expandKey={`unified-${(toolUse.id as string) || ""}`}>
       <Renderer.Header
         title={t("renderers.agentTool.title", { defaultValue: "Agent" })}
         icon={<Bot className={cn(layout.iconSize, taskStyles.icon)} />}
         titleClassName={taskStyles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
             {subagentType && (
               <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-caption uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
                 <SubIcon className="w-3.5 h-3.5" />{subagentType}
@@ -86,7 +88,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
                 {t("renderers.agentTool.background", { defaultValue: "background" })}
               </span>
             )}
-            <StatusBadge results={toolResults} />
+            <OutcomeStatus outcome={outcome} />
             <ToolIdBadge toolId={toolId} badgeClassName={taskStyles.badge} badgeTextClassName={taskStyles.badgeText} />
           </div>
         }

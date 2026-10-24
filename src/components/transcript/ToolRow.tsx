@@ -21,6 +21,8 @@
  *   N) or "Failed · <API error code>".
  * - interrupted: a warning icon + "Interrupted". no result: an `--fg-3`
  *   icon + "No result recorded". Each state has its own icon shape and words.
+ *   The collapsed status is `OutcomeStatus`, shared with the cards that keep
+ *   their own frame (TR0b).
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The
@@ -34,7 +36,7 @@
  * only then (renderer audit TC8); the target's `title` always holds it.
  */
 import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ChevronRight, CircleDashed, CirclePause, CircleX } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,7 @@ import { useToggle } from "@/hooks/useToggle";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
+import { OutcomeStatus } from "./OutcomeStatus";
 
 export interface ToolRowProps {
   /** The tool's icon; the row colours it `--fg-3`. */
@@ -148,42 +151,6 @@ export function TargetWell({ text }: { text: string }) {
   );
 }
 
-function failedLabel(outcome: ToolOutcome, t: TFunction): string {
-  if (outcome.errorCode !== undefined) return t("toolOutcome.failedErrorCode", { code: outcome.errorCode });
-  if (outcome.exitCode !== undefined) return t("toolOutcome.failedExitCode", { code: outcome.exitCode });
-  return t("toolOutcome.failed");
-}
-
-/** What the collapsed row says; `null` = quiet. */
-function RowStatus({ outcome }: { outcome: ToolOutcome }) {
-  const { t } = useTranslation();
-  if (outcome.lifecycle === "no-result") {
-    return (
-      <span className="inline-flex items-center gap-1 text-fg-3">
-        <CircleDashed data-outcome-icon="no-result" aria-hidden="true" className="w-3.5 h-3.5 shrink-0 text-fg-3" />
-        {t("toolOutcome.noResult")}
-      </span>
-    );
-  }
-  if (outcome.lifecycle === "interrupted") {
-    return (
-      <span className="inline-flex items-center gap-1 text-status-warning-fg">
-        <CirclePause data-outcome-icon="interrupted" aria-hidden="true" className="w-3.5 h-3.5 shrink-0 text-status-warning-fg" />
-        {t("toolOutcome.interrupted")}
-      </span>
-    );
-  }
-  if (outcome.verdict === "failed") {
-    return (
-      <span className="inline-flex items-center gap-1 text-status-danger-fg">
-        <CircleX data-outcome-icon="failed" aria-hidden="true" className="w-3.5 h-3.5 shrink-0 text-status-danger-fg" />
-        {failedLabel(outcome, t)}
-      </span>
-    );
-  }
-  return null;
-}
-
 /**
  * Facts for the opened detail's meta: each recorded fact the header label
  * does not already state (exactly once when open, R3-F2), then "not
@@ -191,7 +158,7 @@ function RowStatus({ outcome }: { outcome: ToolOutcome }) {
  */
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
   const failed = outcome.lifecycle === "completed" && outcome.verdict === "failed";
-  // What the header label already says (`failedLabel`, RowStatus).
+  // What the header label already says (OutcomeStatus).
   const headerSaysErrorCode = failed && outcome.errorCode !== undefined;
   const headerSaysExitCode = failed && !headerSaysErrorCode && outcome.exitCode !== undefined;
   const facts: string[] = [];
@@ -267,7 +234,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
         </button>
         <div className="flex shrink-0 items-center gap-2 text-caption text-fg-3">
           {meta}
-          <RowStatus outcome={outcome} />
+          <OutcomeStatus outcome={outcome} />
         </div>
       </div>
       <div id={detailId} data-tool-detail="" hidden={!open} className="pl-6">

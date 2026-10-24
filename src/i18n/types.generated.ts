@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-23T16:47:42.209Z
- * 총 키 개수: 2381
+ * 생성 시간: 2026-10-24T07:08:46.172Z
+ * 총 키 개수: 2378
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (311개)
+ * common namespace의 번역 키 (308개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -92,7 +92,6 @@ export type CommonKeys =
   | 'common.command.zoomIn'
   | 'common.command.zoomOut'
   | 'common.commandPalette'
-  | 'common.completed'
   | 'common.copied'
   | 'common.copy'
   | 'common.dash'
@@ -105,7 +104,6 @@ export type CommonKeys =
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
-  | 'common.error'
   | 'common.error.copyError'
   | 'common.error.info'
   | 'common.error.report'
@@ -206,7 +204,6 @@ export type CommonKeys =
   | 'common.modelLifecycle.retiringShort'
   | 'common.noDataAvailable'
   | 'common.ok'
-  | 'common.pending'
   | 'common.place.analytics'
   | 'common.place.analyticsAllProjects'
   | 'common.place.archive'
@@ -3004,7 +3001,6 @@ export type TranslationKey =
   | 'common.command.zoomIn'
   | 'common.command.zoomOut'
   | 'common.commandPalette'
-  | 'common.completed'
   | 'common.copied'
   | 'common.copy'
   | 'common.dash'
@@ -3017,7 +3013,6 @@ export type TranslationKey =
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
-  | 'common.error'
   | 'common.error.copyError'
   | 'common.error.info'
   | 'common.error.report'
@@ -3118,7 +3113,6 @@ export type TranslationKey =
   | 'common.modelLifecycle.retiringShort'
   | 'common.noDataAvailable'
   | 'common.ok'
-  | 'common.pending'
   | 'common.place.analytics'
   | 'common.place.analyticsAllProjects'
   | 'common.place.archive'

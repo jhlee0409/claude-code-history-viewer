@@ -15,8 +15,9 @@ import { getVariantStyles, layout } from "../../renderers";
 import { Markdown } from "../../common/Markdown";
 import { useAppStore } from "../../../store/useAppStore";
 import type { Props } from "./shared";
-import { str, isError } from "./shared";
-import { StatusBadge } from "./StatusBadge";
+import { CARD_FRAME, str } from "./shared";
+import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { ResultBlock } from "./ResultBlock";
 import {
   extractWorkflowResultText,
@@ -43,22 +44,23 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults }:
     : [];
 
   const taskStyles = getVariantStyles("task");
+  const outcome = toolOutcome(toolUse, toolResults, toolFamily((toolUse.name as string) || "Workflow"));
   const resultText = toolResults.length > 0 ? extractWorkflowResultText(toolResults) : null;
 
   return (
-    <Renderer className={taskStyles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${toolId}`}>
+    <Renderer className={CARD_FRAME} hasError={outcome.verdict === "failed"} expandKey={`unified-${toolId}`}>
       <Renderer.Header
         title={t("renderers.workflowTool.title", { defaultValue: "Workflow" })}
         icon={<WorkflowIcon className={cn(layout.iconSize, taskStyles.icon)} />}
         titleClassName={taskStyles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
             {workflowName && (
               <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, taskStyles.badge, taskStyles.badgeText)}>
                 {workflowName}
               </code>
             )}
-            <StatusBadge results={toolResults} />
+            <OutcomeStatus outcome={outcome} />
             {runId && (
               <code className={cn(layout.monoText, "hidden md:inline px-2 py-0.5", layout.rounded, "bg-muted/50 border border-border text-muted-foreground")}>
                 {runId}

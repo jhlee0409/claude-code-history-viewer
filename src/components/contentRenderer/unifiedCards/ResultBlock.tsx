@@ -1,6 +1,3 @@
-import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { layout } from "../../renderers";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { ToolExecutionResultRouter } from "../../messageRenderer/ToolExecutionResultRouter";
 import type { ToolResultLike } from "./shared";
@@ -16,10 +13,9 @@ export function ResultBlock({
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
 }) {
-  const { t } = useTranslation();
-  if (results.length === 0) return (
-    <div className={cn(layout.smallText, "text-muted-foreground italic mt-2")}>{t("common.pending")}</div>
-  );
+  // No result: the card's header already says "No result recorded"
+  // (OutcomeStatus); a history viewer has nothing "pending" (TR0b).
+  if (results.length === 0) return null;
   // The card itself is the collapsible; once it is open, the nested result
   // renderers should not demand a second click.
   return (

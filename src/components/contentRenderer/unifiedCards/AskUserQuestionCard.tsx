@@ -8,8 +8,9 @@ import { getToolVariant } from "@/utils/toolIconUtils";
 import { getVariantStyles, layout } from "../../renderers";
 import { HighlightedText } from "../../common/HighlightedText";
 import type { Props } from "./shared";
-import { isError } from "./shared";
-import { StatusBadge } from "./StatusBadge";
+import { CARD_FRAME } from "./shared";
+import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { ResultBlock } from "./ResultBlock";
 import { ToolIdBadge } from "./ToolIdBadge";
 import { DefaultCard } from "./DefaultCard";
@@ -92,6 +93,7 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
   const toolId = (toolUse.id as string) || "";
   const variant = getToolVariant(toolName);
   const styles = getVariantStyles(variant);
+  const outcome = toolOutcome(toolUse, toolResults, toolFamily(toolName));
 
   // Reveal + highlight when the search term is anywhere in the questions or
   // options, so a match inside a collapsed card is actually visible. #429
@@ -120,8 +122,8 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
 
   return (
     <Renderer
-      className={styles.container}
-      hasError={toolResults.length > 0 && toolResults.some(isError)}
+      className={CARD_FRAME}
+      hasError={outcome.verdict === "failed"}
       expandKey={`unified-ask-${toolId}`}
       autoExpand={matchesSearch}
     >
@@ -130,8 +132,8 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
         icon={<ToolIcon toolName={toolName} className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
         rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
-            <StatusBadge results={toolResults} />
+          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
+            <OutcomeStatus outcome={outcome} />
             <ToolIdBadge
               toolId={toolId}
               searchQuery={searchQuery}
