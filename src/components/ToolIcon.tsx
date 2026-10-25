@@ -25,6 +25,12 @@ type Props = {
   colored?: boolean;
   /** Size variant */
   size?: "sm" | "default";
+  /**
+   * The native tooltip; the tool name by default. `null` drops it where the
+   * caller's wrapper names the icon itself (a ToolRow icon carries the
+   * translated tool kind), so an inner tooltip never overrides that one.
+   */
+  title?: string | null;
 };
 
 /** Tool variant to Tailwind color class mapping */
@@ -129,14 +135,14 @@ const getIcon = (name: string) => {
   return Wrench;
 };
 
-export const ToolIcon = ({ toolName, className, colored = false, size = "default" }: Props) => {
+export const ToolIcon = ({ toolName, className, colored = false, size = "default", title = toolName }: Props) => {
   const Icon = getIcon(toolName);
   const variant = getToolVariant(toolName);
   const colorClass = colored ? VARIANT_COLORS[variant] : "";
   const sizeClass = SIZE_CLASSES[size];
 
   return (
-    <span title={toolName}>
+    <span title={title ?? undefined}>
       <Icon className={cn(sizeClass, colorClass, className)} />
     </span>
   );

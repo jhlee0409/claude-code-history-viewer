@@ -39,7 +39,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Grep" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Grep" title={null} className="w-4 h-4" />}
       verb={name}
       target={pattern ? <CodeTarget text={pattern} /> : undefined}
       meta={

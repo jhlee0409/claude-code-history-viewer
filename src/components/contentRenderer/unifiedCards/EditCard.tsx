@@ -62,7 +62,7 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Edit" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Edit" title={null} className="w-4 h-4" />}
       verb={name}
       target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
       meta={

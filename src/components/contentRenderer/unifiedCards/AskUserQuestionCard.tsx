@@ -130,7 +130,7 @@ function AskRow({
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName={name} className="w-4 h-4" />}
+      icon={<ToolIcon toolName={name} title={null} className="w-4 h-4" />}
       verb={name}
       target={firstLine ? <TextTarget text={firstLine} full={first} highlight={highlight} /> : undefined}
       outcome={outcome}

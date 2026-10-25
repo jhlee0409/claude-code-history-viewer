@@ -23,7 +23,7 @@ export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Glob" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Glob" title={null} className="w-4 h-4" />}
       verb={name}
       target={pattern ? <CodeTarget text={pattern} /> : undefined}
       meta={path ? <PathText path={path} ctx={pathCtx} /> : undefined}

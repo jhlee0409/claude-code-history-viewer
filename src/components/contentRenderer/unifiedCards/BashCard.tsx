@@ -25,7 +25,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Bash" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Bash" title={null} className="w-4 h-4" />}
       verb={name}
       target={command ? <CodeTarget text={firstLine(command)} full={command} /> : undefined}
       meta={timeout != null ? <Num>{fmt.duration(timeout)}</Num> : undefined}

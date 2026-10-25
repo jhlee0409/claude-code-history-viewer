@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T14:35:43.203Z
- * 총 키 개수: 2392
+ * 생성 시간: 2026-10-25T15:54:43.879Z
+ * 총 키 개수: 2408
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (469개)
+ * renderers namespace의 번역 키 (485개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2150,6 +2150,22 @@ export type RenderersKeys =
   | 'toolRow.grepModeCount'
   | 'toolRow.grepModeFiles'
   | 'toolRow.inputZone'
+  | 'toolRow.kindAgent'
+  | 'toolRow.kindContentSearch'
+  | 'toolRow.kindFileEdit'
+  | 'toolRow.kindFileRead'
+  | 'toolRow.kindFileSearch'
+  | 'toolRow.kindFileWrite'
+  | 'toolRow.kindGeneric'
+  | 'toolRow.kindNotebookEdit'
+  | 'toolRow.kindPlan'
+  | 'toolRow.kindQuestion'
+  | 'toolRow.kindTaskList'
+  | 'toolRow.kindTerminal'
+  | 'toolRow.kindTodoList'
+  | 'toolRow.kindWebFetch'
+  | 'toolRow.kindWebSearch'
+  | 'toolRow.kindWorkflow'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'
@@ -4788,6 +4804,22 @@ export type TranslationKey =
   | 'toolRow.grepModeCount'
   | 'toolRow.grepModeFiles'
   | 'toolRow.inputZone'
+  | 'toolRow.kindAgent'
+  | 'toolRow.kindContentSearch'
+  | 'toolRow.kindFileEdit'
+  | 'toolRow.kindFileRead'
+  | 'toolRow.kindFileSearch'
+  | 'toolRow.kindFileWrite'
+  | 'toolRow.kindGeneric'
+  | 'toolRow.kindNotebookEdit'
+  | 'toolRow.kindPlan'
+  | 'toolRow.kindQuestion'
+  | 'toolRow.kindTaskList'
+  | 'toolRow.kindTerminal'
+  | 'toolRow.kindTodoList'
+  | 'toolRow.kindWebFetch'
+  | 'toolRow.kindWebSearch'
+  | 'toolRow.kindWorkflow'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'

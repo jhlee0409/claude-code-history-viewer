@@ -47,7 +47,7 @@ export const DefaultCard = memo(function DefaultCard({
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName={name} className="w-4 h-4" />}
+      icon={<ToolIcon toolName={name} title={null} className="w-4 h-4" />}
       verb={name || t("common.unknown")}
       target={routed.target}
       meta={routed.meta}

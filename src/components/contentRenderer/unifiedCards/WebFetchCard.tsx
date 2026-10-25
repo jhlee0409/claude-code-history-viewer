@@ -27,7 +27,7 @@ export const WebFetchCard = memo(function WebFetchCard({ toolUse, toolResults }:
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="WebFetch" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="WebFetch" title={null} className="w-4 h-4" />}
       verb={name}
       target={url ? <CodeTarget text={url} /> : undefined}
       outcome={outcome}

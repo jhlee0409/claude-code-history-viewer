@@ -44,7 +44,7 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Write" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Write" title={null} className="w-4 h-4" />}
       verb={name}
       target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
       meta={content != null ? <span>{t("toolRow.lineCount", { count: content.split("\n").length })}</span> : undefined}

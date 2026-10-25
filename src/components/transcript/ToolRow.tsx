@@ -41,6 +41,12 @@
  * small ghost text button, the only way to the tool id, never the detail's
  * first line (renderer audit TC10).
  *
+ * The icon (signal audit #14) is an image named by the tool kind in the
+ * user's language (`toolKind`: Bash → "Terminal" / "터미널", MCP and unknown
+ * tools → "Tool" / "도구"), which is also its native tooltip. It is not
+ * focusable; the row button reads kind, verb, target. The verb stays the
+ * recorded name (D-R5).
+ *
  * A command / pattern target (`CodeTarget`, or prose in `TextTarget`) may be
  * cut: by the ellipsis, or because only its first line fits the row. The row
  * measures it while open (ResizeObserver) and its `TargetWell` (or any
@@ -66,11 +72,12 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import { HighlightedText } from "../common/HighlightedText";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
 import { OutcomeStatus } from "./OutcomeStatus";
+import { toolKindLabel } from "./toolKind";
 
 export interface ToolRowProps {
-  /** The tool's icon; the row colours it `--fg-3`. */
+  /** The tool's icon; the row colours it `--fg-3` and names it by the tool kind. Pass it without its own tooltip. */
   icon: ReactNode;
-  /** The tool name as recorded (Read, Bash, …). */
+  /** The tool name as recorded (Read, Bash, …); also what the row's tool kind is looked up by. */
   verb: string;
   /** What the call acted on: a `PathText`, `<CodeTarget>` … */
   target?: ReactNode;
@@ -277,6 +284,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
   const facts = open ? detailFacts(outcome, family, t) : [];
   const targetRef = useRef<HTMLSpanElement>(null);
   const targetCut = useTargetCut(targetRef, open, target);
+  const kind = toolKindLabel(verb, t);
 
   return (
     <div data-tool-row-wrapper="" className="mt-1">
@@ -294,7 +302,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
           className="flex min-w-0 grow basis-56 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
         >
           <ChevronRight aria-hidden="true" className={cn("w-3.5 h-3.5 shrink-0 text-fg-3 transition-transform", open && "rotate-90")} />
-          <span data-tool-icon="" className="flex shrink-0 items-center text-fg-3">
+          <span data-tool-icon="" role="img" aria-label={kind} title={kind} className="flex shrink-0 items-center text-fg-3">
             {icon}
           </span>
           <span data-tool-verb="" className={cn("min-w-0 truncate font-medium text-fg-2", target && "max-w-1/2")} title={verb}>

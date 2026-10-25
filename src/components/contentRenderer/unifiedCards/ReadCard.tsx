@@ -27,7 +27,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Read" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Read" title={null} className="w-4 h-4" />}
       verb={name}
       target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
       meta={rangeLabel ? <span data-mono="code" className="font-mono">{rangeLabel}</span> : undefined}

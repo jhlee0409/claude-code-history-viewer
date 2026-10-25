@@ -24,7 +24,7 @@ export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="WebSearch" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="WebSearch" title={null} className="w-4 h-4" />}
       verb={name}
       target={query ? <CodeTarget text={query} /> : undefined}
       outcome={outcome}
