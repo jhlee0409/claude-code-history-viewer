@@ -18,6 +18,9 @@ import "prismjs/components/prism-scss";
 import "prismjs/components/prism-bash";
 import { TooltipButton } from "../shared/TooltipButton";
 import { layout } from "@/components/renderers";
+// The context module, not the theme index: the index pulls in ThemeProvider and
+// the store, which breaks tests that mock react-i18next without initReactI18next.
+import { useTheme } from "@/contexts/theme/context";
 
 type Props = {
   oldText: string;
@@ -44,6 +47,7 @@ export const SideBySideDiff = ({
   splitView?: boolean;
 }) => {
   const { t } = useTranslation();
+  const { isDarkMode } = useTheme();
   // 파일 확장자에 따른 언어 결정
   const getLanguageFromPath = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
@@ -181,6 +185,7 @@ export const SideBySideDiff = ({
         leftTitle={t("diffViewer.before")}
         rightTitle={t("diffViewer.after")}
         hideLineNumbers={false}
+        useDarkTheme={isDarkMode}
         renderContent={language !== "text" ? highlightSyntax : undefined}
         styles={{
           contentText: {
