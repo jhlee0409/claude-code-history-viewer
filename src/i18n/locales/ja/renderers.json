@@ -276,7 +276,6 @@
   "renderers.agentTool.isolation": "分離",
   "renderers.agentTool.messages": "{{count}}件のメッセージ",
   "renderers.agentTool.prompt": "プロンプト",
-  "renderers.agentTool.result": "結果",
   "renderers.agentTool.subagentSessions": "SubAgentセッション",
   "renderers.agentTool.title": "エージェント",
   "renderers.agentTool.togglePrompt": "プロンプトの切り替え",

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T14:10:38.266Z
- * 총 키 개수: 2393
+ * 생성 시간: 2026-10-25T14:35:43.203Z
+ * 총 키 개수: 2392
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (470개)
+ * renderers namespace의 번역 키 (469개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2015,7 +2015,6 @@ export type RenderersKeys =
   | 'renderers.agentTool.isolation'
   | 'renderers.agentTool.messages'
   | 'renderers.agentTool.prompt'
-  | 'renderers.agentTool.result'
   | 'renderers.agentTool.subagentSessions'
   | 'renderers.agentTool.title'
   | 'renderers.agentTool.togglePrompt'
@@ -3795,7 +3794,6 @@ export type TranslationKey =
   | 'renderers.agentTool.isolation'
   | 'renderers.agentTool.messages'
   | 'renderers.agentTool.prompt'
-  | 'renderers.agentTool.result'
   | 'renderers.agentTool.subagentSessions'
   | 'renderers.agentTool.title'
   | 'renderers.agentTool.togglePrompt'

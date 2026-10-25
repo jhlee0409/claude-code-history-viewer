@@ -276,7 +276,6 @@
   "renderers.agentTool.isolation": "隔离",
   "renderers.agentTool.messages": "{{count}} 条消息",
   "renderers.agentTool.prompt": "提示",
-  "renderers.agentTool.result": "结果",
   "renderers.agentTool.subagentSessions": "SubAgent 会话",
   "renderers.agentTool.title": "代理",
   "renderers.agentTool.togglePrompt": "切换提示",

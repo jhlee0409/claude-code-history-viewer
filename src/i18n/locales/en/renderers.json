@@ -279,7 +279,6 @@
   "renderers.agentTool.isolation": "Isolation",
   "renderers.agentTool.messages": "{{count}} messages",
   "renderers.agentTool.prompt": "Prompt",
-  "renderers.agentTool.result": "Result",
   "renderers.agentTool.subagentSessions": "SubAgent Sessions",
   "renderers.agentTool.title": "Agent",
   "renderers.agentTool.togglePrompt": "Toggle prompt",
