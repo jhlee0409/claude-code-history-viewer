@@ -8,6 +8,7 @@ import type { TFunction } from "i18next";
 import type { PathContext } from "@/lib/format/path";
 import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
+import { isRecord } from "./recordShape";
 
 export interface BodyContext {
   input: Record<string, unknown>;
@@ -25,11 +26,13 @@ export interface BodyContext {
  * "Show all". `rest`: it holds what a structured body does not show.
  */
 export function InputJson({ value, ctx, rest = false }: { value: Record<string, unknown>; ctx: BodyContext; rest?: boolean }) {
-  const keys = Object.keys(value);
+  // Non-object input reaches here through the JSON fallback: name keys only for an object.
+  const keys = isRecord(value) ? Object.keys(value) : [];
   return (
     <section data-input-json={rest ? "rest" : "whole"} className="space-y-1">
       <div className="text-caption text-fg-3">
-        {ctx.t("common.input")} ({keys.join(", ")})
+        {ctx.t("common.input")}
+        {keys.length > 0 && ` (${keys.join(", ")})`}
       </div>
       <OutputBlock
         text={JSON.stringify(value, null, 2)}
