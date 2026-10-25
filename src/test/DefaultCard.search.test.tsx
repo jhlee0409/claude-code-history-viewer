@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
@@ -14,31 +14,39 @@ vi.mock("react-i18next", () => ({
 }));
 
 // A tool_use with a string id normalizes into a unified tool execution and
-// renders via DefaultCard (no dedicated renderer for AskUserQuestion). #429
+// renders via DefaultCard when no card owns its name (#429; since #429 an
+// AskUserQuestion has its own card, so an MCP tool stands in here). The
+// input's only field is not a summary key, so the collapsed row hides it.
 // NOTE: expand state is cached in a module-level registry keyed by tool id,
 // so each case uses a distinct id to stay isolated.
-const makeAskUserQuestion = (id: string) => ({
+const makeAskUserQuestion = (id: string, question = "What reflectance model should we use?") => ({
   type: "tool_use",
   id,
-  name: "AskUserQuestion",
+  name: "mcp__render__pick_model",
   input: {
-    questions: [{ question: "What reflectance model should we use?" }],
+    questions: [{ question }],
   },
 });
 
-const renderContent = (
-  id: string,
-  props: {
-    searchQuery?: string;
-    isCurrentMatch?: boolean;
-    currentMatchIndex?: number;
-  }
-) =>
-  render(
+type SearchProps = {
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
+};
+
+const renderContent = (id: string, props: SearchProps, question?: string) => {
+  const ui = (p: SearchProps) => (
     <ExpandKeyProvider value="test-message">
-      <ClaudeContentArrayRenderer content={[makeAskUserQuestion(id)]} {...props} />
+      <ClaudeContentArrayRenderer content={[makeAskUserQuestion(id, question)]} {...p} />
     </ExpandKeyProvider>
   );
+  const view = render(ui(props));
+  return { ...view, rerenderWith: (p: SearchProps) => view.rerender(ui(p)) };
+};
+
+/** The row's disclosure state (ToolRow: aria-expanded on its button). */
+const rowOpen = (container: HTMLElement) =>
+  container.querySelector("[data-tool-row] button[aria-expanded]")?.getAttribute("aria-expanded") ?? null;
 
 describe("DefaultCard in-session search (#429)", () => {
   beforeEach(() => {
@@ -78,5 +86,28 @@ describe("DefaultCard in-session search (#429)", () => {
     // No match inside → stays collapsed, nothing highlighted.
     expect(container.textContent).not.toContain("reflectance model");
     expect(container.querySelector("mark")).toBeNull();
+  });
+
+  // TR1a: the auto-open is an effect keyed on the query, not `open = stored || hit`.
+  it("the user can collapse it while the query still matches; a new matching query opens it again", () => {
+    const view = renderContent("toolu_ask_matrix", { searchQuery: "reflectance", isCurrentMatch: true, currentMatchIndex: 0 });
+    expect(rowOpen(view.container)).toBe("true");
+    const button = view.container.querySelector("[data-tool-row] button[aria-expanded]") as HTMLElement;
+    fireEvent.click(button);
+    expect(rowOpen(view.container)).toBe("false");
+    view.rerenderWith({ searchQuery: "reflectance", isCurrentMatch: true, currentMatchIndex: 0 });
+    expect(rowOpen(view.container)).toBe("false");
+    view.rerenderWith({ searchQuery: "model should", isCurrentMatch: true, currentMatchIndex: 0 });
+    expect(rowOpen(view.container)).toBe("true");
+    view.rerenderWith({ searchQuery: "" });
+    expect(view.container.querySelector("mark")).toBeNull();
+  });
+
+  it("a hit the row's ellipsis hides is highlighted in the opened detail", () => {
+    const long = `${"Which of the physically based shading models ".repeat(5)}fits glossy-needle surfaces?`;
+    const view = renderContent("toolu_ask_ellipsis", { searchQuery: "glossy-needle", isCurrentMatch: true, currentMatchIndex: 0 }, long);
+    const detail = view.container.querySelector("[data-tool-detail]:not([hidden])");
+    expect(detail, "the opened detail").not.toBeNull();
+    expect([...(detail as Element).querySelectorAll("mark")].map((m) => m.textContent)).toContain("glossy-needle");
   });
 });

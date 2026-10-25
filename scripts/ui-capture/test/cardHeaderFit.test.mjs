@@ -1,32 +1,37 @@
-// A card header's right-hand group stays inside its card (TR0b review
-// round 1, F1).
+// A tool row's head and its opened detail stay inside the row (TR0b review
+// round 1, F1; migrated to ToolRow by TR1a).
 //
 // Real WebKit, the real server, raw Claude records. TR0b put the shared
 // OutcomeStatus ("No result recorded", "Failed · url_not_accessible") into
-// the right-hand groups of six cards beside their badges and the copy-ID
-// button. RendererHeader gave that group a `shrink-0` box with no width cap
-// and the groups were non-wrapping rows, so on a phone the Agent header
-// (general-purpose + background + status + copy button) ran past the card:
-// the card clips its overflow, so the status lost its end and the copy
-// button left the card. The page itself never overflows, so a page-overflow
-// check cannot see this.
+// the card headers beside their badges and the copy-ID button, and on a
+// phone the Agent header (general-purpose + background + status + copy)
+// ran past its card. TR1a turned the six cards into ToolRows: no frame, the
+// head is icon · recorded tool name · target · caption meta · status, and
+// the copy control ends the opened detail's meta line. The box every piece
+// must stay inside is the row wrapper (`[data-tool-row-wrapper]`); the page
+// itself never overflows, so a page-overflow check cannot see a clip.
 //
 // Planted into the generated "unknown-outcome" session (fixture copy owned
-// by this file): Agent general-purpose + background with no result, an
-// `error_code` result and a plain result; an MCP tool (DefaultCard) and an
-// AskUserQuestion with a failed / missing result; Workflow with a name and a
-// failed result and with a run id; WebFetch (single-item group) with an
-// `error_code`. For every header, at 390x844 en, 390x844 ko at font scale
-// 125% and 1180x760 en (positive control, fits on head before the fix):
-// every visible child of the right group lies inside the card's content box,
-// so does every line box of the status text (error code included), the
-// status is not ellipsised, and the copy button is the element hit at its
-// centre. Skipped without WebKit or a built server.
+// by this file), the widest combination per card: Agent with
+// general-purpose + background and no result / an `error_code` / a plain
+// result; Default with a long MCP name and an `error_code`; AskUserQuestion
+// with no result; Workflow with a long name and a failed result, and one
+// with a run id; WebFetch failed with an error code and a long URL. For
+// every row, at 390x844 en, 390x844 ko at font scale 125% and 1180x760 en:
+// every visible piece of the head (verb, target, meta, status) lies inside
+// the row box, the status is whole (not ellipsised, every line box inside),
+// the row opens, and its "Copy tool ID" lies inside the row box and is the
+// element hit at its centre. Plus the real `transcript-failure` session: its
+// `url_not_accessible` WebFetch row says "Failed · url_not_accessible".
+// Probes wait with the harness `settle()` (the page clock is paused).
+// Skipped without WebKit or a built server.
 
 import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
 import { settle } from "../lib/browser.mjs";
+import { createActions } from "../lib/actions.mjs";
+import { expandScenarios } from "../scenarios.mjs";
 import { browserRequirement } from "./requirements.mjs";
 import { openScenario, startApp } from "./appSession.mjs";
 
@@ -34,37 +39,38 @@ import { openScenario, startApp } from "./appSession.mjs";
 
 const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "cardHeaderFit.test" }).enabled;
 
-const AGENT_INPUT = {
-  description: "Audit the release notes",
+const agentInput = (description) => ({
+  description,
   prompt: "Check every link in CHANGELOG.md",
   subagent_type: "general-purpose",
   run_in_background: true,
-};
+});
 const ASK_INPUT = {
-  questions: [{ question: "Which store?", header: "Storage", multiSelect: false, options: [{ label: "SQLite" }, { label: "PostgreSQL" }] }],
+  questions: [{ question: "Which store should the release keep?", header: "Storage", multiSelect: false, options: [{ label: "SQLite" }, { label: "PostgreSQL" }] }],
 };
+const LONG_MCP = "mcp__kiln_production_deploy__deploy_preview_environment_for_branch";
 
 /**
  * One planted call per case. `result`: absent = no result record; else the
  * tool_result block's content, `meta` its record's `toolUseResult`.
- * `copy`: the header has the copy-ID button. `status`: the header shows an
- * OutcomeStatus. `anchor`: text that finds a header without a copy button.
+ * `anchor`: text of the row that finds it (its target). `status`: the
+ * OutcomeStatus the row shows ("noResult", "failedCode" =
+ * "Failed · url_not_accessible", in the page's locale; null: quiet).
  */
 const CASES = [
-  { id: "toolu_fit_agent_none", name: "Agent", input: AGENT_INPUT, copy: true, status: true },
-  { id: "toolu_fit_agent_error_code", name: "Agent", input: AGENT_INPUT, result: "Fetch failed", meta: { error_code: "url_not_accessible" }, copy: true, status: true },
-  { id: "toolu_fit_agent_plain", name: "Agent", input: AGENT_INPUT, result: "All 14 links resolve.", copy: true, status: false },
-  { id: "toolu_fit_mcp_error_code", name: "mcp__kiln__deploy_preview", input: { branch: "release/2.4" }, result: "Preview failed", meta: { error_code: "url_not_accessible" }, copy: true, status: true },
-  { id: "toolu_fit_ask_none", name: "AskUserQuestion", input: ASK_INPUT, copy: true, status: true },
+  { id: "toolu_fit_agent_none", name: "Agent", input: agentInput("Audit the release notes (none)"), anchor: "Audit the release notes (none)", status: "noResult" },
+  { id: "toolu_fit_agent_error_code", name: "Agent", input: agentInput("Audit the release notes (failed)"), result: "Fetch failed", meta: { error_code: "url_not_accessible" }, anchor: "Audit the release notes (failed)", status: "failedCode" },
+  { id: "toolu_fit_agent_plain", name: "Agent", input: agentInput("Audit the release notes (done)"), result: "All 14 links resolve.", anchor: "Audit the release notes (done)", status: null },
+  { id: "toolu_fit_mcp_error_code", name: LONG_MCP, input: { branch: "release/2.4-preview-environment" }, result: "Preview failed", meta: { error_code: "url_not_accessible" }, anchor: "release/2.4-preview-environment", status: "failedCode" },
+  { id: "toolu_fit_ask_none", name: "AskUserQuestion", input: ASK_INPUT, anchor: "Which store should the release keep?", status: "noResult" },
   {
     id: "toolu_fit_workflow_error_code",
     name: "Workflow",
-    input: { description: "Publish the docs", script: 'export const meta = { name: "publish-docs-site" };' },
+    input: { description: "Publish the docs", script: 'export const meta = { name: "publish-docs-site-to-the-production-bucket" };' },
     result: "Publish failed",
     meta: { error_code: "url_not_accessible" },
-    anchor: "publish-docs-site",
-    copy: false,
-    status: true,
+    anchor: "publish-docs-site-to-the-production-bucket",
+    status: "failedCode",
   },
   {
     id: "toolu_fit_workflow_run",
@@ -72,17 +78,26 @@ const CASES = [
     input: { description: "Rebuild the index", script: 'export const meta = { name: "rebuild-search-index" };' },
     result: "Started. Transcript dir: /tmp/kiln/subagents/workflows/wf_5c2e81d0-9ab",
     anchor: "rebuild-search-index",
-    copy: false,
-    status: false,
+    status: null,
   },
-  { id: "toolu_fit_webfetch_error_code", name: "WebFetch", input: { url: "https://status.example.com/api/v2/health", prompt: "Is it up?" }, result: "unreachable", meta: { error_code: "url_not_accessible" }, anchor: "WebFetch", copy: false, status: true },
+  {
+    id: "toolu_fit_webfetch_error_code",
+    name: "WebFetch",
+    input: { url: "https://status.example.com/api/v2/health/components/release-pipeline", prompt: "Is it up?" },
+    result: [{ type: "text", text: '{"error_code":"url_not_accessible"}' }],
+    meta: { error_code: "url_not_accessible" },
+    anchor: "status.example.com/api/v2/health",
+    status: "failedCode",
+  },
 ];
 
 const CONFIGS = [
   { label: "390x844 en", scenario: "transcript-unknown-outcome--390x844--dark", locale: "en", variant: {} },
   { label: "390x844 ko, font scale 125%", scenario: "transcript-unknown-outcome--390x844--dark", locale: "ko", variant: { fontScale: 1.25 } },
-  { label: "1180x760 en (positive control)", scenario: "transcript-unknown-outcome--1180x760--dark", locale: "en", variant: {} },
+  { label: "1180x760 en", scenario: "transcript-unknown-outcome--1180x760--dark", locale: "en", variant: {} },
 ];
+
+const SCENARIOS = new Map(expandScenarios().map((s) => [s.id, s]));
 
 let app;
 let browser;
@@ -131,54 +146,44 @@ afterAll(async () => {
   await app?.stop();
 });
 
-/** Find the case's card (Renderer frame) and mark it; `null` if absent. */
-const markCard = (page, c) =>
-  page.evaluate(({ id, anchor }) => {
-    const isFrame = (el) => el.classList.contains("overflow-hidden") && el.classList.contains("border");
-    let start = null;
-    if (anchor) {
-      start = [...document.querySelectorAll("[data-message-uuid] span, [data-message-uuid] code")].find((el) =>
-        [...el.childNodes].some((n) => n.nodeType === 3 && (n.nodeValue ?? "").trim().startsWith(anchor)),
-      );
-    } else {
-      start = [...document.querySelectorAll("[data-message-uuid] button[aria-label]")].find((b) => b.getAttribute("aria-label").endsWith(id));
-    }
-    let card = start;
-    while (card && !isFrame(card)) card = card.parentElement;
-    if (!card) return null;
-    document.querySelectorAll("[data-fit-card]").forEach((el) => el.removeAttribute("data-fit-card"));
-    card.setAttribute("data-fit-card", id);
-    card.scrollIntoView({ block: "center" });
+/** Find the case's row by its anchor text, mark its wrapper and centre it; `false` if absent. */
+const markRow = (page, anchor) =>
+  page.evaluate((text) => {
+    const row = [...document.querySelectorAll("[data-message-uuid] [data-tool-row]")].find((el) => (el.textContent ?? "").includes(text));
+    const wrapper = row?.closest("[data-tool-row-wrapper]");
+    if (!wrapper) return false;
+    document.querySelectorAll("[data-fit-row]").forEach((el) => el.removeAttribute("data-fit-row"));
+    wrapper.setAttribute("data-fit-row", "");
+    wrapper.scrollIntoView({ block: "center" });
     return true;
-  }, c);
+  }, anchor);
 
-/** Geometry of the marked card's header, right group, status and copy button. */
-const headerGeometry = (page) =>
+/** Geometry of the marked row: its box, every head piece, the status, and (opened) the copy control. */
+const rowGeometry = (page) =>
   page.evaluate(() => {
-    const card = document.querySelector("[data-fit-card]");
-    const box = card.getBoundingClientRect();
-    const cs = getComputedStyle(card);
-    const inner = {
-      left: box.left + parseFloat(cs.borderLeftWidth),
-      right: box.right - parseFloat(cs.borderRightWidth),
-      top: box.top + parseFloat(cs.borderTopWidth),
-      bottom: box.bottom - parseFloat(cs.borderBottomWidth),
-    };
-    const header = card.firstElementChild;
-    const right = header.lastElementChild;
+    const wrapper = document.querySelector("[data-fit-row]");
+    const row = wrapper.querySelector("[data-tool-row]");
     const rect = (r) => ({ left: +r.left.toFixed(2), right: +r.right.toFixed(2), top: +r.top.toFixed(2), bottom: +r.bottom.toFixed(2) });
+    const box = rect(wrapper.getBoundingClientRect());
     const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
-    // The group's items: the right wrapper's own children, or the children of
-    // the one inner row a card puts there.
-    const group = right.children.length === 1 && right.firstElementChild.children.length > 0 && !right.firstElementChild.querySelector(":scope > svg")
-      ? right.firstElementChild
-      : right;
-    const children = [...group.children].filter(visible).map((el) => ({
-      tag: el.tagName,
-      text: (el.textContent ?? "").trim(),
-      rect: rect(el.getBoundingClientRect()),
-    }));
-    const icon = card.querySelector("[data-outcome-icon]");
+    // Head pieces: the disclosure's children (chevron, icon, verb, target) and the right group's children.
+    const button = row.querySelector("button[aria-expanded]");
+    const right = row.lastElementChild;
+    const pieces = [...button.children, ...right.querySelectorAll(":scope > *, :scope > * > *")]
+      .filter(visible)
+      .map((el) => ({ tag: el.tagName, text: (el.textContent ?? "").trim().slice(0, 60), rect: rect(el.getBoundingClientRect()) }));
+    // The text glyphs of the verb and the right group, line by line (a clipped word is still visible here).
+    const glyphs = [];
+    for (const host of [row.querySelector("[data-tool-verb]"), right].filter(Boolean)) {
+      const walker = document.createTreeWalker(host, 4 /* SHOW_TEXT */);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if ((node.nodeValue ?? "").trim() === "") continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) if (r.width > 0.5) glyphs.push({ text: node.nodeValue.trim().slice(0, 40), rect: rect(r) });
+      }
+    }
+    const icon = row.querySelector("[data-outcome-icon]");
     let status = null;
     if (icon) {
       const span = icon.parentElement;
@@ -186,43 +191,48 @@ const headerGeometry = (page) =>
       range.selectNodeContents(span);
       const lines = [...range.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0).map(rect);
       let ellipsis = false;
-      for (let el = span; el && el !== card; el = el.parentElement) {
+      for (let el = span; el && el !== wrapper; el = el.parentElement) {
         const s = getComputedStyle(el);
         if (s.textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth + 1) ellipsis = true;
       }
-      status = { text: span.textContent, lines, ellipsis, scrollWidth: span.scrollWidth, clientWidth: span.clientWidth };
+      status = { text: (span.textContent ?? "").trim(), lines, ellipsis, scrollWidth: span.scrollWidth, clientWidth: span.clientWidth };
     }
-    const button = header.querySelector("button[aria-label]:not([aria-expanded])");
+    const detail = wrapper.querySelector("[data-tool-detail]:not([hidden])");
+    const copyButton = detail?.querySelector(":scope > [data-meta] > button:last-child") ?? null;
     let copy = null;
-    if (button) {
-      const r = button.getBoundingClientRect();
-      const cx = (r.left + r.right) / 2;
-      const cy = (r.top + r.bottom) / 2;
-      const hit = document.elementFromPoint(cx, cy);
-      copy = { rect: rect(r), hitIsButton: !!hit && (hit === button || button.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
+    if (copyButton) {
+      const r = copyButton.getBoundingClientRect();
+      const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      copy = { text: copyButton.textContent, rect: rect(r), hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
     }
-    return { viewport: innerWidth, card: rect(inner), header: (header.innerText ?? "").replace(/\s+/g, " "), children, status, copy };
+    return { viewport: innerWidth, box, head: (row.innerText ?? "").replace(/\s+/g, " "), pieces, glyphs, status, open: !!detail, copy };
   });
 
 const inside = (r, box) => r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
 
-describe.skipIf(!ENABLED)("card header right groups stay inside the card (real WebKit, raw Claude records)", () => {
+describe.skipIf(!ENABLED)("tool rows: head pieces and the copy control stay inside the row (real WebKit, raw Claude records)", () => {
   describe.each(CONFIGS)("$label", (config) => {
     const measured = new Map();
     let session;
 
     beforeAll(async () => {
       session = await openScenario(browser, app, config.scenario, { locale: config.locale, variant: config.variant });
+      const run = createActions({ session, scenario: SCENARIOS.get(config.scenario), manifest: app.fixture, t: session.t });
       for (const c of CASES) {
-        const found = await markCard(session.page, c);
-        if (!found) {
+        if (!(await markRow(session.page, c.anchor))) {
           measured.set(c.id, null);
           continue;
         }
         await settle(session, { label: `fit ${c.id}` });
-        // The list may re-render on scroll: mark again, then measure.
-        await markCard(session.page, c);
-        measured.set(c.id, await headerGeometry(session.page));
+        // The list may re-render on scroll: mark again, then measure the collapsed head.
+        await markRow(session.page, c.anchor);
+        const collapsed = await rowGeometry(session.page);
+        await run({ do: "expandToolRows", match: [c.anchor], limit: 1 });
+        await settle(session, { label: `fit ${c.id} open` });
+        await markRow(session.page, c.anchor);
+        await settle(session, { label: `fit ${c.id} centred` });
+        await markRow(session.page, c.anchor);
+        measured.set(c.id, { collapsed, opened: await rowGeometry(session.page) });
       }
     }, 240_000);
 
@@ -230,30 +240,65 @@ describe.skipIf(!ENABLED)("card header right groups stay inside the card (real W
       await session?.close();
     });
 
-    it.each(CASES.map((c) => [c.id, c]))("%s: right group, status and copy button inside the card", (_id, c) => {
-      const g = measured.get(c.id);
-      expect(g, `card for ${c.id} not found in the transcript`).toBeTruthy();
-      const detail = JSON.stringify(g);
-      expect(g.children.length, `empty right group: ${detail}`).toBeGreaterThan(0);
-      for (const child of g.children) {
-        expect(inside(child.rect, g.card), `right-group child <${child.tag}> "${child.text}" leaves the card: ${detail}`).toBe(true);
-      }
-      if (c.status) {
-        expect(g.status, `no status shown: ${detail}`).not.toBeNull();
-        expect(g.status.lines.length, detail).toBeGreaterThan(0);
-        for (const line of g.status.lines) {
-          expect(inside(line, g.card), `status text "${g.status.text}" clipped by the card: ${detail}`).toBe(true);
+    it.each(CASES.map((c) => [c.id, c]))("%s: head pieces, status and copy control inside the row", (_id, c) => {
+      const m = measured.get(c.id);
+      expect(m, `row for ${c.id} not found in the transcript`).toBeTruthy();
+      for (const g of [m.collapsed, m.opened]) {
+        const detail = JSON.stringify(g);
+        expect(g.pieces.length, `empty head: ${detail}`).toBeGreaterThan(2);
+        for (const piece of g.pieces) expect(inside(piece.rect, g.box), `head piece <${piece.tag}> "${piece.text}" leaves the row: ${detail}`).toBe(true);
+        for (const glyph of g.glyphs) expect(inside(glyph.rect, g.box), `text "${glyph.text}" leaves the row: ${detail}`).toBe(true);
+        if (c.status) {
+          expect(g.status, `no status shown: ${detail}`).not.toBeNull();
+          const expected = c.status === "noResult" ? session.t("toolOutcome.noResult") : session.t("toolOutcome.failedErrorCode").replace("{{code}}", "url_not_accessible");
+          expect(g.status.text).toBe(expected);
+          expect(g.status.lines.length, detail).toBeGreaterThan(0);
+          for (const line of g.status.lines) expect(inside(line, g.box), `status "${g.status.text}" clipped: ${detail}`).toBe(true);
+          expect(g.status.ellipsis, `status ellipsised: ${detail}`).toBe(false);
+          expect(g.status.scrollWidth, `status wider than its box: ${detail}`).toBeLessThanOrEqual(g.status.clientWidth + 1);
+        } else {
+          expect(g.status, `unexpected status: ${detail}`).toBeNull();
         }
-        expect(g.status.ellipsis, `status ellipsised: ${detail}`).toBe(false);
-        expect(g.status.scrollWidth, `status wider than its box: ${detail}`).toBeLessThanOrEqual(g.status.clientWidth + 1);
-      } else {
-        expect(g.status, `unexpected status: ${detail}`).toBeNull();
       }
-      if (c.copy) {
-        expect(g.copy, `no copy button: ${detail}`).not.toBeNull();
-        expect(inside(g.copy.rect, g.card), `copy button outside the card: ${detail}`).toBe(true);
-        expect(g.copy.hitIsButton, `copy button is not the hit target at its centre: ${detail}`).toBe(true);
-      }
+      const opened = m.opened;
+      const detail = JSON.stringify(opened);
+      expect(opened.open, `the row did not open: ${detail}`).toBe(true);
+      expect(opened.copy, `no copy control at the end of the detail meta line: ${detail}`).not.toBeNull();
+      expect(opened.copy.text).toBe(session.t("toolRow.copyToolId"));
+      expect(inside(opened.copy.rect, opened.box), `copy control outside the row: ${detail}`).toBe(true);
+      expect(opened.copy.hitIsButton, `copy control is not the hit target at its centre: ${detail}`).toBe(true);
     });
   });
+});
+
+describe.skipIf(!ENABLED)("transcript-failure: the url_not_accessible WebFetch row says Failed (real WebKit)", () => {
+  it.each([
+    ["1440x900 en", "transcript-failure--1440x900--dark", "en", {}],
+    ["390x844 ko, font scale 125%", "transcript-failure--390x844--dark", "ko", { fontScale: 1.25 }],
+  ])("%s", async (_label, scenario, locale, variant) => {
+    const session = await openScenario(browser, app, scenario, { locale, variant });
+    try {
+      const found = await session.page.evaluate(() => {
+        const row = [...document.querySelectorAll("[data-message-uuid] [data-tool-row]")].find((el) => (el.textContent ?? "").includes("status.example.com/api"));
+        if (!row) return null;
+        row.scrollIntoView({ block: "center" });
+        return true;
+      });
+      expect(found, "the url_not_accessible WebFetch row").toBe(true);
+      await settle(session, { label: "failure webfetch" });
+      const status = await session.page.evaluate(() => {
+        const row = [...document.querySelectorAll("[data-message-uuid] [data-tool-row]")].find((el) => (el.textContent ?? "").includes("status.example.com/api"));
+        return {
+          verdict: row?.getAttribute("data-tool-verdict") ?? null,
+          verb: row?.querySelector("[data-tool-verb]")?.textContent ?? null,
+          status: (row?.querySelector("[data-outcome-icon]")?.parentElement?.textContent ?? "").trim(),
+        };
+      });
+      expect(status.verb).toBe("WebFetch");
+      expect(status.verdict).toBe("failed");
+      expect(status.status).toBe(session.t("toolOutcome.failedErrorCode").replace("{{code}}", "url_not_accessible"));
+    } finally {
+      await session.close();
+    }
+  }, 120_000);
 });

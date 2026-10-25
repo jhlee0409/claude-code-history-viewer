@@ -32,18 +32,30 @@
  * declares `code` (an imported error interface, a DOM or React key event, a
  * local event interface) passes.
  *
+ * `content` (TR1a, amendment 7) is judged the same way: a result's content
+ * is read only by the adapter (`resultContent`, `firstResultText`,
+ * `rendererContent`), so no card can inspect its text to decide an outcome
+ * or pick a part to show. A `content` read fails on a result-like receiver
+ * (property access, element access, destructuring); a typed value that
+ * declares `content` (a message, an adapter output) passes.
+ *
+ * Every paired-tool card states its outcome through `toolOutcome` (the
+ * coverage test below): none decides it itself.
+ *
  * Limits, stated rather than claimed away: a key computed at run time
  * (`r[key()]`) cannot be resolved statically and is not reported; and a
  * value already typed with a hand-written interface that declares `code`
  * (a parameter `x: { code: number }` handed in from elsewhere) is judged by
  * that type, since the scan cannot see where the value came from across a
- * call boundary.
+ * call boundary. The bare word `content` is not reported as a string
+ * (`str(input, "content")` reads a tool *input*, `output_mode === "content"`
+ * compares an input value): only its member reads are judged.
  *
  * The scanner is proved both ways with in-memory fixtures (resolved against
  * the real modules): every known bypass form must be reported, every
  * legitimate form must pass.
  */
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import ts from "typescript";
@@ -84,7 +96,13 @@ const GUARDED = new Set([
 
 /** The bare exit-code alias; guarded on result receivers only (see above). */
 const CODE_ALIAS = "code";
-const isGuardedName = (name: string) => GUARDED.has(name) || name === CODE_ALIAS;
+/** A result's content (TR1a); guarded on result receivers only, member reads only. */
+const CONTENT = "content";
+/** Fields judged by their receiver: allowed where the receiver's type declares them. */
+const RECEIVER_JUDGED = new Set([CODE_ALIAS, CONTENT]);
+const isGuardedName = (name: string) => GUARDED.has(name) || RECEIVER_JUDGED.has(name);
+/** Names also reported as bare strings and folded keys (`content` is not: see above). */
+const isGuardedString = (name: string) => isGuardedName(name) && name !== CONTENT;
 
 const isSourceFile = (name: string) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name) && !name.endsWith(".d.ts");
 
@@ -213,41 +231,43 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
     ts.forEachChild(node, markSubtree);
   };
   /**
-   * Could a value of this type be a tool result (or its content)? `any` /
-   * `unknown` / unresolved, an index signature, or no own `code` declaration.
+   * Could a value of this type be a tool result (or its content), as far as
+   * `field` goes? `any` / `unknown` / unresolved, an index signature, or no
+   * own declaration of `field` (`code`, `content`).
    */
-  const resultLikeType = (type: ts.Type): boolean => {
+  const resultLikeType = (type: ts.Type, field: string): boolean => {
     const t = checker.getNonNullableType(type);
     if (t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return true;
-    if (t.isUnion()) return t.types.some(resultLikeType);
+    if (t.isUnion()) return t.types.some((member) => resultLikeType(member, field));
     if (fromAdapter(t)) return false;
     if (checker.getIndexInfosOfType(t).length > 0) return true;
-    return (t.getProperty(CODE_ALIAS)?.declarations ?? []).length === 0;
+    return (t.getProperty(field)?.declarations ?? []).length === 0;
   };
   /** Is the value result-like, or a cast / variable alias of one? */
-  const resultLikeSource = (expr: ts.Expression, depth = 0): boolean => {
+  const resultLikeSource = (expr: ts.Expression, field: string, depth = 0): boolean => {
     if (depth > 16) return true;
-    if (resultLikeType(checker.getTypeAtLocation(expr))) return true;
+    if (resultLikeType(checker.getTypeAtLocation(expr), field)) return true;
     if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr) || ts.isTypeAssertionExpression(expr) || ts.isSatisfiesExpression(expr) || ts.isNonNullExpression(expr)) {
-      return resultLikeSource(expr.expression, depth + 1);
+      return resultLikeSource(expr.expression, field, depth + 1);
     }
     if (ts.isIdentifier(expr)) {
       const decl = checker.getSymbolAtLocation(expr)?.valueDeclaration;
-      if (decl && (ts.isVariableDeclaration(decl) || ts.isParameter(decl)) && decl.initializer) return resultLikeSource(decl.initializer, depth + 1);
+      if (decl && (ts.isVariableDeclaration(decl) || ts.isParameter(decl)) && decl.initializer) return resultLikeSource(decl.initializer, field, depth + 1);
     }
     return false;
   };
   /**
    * May `field` be read from `receiver` here? Adapter outputs always; `code`
-   * also when the receiver is not result-like (its type declares `code`, and
-   * it is not a cast or alias of a result-like value).
+   * and `content` also when the receiver is not result-like (its type
+   * declares the field, and it is not a cast or alias of a result-like value).
    */
   const allowedRead = (receiver: ts.Type, field: string, source?: ts.Expression): boolean => {
     if (fromAdapter(receiver)) return true;
-    if (field !== CODE_ALIAS) return false;
-    if (resultLikeType(receiver)) return false;
-    return source === undefined || !resultLikeSource(source);
+    if (!RECEIVER_JUDGED.has(field)) return false;
+    if (resultLikeType(receiver, field)) return false;
+    return source === undefined || !resultLikeSource(source, field);
   };
+
   /** The value a binding pattern destructures, when it has one (`const { a } = value`). */
   const patternSource = (pattern: ts.ObjectBindingPattern): ts.Expression | undefined => {
     const owner = pattern.parent;
@@ -301,11 +321,11 @@ function findResultReads(program: ts.Program, fileName: string): Violation[] {
       const folded = foldKey(node);
       if (folded !== null) {
         markSubtree(node);
-        if (isGuardedName(folded) && !isAdapterValue(node)) report(node, folded, "computed field name");
+        if (isGuardedString(folded) && !isAdapterValue(node)) report(node, folded, "computed field name");
       }
     }
     const text = literalText(node);
-    if (text !== null && isGuardedName(text) && !handled.has(node) && !isAdapterValue(node)) report(node, text, "field name as a string");
+    if (text !== null && isGuardedString(text) && !handled.has(node) && !isAdapterValue(node)) report(node, text, "field name as a string");
 
     ts.forEachChild(node, visit);
   };
@@ -366,6 +386,15 @@ const BYPASSES: Record<string, string> = {
   bareCodeCastAlias: `interface Shaped { code?: number } const s = r as Shaped; export const f = () => s.code;`,
   bareCodeUnknownCast: `declare const u: unknown; export const f = () => (u as { code: number }).code;`,
   bareCodeCastDestructure: `interface Shaped { code?: number } const { code } = r as Shaped; export const f = () => code;`,
+  // A result's content is the adapter's to read (TR1a, amendment 7).
+  contentRead: `export const f = () => r.content;`,
+  contentOptional: `export const f = () => r?.content;`,
+  contentElement: `export const f = () => r["content"];`,
+  contentDestructure: `const { content } = r; export const f = () => content;`,
+  contentAny: `export const f = () => (r as any).content;`,
+  contentCastAlias: `interface Shaped { content?: string } const s = r as Shaped; export const f = () => s.content;`,
+  contentCardProps: `import type { Props } from "@/components/contentRenderer/unifiedCards/shared"; export const f = ({ toolResults }: Props) => toolResults[0]?.content;`,
+  contentResultLike: `import type { ToolResultLike } from "@/components/transcript/toolOutcome"; export const f = (x: ToolResultLike) => typeof x.content === "string";`,
 };
 
 /** Each must pass with no report. */
@@ -376,7 +405,12 @@ const LEGIT: Record<string, string> = {
   adapterDestructure: `const { stdout, stderr } = normalizeResult(r); export const f = () => [stdout, stderr];`,
   i18nKey: `declare function t(k: string): string; export const f = () => t("renderers.toolRow.exitCode");`,
   construct: `const n = normalizeResult(r); export const props = { errorText: n.stderr, text: n.stdout };`,
-  otherFields: `export const f = () => [r.content, r.tool_use_id, r.type];`,
+  otherFields: `export const f = () => [r.tool_use_id, r.type];`,
+  // `content` of a value whose type declares it (a message), and the adapter's outputs.
+  typedContent: `interface Message { content: string } declare const m: Message; export const f = () => m.content;`,
+  adapterContent: `import { resultContent } from "@/components/transcript/toolOutcome"; export const f = () => resultContent(r).parts;`,
+  contentAssigned: `export const f = () => ({ ...r, content: "" });`,
+  inputContentString: `declare const input: R; export const f = () => str(input, "content");`,
   lifecycleCompare: `const o = toolOutcome(null, [r], "process"); export const f = () => o.lifecycle === "interrupted" || "interrupted" !== o.lifecycle;`,
   lifecycleSwitch: `const o = toolOutcome(null, [r], "process"); export function f() { switch (o.lifecycle) { case "interrupted": return 1; default: return 0; } }`,
   jsxAttributeText: `export const el = <span data-outcome-icon="interrupted" data-zone="stderr" />;`,
@@ -417,7 +451,7 @@ describe("result adapter ownership scan", () => {
 
   it("sees the reads in the adapter itself (positive control)", () => {
     const fields = new Set(findResultReads(program, ADAPTER).map((v) => v.field));
-    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "code", "interrupted", "stdout", "stderr", "toolUseResult"]) {
+    for (const field of ["is_error", "error_code", "exitCode", "exit_code", "return_code", "returncode", "code", "content", "interrupted", "stdout", "stderr", "toolUseResult"]) {
       expect(fields, field).toContain(field);
     }
   });
@@ -445,6 +479,13 @@ describe("result adapter ownership scan", () => {
     for (const file of real) expect(existsSync(file), file).toBe(true);
     // The cards folder is scanned whole: its shared helpers too.
     expect(real).toContain(join(CARDS_DIR, "shared.ts"));
+  });
+
+  it("every paired-tool card states its outcome through toolOutcome (TR1a, amendment 7)", () => {
+    const cards = ADOPTERS.filter((file) => file.startsWith(CARDS_DIR));
+    expect(cards).toHaveLength(12);
+    const missing = cards.filter((file) => !/\btoolOutcome\(/.test(readFileSync(file, "utf8")));
+    expect(missing).toEqual([]);
   });
 
   it("no transcript module or adopting card reads result fields outside the adapter", () => {
