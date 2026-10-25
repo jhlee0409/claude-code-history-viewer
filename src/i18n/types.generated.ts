@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T02:22:03.249Z
- * 총 키 개수: 2393
+ * 생성 시간: 2026-10-25T08:28:59.936Z
+ * 총 키 개수: 2390
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (470개)
+ * renderers namespace의 번역 키 (467개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2019,7 +2019,6 @@ export type RenderersKeys =
   | 'renderers.agentTool.subagentSessions'
   | 'renderers.agentTool.title'
   | 'renderers.agentTool.togglePrompt'
-  | 'renderers.agentTool.toggleResult'
   | 'renderers.agentTool.viewConversation'
   | 'renderers.containerUpload.description'
   | 'renderers.containerUpload.title'
@@ -2043,8 +2042,6 @@ export type RenderersKeys =
   | 'renderers.webSearchToolRenderer.query'
   | 'renderers.workflowTool.agents'
   | 'renderers.workflowTool.script'
-  | 'renderers.workflowTool.title'
-  | 'renderers.workflowTool.toggleScript'
   | 'searchResultRenderer.title'
   | 'serverToolUseRenderer.query'
   | 'serverToolUseRenderer.serverTool'
@@ -3799,7 +3796,6 @@ export type TranslationKey =
   | 'renderers.agentTool.subagentSessions'
   | 'renderers.agentTool.title'
   | 'renderers.agentTool.togglePrompt'
-  | 'renderers.agentTool.toggleResult'
   | 'renderers.agentTool.viewConversation'
   | 'renderers.containerUpload.description'
   | 'renderers.containerUpload.title'
@@ -3823,8 +3819,6 @@ export type TranslationKey =
   | 'renderers.webSearchToolRenderer.query'
   | 'renderers.workflowTool.agents'
   | 'renderers.workflowTool.script'
-  | 'renderers.workflowTool.title'
-  | 'renderers.workflowTool.toggleScript'
   | 'searchResultRenderer.title'
   | 'serverToolUseRenderer.query'
   | 'serverToolUseRenderer.serverTool'
