@@ -63,7 +63,8 @@ function parseQuestions(input: unknown): AskQuestion[] | null {
  * first question · the outcome from `toolOutcome` only. Opened: every
  * question with its header and options (labels and descriptions), then the
  * recorded answer. A search hit anywhere in them opens the row once per
- * query and is marked, the first question included when the row cuts it.
+ * query and is marked, the first question included when the row cuts it;
+ * a hit on the tool id shows the id, marked, in the detail's meta line.
  * An input this card does not recognize keeps the generic Default row.
  */
 export const AskUserQuestionCard = memo(function AskUserQuestionCard({
@@ -118,7 +119,10 @@ function AskRow({
   // Reveal + highlight when the search term is anywhere in the questions or
   // options, so a match inside a collapsed row is actually visible. #429
   const texts = questions.flatMap((q) => [q.header, q.question, ...q.options.flatMap((o) => [o.label, o.description])]);
-  const hit = searchHits(searchQuery, ...texts);
+  const textHit = searchHits(searchQuery, ...texts);
+  // Searching by tool id (the old header showed the id, marked): the id, marked, in the meta line.
+  const idHit = searchHits(searchQuery, toolId);
+  const hit = textHit || idHit;
   const highlight: TextHighlight | undefined = searchQuery.trim() !== "" ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
   const first = questions[0]?.question ?? "";
   const firstLine = first.split("\n")[0] ?? "";
@@ -133,6 +137,13 @@ function AskRow({
       toolId={toolId}
       expandKey={expandKey}
       revealFor={hit ? searchQuery : undefined}
+      detailMeta={
+        idHit ? (
+          <code data-mono="code" className="font-mono">
+            <Marked text={toolId} highlight={highlight} />
+          </code>
+        ) : undefined
+      }
     >
       <div className="space-y-3">
         {questions.map((q, qi) => {

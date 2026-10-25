@@ -601,6 +601,14 @@ describe("search keeps acting (Default, AskUserQuestion, Workflow)", () => {
     expect(isOpen(view.container)).toBe(true);
   });
 
+  it("AskUserQuestion: searching by tool id opens the row and highlights the id in the detail (the old header showed it marked)", () => {
+    const id = nextId();
+    const view = renderTool("AskUserQuestion", ASK_INPUT, [], { searchQuery: id, isCurrentMatch: true, currentMatchIndex: 0 }, id);
+    expect(isOpen(view.container)).toBe(true);
+    const meta = detailOf(view.container).querySelector(":scope > [data-meta]");
+    expect(meta?.querySelector("mark")?.textContent).toBe(id);
+  });
+
   it("Workflow: a hit in the name / description opens the row and is highlighted in the detail", () => {
     const longName = `nightly-${"triage-".repeat(12)}needle`;
     const view = renderTool("Workflow", { description: "Nightly triage of the inbox", script: `export const meta = { name: '${longName}' };` }, [], { searchQuery: "needle", isCurrentMatch: true, currentMatchIndex: 0 });
