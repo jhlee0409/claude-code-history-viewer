@@ -25,6 +25,7 @@ import {
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { AdvancedTextDiff } from "../AdvancedTextDiff";
 import { SideBySideDiff } from "../EnhancedDiffViewer";
+import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
 import { DiffView, type DiffSection } from "./DiffView";
 
 export type ComparisonMode = "unified" | "sideBySide" | "advanced";
@@ -111,6 +112,7 @@ export interface DiffComparisonBodyProps {
 /** The diff in the chosen mode. One element, so whatever precedes it stays directly above it. */
 export function DiffComparisonBody({ mode, sections, filePath = "", expandKey, context, label }: DiffComparisonBodyProps) {
   const { t } = useTranslation();
+  const prefix = useExpandKeyPrefix();
   if (mode === "unified") return <DiffView sections={sections} expandKey={expandKey} context={context} label={label} />;
   if (mode === "sideBySide") {
     return (
@@ -124,7 +126,10 @@ export function DiffComparisonBody({ mode, sections, filePath = "", expandKey, c
   return (
     <div data-diff-mode="advanced" className="space-y-2">
       {sections.map((section, index) => (
-        <AdvancedTextDiff key={index} oldText={section.oldText} newText={section.newText} title={t("diffViewer.advancedTextAnalysis")} />
+        // Each section keeps its own expand state under the call's key.
+        <ExpandKeyProvider key={index} value={`${prefix}:${expandKey}:advanced-${index}`}>
+          <AdvancedTextDiff oldText={section.oldText} newText={section.newText} title={t("diffViewer.advancedTextAnalysis")} />
+        </ExpandKeyProvider>
       ))}
     </div>
   );

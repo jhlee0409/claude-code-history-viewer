@@ -449,7 +449,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               MessageViewer. */}
           {viewMode === "diff" && (
             <div className="p-3">
-              <ExpandKeyProvider value={`recent-edits:${edit.file_path}`}>
+              <ExpandKeyProvider value={`recent-edits:${edit.session_id}:${edit.file_path}:${edit.timestamp}`}>
                 <DiffWithMenu
                   oldText={edit.original_content ?? ""}
                   newText={edit.content_after_change}
