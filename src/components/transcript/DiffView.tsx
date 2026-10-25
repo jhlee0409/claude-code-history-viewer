@@ -98,28 +98,47 @@ function LineRow({ line }: { line: DiffLine }) {
   );
 }
 
-/** Folded unchanged lines: one row saying how many, which opens them in place. */
+/**
+ * Folded unchanged lines: their own row group whose first row is a disclosure
+ * saying how many; opening shows them in place under it. The toggle stays, so
+ * keyboard focus and its state survive (review round 1, amendment 14).
+ */
 function GapRows({ lines, stateKey }: { lines: DiffLine[]; stateKey: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useCaptureExpandState(stateKey, false);
-  if (open) {
-    return (
-      <>
-        {lines.map((line, index) => (
-          <LineRow key={index} line={line} />
-        ))}
-      </>
-    );
-  }
+  const groupId = useId();
   return (
-    <tr data-diff-gap="">
-      <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
-        <button type="button" onClick={() => setOpen(true)} className="rounded-row px-1 hover:bg-surface-hover hover:text-fg">
-          {t("diffView.unchangedLines", { count: lines.length })}
-        </button>
-      </td>
-    </tr>
+    <tbody id={groupId} data-diff-gap-group="">
+      <tr data-diff-gap="">
+        <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls={groupId}
+            className="rounded-row px-1 hover:bg-surface-hover hover:text-fg"
+          >
+            {t("diffView.unchangedLines", { count: lines.length })}
+          </button>
+        </td>
+      </tr>
+      {open && lines.map((line, index) => <LineRow key={index} line={line} />)}
+    </tbody>
   );
+}
+
+/** Consecutive non-gap items share one row group; each gap is its own group. */
+function groups(items: Item[]): Array<{ type: "gap"; item: Extract<Item, { type: "gap" }> } | { type: "rows"; items: Item[] }> {
+  const out: Array<{ type: "gap"; item: Extract<Item, { type: "gap" }> } | { type: "rows"; items: Item[] }> = [];
+  for (const item of items) {
+    if (item.type === "gap") out.push({ type: "gap", item });
+    else {
+      const last = out[out.length - 1];
+      if (last?.type === "rows") last.items.push(item);
+      else out.push({ type: "rows", items: [item] });
+    }
+  }
+  return out;
 }
 
 export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label }: DiffViewProps) {
@@ -149,7 +168,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
       <p className="sr-only">{`${t("toolRow.linesAdded", { count: counts.added })}, ${t("toolRow.linesRemoved", { count: counts.removed })}`}</p>
       {/* A long line scrolls sideways: the region is reachable from the keyboard. */}
       <div className="overflow-x-auto py-1" tabIndex={0} role="group" aria-label={label ?? t("diffView.code")}>
-        <table data-mono="code" className="min-w-full border-collapse font-mono text-code">
+        <table id={bodyId} data-mono="code" className="min-w-full border-collapse font-mono text-code">
           <thead className="sr-only">
             <tr>
               <th scope="col">{t("diffView.oldLine")}</th>
@@ -158,21 +177,26 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
               <th scope="col">{t("diffView.code")}</th>
             </tr>
           </thead>
-          <tbody id={bodyId}>
-            {visible.map((item) => (
-              <Fragment key={item.key}>
-                {item.type === "section" && (
-                  <tr data-diff-section="">
-                    <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
-                      {item.text}
-                    </td>
-                  </tr>
-                )}
-                {item.type === "line" && <LineRow line={item.line} />}
-                {item.type === "gap" && <GapRows lines={item.lines} stateKey={`${expandKey}:gap-${item.key}`} />}
-              </Fragment>
-            ))}
-          </tbody>
+          {groups(visible).map((group) =>
+            group.type === "gap" ? (
+              <GapRows key={group.item.key} lines={group.item.lines} stateKey={`${expandKey}:gap-${group.item.key}`} />
+            ) : (
+              <tbody key={group.items[0]?.key ?? "rows"}>
+                {group.items.map((item) => (
+                  <Fragment key={item.key}>
+                    {item.type === "section" && (
+                      <tr data-diff-section="">
+                        <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
+                          {item.text}
+                        </td>
+                      </tr>
+                    )}
+                    {item.type === "line" && <LineRow line={item.line} />}
+                  </Fragment>
+                ))}
+              </tbody>
+            ),
+          )}
         </table>
       </div>
       {hidden > 0 && (
