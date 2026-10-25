@@ -1,6 +1,8 @@
 /**
  * D-R1 (TR1a, owner decision A; amendment 8): the Default path's body,
- * chosen by the recorded tool name — one table, `BODY_BY_NAME`.
+ * chosen by the recorded tool name — one table, `BODY_BY_NAME`. Every body
+ * is a view of the recorded input: DefaultCard puts it in the Input zone
+ * (DetailZone), the results in the Result zone.
  *
  * | name | body |
  * |---|---|
@@ -50,7 +52,7 @@ import { OutputBlock } from "../../transcript/OutputBlock";
 import { TodoWriteList, type TodoItem } from "../toolUseRenderers/TodoWriteToolRenderer";
 import { UpdatePlanSteps, type UpdatePlanToolInput } from "../toolUseRenderers/UpdatePlanToolRenderer";
 import { inputSummary, num, str } from "./shared";
-import { fieldsFit, isNonEmptyArray, isNonEmptyString, isNumber, isRecord, isString, isStringArray, SHOWN, shownAs, shownIf, unshown, unshownMembers } from "./recordShape";
+import { fieldsFit, isNonEmptyArray, isNonEmptyString, isNumber, isRecord, isString, isStringArray, keysCaption, SHOWN, shownAs, shownIf, unshown, unshownMembers } from "./recordShape";
 import { InputJson, Leftover, Summary, type BodyContext } from "./toolBodyParts";
 
 export type { BodyContext } from "./toolBodyParts";
@@ -78,6 +80,9 @@ export function bodyKindFor(name: string): BodyKind {
 export interface RoutedBody {
   target?: ReactNode;
   meta?: ReactNode;
+  /** Caption meta on the Input zone's label line (the JSON fallback: its keys). */
+  inputMeta?: ReactNode;
+  /** The Input zone's content. */
   body: ReactNode;
 }
 
@@ -264,7 +269,8 @@ function jsonBody(ctx: BodyContext): RoutedBody {
   ) : (
     <CodeTarget text={summary.text} full={summary.line} highlight={ctx.highlight} />
   );
-  return { target, body: <InputJson value={ctx.input} ctx={ctx} /> };
+  const keys = keysCaption(ctx.input);
+  return { target, inputMeta: keys ? <span>{keys}</span> : undefined, body: <InputJson value={ctx.input} ctx={ctx} /> };
 }
 
 const STRUCTURED: Readonly<Record<Exclude<BodyKind, "json">, (ctx: BodyContext) => RoutedBody | null>> = {

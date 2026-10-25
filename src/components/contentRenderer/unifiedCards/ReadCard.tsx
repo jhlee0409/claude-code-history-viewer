@@ -2,7 +2,8 @@ import { memo } from "react";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
@@ -35,7 +36,10 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      {/* The path and range are the row's: the opened detail is the result alone. */}
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });

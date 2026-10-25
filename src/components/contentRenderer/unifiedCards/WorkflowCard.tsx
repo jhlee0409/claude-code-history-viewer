@@ -5,7 +5,8 @@ import { useAppStore } from "../../../store/useAppStore";
 import { CodeTarget, Marked, TargetWell, TextTarget, ToolRow, WhenTargetCut, type TextHighlight } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { searchHits, str } from "./shared";
 import { parseWorkflowName, parseWorkflowRunId } from "./workflowParsing";
@@ -14,10 +15,11 @@ import { parseWorkflowName, parseWorkflowRunId } from "./workflowParsing";
  * Workflow (TR1a): one ToolRow.
  *
  * Row: the recorded tool name · the workflow's name from its script (or its
- * description) · the outcome from `toolOutcome` only. Opened: the
- * description, the whole name when the row cuts it, the run id in the meta
- * line, the script and the result as recorded, then the run's agent
- * conversations. No fill, no green check (#731).
+ * description) · the outcome from `toolOutcome` only. Opened: the Input
+ * zone (the description, the whole name when the row cuts it, the script),
+ * the Result zone (the result as recorded), the run id in the meta line,
+ * then the run's agent conversations, an aside outside both zones (links
+ * to other transcripts). No fill, no green check (#731).
  *
  * Search: a hit in the name, the description or the run id opens the row
  * once per query; the hit is marked in the row and again in the detail, so
@@ -68,28 +70,32 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults, s
         ) : undefined
       }
     >
-      {workflowName && description && (
-        <p className="whitespace-pre-wrap text-list text-fg-2">
-          <Marked text={description} highlight={highlight} />
-        </p>
-      )}
-      {workflowName && <TargetWell text={workflowName} highlight={highlight} />}
-      {!workflowName && description && (
-        <WhenTargetCut>
+      <DetailZone kind="input" show={script || (workflowName && description) ? true : workflowName || description ? "whenTargetCut" : false}>
+        {workflowName && description && (
           <p className="whitespace-pre-wrap text-list text-fg-2">
             <Marked text={description} highlight={highlight} />
           </p>
-        </WhenTargetCut>
-      )}
-      {script && (
-        <section className="space-y-1">
-          <div className="text-caption text-fg-3">{t("renderers.workflowTool.script", { defaultValue: "Script" })}</div>
-          <OutputBlock text={script} source="file" wrap={false} expandKey={`${expandKey}-script`} searchQuery={searchQuery} />
-        </section>
-      )}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+        )}
+        {workflowName && <TargetWell text={workflowName} highlight={highlight} />}
+        {!workflowName && description && (
+          <WhenTargetCut>
+            <p className="whitespace-pre-wrap text-list text-fg-2">
+              <Marked text={description} highlight={highlight} />
+            </p>
+          </WhenTargetCut>
+        )}
+        {script && (
+          <section className="space-y-1">
+            <div className="text-caption text-fg-3">{t("renderers.workflowTool.script", { defaultValue: "Script" })}</div>
+            <OutputBlock text={script} source="file" wrap={false} expandKey={`${expandKey}-script`} searchQuery={searchQuery} />
+          </section>
+        )}
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+      </DetailZone>
       {runAgents.length > 0 && (
-        <section className="space-y-1">
+        <section data-detail-aside="" className="space-y-1">
           <div className="text-caption text-fg-3">
             {t("renderers.workflowTool.agents", { defaultValue: "Workflow agents" })} ({runAgents.length})
           </div>

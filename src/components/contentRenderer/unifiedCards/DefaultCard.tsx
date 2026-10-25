@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { Marked, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import type { Props } from "./shared";
 import { searchHits } from "./shared";
@@ -13,9 +14,10 @@ import { routedBody } from "./toolBodies";
  * Default (TR1a): every tool no dedicated card owns — MCP tools, other
  * providers' tools — as one ToolRow. Row: the recorded tool name (an MCP
  * name stays whole, D-R5) · the input's summary field (relative when it is a
- * path, D1) · the outcome from `toolOutcome` only. Opened: the body the
- * D-R1 table routes the name to (`toolBodies.tsx`; honest JSON for any other
- * name, capped with "Show all"), then the results as recorded.
+ * path, D1) · the outcome from `toolOutcome` only. Opened: the Input zone,
+ * the body the D-R1 table routes the name to (`toolBodies.tsx`; honest JSON
+ * for any other name, capped with "Show all", its keys on the zone's label
+ * line), then the Result zone, the results as recorded.
  *
  * Search: a hit in the input or the tool id opens the row once per query
  * (an effect keyed on the query). The input's hits are marked in the row
@@ -62,8 +64,12 @@ export const DefaultCard = memo(function DefaultCard({
         ) : undefined
       }
     >
-      {routed.body}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+      <DetailZone kind="input" meta={routed.inputMeta}>
+        {routed.body}
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+      </DetailZone>
     </ToolRow>
   );
 });

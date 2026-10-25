@@ -8,7 +8,7 @@ import type { TFunction } from "i18next";
 import type { PathContext } from "@/lib/format/path";
 import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
-import { isRecord } from "./recordShape";
+import { keysCaption } from "./recordShape";
 
 export interface BodyContext {
   input: Record<string, unknown>;
@@ -22,18 +22,22 @@ export interface BodyContext {
 }
 
 /**
- * The input as honest JSON: "Input (keys)", then the JSON, capped with
- * "Show all". `rest`: it holds what a structured body does not show.
+ * The input as honest JSON, capped with "Show all". Whole (the JSON
+ * fallback), it sits in the Input zone, whose label line names its keys
+ * ("Input (keys)", `keysCaption`). `rest`: it holds what a structured body
+ * does not show, captioned "Other recorded fields (keys)" — a second
+ * "Input" inside the Input zone would say it twice.
  */
 export function InputJson({ value, ctx, rest = false }: { value: Record<string, unknown>; ctx: BodyContext; rest?: boolean }) {
-  // Non-object input reaches here through the JSON fallback: name keys only for an object.
-  const keys = isRecord(value) ? Object.keys(value) : [];
+  const keys = keysCaption(value);
   return (
     <section data-input-json={rest ? "rest" : "whole"} className="space-y-1">
-      <div className="text-caption text-fg-3">
-        {ctx.t("common.input")}
-        {keys.length > 0 && ` (${keys.join(", ")})`}
-      </div>
+      {rest && (
+        <div className="text-caption text-fg-3">
+          {ctx.t("toolRow.otherRecordedFields")}
+          {keys && ` ${keys}`}
+        </div>
+      )}
       <OutputBlock
         text={JSON.stringify(value, null, 2)}
         source="file"

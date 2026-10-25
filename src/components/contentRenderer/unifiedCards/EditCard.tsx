@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { recordedEditFacts, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, recordedEditFacts, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import type { EditReplacement } from "../../transcript/DiffViewModel";
 import { PathText } from "@/lib/format/PathText";
@@ -31,14 +32,14 @@ function replacements(input: Record<string, unknown>): { kind: "edit" | "multiEd
 
 /**
  * Edit / MultiEdit: a ToolRow header (Edit · relative path · +a −d). Opened:
- * one meta line → the DiffView (FileEditRenderer), nothing between (TR2a,
- * D4). A MultiEdit shows every edit as its own diff section (amendment 6,
+ * the Input zone — one meta line → the DiffView (FileEditRenderer), nothing
+ * between (TR2a, D4): the diff is the recorded change the agent asked for. A MultiEdit shows every edit as its own diff section (amendment 6,
  * TC3). The row's "+a −d" and the diff's counts come from one function,
  * `replacementCounts` (TC4).
  *
  * The results: a failed or interrupted call shows what its result recorded
- * (the `<tool_use_error>` text …) after the diff, through the TR0 output
- * rules (TC2). A completed call's result is Claude's confirmation sentence,
+ * (the `<tool_use_error>` text …) after the diff, in the Result zone,
+ * through the TR0 output rules (TC2). A completed call's result is Claude's confirmation sentence,
  * which the diff already says, and stays out as before. The result's own
  * metadata (via `recordedEditFacts`) gives the user-modified flag and the
  * original file, which numbers the diff with the file's own lines and adds
@@ -77,21 +78,27 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      <FileEditRenderer
-        toolResult={{
-          filePath,
-          replaceAll: kind === "edit" && edits[0]?.replaceAll === true,
-          newString: kind === "edit" ? (edits[0]?.newString ?? "") : "",
-          originalFile: facts.originalFile ?? "",
-          userModified: facts.userModified === true,
-        }}
-        edits={edits}
-        kind={kind}
-        showPath={false}
-        showOriginalContent={false}
-        expandKey={`${expandKey}-diff`}
-      />
-      {showResults && <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />}
+      {/* The diff is the recorded change the agent asked for: Input. */}
+      <DetailZone kind="input">
+        <FileEditRenderer
+          toolResult={{
+            filePath,
+            replaceAll: kind === "edit" && edits[0]?.replaceAll === true,
+            newString: kind === "edit" ? (edits[0]?.newString ?? "") : "",
+            originalFile: facts.originalFile ?? "",
+            userModified: facts.userModified === true,
+          }}
+          edits={edits}
+          kind={kind}
+          showPath={false}
+          showOriginalContent={false}
+          expandKey={`${expandKey}-diff`}
+        />
+      </DetailZone>
+      {/* A failed or interrupted call's recorded text: Result. */}
+      <DetailZone kind="result" show={showResults && hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });

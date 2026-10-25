@@ -382,6 +382,17 @@ export function withoutErrorCodeEcho(results: ToolResultLike[]): ToolResultLike[
 }
 
 /**
+ * Whether the opened detail shows anything for these results: every result
+ * `ToolResultOutputs` keeps after `withoutErrorCodeEcho` renders something
+ * (its parts, its stream zones, "No output", or the old result router). A
+ * call whose only result echoed its error code — already said in the row —
+ * has no Result zone.
+ */
+export function hasShownResults(results: ToolResultLike[]): boolean {
+  return withoutErrorCodeEcho(results).length > 0;
+}
+
+/**
  * The first recorded text of the results, as the Agent and Workflow cards
  * have always read it: a string content, or the first text block of a
  * content array (one block, not the run). `null` when none records text.

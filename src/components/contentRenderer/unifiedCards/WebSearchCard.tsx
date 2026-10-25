@@ -2,13 +2,15 @@ import { memo } from "react";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { str } from "./shared";
 
 /**
- * WebSearch (TR1a): the query is the row's target; opened, the whole query
- * when the row cuts it, then the results as recorded. Outcome from
+ * WebSearch (TR1a): the query is the row's target; opened, the Input zone
+ * holds the whole query when the row cuts it, the Result zone the results
+ * as recorded. Outcome from
  * `toolOutcome` only (an `error_code` alone reads "Failed · <code>").
  */
 export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults }: Props) {
@@ -30,8 +32,12 @@ export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults 
       toolId={toolId}
       expandKey={expandKey}
     >
-      {query && <TargetWell text={query} />}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      <DetailZone kind="input" show={query ? "whenTargetCut" : false}>
+        <TargetWell text={query} />
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });

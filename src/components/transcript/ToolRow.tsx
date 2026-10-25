@@ -35,9 +35,11 @@
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The
- * opened detail is its content, then one meta line: the facts, ended by
- * "Copy tool ID" — a small ghost text button, the only way to the tool id,
- * never the detail's first line (renderer audit TC10).
+ * opened detail is its content — the card's `DetailZone`s, "Input" then
+ * "Result" (owner option B), plus asides that lead elsewhere — then one
+ * meta line, outside both zones: the facts, ended by "Copy tool ID" — a
+ * small ghost text button, the only way to the tool id, never the detail's
+ * first line (renderer audit TC10).
  *
  * A command / pattern target (`CodeTarget`, or prose in `TextTarget`) may be
  * cut: by the ellipsis, or because only its first line fits the row. The row

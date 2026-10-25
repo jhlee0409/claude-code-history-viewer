@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T08:28:59.936Z
- * 총 키 개수: 2390
+ * 생성 시간: 2026-10-25T14:10:38.266Z
+ * 총 키 개수: 2393
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (467개)
+ * renderers namespace의 번역 키 (470개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2150,9 +2150,12 @@ export type RenderersKeys =
   | 'toolRow.grepModeContent'
   | 'toolRow.grepModeCount'
   | 'toolRow.grepModeFiles'
+  | 'toolRow.inputZone'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'
+  | 'toolRow.otherRecordedFields'
+  | 'toolRow.resultZone'
   | 'toolRow.toolIdCopied'
   | 'toolSearchToolResultRenderer.error'
   | 'toolSearchToolResultRenderer.found'
@@ -4786,9 +4789,12 @@ export type TranslationKey =
   | 'toolRow.grepModeContent'
   | 'toolRow.grepModeCount'
   | 'toolRow.grepModeFiles'
+  | 'toolRow.inputZone'
   | 'toolRow.lineCount'
   | 'toolRow.linesAdded'
   | 'toolRow.linesRemoved'
+  | 'toolRow.otherRecordedFields'
+  | 'toolRow.resultZone'
   | 'toolRow.toolIdCopied'
   | 'toolSearchToolResultRenderer.error'
   | 'toolSearchToolResultRenderer.found'

@@ -1,8 +1,9 @@
 import { memo } from "react";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
+import { DetailZone } from "../../transcript/DetailZone";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { str, num } from "./shared";
 import { useFormat } from "@/lib/format/useFormat";
@@ -33,9 +34,13 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      {description && <p className="text-list text-fg-2">{description}</p>}
-      {command && <TargetWell text={command} />}
-      <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      <DetailZone kind="input" show={description ? true : command ? "whenTargetCut" : false}>
+        {description && <p className="text-list text-fg-2">{description}</p>}
+        {command && <TargetWell text={command} />}
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });

@@ -75,3 +75,9 @@ export function unshown(record: Record<string, unknown>, shown: Readonly<Record<
   }
   return Object.fromEntries(entries);
 }
+
+/** `(a, b)`: an object input's keys, for a caption; empty for any other value (the JSON fallback's array, string …). */
+export function keysCaption(value: unknown): string {
+  const keys = isRecord(value) ? Object.keys(value) : [];
+  return keys.length > 0 ? `(${keys.join(", ")})` : "";
+}

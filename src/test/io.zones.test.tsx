@@ -388,7 +388,7 @@ const CASES: ZoneCase[] = [
     input: {
       questions: [{ question: "Which storage backend?", header: "Storage", multiSelect: false, options: [{ label: "SQLite", description: "Bundled file database" }, { label: "PostgreSQL" }] }],
     },
-    results: [{ content: 'User has answered your questions: "Which storage backend?"="SQLite".' }],
+    results: [{ content: 'User has answered your questions: "SQLite".' }],
     kinds: ["input", "result"],
     inInput: ["Storage", "Which storage backend?", "Bundled file database", "PostgreSQL"],
     inResult: ["User has answered"],
@@ -522,10 +522,11 @@ describe("Agent: its stats sit on the Result label's line", () => {
 });
 
 describe("Default JSON: the zone label line names the keys once", () => {
-  it("object input: Input (alpha, beta)", () => {
+  it("object input: Input · (alpha, beta) on one label line", () => {
     const { container } = renderTool("mcp__probe__tool", { alpha: 1, beta: 2 }, []);
     const input = mustZone(openDetail(container), "input");
-    expect(text(labelLine(input)).replace(/\s+/g, " ").trim()).toBe("Input (alpha, beta)");
+    // The label, then the keys as the label line's meta: the old "Input (alpha, beta)" caption, once.
+    expect([...labelLine(input).children].map((el) => text(el))).toEqual(["Input", "(alpha, beta)"]);
     expect(text(input).match(/Input/g)?.length, "'Input' once").toBe(1);
   });
   it("a structured body's leftover JSON is captioned 'Other recorded fields', not a second 'Input'", () => {
