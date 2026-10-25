@@ -8,7 +8,10 @@
  * - `is_error`, an `error_code` alone (WebFetch `url_not_accessible`) →
  *   "Failed" / "Failed · <code>"; interrupted → "Interrupted";
  * - the card frame never carries a tool tint or success fill; the error
- *   frame appears only when the adapter says failed;
+ *   frame appears only when the adapter says failed (TR1a: the cards are
+ *   ToolRows, which have no frame at all — no element carries a tint, a
+ *   success fill or danger styling unless the adapter says failed, and then
+ *   the row's verdict is `failed`);
  * - the card's status element is the very element ToolRow renders for the
  *   same outcome (one implementation, shared).
  *
@@ -103,7 +106,11 @@ const openCard = (root: HTMLElement) => {
 const OLD_WORDS = /pending|completed|success/i;
 const STATUS_WORDS = /pending|completed|success|failed|interrupted|no result recorded|\berror\b/i;
 const TINT = /(^|\s)(bg|border)-(tool-[a-z]+|success)(\/\d+)?(\s|$)/;
-const ERROR_FRAME = "border-destructive/50";
+const DANGER = /destructive|danger/;
+/** Every class in the card, its own and its descendants'. */
+const classesIn = (root: Element) => [root, ...root.querySelectorAll("*")].flatMap((el) => (el.getAttribute("class") ?? "").split(/\s+/)).filter(Boolean);
+/** The ToolRow's verdict (TR1a: the row says failed instead of an error frame). */
+const verdictOf = (root: Element) => root.querySelector("[data-tool-row]")?.getAttribute("data-tool-verdict") ?? null;
 
 beforeAll(async () => {
   await i18n.changeLanguage("en");
@@ -133,33 +140,33 @@ describe.each(CARDS)("$card ($name)", (c) => {
     expect(frame.className).not.toMatch(/success/);
   });
 
-  it("is_error: 'Failed' with the failed glyph and the error frame", () => {
+  it("is_error: 'Failed' with the failed glyph and the row's failed verdict", () => {
     const { frame } = renderCard(c, RESULTS.isError);
     expect(within(frame).queryByText("Failed"), "the failed status words").not.toBeNull();
     expect(frame.querySelector("[data-outcome-icon='failed']")).not.toBeNull();
-    expect(frame.className).toContain(ERROR_FRAME);
+    expect(verdictOf(frame)).toBe("failed");
   });
 
   it("error_code only (WebFetch url_not_accessible shape): 'Failed · url_not_accessible', error frame", () => {
     const { frame } = renderCard(c, RESULTS.errorCodeOnly);
     expect(frame.textContent).not.toMatch(OLD_WORDS);
     expect(within(frame).queryByText("Failed · url_not_accessible")).not.toBeNull();
-    expect(frame.className).toContain(ERROR_FRAME);
+    expect(verdictOf(frame)).toBe("failed");
   });
 
-  it("interrupted: 'Interrupted' with its glyph; no error frame (the adapter does not say failed)", () => {
+  it("interrupted: 'Interrupted' with its glyph; no danger styling (the adapter does not say failed)", () => {
     const { frame } = renderCard(c, RESULTS.interrupted);
     expect(within(frame).queryByText("Interrupted")).not.toBeNull();
     expect(frame.querySelector("[data-outcome-icon='interrupted']")).not.toBeNull();
-    expect(frame.className).not.toContain("destructive");
+    expect(classesIn(frame).filter((cls) => DANGER.test(cls))).toEqual([]);
   });
 
-  it.each(Object.keys(RESULTS) as (keyof typeof RESULTS)[])("frame (%s): no tool tint or success fill; error frame only when failed", (state) => {
+  it.each(Object.keys(RESULTS) as (keyof typeof RESULTS)[])("frame (%s): no tool tint or success fill anywhere; danger styling only when failed", (state) => {
     const { frame, toolUse, toolResults } = renderCard(c, RESULTS[state]);
-    expect(frame.className).not.toMatch(TINT);
+    expect(classesIn(frame).filter((cls) => TINT.test(` ${cls} `))).toEqual([]);
     const failed = toolOutcome(toolUse, toolResults, toolFamily(c.name)).verdict === "failed";
-    if (failed) expect(frame.className).toContain(ERROR_FRAME);
-    else expect(frame.className).not.toContain("destructive");
+    if (failed) expect(verdictOf(frame)).toBe("failed");
+    else expect(classesIn(frame).filter((cls) => DANGER.test(cls))).toEqual([]);
   });
 
   it.each(["none", "isError", "errorCodeOnly", "interrupted"] as const)("%s: the card's status is the element ToolRow renders", (state) => {

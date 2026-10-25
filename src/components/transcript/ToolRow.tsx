@@ -24,18 +24,34 @@
  *   The collapsed status is `OutcomeStatus`, shared with the cards that keep
  *   their own frame (TR0b).
  *
+ * Narrow rows (TR1a, the widest heads: Agent type + background + status, a
+ * long MCP name): the target gives way first, then the verb (ellipsis, the
+ * whole name in `title`); the button keeps room for chevron, icon and a
+ * short verb (`min-w-24`), and the right group wraps its pieces onto more
+ * lines, right-aligned, instead of running past the row. The status is
+ * never cut. When everything fits the row is one line, as before.
+ *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The
  * opened detail is its content, then one meta line: the facts, ended by
  * "Copy tool ID" — a small ghost text button, the only way to the tool id,
  * never the detail's first line (renderer audit TC10).
  *
- * A command / pattern target (`CodeTarget`) may be cut: by the ellipsis, or
- * because only its first line fits the row. The row measures it while open
- * (ResizeObserver) and its `TargetWell` repeats the whole text in the detail
- * only then (renderer audit TC8); the target's `title` always holds it.
+ * A command / pattern target (`CodeTarget`, or prose in `TextTarget`) may be
+ * cut: by the ellipsis, or because only its first line fits the row. The row
+ * measures it while open (ResizeObserver) and its `TargetWell` (or any
+ * `WhenTargetCut` content) repeats the whole text in the detail only then
+ * (renderer audit TC8); the target's `title` always holds it.
+ *
+ * Search (TR1a): a caller whose content holds a search hit passes the query
+ * as `revealFor`. The row opens once per query — an effect keyed on the
+ * query, never `open = stored || hit` — so the user can still collapse it
+ * while the query matches, and a different matching query opens it again.
+ * Targets and wells take a `highlight` so a hit the row's ellipsis hides is
+ * marked again in the opened detail. `detailMeta` leads the detail's meta
+ * line (recorded facts a card adds), which "Copy tool ID" still ends.
  */
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -43,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { useToggle } from "@/hooks/useToggle";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { HighlightedText } from "../common/HighlightedText";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
 import { OutcomeStatus } from "./OutcomeStatus";
 
@@ -60,17 +77,42 @@ export interface ToolRowProps {
   toolId?: string;
   /** Expand-registry key (stable per tool call). */
   expandKey: string;
-  /** Force the detail open (e.g. a search match inside). */
-  autoExpand?: boolean;
+  /**
+   * The search query when a hit lies inside this call (else undefined): the
+   * row opens once for each such query, and stays as the user leaves it.
+   */
+  revealFor?: string;
+  /** Recorded facts that lead the opened detail's meta line (before the outcome facts and "Copy tool ID"). */
+  detailMeta?: ReactNode;
   /** The opened detail. */
   children?: ReactNode;
+}
+
+/** A search hit to mark in a row target or detail text. */
+export interface TextHighlight {
+  searchQuery: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
+}
+
+/** `text` with the search hits marked, or as is when there is no query. */
+export function Marked({ text, highlight }: { text: string; highlight?: TextHighlight }) {
+  if (!highlight || highlight.searchQuery.trim() === "") return <>{text}</>;
+  return (
+    <HighlightedText
+      text={text}
+      searchQuery={highlight.searchQuery}
+      isCurrentMatch={highlight.isCurrentMatch}
+      currentMatchIndex={highlight.currentMatchIndex}
+    />
+  );
 }
 
 /**
  * A command or query target, in the code font. `text` is what the row shows
  * (Bash: the first line); `full` is the whole recorded text, kept in `title`.
  */
-export function CodeTarget({ text, full = text }: { text: string; full?: string }) {
+export function CodeTarget({ text, full = text, highlight }: { text: string; full?: string; highlight?: TextHighlight }) {
   return (
     <code
       data-mono="code"
@@ -79,8 +121,21 @@ export function CodeTarget({ text, full = text }: { text: string; full?: string 
       className="truncate font-mono text-code text-fg"
       title={full}
     >
-      {text}
+      <Marked text={text} highlight={highlight} />
     </code>
+  );
+}
+
+/**
+ * A prose target (an agent's task description, a question, a subject), in
+ * the list font. Same contract as `CodeTarget`: `text` is what the row
+ * shows, `full` the whole recorded text, kept in `title`.
+ */
+export function TextTarget({ text, full = text, highlight }: { text: string; full?: string; highlight?: TextHighlight }) {
+  return (
+    <span data-row-target="" data-row-target-partial={text.trim() === full.trim() ? undefined : ""} className="truncate text-fg" title={full}>
+      <Marked text={text} highlight={highlight} />
+    </span>
   );
 }
 
@@ -141,14 +196,22 @@ function useTargetCut(scope: RefObject<HTMLElement | null>, active: boolean, tar
  * the row's target is cut (otherwise the row already shows all of it).
  * Identifiers wrap anywhere so a long token stays inside the transcript column.
  */
-export function TargetWell({ text }: { text: string }) {
+export function TargetWell({ text, highlight }: { text: string; highlight?: TextHighlight }) {
   const cut = useContext(TargetCutContext);
   if (!cut) return null;
   return (
     <pre className="m-0 whitespace-pre-wrap wrap-anywhere rounded-row bg-surface-well px-3 py-2 font-mono text-code text-fg">
-      <code data-mono="code">{text}</code>
+      <code data-mono="code">
+        <Marked text={text} highlight={highlight} />
+      </code>
     </pre>
   );
+}
+
+/** Detail content shown only when the row's target is cut (a prose target's whole text). */
+export function WhenTargetCut({ children }: { children: ReactNode }) {
+  const cut = useContext(TargetCutContext);
+  return cut ? <>{children}</> : null;
 }
 
 /**
@@ -196,11 +259,16 @@ function CopyToolId({ toolId }: { toolId: string }) {
   );
 }
 
-export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, expandKey, autoExpand, children }: ToolRowProps) {
+export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, expandKey, revealFor, detailMeta, children }: ToolRowProps) {
   const { t } = useTranslation();
   const ambient = useContext(RendererDefaultsContext);
-  const [isOpen, toggle] = useToggle(expandKey, ambient.defaultExpanded);
-  const open = isOpen || autoExpand === true;
+  const [open, toggle, setOpen] = useToggle(expandKey, ambient.defaultExpanded);
+  // A search hit inside opens the row once per query (review rule (m)):
+  // keyed on the query itself, so a collapse while it matches holds and a
+  // new matching query opens it again.
+  useEffect(() => {
+    if (revealFor !== undefined && revealFor.trim() !== "") setOpen(true);
+  }, [revealFor, setOpen]);
   const detailId = useId();
   const facts = open ? detailFacts(outcome, family, t) : [];
   const targetRef = useRef<HTMLSpanElement>(null);
@@ -219,20 +287,22 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
           onClick={toggle}
           aria-expanded={open}
           aria-controls={detailId}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
+          className="flex min-w-24 flex-1 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
         >
           <ChevronRight aria-hidden="true" className={cn("w-3.5 h-3.5 shrink-0 text-fg-3 transition-transform", open && "rotate-90")} />
           <span data-tool-icon="" className="flex shrink-0 items-center text-fg-3">
             {icon}
           </span>
-          <span className="shrink-0 font-medium text-fg-2">{verb}</span>
+          <span data-tool-verb="" className="min-w-0 truncate font-medium text-fg-2" title={verb}>
+            {verb}
+          </span>
           {target && (
             <span ref={targetRef} className="flex min-w-0 flex-1 items-center">
               {target}
             </span>
           )}
         </button>
-        <div className="flex shrink-0 items-center gap-2 text-caption text-fg-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-caption text-fg-3">
           {meta}
           <OutcomeStatus outcome={outcome} />
         </div>
@@ -241,8 +311,9 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
         {open && (
           <TargetCutContext.Provider value={targetCut}>
             <div className="space-y-2 pb-2">{children}</div>
-            {(facts.length > 0 || toolId) && (
+            {(detailMeta || facts.length > 0 || toolId) && (
               <div data-meta="" className="flex min-h-row-list flex-wrap items-center gap-2 text-caption text-fg-3">
+                {detailMeta}
                 {facts.map((fact) => (
                   <span key={fact}>{fact}</span>
                 ))}

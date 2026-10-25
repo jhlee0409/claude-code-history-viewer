@@ -1,36 +1,37 @@
 import { memo } from "react";
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
-import type { Props } from "./shared";
-import { CARD_FRAME } from "./shared";
-import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
-import { ResultBlock } from "./ResultBlock";
+import type { Props } from "./shared";
+import { str } from "./shared";
 
+/**
+ * WebSearch (TR1a): the query is the row's target; opened, the whole query
+ * when the row cuts it, then the results as recorded. Outcome from
+ * `toolOutcome` only (an `error_code` alone reads "Failed · <code>").
+ */
 export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults }: Props) {
+  const name = (toolUse.name as string) || "WebSearch";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const query = (typeof input.query === "string" ? input.query : "") as string;
-  const styles = getVariantStyles("web");
-  const outcome = toolOutcome(toolUse, toolResults, toolFamily((toolUse.name as string) || "WebSearch"));
+  const query = str(input, "query") ?? "";
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family);
+  const expandKey = `unified-${toolId}`;
 
   return (
-    <Renderer className={CARD_FRAME} hasError={outcome.verdict === "failed"} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title="WebSearch"
-        icon={<ToolIcon toolName="WebSearch" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={<OutcomeStatus outcome={outcome} />}
-      />
-      <Renderer.Content>
-        <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>
-          <Search className={cn(layout.iconSizeSmall, "text-tool-web shrink-0")} />
-          <span className={cn(layout.bodyText, "text-tool-web font-medium")}>{query}</span>
-        </div>
-        <ResultBlock results={toolResults} />
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="WebSearch" className="w-4 h-4" />}
+      verb={name}
+      target={query ? <CodeTarget text={query} /> : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+    >
+      {query && <TargetWell text={query} />}
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+    </ToolRow>
   );
 });

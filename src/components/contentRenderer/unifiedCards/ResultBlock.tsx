@@ -1,5 +1,6 @@
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { ToolExecutionResultRouter } from "../../messageRenderer/ToolExecutionResultRouter";
+import { rendererContent } from "../../transcript/toolOutcome";
 import type { ToolResultLike } from "./shared";
 
 export function ResultBlock({
@@ -22,11 +23,10 @@ export function ResultBlock({
     <RendererDefaultsContext.Provider value={NESTED_OPEN}>
       <div className="mt-2 space-y-2">
         {results.map((result, idx) => {
-          const content = result.content ?? result;
           return (
             <ToolExecutionResultRouter
               key={idx}
-              toolResult={content as Record<string, unknown> | string | unknown[]}
+              toolResult={rendererContent(result)}
               searchQuery={searchQuery}
               isCurrentMatch={isCurrentMatch}
               currentMatchIndex={currentMatchIndex}

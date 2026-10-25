@@ -11,7 +11,7 @@ interface PlanStep {
   status?: string;
 }
 
-interface UpdatePlanToolInput {
+export interface UpdatePlanToolInput {
   explanation?: string;
   plan?: PlanStep[];
 }
@@ -30,6 +30,43 @@ const getStatusLabelKey = (status: string) => {
   };
   return keyMap[status] ?? "taskOperation.pending";
 };
+
+/** The plan's explanation and steps (also the TR1a ToolRow body for update_plan). */
+export function UpdatePlanSteps({ input }: { input: UpdatePlanToolInput }) {
+  const { t } = useTranslation();
+  const steps = input.plan ?? [];
+  return (
+    <div className="space-y-1.5">
+      {input.explanation && (
+        <div className={cn("p-2 border border-border bg-card", layout.rounded, layout.bodyText, "text-foreground whitespace-pre-wrap")}>
+          {input.explanation}
+        </div>
+      )}
+      {steps.map((planStep, index) => {
+        const status = planStep.status ?? "pending";
+        const statusConfig = TASK_STATUS_CONFIG[status] ?? TASK_STATUS_CONFIG["pending"]!;
+        const { icon: StatusIcon, color } = statusConfig;
+
+        return (
+          <div
+            key={`${status}-${index}`}
+            className={cn("p-2 border border-border bg-card", layout.rounded, "space-y-1")}
+          >
+            <div className={cn("flex items-center gap-1.5", layout.smallText)}>
+              <StatusIcon className={cn(layout.iconSizeSmall, color)} aria-hidden="true" />
+              <span className={cn("font-medium", color)}>
+                {t(getStatusLabelKey(status))}
+              </span>
+            </div>
+            <div className={cn(layout.bodyText, "text-foreground")}>
+              {planStep.step ?? ""}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export const UpdatePlanToolRenderer = memo(function UpdatePlanToolRenderer({
   toolId,
@@ -51,35 +88,7 @@ export const UpdatePlanToolRenderer = memo(function UpdatePlanToolRenderer({
         </span>
       }
     >
-      <div className="space-y-1.5">
-        {input.explanation && (
-          <div className={cn("p-2 border border-border bg-card", layout.rounded, layout.bodyText, "text-foreground whitespace-pre-wrap")}>
-            {input.explanation}
-          </div>
-        )}
-        {steps.map((planStep, index) => {
-          const status = planStep.status ?? "pending";
-          const statusConfig = TASK_STATUS_CONFIG[status] ?? TASK_STATUS_CONFIG["pending"]!;
-          const { icon: StatusIcon, color } = statusConfig;
-
-          return (
-            <div
-              key={`${status}-${index}`}
-              className={cn("p-2 border border-border bg-card", layout.rounded, "space-y-1")}
-            >
-              <div className={cn("flex items-center gap-1.5", layout.smallText)}>
-                <StatusIcon className={cn(layout.iconSizeSmall, color)} aria-hidden="true" />
-                <span className={cn("font-medium", color)}>
-                  {t(getStatusLabelKey(status))}
-                </span>
-              </div>
-              <div className={cn(layout.bodyText, "text-foreground")}>
-                {planStep.step ?? ""}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <UpdatePlanSteps input={input} />
     </ToolUseCard>
   );
 });

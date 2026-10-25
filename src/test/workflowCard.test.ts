@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { createElement } from "react";
 import { render } from "@testing-library/react";
 import {
@@ -71,6 +71,32 @@ describe("parseWorkflowName", () => {
 // ellipsis hides is highlighted in the opened detail.
 describe("WorkflowCard search (TR1a)", () => {
   beforeEach(() => useExpandRegistry.getState().clearAll());
+  // jsdom lays nothing out: the row target (a <code> in the row) measures
+  // 8px per character in a 200px box, so a long name is cut as in a browser.
+  const descriptors = {
+    scrollWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth"),
+    clientWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth"),
+  };
+  const inRowTarget = (el: HTMLElement) => el.tagName === "CODE" && el.closest("[data-tool-row]") !== null;
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return inRowTarget(this) ? (this.textContent ?? "").length * 8 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return inRowTarget(this) ? 200 : 0;
+      },
+    });
+  });
+  afterAll(() => {
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor);
+    }
+  });
 
   const renderWorkflow = (id: string, name: string, searchQuery: string, results: Record<string, unknown>[] = []) =>
     render(
@@ -88,7 +114,8 @@ describe("WorkflowCard search (TR1a)", () => {
     );
 
   it("a hit in a long workflow name opens the row; the detail repeats the name highlighted", () => {
-    const name = `verify-${"amazon-q-cli-".repeat(10)}needle`;
+    // Under parseWorkflowName's 120-character limit, longer than the row.
+    const name = `verify-${"amazon-q-cli-".repeat(6)}needle`;
     const { container } = renderWorkflow("wf_search_1", name, "needle");
     const detail = container.querySelector("[data-tool-detail]:not([hidden])");
     expect(detail, "the opened detail").not.toBeNull();

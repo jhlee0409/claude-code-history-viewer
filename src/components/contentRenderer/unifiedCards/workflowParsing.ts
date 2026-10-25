@@ -1,24 +1,11 @@
 import type { ToolResultLike } from "./shared";
+import { firstResultText } from "../../transcript/toolOutcome";
 
+/** The Workflow result's text (its first recorded text, read by the outcome adapter). */
 export function extractWorkflowResultText(
   results: ToolResultLike[],
 ): string | null {
-  for (const r of results) {
-    const c = r.content;
-    if (typeof c === "string") return c;
-    if (Array.isArray(c)) {
-      for (const item of c) {
-        if (
-          typeof item === "object" &&
-          item != null &&
-          (item as Record<string, unknown>).type === "text" &&
-          "text" in item
-        )
-          return String((item as Record<string, unknown>).text);
-      }
-    }
-  }
-  return null;
+  return firstResultText(results);
 }
 
 /**

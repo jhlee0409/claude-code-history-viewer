@@ -11,7 +11,11 @@
  * - Grep: pattern + path → search results
  * - Glob: pattern + path → file list
  * - Agent: subagent_type + description + prompt(md) → result(md)
- * - Default: primary field → result text
+ * - Workflow: name + description + script → result, the run's agents
+ * - AskUserQuestion: questions + options → answer
+ * - Default: the D-R1 name → body table (toolBodies.tsx), else honest JSON
+ *
+ * Every card is a ToolRow (TR0, TR1a) whose outcome comes from toolOutcome.
  */
 
 import { memo } from "react";
@@ -79,7 +83,16 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
     case "WebFetch":  return <WebFetchCard toolUse={toolUse} toolResults={toolResults} />;
     case "Agent":
     case "Task":      return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
-    case "Workflow":  return <WorkflowCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Workflow":
+      return (
+        <WorkflowCard
+          toolUse={toolUse}
+          toolResults={toolResults}
+          searchQuery={searchQuery}
+          isCurrentMatch={isCurrentMatch}
+          currentMatchIndex={currentMatchIndex}
+        />
+      );
     case "AskUserQuestion":
       return (
         <AskUserQuestionCard

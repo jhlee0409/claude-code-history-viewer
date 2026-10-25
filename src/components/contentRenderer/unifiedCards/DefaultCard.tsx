@@ -1,18 +1,27 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
-import { getToolVariant } from "@/utils/toolIconUtils";
-import { getVariantStyles, layout } from "../../renderers";
-import type { Props } from "./shared";
-import { CARD_FRAME, truncate, summarizeToolInput } from "./shared";
-import { OutcomeStatus } from "../../transcript/OutcomeStatus";
+import { Marked, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
-import { ResultBlock } from "./ResultBlock";
-import { ToolIdBadge } from "./ToolIdBadge";
-import { HighlightedText } from "../../common/HighlightedText";
+import { useToolPathContext } from "../../transcript/pathContext";
+import type { Props } from "./shared";
+import { searchHits } from "./shared";
+import { routedBody } from "./toolBodies";
 
+/**
+ * Default (TR1a): every tool no dedicated card owns — MCP tools, other
+ * providers' tools — as one ToolRow. Row: the recorded tool name (an MCP
+ * name stays whole, D-R5) · the input's summary field (relative when it is a
+ * path, D1) · the outcome from `toolOutcome` only. Opened: the body the
+ * D-R1 table routes the name to (`toolBodies.tsx`; honest JSON for any other
+ * name, capped with "Show all"), then the results as recorded.
+ *
+ * Search: a hit in the input or the tool id opens the row once per query
+ * (an effect keyed on the query). The input's hits are marked in the row
+ * target and in the JSON, so one the row's ellipsis hides is still seen; a
+ * tool-id hit shows the id, marked, in the detail's meta line.
+ */
 export const DefaultCard = memo(function DefaultCard({
   toolUse,
   toolResults,
@@ -21,71 +30,40 @@ export const DefaultCard = memo(function DefaultCard({
   currentMatchIndex = 0,
 }: Props) {
   const { t } = useTranslation();
-  const toolName = (toolUse.name as string) || "";
+  const pathCtx = useToolPathContext();
+  const name = (toolUse.name as string) || "";
   const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const variant = getToolVariant(toolName);
-  const styles = getVariantStyles(variant);
-  const outcome = toolOutcome(toolUse, toolResults, toolFamily(toolName));
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family);
+  const expandKey = `unified-${toolId}`;
 
-  const inputJson = truncate(JSON.stringify(input, null, 2));
-  // Reveal + highlight the input when the in-session search term is inside it,
-  // so a match in a collapsed tool card (e.g. AskUserQuestion) is actually
-  // visible instead of only flagging the message card (#429).
-  const inputMatchesSearch =
-    !!searchQuery && inputJson.toLowerCase().includes(searchQuery.toLowerCase());
+  const inputHit = searchHits(searchQuery, JSON.stringify(input, null, 2));
+  const idHit = searchHits(searchQuery, toolId);
+  const highlight: TextHighlight | undefined = inputHit || idHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
+  const routed = routedBody(name, { input, expandKey, pathCtx, t, searchQuery, highlight: inputHit ? highlight : undefined });
 
   return (
-    <Renderer
-      className={CARD_FRAME}
-      hasError={outcome.verdict === "failed"}
-      expandKey={`unified-${(toolUse.id as string) || ""}`}
-      autoExpand={inputMatchesSearch}
+    <ToolRow
+      icon={<ToolIcon toolName={name} className="w-4 h-4" />}
+      verb={name || t("common.unknown")}
+      target={routed.target}
+      meta={routed.meta}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+      revealFor={inputHit || idHit ? searchQuery : undefined}
+      detailMeta={
+        idHit ? (
+          <code data-mono="code" className="font-mono">
+            <Marked text={toolId} highlight={highlight} />
+          </code>
+        ) : undefined
+      }
     >
-      <Renderer.Header
-        title={toolName || t("common.unknown")}
-        icon={<ToolIcon toolName={toolName} className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={
-          <div className={cn("flex flex-wrap items-center justify-end gap-x-2 gap-y-1", layout.smallText)}>
-            <OutcomeStatus outcome={outcome} />
-            <ToolIdBadge
-              toolId={toolId}
-              searchQuery={searchQuery}
-              isCurrentMatch={isCurrentMatch}
-              currentMatchIndex={currentMatchIndex}
-              badgeClassName={styles.badge}
-              badgeTextClassName={styles.badgeText}
-            />
-          </div>
-        }
-      />
-      <Renderer.Content>
-        <details className="mb-2" open>
-          <summary className={cn(layout.smallText, "cursor-pointer text-muted-foreground")}>
-            {t("common.input")} ({Object.keys(input).join(", ")})
-          </summary>
-          <pre className={cn(layout.monoText, "mt-2 p-2 bg-secondary text-foreground rounded overflow-x-auto whitespace-pre-wrap", layout.codeMaxHeight)}>
-            {inputMatchesSearch ? (
-              <HighlightedText
-                text={inputJson}
-                searchQuery={searchQuery}
-                isCurrentMatch={isCurrentMatch}
-                currentMatchIndex={currentMatchIndex}
-              />
-            ) : (
-              inputJson
-            )}
-          </pre>
-        </details>
-        <ResultBlock
-          results={toolResults}
-          searchQuery={searchQuery}
-          isCurrentMatch={isCurrentMatch}
-          currentMatchIndex={currentMatchIndex}
-        />
-      </Renderer.Content>
-    </Renderer>
+      {routed.body}
+      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+    </ToolRow>
   );
 });

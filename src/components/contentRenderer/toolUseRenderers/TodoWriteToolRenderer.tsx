@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { ToolUseCard } from "./ToolUseCard";
 
-interface TodoItem {
+export interface TodoItem {
   id?: string;
   content?: string;
   status?: string;
@@ -32,6 +32,35 @@ const StatusIcon = ({ status }: { status?: string }) => {
   }
 };
 
+/** The structured todo list (also the TR1a ToolRow body for TodoWrite). */
+export function TodoWriteList({ todos }: { todos: TodoItem[] }) {
+  return (
+    <div className="space-y-1">
+      {todos.map((todo, i) => (
+        <div
+          key={todo.id ?? i}
+          className={cn("flex items-start gap-2 p-1.5 border border-border", layout.rounded, "bg-card")}
+        >
+          <StatusIcon status={todo.status} />
+          <div className="min-w-0 flex-1">
+            <span className={cn(layout.bodyText, "text-foreground")}>
+              {todo.content ?? JSON.stringify(todo)}
+            </span>
+            {todo.priority && todo.priority !== "medium" && (
+              <span className={cn(
+                "ml-2 px-1 py-0.5 font-mono", layout.smallText, layout.rounded,
+                todo.priority === "high" ? "bg-destructive/20 text-destructive" : "bg-muted text-muted-foreground"
+              )}>
+                {todo.priority}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export const TodoWriteToolRenderer = memo(function TodoWriteToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("task");
@@ -49,29 +78,7 @@ export const TodoWriteToolRenderer = memo(function TodoWriteToolRenderer({ toolI
         </span>
       }
     >
-      <div className="space-y-1">
-        {todos.map((todo, i) => (
-          <div
-            key={todo.id ?? i}
-            className={cn("flex items-start gap-2 p-1.5 border border-border", layout.rounded, "bg-card")}
-          >
-            <StatusIcon status={todo.status} />
-            <div className="min-w-0 flex-1">
-              <span className={cn(layout.bodyText, "text-foreground")}>
-                {todo.content ?? JSON.stringify(todo)}
-              </span>
-              {todo.priority && todo.priority !== "medium" && (
-                <span className={cn(
-                  "ml-2 px-1 py-0.5 font-mono", layout.smallText, layout.rounded,
-                  todo.priority === "high" ? "bg-destructive/20 text-destructive" : "bg-muted text-muted-foreground"
-                )}>
-                  {todo.priority}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <TodoWriteList todos={todos} />
     </ToolUseCard>
   );
 });
