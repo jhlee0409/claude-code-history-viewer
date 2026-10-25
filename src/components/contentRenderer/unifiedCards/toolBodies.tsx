@@ -25,9 +25,16 @@
  *    out, unknown keys, an empty value) — stays in an "other recorded
  *    fields" JSON block after it. What is "shown" is what the body renders,
  *    per key and per member (`unshown`).
- * 3. Search reaches every text the body shows: targets, summary line, item
- *    and step text, explanation, notebook source and path, description and
- *    the leftover JSON all mark the hits; a capped block opens for a hit.
+ * 3. Every search hit counted in the input is marked in the opened row
+ *    (fix round 2): targets, summary line, item and step text, explanation,
+ *    notebook source and path (the whole shown path, a hit may span folder
+ *    and name), description and the leftover JSON all mark the hits; a
+ *    capped block opens for a hit. A field counts as shown only where its
+ *    recorded text appears verbatim: a status drawn as an icon or a
+ *    translated label, a path shown relative to a base, is shown for display
+ *    only, and while the query hits its recorded value it is in the leftover
+ *    JSON with that value, marked (`shownAs`). No query, or no hit there:
+ *    the body is exactly as without search.
  *
  * The JSON is never CSS-clipped: past its line cap it waits behind "Show all
  * n lines", a disclosure with `aria-expanded` + `aria-controls`
@@ -37,12 +44,13 @@
  */
 import type { ReactNode } from "react";
 import { PathText } from "@/lib/format/PathText";
+import { formatPath } from "@/lib/format/path";
 import { CodeTarget, Marked, TextTarget } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
 import { TodoWriteList, type TodoItem } from "../toolUseRenderers/TodoWriteToolRenderer";
 import { UpdatePlanSteps, type UpdatePlanToolInput } from "../toolUseRenderers/UpdatePlanToolRenderer";
 import { inputSummary, num, str } from "./shared";
-import { fieldsFit, isNonEmptyArray, isNonEmptyString, isNumber, isRecord, isString, isStringArray, SHOWN, shownIf, unshown, unshownMembers } from "./recordShape";
+import { fieldsFit, isNonEmptyArray, isNonEmptyString, isNumber, isRecord, isString, isStringArray, SHOWN, shownAs, shownIf, unshown, unshownMembers } from "./recordShape";
 import { InputJson, Leftover, Summary, type BodyContext } from "./toolBodyParts";
 
 export type { BodyContext } from "./toolBodyParts";
@@ -80,6 +88,9 @@ const TASK_STATUS_KEYS: Readonly<Record<string, string>> = {
   deleted: "taskOperation.deleted",
 };
 
+/** The label a task / plan status is shown as (the gates admit only listed statuses where a label is drawn). */
+const statusLabel = (t: BodyContext["t"], status: string): string => (Object.hasOwn(TASK_STATUS_KEYS, status) ? t(TASK_STATUS_KEYS[status] as string) : status);
+
 /** The output-block form of the context's search marks. */
 const blockHighlight = (ctx: BodyContext) => (ctx.highlight ? { isCurrentMatch: ctx.highlight.isCurrentMatch, currentMatchIndex: ctx.highlight.currentMatchIndex } : undefined);
 
@@ -92,12 +103,17 @@ const isTodoItem = (value: unknown): boolean =>
   isRecord(value) && typeof value.status === "string" && TODO_STATUSES.has(value.status) && fieldsFit(value, { content: isString, priority: isString, id: isString });
 
 /**
- * What TodoWriteList shows of an item: its content, its status mark and a
- * priority other than `medium`. An item without content it prints whole, as
- * JSON. The id is only a React key: it stays unshown.
+ * What TodoWriteList shows of an item: its content, its status (as an icon
+ * only: retained while the query hits it) and a priority other than
+ * `medium`. An item without content it prints whole, as JSON. The id is only
+ * a React key: it stays unshown.
  */
-const todoUnshown = (todo: Record<string, unknown>): Record<string, unknown> =>
-  Object.hasOwn(todo, "content") ? unshown(todo, { content: SHOWN, status: SHOWN, priority: shownIf((v) => isNonEmptyString(v) && v !== "medium") }) : {};
+const todoUnshown =
+  (searchQuery: string | undefined) =>
+  (todo: Record<string, unknown>): Record<string, unknown> =>
+    Object.hasOwn(todo, "content")
+      ? unshown(todo, { content: SHOWN, status: shownAs(() => "", searchQuery), priority: shownIf((v) => isNonEmptyString(v) && v !== "medium") })
+      : {};
 
 function todoBody(ctx: BodyContext): RoutedBody | null {
   const { todos } = ctx.input;
@@ -107,7 +123,7 @@ function todoBody(ctx: BodyContext): RoutedBody | null {
     body: (
       <>
         <TodoWriteList todos={todos as TodoItem[]} highlight={ctx.highlight} />
-        <Leftover ctx={ctx} rest={unshown(ctx.input, { todos: unshownMembers(todoUnshown) })} />
+        <Leftover ctx={ctx} rest={unshown(ctx.input, { todos: unshownMembers(todoUnshown(ctx.highlight?.searchQuery)) })} />
       </>
     ),
   };
@@ -123,8 +139,9 @@ const isPlanStep = (value: unknown): boolean => isRecord(value) && typeof value.
 function planBody(ctx: BodyContext): RoutedBody | null {
   const { plan } = ctx.input;
   if (!Array.isArray(plan) || !plan.every(isPlanStep) || !fieldsFit(ctx.input, { explanation: isString })) return null;
-  // UpdatePlanSteps shows a non-empty explanation, and each step's text and status label.
-  const rest = unshown(ctx.input, { explanation: shownIf(isNonEmptyString), plan: unshownMembers((step) => unshown(step, { step: SHOWN, status: SHOWN })) });
+  // UpdatePlanSteps shows a non-empty explanation, and each step's text and status label (a translated label).
+  const status = shownAs((value) => statusLabel(ctx.t, value as string), ctx.highlight?.searchQuery);
+  const rest = unshown(ctx.input, { explanation: shownIf(isNonEmptyString), plan: unshownMembers((step) => unshown(step, { step: SHOWN, status })) });
   return {
     meta: <span>{ctx.t("taskOperation.taskCount", { count: plan.length })}</span>,
     body: (
@@ -146,9 +163,14 @@ function notebookBody(ctx: BodyContext): RoutedBody | null {
   const cellId = str(input, "cell_id");
   const source = str(input, "new_source");
   const cell = cellNumber != null ? `${t("rendererLabels.cell")} ${cellNumber}` : cellId ? `${t("rendererLabels.cell")} ${t("rendererLabels.id")}: ${cellId}` : null;
-  // The summary names the cell by its number when there is one; the id then stays unshown.
+  // The summary names the cell by its number when there is one; the id then
+  // stays unshown. The path is shown as PathText shows it (maybe relative).
+  const shownPath = (value: unknown) => {
+    const shown = formatPath(value as string, ctx.pathCtx);
+    return `${shown.dir}${shown.name}`;
+  };
   const rest = unshown(input, {
-    notebook_path: shownIf(isNonEmptyString),
+    notebook_path: shownIf(isNonEmptyString, shownAs(shownPath, ctx.highlight?.searchQuery)),
     cell_number: SHOWN,
     cell_id: shownIf((v) => cellNumber == null && isNonEmptyString(v)),
     new_source: SHOWN,
@@ -202,10 +224,11 @@ function taskUpdateBody(ctx: BodyContext): RoutedBody | null {
   const owner = str(input, "owner");
   const blocks = (input.addBlocks as string[] | undefined) ?? [];
   const blockedBy = (input.addBlockedBy as string[] | undefined) ?? [];
-  const statusLabel = status ? (Object.hasOwn(TASK_STATUS_KEYS, status) ? t(TASK_STATUS_KEYS[status] as string) : status) : null;
+  const label = status ? statusLabel(t, status) : null;
   const rest = unshown(input, {
     taskId: shownIf(isNonEmptyString),
-    status: shownIf(isNonEmptyString),
+    // A listed status is shown as its translated label, any other as recorded.
+    status: shownIf(isNonEmptyString, shownAs(() => label ?? "", ctx.highlight?.searchQuery)),
     subject: shownIf(isNonEmptyString),
     owner: shownIf(isNonEmptyString),
     addBlocks: shownIf(isNonEmptyArray),
@@ -217,7 +240,7 @@ function taskUpdateBody(ctx: BodyContext): RoutedBody | null {
       <>
         <Summary
           items={[
-            statusLabel,
+            label,
             str(input, "subject"),
             owner && `${t("rendererLabels.owner")} ${owner}`,
             blocks.length > 0 && `${t("rendererLabels.blocks")} ${blocks.map((id) => `#${id}`).join(" ")}`,

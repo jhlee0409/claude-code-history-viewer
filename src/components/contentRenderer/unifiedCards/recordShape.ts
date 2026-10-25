@@ -1,9 +1,11 @@
 /**
  * The record checks of the Default path's structured bodies (TR1a fix
- * round 1; the rule is in `toolBodies.tsx`): the shape a body's input must
- * have, and what of a record a body leaves unshown (the "other recorded
- * fields" JSON).
+ * rounds 1–2; the rule is in `toolBodies.tsx`): the shape a body's input
+ * must have, and what of a record a body leaves unshown (the "other
+ * recorded fields" JSON) — including, while the search query hits it, a
+ * value the body shows only in another form (`shownAs`).
  */
+import { searchRanges } from "@/components/common/searchMarks";
 
 export type Check = (value: unknown) => boolean;
 
@@ -24,11 +26,28 @@ export type Unshown = (value: unknown) => unknown;
 /** The body shows the value whole. */
 export const SHOWN: Unshown = () => undefined;
 
-/** The body shows the value only when `shows(value)`; otherwise the value stays unshown, whole. */
+/** The body shows the value only when `shows(value)` (and then as `then` says); otherwise the value stays unshown, whole. */
 export const shownIf =
-  (shows: Check): Unshown =>
+  (shows: Check, then: Unshown = SHOWN): Unshown =>
   (value) =>
-    shows(value) ? undefined : value;
+    shows(value) ? then(value) : value;
+
+/**
+ * A value the body shows in another form than its recorded text: a status
+ * as an icon or a translated label, a path relative to a base; `display`
+ * gives the text shown for it. It counts as shown only where that text holds
+ * the recorded text verbatim. Otherwise, while `searchQuery` hits the
+ * recorded value (the rule the marks use), the value stays unshown, so the
+ * "other recorded fields" JSON shows it and marks the hit. No query or no
+ * hit there: shown, the JSON is as before.
+ */
+export const shownAs =
+  (display: (value: unknown) => string, searchQuery: string | undefined): Unshown =>
+  (value) => {
+    const recorded = typeof value === "string" ? value : JSON.stringify(value);
+    if (display(value).includes(recorded)) return undefined;
+    return searchQuery !== undefined && searchRanges(recorded, searchQuery).length > 0 ? value : undefined;
+  };
 
 /**
  * An array whose members the body shows field by field: per member, what it
