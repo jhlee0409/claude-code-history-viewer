@@ -477,7 +477,9 @@ describe("D-R1: one name → body table for the Default path", () => {
     openRow(container);
     const detail = detailOf(container);
     for (const todo of todos) expect(text(detail)).toContain(todo.content);
-    expect(text(detail)).not.toContain('"todos"');
+    // The list shows content + status; only the active forms it leaves out stay, as JSON (fix round 1, F2).
+    expect(text(detail)).not.toContain('"content"');
+    for (const todo of todos) expect(text(detail)).toContain(`"activeForm": "${todo.activeForm}"`);
   });
 
   it("update_plan → the plan steps and explanation, not JSON", () => {
