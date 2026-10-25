@@ -187,6 +187,34 @@ describe("DetailZone", () => {
     expect(label.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING, "meta after the label").toBeTruthy();
   });
 
+  it("the label line wraps instead of overflowing: the label keeps its width, the meta shrinks and breaks a long key (review F1)", () => {
+    const longKey = "include_additional_metadata_for_nested_results";
+    const { container } = render(
+      <DetailZone kind="input" meta={<span data-testid="keys">({longKey}, other)</span>}>
+        <p>in</p>
+      </DetailZone>,
+    );
+    const z = mustZone(container, "input");
+    const line = labelLine(z);
+    expect(classesOf(line), "the line wraps").toContain("flex-wrap");
+    expect(classesOf(labelOf(z)), "the label never shrinks").toContain("shrink-0");
+    const meta = line.querySelector<HTMLElement>(":scope > [data-zone-meta]");
+    expect(meta, "the meta has its own box on the line").not.toBeNull();
+    expect(meta!.contains(container.querySelector("[data-testid='keys']")), "the meta inside it").toBe(true);
+    for (const cls of ["min-w-0", "max-w-full", "break-words", "flex-wrap", "*:min-w-0"]) expect(classesOf(meta!), `meta box: ${cls}`).toContain(cls);
+    expect(text(meta), "every key kept (no truncation)").toContain(longKey);
+    expect(classesOf(meta!).some((c) => /^(truncate|line-clamp|overflow-hidden|text-ellipsis)/.test(c)), "never truncated").toBe(false);
+  });
+
+  it("no meta: no meta box", () => {
+    const { container } = render(
+      <DetailZone kind="result">
+        <p>out</p>
+      </DetailZone>,
+    );
+    expect(labelLine(mustZone(container, "result")).querySelector("[data-zone-meta]")).toBeNull();
+  });
+
   it("the label is caption text the user does not select with the content", () => {
     const { container } = render(
       <DetailZone kind="input">
@@ -559,6 +587,9 @@ describe("Default JSON: the zone label line names the keys once", () => {
     const rest = input.querySelector("[data-input-json='rest']");
     expect(rest, "the leftover JSON").not.toBeNull();
     expect(text(rest)).toContain("Other recorded fields (extra)");
+    const caption = rest!.firstElementChild!;
+    expect(text(caption)).toContain("Other recorded fields (extra)");
+    expect(classesOf(caption), "a long key breaks inside the caption instead of running past the row (review F1 sweep)").toContain("break-words");
     expect(text(input).match(/Input/g)?.length, "'Input' once").toBe(1);
   });
 });
