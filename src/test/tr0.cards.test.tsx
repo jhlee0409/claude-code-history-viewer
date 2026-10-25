@@ -185,7 +185,8 @@ describe("Edit card: header only", () => {
     expect(row.textContent).toContain("+1");
     expect(row.textContent).toContain("−1");
     open(container);
-    const nested = container.querySelectorAll("[data-tool-detail] button[aria-expanded]");
+    // Disclosures only: a menu trigger (`…`, aria-haspopup) is not one (TR2a).
+    const nested = container.querySelectorAll("[data-tool-detail] button[aria-expanded]:not([aria-haspopup])");
     for (const button of nested) expect(button.getAttribute("aria-expanded")).toBe("true");
   });
 });
@@ -577,23 +578,17 @@ describe("TR9: StringRenderer says 'File Structure' once, in one box", () => {
 });
 
 /**
- * TC4: the Edit row's "+a −d" and the change counts of the diff box below it
- * (still the old FileEditRenderer body until TR2a) come from one source, so
- * they agree. A multi-line replacement is where they used to differ: the row
- * counted lines (+3 −2), the box counted changed blocks (+1 −1).
+ * TC4: the Edit row's "+a −d" and the DiffView below it (TR2a) come from one
+ * source, so they agree. A multi-line replacement is where the old box used
+ * to differ: the row counted lines (+3 −2), the box counted changed blocks
+ * (+1 −1). More cases (replace_all, multi-hunk, MultiEdit):
+ * src/test/tr2a.editCard.test.tsx.
  */
-describe("TC4: the Edit row's +a −d agrees with the box's change counts", () => {
-  /** The value printed under a statistics label in the opened box. */
-  const stat = (container: HTMLElement, label: string) => {
-    const el = [...container.querySelectorAll("[data-tool-detail] div")].find((d) => d.textContent === label && d.childElementCount === 0);
-    expect(el, `the box's '${label}' statistic`).toBeDefined();
-    return el?.nextElementSibling?.textContent ?? "";
-  };
-
+describe("TC4: the Edit row's +a −d agrees with the DiffView's change counts", () => {
   it.each([
     ["a multi-line replacement", "a\nb\nc\n", "a\nB\nC\nD\n", 3, 2],
     ["a one-line replacement (fixture)", "  return input.trim();\n", "  return input.trim().replace(/\\s+/g, \" \");\n", 1, 1],
-    // The row ignores a missing newline at the end; the box must count the same way.
+    // The row ignores a missing newline at the end; the diff must count the same way.
     ["no trailing newline on one side", "x\ny", "x\ny\nz\n", 1, 0],
   ] as const)("%s", (_label, oldString, newString, added, removed) => {
     const { container } = card("Edit", { file_path: `${CWD}/src/a.ts`, old_string: oldString, new_string: newString }, [{ content: "ok" }]);
@@ -602,8 +597,10 @@ describe("TC4: the Edit row's +a −d agrees with the box's change counts", () =
     const counts = /^\+(\d+) −(\d+)$/.exec(row);
     expect(counts, row).not.toBeNull();
     open(container);
-    const box = { added: stat(container, "Additions"), removed: stat(container, "Deletions") };
-    expect({ row: `+${counts?.[1]} −${counts?.[2]}`, box: `${box.added} ${box.removed}` }).toEqual({ row: `+${added} −${removed}`, box: `+${added} -${removed}` });
+    const view = container.querySelector("[data-tool-detail] [data-diff-view]");
+    expect(view, "the DiffView in the opened Edit").not.toBeNull();
+    const diff = `+${view?.getAttribute("data-diff-added")} −${view?.getAttribute("data-diff-removed")}`;
+    expect({ row: `+${counts?.[1]} −${counts?.[2]}`, diff }).toEqual({ row: `+${added} −${removed}`, diff: `+${added} −${removed}` });
   });
 });
 

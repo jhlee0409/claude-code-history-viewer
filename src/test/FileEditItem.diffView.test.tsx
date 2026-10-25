@@ -44,13 +44,37 @@ describe("FileEditItem diff views", () => {
     expect(screen.queryByText("const b = 3;")).not.toBeInTheDocument();
   });
 
-  it("switches to advanced analysis inside the diff view without crashing", () => {
+  it("the diff view is the unified DiffView: +/− on the changed lines, context blank (TR2a, D5)", () => {
+    // Before TR2a this opened react-diff-viewer's table, which stays white in
+    // the dark theme and marks changes by colour only.
+    const { container } = render(<FileEditItem edit={edit} isDarkMode={true} />);
+
+    fireEvent.click(screen.getByLabelText("recentEdits.showDiff"));
+
+    const view = container.querySelector("[data-diff-view]");
+    expect(view, "the DiffView").not.toBeNull();
+    const rows = [...(view?.querySelectorAll("[data-diff-line]") ?? [])].map(
+      (line) =>
+        `${line.querySelector("[data-diff-marker] [aria-hidden='true']")?.textContent ?? ""}|${line.querySelector("[data-diff-code]")?.textContent}`
+    );
+    expect(rows).toEqual(["|const a = 1;", "−|const b = 2;", "+|const b = 3;"]);
+    expect(view?.getAttribute("data-diff-added")).toBe("1");
+    expect(view?.getAttribute("data-diff-removed")).toBe("1");
+    expect(screen.queryByText("diffViewer.visualView")).not.toBeInTheDocument();
+  });
+
+  it("switches to advanced analysis from the diff's … menu without crashing", () => {
     // Regression: AdvancedTextDiff uses useCaptureExpandState, which throws
-    // unless the diff view is wrapped in an ExpandKeyProvider.
+    // unless the diff view is wrapped in an ExpandKeyProvider. The old
+    // "Advanced analysis" button moved into the menu (TR2a).
     render(<FileEditItem edit={edit} isDarkMode={false} />);
 
     fireEvent.click(screen.getByLabelText("recentEdits.showDiff"));
-    fireEvent.click(screen.getByText("diffViewer.advancedAnalysis"));
+    const trigger = screen.queryByRole("button", { name: "diffView.moreActions" }) as HTMLElement;
+    expect(trigger, "the diff's … menu button").not.toBeNull();
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "diffView.modeAdvanced" }));
 
     expect(
       screen.getByText("advancedTextDiff.comparisonMethod")
