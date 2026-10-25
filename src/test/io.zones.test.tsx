@@ -521,6 +521,30 @@ describe("Agent: its stats sit on the Result label's line", () => {
   });
 });
 
+describe("AskUserQuestion: the per-question rule is subordinate to the Input zone's rule", () => {
+  // Owner decision (part 2): keep both rules, but the question rule must not read as a second
+  // input zone (nor as a stderr zone): thinner-or-equal and fainter than the zone's rule.
+  it("1px --line-faint, inset inside the zone; not the zone's rule, not the stderr rule", () => {
+    const { container } = renderTool("AskUserQuestion", {
+      questions: [
+        { question: "Which storage backend?", header: "Storage", multiSelect: false, options: [{ label: "SQLite" }] },
+        { question: "Which port?", multiSelect: false, options: [{ label: "5432" }] },
+      ],
+    });
+    const input = mustZone(openDetail(container), "input");
+    const ruled = [...input.querySelectorAll<HTMLElement>("*")].filter((el) => classesOf(el).some((c) => /^border-l(-|$)/.test(c)));
+    expect(ruled.length, "one rule per question").toBe(2);
+    for (const q of ruled) {
+      const cls = classesOf(q);
+      expect(cls, "a 1px rule").toContain("border-l");
+      expect(cls, "the faint line token, quieter than the zone's --line-input").toContain("border-line-faint");
+      expect(cls, "not the Input zone's own rule colour").not.toContain("border-line-input");
+      for (const s of STDERR_RULE) expect(cls, `not the stderr rule's ${s}`).not.toContain(s);
+      expect(q.parentElement?.closest("[data-detail-zone='input']"), "inset inside the Input zone").toBe(input);
+    }
+  });
+});
+
 describe("Default JSON: the zone label line names the keys once", () => {
   it("object input: Input · (alpha, beta) on one label line", () => {
     const { container } = renderTool("mcp__probe__tool", { alpha: 1, beta: 2 }, []);
