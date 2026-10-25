@@ -19,6 +19,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import i18n from "@/i18n";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
+import { ThemeProvider } from "@/contexts/theme";
 import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { useAppStore } from "@/store/useAppStore";
 import { UnifiedToolExecutionRenderer } from "@/components/contentRenderer/UnifiedToolExecutionRenderer";
@@ -30,7 +31,13 @@ const OLD = "  return input.trim();\n";
 const NEW = "  return input.trim().replace(/\\s+/g, \" \");\n";
 const ORIGINAL = "export function renderPreview(input: string) {\n  return input.trim();\n}\n";
 
-const wrap = (ui: ReactNode) => render(<ExpandKeyProvider value="msg-order">{ui}</ExpandKeyProvider>);
+// The original file content (FileContent) reads the theme, as in the app.
+const wrap = (ui: ReactNode) =>
+  render(
+    <ThemeProvider>
+      <ExpandKeyProvider value="msg-order">{ui}</ExpandKeyProvider>
+    </ThemeProvider>,
+  );
 const own = (toolUseResult: unknown) => ({
   toolUseResult,
   toolUseResultSource: { messageUuid: "u", sessionId: "s", contentIndex: 0, association: "single_result" },
@@ -146,7 +153,7 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     openRow(container);
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Advanced compare" }));
     expect(container.querySelector("[data-diff-view]")).toBeNull();
-    expect(screen.getByText("Comparison Method")).toBeTruthy();
+    expect(screen.getByText(/Comparison Method/)).toBeTruthy();
     // Still nothing between the meta line and the chosen view.
     expect(meta(container).nextElementSibling?.textContent).toContain("Comparison Method");
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Unified" }));
@@ -168,8 +175,9 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true, writable: true });
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
+    const item = within(openMenu(container)).getByRole("menuitem", { name: "Copy Changed Result" });
     await act(async () => {
-      fireEvent.click(within(openMenu(container)).getByRole("menuitem", { name: "Copy Changed Result" }));
+      fireEvent.click(item);
     });
     expect(writeText).toHaveBeenCalledWith(NEW);
   });
@@ -179,11 +187,12 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     useAppStore.setState({ navigate } as never);
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
+    const item = within(openMenu(container)).getByRole("menuitem", { name: "Open in Recent edits" });
     await act(async () => {
-      fireEvent.click(within(openMenu(container)).getByRole("menuitem", { name: "Open in Recent edits" }));
+      fireEvent.click(item);
     });
     expect(navigate).toHaveBeenCalledWith({ view: "edits" });
-    expect(useAppStore.getState().analyticsRecentEditsSearchQuery).toBe(FILE);
+    expect(useAppStore.getState().analytics.recentEditsSearchQuery).toBe(FILE);
   });
 });
 
@@ -194,7 +203,8 @@ describe("standalone FileEditRenderer (toolUseResult route): base props keep act
     const { container } = wrap(<FileEditRenderer toolResult={result} />);
     const line = meta(container);
     const path = line.querySelector("[data-path]");
-    expect(path?.getAttribute("data-path-kind")).toBe("relative");
+    // Relative to the open project (D1: never an unexplained absolute path).
+    expect(path?.getAttribute("data-path-kind")).toBe("project");
     expect(line.textContent).toBe("src/preview/renderPreview.ts · Replace · Modified by user");
     expect(line.nextElementSibling?.hasAttribute("data-diff-view")).toBe(true);
     const after = line.nextElementSibling?.nextElementSibling as HTMLElement | null;
@@ -222,12 +232,18 @@ describe("standalone FileEditRenderer (toolUseResult route): base props keep act
   it("searchQuery still reaches the original file content: a hit past its 20-line cut opens it", () => {
     const long = Array.from({ length: 30 }, (_, i) => (i === 27 ? "const needleLine = 28;" : `const line${i + 1} = ${i + 1};`)).join("\n") + "\n";
     const longResult = { ...result, originalFile: `${long}${ORIGINAL}` };
+    /** Open the original-content card (collapsed by default, as at the base) and return its text. */
+    const originalContent = (container: HTMLElement) => {
+      const card = meta(container).nextElementSibling?.nextElementSibling as HTMLElement;
+      const toggle = within(card).queryAllByRole("button", { expanded: false })[0];
+      if (toggle) fireEvent.click(toggle);
+      return card.textContent ?? "";
+    };
     const plain = wrap(<FileEditRenderer toolResult={longResult} />);
-    expect(plain.container.textContent).not.toContain("needleLine");
+    expect(originalContent(plain.container)).not.toContain("needleLine");
     plain.unmount();
     useExpandRegistry.getState().clearAll();
     const searched = wrap(<FileEditRenderer toolResult={longResult} searchQuery="needleline" />);
-    const after = meta(searched.container).nextElementSibling?.nextElementSibling as HTMLElement;
-    expect(after.textContent).toContain("needleLine");
+    expect(originalContent(searched.container)).toContain("needleLine");
   });
 });

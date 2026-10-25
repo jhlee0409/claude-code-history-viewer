@@ -27,19 +27,23 @@ type Props = {
   defaultMode?: "visual" | "advanced";
 };
 
-// Enhanced Diff Viewer with multiple modes
-export const EnhancedDiffViewer = ({
+/**
+ * The two-column viewer (react-diff-viewer with Prism highlighting), as it
+ * was inside EnhancedDiffViewer's "Visual View". TR2a puts it behind the
+ * diff's `…` menu ("Side by side") unchanged; TR2b replaces it.
+ */
+export const SideBySideDiff = ({
   oldText,
   newText,
   filePath = "",
-  showAdvancedDiff = false,
-  defaultMode = "advanced",
-}: Props) => {
+  splitView = true,
+}: {
+  oldText: string;
+  newText: string;
+  filePath?: string;
+  splitView?: boolean;
+}) => {
   const { t } = useTranslation();
-  const [viewMode, setViewMode] = useState<"visual" | "advanced">(defaultMode);
-  const [splitView, setSplitView] = useState(true);
-  const { renderCopyButton } = useCopyButton();
-
   // 파일 확장자에 따른 언어 결정
   const getLanguageFromPath = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
@@ -169,6 +173,39 @@ export const EnhancedDiffViewer = ({
   };
 
   return (
+    <div className="border rounded-lg overflow-x-auto max-h-96">
+      <ReactDiffViewer
+        oldValue={oldText}
+        newValue={newText}
+        splitView={splitView}
+        leftTitle={t("diffViewer.before")}
+        rightTitle={t("diffViewer.after")}
+        hideLineNumbers={false}
+        renderContent={language !== "text" ? highlightSyntax : undefined}
+        styles={{
+          contentText: {
+            fontSize: "var(--text-code)",
+          },
+        }}
+      />
+    </div>
+  );
+};
+
+// Enhanced Diff Viewer with multiple modes
+export const EnhancedDiffViewer = ({
+  oldText,
+  newText,
+  filePath = "",
+  showAdvancedDiff = false,
+  defaultMode = "advanced",
+}: Props) => {
+  const { t } = useTranslation();
+  const [viewMode, setViewMode] = useState<"visual" | "advanced">(defaultMode);
+  const [splitView, setSplitView] = useState(true);
+  const { renderCopyButton } = useCopyButton();
+
+  return (
     <div className="mb-3">
       <div className="flex items-center justify-between mb-2">
         <div className={`${layout.smallText} font-medium text-muted-foreground`}>
@@ -233,22 +270,7 @@ export const EnhancedDiffViewer = ({
       </div>
 
       {viewMode === "visual" ? (
-        <div className="border rounded-lg overflow-x-auto max-h-96">
-          <ReactDiffViewer
-            oldValue={oldText}
-            newValue={newText}
-            splitView={splitView}
-            leftTitle={t("diffViewer.before")}
-            rightTitle={t("diffViewer.after")}
-            hideLineNumbers={false}
-            renderContent={language !== "text" ? highlightSyntax : undefined}
-            styles={{
-              contentText: {
-                fontSize: "var(--text-code)",
-              },
-            }}
-          />
-        </div>
+        <SideBySideDiff oldText={oldText} newText={newText} filePath={filePath} splitView={splitView} />
       ) : (
         <AdvancedTextDiff
           oldText={oldText}
