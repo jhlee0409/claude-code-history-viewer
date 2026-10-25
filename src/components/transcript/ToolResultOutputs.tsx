@@ -16,6 +16,11 @@
  * stream-shaped object they did not fully show goes to the generic fallback
  * (every key, as recorded).
  *
+ * A result whose content only echoes its own recorded error code
+ * (`{"error_code":"url_not_accessible"}`, WebFetch / WebSearch) loses that
+ * echo (`withoutErrorCodeEcho`): the row already says "Failed · <code>",
+ * once (amendment 7). `searchQuery` reaches each block's reveal past the cap.
+ *
  * "No output" only when there are no parts and no stream text; a result with
  * neither content nor streams keeps the old result router. Recorded outcome
  * facts (exit code, interrupted, error code, "not verified") are not shown
@@ -25,7 +30,7 @@ import { ResultBlock } from "../contentRenderer/unifiedCards/ResultBlock";
 import { FallbackRenderer } from "../toolResultRenderer/FallbackRenderer";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { OutputBlock, type OutputSource } from "./OutputBlock";
-import { normalizeResult, resultContent, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
+import { normalizeResult, resultContent, withoutErrorCodeEcho, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
 
 interface ToolResultOutputsProps {
   results: ToolResultLike[];
@@ -38,6 +43,8 @@ interface ToolResultOutputsProps {
   wrap?: boolean;
   /** The row's verdict is `failed` (OutputBlock `failed`: danger-styled stderr). */
   failed?: boolean;
+  /** The in-session search query: a hit past a block's cap opens it (OutputBlock). */
+  searchQuery?: string;
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
@@ -67,7 +74,7 @@ function shownByStreams(stdout: string, stderr: string): (part: ContentPart) => 
   return (part) => part.kind === "text" && forms.has(trimTrailingNewlines(part.text));
 }
 
-function ResultOutput({ result, family, source, blockKey, wrap, failed }: { result: ToolResultLike; family: ToolFamily; source?: OutputSource; blockKey: string; wrap?: boolean; failed?: boolean }) {
+function ResultOutput({ result, family, source, blockKey, wrap, failed, searchQuery }: { result: ToolResultLike; family: ToolFamily; source?: OutputSource; blockKey: string; wrap?: boolean; failed?: boolean; searchQuery?: string }) {
   const options = { bareCodeIsExitCode: family === "process" };
   const n = normalizeResult(result, options);
   const content = resultContent(result, options);
@@ -84,10 +91,10 @@ function ResultOutput({ result, family, source, blockKey, wrap, failed }: { resu
   const firstText = streamText ? -1 : parts.findIndex((part) => part.kind === "text");
   return (
     <>
-      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} failed={failed} />}
+      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} failed={failed} searchQuery={searchQuery} />}
       {parts.map((part, index) =>
         part.kind === "text" ? (
-          <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} />
+          <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} searchQuery={searchQuery} />
         ) : part.generic && !Array.isArray(part.value) ? (
           <GenericResult key={index} value={part.value} />
         ) : (
@@ -99,12 +106,12 @@ function ResultOutput({ result, family, source, blockKey, wrap, failed }: { resu
   );
 }
 
-export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed }: ToolResultOutputsProps) {
+export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery }: ToolResultOutputsProps) {
   return (
     <>
-      {results.map((result, index) => {
+      {withoutErrorCodeEcho(results).map((result, index) => {
         const key = `${expandKey}-result-${index}`;
-        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} />;
+        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} />;
       })}
     </>
   );

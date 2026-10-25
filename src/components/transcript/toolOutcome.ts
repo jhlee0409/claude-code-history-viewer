@@ -343,6 +343,91 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
   return match ? (match[1] ?? match[2] ?? null) : null;
 }
 
+/**
+ * Is this text part only the JSON echo of the result's own recorded API
+ * error code (WebFetch / WebSearch `url_not_accessible`: content
+ * `{"error_code":"url_not_accessible"}` beside `toolUseResult.error_code`)?
+ * The row already says "Failed · <code>"; showing the echo would state the
+ * same fact a second time in a JSON box (renderer audit NC1, amendment 7).
+ * Any other key, another value, or text around the object is not an echo.
+ */
+function isErrorCodeEcho(part: ContentPart, errorCode: string | undefined): boolean {
+  if (part.kind !== "text" || errorCode === undefined) return false;
+  const trimmed = part.text.trim();
+  if (!trimmed.startsWith("{")) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return false;
+  }
+  return isPlainObject(parsed) && Object.keys(parsed).length === 1 && parsed.error_code === errorCode;
+}
+
+/**
+ * The results as the opened detail shows them: a result whose content is
+ * only the echo of its own recorded error code (`isErrorCodeEcho`) loses
+ * that content, nothing else. With stream text beside it the result stays
+ * (content emptied, its streams still render); without, there is nothing
+ * left to show and it is left out. Every other result is passed as is.
+ */
+export function withoutErrorCodeEcho(results: ToolResultLike[]): ToolResultLike[] {
+  return results.flatMap((result) => {
+    const n = normalizeResult(result);
+    const content = resultContent(result);
+    if (!content.recorded || content.parts.length === 0 || !content.parts.every((part) => isErrorCodeEcho(part, n.errorCode))) return [result];
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
+}
+
+/**
+ * The first recorded text of the results, as the Agent and Workflow cards
+ * have always read it: a string content, or the first text block of a
+ * content array (one block, not the run). `null` when none records text.
+ */
+export function firstResultText(results: ToolResultLike[]): string | null {
+  for (const result of results) {
+    const content = result.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (isPlainObject(block) && block.type === "text" && "text" in block) return String(block.text);
+      }
+    }
+  }
+  return null;
+}
+
+/** What the existing result renderers draw for a result: its content, or the block itself when it records none. */
+export function rendererContent(result: ToolResultLike): Record<string, unknown> | string | unknown[] {
+  return (result.content ?? result) as Record<string, unknown> | string | unknown[];
+}
+
+/** What an Agent (Task) result records about its run. */
+export interface AgentStats {
+  totalDurationMs?: number;
+  totalTokens?: number;
+  totalToolUseCount?: number;
+}
+
+/**
+ * The first result's run statistics: on the block itself (as the Agent card
+ * always read them), else in the block's own metadata (Claude records them
+ * in the Task result's `toolUseResult`). Only numbers; nothing synthesized.
+ */
+export function recordedAgentStats(results: ToolResultLike[]): AgentStats {
+  const first = results[0];
+  if (!first) return {};
+  const own = ownMetadata(first);
+  const stats: AgentStats = {};
+  for (const key of ["totalDurationMs", "totalTokens", "totalToolUseCount"] as const) {
+    const value = typeof first[key] === "number" ? first[key] : typeof own?.[key] === "number" ? own[key] : undefined;
+    if (typeof value === "number") stats[key] = value;
+  }
+  return stats;
+}
+
 /** What an Edit / MultiEdit result records about the edit itself. */
 export interface EditFacts {
   /** The user changed the proposed edit before it was applied (`userModified`). */

@@ -17,6 +17,9 @@
  * Long output is capped at `lineCap` lines per zone with "Show all n lines";
  * a search match past the cap opens it.
  *
+ * `highlight` (TR1a, the generic JSON body): with a search query, the hits
+ * in the text are marked (plain text only; ANSI output is not marked).
+ *
  * Text wraps by default. `wrap={false}` keeps each recorded line on one
  * visual line and lets the well scroll sideways, for output whose lines are
  * records (Grep content-mode matches: a soft-wrapped match would read as the
@@ -30,6 +33,7 @@ import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { hasAnsiCodes } from "@/utils/ansiToHtml";
 import { AnsiText } from "../common/AnsiText";
+import { HighlightedText } from "../common/HighlightedText";
 import { detectOutputKind, type OutputKind } from "./outputKind";
 
 export const DEFAULT_LINE_CAP = 15;
@@ -57,6 +61,8 @@ export interface OutputBlockProps {
   showLineCount?: boolean;
   /** The row's verdict is `failed`: the stderr zone takes the danger rule and text. */
   failed?: boolean;
+  /** Mark the `searchQuery` hits in the text (which match is current). */
+  highlight?: { isCurrentMatch?: boolean; currentMatchIndex?: number };
 }
 
 const LABELLED: Record<OutputSource, ReadonlySet<OutputKind>> = {
@@ -76,7 +82,9 @@ const KIND_LABEL_KEY = {
 
 const linesOf = (text: string) => (text === "" ? [] : text.split("\n"));
 
-function Zone({ id, text, wrap, className }: { id: string; text: string; wrap: boolean; className?: string }) {
+type Mark = { searchQuery: string; isCurrentMatch?: boolean; currentMatchIndex?: number } | null;
+
+function Zone({ id, text, wrap, className, mark = null }: { id: string; text: string; wrap: boolean; className?: string; mark?: Mark }) {
   return (
     <pre
       id={id}
@@ -85,7 +93,13 @@ function Zone({ id, text, wrap, className }: { id: string; text: string; wrap: b
       tabIndex={wrap ? undefined : 0}
       className={cn("m-0 overflow-x-auto font-mono text-code", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre", className)}
     >
-      {hasAnsiCodes(text) ? <AnsiText text={text} /> : text}
+      {hasAnsiCodes(text) ? (
+        <AnsiText text={text} />
+      ) : mark ? (
+        <HighlightedText text={text} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
+      ) : (
+        text
+      )}
     </pre>
   );
 }
@@ -100,6 +114,7 @@ export function OutputBlock({
   wrap = true,
   showLineCount = true,
   failed = false,
+  highlight,
 }: OutputBlockProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
@@ -123,6 +138,7 @@ export function OutputBlock({
     if (searchHit) setShowAll(true);
   }, [searchHit, query, setShowAll]);
   const open = showAll;
+  const mark: Mark = highlight && query !== "" && searchQuery ? { searchQuery, ...highlight } : null;
   const cap = (lines: string[], whole: string) => (open || lines.length <= lineCap ? whole : lines.slice(0, lineCap).join("\n"));
 
   const kind = main === "" ? null : detectOutputKind(main);
@@ -153,7 +169,7 @@ export function OutputBlock({
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
-      {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" />}
+      {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" mark={mark} />}
       {stderr !== "" && (
         <div data-stderr="" className={cn("mx-3 mb-2 border-l-2 pl-2", failed ? "border-status-danger-line" : "border-line")}>
           <code data-mono="code" className="text-caption text-fg-3">
