@@ -343,6 +343,30 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
   return match ? (match[1] ?? match[2] ?? null) : null;
 }
 
+/** What an Edit / MultiEdit result records about the edit itself. */
+export interface EditFacts {
+  /** The user changed the proposed edit before it was applied (`userModified`). */
+  userModified?: boolean;
+  /** The whole file before the edit (`originalFile`). */
+  originalFile?: string;
+}
+
+/**
+ * The edit facts the results' own metadata records (Claude's Edit result:
+ * `userModified`, `originalFile`). The first result that records a fact
+ * gives it; nothing is synthesized when none does.
+ */
+export function recordedEditFacts(results: ToolResultLike[]): EditFacts {
+  const facts: EditFacts = {};
+  for (const result of results) {
+    const own = ownMetadata(result);
+    if (!own) continue;
+    if (facts.userModified === undefined && typeof own.userModified === "boolean") facts.userModified = own.userModified;
+    if (facts.originalFile === undefined && typeof own.originalFile === "string") facts.originalFile = own.originalFile;
+  }
+  return facts;
+}
+
 // ---------------------------------------------------------------------------
 // The verdict (plan §4.2 order: the first rule that applies wins)
 // ---------------------------------------------------------------------------
