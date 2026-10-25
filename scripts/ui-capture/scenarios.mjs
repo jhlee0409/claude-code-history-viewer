@@ -471,9 +471,10 @@ const INNER_SCREENS = [
   {
     id: "transcript-agent-open",
     title: "TR1a: the Task that spawned a subagent, opened (prompt, result and stats without nested tinted folds)",
-    // Head: the row's target is the description. A pre-TR1a base names the
-    // card "Agent" in its header button and shows the description only inside.
-    steps: [{ do: "openSession", session: "subagent" }, { do: "expandToolRows", tools: ["Agent"], match: ["Audit the production bundle"], limit: 1 }],
+    // Head: the row's target is the description. A pre-TR1a base shows the
+    // description only inside the card; its header button reads the
+    // (translated) "Agent" title and the uppercase subagent-type pill.
+    steps: [{ do: "openSession", session: "subagent" }, { do: "expandToolRows", match: ["Audit the production bundle", "GENERAL-PURPOSE"], limit: 1 }],
   },
   {
     id: "transcript-cjk",
