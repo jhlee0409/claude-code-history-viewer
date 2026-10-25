@@ -110,7 +110,8 @@ function GapRows({ lines, stateKey }: { lines: DiffLine[]; stateKey: string }) {
   return (
     <tbody id={groupId} data-diff-gap-group="">
       <tr data-diff-gap="">
-        <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
+        {/* UI text, not code: a drag across opened lines selects code only (review round 2). */}
+        <td colSpan={4} className="select-none px-2 py-1 font-sans text-caption text-diff-hunk-fg">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
