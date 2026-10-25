@@ -773,9 +773,11 @@ fn first_included_session_id<'a>(
 }
 
 /// Compose the global-stats per-file result from the cached aggregate.
+/// Project identity comes from the current scan, not the cached file contents.
 pub(super) fn compose_global(
     aggregate: &FileAggregate,
     project_name: String,
+    project_path: String,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Composed<SessionFileStats> {
@@ -785,6 +787,7 @@ pub(super) fn compose_global(
 
     let mut stats = SessionFileStats {
         project_name,
+        project_path,
         provider: StatsProvider::Claude,
         ..Default::default()
     };
@@ -1122,7 +1125,7 @@ fn build_counts() -> &'static Mutex<HashMap<PathBuf, u64>> {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        claude_session_project_name, process_session_file_for_global_stats,
+        claude_project_name, process_session_file_for_global_stats,
         process_session_file_for_project_stats, scan_session_file_for_comparison,
         scan_session_file_for_global_stats, scan_session_file_for_project_stats,
         scan_session_token_stats,
@@ -1247,6 +1250,7 @@ mod tests {
         assert_eq!(a.first_message, b.first_message, "first_message");
         assert_eq!(a.last_message, b.last_message, "last_message");
         assert_eq!(a.project_name, b.project_name, "project_name");
+        assert_eq!(a.project_path, b.project_path, "project_path");
         assert_eq!(a.provider, b.provider, "provider");
     }
 
@@ -1453,6 +1457,24 @@ mod tests {
     }
 
     #[test]
+    fn test_global_cache_composition_uses_current_project_identity() {
+        let temp = TempDir::new().unwrap();
+        let file = temp.path().join("session.jsonl");
+        write_session(&file, &multi_day_fixture());
+        let aggregate =
+            build_global_file_aggregate(&file, &root_of(&file), StatsMode::BillingTotal).unwrap();
+        for path in ["/first/projects/app", "/second/projects/app"] {
+            let Composed::Ready(stats) =
+                compose_global(&aggregate, "app".into(), path.into(), None, None)
+            else {
+                panic!("unfiltered composition must be ready");
+            };
+            assert_eq!(stats.project_name, "app");
+            assert_eq!(stats.project_path, path);
+        }
+    }
+
+    #[test]
     /// Composed global stats are identical to the full scan, unfiltered and
     /// with a day-aligned date filter, in both stats modes.
     fn test_global_compose_matches_full_scan_unfiltered_and_day_filtered() {
@@ -1477,7 +1499,8 @@ mod tests {
             for (s, e) in &filters {
                 let composed = match compose_global(
                     &aggregate,
-                    claude_session_project_name(&file),
+                    claude_project_name(file.parent().unwrap()),
+                    file.parent().unwrap().to_string_lossy().to_string(),
                     s.as_ref(),
                     e.as_ref(),
                 ) {
@@ -1489,6 +1512,7 @@ mod tests {
                 let scanned = scan_session_file_for_global_stats(
                     &file,
                     &root_of(&file),
+                    file.parent().unwrap(),
                     mode,
                     s.as_ref(),
                     e.as_ref(),
@@ -1544,7 +1568,7 @@ mod tests {
 
                 let composed_token = match compose_session_token(
                     &aggregate,
-                    claude_session_project_name(&file),
+                    claude_project_name(file.parent().unwrap()),
                     s.as_ref(),
                     e.as_ref(),
                 ) {
@@ -1605,25 +1629,40 @@ mod tests {
 
         let global =
             build_global_file_aggregate(&file, &root_of(&file), mode).expect("global aggregate");
-        let composed_global =
-            match compose_global(&global, claude_session_project_name(&file), None, None) {
-                Composed::Ready(stats) => stats,
-                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
-            };
-        let scanned_global =
-            scan_session_file_for_global_stats(&file, &root_of(&file), mode, None, None)
-                .expect("global scan");
+        let composed_global = match compose_global(
+            &global,
+            claude_project_name(file.parent().unwrap()),
+            file.parent().unwrap().to_string_lossy().to_string(),
+            None,
+            None,
+        ) {
+            Composed::Ready(stats) => stats,
+            Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+        };
+        let scanned_global = scan_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            None,
+            None,
+        )
+        .expect("global scan");
         assert_eq!(scanned_global.token_distribution.output, 95 + 7);
         assert_eq!(scanned_global.token_distribution.input, 100 + 20);
         assert_global_stats_eq(&composed_global, &scanned_global);
 
         let message =
             build_message_file_aggregate(&file, &root_of(&file), mode).expect("message aggregate");
-        let composed_token =
-            match compose_session_token(&message, claude_session_project_name(&file), None, None) {
-                Composed::Ready(stats) => stats.expect("token stats"),
-                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
-            };
+        let composed_token = match compose_session_token(
+            &message,
+            claude_project_name(file.parent().unwrap()),
+            None,
+            None,
+        ) {
+            Composed::Ready(stats) => stats.expect("token stats"),
+            Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+        };
         let scanned_token =
             scan_session_token_stats(&file, &root_of(&file), mode, None, None).expect("token scan");
         assert_eq!(scanned_token.total_output_tokens, 95 + 7);
@@ -1701,12 +1740,15 @@ mod tests {
         let mode = StatsMode::BillingTotal;
         let aggregate =
             build_message_file_aggregate(&file, &root_of(&file), mode).expect("aggregate");
-        let composed =
-            match compose_session_token(&aggregate, claude_session_project_name(&file), None, None)
-            {
-                Composed::Ready(stats) => stats.expect("token stats"),
-                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
-            };
+        let composed = match compose_session_token(
+            &aggregate,
+            claude_project_name(file.parent().unwrap()),
+            None,
+            None,
+        ) {
+            Composed::Ready(stats) => stats.expect("token stats"),
+            Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+        };
         let scanned =
             scan_session_token_stats(&file, &root_of(&file), mode, None, None).expect("scan");
 
@@ -1790,22 +1832,35 @@ mod tests {
                 let aggregate = build_global_file_aggregate(&file, &root_of(&file), mode)
                     .expect("aggregate builds");
                 assert!(matches!(
-                    compose_global(&aggregate, "p".to_string(), Some(&s), Some(&e)),
+                    compose_global(
+                        &aggregate,
+                        "p".to_string(),
+                        "/fixture/p".to_string(),
+                        Some(&s),
+                        Some(&e)
+                    ),
                     Composed::NeedsFullScan
                 ));
                 // Unfiltered composition remains exact.
                 let composed = match compose_global(
                     &aggregate,
-                    claude_session_project_name(&file),
+                    claude_project_name(file.parent().unwrap()),
+                    file.parent().unwrap().to_string_lossy().to_string(),
                     None,
                     None,
                 ) {
                     Composed::Ready(stats) => stats,
                     Composed::NeedsFullScan => panic!("unfiltered composition is always exact"),
                 };
-                let scanned =
-                    scan_session_file_for_global_stats(&file, &root_of(&file), mode, None, None)
-                        .expect("scan produces stats");
+                let scanned = scan_session_file_for_global_stats(
+                    &file,
+                    &root_of(&file),
+                    file.parent().unwrap(),
+                    mode,
+                    None,
+                    None,
+                )
+                .expect("scan produces stats");
                 assert_global_stats_eq(&composed, &scanned);
             } else {
                 let aggregate = build_message_file_aggregate(&file, &root_of(&file), mode)
@@ -1819,12 +1874,24 @@ mod tests {
 
         // The wrapper's filtered result equals the scan: usage counted once,
         // attributed to the first in-range row (the day-2 duplicate).
-        let wrapped =
-            process_session_file_for_global_stats(&file, &root_of(&file), mode, Some(&s), Some(&e))
-                .expect("wrapper result");
-        let scanned =
-            scan_session_file_for_global_stats(&file, &root_of(&file), mode, Some(&s), Some(&e))
-                .expect("scan result");
+        let wrapped = process_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            Some(&s),
+            Some(&e),
+        )
+        .expect("wrapper result");
+        let scanned = scan_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            Some(&s),
+            Some(&e),
+        )
+        .expect("scan result");
         assert_global_stats_eq(&wrapped, &scanned);
         assert_eq!(wrapped.total_tokens, 110);
     }
@@ -1871,23 +1938,42 @@ mod tests {
 
         let mode = StatsMode::BillingTotal;
         // Warm the cache with an unfiltered call.
-        process_session_file_for_global_stats(&file, &root_of(&file), mode, None, None)
-            .expect("warm call");
+        process_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            None,
+            None,
+        )
+        .expect("warm call");
         assert_eq!(test_build_count(&file), 1);
 
         let s = dt("2025-03-02T00:00:00Z");
         let e = dt("2025-03-02T23:59:59.999Z");
-        let cached =
-            process_session_file_for_global_stats(&file, &root_of(&file), mode, Some(&s), Some(&e))
-                .expect("cached filtered result");
+        let cached = process_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            Some(&s),
+            Some(&e),
+        )
+        .expect("cached filtered result");
         assert_eq!(
             test_build_count(&file),
             1,
             "filtered call must not re-parse"
         );
-        let scanned =
-            scan_session_file_for_global_stats(&file, &root_of(&file), mode, Some(&s), Some(&e))
-                .expect("cold filtered result");
+        let scanned = scan_session_file_for_global_stats(
+            &file,
+            &root_of(&file),
+            file.parent().unwrap(),
+            mode,
+            Some(&s),
+            Some(&e),
+        )
+        .expect("cold filtered result");
         assert_global_stats_eq(&cached, &scanned);
         // Day 2 of the fixture: skill row (33) + sidechain row (1100).
         assert_eq!(cached.total_tokens, 1133);

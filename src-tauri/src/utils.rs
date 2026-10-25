@@ -646,6 +646,7 @@ pub fn build_provider_message(
         message_type: message_type.to_string(),
         content,
         project_name: None,
+        project_path: None,
         tool_use: None,
         tool_use_result: None,
         is_sidechain: None,

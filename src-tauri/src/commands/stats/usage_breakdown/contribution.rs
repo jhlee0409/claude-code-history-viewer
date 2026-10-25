@@ -499,7 +499,7 @@ mod tests {
         // Growth only: the second row adds 4 output, the first carries 11.
         assert_eq!(file.contributions[0].tokens.total(), 11);
         assert_eq!(file.contributions[1].tokens.total(), 4);
-        assert_eq!(file.contributions[1].cost_usd, 0.5);
+        assert_eq!(file.contributions[1].cost_usd.to_bits(), 0.5_f64.to_bits());
     }
 
     #[test]

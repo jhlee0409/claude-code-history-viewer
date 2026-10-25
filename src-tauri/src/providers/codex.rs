@@ -557,12 +557,16 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     Ok(messages)
 }
 
-fn project_name_for_rollout(rollout_path: &Path) -> Option<String> {
-    let cwd = extract_session_cwd(rollout_path).ok().flatten()?;
-    Path::new(&cwd)
+fn project_identity_for_rollout(rollout_path: &Path) -> (String, String) {
+    let cwd = extract_session_cwd(rollout_path)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "unknown".to_string());
+    let name = Path::new(&cwd)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .or_else(|| (!cwd.is_empty()).then_some(cwd))
+        .unwrap_or_else(|| cwd.clone());
+    (name, format!("codex://{cwd}"))
 }
 
 fn bytes_contain_query_case_insensitive(haystack: &[u8], query: &[u8]) -> bool {
@@ -720,9 +724,10 @@ pub fn search(query: &str, limit: usize, filters: &Value) -> Result<Vec<ClaudeMe
             .collect();
 
         if !file_results.is_empty() {
-            let project_name = project_name_for_rollout(&rollout_path);
+            let (project_name, project_path) = project_identity_for_rollout(&rollout_path);
             for msg in &mut file_results {
-                msg.project_name.clone_from(&project_name);
+                msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
             }
         }
         apply_search_filters(file_results, filters)
@@ -3750,6 +3755,54 @@ mod tests {
         let results = search("wallpaper", 100, &json!({})).expect("Codex search should succeed");
 
         assert!(results.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn search_distinguishes_same_named_project_paths_before_limit() {
+        let tmp = TempDir::new().expect("temp dir");
+        let sessions_dir = tmp.path().join("sessions/2026/08/13");
+        fs::create_dir_all(&sessions_dir).expect("sessions directory");
+        for (id, cwd, hour) in [
+            ("selected", "/work/client-a/app", "08"),
+            ("newer", "/work/client-b/app", "09"),
+        ] {
+            write_rollout_lines(
+                &sessions_dir,
+                &format!("rollout-2026-08-13T{hour}-00-00-{id}.jsonl"),
+                &[
+                    session_meta_line_with(&format!("2026-08-13T{hour}:00:00Z"), id, cwd),
+                    user_message_line(&format!("2026-08-13T{hour}:00:01Z"), "shared needle"),
+                ],
+            );
+        }
+        let _guard = EnvVarGuard::set("CODEX_HOME", tmp.path());
+        let selected = search(
+            "needle",
+            1,
+            &json!({
+                "projectPaths": ["codex:///work/client-a/app"]
+            }),
+        )
+        .expect("scoped search");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].session_id, "selected");
+        assert_eq!(selected[0].project_name.as_deref(), Some("app"));
+        let serialized = serde_json::to_value(&selected[0]).expect("serialize search hit");
+        assert_eq!(serialized["projectPath"], "codex:///work/client-a/app");
+
+        // Older callers can still request a name, intentionally matching both roots.
+        let legacy = search("needle", 10, &json!({"projects": ["app"]})).expect("legacy search");
+        assert_eq!(legacy.len(), 2);
+        assert!(search(
+            "needle",
+            10,
+            &json!({
+                "projectPaths": ["codex:///missing/app"]
+            })
+        )
+        .expect("missing path search")
+        .is_empty());
     }
 
     #[test]

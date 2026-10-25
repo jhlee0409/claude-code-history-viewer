@@ -159,6 +159,9 @@ pub struct ClaudeMessage {
     /// Project name (extracted from file path during search)
     #[serde(rename = "projectName", skip_serializing_if = "Option::is_none")]
     pub project_name: Option<String>,
+    /// Opaque project path/URI, qualified by provider (search results).
+    #[serde(rename = "projectPath", skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
     #[serde(rename = "toolUse")]
     pub tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]

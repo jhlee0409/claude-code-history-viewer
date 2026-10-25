@@ -182,6 +182,8 @@ export interface BaseClaudeMessage {
   timestamp: string;
   /** Project name (extracted from file path during search) */
   projectName?: string;
+  /** Opaque project path/URI, qualified by provider; absent in legacy search results. */
+  projectPath?: string;
   /** Provider identifier (claude, codex, opencode) */
   provider?: import("./session").ProviderId;
   isSidechain?: boolean;

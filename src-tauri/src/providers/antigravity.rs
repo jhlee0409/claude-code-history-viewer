@@ -642,6 +642,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             provider: Some("antigravity".to_string()),
             message_id: None,
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,

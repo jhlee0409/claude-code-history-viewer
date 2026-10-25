@@ -1438,8 +1438,8 @@ mod placement_tests {
         let window = metrics(2.0, (0, 0));
         let plan = restore_plan(&record, &monitors, DesktopSpace::of(Platform::Gtk), window);
         assert_eq!(
-            native_frame(Platform::Gtk, &plan, 2.0),
-            [1600.0, 100.0, 1000.0, 600.0]
+            native_frame(Platform::Gtk, &plan, 2.0).map(f64::to_bits),
+            [1600.0, 100.0, 1000.0, 600.0].map(f64::to_bits)
         );
     }
 
@@ -1456,8 +1456,8 @@ mod placement_tests {
             metrics(2.0, (0, 0)),
         );
         assert_eq!(
-            native_frame(Platform::Gtk, &plan, 2.0),
-            [440.0, 100.0, 1000.0, 600.0]
+            native_frame(Platform::Gtk, &plan, 2.0).map(f64::to_bits),
+            [440.0, 100.0, 1000.0, 600.0].map(f64::to_bits)
         );
     }
 
@@ -1473,8 +1473,8 @@ mod placement_tests {
             metrics(2.0, (0, 0)),
         );
         assert_eq!(
-            native_frame(Platform::MacOs, &plan, 2.0),
-            [1600.0, 100.0, 1000.0, 600.0]
+            native_frame(Platform::MacOs, &plan, 2.0).map(f64::to_bits),
+            [1600.0, 100.0, 1000.0, 600.0].map(f64::to_bits)
         );
     }
 
@@ -1497,8 +1497,8 @@ mod placement_tests {
             metrics(2.0, (16, 39)),
         );
         assert_eq!(
-            native_frame(Platform::Windows, &plan, 2.0),
-            [3000.0, 100.0, 1000.0, 600.0]
+            native_frame(Platform::Windows, &plan, 2.0).map(f64::to_bits),
+            [3000.0, 100.0, 1000.0, 600.0].map(f64::to_bits)
         );
     }
 
