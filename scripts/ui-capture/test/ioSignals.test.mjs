@@ -2,7 +2,8 @@
 //
 // #12: every opened tool row's detail ends with a 1px solid hairline in the
 // faint line token (the computed colour of `border-line-faint` in the same
-// page and theme), with 8px inside it and 8px after it; only the bottom edge
+// page and theme), with 0.5rem inside it and after it (8px at the default
+// root size, 10px at font scale 125 %); only the bottom edge
 // (not a frame), after the detail's meta line, inside the row box. A closed
 // row has no line and no extra height (its wrapper is exactly its head).
 // Where two opened rows meet, exactly one horizontal line lies between the
@@ -138,7 +139,9 @@ const measureRows = (page) =>
       if (parseFloat(s.borderTopWidth) > 0 && s.borderTopStyle !== "none") edges.push({ y: +r.top.toFixed(2), left: r.left, right: r.right });
       if (parseFloat(s.borderBottomWidth) > 0 && s.borderBottomStyle !== "none") edges.push({ y: +(r.bottom - parseFloat(s.borderBottomWidth)).toFixed(2), left: r.left, right: r.right });
     }
-    return { faint, rows, edges };
+    // Spacing tokens are rem-based: 8px at the default root size, 10px at font scale 125 %.
+    const space2 = parseFloat(getComputedStyle(document.documentElement).fontSize) / 2;
+    return { faint, rows, edges, space2 };
   });
 
 describe.skipIf(!ENABLED)("signals #12 (hairline after an opened detail) and #14 (kind on the row icon), real WebKit", () => {
@@ -183,16 +186,16 @@ describe.skipIf(!ENABLED)("signals #12 (hairline after an opened detail) and #14
         await session?.close();
       });
 
-      it("#12 every opened detail ends with one 1px faint hairline (8px inside, 8px after), after its meta line; not a frame", () => {
+      it("#12 every opened detail ends with one 1px faint hairline (0.5rem inside and after), after its meta line; not a frame", () => {
         const opened = m.rows.filter((r) => r.open);
         expect(opened.length, `opened rows: ${JSON.stringify(m.rows.map((r) => [r.verb, r.open]))}`).toBeGreaterThanOrEqual(scenario.minOpened);
         for (const r of opened) {
           const detail = JSON.stringify(r);
           expect(r.style.bottom, `hairline: ${detail}`).toEqual({ width: "1px", style: "solid", color: m.faint });
           expect([r.style.top, r.style.left, r.style.right], `only the bottom edge: ${detail}`).toEqual(["0px", "0px", "0px"]);
-          expect(r.style.paddingBottom, `8px inside the line: ${detail}`).toBe("8px");
-          expect(r.style.marginBottom, `8px after the line: ${detail}`).toBe("8px");
-          if (r.meta) expect(r.meta.bottom, `the line comes after the meta line: ${detail}`).toBeLessThanOrEqual(r.detail.bottom - 1 - 8 + 0.5);
+          expect(r.style.paddingBottom, `0.5rem inside the line: ${detail}`).toBe(`${m.space2}px`);
+          expect(r.style.marginBottom, `0.5rem after the line: ${detail}`).toBe(`${m.space2}px`);
+          if (r.meta) expect(r.meta.bottom, `the line comes after the meta line: ${detail}`).toBeLessThanOrEqual(r.detail.bottom - 1 - m.space2 + 0.5);
           expect(r.detail.bottom, `the line sits inside the row box: ${detail}`).toBeLessThanOrEqual(r.wrapper.bottom + 0.5);
           expect(r.detail.left, `inside the row box: ${detail}`).toBeGreaterThanOrEqual(r.wrapper.left - 0.5);
           expect(r.detail.right, `inside the row box: ${detail}`).toBeLessThanOrEqual(r.wrapper.right + 0.5);

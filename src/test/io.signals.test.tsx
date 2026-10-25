@@ -2,7 +2,8 @@
  * Owner-approved signals #12 and #14 (signal audit, owner decision 2026-10-25).
  *
  * #12 — an opened row's detail ends with a 1px hairline in the neutral faint
- * line token (`--line-faint`), with 8px inside it and 8px after it, so the
+ * line token (`--line-faint`), with 0.5rem (8px at the default size) inside
+ * it and after it, so the
  * reader sees where one opened call ends and the next row begins. Opened
  * rows only: a closed row has no line and no extra space (collapsed rows stay
  * pixel-identical). Not a frame: only the bottom edge. Where two opened rows
@@ -108,7 +109,7 @@ beforeEach(() => {
 const HAIRLINE = ["border-b", "border-line-faint", "pb-2", "mb-2"];
 
 describe("#12 the hairline that ends an opened row's detail", () => {
-  it("opened: the detail ends with a 1px faint line (border-b + --line-faint), 8px inside and 8px after, after the meta line", () => {
+  it("opened: the detail ends with a 1px faint line (border-b + --line-faint), 0.5rem (pb-2) inside and 0.5rem (mb-2) after, after the meta line", () => {
     const { container } = renderTool("Bash", { command: "pnpm build", description: "Build the app" }, [
       { content: "build ok", toolUseResult: { stdout: "build ok", stderr: "", exitCode: 0 } },
     ]);
