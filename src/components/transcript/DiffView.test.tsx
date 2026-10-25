@@ -126,6 +126,27 @@ describe("DiffView line model: two line numbers, a +/− column, the code", () =
     fireEvent.click(within(gaps[0]).getByRole("button"));
     expect(lines(container)).toHaveLength(8 + 16);
   });
+
+  it("the folded-context toggle is a disclosure that stays put and keeps focus (review round 1)", () => {
+    const before = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+    const after = before.replace("line 20\n", "line twenty\n");
+    const { container } = show([{ oldText: before, newText: after }], { context: 3 });
+    const button = within(root(container).querySelector<HTMLElement>("[data-diff-gap]")!).getByRole("button");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    const controls = button.getAttribute("aria-controls");
+    expect(controls, "aria-controls").toBeTruthy();
+    const target = container.querySelector(`[id="${controls}"]`);
+    expect(target, "the controlled region exists while closed").not.toBeNull();
+    button.focus();
+    fireEvent.click(button);
+    expect(button.isConnected, "the toggle is still in the document").toBe(true);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(`[id="${controls}"]`)?.querySelectorAll("[data-diff-line]").length).toBe(16);
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(lines(container)).toHaveLength(8);
+  });
 });
 
 describe("DiffView colours: diff tokens only, defined for dark", () => {
