@@ -88,9 +88,16 @@ export const contentColumnRule = (screen = "") => (startsWithAny(screen, ["recen
 /** What the in-page probe code may read about its scenario. */
 const probeContext = (ctx) => ({ screen: ctx.screen ?? "", contentColumn: contentColumnRule(ctx.screen) });
 
+/**
+ * A scenario that ends with a modal menu open (`…-menu-open`, TR2a): the
+ * rest of the app is inert (aria-hidden) behind it, so the row and chrome
+ * probes have nothing to measure there.
+ */
+const endsOnModalMenu = (screen) => screen.endsWith("-menu-open");
+
 export const PROBE_APPLICABILITY = {
   absPathLeaks: ({ screen }) => startsWithAny(screen, PATH_SCREENS),
-  toolRowMetrics: ({ screen }) => startsWithAny(screen, TOOL_ROW_SCREENS) && !screen.includes("dock"),
+  toolRowMetrics: ({ screen }) => startsWithAny(screen, TOOL_ROW_SCREENS) && !screen.includes("dock") && !endsOnModalMenu(screen),
   wordBreak: ({ locale, screen }) => CJK_LOCALES.has(locale) || screen === "transcript-cjk",
   cjkLeading: ({ screen }) => screen === "transcript-cjk",
   leftEdges: ({ screen, mobile }) => !mobile && startsWithAny(screen, WORK_SCREENS),
@@ -98,7 +105,8 @@ export const PROBE_APPLICABILITY = {
   cards: ({ screen }) => startsWithAny(screen, WORK_SCREENS),
   // Not with a modal open (palette, gear menu): the rest of the app is inert;
   // not on the terminal error screen, which replaces the app and its chrome.
-  chromeSelect: ({ mobile, screen }) => !mobile && !screen.startsWith("palette") && screen !== "gear" && screen !== "error",
+  chromeSelect: ({ mobile, screen }) =>
+    !mobile && !screen.startsWith("palette") && screen !== "gear" && screen !== "error" && !endsOnModalMenu(screen),
   focusVisible: ({ screen, mobile, theme, viewport }) => FOCUS_SCREENS.has(screen) && !mobile && theme === "dark" && viewport === "1440x900",
   motionActivity: ({ live }) => live,
 };

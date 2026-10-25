@@ -521,6 +521,45 @@ const INNER_SCREENS = [
 const INNER_DESKTOP_SCREENS = [{ id: "gear", title: "The gear (app settings) menu open", steps: [{ do: "gearMenu" }] }];
 
 /**
+ * TR2a (plan §4.3 "펼친 Edit", D5): the opened Edit's `…` menu open, the
+ * side-by-side comparison chosen from it, and the Edits screen's full diff
+ * (comfortable and compact rows). The transcript pair is new from TR2a (no
+ * menu on a base build); the Edits pair compares with the base's white
+ * react-diff-viewer table.
+ */
+const TR2A_SCREENS = [
+  {
+    id: "transcript-edit-menu-open",
+    title: "The opened Edit's … menu: comparison modes, copies, open in Edits",
+    steps: [
+      { do: "openSession", session: "mixed-turn" },
+      { do: "expandToolRows", match: ["renderPreview.ts"], limit: 1 },
+      { do: "diffMenu" },
+    ],
+  },
+  {
+    id: "transcript-edit-side-by-side",
+    title: "The opened Edit with Side by side chosen from its … menu",
+    steps: [
+      { do: "openSession", session: "mixed-turn" },
+      { do: "expandToolRows", match: ["renderPreview.ts"], limit: 1 },
+      { do: "diffMenu", mode: "sideBySide" },
+    ],
+  },
+  {
+    id: "recent-edits-diff",
+    title: "Edits screen: the first row's full diff",
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }, { do: "editsDiff" }],
+  },
+  {
+    id: "recent-edits-compact-diff",
+    title: "Edits screen, compact rows: the first row opened on its diff",
+    storage: { "recent-edits-density-page": "compact", "recent-edits-density": "compact" },
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }, { do: "editsDiff", compact: true }],
+  },
+];
+
+/**
  * Part (b): later-active scenarios (plan I0, RR C7). The surface does not
  * exist yet (or I0's injection steps did not reach the state on today's
  * screen), so the owning task turns the scenario on by deleting
@@ -586,6 +625,9 @@ export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1180x760"), themes: ["dark"], screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: INNER_SCREENS },
+  // TR2a: 1440 both themes, the phone in dark.
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: TR2A_SCREENS },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: TR2A_SCREENS },
   // Later-active (b): expanded like any scenario, split out by run.mjs.
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: ["dark"], screens: LATER_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: LATER_SCREENS.filter((s) => s.id === "session-detail-sheet") },

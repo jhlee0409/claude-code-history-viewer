@@ -185,6 +185,36 @@ export function createActions({ session, scenario, manifest, t }) {
       if (opened === 0) throw new Error(`expandToolRows: no collapsed row for ${[...tools, ...match].join(", ")}`);
     },
 
+    /**
+     * TR2a: the opened diff's `…` menu (`diffView.moreActions`), first one in
+     * the main pane. With `mode` ("unified" | "sideBySide" | "advanced") it
+     * picks that comparison and the menu closes; without, it stays open.
+     */
+    async diffMenu({ mode } = {}) {
+      await click(main().getByRole("button", { name: t("diffView.moreActions"), exact: true }).first(), "open the diff … menu");
+      if (!mode) return;
+      const key = { unified: "diffView.modeUnified", sideBySide: "diffView.modeSideBySide", advanced: "diffView.modeAdvanced" }[mode];
+      if (!key) throw new Error(`diffMenu: unknown mode ${mode}`);
+      await click(page.getByRole("menuitemradio", { name: t(key), exact: true }), `diff mode ${mode}`);
+    },
+
+    /**
+     * Edits screen: show the first row's full diff. Comfortable rows carry a
+     * "Show full diff" button. Compact rows (`compact: true`) open first by
+     * their file-name button, then the "Diff" chip of the view-mode group.
+     */
+    async editsDiff({ compact = false } = {}) {
+      if (!compact) {
+        await click(main().getByRole("button", { name: t("recentEdits.showDiff"), exact: true }).first(), "show the first edit's full diff");
+        return;
+      }
+      // The compact row is one full-bleed, childless button named by the file.
+      const row = main().locator('button[aria-expanded="false"][aria-label]:empty').first();
+      await click(row, "open the first compact edit row");
+      const group = main().getByRole("group", { name: t("recentEdits.viewModeGroup"), exact: true }).first();
+      await click(group.getByRole("button", { name: t("recentEdits.diff"), exact: true }), "compact row: Diff");
+    },
+
     /** The gear (app settings) menu open (desktop toolbar). */
     async gearMenu() {
       await click(page.locator("#app-settings-button"), "open app menu");
