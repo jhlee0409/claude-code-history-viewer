@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-24T07:08:46.172Z
- * 총 키 개수: 2378
+ * 생성 시간: 2026-10-25T02:12:49.998Z
+ * 총 키 개수: 2401
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (455개)
+ * renderers namespace의 번역 키 (478개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1838,6 +1838,25 @@ export type RenderersKeys =
   | 'contentArray.totalTokens'
   | 'contentArray.type'
   | 'contentArray.typeUnknown'
+  | 'diffView.added'
+  | 'diffView.change'
+  | 'diffView.code'
+  | 'diffView.comparison'
+  | 'diffView.copied'
+  | 'diffView.copyFailed'
+  | 'diffView.modeAdvanced'
+  | 'diffView.modeSideBySide'
+  | 'diffView.modeUnified'
+  | 'diffView.moreActions'
+  | 'diffView.newLine'
+  | 'diffView.oldLine'
+  | 'diffView.openFailed'
+  | 'diffView.openIn'
+  | 'diffView.removed'
+  | 'diffView.section'
+  | 'diffView.showLess'
+  | 'diffView.showMore'
+  | 'diffView.unchangedLines'
   | 'diffViewer.advancedAnalysis'
   | 'diffViewer.advancedTextAnalysis'
   | 'diffViewer.after'
@@ -1871,7 +1890,11 @@ export type RenderersKeys =
   | 'fileEditRenderer.fileEditResult'
   | 'fileEditRenderer.filePath'
   | 'fileEditRenderer.fullReplace'
+  | 'fileEditRenderer.modifiedByUser'
   | 'fileEditRenderer.no'
+  | 'fileEditRenderer.operationEdits'
+  | 'fileEditRenderer.operationReplace'
+  | 'fileEditRenderer.operationReplaceAll'
   | 'fileEditRenderer.originalFileContent'
   | 'fileEditRenderer.partialReplace'
   | 'fileEditRenderer.userModified'
@@ -3258,6 +3281,25 @@ export type TranslationKey =
   | 'copyButton.copy'
   | 'copyButton.copying'
   | 'copyButton.error'
+  | 'diffView.added'
+  | 'diffView.change'
+  | 'diffView.code'
+  | 'diffView.comparison'
+  | 'diffView.copied'
+  | 'diffView.copyFailed'
+  | 'diffView.modeAdvanced'
+  | 'diffView.modeSideBySide'
+  | 'diffView.modeUnified'
+  | 'diffView.moreActions'
+  | 'diffView.newLine'
+  | 'diffView.oldLine'
+  | 'diffView.openFailed'
+  | 'diffView.openIn'
+  | 'diffView.removed'
+  | 'diffView.section'
+  | 'diffView.showLess'
+  | 'diffView.showMore'
+  | 'diffView.unchangedLines'
   | 'diffViewer.advancedAnalysis'
   | 'diffViewer.advancedTextAnalysis'
   | 'diffViewer.after'
@@ -3366,7 +3408,11 @@ export type TranslationKey =
   | 'fileEditRenderer.fileEditResult'
   | 'fileEditRenderer.filePath'
   | 'fileEditRenderer.fullReplace'
+  | 'fileEditRenderer.modifiedByUser'
   | 'fileEditRenderer.no'
+  | 'fileEditRenderer.operationEdits'
+  | 'fileEditRenderer.operationReplace'
+  | 'fileEditRenderer.operationReplaceAll'
   | 'fileEditRenderer.originalFileContent'
   | 'fileEditRenderer.partialReplace'
   | 'fileEditRenderer.userModified'
@@ -4907,6 +4953,7 @@ export type TranslationPrefix =
   | 'common'
   | 'contentArray'
   | 'copyButton'
+  | 'diffView'
   | 'diffViewer'
   | 'documentRenderer'
   | 'error'
