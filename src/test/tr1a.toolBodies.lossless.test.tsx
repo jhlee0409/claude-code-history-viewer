@@ -207,6 +207,15 @@ describe("1. shape gate: a malformed record is the honest JSON of the whole inpu
     expect(detail.querySelector("[data-tool-summary]"), "no structured summary line").toBeNull();
   });
 
+  it.each(["TodoWrite", "todowrite", "update_plan", "NotebookEdit", "TaskCreate", "TaskUpdate"])("%s · an input that is not an object (array, string) → JSON", (name) => {
+    for (const input of [[{ subject: "Migrate", todos: [] }], "Migrate the cards"]) {
+      const detail = detailOf(opened(name, input));
+      expect(wells(detail), `the whole recorded input as JSON: ${JSON.stringify(input)}`).toContain(JSON.stringify(input, null, 2));
+      expect(detail.querySelector("[data-tool-summary]"), "no structured summary line").toBeNull();
+      cleanup();
+    }
+  });
+
   it("a well-shaped record still gets its structured body (positive control per route)", () => {
     const cases: [string, Record<string, unknown>][] = [
       ["TodoWrite", { todos: [TODO] }],
@@ -342,8 +351,10 @@ const SINKS: [string, string, Record<string, unknown>, string][] = [
 
 describe("3. search marks reach every structured text sink", () => {
   it.each(SINKS)("%s · %s", (name, _sink, input, query) => {
-    const detail = detailOf(opened(name, input, query));
-    expect(marks(detail), `a mark for "${query}" in the opened detail`).toContain(query);
+    const container = opened(name, input, query);
+    detailOf(container);
+    // The opened row: its head (the target sinks) and its detail.
+    expect(marks(container), `a mark for "${query}" in the opened row`).toContain(query);
   });
 
   it("the row target of a routed body is marked too (TaskCreate subject, NotebookEdit path)", () => {
