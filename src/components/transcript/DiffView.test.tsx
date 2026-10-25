@@ -147,6 +147,15 @@ describe("DiffView line model: two line numbers, a +/− column, the code", () =
     expect(button.getAttribute("aria-expanded")).toBe("false");
     expect(lines(container)).toHaveLength(8);
   });
+
+  it("the folded-context toggle row is not part of a code selection (review round 2)", () => {
+    const before = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+    const after = before.replace("line 20\n", "line twenty\n");
+    const { container } = show([{ oldText: before, newText: after }], { context: 3 });
+    for (const gap of root(container).querySelectorAll<HTMLElement>("[data-diff-gap]")) {
+      expect(gap.querySelector("td")?.className, "the toggle cell opts out of text selection").toMatch(/(^|\s)select-none(\s|$)/);
+    }
+  });
 });
 
 describe("DiffView colours: diff tokens only, defined for dark", () => {
