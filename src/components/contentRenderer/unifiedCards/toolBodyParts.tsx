@@ -33,7 +33,7 @@ export function InputJson({ value, ctx, rest = false }: { value: Record<string, 
   return (
     <section data-input-json={rest ? "rest" : "whole"} className="space-y-1">
       {rest && (
-        <div className="text-caption text-fg-3">
+        <div className="break-words text-caption text-fg-3">
           {ctx.t("toolRow.otherRecordedFields")}
           {keys && ` ${keys}`}
         </div>

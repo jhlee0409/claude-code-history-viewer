@@ -7,8 +7,12 @@
  * Each zone is a labelled region (`<section aria-labelledby>`) whose first
  * line is a small caption label — "Input" / "Result" in the app's locale —
  * then optional `meta` on the same line (Agent: duration · tokens · tools
- * next to "Result"). The label is UI text: a drag across the zone selects
- * the content, not the word.
+ * next to "Result"; the JSON fallback's recorded keys next to "Input"). The
+ * label is UI text: a drag across the zone selects the content, not the word.
+ * The line wraps rather than overflowing its zone (review F1): the label
+ * keeps its width, the meta moves under it when it does not fit beside it,
+ * and a long unbroken token (a snake_case input key) breaks inside itself —
+ * never clipped or truncated, so every key stays readable.
  *
  * The input zone has a thin rule on its left: a 1px solid border in the
  * neutral `--line-input` token, flush with the detail's left edge. It must
@@ -51,10 +55,14 @@ function Zone({ kind, meta, children }: Omit<DetailZoneProps, "show">) {
   return (
     <section data-detail-zone={kind} aria-labelledby={labelId} className={cn("space-y-1", kind === "input" && "border-l border-line-input pl-3")}>
       <div data-zone-label="" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-caption text-fg-3">
-        <span id={labelId} className="select-none">
+        <span id={labelId} className="shrink-0 select-none">
           {t(LABEL_KEY[kind])}
         </span>
-        {meta}
+        {meta != null && meta !== false && (
+          <span data-zone-meta="" className="flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-1 break-words *:min-w-0">
+            {meta}
+          </span>
+        )}
       </div>
       <div className="space-y-2">{children}</div>
     </section>
