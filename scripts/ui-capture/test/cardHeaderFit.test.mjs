@@ -19,7 +19,10 @@
 // with a run id; WebFetch failed with an error code and a long URL. For
 // every row, at 390x844 en, 390x844 ko at font scale 125% and 1180x760 en:
 // every visible piece of the head (verb, target, meta, status) lies inside
-// the row box, the status is whole (not ellipsised, every line box inside),
+// the row box, the target keeps room (> 40px: a right group that does not
+// fit moves under the head instead of squeezing it to nothing), the verb is
+// the recorded name (its title keeps it whole when a long MCP name is cut),
+// the status is whole (not ellipsised, every line box inside),
 // the row opens, and its "Copy tool ID" lies inside the row box and is the
 // element hit at its centre. Plus the real `transcript-failure` session: its
 // `url_not_accessible` WebFetch row says "Failed · url_not_accessible".
@@ -61,7 +64,7 @@ const CASES = [
   { id: "toolu_fit_agent_none", name: "Agent", input: agentInput("Audit the release notes (none)"), anchor: "Audit the release notes (none)", status: "noResult" },
   { id: "toolu_fit_agent_error_code", name: "Agent", input: agentInput("Audit the release notes (failed)"), result: "Fetch failed", meta: { error_code: "url_not_accessible" }, anchor: "Audit the release notes (failed)", status: "failedCode" },
   { id: "toolu_fit_agent_plain", name: "Agent", input: agentInput("Audit the release notes (done)"), result: "All 14 links resolve.", anchor: "Audit the release notes (done)", status: null },
-  { id: "toolu_fit_mcp_error_code", name: LONG_MCP, input: { branch: "release/2.4-preview-environment" }, result: "Preview failed", meta: { error_code: "url_not_accessible" }, anchor: "release/2.4-preview-environment", status: "failedCode" },
+  { id: "toolu_fit_mcp_error_code", name: LONG_MCP, input: { description: "Deploy release/2.4-preview-environment", branch: "release/2.4" }, result: "Preview failed", meta: { error_code: "url_not_accessible" }, anchor: "Deploy release/2.4-preview-environment", status: "failedCode" },
   { id: "toolu_fit_ask_none", name: "AskUserQuestion", input: ASK_INPUT, anchor: "Which store should the release keep?", status: "noResult" },
   {
     id: "toolu_fit_workflow_error_code",
@@ -172,9 +175,18 @@ const rowGeometry = (page) =>
     const pieces = [...button.children, ...right.querySelectorAll(":scope > *, :scope > * > *")]
       .filter(visible)
       .map((el) => ({ tag: el.tagName, text: (el.textContent ?? "").trim().slice(0, 60), rect: rect(el.getBoundingClientRect()) }));
-    // The text glyphs of the verb and the right group, line by line (a clipped word is still visible here).
+    // The verb: its box, whether its ellipsis cuts it (a long MCP name), and the name its title keeps.
+    const verbEl = row.querySelector("[data-tool-verb]");
+    const verb = verbEl
+      ? { text: verbEl.textContent, title: verbEl.getAttribute("title"), rect: rect(verbEl.getBoundingClientRect()), cut: getComputedStyle(verbEl).textOverflow === "ellipsis" && verbEl.scrollWidth > verbEl.clientWidth + 1 }
+      : null;
+    // The target (query, URL, description …): it must keep some room on the row.
+    const targetEl = row.querySelector("[data-row-target], [data-path]");
+    const target = targetEl ? { text: (targetEl.textContent ?? "").slice(0, 60), width: +targetEl.getBoundingClientRect().width.toFixed(2) } : null;
+    // The text glyphs of the verb (unless its ellipsis cuts it: then its box
+    // holds the visible part) and of the right group, line by line.
     const glyphs = [];
-    for (const host of [row.querySelector("[data-tool-verb]"), right].filter(Boolean)) {
+    for (const host of [verb && !verb.cut ? verbEl : null, right].filter(Boolean)) {
       const walker = document.createTreeWalker(host, 4 /* SHOW_TEXT */);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if ((node.nodeValue ?? "").trim() === "") continue;
@@ -205,7 +217,7 @@ const rowGeometry = (page) =>
       const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
       copy = { text: copyButton.textContent, rect: rect(r), hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
     }
-    return { viewport: innerWidth, box, head: (row.innerText ?? "").replace(/\s+/g, " "), pieces, glyphs, status, open: !!detail, copy };
+    return { viewport: innerWidth, box, head: (row.innerText ?? "").replace(/\s+/g, " "), verb, pieces, glyphs, target, status, open: !!detail, copy };
   });
 
 const inside = (r, box) => r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
@@ -246,6 +258,12 @@ describe.skipIf(!ENABLED)("tool rows: head pieces and the copy control stay insi
       for (const g of [m.collapsed, m.opened]) {
         const detail = JSON.stringify(g);
         expect(g.pieces.length, `empty head: ${detail}`).toBeGreaterThan(2);
+        expect(g.verb, `no verb: ${detail}`).not.toBeNull();
+        expect(g.verb.text, "the verb is the recorded tool name").toBe(c.name);
+        expect(g.verb.title, "the verb's title keeps the whole name").toBe(c.name);
+        expect(inside(g.verb.rect, g.box), `verb box leaves the row: ${detail}`).toBe(true);
+        expect(g.target, `no target in the row: ${detail}`).not.toBeNull();
+        expect(g.target.width, `the target has no room on the row: ${detail}`).toBeGreaterThan(40);
         for (const piece of g.pieces) expect(inside(piece.rect, g.box), `head piece <${piece.tag}> "${piece.text}" leaves the row: ${detail}`).toBe(true);
         for (const glyph of g.glyphs) expect(inside(glyph.rect, g.box), `text "${glyph.text}" leaves the row: ${detail}`).toBe(true);
         if (c.status) {

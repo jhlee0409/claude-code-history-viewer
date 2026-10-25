@@ -25,11 +25,13 @@
  *   their own frame (TR0b).
  *
  * Narrow rows (TR1a, the widest heads: Agent type + background + status, a
- * long MCP name): the target gives way first, then the verb (ellipsis, the
- * whole name in `title`); the button keeps room for chevron, icon and a
- * short verb (`min-w-24`), and the right group wraps its pieces onto more
- * lines, right-aligned, instead of running past the row. The status is
- * never cut. When everything fits the row is one line, as before.
+ * long MCP name): when the right group does not fit beside a 14rem head
+ * (`basis-56`), it moves to its own line under it, right-aligned, and wraps
+ * its pieces there instead of running past the row; the head then takes the
+ * whole first line, so the target stays visible. A verb that would crowd
+ * the target out (a long MCP name) takes at most half of the head and
+ * truncates there, the whole name in `title`. The status is never cut. When
+ * everything fits, the row is one line, as before.
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The
@@ -280,20 +282,20 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
         data-tool-row=""
         data-tool-verdict={outcome.verdict}
         data-tool-lifecycle={outcome.lifecycle}
-        className="flex min-h-row-tool max-sm:min-h-row-touch pointer-coarse:min-h-row-touch items-stretch gap-2 text-list"
+        className="flex min-h-row-tool max-sm:min-h-row-touch pointer-coarse:min-h-row-touch flex-wrap items-stretch gap-x-2 text-list"
       >
         <button
           type="button"
           onClick={toggle}
           aria-expanded={open}
           aria-controls={detailId}
-          className="flex min-w-24 flex-1 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
+          className="flex min-w-0 grow basis-56 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
         >
           <ChevronRight aria-hidden="true" className={cn("w-3.5 h-3.5 shrink-0 text-fg-3 transition-transform", open && "rotate-90")} />
           <span data-tool-icon="" className="flex shrink-0 items-center text-fg-3">
             {icon}
           </span>
-          <span data-tool-verb="" className="min-w-0 truncate font-medium text-fg-2" title={verb}>
+          <span data-tool-verb="" className={cn("min-w-0 truncate font-medium text-fg-2", target && "max-w-1/2")} title={verb}>
             {verb}
           </span>
           {target && (
@@ -302,7 +304,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
             </span>
           )}
         </button>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-caption text-fg-3">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-caption text-fg-3">
           {meta}
           <OutcomeStatus outcome={outcome} />
         </div>
