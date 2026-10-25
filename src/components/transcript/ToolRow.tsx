@@ -41,6 +41,12 @@
  * small ghost text button, the only way to the tool id, never the detail's
  * first line (renderer audit TC10).
  *
+ * Where an opened call ends (signal audit #12, owner decision 2026-10-25):
+ * the opened detail ends with a 1px `--line-faint` hairline, 8px below its
+ * last line and 8px above the next row — only the bottom edge, not a frame,
+ * so two opened rows that meet have one line between them. A closed row has
+ * no line and no extra space.
+ *
  * The icon (signal audit #14) is an image named by the tool kind in the
  * user's language (`toolKind`: Bash → "Terminal" / "터미널", MCP and unknown
  * tools → "Tool" / "도구"), which is also its native tooltip. It is not
@@ -319,7 +325,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
           <OutcomeStatus outcome={outcome} />
         </div>
       </div>
-      <div id={detailId} data-tool-detail="" hidden={!open} className="pl-6">
+      <div id={detailId} data-tool-detail="" hidden={!open} className={cn("pl-6", open && "mb-2 border-b border-line-faint pb-2")}>
         {open && (
           <TargetCutContext.Provider value={targetCut}>
             <div className="space-y-2 pb-2">{children}</div>
