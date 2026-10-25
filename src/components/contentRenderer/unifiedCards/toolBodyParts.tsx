@@ -1,11 +1,12 @@
 /**
  * The pieces the Default path's routed bodies are built from (TR1a, D-R1;
  * the table and the routing are in `toolBodies.tsx`): the input as honest
- * JSON, the input keys a structured body does not show, one summary line.
+ * JSON, the recorded values a structured body does not show (computed by
+ * `recordShape.ts`), one summary line.
  */
 import type { TFunction } from "i18next";
 import type { PathContext } from "@/lib/format/path";
-import type { TextHighlight } from "../../transcript/ToolRow";
+import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
 
 export interface BodyContext {
@@ -13,23 +14,27 @@ export interface BodyContext {
   expandKey: string;
   pathCtx: PathContext;
   t: TFunction;
-  /** The in-session search query (the JSON block reveals and marks its hits). */
+  /** The in-session search query (a capped block opens for its hits). */
   searchQuery?: string;
+  /** Set when the query hits the input: every text the body shows marks the hits. */
   highlight?: TextHighlight;
 }
 
-/** The input as honest JSON: "Input (keys)", then the JSON, capped with "Show all". */
-export function InputJson({ value, ctx, blockKey = "input" }: { value: Record<string, unknown>; ctx: BodyContext; blockKey?: string }) {
+/**
+ * The input as honest JSON: "Input (keys)", then the JSON, capped with
+ * "Show all". `rest`: it holds what a structured body does not show.
+ */
+export function InputJson({ value, ctx, rest = false }: { value: Record<string, unknown>; ctx: BodyContext; rest?: boolean }) {
   const keys = Object.keys(value);
   return (
-    <section className="space-y-1">
+    <section data-input-json={rest ? "rest" : "whole"} className="space-y-1">
       <div className="text-caption text-fg-3">
         {ctx.t("common.input")} ({keys.join(", ")})
       </div>
       <OutputBlock
         text={JSON.stringify(value, null, 2)}
         source="file"
-        expandKey={`${ctx.expandKey}-${blockKey}`}
+        expandKey={`${ctx.expandKey}-${rest ? "input-rest" : "input"}`}
         searchQuery={ctx.searchQuery}
         highlight={ctx.highlight ? { isCurrentMatch: ctx.highlight.isCurrentMatch, currentMatchIndex: ctx.highlight.currentMatchIndex } : undefined}
       />
@@ -37,14 +42,13 @@ export function InputJson({ value, ctx, blockKey = "input" }: { value: Record<st
   );
 }
 
-/** The input keys a structured body does not show, as JSON (nothing recorded is lost). */
-export function Leftover({ ctx, shown }: { ctx: BodyContext; shown: readonly string[] }) {
-  const rest = Object.fromEntries(Object.entries(ctx.input).filter(([key]) => !shown.includes(key)));
-  return Object.keys(rest).length > 0 ? <InputJson value={rest} ctx={ctx} blockKey="input-rest" /> : null;
+/** The recorded values a structured body does not show, as JSON (nothing recorded is lost); nothing when it shows them all. */
+export function Leftover({ ctx, rest }: { ctx: BodyContext; rest: Record<string, unknown> }) {
+  return Object.keys(rest).length > 0 ? <InputJson value={rest} ctx={ctx} rest /> : null;
 }
 
-/** One summary line: the facts, separated by "·". */
-export function Summary({ items }: { items: (string | null | undefined | false)[] }) {
+/** One summary line: the facts, separated by "·", search hits marked. */
+export function Summary({ items, highlight }: { items: (string | null | undefined | false)[]; highlight?: TextHighlight }) {
   const facts = items.filter((item): item is string => typeof item === "string" && item.length > 0);
   if (facts.length === 0) return null;
   return (
@@ -56,10 +60,9 @@ export function Summary({ items }: { items: (string | null | undefined | false)[
               ·
             </span>
           )}
-          {fact}
+          <Marked text={fact} highlight={highlight} />
         </span>
       ))}
     </p>
   );
 }
-

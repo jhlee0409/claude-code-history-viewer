@@ -3,6 +3,7 @@ import { ListTodo, CircleCheck, Circle, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
+import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { ToolUseCard } from "./ToolUseCard";
 
 export interface TodoItem {
@@ -32,8 +33,11 @@ const StatusIcon = ({ status }: { status?: string }) => {
   }
 };
 
-/** The structured todo list (also the TR1a ToolRow body for TodoWrite). */
-export function TodoWriteList({ todos }: { todos: TodoItem[] }) {
+/**
+ * The structured todo list (also the TR1a ToolRow body for TodoWrite, which
+ * passes `highlight` so search hits in the item text are marked).
+ */
+export function TodoWriteList({ todos, highlight }: { todos: TodoItem[]; highlight?: TextHighlight }) {
   return (
     <div className="space-y-1">
       {todos.map((todo, i) => (
@@ -44,14 +48,14 @@ export function TodoWriteList({ todos }: { todos: TodoItem[] }) {
           <StatusIcon status={todo.status} />
           <div className="min-w-0 flex-1">
             <span className={cn(layout.bodyText, "text-foreground")}>
-              {todo.content ?? JSON.stringify(todo)}
+              <Marked text={todo.content ?? JSON.stringify(todo)} highlight={highlight} />
             </span>
             {todo.priority && todo.priority !== "medium" && (
               <span className={cn(
                 "ml-2 px-1 py-0.5 font-mono", layout.smallText, layout.rounded,
                 todo.priority === "high" ? "bg-destructive/20 text-destructive" : "bg-muted text-muted-foreground"
               )}>
-                {todo.priority}
+                <Marked text={todo.priority} highlight={highlight} />
               </span>
             )}
           </div>

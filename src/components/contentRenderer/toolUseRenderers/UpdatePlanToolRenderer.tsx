@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { TASK_STATUS_CONFIG } from "@/components/toolResultRenderer/taskStatusConfig";
+import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { ToolUseCard } from "./ToolUseCard";
 
 interface PlanStep {
@@ -31,15 +32,18 @@ const getStatusLabelKey = (status: string) => {
   return keyMap[status] ?? "taskOperation.pending";
 };
 
-/** The plan's explanation and steps (also the TR1a ToolRow body for update_plan). */
-export function UpdatePlanSteps({ input }: { input: UpdatePlanToolInput }) {
+/**
+ * The plan's explanation and steps (also the TR1a ToolRow body for
+ * update_plan, which passes `highlight` so search hits are marked).
+ */
+export function UpdatePlanSteps({ input, highlight }: { input: UpdatePlanToolInput; highlight?: TextHighlight }) {
   const { t } = useTranslation();
   const steps = input.plan ?? [];
   return (
     <div className="space-y-1.5">
       {input.explanation && (
         <div className={cn("p-2 border border-border bg-card", layout.rounded, layout.bodyText, "text-foreground whitespace-pre-wrap")}>
-          {input.explanation}
+          <Marked text={input.explanation} highlight={highlight} />
         </div>
       )}
       {steps.map((planStep, index) => {
@@ -59,7 +63,7 @@ export function UpdatePlanSteps({ input }: { input: UpdatePlanToolInput }) {
               </span>
             </div>
             <div className={cn(layout.bodyText, "text-foreground")}>
-              {planStep.step ?? ""}
+              <Marked text={planStep.step ?? ""} highlight={highlight} />
             </div>
           </div>
         );
