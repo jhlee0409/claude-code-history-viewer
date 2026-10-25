@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T02:12:49.998Z
- * 총 키 개수: 2401
+ * 생성 시간: 2026-10-25T02:22:03.249Z
+ * 총 키 개수: 2393
  * Namespace 수: 13
  */
 
@@ -1702,7 +1702,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (478개)
+ * renderers namespace의 번역 키 (470개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1886,19 +1886,11 @@ export type RenderersKeys =
   | 'fileEditRenderer.copyChangedResult'
   | 'fileEditRenderer.copyFileAfterChange'
   | 'fileEditRenderer.copyOriginalFile'
-  | 'fileEditRenderer.editType'
-  | 'fileEditRenderer.fileEditResult'
-  | 'fileEditRenderer.filePath'
-  | 'fileEditRenderer.fullReplace'
   | 'fileEditRenderer.modifiedByUser'
-  | 'fileEditRenderer.no'
   | 'fileEditRenderer.operationEdits'
   | 'fileEditRenderer.operationReplace'
   | 'fileEditRenderer.operationReplaceAll'
   | 'fileEditRenderer.originalFileContent'
-  | 'fileEditRenderer.partialReplace'
-  | 'fileEditRenderer.userModified'
-  | 'fileEditRenderer.yes'
   | 'fileHistorySnapshotRenderer.files'
   | 'fileHistorySnapshotRenderer.noFiles'
   | 'fileHistorySnapshotRenderer.snapshot'
@@ -3404,19 +3396,11 @@ export type TranslationKey =
   | 'fileEditRenderer.copyChangedResult'
   | 'fileEditRenderer.copyFileAfterChange'
   | 'fileEditRenderer.copyOriginalFile'
-  | 'fileEditRenderer.editType'
-  | 'fileEditRenderer.fileEditResult'
-  | 'fileEditRenderer.filePath'
-  | 'fileEditRenderer.fullReplace'
   | 'fileEditRenderer.modifiedByUser'
-  | 'fileEditRenderer.no'
   | 'fileEditRenderer.operationEdits'
   | 'fileEditRenderer.operationReplace'
   | 'fileEditRenderer.operationReplaceAll'
   | 'fileEditRenderer.originalFileContent'
-  | 'fileEditRenderer.partialReplace'
-  | 'fileEditRenderer.userModified'
-  | 'fileEditRenderer.yes'
   | 'fileHistorySnapshotRenderer.files'
   | 'fileHistorySnapshotRenderer.noFiles'
   | 'fileHistorySnapshotRenderer.snapshot'
