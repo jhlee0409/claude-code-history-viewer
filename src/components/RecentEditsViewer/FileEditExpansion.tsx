@@ -13,7 +13,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { Markdown } from "../common";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { FilteredDiffLines } from "./FilteredDiffLines";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
 import type { DiffLineGroup } from "./diffUtils";
@@ -185,12 +185,11 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
               edit.message_uuid ?? edit.timestamp
             }`}
           >
-            <EnhancedDiffViewer
+            <DiffWithMenu
               oldText={edit.original_content ?? ""}
               newText={edit.content_after_change}
               filePath={edit.file_path}
-              showAdvancedDiff={true}
-              defaultMode="visual"
+              expandKey="diff"
             />
           </ExpandKeyProvider>
         </div>
