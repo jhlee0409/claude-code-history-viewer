@@ -151,7 +151,7 @@ function AskRow({
           {questions.map((q, qi) => {
           const OptionIcon = q.multiSelect ? SquareCheckBig : Circle;
           return (
-            <div key={qi} className="border-l-2 border-line pl-3">
+            <div key={qi} className="border-l border-line-faint pl-3">
               {q.header && (
                 <div className="mb-1 text-caption text-fg-3">
                   <Marked text={q.header} highlight={highlight} />
