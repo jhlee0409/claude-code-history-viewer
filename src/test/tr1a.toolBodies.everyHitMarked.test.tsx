@@ -285,3 +285,22 @@ describe("invariant: searching any recorded value of a routed body marks it in t
     expect(markedHits(row), `a <mark> whose text is ${JSON.stringify(value)}`).toContain(value.toLowerCase());
   });
 });
+
+// ---------------------------------------------------------------------------
+// CodeRabbit 4370643919: the JSON caption lists keys only for an object input
+// ---------------------------------------------------------------------------
+
+describe("the whole-input JSON caption names keys only for an object input", () => {
+  const caption = (root: Element) => text(root.querySelector("[data-input-json='whole'] > div")!).trim();
+  it.each([
+    ["array", ["first", "second"]],
+    ["string", "abc"],
+  ])("%s input: the caption is the plain label, no index list", (_kind, input) => {
+    const root = openedRow("mcp__probe__tool", input, "");
+    expect(caption(root)).toBe(i18n.t("common.input"));
+  });
+  it("object input: the caption lists its keys", () => {
+    const root = openedRow("mcp__probe__tool", { alpha: 1, beta: 2 }, "");
+    expect(caption(root)).toBe(`${i18n.t("common.input")} (alpha, beta)`);
+  });
+});
