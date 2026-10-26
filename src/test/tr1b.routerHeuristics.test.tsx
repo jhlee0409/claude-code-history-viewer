@@ -7,8 +7,9 @@
  * Each renderer the router can reach is replaced by a stub that names
  * itself, so the table pins the routing alone, not the renderers' bodies.
  * The rows use the real Claude Code `toolUseResult` shapes that need them,
- * plus the documented false positive: R8's bare `status` key sends Claude
- * async-agent results to the Git card before R13 can see them.
+ * R8's bare `status` key (it sent Claude async-agent completions and
+ * BashOutput results to the Git card before R13 could see them) is deleted
+ * (amendment 10); the rows below pin where those shapes go instead.
  */
 import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
@@ -40,7 +41,10 @@ const TABLE: Row[] = [
   ["R6 contextWindow", { contextWindow: 200000 }, "CodebaseContextRenderer"],
   ["R7 command + output + stdout", { command: "ls", output: "a", stdout: "a" }, "TerminalStreamRenderer"],
   ["R8 git command", { command: "git status" }, "GitWorkflowRenderer"],
-  ["R8 bare status (Claude async agent completion: false positive, documented)", { agentId: "a1", status: "completed", content: [{ type: "text", text: "done" }] }, "GitWorkflowRenderer"],
+  // A bare `status` key is no Git evidence (amendment 10: deleted). It sent Claude's async Agent completion to the
+  // Git card before R13 and BashOutput (`status: "running"`) there too.
+  ["R13 async agent completion {agentId, status: completed} (no longer shadowed by R8)", { agentId: "a1", status: "completed", content: [{ type: "text", text: "done" }] }, null],
+  ["BashOutput {shellId, command, status, stdout} → generic stdout card, not Git", { shellId: "bash_1", command: "pnpm dev", status: "running", stdout: "x", stderr: "" }, "generic"],
   ["R8 diff", { diff: "--- a\n+++ b" }, "GitWorkflowRenderer"],
   ["R9 WebSearch {query, results}", { query: "q", results: ["I'll search"], durationSeconds: 1 }, "WebSearchRenderer"],
   ["R10 TodoWrite {oldTodos, newTodos}", { oldTodos: [], newTodos: [] }, "TodoUpdateRenderer"],
