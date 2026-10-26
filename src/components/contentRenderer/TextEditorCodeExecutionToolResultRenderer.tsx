@@ -17,6 +17,7 @@ import { ResultRowContext } from "../transcript/resultRowContext";
 import { Marked } from "../transcript/ToolRow";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 import { searchHits } from "./unifiedCards/shared";
+import { oneLineValueClass } from "./oneLineValue";
 
 type Props = {
   toolUseId: string;
@@ -93,7 +94,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
       >
           {/* File path */}
           {path && (
-            <div className={cn(layout.monoText, "mb-2 truncate text-fg-2")}>
+            <div className={cn(layout.monoText, "mb-2 text-fg-2", oneLineValueClass(path, highlight))}>
               <Marked text={path} highlight={highlight} />
             </div>
           )}
@@ -114,7 +115,8 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
               <div id={contentId} hidden={!showContent}>
                 {showContent && (
                   <pre className={cn("mt-2 p-2 overflow-x-auto whitespace-pre-wrap bg-surface-well text-fg", layout.monoText, layout.rounded, layout.codeMaxHeight)}>
-                    <Marked text={truncateContent(fileContent)} highlight={highlight} />
+                    {/* A content hit opened the fold: the whole file, so a hit past the preview is shown and marked (CodeRabbit 4378494005). */}
+                    <Marked text={contentHitQuery !== undefined ? fileContent : truncateContent(fileContent)} highlight={highlight} />
                   </pre>
                 )}
               </div>

@@ -15,6 +15,7 @@ import { layout } from "../renderers";
 import { ResultRow } from "../transcript/ResultRow";
 import { ResultRowContext } from "../transcript/resultRowContext";
 import { Marked } from "../transcript/ToolRow";
+import { oneLineValueClass } from "./oneLineValue";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
@@ -142,7 +143,8 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           rel="noopener noreferrer"
           className={cn(
             layout.bodyText,
-            "underline truncate max-w-md text-fg-2",
+            "underline max-w-md text-fg-2",
+            oneLineValueClass(String(url ?? ""), highlight),
             "hover:opacity-80"
           )}
         >

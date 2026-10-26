@@ -7,6 +7,7 @@ import type { WebSearchResultItem, WebSearchToolError } from "../../types";
 import { ResultRow } from "../transcript/ResultRow";
 import { ResultRowContext } from "../transcript/resultRowContext";
 import { Marked } from "../transcript/ToolRow";
+import { oneLineValueClass } from "./oneLineValue";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
 type Props = {
@@ -50,10 +51,10 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({ t
             <a href={item.url} target="_blank" rel="noopener noreferrer" className={cn("flex items-start group", layout.iconSpacing)}>
               <ExternalLink className={cn(layout.iconSizeSmall, "text-fg-3 mt-0.5 flex-shrink-0")} />
               <div className="flex-1 min-w-0">
-                <div className={cn(layout.bodyText, "font-medium text-foreground group-hover:text-accent truncate")}>
+                <div className={cn(layout.bodyText, "font-medium text-foreground group-hover:text-accent", oneLineValueClass(String(item.title ?? ""), highlight))}>
                   <Marked text={String(item.title ?? "")} highlight={highlight} />
                 </div>
-                <div className={cn(layout.smallText, "text-muted-foreground truncate")}>
+                <div className={cn(layout.smallText, "text-muted-foreground", oneLineValueClass(String(item.url ?? ""), highlight))}>
                   <Marked text={String(item.url ?? "")} highlight={highlight} />
                 </div>
                 {item.page_age && (
