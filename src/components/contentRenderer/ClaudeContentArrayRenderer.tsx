@@ -9,6 +9,10 @@
  *   server results): one ToolRow per call (`contentEntries`, TR1b)
  * - tool_result / a server result whose call is not in the message: its own
  *   row (a page-boundary orphan)
+ * - `skipToolResults` (ClaudeMessageNode: the message's `toolUseResult` is
+ *   drawn below the content) holds for every result branch alike: a paired
+ *   call keeps its row without its results, an orphan result (tool_result or
+ *   any server result) is not drawn (CodeRabbit 4378493992 on PR #746)
  * - Unknown types: Fallback JSON display
  */
 
@@ -45,6 +49,7 @@ type Props = {
   filterType?: SearchFilterType;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
+  /** Draw no result block: every call's results and every orphan result (tool_result, server results). */
   skipToolResults?: boolean;
   skipText?: boolean;
   /** Skip only the first text block (already rendered as the message bubble). */
@@ -83,6 +88,10 @@ export const ClaudeContentArrayRenderer = memo(({
   // back to a shared "renderer" suffix, so without this every collapsible
   // in the message toggled together.
   const expandPrefix = useExpandKeyPrefix();
+  // Every result branch reads these two: a call's results, and an orphan
+  // result, which is its own row (so it also goes with the calls).
+  const shownResults = (results: Record<string, unknown>[]) => (skipToolResults ? [] : results);
+  const skipOrphanResult = skipToolCalls || skipToolResults;
 
   if (normalizedContent.length === 0) {
     return null;
@@ -95,7 +104,7 @@ export const ClaudeContentArrayRenderer = memo(({
             <UnifiedToolExecutionRenderer
               key={entry.key}
               toolUse={entry.toolUse}
-              toolResults={skipToolResults ? [] : entry.toolResults}
+              toolResults={shownResults(entry.toolResults)}
               onViewSubagent={onViewSubagent}
               searchQuery={searchQuery}
               isCurrentMatch={isCurrentMatch}
@@ -106,7 +115,7 @@ export const ClaudeContentArrayRenderer = memo(({
 
         if (entry.kind === "serverExecution") {
           if (skipToolCalls) return null;
-          const results = skipToolResults ? [] : entry.results;
+          const results = shownResults(entry.results);
           return entry.toolUse.type === "mcp_tool_use" ? (
             <MCPToolUseRenderer
               toolUse={entry.toolUse}
@@ -217,7 +226,7 @@ export const ClaudeContentArrayRenderer = memo(({
             );
 
           case "tool_result":
-            if (skipToolCalls || skipToolResults) return null;
+            if (skipOrphanResult) return null;
             // Its call is not in this message: a page-boundary orphan (TR1b).
             return (
               <ClaudeToolResultItem
@@ -351,7 +360,7 @@ export const ClaudeContentArrayRenderer = memo(({
           default: {
             if (SERVER_RESULT_TYPES.has(itemType)) {
               // A server / API result whose call is not in this message: its own row.
-              if (skipToolCalls) return null;
+              if (skipOrphanResult) return null;
               return (
                 <StandaloneServerResult
                   key={entry.key}
