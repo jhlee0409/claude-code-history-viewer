@@ -344,6 +344,52 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
 }
 
 /**
+ * Claude's Edit confirmation, as its tool records it: "The file <path> has
+ * been updated successfully." (real history, optionally with the
+ * "file state is current" note), and the older sentence without its
+ * `cat -n` snippet (the harness fixture's shape). A sentence followed by a
+ * snippet, or by any other note ("the file had been modified on disk …"),
+ * records more than the diff shows and is not a confirmation.
+ */
+const EDIT_CONFIRMATION =
+  /^(?:The file (.+?) has been updated successfully\.(?: \(file state is current in your context — no need to Read it back\))?|The file (.+?) has been updated\. Here's the result of running `cat -n` on a snippet of the edited file[.:]?)$/;
+
+/**
+ * The path an Edit / MultiEdit result confirms, when its whole content is
+ * exactly that confirmation sentence (a string or one text block) and
+ * nothing records an error; otherwise `null`: the result is shown as
+ * recorded (review round 1 of PR #746, F1).
+ */
+export function editConfirmationPath(result: ToolResultLike): string | null {
+  if (result.is_error === true) return null;
+  const content = result.content;
+  const text = Array.isArray(content) ? (content.length === 1 ? blockText(content[0]) : null) : blockText(content);
+  if (text === null) return null;
+  const match = EDIT_CONFIRMATION.exec(text.replace(/\n+$/, ""));
+  return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
+/**
+ * The results without the confirmation sentences (`confirms` gives the path
+ * a result confirms, or null) that name `filePath`, the row's own file —
+ * the one thing a Write / Edit row already says. A confirmation's own
+ * stdout / stderr still render (its content emptied); any other result is
+ * passed as is.
+ */
+export function withoutOwnConfirmations(
+  results: ToolResultLike[],
+  filePath: string,
+  confirms: (result: ToolResultLike) => string | null,
+): ToolResultLike[] {
+  return results.flatMap((result) => {
+    if (filePath === "" || confirms(result) !== filePath) return [result];
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
+}
+
+/**
  * Is this text part only the JSON echo of the result's own recorded API
  * error code (WebFetch / WebSearch `url_not_accessible`: content
  * `{"error_code":"url_not_accessible"}` beside `toolUseResult.error_code`)?
@@ -408,6 +454,35 @@ export function firstResultText(results: ToolResultLike[]): string | null {
     }
   }
   return null;
+}
+
+/**
+ * The results without the one text block `firstResultText` reads (the
+ * Agent card shows it as prose): every other block, every other result,
+ * and the result's own streams stay, in recorded order. A result left
+ * without content or streams is dropped (nothing of it remains to show).
+ */
+export function afterFirstResultText(results: ToolResultLike[]): ToolResultLike[] {
+  let taken = false;
+  return results.flatMap((result) => {
+    if (taken) return [result];
+    const content = result.content;
+    let rest: unknown;
+    if (typeof content === "string") {
+      rest = undefined;
+    } else if (Array.isArray(content)) {
+      const index = content.findIndex((block) => isPlainObject(block) && block.type === "text" && "text" in block);
+      if (index < 0) return [result];
+      rest = content.filter((_, i) => i !== index);
+    } else {
+      return [result];
+    }
+    taken = true;
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    if (Array.isArray(rest) && rest.length > 0) return [{ ...result, content: rest }];
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
 }
 
 /** What the existing result renderers draw for a result: its content, or the block itself when it records none. */

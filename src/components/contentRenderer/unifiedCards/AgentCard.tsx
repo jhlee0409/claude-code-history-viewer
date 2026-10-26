@@ -5,7 +5,7 @@ import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
 import { ProseBlock } from "../../transcript/ProseBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { DetailZone } from "../../transcript/DetailZone";
-import { firstResultText, hasShownResults, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
+import { afterFirstResultText, firstResultText, hasShownResults, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { plainPreview, str } from "./shared";
 import { isNonEmptyString, shownIf, unshown } from "./recordShape";
@@ -23,8 +23,9 @@ import { Num } from "@/lib/format/Num";
  * `toolOutcome` only. Opened: the whole description when the row cuts it,
  * the model and isolation in the meta line, then the Input zone (the
  * prompt) and the Result zone (its duration, tokens and tool count on the
- * label's line) as prose blocks — no nested folds, no fill, no green check
- * — and "View Conversation", an aside outside both zones (it leaves for
+ * label's line) as prose blocks — no nested folds, no fill, no green check;
+ * after the first result text, every other part the results recorded, as
+ * output — and "View Conversation", an aside outside both zones (it leaves for
  * the subagent's own transcript).
  */
 export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
@@ -52,7 +53,12 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   });
   const hasRest = Object.keys(rest).length > 0;
 
-  const resultText = firstResultText(withoutErrorCodeEcho(toolResults));
+  const shownResults = withoutErrorCodeEcho(toolResults);
+  const resultText = firstResultText(shownResults);
+  // Everything else the results recorded (a second text block such as Claude's
+  // agentId / usage note, images, other results) follows the prose, in order
+  // (review round 1 of PR #746, F1).
+  const restResults = resultText !== null ? afterFirstResultText(shownResults) : [];
   const stats = recordedAgentStats(toolResults);
 
   const promptPreview = description ? "" : plainPreview(prompt);
@@ -131,7 +137,12 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         }
       >
         {resultText ? (
-          <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
+          <>
+            <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
+            {restResults.length > 0 && (
+              <ToolResultOutputs results={restResults} family={family} expandKey={`${expandKey}-rest`} failed={outcome.verdict === "failed"} />
+            )}
+          </>
         ) : (
           <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
         )}

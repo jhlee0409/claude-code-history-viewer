@@ -4,7 +4,7 @@ import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { DetailZone } from "../../transcript/DetailZone";
-import { hasShownResults, recordedEditFacts, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { editConfirmationPath, hasShownResults, recordedEditFacts, toolFamily, toolOutcome, withoutOwnConfirmations } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import type { EditReplacement } from "../../transcript/DiffViewModel";
 import { PathText } from "@/lib/format/PathText";
@@ -37,10 +37,14 @@ function replacements(input: Record<string, unknown>): { kind: "edit" | "multiEd
  * TC3). The row's "+a −d" and the diff's counts come from one function,
  * `replacementCounts` (TC4).
  *
- * The results: a failed or interrupted call shows what its result recorded
- * (the `<tool_use_error>` text …) after the diff, in the Result zone,
- * through the TR0 output rules (TC2). A completed call's result is Claude's confirmation sentence,
- * which the diff already says, and stays out as before. The result's own
+ * The results, after the diff, in the Result zone, through the TR0 output
+ * rules (TC2): a failed or interrupted call shows everything its results
+ * recorded (the `<tool_use_error>` text …). Otherwise a result that is only
+ * Claude's confirmation sentence naming the row's own file
+ * (`editConfirmationPath`) says nothing the diff does not, and stays out as
+ * before; every other result — a note the tool added, a `cat -n` snippet,
+ * any other text or block — is shown as recorded (review round 1 of PR
+ * #746, F1: a paired result is never consumed unseen). The result's own
  * metadata (via `recordedEditFacts`) gives the user-modified flag and the
  * original file, which numbers the diff with the file's own lines and adds
  * the file copies to the menu; its whole text is not repeated in the row.
@@ -58,7 +62,8 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
   const outcome = toolOutcome(toolUse, toolResults, family);
   const facts = recordedEditFacts(toolResults);
   const expandKey = `unified-${toolId}`;
-  const showResults = outcome.verdict === "failed" || outcome.lifecycle === "interrupted";
+  const shownResults =
+    outcome.verdict === "failed" || outcome.lifecycle === "interrupted" ? toolResults : withoutOwnConfirmations(toolResults, filePath, editConfirmationPath);
 
   return (
     <ToolRow
@@ -95,9 +100,9 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
           expandKey={`${expandKey}-diff`}
         />
       </DetailZone>
-      {/* A failed or interrupted call's recorded text: Result. */}
-      <DetailZone kind="result" show={showResults && hasShownResults(toolResults)}>
-        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      {/* What the results recorded beyond the confirmation sentence: Result. */}
+      <DetailZone kind="result" show={hasShownResults(shownResults)}>
+        <ToolResultOutputs results={shownResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
       </DetailZone>
     </ToolRow>
   );
