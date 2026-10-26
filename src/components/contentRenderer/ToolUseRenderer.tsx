@@ -28,6 +28,7 @@ import { useTheme } from "@/contexts/theme";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
 import { HighlightedText } from "../common";
 import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
+import { isRecord } from "./unifiedCards/recordShape";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import {
   type BaseRendererProps,
@@ -106,6 +107,12 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     );
   };
 
+  const list = toolName === "TodoWrite" ? toolInput.todos :
+    toolName === "update_plan" ? toolInput.plan : undefined;
+  // Null/missing lists retain the standalone renderers' existing empty view.
+  const hasMalformedList = list != null &&
+    (!Array.isArray(list) || !list.every(isRecord));
+
   // === Named Tool Renderers ===
   switch (toolName) {
     case "Read":
@@ -123,7 +130,8 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     case "MultiEdit":
       return <MultiEditToolRenderer toolId={toolId} input={toolInput} />;
     case "TodoWrite":
-      return <TodoWriteToolRenderer toolId={toolId} input={toolInput} />;
+      if (!hasMalformedList) return <TodoWriteToolRenderer toolId={toolId} input={toolInput} />;
+      break;
     case "NotebookEdit":
       return <NotebookEditToolRenderer toolId={toolId} input={toolInput} />;
     case "TaskCreate":
@@ -137,7 +145,8 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     case "apply_patch":
       return <ApplyPatchToolRenderer toolId={toolId} input={toolInput} />;
     case "update_plan":
-      return <UpdatePlanToolRenderer toolId={toolId} input={toolInput} />;
+      if (!hasMalformedList) return <UpdatePlanToolRenderer toolId={toolId} input={toolInput} />;
+      break;
   }
 
   const mcpTool = parseMcpTool(toolName);
@@ -156,6 +165,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
   const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null;
 
+  // Malformed named lists must reach JSON, even if other fields match a tool.
   // Check tool types (fallback for input-shape detection)
   const isWriteTool =
     toolName === "Write" ||
@@ -176,7 +186,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     typeof toolInput.prompt === "string";
 
   // === Write Tool Renderer ===
-  if (isWriteTool) {
+  if (!hasMalformedList && isWriteTool) {
     const filePath = typeof toolInput.file_path === "string" ? toolInput.file_path : "";
     const content = typeof toolInput.content === "string" ? toolInput.content : "";
     const language = getLanguageFromPath(filePath);
@@ -242,7 +252,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
   }
 
   // === Edit Tool Renderer ===
-  if (isEditTool) {
+  if (!hasMalformedList && isEditTool) {
     const filePath = typeof toolInput.file_path === "string" ? toolInput.file_path : "";
     const oldString = typeof toolInput.old_string === "string" ? toolInput.old_string : "";
     const newString = typeof toolInput.new_string === "string" ? toolInput.new_string : "";
@@ -263,7 +273,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
   }
 
   // === Assistant Prompt Renderer ===
-  if (isAssistantPrompt) {
+  if (!hasMalformedList && isAssistantPrompt) {
     const promptInput = toolInput as { description: string; prompt: string };
     const infoStyles = getVariantStyles("info");
 
