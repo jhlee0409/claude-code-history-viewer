@@ -3,7 +3,8 @@ import { SquareCheckBig, Circle } from "lucide-react";
 import { ToolIcon } from "../../ToolIcon";
 import { Marked, TextTarget, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { searchHits } from "./shared";
 import { DefaultCard } from "./DefaultCard";
@@ -60,9 +61,9 @@ function parseQuestions(input: unknown): AskQuestion[] | null {
 
 /**
  * AskUserQuestion (TR1a): one ToolRow. Row: the recorded tool name · the
- * first question · the outcome from `toolOutcome` only. Opened: every
- * question with its header and options (labels and descriptions), then the
- * recorded answer. A search hit anywhere in them opens the row once per
+ * first question · the outcome from `toolOutcome` only. Opened: the Input
+ * zone — every question with its header and options (labels and
+ * descriptions) — then the Result zone, the recorded answer. A search hit anywhere in them opens the row once per
  * query and is marked, the first question included when the row cuts it;
  * a hit on the tool id shows the id, marked, in the detail's meta line.
  * An input this card does not recognize keeps the generic Default row.
@@ -129,7 +130,7 @@ function AskRow({
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName={name} className="w-4 h-4" />}
+      icon={<ToolIcon toolName={name} title={null} className="w-4 h-4" />}
       verb={name}
       target={firstLine ? <TextTarget text={firstLine} full={first} highlight={highlight} /> : undefined}
       outcome={outcome}
@@ -145,11 +146,12 @@ function AskRow({
         ) : undefined
       }
     >
-      <div className="space-y-3">
-        {questions.map((q, qi) => {
+      <DetailZone kind="input">
+        <div className="space-y-3">
+          {questions.map((q, qi) => {
           const OptionIcon = q.multiSelect ? SquareCheckBig : Circle;
           return (
-            <div key={qi} className="border-l-2 border-line pl-3">
+            <div key={qi} className="border-l border-line-faint pl-3">
               {q.header && (
                 <div className="mb-1 text-caption text-fg-3">
                   <Marked text={q.header} highlight={highlight} />
@@ -180,8 +182,11 @@ function AskRow({
             </div>
           );
         })}
-      </div>
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+        </div>
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+      </DetailZone>
     </ToolRow>
   );
 }

@@ -89,10 +89,16 @@ describe("opened Edit: meta line → DiffView, nothing between", () => {
     const line = meta(container);
     const next = line.nextElementSibling;
     expect(next?.hasAttribute("data-diff-view"), `element after the meta line: ${next?.outerHTML.slice(0, 160)}`).toBe(true);
-    // The meta line is the first thing in the opened detail's content.
+    // The opened detail's content starts with the Input zone (IO zones, owner
+    // option B: the diff is the recorded change = Input); inside it, after the
+    // zone's label line and nothing else, the meta line comes first.
     const detail = container.querySelector("[data-tool-detail]") as HTMLElement;
     const first = detail.querySelector(":scope > div")?.firstElementChild;
-    expect(first === line || first?.firstElementChild === line, `first element of the detail: ${first?.outerHTML.slice(0, 160)}`).toBe(true);
+    expect(first?.getAttribute("data-detail-zone"), `first element of the detail: ${first?.outerHTML.slice(0, 160)}`).toBe("input");
+    expect(first?.children[0]?.hasAttribute("data-zone-label"), "the zone starts with its label line").toBe(true);
+    expect(first?.children.length, "the zone is its label line, then its body").toBe(2);
+    const body = first?.children[1]?.firstElementChild;
+    expect(body === line || body?.firstElementChild === line, `first element of the Input zone's body: ${body?.outerHTML.slice(0, 160)}`).toBe(true);
   });
 
   it("the old box is gone: no second header, no absolute path well, no Edit Type / User Modified chips", () => {

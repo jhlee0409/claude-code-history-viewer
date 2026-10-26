@@ -6,8 +6,10 @@
 // `userModified: false`), so the opened detail is ONE meta line → DiffView.
 //
 // - 1440x900 en: the Edit row's bottom edge → the first diff code line's
-//   top edge ≤ 40px; the diff is the meta line's next element; nothing in
-//   the meta line is clipped.
+//   top edge ≤ 40px, not counting the Input zone's label line (IO zones,
+//   owner option B: the diff is the recorded change = Input, so its zone
+//   label is the one thing allowed above the meta line); the diff is the
+//   meta line's next element; nothing in the meta line is clipped.
 // - 1440x900 ko at font scale 125%: the meta line may wrap, but nothing is
 //   clipped and the order (row → meta → diff) holds.
 // - 390x844 en and ko: the row's path stays on one line, the meta line is
@@ -69,6 +71,10 @@ const measure = (page) =>
     const firstCode = next?.querySelector("[data-diff-line] [data-diff-code]") ?? null;
     const firstCodeLine = firstCode ? textRects(firstCode)[0] ?? rect(firstCode.getBoundingClientRect()) : null;
     const metaBox = rect(meta.getBoundingClientRect());
+    // The Input zone around the diff: its label line and the space before its body.
+    const zone = meta.closest("[data-detail-zone]");
+    const zoneBody = zone?.children[1] ?? null;
+    const zoneLabel = zone ? { kind: zone.getAttribute("data-detail-zone"), labelLine: !!zone.children[0]?.hasAttribute("data-zone-label"), span: zoneBody ? +(zoneBody.getBoundingClientRect().top - zone.getBoundingClientRect().top).toFixed(2) : null } : null;
     const detailBox = rect(detail.getBoundingClientRect());
     const viewport = innerWidth;
 
@@ -108,6 +114,7 @@ const measure = (page) =>
       next: next ? next.outerHTML.slice(0, 160) : null,
       diff: next ? rect(next.getBoundingClientRect()) : null,
       firstCodeLine,
+      zoneLabel,
       pieces,
       controls,
       pathLines: path ? lineCount(textRects(path)) : null,
@@ -175,8 +182,13 @@ describe.skipIf(!ENABLED)("opened Edit: row → one meta line → DiffView (real
     if (config.distance) {
       it("Edit row bottom → first diff code line top ≤ 40px", () => {
         expect(m.found && m.firstCodeLine !== null, `no meta line → diff; opened detail: ${m.detail}`).toBe(true);
-        const gap = m.firstCodeLine.top - m.row.bottom;
-        expect(gap, JSON.stringify({ gap, row: m.row, meta: m.meta, firstCodeLine: m.firstCodeLine })).toBeLessThanOrEqual(40);
+        // The one thing allowed above the meta line is the Input zone's label line (IO zones).
+        expect(m.zoneLabel, `the diff sits in a zone: ${JSON.stringify(m.zoneLabel)}`).not.toBeNull();
+        expect(m.zoneLabel.kind, "the diff is the recorded change: Input").toBe("input");
+        expect(m.zoneLabel.labelLine, "the zone starts with its label line").toBe(true);
+        const gap = m.firstCodeLine.top - m.row.bottom - m.zoneLabel.span;
+        expect(gap, JSON.stringify({ gap, zoneLabelSpan: m.zoneLabel.span, row: m.row, meta: m.meta, firstCodeLine: m.firstCodeLine })).toBeLessThanOrEqual(40);
+        expect(m.zoneLabel.span, "the label line is one caption line, not a block").toBeLessThanOrEqual(28);
         expect(m.metaLines, `meta line wraps at 1440 en: ${m.metaText}`).toBe(1);
       });
     }

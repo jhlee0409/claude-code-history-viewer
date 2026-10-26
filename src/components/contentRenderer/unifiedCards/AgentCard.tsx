@@ -1,20 +1,16 @@
-import { memo, type ReactNode } from "react";
+import { memo } from "react";
 import { Bot, Cpu, ExternalLink, Hammer, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
 import { ProseBlock } from "../../transcript/ProseBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { firstResultText, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { firstResultText, hasShownResults, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { plainPreview, str } from "./shared";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { Num } from "@/lib/format/Num";
-
-/** A caption label over a block of the opened detail ("Prompt", "Result"). */
-function Caption({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-fg-3">{children}</div>;
-}
 
 /**
  * Agent / Task (TR1a, renderer audit NC3): one ToolRow.
@@ -23,9 +19,11 @@ function Caption({ children }: { children: ReactNode }) {
  * line as plain words: no raw `**`) · the subagent type and the background
  * flag as plain caption text (no pill, no uppercase) · the outcome from
  * `toolOutcome` only. Opened: the whole description when the row cuts it,
- * the model and isolation in the meta line, then "Prompt" and "Result"
- * (with its duration, tokens and tool count) as prose blocks — no nested
- * folds, no fill, no green check — and "View Conversation".
+ * the model and isolation in the meta line, then the Input zone (the
+ * prompt) and the Result zone (its duration, tokens and tool count on the
+ * label's line) as prose blocks — no nested folds, no fill, no green check
+ * — and "View Conversation", an aside outside both zones (it leaves for
+ * the subagent's own transcript).
  */
 export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
   const { t } = useTranslation();
@@ -86,21 +84,19 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         </>
       }
     >
-      {description && (
-        <WhenTargetCut>
-          <p className="whitespace-pre-wrap text-list text-fg-2">{description}</p>
-        </WhenTargetCut>
-      )}
-      {prompt && (
-        <section className="space-y-1">
-          <Caption>{t("renderers.agentTool.prompt", { defaultValue: "Prompt" })}</Caption>
-          <ProseBlock text={prompt} expandKey={`${expandKey}-prompt`} />
-        </section>
-      )}
-      {resultText ? (
-        <section className="space-y-1">
-          <Caption>
-            <span>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
+      <DetailZone kind="input" show={prompt ? true : description ? "whenTargetCut" : false}>
+        {description && (
+          <WhenTargetCut>
+            <p className="whitespace-pre-wrap text-list text-fg-2">{description}</p>
+          </WhenTargetCut>
+        )}
+        {prompt && <ProseBlock text={prompt} expandKey={`${expandKey}-prompt`} />}
+      </DetailZone>
+      <DetailZone
+        kind="result"
+        show={resultText ? true : hasShownResults(toolResults)}
+        meta={
+          <>
             {stats.totalDurationMs != null && (
               <span className="inline-flex items-center gap-1">
                 <Timer aria-hidden="true" className="w-3.5 h-3.5" />
@@ -119,14 +115,18 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
                 {stats.totalToolUseCount}
               </span>
             )}
-          </Caption>
+          </>
+        }
+      >
+        {resultText ? (
           <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
-        </section>
-      ) : (
-        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
-      )}
+        ) : (
+          <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+        )}
+      </DetailZone>
       {onViewSubagent && (
         <button
+          data-detail-aside=""
           type="button"
           onClick={() => {
             onViewSubagent(toolId);

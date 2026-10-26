@@ -34,32 +34,9 @@ import {
   DefaultCard,
 } from "./unifiedCards";
 import type { Props } from "./unifiedCards";
+import { canonicalToolName } from "./toolNames";
 
 export type { Props as UnifiedToolExecutionRendererProps };
-
-/**
- * Canonical card for a tool name. Claude Code uses PascalCase names; other
- * providers (oh-my-pi, Codex, OpenCode, Gemini) emit lowercase or snake_case
- * variants for the same primitives. Only names whose input shape matches the
- * target card are aliased; everything else keeps the generic DefaultCard.
- */
-const TOOL_ALIASES: Record<string, string> = {
-  bash: "Bash",
-  shell: "Bash",
-  read: "Read",
-  read_file: "Read",
-  write: "Write",
-  write_file: "Write",
-  grep: "Grep",
-  glob: "Glob",
-  websearch: "WebSearch",
-  web_search: "WebSearch",
-  webfetch: "WebFetch",
-  web_fetch: "WebFetch",
-};
-
-const canonicalToolName = (name: string): string =>
-  TOOL_ALIASES[name.toLowerCase()] ?? name;
 
 export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer({
   toolUse,
@@ -69,6 +46,7 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
   isCurrentMatch,
   currentMatchIndex,
 }: Props) {
+  // The canonical card for the recorded name (provider aliases: ./toolNames).
   const toolName = canonicalToolName((toolUse.name as string) || "");
 
   switch (toolName) {

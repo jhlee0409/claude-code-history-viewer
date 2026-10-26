@@ -290,17 +290,24 @@ describe("invariant: searching any recorded value of a routed body marks it in t
 // CodeRabbit 4370643919: the JSON caption lists keys only for an object input
 // ---------------------------------------------------------------------------
 
+// IO zones (owner option B): the caption is the Input zone's label line —
+// the label, then the keys as its meta.
 describe("the whole-input JSON caption names keys only for an object input", () => {
-  const caption = (root: Element) => text(root.querySelector("[data-input-json='whole'] > div")!).trim();
+  const caption = (root: Element) => {
+    expect(root.querySelector("[data-input-json='whole']"), "the whole-input JSON").not.toBeNull();
+    const line = root.querySelector("[data-detail-zone='input'] > [data-zone-label]");
+    expect(line, "the Input zone's label line").not.toBeNull();
+    return [...line!.children].map((el) => text(el).trim());
+  };
   it.each([
     ["array", ["first", "second"]],
     ["string", "abc"],
   ])("%s input: the caption is the plain label, no index list", (_kind, input) => {
     const root = openedRow("mcp__probe__tool", input, "");
-    expect(caption(root)).toBe(i18n.t("common.input"));
+    expect(caption(root)).toEqual([i18n.t("toolRow.inputZone")]);
   });
   it("object input: the caption lists its keys", () => {
     const root = openedRow("mcp__probe__tool", { alpha: 1, beta: 2 }, "");
-    expect(caption(root)).toBe(`${i18n.t("common.input")} (alpha, beta)`);
+    expect(caption(root)).toEqual([i18n.t("toolRow.inputZone"), "(alpha, beta)"]);
   });
 });

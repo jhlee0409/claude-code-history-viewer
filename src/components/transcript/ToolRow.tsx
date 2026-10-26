@@ -35,9 +35,23 @@
  *
  * The header is a disclosure (`aria-expanded` + `aria-controls`); its open
  * state lives in the capture expand registry like every renderer. The
- * opened detail is its content, then one meta line: the facts, ended by
- * "Copy tool ID" — a small ghost text button, the only way to the tool id,
- * never the detail's first line (renderer audit TC10).
+ * opened detail is its content — the card's `DetailZone`s, "Input" then
+ * "Result" (owner option B), plus asides that lead elsewhere — then one
+ * meta line, outside both zones: the facts, ended by "Copy tool ID" — a
+ * small ghost text button, the only way to the tool id, never the detail's
+ * first line (renderer audit TC10).
+ *
+ * Where an opened call ends (signal audit #12, owner decision 2026-10-25):
+ * the opened detail ends with a 1px `--line-faint` hairline, 8px below its
+ * last line and 8px above the next row — only the bottom edge, not a frame,
+ * so two opened rows that meet have one line between them. A closed row has
+ * no line and no extra space.
+ *
+ * The icon (signal audit #14) is an image named by the tool kind in the
+ * user's language (`toolKind`: Bash → "Terminal" / "터미널", MCP and unknown
+ * tools → "Tool" / "도구"), which is also its native tooltip. It is not
+ * focusable; the row button reads kind, verb, target. The verb stays the
+ * recorded name (D-R5).
  *
  * A command / pattern target (`CodeTarget`, or prose in `TextTarget`) may be
  * cut: by the ellipsis, or because only its first line fits the row. The row
@@ -64,11 +78,12 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import { HighlightedText } from "../common/HighlightedText";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
 import { OutcomeStatus } from "./OutcomeStatus";
+import { toolKindLabel } from "./toolKind";
 
 export interface ToolRowProps {
-  /** The tool's icon; the row colours it `--fg-3`. */
+  /** The tool's icon; the row colours it `--fg-3` and names it by the tool kind. Pass it without its own tooltip. */
   icon: ReactNode;
-  /** The tool name as recorded (Read, Bash, …). */
+  /** The tool name as recorded (Read, Bash, …); also what the row's tool kind is looked up by. */
   verb: string;
   /** What the call acted on: a `PathText`, `<CodeTarget>` … */
   target?: ReactNode;
@@ -275,6 +290,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
   const facts = open ? detailFacts(outcome, family, t) : [];
   const targetRef = useRef<HTMLSpanElement>(null);
   const targetCut = useTargetCut(targetRef, open, target);
+  const kind = toolKindLabel(verb, t);
 
   return (
     <div data-tool-row-wrapper="" className="mt-1">
@@ -292,7 +308,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
           className="flex min-w-0 grow basis-56 items-center gap-2 rounded-row px-1 text-left hover:bg-surface-hover"
         >
           <ChevronRight aria-hidden="true" className={cn("w-3.5 h-3.5 shrink-0 text-fg-3 transition-transform", open && "rotate-90")} />
-          <span data-tool-icon="" className="flex shrink-0 items-center text-fg-3">
+          <span data-tool-icon="" role="img" aria-label={kind} title={kind} className="flex shrink-0 items-center text-fg-3">
             {icon}
           </span>
           <span data-tool-verb="" className={cn("min-w-0 truncate font-medium text-fg-2", target && "max-w-1/2")} title={verb}>
@@ -309,7 +325,7 @@ export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, exp
           <OutcomeStatus outcome={outcome} />
         </div>
       </div>
-      <div id={detailId} data-tool-detail="" hidden={!open} className="pl-6">
+      <div id={detailId} data-tool-detail="" hidden={!open} className={cn("pl-6", open && "mb-2 border-b border-line-faint pb-2")}>
         {open && (
           <TargetCutContext.Provider value={targetCut}>
             <div className="space-y-2 pb-2">{children}</div>

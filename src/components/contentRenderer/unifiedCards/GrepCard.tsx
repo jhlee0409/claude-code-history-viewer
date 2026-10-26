@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
@@ -38,7 +39,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Grep" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Grep" title={null} className="w-4 h-4" />}
       verb={name}
       target={pattern ? <CodeTarget text={pattern} /> : undefined}
       meta={
@@ -53,9 +54,13 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      {pattern && <TargetWell text={pattern} />}
-      {/* Content-mode matches are records: one line each, the well scrolls sideways (TC13). */}
-      <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} wrap={outputMode !== "content"} />
+      <DetailZone kind="input" show={pattern ? "whenTargetCut" : false}>
+        <TargetWell text={pattern} />
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        {/* Content-mode matches are records: one line each, the well scrolls sideways (TC13). */}
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} wrap={outputMode !== "content"} />
+      </DetailZone>
     </ToolRow>
   );
 });

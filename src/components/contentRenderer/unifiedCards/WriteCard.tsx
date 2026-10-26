@@ -4,7 +4,8 @@ import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { normalizeResult, toolFamily, toolOutcome, writeConfirmationPath } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, normalizeResult, toolFamily, toolOutcome, writeConfirmationPath } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
@@ -12,8 +13,9 @@ import { str, strAny } from "./shared";
 
 /**
  * Write: path target, the written line count in the header meta (once), the
- * written content in a file well. A result that is only Claude's confirmation
- * sentence ("File created successfully at: <absolute path>") adds nothing
+ * written content in a file well, as the Input zone (what the agent asked to
+ * write); the Result zone holds what came back. A result that is only
+ * Claude's confirmation sentence ("File created successfully at: <absolute path>") adds nothing
  * when it names the header's own file and is left out; naming another file,
  * it shows that path the PathText way (relative, full path in `title`).
  * Anything else is shown as recorded (renderer audit TC15).
@@ -42,7 +44,7 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Write" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Write" title={null} className="w-4 h-4" />}
       verb={name}
       target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
       meta={content != null ? <span>{t("toolRow.lineCount", { count: content.split("\n").length })}</span> : undefined}
@@ -51,13 +53,17 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
       toolId={toolId}
       expandKey={expandKey}
     >
-      {content != null && <OutputBlock text={content} source="file" showLineCount={false} expandKey={`${expandKey}-content`} />}
-      {otherPaths.map((path, index) => (
-        <p key={index} className="text-list text-fg-2">
-          <PathText path={path} ctx={pathCtx} className="text-code" />
-        </p>
-      ))}
-      <ToolResultOutputs results={otherResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      <DetailZone kind="input" show={content != null}>
+        <OutputBlock text={content ?? ""} source="file" showLineCount={false} expandKey={`${expandKey}-content`} />
+      </DetailZone>
+      <DetailZone kind="result" show={otherPaths.length > 0 || hasShownResults(otherResults)}>
+        {otherPaths.map((path, index) => (
+          <p key={index} className="text-list text-fg-2">
+            <PathText path={path} ctx={pathCtx} className="text-code" />
+          </p>
+        ))}
+        <ToolResultOutputs results={otherResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });
