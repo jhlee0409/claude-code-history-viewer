@@ -266,6 +266,7 @@ describe("F1: what an Edit / Write row may still leave out is only its own confi
   const HIDDEN = [
     ["the current sentence", `The file ${FP} has been updated successfully.`],
     ["the sentence with the context note", `The file ${FP} has been updated successfully. (file state is current in your context — no need to Read it back)`],
+    ["the short sentence (the inner fixture's and earlier pins' shape)", `The file ${FP} has been updated.`],
     ["the legacy cat -n sentence without a snippet (the harness fixture's shape)", `The file ${FP} has been updated. Here's the result of running \`cat -n\` on a snippet of the edited file.`],
   ] as const;
   const SHOWN = [

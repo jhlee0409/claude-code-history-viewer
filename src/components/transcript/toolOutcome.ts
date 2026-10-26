@@ -346,13 +346,14 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
 /**
  * Claude's Edit confirmation, as its tool records it: "The file <path> has
  * been updated successfully." (real history, optionally with the
- * "file state is current" note), and the older sentence without its
- * `cat -n` snippet (the harness fixture's shape). A sentence followed by a
+ * "file state is current" note), the shorter "The file <path> has been
+ * updated.", and the older sentence without its `cat -n` snippet (the
+ * harness fixtures' shapes). A sentence followed by a
  * snippet, or by any other note ("the file had been modified on disk …"),
  * records more than the diff shows and is not a confirmation.
  */
 const EDIT_CONFIRMATION =
-  /^(?:The file (.+?) has been updated successfully\.(?: \(file state is current in your context — no need to Read it back\))?|The file (.+?) has been updated\. Here's the result of running `cat -n` on a snippet of the edited file[.:]?)$/;
+  /^(?:The file (.+?) has been updated(?: successfully)?\.(?: \(file state is current in your context — no need to Read it back\))?|The file (.+?) has been updated\. Here's the result of running `cat -n` on a snippet of the edited file[.:]?)$/;
 
 /**
  * The path an Edit / MultiEdit result confirms, when its whole content is
