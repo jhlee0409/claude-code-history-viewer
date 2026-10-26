@@ -30,6 +30,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 import { UnifiedToolExecutionRenderer } from "@/components/contentRenderer/UnifiedToolExecutionRenderer";
 import { ToolExecutionResultRouter } from "@/components/messageRenderer/ToolExecutionResultRouter";
+import { splitLeadingResultText } from "@/components/transcript/toolOutcome";
 
 const CWD = "/Users/dev/work/kiln";
 const WJ = /\u2060/g;
@@ -280,6 +281,27 @@ describe("R2-F1: an orphan tool_result (its call not recorded) keeps its recorde
       expect(rows(container).length).toBe(1);
       expectRecordedSequence(container, parts);
     });
+  });
+});
+
+describe("R2-F1: splitLeadingResultText lifts a text only when it is the first recorded part", () => {
+  const image = { type: "image", source: { type: "base64", media_type: "image/png", data: PNGS[0] } };
+  const a = { type: "text", text: "A" };
+  const b = { type: "text", text: "B" };
+  const CASES: [string, Record<string, unknown>[], string | null, Record<string, unknown>[]][] = [
+    ["no result", [], null, []],
+    ["a string content", [{ content: "A" }], "A", []],
+    ["text → image → text", [{ content: [a, image, b] }], "A", [{ content: [image, b] }]],
+    ["image → text: nothing lifted", [{ content: [image, a] }], null, [{ content: [image, a] }]],
+    ["image → image → text: nothing lifted", [{ content: [image, image, a] }], null, [{ content: [image, image, a] }]],
+    ["[image] | [text]: nothing lifted across results", [{ content: [image] }, { content: [a] }], null, [{ content: [image] }, { content: [a] }]],
+    ["no content first, then a text result: nothing lifted", [{ is_error: false }, { content: "A" }], null, [{ is_error: false }, { content: "A" }]],
+    ["an empty first content, then a text result: nothing lifted", [{ content: [] }, { content: "A" }], null, [{ content: [] }, { content: "A" }]],
+    ["[text] | [image]: the first result is dropped once lifted, the next stays", [{ content: [a] }, { content: [image] }], "A", [{ content: [image] }]],
+    ["a lifted string keeps its result's streams", [{ content: "A", toolUseResult: { stdout: "out" } }], "A", [{ content: "", toolUseResult: { stdout: "out" } }]],
+  ];
+  it.each(CASES)("%s", (_label, results, text, rest) => {
+    expect(splitLeadingResultText(results)).toEqual({ text, rest });
   });
 });
 

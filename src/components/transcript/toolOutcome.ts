@@ -440,9 +440,11 @@ export function hasShownResults(results: ToolResultLike[]): boolean {
 }
 
 /**
- * The first recorded text of the results, as the Agent and Workflow cards
- * have always read it: a string content, or the first text block of a
- * content array (one block, not the run). `null` when none records text.
+ * The first recorded text of the results, wherever it sits: a string
+ * content, or the first text block of a content array (one block, not the
+ * run). `null` when none records text. A value to read (the Workflow run id),
+ * never a slot to render: a card that shows a text apart from the other parts
+ * takes it with `splitLeadingResultText`, which keeps the recorded order.
  */
 export function firstResultText(results: ToolResultLike[]): string | null {
   for (const result of results) {
@@ -457,33 +459,45 @@ export function firstResultText(results: ToolResultLike[]): string | null {
   return null;
 }
 
+/** A card's leading result text and every part after it (`splitLeadingResultText`). */
+export interface LeadingResultText {
+  /** The text the results record first, or `null` when their first part is not text. */
+  text: string | null;
+  /** Everything else, in recorded order: all the results when `text` is null. */
+  rest: ToolResultLike[];
+}
+
 /**
- * The results without the one text block `firstResultText` reads (the
- * Agent card shows it as prose): every other block, every other result,
- * and the result's own streams stay, in recorded order. A result left
- * without content or streams is dropped (nothing of it remains to show).
+ * The text a card may show on its own (the Agent card's prose) and the parts
+ * that follow it (review round 2 of PR #746, R2-F1). Only the very first part
+ * the results record can be lifted: the first result's string content, or
+ * the first block of its content array when that block is text. Then `rest`
+ * is that result's other blocks and streams, and every later result, in
+ * recorded order (a result left with neither is dropped: nothing of it
+ * remains). When the first part is anything else (an image, a document, an
+ * empty first result, no content) nothing is lifted and `rest` is the results
+ * as recorded, so a text is never shown ahead of a part recorded before it.
  */
-export function afterFirstResultText(results: ToolResultLike[]): ToolResultLike[] {
-  let taken = false;
-  return results.flatMap((result) => {
-    if (taken) return [result];
-    const content = result.content;
-    let rest: unknown;
-    if (typeof content === "string") {
-      rest = undefined;
-    } else if (Array.isArray(content)) {
-      const index = content.findIndex((block) => isPlainObject(block) && block.type === "text" && "text" in block);
-      if (index < 0) return [result];
-      rest = content.filter((_, i) => i !== index);
-    } else {
-      return [result];
-    }
-    taken = true;
-    const n = normalizeResult(result);
-    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
-    if (Array.isArray(rest) && rest.length > 0) return [{ ...result, content: rest }];
-    return streamText ? [{ ...result, content: "" }] : [];
-  });
+export function splitLeadingResultText(results: ToolResultLike[]): LeadingResultText {
+  const [first, ...later] = results;
+  if (!first) return { text: null, rest: [] };
+  const content = first.content;
+  const lead = Array.isArray(content) ? content[0] : undefined;
+  let text: string;
+  let remaining: unknown[];
+  if (typeof content === "string") {
+    text = content;
+    remaining = [];
+  } else if (Array.isArray(content) && isPlainObject(lead) && lead.type === "text" && "text" in lead) {
+    text = String(lead.text);
+    remaining = content.slice(1);
+  } else {
+    return { text: null, rest: results };
+  }
+  const n = normalizeResult(first);
+  const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+  const head = remaining.length > 0 ? [{ ...first, content: remaining }] : streamText ? [{ ...first, content: "" }] : [];
+  return { text, rest: [...head, ...later] };
 }
 
 /** What the existing result renderers draw for a result: its content, or the block itself when it records none. */
