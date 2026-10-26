@@ -8,7 +8,9 @@
  * row itself.
  *
  * `highlight`: the in-session search query when it hits the call or its
- * results; result bodies mark the hits in the text they show.
+ * results; result bodies mark the hits in the text they show. Outside a
+ * call (`paired: false`), `StandaloneServerResult` provides it when the
+ * query hits the result itself, and `ResultRow` then opens its own row.
  */
 import { createContext } from "react";
 import type { TextHighlight } from "./ToolRow";

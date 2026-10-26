@@ -5,7 +5,7 @@
  * Supports both successful operations and error conditions with file content preview.
  */
 
-import { memo, useContext, useId } from "react";
+import { memo, useContext, useEffect, useId } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { ResultRow } from "../transcript/ResultRow";
 import { ResultRowContext } from "../transcript/resultRowContext";
 import { Marked } from "../transcript/ToolRow";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
+import { searchHits } from "./unifiedCards/shared";
 
 type Props = {
   toolUseId: string;
@@ -39,6 +40,13 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     const [showContent, setShowContent] = useCaptureExpandState(`text-editor-${toolUseId}`, false);
     const { highlight } = useContext(ResultRowContext);
     const contentId = useId();
+    // A counted search hit in the file content opens the content fold once per
+    // query (keyed on the query, as ToolRow's reveal), so the mark is seen.
+    const fileText = isTextEditorError(content) ? undefined : content.content;
+    const contentHitQuery = highlight && searchHits(highlight.searchQuery, fileText) ? highlight.searchQuery : undefined;
+    useEffect(() => {
+      if (contentHitQuery !== undefined && contentHitQuery.trim() !== "") setShowContent(true);
+    }, [contentHitQuery, setShowContent]);
     const result = { type: "text_editor_code_execution_tool_result", tool_use_id: toolUseId, content };
     const errorMessages: Record<string, string> = {
       ...getCommonToolErrorMessages(t),

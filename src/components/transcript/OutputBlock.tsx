@@ -18,7 +18,8 @@
  * a search match past the cap opens it.
  *
  * `highlight` (TR1a, the generic JSON body): with a search query, the hits
- * in the text are marked (plain text only; ANSI output is not marked).
+ * in the text and in the stderr zone are marked (plain text only; ANSI
+ * output is not marked).
  *
  * Text wraps by default. `wrap={false}` keeps each recorded line on one
  * visual line and lets the well scroll sideways, for output whose lines are
@@ -175,7 +176,7 @@ export function OutputBlock({
           <code data-mono="code" className="text-caption text-fg-3">
             stderr
           </code>
-          <Zone id={errId} text={cap(errLines, stderr)} wrap={wrap} className={failed ? "text-status-danger-fg" : undefined} />
+          <Zone id={errId} text={cap(errLines, stderr)} wrap={wrap} className={failed ? "text-status-danger-fg" : undefined} mark={mark} />
         </div>
       )}
       {main === "" && stderr === "" && <div className="pb-2" />}

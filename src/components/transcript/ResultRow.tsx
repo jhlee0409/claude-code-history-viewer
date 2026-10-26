@@ -13,7 +13,11 @@
  *   recorded" · the outcome from `toolOutcome` over this result only (an
  *   `error_code` reads "Failed · <code>", `is_error` "Failed", a recorded
  *   return code decides a process result); opened, the body in the Result
- *   zone and "Copy tool ID" ending the meta line.
+ *   zone and "Copy tool ID" ending the meta line. Search: the context's
+ *   `highlight` (set by `StandaloneServerResult` only when the query hits a
+ *   field the conversation search counts) opens the row once per query, as
+ *   a paired call's row does, and the body marks the hits (review round 1
+ *   of PR #746, F2).
  *
  * No success glyph, no tool-colour fill, no "… Error" title: the outcome is
  * said once, by OutcomeStatus.
@@ -40,7 +44,7 @@ interface ResultRowProps {
 
 export function ResultRow({ verb, result, toolUseId, family = toolFamily(verb), meta, children }: ResultRowProps) {
   const { t } = useTranslation();
-  const { paired } = useContext(ResultRowContext);
+  const { paired, highlight } = useContext(ResultRowContext);
   if (paired) {
     return (
       <div data-result-body="" className="space-y-1">
@@ -60,6 +64,7 @@ export function ResultRow({ verb, result, toolUseId, family = toolFamily(verb), 
       family={family}
       toolId={toolUseId}
       expandKey={`result-${toolUseId}`}
+      revealFor={highlight?.searchQuery}
     >
       <DetailZone kind="result">{children}</DetailZone>
     </ToolRow>

@@ -21,7 +21,7 @@ import { ThinkingRenderer } from "../contentRenderer/ThinkingRenderer";
 import { ToolUseRenderer } from "../contentRenderer/ToolUseRenderer";
 import { ServerToolUseRenderer } from "../contentRenderer/ServerToolUseRenderer";
 import { MCPToolUseRenderer } from "../contentRenderer/MCPToolUseRenderer";
-import { ServerResult } from "../contentRenderer/ServerResult";
+import { StandaloneServerResult } from "../contentRenderer/ServerResult";
 import { ImageRenderer } from "../contentRenderer/ImageRenderer";
 import { contentEntries, SERVER_RESULT_TYPES, type ContentEntry } from "../contentRenderer/contentEntries";
 import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
@@ -89,7 +89,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
     // page: it never claims an earlier page.
     if (itemObj.type === "tool_use") return <ToolUseRenderer toolUse={itemObj} searchQuery={searchQuery} />;
     if (itemObj.type === "tool_result") return <ClaudeToolResultItem toolResult={itemObj} index={index} searchQuery={searchQuery} />;
-    if (typeof itemObj.type === "string" && SERVER_RESULT_TYPES.has(itemObj.type)) return <ServerResult block={itemObj} />;
+    if (typeof itemObj.type === "string" && SERVER_RESULT_TYPES.has(itemObj.type)) return <StandaloneServerResult block={itemObj} searchQuery={searchQuery} />;
     const imageUrl = itemObj.type === "image" ? safeImageUrl(itemObj.source) : null;
     if (imageUrl) return <ImageRenderer imageUrl={imageUrl} />;
     return (

@@ -23,7 +23,7 @@ import { ServerToolUseRenderer } from "./ServerToolUseRenderer";
 import { DocumentRenderer } from "./DocumentRenderer";
 import { SearchResultRenderer } from "./SearchResultRenderer";
 import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
-import { ServerResult } from "./ServerResult";
+import { StandaloneServerResult } from "./ServerResult";
 import { contentEntries, SERVER_RESULT_TYPES, type ContentEntry } from "./contentEntries";
 import { ContainerUploadRenderer } from "./ContainerUploadRenderer";
 import { OpenCodeStepRenderer } from "./OpenCodeStepRenderer";
@@ -352,7 +352,15 @@ export const ClaudeContentArrayRenderer = memo(({
             if (SERVER_RESULT_TYPES.has(itemType)) {
               // A server / API result whose call is not in this message: its own row.
               if (skipToolCalls) return null;
-              return <ServerResult key={entry.key} block={item} />;
+              return (
+                <StandaloneServerResult
+                  key={entry.key}
+                  block={item}
+                  searchQuery={searchQuery}
+                  isCurrentMatch={isCurrentMatch}
+                  currentMatchIndex={currentMatchIndex}
+                />
+              );
             }
             // 기본 JSON 렌더링 - warning variant for unknown types
             const warningStyles = getVariantStyles("warning");

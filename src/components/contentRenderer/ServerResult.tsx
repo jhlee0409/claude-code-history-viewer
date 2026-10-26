@@ -7,7 +7,7 @@
  * `tool_use_id`, no `content`) is still shown, as the generic fallback of
  * every recorded key, never dropped.
  */
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   isWebSearchToolResultContent,
   isWebFetchToolResultContent,
@@ -28,6 +28,9 @@ import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecu
 import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
 import { AdvisorToolResultRenderer } from "./AdvisorToolResultRenderer";
 import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
+import { ResultRowContext, type ResultRowContextValue } from "../transcript/resultRowContext";
+import { searchHits } from "./unifiedCards/shared";
+import { serverResultTexts } from "./serverResultText";
 
 const NESTED_OPEN = { defaultExpanded: true };
 
@@ -44,5 +47,39 @@ export const ServerResult = memo(function ServerResult({ block }: { block: Recor
     <RendererDefaultsContext.Provider value={NESTED_OPEN}>
       <FallbackRenderer toolResult={block} />
     </RendererDefaultsContext.Provider>
+  );
+});
+
+interface StandaloneServerResultProps {
+  block: Record<string, unknown>;
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
+}
+
+/**
+ * A server / API result whose call is not in the message (a message's own
+ * content, or a result's nested content array): its own `ResultRow`, with
+ * the same per-query search contract as a paired server call (review
+ * round 1 of PR #746, F2; CodeRabbit 4377267887). A hit in a field the
+ * conversation search counts (`serverResultTexts`, the index's fields)
+ * opens the row once per query and the body marks it; otherwise the
+ * context carries no highlight and the row keeps the user's state.
+ */
+export const StandaloneServerResult = memo(function StandaloneServerResult({
+  block,
+  searchQuery = "",
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: StandaloneServerResultProps) {
+  const hit = searchHits(searchQuery, ...serverResultTexts([block]));
+  const value = useMemo<ResultRowContextValue>(
+    () => ({ paired: false, highlight: hit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined }),
+    [hit, searchQuery, isCurrentMatch, currentMatchIndex],
+  );
+  return (
+    <ResultRowContext.Provider value={value}>
+      <ServerResult block={block} />
+    </ResultRowContext.Provider>
   );
 });
