@@ -5,8 +5,10 @@
  * - text: Plain text content
  * - image: Base64 encoded images
  * - thinking: AI reasoning blocks
- * - tool_use: Tool invocations
- * - tool_result: Tool execution results
+ * - tool_use (+ its results), server_tool_use / mcp_tool_use (+ their
+ *   server results): one ToolRow per call (`contentEntries`, TR1b)
+ * - tool_result / a server result whose call is not in the message: its own
+ *   row (a page-boundary orphan)
  * - Unknown types: Fallback JSON display
  */
 
@@ -18,17 +20,11 @@ import { ToolUseRenderer } from "./ToolUseRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { CommandRenderer } from "./CommandRenderer";
 import { ServerToolUseRenderer } from "./ServerToolUseRenderer";
-import { WebSearchResultRenderer } from "./WebSearchResultRenderer";
 import { DocumentRenderer } from "./DocumentRenderer";
 import { SearchResultRenderer } from "./SearchResultRenderer";
 import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
-import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
-import { WebFetchToolResultRenderer } from "./WebFetchToolResultRenderer";
-import { CodeExecutionToolResultRenderer } from "./CodeExecutionToolResultRenderer";
-import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResultRenderer";
-import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
-import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
-import { AdvisorToolResultRenderer } from "./AdvisorToolResultRenderer";
+import { ServerResult } from "./ServerResult";
+import { contentEntries, SERVER_RESULT_TYPES, type ContentEntry } from "./contentEntries";
 import { ContainerUploadRenderer } from "./ContainerUploadRenderer";
 import { OpenCodeStepRenderer } from "./OpenCodeStepRenderer";
 import { UnifiedToolExecutionRenderer } from "./UnifiedToolExecutionRenderer";
@@ -40,25 +36,12 @@ import { getVariantStyles, layout } from "../renderers";
 import { TruncatedPre } from "../common/TruncatedPre";
 import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
 import type { SearchFilterType } from "../../store/useAppStore";
-import {
-  isServerToolUseContent,
-  isWebSearchToolResultContent,
-  isDocumentContent,
-  isSearchResultContent,
-  isMCPToolUseContent,
-  isMCPToolResultContent,
-  isWebFetchToolResultContent,
-  isCodeExecutionToolResultContent,
-  isBashCodeExecutionToolResultContent,
-  isTextEditorCodeExecutionToolResultContent,
-  isToolSearchToolResultContent,
-  isAdvisorToolResultContent,
-  isContainerUploadContent,
-} from "@/utils/contentTypeGuards";
+import { isDocumentContent, isSearchResultContent, isContainerUploadContent } from "@/utils/contentTypeGuards";
 
 type Props = {
   content: unknown[];
   searchQuery?: string;
+  /** Accepted for callers; tool rows mark hits in ids and content alike. */
   filterType?: SearchFilterType;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
@@ -77,74 +60,9 @@ const isObjectItem = (item: unknown): item is Record<string, unknown> => {
   return item !== null && typeof item === "object";
 };
 
-type NormalizedContentEntry =
-  | {
-      kind: "toolExecution";
-      key: string;
-      toolUse: Record<string, unknown>;
-      toolResults: Record<string, unknown>[];
-    }
-  | {
-      kind: "item";
-      key: string;
-      item: unknown;
-      index: number;
-    };
-
-const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEntry[] => {
-  const entries: NormalizedContentEntry[] = [];
-  const pendingByToolId = new Map<string, number>();
-
-  for (let index = 0; index < content.length; index += 1) {
-    const item = content[index];
-
-    if (!isObjectItem(item)) {
-      entries.push({
-        kind: "item",
-        key: `item-${index}`,
-        item,
-        index,
-      });
-      continue;
-    }
-
-    if (item.type === "tool_use" && typeof item.id === "string") {
-      entries.push({
-        kind: "toolExecution",
-        key: `tool-${index}`,
-        toolUse: item,
-        toolResults: [],
-      });
-      pendingByToolId.set(item.id, entries.length - 1);
-      continue;
-    }
-
-    if (typeof item.tool_use_id === "string") {
-      const targetEntryIndex = pendingByToolId.get(item.tool_use_id);
-      if (targetEntryIndex !== undefined) {
-        const targetEntry = entries[targetEntryIndex];
-        if (targetEntry?.kind === "toolExecution") {
-          targetEntry.toolResults.push(item);
-          continue;
-        }
-      }
-    }
-
-    entries.push({
-      kind: "item",
-      key: `item-${index}`,
-      item,
-      index,
-    });
-  }
-
-  return entries;
-};
-
 export const ClaudeContentArrayRenderer = memo(({
   content,
   searchQuery = "",
-  filterType = "content",
   isCurrentMatch = false,
   currentMatchIndex = 0,
   skipToolResults = false,
@@ -156,10 +74,7 @@ export const ClaudeContentArrayRenderer = memo(({
   onViewSubagent,
 }: Props) => {
   const { t } = useTranslation();
-  const normalizedContent = useMemo(
-    () => (Array.isArray(content) ? normalizeToolExecutionEntries(content) : []),
-    [content]
-  );
+  const normalizedContent = useMemo(() => (Array.isArray(content) ? contentEntries(content) : []), [content]);
 
   const firstTextIndex = Array.isArray(content)
     ? content.findIndex((item) => isObjectItem(item) && item.type === "text")
@@ -173,7 +88,7 @@ export const ClaudeContentArrayRenderer = memo(({
     return null;
   }
 
-  const renderEntry = (entry: NormalizedContentEntry) => {
+  const renderEntry = (entry: ContentEntry) => {
         if (entry.kind === "toolExecution") {
           if (skipToolCalls) return null;
           return (
@@ -182,6 +97,28 @@ export const ClaudeContentArrayRenderer = memo(({
               toolUse={entry.toolUse}
               toolResults={skipToolResults ? [] : entry.toolResults}
               onViewSubagent={onViewSubagent}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
+            />
+          );
+        }
+
+        if (entry.kind === "serverExecution") {
+          if (skipToolCalls) return null;
+          const results = skipToolResults ? [] : entry.results;
+          return entry.toolUse.type === "mcp_tool_use" ? (
+            <MCPToolUseRenderer
+              toolUse={entry.toolUse}
+              results={results}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
+            />
+          ) : (
+            <ServerToolUseRenderer
+              toolUse={entry.toolUse}
+              results={results}
               searchQuery={searchQuery}
               isCurrentMatch={isCurrentMatch}
               currentMatchIndex={currentMatchIndex}
@@ -267,13 +204,13 @@ export const ClaudeContentArrayRenderer = memo(({
 
           case "tool_use":
             if (skipToolCalls) return null;
-            // NOTE: tool_use entries with string ids are normalized into `toolExecution`
-            // and rendered by UnifiedToolExecutionRenderer; this branch handles edge cases.
+            // A tool_use with a string id is a `toolExecution` entry (above);
+            // one without reaches here: the same ToolRow, "No result recorded".
             return (
               <ToolUseRenderer
                 key={entry.key}
                 toolUse={item}
-                searchQuery={filterType === "toolId" ? searchQuery : ""}
+                searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
                 currentMatchIndex={currentMatchIndex}
               />
@@ -281,12 +218,14 @@ export const ClaudeContentArrayRenderer = memo(({
 
           case "tool_result":
             if (skipToolCalls || skipToolResults) return null;
+            // Its call is not in this message: a page-boundary orphan (TR1b).
             return (
               <ClaudeToolResultItem
                 key={entry.key}
                 toolResult={item}
                 index={index}
-                searchQuery={filterType === "toolId" ? searchQuery : ""}
+                atPageBoundary
+                searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
                 currentMatchIndex={currentMatchIndex}
               />
@@ -344,34 +283,7 @@ export const ClaudeContentArrayRenderer = memo(({
               />
             );
 
-          case "server_tool_use": {
-            if (skipToolCalls) return null;
-            if (!isServerToolUseContent(item)) {
-              return null;
-            }
-            return (
-              <ServerToolUseRenderer
-                key={entry.key}
-                id={item.id}
-                name={item.name}
-                input={item.input}
-              />
-            );
-          }
 
-          case "web_search_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isWebSearchToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <WebSearchResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
           case "document": {
             if (!isDocumentContent(item)) {
@@ -397,120 +309,13 @@ export const ClaudeContentArrayRenderer = memo(({
             );
           }
 
-          case "mcp_tool_use": {
-            if (skipToolCalls) return null;
-            if (!isMCPToolUseContent(item)) {
-              return null;
-            }
-            return (
-              <MCPToolUseRenderer
-                key={entry.key}
-                id={item.id}
-                serverName={item.server_name}
-                toolName={item.tool_name}
-                input={item.input}
-              />
-            );
-          }
 
-          case "mcp_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isMCPToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <MCPToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-                isError={item.is_error === true}
-              />
-            );
-          }
 
-          case "web_fetch_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isWebFetchToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <WebFetchToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
-          case "code_execution_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isCodeExecutionToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <CodeExecutionToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
-          case "bash_code_execution_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isBashCodeExecutionToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <BashCodeExecutionToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
-          case "text_editor_code_execution_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isTextEditorCodeExecutionToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <TextEditorCodeExecutionToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
-          case "tool_search_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isToolSearchToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <ToolSearchToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
-          case "advisor_tool_result": {
-            if (skipToolCalls) return null;
-            if (!isAdvisorToolResultContent(item)) {
-              return null;
-            }
-            return (
-              <AdvisorToolResultRenderer
-                key={entry.key}
-                toolUseId={item.tool_use_id}
-                content={item.content}
-              />
-            );
-          }
 
           case "opencode_step": {
             const tok = (item.tokens ?? {}) as Record<string, number>;
@@ -544,6 +349,11 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           default: {
+            if (SERVER_RESULT_TYPES.has(itemType)) {
+              // A server / API result whose call is not in this message: its own row.
+              if (skipToolCalls) return null;
+              return <ServerResult key={entry.key} block={item} />;
+            }
             // 기본 JSON 렌더링 - warning variant for unknown types
             const warningStyles = getVariantStyles("warning");
             return (

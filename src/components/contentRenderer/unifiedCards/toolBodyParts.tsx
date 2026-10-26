@@ -5,10 +5,13 @@
  * `recordShape.ts`), one summary line.
  */
 import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import type { PathContext } from "@/lib/format/path";
 import { Marked, type TextHighlight } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
+import { useToolPathContext } from "../../transcript/pathContext";
 import { keysCaption } from "./recordShape";
+import { searchHits } from "./shared";
 
 export interface BodyContext {
   input: Record<string, unknown>;
@@ -52,6 +55,34 @@ export function InputJson({ value, ctx, rest = false }: { value: Record<string, 
 /** The recorded values a structured body does not show, as JSON (nothing recorded is lost); nothing when it shows them all. */
 export function Leftover({ ctx, rest }: { ctx: BodyContext; rest: Record<string, unknown> }) {
   return Object.keys(rest).length > 0 ? <InputJson value={rest} ctx={ctx} rest /> : null;
+}
+
+/**
+ * A dedicated card's input values its head and Input zone do not show
+ * (TR1b, amendment 9: what the deleted legacy renderers showed — Bash's
+ * background flag, Grep's flags, WebSearch's domain lists, Agent's
+ * `run_in_background: false` — stays visible), as the "Other recorded
+ * fields" JSON; nothing when the card shows every value. A search hit in
+ * them is marked.
+ */
+export function OtherRecordedFields({
+  rest,
+  expandKey,
+  searchQuery,
+  isCurrentMatch,
+  currentMatchIndex,
+}: {
+  rest: Record<string, unknown>;
+  expandKey: string;
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
+}) {
+  const { t } = useTranslation();
+  const pathCtx = useToolPathContext();
+  const hit = searchQuery !== undefined && searchHits(searchQuery, JSON.stringify(rest, null, 2));
+  const highlight = hit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
+  return <Leftover ctx={{ input: rest, expandKey, pathCtx, t, searchQuery, highlight }} rest={rest} />;
 }
 
 /** One summary line: the facts, separated by "·", search hits marked. */

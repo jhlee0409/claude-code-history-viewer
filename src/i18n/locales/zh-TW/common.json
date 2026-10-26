@@ -154,7 +154,6 @@
   "common.time.sessionTime": "會話時間",
   "common.time.start": "開始：",
   "common.time.startTime": "開始時間",
-  "common.toolId": "工具 ID",
   "common.undo": "復原",
   "common.unknown": "未知",
   "common.update.available": "版本 {{version}} 更新",

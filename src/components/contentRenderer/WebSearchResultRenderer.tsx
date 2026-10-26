@@ -1,97 +1,65 @@
-import { memo } from "react";
-import { ExternalLink, Search, CircleAlert, Clock } from "lucide-react";
+import { memo, useContext } from "react";
+import { ExternalLink, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getVariantStyles, layout } from "@/components/renderers";
-import type {
-  WebSearchResultItem,
-  WebSearchToolError,
-} from "../../types";
-import { ToolResultCard } from "./ToolResultCard";
+import { layout } from "@/components/renderers";
+import type { WebSearchResultItem, WebSearchToolError } from "../../types";
+import { ResultRow } from "../transcript/ResultRow";
+import { ResultRowContext } from "../transcript/resultRowContext";
+import { Marked } from "../transcript/ToolRow";
+import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
 type Props = {
   toolUseId: string;
   content: WebSearchResultItem[] | WebSearchToolError;
 };
 
-const isError = (
-  content: WebSearchResultItem[] | WebSearchToolError
-): content is WebSearchToolError => {
-  return (
-    typeof content === "object" &&
-    !Array.isArray(content) &&
-    "type" in content &&
-    content.type === "error"
-  );
-};
-
-export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
-  toolUseId,
-  content,
-}: Props) {
+/**
+ * A `web_search_tool_result` (TR1b: its head is its call's ToolRow, or
+ * `ResultRow` when the call is not in the message). The body lists each
+ * result's title, URL and page age, search hits marked. Any content that is
+ * not a result list is an error record (`web_search_tool_result_error` with
+ * its `error_code`): the row already says "Failed · <code>", so the body
+ * adds only the recorded message or the code's explanation, in neutral text.
+ */
+export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({ toolUseId, content }: Props) {
   const { t } = useTranslation();
-  const webStyles = getVariantStyles("web");
+  const { highlight } = useContext(ResultRowContext);
+  const result = { type: "web_search_tool_result", tool_use_id: toolUseId, content };
 
-  if (isError(content)) {
+  if (!Array.isArray(content)) {
+    const error: Partial<WebSearchToolError> = content !== null && typeof content === "object" ? content : {};
+    const code = typeof error.error_code === "string" ? error.error_code : "";
+    const message = typeof error.message === "string" && error.message !== "" ? error.message : getCommonToolErrorMessages(t)[code];
     return (
-      <ToolResultCard
-        title={t("webSearchResultRenderer.error")}
-        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-        variant="error"
-        toolUseId={toolUseId}
-      >
-        <div className={cn(layout.bodyText, "text-destructive")}>
-          <span className="font-medium">{content.error_code}:</span>{" "}
-          {content.message}
-        </div>
-      </ToolResultCard>
+      <ResultRow verb="web_search" result={result} toolUseId={toolUseId}>
+        {message && <div className={cn(layout.bodyText, "whitespace-pre-wrap text-fg-2")}>{message}</div>}
+      </ResultRow>
     );
   }
 
-  const results = content as WebSearchResultItem[];
+  const results = content;
 
   return (
-    <ToolResultCard
-      title={t("webSearchResultRenderer.title")}
-      icon={<Search className={cn(layout.iconSize, webStyles.icon)} />}
-      variant="web"
-      toolUseId={toolUseId}
-      rightContent={
-        <span className={cn(layout.smallText, "px-1.5 py-0.5 rounded", webStyles.badge, webStyles.badgeText)}>
-          {results.length} {t("webSearchResultRenderer.results")}
-        </span>
-      }
-    >
-      {results.length === 0 && (
-        <div className={cn(layout.smallText, "text-muted-foreground italic")}>
-          {t("webSearchResultRenderer.noResults")}
-        </div>
-      )}
+    <ResultRow verb="web_search" result={result} toolUseId={toolUseId} meta={`${results.length} ${t("webSearchResultRenderer.results")}`}>
+      {results.length === 0 && <div className={cn(layout.smallText, "text-muted-foreground italic")}>{t("webSearchResultRenderer.noResults")}</div>}
 
       <div className="space-y-1.5">
-        {results.map((result) => (
-          <div
-            key={result.url}
-            className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
-          >
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn("flex items-start group", layout.iconSpacing)}
-            >
-              <ExternalLink className={cn(layout.iconSizeSmall, "text-tool-web mt-0.5 flex-shrink-0")} />
+        {results.map((item, index) => (
+          <div key={`${item.url}-${index}`} className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+            <a href={item.url} target="_blank" rel="noopener noreferrer" className={cn("flex items-start group", layout.iconSpacing)}>
+              <ExternalLink className={cn(layout.iconSizeSmall, "text-fg-3 mt-0.5 flex-shrink-0")} />
               <div className="flex-1 min-w-0">
                 <div className={cn(layout.bodyText, "font-medium text-foreground group-hover:text-accent truncate")}>
-                  {result.title}
+                  <Marked text={String(item.title ?? "")} highlight={highlight} />
                 </div>
                 <div className={cn(layout.smallText, "text-muted-foreground truncate")}>
-                  {result.url}
+                  <Marked text={String(item.url ?? "")} highlight={highlight} />
                 </div>
-                {result.page_age && (
+                {item.page_age && (
                   <div className={cn("flex items-center mt-1", layout.iconSpacing, layout.smallText, "text-muted-foreground")}>
                     <Clock className={layout.iconSizeSmall} />
-                    <span>{result.page_age}</span>
+                    <span>{item.page_age}</span>
                   </div>
                 )}
               </div>
@@ -99,6 +67,6 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
           </div>
         ))}
       </div>
-    </ToolResultCard>
+    </ResultRow>
   );
 });

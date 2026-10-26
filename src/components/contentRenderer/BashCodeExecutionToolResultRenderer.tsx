@@ -1,16 +1,12 @@
 /**
- * BashCodeExecutionToolResultRenderer - Renders bash command execution results
- *
- * Displays stdout/stderr output with appropriate styling for success/error states.
- * Supports both successful results and error conditions.
+ * BashCodeExecutionToolResultRenderer - a `bash_code_execution_tool_result`
+ * (TR1b): stdout / stderr as one OutputBlock, the outcome from its recorded
+ * return code or error code (TerminalExecutionResultRenderer).
  */
 
 import { memo } from "react";
-import { SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
 import type { BashCodeExecutionResult, BashCodeExecutionError } from "../../types";
-import { getVariantStyles, layout } from "@/components/renderers";
 import { TerminalExecutionResultRenderer } from "./TerminalExecutionResultRenderer";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
@@ -25,19 +21,14 @@ export const BashCodeExecutionToolResultRenderer = memo(
     content,
   }: BashCodeExecutionToolResultRendererProps) {
     const { t } = useTranslation();
-    const systemStyles = getVariantStyles("system");
-    const errorMessages = getCommonToolErrorMessages(t);
-
     return (
       <TerminalExecutionResultRenderer
         toolUseId={toolUseId}
         content={content}
-        icon={<SquareTerminal className={cn(layout.iconSize, systemStyles.icon)} />}
-        title={t("bashCodeExecutionToolResultRenderer.title")}
-        errorTitle={t("bashCodeExecutionToolResultRenderer.error")}
+        verb="bash_code_execution"
+        resultType="bash_code_execution_tool_result"
         noOutputLabel={t("bashCodeExecutionToolResultRenderer.noOutput")}
-        errorMessages={errorMessages}
-        successVariant="system"
+        errorMessages={getCommonToolErrorMessages(t)}
       />
     );
   }

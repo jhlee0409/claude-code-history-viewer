@@ -188,16 +188,27 @@ const rowGeometry = (page) =>
     const icon = row.querySelector(":scope > :last-child [data-outcome-icon]");
     const status = icon ? (icon.parentElement.textContent ?? "").trim() : null;
     const detail = wrapper.querySelector(":scope > [data-tool-detail]:not([hidden])");
-    const copyButton = detail?.querySelector(":scope > [data-meta] > button:last-child") ?? null;
-    let copy = null;
-    if (copyButton) {
-      const r = copyButton.getBoundingClientRect();
-      const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
-      copy = { text: copyButton.textContent, rect: rect(r), hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
-    }
+    // Zone captions are measured before the copy control scrolls the page (same coordinates as `box`).
     const captions = detail
       ? [...detail.querySelectorAll("[data-zone-label]")].map((el) => ({ text: (el.textContent ?? "").slice(0, 80), scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, rect: rect(el.getBoundingClientRect()) }))
       : [];
+    const copyButton = detail?.querySelector(":scope > [data-meta] > button:last-child") ?? null;
+    let copy = null;
+    if (copyButton) {
+      // An opened row can be taller than the viewport: bring the control into
+      // view (centred, clear of a phone's bottom bar) before the hit test, and
+      // compare it with the row box measured in the same scroll position.
+      copyButton.scrollIntoView({ block: "center", inline: "nearest" });
+      const r = copyButton.getBoundingClientRect();
+      const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      copy = {
+        text: copyButton.textContent,
+        rect: rect(r),
+        box: rect(wrapper.getBoundingClientRect()),
+        hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)),
+        hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null,
+      };
+    }
     return { viewport: innerWidth, box, verb, pieces, glyphs, target, status, open: !!detail, copy, captions, detailText: detail ? (detail.textContent ?? "") : null };
   });
 
@@ -278,7 +289,7 @@ describe.skipIf(!ENABLED)("TR1b rows: server / MCP / orphan / nested calls are T
       expect(opened.open, `the row did not open: ${detail}`).toBe(true);
       expect(opened.copy, `no copy control at the end of the detail meta line: ${detail}`).not.toBeNull();
       expect(opened.copy.text).toBe(session.t("toolRow.copyToolId"));
-      expect(inside(opened.copy.rect, opened.box), `copy control outside the row: ${detail}`).toBe(true);
+      expect(inside(opened.copy.rect, opened.copy.box), `copy control outside the row: ${detail}`).toBe(true);
       expect(opened.copy.hitIsButton, `copy control is not the hit target at its centre: ${detail}`).toBe(true);
       expect(opened.captions.length, `no zone caption in the opened detail: ${detail}`).toBeGreaterThan(0);
       for (const c of opened.captions) {

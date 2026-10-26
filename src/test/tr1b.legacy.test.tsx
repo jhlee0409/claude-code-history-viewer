@@ -370,7 +370,8 @@ describe("server and MCP tool calls are one ToolRow each, their result in the Re
     const row = rowWith(container, "Retry-After HTTP-date RFC 9110");
     expect(statusText(row)).toBe(t("toolOutcome.failedErrorCode", { code: "max_uses_exceeded" }));
     open(row);
-    expect(text(wrapperOf(row))).not.toContain(t("webSearchResultRenderer.error"));
+    // The old card's title ("Search Error", key deleted with it).
+    expect(text(wrapperOf(row))).not.toContain("Search Error");
   });
 
   it("server call with no result block: 'No result recorded'", () => {
@@ -395,7 +396,8 @@ describe("server and MCP tool calls are one ToolRow each, their result in the Re
     expect(statusText(row)).toBe(t("toolOutcome.failed"));
     open(row);
     expect(text(detailOf(row))).toContain("rate limited");
-    expect(text(wrapperOf(row))).not.toContain(t("mcpToolResultRenderer.error"));
+    // The old card's title ("MCP Error", key deleted with it).
+    expect(text(wrapperOf(row))).not.toContain("MCP Error");
   });
 
   it("a server result whose call is not in the message: its own row ('Call not recorded'), the result inside", () => {

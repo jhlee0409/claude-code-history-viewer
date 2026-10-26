@@ -8,6 +8,8 @@ import { DetailZone } from "../../transcript/DetailZone";
 import { firstResultText, hasShownResults, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { plainPreview, str } from "./shared";
+import { isNonEmptyString, shownIf, unshown } from "./recordShape";
+import { OtherRecordedFields } from "./toolBodyParts";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { Num } from "@/lib/format/Num";
@@ -25,7 +27,7 @@ import { Num } from "@/lib/format/Num";
  * — and "View Conversation", an aside outside both zones (it leaves for
  * the subagent's own transcript).
  */
-export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
+export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
   const { t } = useTranslation();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Agent";
@@ -40,6 +42,15 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const family = toolFamily(name);
   const outcome = toolOutcome(toolUse, toolResults, family);
   const expandKey = `unified-${toolId}`;
+  const rest = unshown(input, {
+    description: shownIf(isNonEmptyString),
+    prompt: shownIf(isNonEmptyString),
+    subagent_type: shownIf(isNonEmptyString),
+    run_in_background: shownIf((v) => v === true),
+    model: shownIf(isNonEmptyString),
+    isolation: shownIf(isNonEmptyString),
+  });
+  const hasRest = Object.keys(rest).length > 0;
 
   const resultText = firstResultText(withoutErrorCodeEcho(toolResults));
   const stats = recordedAgentStats(toolResults);
@@ -84,13 +95,14 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         </>
       }
     >
-      <DetailZone kind="input" show={prompt ? true : description ? "whenTargetCut" : false}>
+      <DetailZone kind="input" show={prompt || hasRest ? true : description ? "whenTargetCut" : false}>
         {description && (
           <WhenTargetCut>
             <p className="whitespace-pre-wrap text-list text-fg-2">{description}</p>
           </WhenTargetCut>
         )}
         {prompt && <ProseBlock text={prompt} expandKey={`${expandKey}-prompt`} />}
+        <OtherRecordedFields rest={rest} expandKey={expandKey} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
       </DetailZone>
       <DetailZone
         kind="result"

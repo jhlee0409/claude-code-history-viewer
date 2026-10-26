@@ -45,6 +45,8 @@ interface ToolResultOutputsProps {
   failed?: boolean;
   /** The in-session search query: a hit past a block's cap opens it (OutputBlock). */
   searchQuery?: string;
+  /** Mark the `searchQuery` hits in the output text (OutputBlock `highlight`; TR1b orphan rows). */
+  highlight?: { isCurrentMatch?: boolean; currentMatchIndex?: number };
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
@@ -74,7 +76,25 @@ function shownByStreams(stdout: string, stderr: string): (part: ContentPart) => 
   return (part) => part.kind === "text" && forms.has(trimTrailingNewlines(part.text));
 }
 
-function ResultOutput({ result, family, source, blockKey, wrap, failed, searchQuery }: { result: ToolResultLike; family: ToolFamily; source?: OutputSource; blockKey: string; wrap?: boolean; failed?: boolean; searchQuery?: string }) {
+function ResultOutput({
+  result,
+  family,
+  source,
+  blockKey,
+  wrap,
+  failed,
+  searchQuery,
+  highlight,
+}: {
+  result: ToolResultLike;
+  family: ToolFamily;
+  source?: OutputSource;
+  blockKey: string;
+  wrap?: boolean;
+  failed?: boolean;
+  searchQuery?: string;
+  highlight?: ToolResultOutputsProps["highlight"];
+}) {
   const options = { bareCodeIsExitCode: family === "process" };
   const n = normalizeResult(result, options);
   const content = resultContent(result, options);
@@ -91,10 +111,10 @@ function ResultOutput({ result, family, source, blockKey, wrap, failed, searchQu
   const firstText = streamText ? -1 : parts.findIndex((part) => part.kind === "text");
   return (
     <>
-      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} failed={failed} searchQuery={searchQuery} />}
+      {streamText && <OutputBlock expandKey={blockKey} text={n.stdout} errorText={n.stderr} source={source} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} />}
       {parts.map((part, index) =>
         part.kind === "text" ? (
-          <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} searchQuery={searchQuery} />
+          <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} searchQuery={searchQuery} highlight={highlight} />
         ) : part.generic && !Array.isArray(part.value) ? (
           <GenericResult key={index} value={part.value} />
         ) : (
@@ -106,12 +126,12 @@ function ResultOutput({ result, family, source, blockKey, wrap, failed, searchQu
   );
 }
 
-export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery }: ToolResultOutputsProps) {
+export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery, highlight }: ToolResultOutputsProps) {
   return (
     <>
       {withoutErrorCodeEcho(results).map((result, index) => {
         const key = `${expandKey}-result-${index}`;
-        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} />;
+        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} />;
       })}
     </>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
@@ -131,6 +131,8 @@ describe("ClaudeContentArrayRenderer - Markdown Rendering", () => {
       </ExpandKeyProvider>
     );
 
+    // TR1b: a server result whose call is not in the message is its own ToolRow; open it.
+    fireEvent.click(container.querySelector("[data-tool-row] button[aria-expanded]") as HTMLElement);
     expect(container.textContent).toContain("Heed my advice.");
     // The generic "unknown content type" fallback must NOT fire for advisor results.
     expect(container.textContent).not.toContain("unknownContentType");
@@ -154,7 +156,8 @@ describe("ClaudeContentArrayRenderer - Markdown Rendering", () => {
       </ExpandKeyProvider>
     );
 
-    expect(container.textContent).toContain("advisorToolResultRenderer.error");
+    // TR1b: the row states the failure once, through the outcome adapter ("Failed · <code>").
+    expect(container.textContent).toContain("toolOutcome.failedErrorCode");
     expect(container.textContent).not.toContain("unknownContentType");
   });
 });
