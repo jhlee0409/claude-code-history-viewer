@@ -476,6 +476,8 @@
   "toolRow.kindTaskList": "タスクリスト",
   "toolRow.kindGeneric": "ツール",
   "toolRow.otherRecordedFields": "その他の記録されたフィールド",
+  "toolRow.callOnEarlierPage": "呼び出しは前のページにあります",
+  "toolRow.callNotRecorded": "呼び出しの記録なし",
   "toolRow.grepModeFiles": "一致するファイル",
   "toolRow.grepModeContent": "一致する行",
   "toolRow.grepModeCount": "一致件数",

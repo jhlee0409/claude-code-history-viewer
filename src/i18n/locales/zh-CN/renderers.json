@@ -476,6 +476,8 @@
   "toolRow.kindTaskList": "任务列表",
   "toolRow.kindGeneric": "工具",
   "toolRow.otherRecordedFields": "其他已记录字段",
+  "toolRow.callOnEarlierPage": "调用在前一页",
+  "toolRow.callNotRecorded": "无调用记录",
   "toolRow.grepModeFiles": "匹配的文件",
   "toolRow.grepModeContent": "匹配的行",
   "toolRow.grepModeCount": "匹配计数",

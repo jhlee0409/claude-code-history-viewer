@@ -479,6 +479,8 @@
   "toolRow.kindTaskList": "Task list",
   "toolRow.kindGeneric": "Tool",
   "toolRow.otherRecordedFields": "Other recorded fields",
+  "toolRow.callOnEarlierPage": "Call on an earlier page",
+  "toolRow.callNotRecorded": "Call not recorded",
   "toolRow.grepModeFiles": "Files with matches",
   "toolRow.grepModeContent": "Matching lines",
   "toolRow.grepModeCount": "Match counts",

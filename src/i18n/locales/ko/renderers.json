@@ -476,6 +476,8 @@
   "toolRow.kindTaskList": "작업 목록",
   "toolRow.kindGeneric": "도구",
   "toolRow.otherRecordedFields": "기록된 다른 필드",
+  "toolRow.callOnEarlierPage": "호출은 앞 페이지에 있음",
+  "toolRow.callNotRecorded": "호출 기록 없음",
   "toolRow.grepModeFiles": "일치하는 파일",
   "toolRow.grepModeContent": "일치하는 줄",
   "toolRow.grepModeCount": "일치 개수",
