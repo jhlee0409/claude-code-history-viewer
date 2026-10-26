@@ -130,10 +130,74 @@ function plant(fixture) {
   fs.writeFileSync(session.filePath, [question, assistant, bashResult, orphan].map((r) => JSON.stringify(r)).join("\n") + "\n");
 }
 
+// Review round 1 (PR #746) F1 / F2, planted into the "mixed-turn" session:
+// - an outer Bash result whose content array holds a completed nested Edit
+//   with its result (a distinct, non-confirmation text) and a nested Task
+//   whose result has text, an image and a second text block (F1: the pairing
+//   must keep every recorded result part visible);
+// - an assistant message holding only a `web_search_tool_result` whose call
+//   is not recorded (F2: the counted title opens the row and is marked);
+// - a paired server call as the positive control.
+const REVIEW_BASH = "cat release/review-records.json";
+const REVIEW_EDIT_RESULT = "ZephyrEditResult: formatter adjusted indentation; verify the result before publishing.";
+const REVIEW_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+function plantReview(fixture) {
+  const project = fixture.projects.find((p) => p.name === "kiln-renderers");
+  const session = project.sessions.find((s) => s.title === fixture.namedSessions["mixed-turn"].title);
+  const old = fs
+    .readFileSync(session.filePath, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const question = old.find((r) => r.type === "user" && typeof r.message?.content === "string");
+  const assistantTemplate = old.find((r) => r.type === "assistant");
+  let previous = question.uuid;
+  let n = 0;
+  const record = (type, content) => {
+    n += 1;
+    const r = structuredClone(type === "assistant" ? assistantTemplate : question);
+    delete r.toolUseResult;
+    delete r.toolUse;
+    Object.assign(r, { type, uuid: `review-746-${n}`, parentUuid: previous, timestamp: new Date(Date.parse(question.timestamp) + n * 1000).toISOString() });
+    r.message = type === "assistant" ? { ...structuredClone(assistantTemplate.message), id: `msg_review746_${n}`, content } : { role: "user", content };
+    previous = r.uuid;
+    return r;
+  };
+  const nested = [
+    { type: "text", text: "nested recorded tools" },
+    { type: "tool_use", id: "nested_edit", name: "Edit", input: { file_path: "release/notes.md", old_string: "before", new_string: "after" } },
+    { type: "tool_result", tool_use_id: "nested_edit", content: REVIEW_EDIT_RESULT },
+    { type: "tool_use", id: "nested_task", name: "Task", input: { description: "Audit the release notes", prompt: "Check the notes." } },
+    {
+      type: "tool_result",
+      tool_use_id: "nested_task",
+      content: [
+        { type: "text", text: "ZephyrTaskFirst: the notes are fine." },
+        { type: "image", source: { type: "base64", media_type: "image/png", data: REVIEW_PNG } },
+        { type: "text", text: "agentId: ZephyrTaskAgent (for resuming)" },
+      ],
+    },
+  ];
+  const records = [
+    question,
+    record("assistant", [{ type: "tool_use", id: "outer_bash", name: "Bash", input: { command: REVIEW_BASH } }]),
+    record("user", [{ type: "tool_result", tool_use_id: "outer_bash", content: nested }]),
+    record("assistant", [{ type: "web_search_tool_result", tool_use_id: "missing_server_call", content: [{ type: "web_search_result", title: "ZephyrOrphanTitle", url: "https://example.test/zephyr", page_age: "2026-10-01" }] }]),
+    record("assistant", [
+      { type: "server_tool_use", id: "srv_search", name: "web_search", input: { query: "paired search control" } },
+      { type: "web_search_tool_result", tool_use_id: "srv_search", content: [{ type: "web_search_result", title: "ZephyrPairedTitle", url: "https://example.test/paired" }] },
+    ]),
+    record("assistant", [{ type: "text", text: "End of the review fixture." }]),
+  ];
+  fs.writeFileSync(session.filePath, records.map((r) => JSON.stringify(r)).join("\n") + "\n");
+}
+
 beforeAll(async () => {
   if (!ENABLED) return;
   app = await startApp("legacy-rows");
   plant(app.fixture);
+  plantReview(app.fixture);
   browser = await webkit.launch();
 }, 240_000);
 
@@ -308,5 +372,84 @@ describe.skipIf(!ENABLED)("TR1b rows: server / MCP / orphan / nested calls are T
       expect(plan?.detail ?? "", JSON.stringify(afterOpen.nestedRows)).toContain('"plan": [');
       expect(todos?.detail ?? "", JSON.stringify(afterOpen.nestedRows)).toContain('"todos": [');
     });
+  });
+});
+
+const REVIEW_CONFIGS = [
+  { label: "1440x900 en", scenario: "transcript-mixed-turn--1440x900--dark", locale: "en", variant: {} },
+  { label: "390x844 ko, font scale 125%", scenario: "transcript-mixed-turn--390x844--dark", locale: "ko", variant: { fontScale: 1.25 } },
+];
+
+/** The message `uuid`'s visible text, its marks, its row toggles and images; the search counter. */
+const messageState = (page, uuid) =>
+  page.evaluate((ids) => {
+    // The backend may merge a tool result into its call's message: read every listed uuid together.
+    const messages = ids.map((id) => document.querySelector(`[data-message-uuid="${id}"]`)).filter(Boolean);
+    const message = messages.length === 0 ? null : { innerText: messages.map((m) => m.innerText).join("\n"), querySelectorAll: (sel) => messages.flatMap((m) => [...m.querySelectorAll(sel)]) };
+    const counter = [...document.querySelectorAll("main span")].map((el) => (el.textContent ?? "").trim()).find((s) => /^\d+\/\d+$/.test(s)) ?? null;
+    return {
+      found: Boolean(message),
+      text: (message?.innerText ?? "").replace(/\u2060/g, ""),
+      marks: [...(message?.querySelectorAll("mark") ?? [])].map((m) => (m.textContent ?? "").replace(/\u2060/g, "")),
+      toggles: [...(message?.querySelectorAll("[data-tool-row] > button[aria-expanded]") ?? [])].map((b) => b.getAttribute("aria-expanded")),
+      images: [...(message?.querySelectorAll("img") ?? [])].filter((img) => (img.getAttribute("src") ?? "").startsWith("data:image/png;base64,")).length,
+      counter,
+      body: (document.body.innerText ?? "").slice(0, 300),
+    };
+  }, [uuid].flat());
+
+describe.skipIf(!ENABLED)("TR1b review round 1: nested results stay visible; an orphan server result's search hit is revealed (real WebKit, raw Claude records)", () => {
+  describe.each(REVIEW_CONFIGS)("$label", (config) => {
+    let session;
+    let run;
+
+    beforeAll(async () => {
+      session = await openScenario(browser, app, config.scenario, { locale: config.locale, variant: config.variant });
+      run = createActions({ session, scenario: SCENARIOS.get(config.scenario), manifest: app.fixture, t: session.t });
+    }, 240_000);
+
+    afterAll(async () => {
+      await session?.close();
+    });
+
+    it("F1: opening the outer Bash row and its nested rows shows the nested Edit's result and every part of the nested Task's result", async () => {
+      await run({ do: "expandToolRows", match: [REVIEW_BASH], limit: 1 });
+      await settle(session, { label: "review outer bash open" });
+      // Open each nested row still closed (DOM click: the rows sit inside an opened detail).
+      for (let guard = 0; guard < 8; guard += 1) {
+        const clicked = await session.page.evaluate(() => {
+          const button = document.querySelector(
+            ':is([data-message-uuid="review-746-1"], [data-message-uuid="review-746-2"]) [data-tool-detail] [data-tool-row] > button[aria-expanded="false"]',
+          );
+          button?.click();
+          return Boolean(button);
+        });
+        if (!clicked) break;
+        await settle(session, { label: `review nested open ${guard}` });
+      }
+      const state = await messageState(session.page, ["review-746-1", "review-746-2"]);
+      expect(state.found, "the outer Bash result message is in the transcript").toBe(true);
+      expect(state.body, "the app is not replaced by its error screen").not.toContain(session.t("error.unexpectedError"));
+      expect(state.text, "the nested Edit's recorded result").toContain("ZephyrEditResult: formatter adjusted indentation");
+      expect(state.text, "the nested Task's first text block").toContain("ZephyrTaskFirst");
+      expect(state.text, "the nested Task's second text block").toContain("ZephyrTaskAgent");
+      expect(state.images, "the nested Task result's image").toBeGreaterThan(0);
+      expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
+    }, 120_000);
+
+    it("F2: searching an orphan web_search result's title counts it, opens its row and marks it; the paired call is the control", async () => {
+      await run({ do: "transcriptSearch", query: "ZephyrOrphanTitle" });
+      const orphan = await messageState(session.page, "review-746-3");
+      expect(orphan.counter, "the conversation search counts the orphan's title").toBe("1/1");
+      expect(orphan.found).toBe(true);
+      expect(orphan.toggles, "the orphan's row opened").toEqual(["true"]);
+      expect(orphan.text).toContain("ZephyrOrphanTitle");
+      expect(orphan.marks, "the counted hit is marked").toContain("ZephyrOrphanTitle");
+      await run({ do: "transcriptSearch", query: "ZephyrPairedTitle" });
+      const paired = await messageState(session.page, "review-746-4");
+      expect(paired.counter).toBe("1/1");
+      expect(paired.marks, "control: the paired call marks its result title").toContain("ZephyrPairedTitle");
+      expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
+    }, 120_000);
   });
 });
