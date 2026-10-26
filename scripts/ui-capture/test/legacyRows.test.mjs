@@ -155,6 +155,46 @@ function leadingImageData() {
 }
 const LEADING_PNG = leadingImageData();
 
+// CodeRabbit 4378494005 (PR #746): server results whose counted search hit
+// sits past a cap of the opened body: a text-editor file whose hit is past the
+// 500-character preview (message review-746-7), and one-line values (a result
+// title, a URL, a fetched URL, a file path) whose hit is at the end of a value
+// longer than its line (review-746-7 / -8). Each call is not recorded, so each
+// result is its own row.
+const CAP_LONG = "a-very-long-segment-that-keeps-going".repeat(6);
+function capFile() {
+  const lines = [];
+  for (let n = 1, size = 0; size < 1400; n += 1) {
+    const line = `line ${String(n).padStart(3, "0")}: value = ${n * 7}`;
+    lines.push(line);
+    size += line.length + 1;
+  }
+  const body = lines.join("\n");
+  return `${body.slice(0, 820)}ZephyrDeepEditorHit${body.slice(820)}`;
+}
+const CAP_EDITOR = {
+  type: "text_editor_code_execution_tool_result",
+  tool_use_id: "cap_missing_editor",
+  content: { type: "text_editor_code_execution_result", operation: "view", path: `/srv/${CAP_LONG}/ZephyrPathTail.toml`, content: capFile() },
+};
+const CAP_SEARCH = {
+  type: "web_search_tool_result",
+  tool_use_id: "cap_missing_search",
+  content: [{ type: "web_search_result", title: `A result title ${CAP_LONG.replace(/-/g, " ")} ZephyrTitleTail`, url: `https://docs.example.test/${CAP_LONG}/ZephyrUrlTail`, page_age: "2026-10-01" }],
+};
+const CAP_FETCH = {
+  type: "web_fetch_tool_result",
+  tool_use_id: "cap_missing_fetch",
+  content: { type: "web_fetch_result", url: `https://docs.example.test/${CAP_LONG}/ZephyrFetchTail`, content: { type: "document", title: "Fetched page", source: { type: "text", media_type: "text/plain", data: "body" } } },
+};
+const CAP_HITS = [
+  { uuid: "review-746-7", needle: "ZephyrDeepEditorHit" },
+  { uuid: "review-746-7", needle: "ZephyrPathTail" },
+  { uuid: "review-746-8", needle: "ZephyrTitleTail" },
+  { uuid: "review-746-8", needle: "ZephyrUrlTail" },
+  { uuid: "review-746-8", needle: "ZephyrFetchTail" },
+];
+
 function plantReview(fixture) {
   const project = fixture.projects.find((p) => p.name === "kiln-renderers");
   const session = project.sessions.find((s) => s.title === fixture.namedSessions["mixed-turn"].title);
@@ -220,6 +260,8 @@ function plantReview(fixture) {
         ],
       },
     ]),
+    record("assistant", [CAP_EDITOR]),
+    record("assistant", [CAP_SEARCH, CAP_FETCH]),
     record("assistant", [{ type: "text", text: "End of the review fixture." }]),
   ];
   fs.writeFileSync(session.filePath, records.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -554,5 +596,48 @@ describe.skipIf(!ENABLED)("TR1b review round 1: nested results stay visible; an 
       expect(order.after.top < order.innerHeight && order.image.top >= 0, `both are in the viewport ${JSON.stringify(order)}`).toBe(true);
       expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
     }, 120_000);
+
+    it("CR-4378494005: a counted hit past a body's cap (the 500-character file preview, a one-line value's ellipsis) is marked and on screen once search opens the row", async () => {
+      const failures = [];
+      for (const { uuid, needle } of CAP_HITS) {
+        await run({ do: "transcriptSearch", query: needle });
+        const state = await messageState(session.page, uuid);
+        // Bring the mark into view the way search navigation does (scrollIntoView), then undo any
+        // horizontal scroll of a box the user cannot scroll (overflow hidden / clip: an ellipsis cut).
+        await session.page.evaluate(
+          ({ id, n }) => {
+            const mark = [...document.querySelectorAll(`[data-message-uuid="${id}"] mark`)].find((m) => (m.textContent ?? "").replace(/\u2060/g, "").toLowerCase() === n.toLowerCase());
+            mark?.scrollIntoView({ block: "center", inline: "nearest" });
+            for (let el = mark?.parentElement; el; el = el.parentElement) {
+              if (["hidden", "clip"].includes(getComputedStyle(el).overflowX)) el.scrollLeft = 0;
+            }
+          },
+          { id: uuid, n: needle },
+        );
+        await settle(session, { label: `cap hit ${needle}` });
+        const seen = await session.page.evaluate(
+          ({ id, n }) => {
+            const mark = [...document.querySelectorAll(`[data-message-uuid="${id}"] mark`)].find((m) => (m.textContent ?? "").replace(/\u2060/g, "").toLowerCase() === n.toLowerCase());
+            if (!mark) return { marked: false };
+            const r = mark.getBoundingClientRect();
+            const clippedBy = [];
+            for (let el = mark.parentElement; el && el !== document.body; el = el.parentElement) {
+              const cs = getComputedStyle(el);
+              const b = el.getBoundingClientRect();
+              const label = `${el.tagName}.${(el.getAttribute("class") ?? "").slice(0, 80)}`;
+              if (cs.overflowX !== "visible" && (r.left < b.left - 0.5 || r.right > b.right + 0.5)) clippedBy.push({ axis: "x", label, mark: [r.left, r.right], box: [b.left, b.right] });
+              if (cs.overflowY !== "visible" && (r.top < b.top - 0.5 || r.bottom > b.bottom + 0.5)) clippedBy.push({ axis: "y", label, mark: [r.top, r.bottom], box: [b.top, b.bottom] });
+            }
+            const inViewport = r.left >= 0 && r.right <= innerWidth + 0.5 && r.top >= 0 && r.bottom <= innerHeight + 0.5;
+            return { marked: true, width: r.width, clippedBy, inViewport };
+          },
+          { id: uuid, n: needle },
+        );
+        const ok = state.counter === "1/1" && state.toggles.includes("true") && seen.marked && seen.width > 0 && seen.clippedBy.length === 0 && seen.inViewport;
+        if (!ok) failures.push({ needle, counter: state.counter, toggles: state.toggles, ...seen, tail: state.text.slice(-160) });
+      }
+      expect(failures, `every counted hit is marked, not clipped and on screen: ${JSON.stringify(failures, null, 1)}`).toEqual([]);
+      expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
+    }, 180_000);
   });
 });
