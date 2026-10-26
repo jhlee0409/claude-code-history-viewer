@@ -29,13 +29,14 @@
 import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
+import { PNG } from "pngjs";
 import { settle } from "../lib/browser.mjs";
 import { createActions } from "../lib/actions.mjs";
 import { expandScenarios } from "../scenarios.mjs";
 import { browserRequirement } from "./requirements.mjs";
 import { openScenario, startApp } from "./appSession.mjs";
 
-/* global document, getComputedStyle, innerWidth */
+/* global document, getComputedStyle, innerWidth, innerHeight */
 
 const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "legacyRows.test" }).enabled;
 
@@ -142,6 +143,18 @@ const REVIEW_BASH = "cat release/review-records.json";
 const REVIEW_EDIT_RESULT = "ZephyrEditResult: formatter adjusted indentation; verify the result before publishing.";
 const REVIEW_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+// Review round 2 (PR #746) R2-F1, the review's repro: an outer Bash result
+// whose content array holds a nested Task and its result recorded as image →
+// text → text. The image is short and wide (400×20, red) so it and the
+// following text fit one screen at 390 ko 125 %.
+const LEADING_BASH = "cat leading-order.json";
+function leadingImageData() {
+  const png = new PNG({ width: 400, height: 20 });
+  for (let i = 0; i < png.data.length; i += 4) png.data.set([220, 30, 50, 255], i);
+  return PNG.sync.write(png).toString("base64");
+}
+const LEADING_PNG = leadingImageData();
+
 function plantReview(fixture) {
   const project = fixture.projects.find((p) => p.name === "kiln-renderers");
   const session = project.sessions.find((s) => s.title === fixture.namedSessions["mixed-turn"].title);
@@ -187,6 +200,25 @@ function plantReview(fixture) {
     record("assistant", [
       { type: "server_tool_use", id: "srv_search", name: "web_search", input: { query: "paired search control" } },
       { type: "web_search_tool_result", tool_use_id: "srv_search", content: [{ type: "web_search_result", title: "ZephyrPairedTitle", url: "https://example.test/paired" }] },
+    ]),
+    record("assistant", [{ type: "tool_use", id: "outer_leading", name: "Bash", input: { command: LEADING_BASH } }]),
+    record("user", [
+      {
+        type: "tool_result",
+        tool_use_id: "outer_leading",
+        content: [
+          { type: "tool_use", id: "nested_leading_task", name: "Task", input: { description: "Leading image order", prompt: "Describe the capture" } },
+          {
+            type: "tool_result",
+            tool_use_id: "nested_leading_task",
+            content: [
+              { type: "image", source: { type: "base64", media_type: "image/png", data: LEADING_PNG } },
+              { type: "text", text: "ZephyrAfterImage: recorded AFTER the red image." },
+              { type: "text", text: "agentId: ZephyrLeadingAgent\n<usage>total_tokens: 48211</usage>" },
+            ],
+          },
+        ],
+      },
     ]),
     record("assistant", [{ type: "text", text: "End of the review fixture." }]),
   ];
@@ -449,6 +481,68 @@ describe.skipIf(!ENABLED)("TR1b review round 1: nested results stay visible; an 
       const paired = await messageState(session.page, "review-746-4");
       expect(paired.counter).toBe("1/1");
       expect(paired.marks, "control: the paired call marks its result title").toContain("ZephyrPairedTitle");
+      expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
+    }, 120_000);
+
+    it("R2-F1: a nested Task result recorded image → text → text shows the image first, then each text, on screen", async () => {
+      await run({ do: "expandToolRows", match: [LEADING_BASH], limit: 1 });
+      await settle(session, { label: "leading outer bash open" });
+      const scope = ':is([data-message-uuid="review-746-5"], [data-message-uuid="review-746-6"])';
+      for (let guard = 0; guard < 8; guard += 1) {
+        const clicked = await session.page.evaluate((sel) => {
+          const button = document.querySelector(`${sel} [data-tool-detail] [data-tool-row] > button[aria-expanded="false"]`);
+          button?.click();
+          return Boolean(button);
+        }, scope);
+        if (!clicked) break;
+        await settle(session, { label: `leading nested open ${guard}` });
+      }
+      // Bring the image into view, let the virtual list re-measure, then read DOM order and geometry.
+      await session.page.evaluate(
+        ({ sel, data }) => document.querySelector(`${sel} img[src$="${data.slice(-24)}"]`)?.scrollIntoView({ block: "center" }),
+        { sel: scope, data: LEADING_PNG },
+      );
+      await settle(session, { label: "leading image in view" });
+      const order = await session.page.evaluate(
+        ({ sel, data }) => {
+          const image = [...document.querySelectorAll(`${sel} img`)].find((img) => img.getAttribute("src") === `data:image/png;base64,${data}`);
+          const textNode = (needle) => {
+            for (const message of document.querySelectorAll(sel)) {
+              const walker = document.createTreeWalker(message, 4 /* SHOW_TEXT */);
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) if ((node.textContent ?? "").includes(needle)) return node;
+            }
+            return null;
+          };
+          const rectOf = (node) => {
+            if (!node) return null;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const r = node.nodeType === 1 ? node.getBoundingClientRect() : range.getBoundingClientRect();
+            return { top: +r.top.toFixed(2), bottom: +r.bottom.toFixed(2), height: +r.height.toFixed(2) };
+          };
+          const after = textNode("ZephyrAfterImage");
+          const agent = textNode("ZephyrLeadingAgent");
+          const follows = (a, b) => Boolean(a && b && a.compareDocumentPosition(b) & 4 /* DOCUMENT_POSITION_FOLLOWING */);
+          return {
+            image: rectOf(image),
+            after: rectOf(after),
+            agent: rectOf(agent),
+            imageThenAfter: follows(image, after),
+            afterThenAgent: follows(after, agent),
+            innerHeight,
+            body: (document.body.innerText ?? "").slice(0, 300),
+          };
+        },
+        { sel: scope, data: LEADING_PNG },
+      );
+      expect(order.body, "the app is not replaced by its error screen").not.toContain(session.t("error.unexpectedError"));
+      expect(order.image, "the nested Task result's image is rendered").not.toBeNull();
+      expect(order.after, "the text recorded after the image is rendered").not.toBeNull();
+      expect(order.agent, "the agentId text is rendered").not.toBeNull();
+      expect(order.imageThenAfter, `DOM order: the image precedes the text recorded after it ${JSON.stringify(order)}`).toBe(true);
+      expect(order.afterThenAgent, "DOM order: the two texts keep their order").toBe(true);
+      expect(order.image.bottom, `on screen: the image sits above the text recorded after it ${JSON.stringify(order)}`).toBeLessThanOrEqual(order.after.top);
+      expect(order.after.top < order.innerHeight && order.image.top >= 0, `both are in the viewport ${JSON.stringify(order)}`).toBe(true);
       expect(session.log.pageErrors, "no uncaught page error").toEqual([]);
     }, 120_000);
   });
