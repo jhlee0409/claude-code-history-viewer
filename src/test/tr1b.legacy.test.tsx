@@ -390,6 +390,15 @@ describe("server and MCP tool calls are one ToolRow each, their result in the Re
     expect(text(detailOf(row))).toContain("It fails on CI.");
   });
 
+  it("mcp_tool_use in the Messages API's documented shape (`name`, no `tool_name`): verb = that recorded name", () => {
+    const call = { type: "mcp_tool_use", id: MCP_CALL.id, server_name: MCP_CALL.server_name, name: "create_issue", input: MCP_CALL.input };
+    const { container } = renderContent([call, MCP_RESULT]);
+    expect(rows(container)).toHaveLength(1);
+    const row = rows(container)[0];
+    expect(verbOf(row)).toBe("create_issue");
+    expect(text(row)).toContain("github");
+  });
+
   it("mcp_tool_result is_error: Failed once", () => {
     const { container } = renderContent([MCP_CALL, { ...MCP_RESULT, is_error: true, content: [{ type: "text", text: "rate limited" }] }]);
     const row = rowWith(container, "create_issue");
