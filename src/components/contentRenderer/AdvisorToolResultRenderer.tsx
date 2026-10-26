@@ -7,12 +7,11 @@
  */
 
 import { memo } from "react";
-import { Lightbulb, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getVariantStyles, layout } from "../renderers";
+import { layout } from "../renderers";
 import { Markdown } from "../common";
-import { ToolResultCard } from "./ToolResultCard";
+import { ResultRow } from "../transcript/ResultRow";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 import type { AdvisorResult, AdvisorError } from "@/types";
 
@@ -30,33 +29,21 @@ export const AdvisorToolResultRenderer = memo(function AdvisorToolResultRenderer
   content,
 }: Props) {
   const { t } = useTranslation();
+  const result = { type: "advisor_tool_result", tool_use_id: toolUseId, content };
 
   if (isAdvisorError(content)) {
     const errorMessages = getCommonToolErrorMessages(t);
     return (
-      <ToolResultCard
-        title={t("advisorToolResultRenderer.error")}
-        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-        variant="error"
-        toolUseId={toolUseId}
-      >
-        <div className={cn(layout.bodyText, "text-destructive")}>
-          {errorMessages[content.error_code] || content.error_code}
-        </div>
-      </ToolResultCard>
+      <ResultRow verb="advisor" result={result} toolUseId={toolUseId}>
+        {errorMessages[content.error_code] && <div className={cn(layout.bodyText, "text-fg-2")}>{errorMessages[content.error_code]}</div>}
+      </ResultRow>
     );
   }
 
-  const infoStyles = getVariantStyles("info");
   const text = typeof content.text === "string" ? content.text : "";
 
   return (
-    <ToolResultCard
-      title={t("advisorToolResultRenderer.title")}
-      icon={<Lightbulb className={cn(layout.iconSize, infoStyles.icon)} />}
-      variant="info"
-      toolUseId={toolUseId}
-    >
+    <ResultRow verb="advisor" result={result} toolUseId={toolUseId}>
       {text ? (
         <Markdown className={cn("overflow-x-auto text-foreground", layout.bodyText)}>
           {text}
@@ -66,7 +53,7 @@ export const AdvisorToolResultRenderer = memo(function AdvisorToolResultRenderer
           {t("advisorToolResultRenderer.empty")}
         </div>
       )}
-    </ToolResultCard>
+    </ResultRow>
   );
 });
 

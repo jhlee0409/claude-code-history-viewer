@@ -173,14 +173,16 @@ export const ToolExecutionResultRouter: React.FC<
     );
   }
 
-  // Handle Git workflow results
+  // Handle Git workflow results. A bare `status` key is not Git evidence
+  // (amendment 10, TR1b): no provider records a Git result that way, and it
+  // sent Claude's async Agent completions ({agentId, status}) and BashOutput
+  // results ({shellId, command, status, stdout}) to this card.
   if (
     toolResult.type === "git_workflow" ||
     (toolResult.command &&
       typeof toolResult.command === "string" &&
       (String(toolResult.command).startsWith("git ") ||
         toolResult.git_command)) ||
-    toolResult.status ||
     toolResult.diff ||
     toolResult.commit
   ) {

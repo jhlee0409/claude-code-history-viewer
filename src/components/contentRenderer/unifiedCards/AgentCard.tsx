@@ -5,9 +5,11 @@ import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
 import { ProseBlock } from "../../transcript/ProseBlock";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { DetailZone } from "../../transcript/DetailZone";
-import { firstResultText, hasShownResults, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
+import { hasShownResults, splitLeadingResultText, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { plainPreview, str } from "./shared";
+import { isNonEmptyString, shownIf, unshown } from "./recordShape";
+import { OtherRecordedFields } from "./toolBodyParts";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { Num } from "@/lib/format/Num";
@@ -21,11 +23,16 @@ import { Num } from "@/lib/format/Num";
  * `toolOutcome` only. Opened: the whole description when the row cuts it,
  * the model and isolation in the meta line, then the Input zone (the
  * prompt) and the Result zone (its duration, tokens and tool count on the
- * label's line) as prose blocks — no nested folds, no fill, no green check
- * — and "View Conversation", an aside outside both zones (it leaves for
- * the subagent's own transcript).
+ * label's line) as prose blocks — no nested folds, no fill, no green check —
+ * and "View Conversation", an aside outside both zones (it leaves for the
+ * subagent's own transcript).
+ *
+ * The Result zone keeps the recorded order: the result's text is prose only
+ * when it is the first part recorded, and every part after it follows as
+ * output; a result that starts with anything else (an image …) is output
+ * from its first part on.
  */
-export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
+export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
   const { t } = useTranslation();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Agent";
@@ -40,8 +47,22 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const family = toolFamily(name);
   const outcome = toolOutcome(toolUse, toolResults, family);
   const expandKey = `unified-${toolId}`;
+  const rest = unshown(input, {
+    description: shownIf(isNonEmptyString),
+    prompt: shownIf(isNonEmptyString),
+    subagent_type: shownIf(isNonEmptyString),
+    run_in_background: shownIf((v) => v === true),
+    model: shownIf(isNonEmptyString),
+    isolation: shownIf(isNonEmptyString),
+  });
+  const hasRest = Object.keys(rest).length > 0;
 
-  const resultText = firstResultText(withoutErrorCodeEcho(toolResults));
+  // The prose takes the result's text only when it is the first part recorded;
+  // everything after it (a second text block such as Claude's agentId / usage
+  // note, images, other results) follows, in order. A result that starts with
+  // an image keeps the image first (review rounds 1 and 2 of PR #746, F1 and
+  // R2-F1).
+  const { text: resultText, rest: restResults } = splitLeadingResultText(withoutErrorCodeEcho(toolResults));
   const stats = recordedAgentStats(toolResults);
 
   const promptPreview = description ? "" : plainPreview(prompt);
@@ -84,13 +105,14 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         </>
       }
     >
-      <DetailZone kind="input" show={prompt ? true : description ? "whenTargetCut" : false}>
+      <DetailZone kind="input" show={prompt || hasRest ? true : description ? "whenTargetCut" : false}>
         {description && (
           <WhenTargetCut>
             <p className="whitespace-pre-wrap text-list text-fg-2">{description}</p>
           </WhenTargetCut>
         )}
         {prompt && <ProseBlock text={prompt} expandKey={`${expandKey}-prompt`} />}
+        <OtherRecordedFields rest={rest} expandKey={expandKey} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
       </DetailZone>
       <DetailZone
         kind="result"
@@ -119,7 +141,12 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         }
       >
         {resultText ? (
-          <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
+          <>
+            <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
+            {restResults.length > 0 && (
+              <ToolResultOutputs results={restResults} family={family} expandKey={`${expandKey}-rest`} failed={outcome.verdict === "failed"} />
+            )}
+          </>
         ) : (
           <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
         )}

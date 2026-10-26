@@ -54,13 +54,14 @@ const baseText = (results: ToolResultLike[]) => {
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const NON_TEXT_BLOCKS: Array<[string, Record<string, unknown>, string]> = [
-  // The existing tool-result renderers show an image block as its recorded JSON.
+  // The existing tool-result renderers show an image block as the image (TR1b; before, its recorded JSON).
   ["image", { type: "image", source: { type: "base64", media_type: "image/png", data: PNG } }, PNG],
   ["document", { type: "document", title: "PRESERVE_ME_DOCUMENT", source: { type: "text", media_type: "text/plain", data: "DOCUMENT_BODY" } }, "PRESERVE_ME_DOCUMENT"],
   ["search_result", { type: "search_result", title: "PRESERVE_ME_SEARCH", source: "https://example.com/r", content: [{ type: "text", text: "SEARCH_BODY" }] }, "PRESERVE_ME_SEARCH"],
   ["unknown type", { type: "novel-type", marker: "PRESERVE_ME_UNKNOWN" }, "PRESERVE_ME_UNKNOWN"],
 ];
-const shows = (container: HTMLElement, marker: string) => (container.textContent ?? "").includes(marker);
+const shows = (container: HTMLElement, marker: string) =>
+  (container.textContent ?? "").includes(marker) || [...container.querySelectorAll("img")].some((img) => (img.getAttribute("src") ?? "").includes(marker));
 
 beforeAll(async () => {
   await i18n.changeLanguage("en");

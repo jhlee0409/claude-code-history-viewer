@@ -5,15 +5,19 @@
  * Supports both successful operations and error conditions with file content preview.
  */
 
-import { memo } from "react";
-import { FilePen, CircleCheckBig, CircleAlert, Eye, FilePlus, Trash, ChevronRight } from "lucide-react";
+import { memo, useContext, useEffect, useId } from "react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { TextEditorResult, TextEditorError } from "../../types";
-import { getVariantStyles, layout } from "../renderers";
+import { layout } from "../renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
-import { ToolResultCard } from "./ToolResultCard";
+import { ResultRow } from "../transcript/ResultRow";
+import { ResultRowContext } from "../transcript/resultRowContext";
+import { Marked } from "../transcript/ToolRow";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
+import { searchHits } from "./unifiedCards/shared";
+import { oneLineValueClass } from "./oneLineValue";
 
 type Props = {
   toolUseId: string;
@@ -35,6 +39,16 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
   }: Props) {
     const { t } = useTranslation();
     const [showContent, setShowContent] = useCaptureExpandState(`text-editor-${toolUseId}`, false);
+    const { highlight } = useContext(ResultRowContext);
+    const contentId = useId();
+    // A counted search hit in the file content opens the content fold once per
+    // query (keyed on the query, as ToolRow's reveal), so the mark is seen.
+    const fileText = isTextEditorError(content) ? undefined : content.content;
+    const contentHitQuery = highlight && searchHits(highlight.searchQuery, fileText) ? highlight.searchQuery : undefined;
+    useEffect(() => {
+      if (contentHitQuery !== undefined && contentHitQuery.trim() !== "") setShowContent(true);
+    }, [contentHitQuery, setShowContent]);
+    const result = { type: "text_editor_code_execution_tool_result", tool_use_id: toolUseId, content };
     const errorMessages: Record<string, string> = {
       ...getCommonToolErrorMessages(t),
       file_not_found: t("toolError.fileNotFound"),
@@ -43,38 +57,13 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
 
     if (isTextEditorError(content)) {
       return (
-        <ToolResultCard
-          title={t("textEditorCodeExecutionToolResultRenderer.error")}
-          icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-          variant="error"
-          toolUseId={toolUseId}
-        >
-          <div className={cn(layout.bodyText, "text-destructive")}>
-            {errorMessages[content.error_code] || content.error_code}
-          </div>
-        </ToolResultCard>
+        <ResultRow verb="text_editor_code_execution" result={result} toolUseId={toolUseId}>
+          {errorMessages[content.error_code] && <div className={cn(layout.bodyText, "text-fg-2")}>{errorMessages[content.error_code]}</div>}
+        </ResultRow>
       );
     }
 
     const { operation, path, content: fileContent, success } = content;
-
-    const warningStyles = getVariantStyles("warning");
-    const successStyles = getVariantStyles("success");
-    const errorStyles = getVariantStyles("error");
-
-    const getOperationIcon = () => {
-      switch (operation) {
-        case "view":
-          return <Eye className={cn(layout.iconSize, warningStyles.icon)} />;
-        case "create":
-          return <FilePlus className={cn(layout.iconSize, successStyles.icon)} />;
-        case "delete":
-          return <Trash className={cn(layout.iconSize, errorStyles.icon)} />;
-        case "edit":
-        default:
-          return <FilePen className={cn(layout.iconSize, warningStyles.icon)} />;
-      }
-    };
 
     const getOperationLabel = () => {
       switch (operation) {
@@ -97,30 +86,16 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     };
 
     return (
-      <ToolResultCard
-        title={getOperationLabel()}
-        icon={
-          <span className={cn("flex items-center", layout.iconGap)}>
-            {getOperationIcon()}
-            {success !== false ? (
-              <CircleCheckBig className={cn(layout.iconSizeSmall, "text-success")} />
-            ) : (
-              <CircleAlert className={cn(layout.iconSizeSmall, warningStyles.icon)} />
-            )}
-          </span>
-        }
-        variant="warning"
+      <ResultRow
+        verb="text_editor_code_execution"
+        result={result}
         toolUseId={toolUseId}
+        meta={success === false ? `${getOperationLabel()} · success: false` : getOperationLabel()}
       >
           {/* File path */}
           {path && (
-            <div className={cn(
-              layout.monoText,
-              "mb-2 px-2 py-1 truncate bg-warning/20",
-              layout.rounded,
-              warningStyles.accent
-            )}>
-              {path}
+            <div className={cn(layout.monoText, "mb-2 text-fg-2", oneLineValueClass(path, highlight))}>
+              <Marked text={path} highlight={highlight} />
             </div>
           )}
 
@@ -130,30 +105,24 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
               <button
                 type="button"
                 onClick={() => setShowContent(prev => !prev)}
-                className={cn(
-                  layout.smallText,
-                  "flex items-center gap-1 cursor-pointer hover:opacity-80",
-                  warningStyles.accent
-                )}
+                aria-expanded={showContent}
+                aria-controls={contentId}
+                className={cn(layout.smallText, "flex items-center gap-1 cursor-pointer hover:opacity-80 text-fg-3")}
               >
                 <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showContent && "rotate-90")} />
                 {t("textEditorCodeExecutionToolResultRenderer.showContent")}
               </button>
-              {showContent && (
-                <pre className={cn(
-                  "mt-2 p-2 overflow-x-auto whitespace-pre-wrap",
-                  layout.monoText,
-                  layout.rounded,
-                  layout.codeMaxHeight,
-                  "bg-warning/20",
-                  warningStyles.accent
-                )}>
-                  {truncateContent(fileContent)}
-                </pre>
-              )}
+              <div id={contentId} hidden={!showContent}>
+                {showContent && (
+                  <pre className={cn("mt-2 p-2 overflow-x-auto whitespace-pre-wrap bg-surface-well text-fg", layout.monoText, layout.rounded, layout.codeMaxHeight)}>
+                    {/* A content hit opened the fold: the whole file, so a hit past the preview is shown and marked (CodeRabbit 4378494005). */}
+                    <Marked text={contentHitQuery !== undefined ? fileContent : truncateContent(fileContent)} highlight={highlight} />
+                  </pre>
+                )}
+              </div>
             </div>
           )}
-      </ToolResultCard>
+      </ResultRow>
     );
   }
 );

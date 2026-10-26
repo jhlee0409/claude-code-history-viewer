@@ -6,13 +6,16 @@
  * for success and error states.
  */
 
-import { memo } from "react";
+import { memo, useContext } from "react";
 import { Markdown } from "../common";
-import { Globe, FileText, Clock, CircleAlert, ExternalLink } from "lucide-react";
+import { Clock, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getVariantStyles, layout } from "../renderers";
-import { ToolResultCard } from "./ToolResultCard";
+import { layout } from "../renderers";
+import { ResultRow } from "../transcript/ResultRow";
+import { ResultRowContext } from "../transcript/resultRowContext";
+import { Marked } from "../transcript/ToolRow";
+import { oneLineValueClass } from "./oneLineValue";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
@@ -67,6 +70,8 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
 }: Props) {
   const { t } = useTranslation();
   const fmt = useFormat();
+  const { highlight } = useContext(ResultRowContext);
+  const result = { type: "web_fetch_tool_result", tool_use_id: toolUseId, content };
   const errorMessages: Record<string, string> = {
     ...getCommonToolErrorMessages(t),
     invalid_input: t("toolError.invalidUrlFormat"),
@@ -79,16 +84,9 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
 
   if (isWebFetchError(content)) {
     return (
-      <ToolResultCard
-        title={t("webFetchToolResultRenderer.error")}
-        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-        variant="error"
-        toolUseId={toolUseId}
-      >
-        <div className={cn(layout.bodyText, "text-destructive")}>
-          {errorMessages[content.error_code] || content.error_code}
-        </div>
-      </ToolResultCard>
+      <ResultRow verb="web_fetch" result={result} toolUseId={toolUseId}>
+        {errorMessages[content.error_code] && <div className={cn(layout.bodyText, "text-fg-2")}>{errorMessages[content.error_code]}</div>}
+      </ResultRow>
     );
   }
 
@@ -134,43 +132,34 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   };
 
   const preview = getPreview();
-  const isPDF = source?.media_type === "application/pdf";
-  const webStyles = getVariantStyles("web");
 
   return (
-    <ToolResultCard
-      title={t("webFetchToolResultRenderer.title")}
-      icon={
-        isPDF ? (
-          <FileText className={cn(layout.iconSize, webStyles.icon)} />
-        ) : (
-          <Globe className={cn(layout.iconSize, webStyles.icon)} />
-        )
-      }
-      variant="web"
-      toolUseId={toolUseId}
-    >
+    <ResultRow verb="web_fetch" result={result} toolUseId={toolUseId}>
       <div className={cn("flex items-center mb-2", layout.iconGap)}>
-        <ExternalLink className={cn(layout.iconSizeSmall, webStyles.accent)} />
+        <ExternalLink className={cn(layout.iconSizeSmall, "text-fg-3")} />
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
             layout.bodyText,
-            "underline truncate max-w-md",
-            webStyles.accent,
+            "underline max-w-md text-fg-2",
+            oneLineValueClass(String(url ?? ""), highlight),
             "hover:opacity-80"
           )}
         >
-          {url}
+          <Marked text={String(url ?? "")} highlight={highlight} />
         </a>
       </div>
 
-      {title && <div className={cn(layout.bodyText, "font-medium mb-2 text-foreground")}>{title}</div>}
+      {title && (
+        <div className={cn(layout.bodyText, "font-medium mb-2 text-foreground")}>
+          <Marked text={title} highlight={highlight} />
+        </div>
+      )}
 
       {retrieved_at && (
-        <div className={cn("flex items-center mb-2", layout.iconGap, layout.smallText, webStyles.accent)}>
+        <div className={cn("flex items-center mb-2", layout.iconGap, layout.smallText, "text-fg-3")}>
           <Clock className={layout.iconSizeSmall} />
           <span>
             {t("webFetchToolResultRenderer.retrievedAt")}:{" "}
@@ -181,7 +170,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
 
       {preview && (
         <details className="mt-2">
-          <summary className={cn(layout.smallText, "cursor-pointer hover:opacity-80", webStyles.accent)}>
+          <summary className={cn(layout.smallText, "cursor-pointer hover:opacity-80", "text-fg-3")}>
             {t("webFetchToolResultRenderer.showContent")}
           </summary>
           <Markdown
@@ -197,6 +186,6 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           </Markdown>
         </details>
       )}
-    </ToolResultCard>
+    </ResultRow>
   );
 });

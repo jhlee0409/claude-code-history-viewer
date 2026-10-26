@@ -344,6 +344,53 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
 }
 
 /**
+ * Claude's Edit confirmation, as its tool records it: "The file <path> has
+ * been updated successfully." (real history, optionally with the
+ * "file state is current" note), the shorter "The file <path> has been
+ * updated.", and the older sentence without its `cat -n` snippet (the
+ * harness fixtures' shapes). A sentence followed by a
+ * snippet, or by any other note ("the file had been modified on disk …"),
+ * records more than the diff shows and is not a confirmation.
+ */
+const EDIT_CONFIRMATION =
+  /^(?:The file (.+?) has been updated(?: successfully)?\.(?: \(file state is current in your context — no need to Read it back\))?|The file (.+?) has been updated\. Here's the result of running `cat -n` on a snippet of the edited file[.:]?)$/;
+
+/**
+ * The path an Edit / MultiEdit result confirms, when its whole content is
+ * exactly that confirmation sentence (a string or one text block) and
+ * nothing records an error; otherwise `null`: the result is shown as
+ * recorded (review round 1 of PR #746, F1).
+ */
+export function editConfirmationPath(result: ToolResultLike): string | null {
+  if (result.is_error === true) return null;
+  const content = result.content;
+  const text = Array.isArray(content) ? (content.length === 1 ? blockText(content[0]) : null) : blockText(content);
+  if (text === null) return null;
+  const match = EDIT_CONFIRMATION.exec(text.replace(/\n+$/, ""));
+  return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
+/**
+ * The results without the confirmation sentences (`confirms` gives the path
+ * a result confirms, or null) that name `filePath`, the row's own file —
+ * the one thing a Write / Edit row already says. A confirmation's own
+ * stdout / stderr still render (its content emptied); any other result is
+ * passed as is.
+ */
+export function withoutOwnConfirmations(
+  results: ToolResultLike[],
+  filePath: string,
+  confirms: (result: ToolResultLike) => string | null,
+): ToolResultLike[] {
+  return results.flatMap((result) => {
+    if (filePath === "" || confirms(result) !== filePath) return [result];
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
+}
+
+/**
  * Is this text part only the JSON echo of the result's own recorded API
  * error code (WebFetch / WebSearch `url_not_accessible`: content
  * `{"error_code":"url_not_accessible"}` beside `toolUseResult.error_code`)?
@@ -393,9 +440,11 @@ export function hasShownResults(results: ToolResultLike[]): boolean {
 }
 
 /**
- * The first recorded text of the results, as the Agent and Workflow cards
- * have always read it: a string content, or the first text block of a
- * content array (one block, not the run). `null` when none records text.
+ * The first recorded text of the results, wherever it sits: a string
+ * content, or the first text block of a content array (one block, not the
+ * run). `null` when none records text. A value to read (the Workflow run id),
+ * never a slot to render: a card that shows a text apart from the other parts
+ * takes it with `splitLeadingResultText`, which keeps the recorded order.
  */
 export function firstResultText(results: ToolResultLike[]): string | null {
   for (const result of results) {
@@ -408,6 +457,47 @@ export function firstResultText(results: ToolResultLike[]): string | null {
     }
   }
   return null;
+}
+
+/** A card's leading result text and every part after it (`splitLeadingResultText`). */
+export interface LeadingResultText {
+  /** The text the results record first, or `null` when their first part is not text. */
+  text: string | null;
+  /** Everything else, in recorded order: all the results when `text` is null. */
+  rest: ToolResultLike[];
+}
+
+/**
+ * The text a card may show on its own (the Agent card's prose) and the parts
+ * that follow it (review round 2 of PR #746, R2-F1). Only the very first part
+ * the results record can be lifted: the first result's string content, or
+ * the first block of its content array when that block is text. Then `rest`
+ * is that result's other blocks and streams, and every later result, in
+ * recorded order (a result left with neither is dropped: nothing of it
+ * remains). When the first part is anything else (an image, a document, an
+ * empty first result, no content) nothing is lifted and `rest` is the results
+ * as recorded, so a text is never shown ahead of a part recorded before it.
+ */
+export function splitLeadingResultText(results: ToolResultLike[]): LeadingResultText {
+  const [first, ...later] = results;
+  if (!first) return { text: null, rest: [] };
+  const content = first.content;
+  const lead = Array.isArray(content) ? content[0] : undefined;
+  let text: string;
+  let remaining: unknown[];
+  if (typeof content === "string") {
+    text = content;
+    remaining = [];
+  } else if (Array.isArray(content) && isPlainObject(lead) && lead.type === "text" && "text" in lead) {
+    text = String(lead.text);
+    remaining = content.slice(1);
+  } else {
+    return { text: null, rest: results };
+  }
+  const n = normalizeResult(first);
+  const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+  const head = remaining.length > 0 ? [{ ...first, content: remaining }] : streamText ? [{ ...first, content: "" }] : [];
+  return { text, rest: [...head, ...later] };
 }
 
 /** What the existing result renderers draw for a result: its content, or the block itself when it records none. */
