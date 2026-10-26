@@ -54,6 +54,12 @@ import {
   UpdatePlanToolRenderer,
 } from "./toolUseRenderers";
 
+// Absent, or an array of plain objects — anything else goes to the raw JSON view
+const isRecordList = (value: unknown): boolean =>
+  value === undefined ||
+  (Array.isArray(value) &&
+    value.every((item) => typeof item === "object" && item !== null && !Array.isArray(item)));
+
 interface ToolUseRendererProps extends BaseRendererProps {
   toolUse: Record<string, unknown>;
 }
@@ -70,6 +76,10 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
   const toolName = (toolUse.name as string) || "Unknown Tool";
   const toolId = (toolUse.id as string) || "";
   const toolInput = (toolUse.input as Record<string, unknown>) ?? {};
+  // Malformed lists skip every specialised renderer and show the raw JSON
+  const hasMalformedList =
+    (toolName === "TodoWrite" && !isRecordList(toolInput.todos)) ||
+    (toolName === "update_plan" && !isRecordList(toolInput.plan));
 
   const parseMcpTool = (name: string) => {
     if (!name.startsWith("mcp__")) {
@@ -123,6 +133,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     case "MultiEdit":
       return <MultiEditToolRenderer toolId={toolId} input={toolInput} />;
     case "TodoWrite":
+      if (hasMalformedList) break;
       return <TodoWriteToolRenderer toolId={toolId} input={toolInput} />;
     case "NotebookEdit":
       return <NotebookEditToolRenderer toolId={toolId} input={toolInput} />;
@@ -137,6 +148,7 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
     case "apply_patch":
       return <ApplyPatchToolRenderer toolId={toolId} input={toolInput} />;
     case "update_plan":
+      if (hasMalformedList) break;
       return <UpdatePlanToolRenderer toolId={toolId} input={toolInput} />;
   }
 
@@ -159,16 +171,19 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
   // Check tool types (fallback for input-shape detection)
   const isWriteTool =
     toolName === "Write" ||
-    (isObject(toolInput) && "file_path" in toolInput && "content" in toolInput);
+    (!hasMalformedList &&
+      isObject(toolInput) && "file_path" in toolInput && "content" in toolInput);
 
   const isEditTool =
     toolName === "Edit" ||
-    (isObject(toolInput) &&
+    (!hasMalformedList &&
+      isObject(toolInput) &&
       "file_path" in toolInput &&
       "old_string" in toolInput &&
       "new_string" in toolInput);
 
   const isAssistantPrompt =
+    !hasMalformedList &&
     isObject(toolInput) &&
     "description" in toolInput &&
     "prompt" in toolInput &&
