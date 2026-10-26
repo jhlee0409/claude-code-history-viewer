@@ -36,7 +36,7 @@ import { expandScenarios } from "../scenarios.mjs";
 import { browserRequirement } from "./requirements.mjs";
 import { openScenario, startApp } from "./appSession.mjs";
 
-/* global document, getComputedStyle, innerWidth, innerHeight */
+/* global document, getComputedStyle, innerWidth, innerHeight, Range */
 
 const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "legacyRows.test" }).enabled;
 
@@ -505,24 +505,33 @@ describe.skipIf(!ENABLED)("TR1b review round 1: nested results stay visible; an 
       await settle(session, { label: "leading image in view" });
       const order = await session.page.evaluate(
         ({ sel, data }) => {
-          const image = [...document.querySelectorAll(`${sel} img`)].find((img) => img.getAttribute("src") === `data:image/png;base64,${data}`);
-          const textNode = (needle) => {
+          // Each part as a Range: the image element, and each needle's own characters (the two
+          // texts can share one text node: an output block joins a run of text parts).
+          const imageEl = [...document.querySelectorAll(`${sel} img`)].find((img) => img.getAttribute("src") === `data:image/png;base64,${data}`);
+          const image = imageEl ? document.createRange() : null;
+          image?.selectNode(imageEl);
+          const textAt = (needle) => {
             for (const message of document.querySelectorAll(sel)) {
               const walker = document.createTreeWalker(message, 4 /* SHOW_TEXT */);
-              for (let node = walker.nextNode(); node; node = walker.nextNode()) if ((node.textContent ?? "").includes(needle)) return node;
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const at = (node.textContent ?? "").indexOf(needle);
+                if (at < 0) continue;
+                const range = document.createRange();
+                range.setStart(node, at);
+                range.setEnd(node, at + needle.length);
+                return range;
+              }
             }
             return null;
           };
-          const rectOf = (node) => {
-            if (!node) return null;
-            const range = document.createRange();
-            range.selectNodeContents(node);
-            const r = node.nodeType === 1 ? node.getBoundingClientRect() : range.getBoundingClientRect();
+          const rectOf = (range) => {
+            if (!range) return null;
+            const r = range.getBoundingClientRect();
             return { top: +r.top.toFixed(2), bottom: +r.bottom.toFixed(2), height: +r.height.toFixed(2) };
           };
-          const after = textNode("ZephyrAfterImage");
-          const agent = textNode("ZephyrLeadingAgent");
-          const follows = (a, b) => Boolean(a && b && a.compareDocumentPosition(b) & 4 /* DOCUMENT_POSITION_FOLLOWING */);
+          const after = textAt("ZephyrAfterImage");
+          const agent = textAt("ZephyrLeadingAgent");
+          const follows = (a, b) => Boolean(a && b && a.compareBoundaryPoints(Range.START_TO_START, b) < 0);
           return {
             image: rectOf(image),
             after: rectOf(after),
