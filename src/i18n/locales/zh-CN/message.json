@@ -25,6 +25,7 @@
   "messageViewer.apiView.collapseAll": "全部折叠",
   "messageViewer.apiView.error": "无法构建 API 视图：{{detail}}",
   "messageViewer.apiView.expandAll": "全部展开",
+  "messageViewer.apiView.filtersDisabled": "筛选不适用于 API 请求视图",
   "messageViewer.apiView.inRequest": "已包含在此请求中",
   "messageViewer.apiView.inferred": "此记录未保存 API 请求（Claude Code 2.1.301 之前）。请求根据响应的 requestId 推断：仅显示输入和响应，不含请求正文。",
   "messageViewer.apiView.inputs": "进入此请求的记录行：{{n}}",

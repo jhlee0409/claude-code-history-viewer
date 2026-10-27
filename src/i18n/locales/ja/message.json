@@ -25,6 +25,7 @@
   "messageViewer.apiView.collapseAll": "すべて折りたたむ",
   "messageViewer.apiView.error": "APIビューを作成できません: {{detail}}",
   "messageViewer.apiView.expandAll": "すべて展開",
+  "messageViewer.apiView.filtersDisabled": "API リクエスト表示ではフィルターは適用されません",
   "messageViewer.apiView.inRequest": "このリクエストに含まれる",
   "messageViewer.apiView.inferred": "この記録にはAPIリクエストが保存されていません (Claude Code 2.1.301 より前)。リクエストはレスポンスの requestId から推定され、入力とレスポンスのみ表示されます。",
   "messageViewer.apiView.inputs": "このリクエストに入った記録行: {{n}}",

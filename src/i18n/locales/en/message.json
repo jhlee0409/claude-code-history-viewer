@@ -25,6 +25,7 @@
   "messageViewer.apiView.collapseAll": "Collapse all",
   "messageViewer.apiView.error": "Could not build the API view: {{detail}}",
   "messageViewer.apiView.expandAll": "Expand all",
+  "messageViewer.apiView.filtersDisabled": "Filters do not apply to the API request view",
   "messageViewer.apiView.inRequest": "sent in this request",
   "messageViewer.apiView.inferred": "This transcript does not record API requests (Claude Code before 2.1.301). Requests are inferred from the responses' requestId: their inputs and responses are shown, request bodies are not.",
   "messageViewer.apiView.inputs": "Transcript lines that fed it: {{n}}",

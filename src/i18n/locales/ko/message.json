@@ -25,6 +25,7 @@
   "messageViewer.apiView.collapseAll": "모두 접기",
   "messageViewer.apiView.error": "API 보기를 만들 수 없음: {{detail}}",
   "messageViewer.apiView.expandAll": "모두 펼치기",
+  "messageViewer.apiView.filtersDisabled": "API 요청 보기에는 필터가 적용되지 않습니다",
   "messageViewer.apiView.inRequest": "이 요청에 포함됨",
   "messageViewer.apiView.inferred": "이 기록에는 API 요청이 저장되어 있지 않습니다 (Claude Code 2.1.301 이전). 요청은 응답의 requestId로 추정되며, 입력과 응답만 표시되고 요청 본문은 없습니다.",
   "messageViewer.apiView.inputs": "요청에 들어간 기록 행: {{n}}",

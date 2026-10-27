@@ -25,6 +25,7 @@
   "messageViewer.apiView.collapseAll": "全部收合",
   "messageViewer.apiView.error": "無法建立 API 檢視：{{detail}}",
   "messageViewer.apiView.expandAll": "全部展開",
+  "messageViewer.apiView.filtersDisabled": "篩選不適用於 API 請求檢視",
   "messageViewer.apiView.inRequest": "已包含在此請求中",
   "messageViewer.apiView.inferred": "此記錄未儲存 API 請求（Claude Code 2.1.301 之前）。請求依回應的 requestId 推斷：僅顯示輸入與回應，不含請求本文。",
   "messageViewer.apiView.inputs": "進入此請求的記錄行：{{n}}",
