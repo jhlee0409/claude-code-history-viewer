@@ -80,7 +80,11 @@ function RequestHeader({ request, number }: { request: ApiRequest; number: numbe
       <span className="font-medium text-foreground">{t("messageViewer.apiView.request", { n: number })}</span>
       {request.timestamp && <span className="tabular-nums"><Num>{clockStamp(request.timestamp)}</Num></span>}
       {request.query_source && <span data-mono="code" className="font-mono text-muted-foreground">{request.query_source}</span>}
-      {request.line != null && <span data-mono="id" className="font-mono text-muted-foreground">L{request.line}</span>}
+      {request.line != null ? (
+        <span data-mono="id" className="font-mono text-muted-foreground">L{request.line}</span>
+      ) : (
+        <span className="italic text-muted-foreground">{t("messageViewer.apiView.inferredTag")}</span>
+      )}
       <span className="text-muted-foreground">
         {t("messageViewer.apiView.messageCount", { total: request.total_messages, added: request.new_messages.length })}
       </span>

@@ -182,3 +182,46 @@ fn requests_are_inferred_from_responses_without_records() {
     assert!(view.requests[0].inputs[0].in_request.is_none());
     assert!(view.unattributed.is_empty());
 }
+
+#[test]
+fn resumed_session_infers_requests_for_responses_written_before_recording() {
+    let prompt = json!([{"type": "text", "text": "new prompt"}]);
+    let h = message_hash("user", &prompt);
+    let text = transcript(&[
+        json!({"type": "user", "uuid": "u1", "timestamp": "2026-01-01T00:00:00Z",
+               "message": {"role": "user", "content": "old prompt"}}),
+        json!({"type": "assistant", "uuid": "x1", "parentUuid": "u1", "requestId": "req_old",
+               "message": {"id": "msg_1", "role": "assistant", "content": [{"type": "text", "text": "a"}]}}),
+        json!({"type": "assistant", "uuid": "x2", "parentUuid": "x1",
+               "message": {"id": "msg_err", "model": "<synthetic>", "role": "assistant",
+                           "content": [{"type": "text", "text": "API Error"}]}}),
+        json!({"type": "api-request-blob", "hash": h, "message": {"role": "user", "content": prompt}}),
+        json!({"type": "api-request", "id": "R1", "keep": 0, "tail": [h],
+               "timestamp": "2026-01-02T00:00:00Z"}),
+        json!({"type": "assistant", "uuid": "x3", "parentUuid": "x2", "requestRef": "R1",
+               "requestId": "req_new",
+               "message": {"id": "msg_2", "role": "assistant", "content": [{"type": "text", "text": "b"}]}}),
+    ]);
+    let view = build_api_view(&text);
+    assert!(view.recorded);
+    let summary: Vec<(&str, Option<usize>, Vec<usize>)> = view
+        .requests
+        .iter()
+        .map(|r| {
+            (
+                r.id.as_str(),
+                r.line,
+                r.response
+                    .as_ref()
+                    .map(|x| x.lines.clone())
+                    .unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        summary,
+        vec![("req_old", None, vec![2]), ("R1", Some(5), vec![6])]
+    );
+    let left: Vec<usize> = view.unattributed.iter().map(|s| s.line).collect();
+    assert_eq!(left, vec![3]);
+}

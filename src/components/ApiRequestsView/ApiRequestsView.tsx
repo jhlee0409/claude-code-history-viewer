@@ -8,7 +8,7 @@ import { LoadingRows } from "@/components/ui/loading-rows";
 import type { ApiShape, ApiView, SourceLine } from "@/types/apiView.types";
 import { ApiRequestCard } from "./ApiRequestCard";
 import { SourceLineList } from "./SourceLineList";
-import { buildTimeline } from "./timeline";
+import { buildTimeline, inferredNotice } from "./timeline";
 
 function LooseLines({ lines, onOpen }: { lines: SourceLine[]; onOpen: (uuid: string) => void }) {
   const { t } = useTranslation();
@@ -102,6 +102,7 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
   }
 
   const allExpanded = expanded.size === view.requests.length && view.requests.length > 0;
+  const notice = inferredNotice(view);
   return (
     <div className="flex-1 min-h-0 overflow-auto px-3 py-2">
       <div className="flex flex-wrap items-center gap-3 text-caption text-muted-foreground px-1">
@@ -120,10 +121,10 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
           {allExpanded ? t("messageViewer.apiView.collapseAll") : t("messageViewer.apiView.expandAll")}
         </button>
       </div>
-      {!view.recorded && (
+      {notice && (
         <p className="flex items-start gap-2 mt-2 px-1 text-caption text-muted-foreground">
           <Info className="w-3.5 h-3.5 mt-1 shrink-0" />
-          {t("messageViewer.apiView.inferred")}
+          {t(notice)}
         </p>
       )}
       {timeline.map((item) =>

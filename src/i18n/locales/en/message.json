@@ -28,6 +28,8 @@
   "messageViewer.apiView.filtersDisabled": "Filters do not apply to the API request view",
   "messageViewer.apiView.inRequest": "sent in this request",
   "messageViewer.apiView.inferred": "This transcript does not record API requests (Claude Code before 2.1.301). Requests are inferred from the responses' requestId: their inputs and responses are shown, request bodies are not.",
+  "messageViewer.apiView.inferredPartial": "Part of this session was written before Claude Code recorded API requests (2.1.301). Those requests are inferred from the responses' requestId and are marked as inferred: their inputs and responses are shown, request bodies are not.",
+  "messageViewer.apiView.inferredTag": "inferred",
   "messageViewer.apiView.inputs": "Transcript lines that fed it: {{n}}",
   "messageViewer.apiView.kept": "messages[0..{{keep}}) are carried over unchanged from the previous request",
   "messageViewer.apiView.loading": "Building API requests…",

@@ -15,7 +15,13 @@ pub(super) fn reconstruct(parsed: &ParsedLines) -> Vec<ApiRequest> {
     if records.is_empty() {
         return Vec::new();
     }
-    let hashes = parsed.hash_index();
+    let wanted: HashSet<&str> = records
+        .iter()
+        .filter_map(|(_, record)| record.get("tail")?.as_array())
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let hashes = parsed.hash_index(&wanted);
     records
         .into_iter()
         .map(|(i, record)| {
@@ -68,29 +74,35 @@ pub(super) fn reconstruct(parsed: &ParsedLines) -> Vec<ApiRequest> {
         .collect()
 }
 
-/// One request per distinct response `requestId`, for transcripts written
-/// before requests were recorded. The send time is approximated by the
-/// timestamp of the line the response answers.
-pub(super) fn infer_from_responses(parsed: &ParsedLines) -> Vec<ApiRequest> {
-    let mut requests: Vec<ApiRequest> = Vec::new();
+/// One request per distinct `requestId` among responses that name no
+/// recorded request: the whole file before Claude Code recorded requests,
+/// or the part of a resumed session written by an older version. Each comes
+/// with the 1-based line of its first response, for ordering. The send time
+/// is approximated by the timestamp of the line the response answers.
+/// Responses without a `requestId` (synthetic error notices) were never sent.
+pub(super) fn infer_from_responses(parsed: &ParsedLines) -> Vec<(usize, ApiRequest)> {
+    let mut requests = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for turn in parsed.assistant_turns() {
         let first = turn.lines[0];
         let Some(value) = parsed.get(first) else {
             continue;
         };
-        let id = str_field(value, "requestId")
-            .map(str::to_string)
-            .unwrap_or_else(|| turn.message_id.clone());
-        if !seen.insert(id.clone()) {
+        if str_field(value, "requestRef").is_some() {
+            continue;
+        }
+        let Some(id) = str_field(value, "requestId") else {
+            continue;
+        };
+        if !seen.insert(id.to_string()) {
             continue;
         }
         let sent_at = str_field(value, "parentUuid")
             .and_then(|p| parsed.by_uuid(p))
             .and_then(|p| parsed.get(p))
             .and_then(|p| owned(p, "timestamp"));
-        requests.push(ApiRequest {
-            id,
+        let request = ApiRequest {
+            id: id.to_string(),
             line: None,
             timestamp: sent_at,
             query_source: None,
@@ -103,9 +115,27 @@ pub(super) fn infer_from_responses(parsed: &ParsedLines) -> Vec<ApiRequest> {
             new_messages: Vec::new(),
             response: None,
             inputs: Vec::new(),
-        });
+        };
+        requests.push((first + 1, request));
     }
     requests
+}
+
+/// Recorded and inferred requests together, in file order.
+pub(super) fn merge(
+    recorded: Vec<ApiRequest>,
+    inferred: Vec<(usize, ApiRequest)>,
+) -> Vec<ApiRequest> {
+    if inferred.is_empty() {
+        return recorded;
+    }
+    let mut all: Vec<(usize, ApiRequest)> = recorded
+        .into_iter()
+        .map(|r| (r.line.unwrap_or(usize::MAX), r))
+        .chain(inferred)
+        .collect();
+    all.sort_by_key(|(line, _)| *line);
+    all.into_iter().map(|(_, r)| r).collect()
 }
 
 /// Every distinct request shape (system prompt and tools).

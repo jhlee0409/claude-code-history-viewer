@@ -10,7 +10,8 @@
 //! every line that belongs to no request.
 //!
 //! Older transcripts carry no request records; there requests are inferred
-//! from the assistant `requestId`s, with inputs but no message bodies.
+//! from the assistant `requestId`s, with inputs but no message bodies. A
+//! session resumed across that version boundary gets both kinds.
 
 mod attribution;
 mod hashing;
@@ -26,8 +27,8 @@ use serde_json::Value;
 /// The whole session as API requests.
 #[derive(Debug, Serialize)]
 pub struct ApiView {
-    /// `true` when the transcript records requests; `false` when they were
-    /// inferred from responses.
+    /// `true` when the transcript records requests. Requests with no `line`
+    /// were inferred from responses, which can happen in either case.
     pub recorded: bool,
     pub line_count: usize,
     pub shapes: Vec<ApiShape>,
@@ -119,11 +120,9 @@ pub struct SourceLine {
 /// Build the API view of one transcript file's contents.
 pub fn build_api_view(text: &str) -> ApiView {
     let parsed = lines::ParsedLines::parse(text);
-    let mut requests = requests::reconstruct(&parsed);
-    let recorded = !requests.is_empty();
-    if !recorded {
-        requests = requests::infer_from_responses(&parsed);
-    }
+    let recorded_requests = requests::reconstruct(&parsed);
+    let recorded = !recorded_requests.is_empty();
+    let mut requests = requests::merge(recorded_requests, requests::infer_from_responses(&parsed));
     let unattributed = attribution::attribute(&parsed, &mut requests);
     ApiView {
         recorded,

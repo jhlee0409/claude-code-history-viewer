@@ -28,6 +28,8 @@
   "messageViewer.apiView.filtersDisabled": "筛选不适用于 API 请求视图",
   "messageViewer.apiView.inRequest": "已包含在此请求中",
   "messageViewer.apiView.inferred": "此记录未保存 API 请求（Claude Code 2.1.301 之前）。请求根据响应的 requestId 推断：仅显示输入和响应，不含请求正文。",
+  "messageViewer.apiView.inferredPartial": "此会话的一部分写于 Claude Code 记录 API 请求之前（2.1.301 之前）。这些请求根据响应的 requestId 推断并标记为“推断”：仅显示输入和响应，不含请求正文。",
+  "messageViewer.apiView.inferredTag": "推断",
   "messageViewer.apiView.inputs": "进入此请求的记录行：{{n}}",
   "messageViewer.apiView.kept": "messages[0..{{keep}}) 从上一个请求原样保留",
   "messageViewer.apiView.loading": "正在构建 API 请求…",

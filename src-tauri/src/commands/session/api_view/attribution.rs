@@ -49,8 +49,6 @@ pub(super) fn attribute(parsed: &ParsedLines, requests: &mut [ApiRequest]) -> Ve
 }
 
 fn attach_responses(parsed: &ParsedLines, requests: &mut [ApiRequest], claimed: &mut [bool]) {
-    let recorded = requests.iter().any(|r| r.line.is_some());
-    let key = if recorded { "requestRef" } else { "requestId" };
     let by_id: HashMap<String, usize> = requests
         .iter()
         .enumerate()
@@ -61,7 +59,12 @@ fn attach_responses(parsed: &ParsedLines, requests: &mut [ApiRequest], claimed: 
         let Some(first) = parsed.get(turn.lines[0]) else {
             continue;
         };
-        let id = str_field(first, key).unwrap_or(&turn.message_id);
+        // A recorded response names its request; an older one only has the
+        // `requestId` that `infer_from_responses` keyed its request by.
+        let Some(id) = str_field(first, "requestRef").or_else(|| str_field(first, "requestId"))
+        else {
+            continue;
+        };
         let Some(&r) = by_id.get(id) else {
             continue;
         };

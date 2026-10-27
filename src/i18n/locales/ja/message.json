@@ -28,6 +28,8 @@
   "messageViewer.apiView.filtersDisabled": "API リクエスト表示ではフィルターは適用されません",
   "messageViewer.apiView.inRequest": "このリクエストに含まれる",
   "messageViewer.apiView.inferred": "この記録にはAPIリクエストが保存されていません (Claude Code 2.1.301 より前)。リクエストはレスポンスの requestId から推定され、入力とレスポンスのみ表示されます。",
+  "messageViewer.apiView.inferredPartial": "このセッションの一部は Claude Code が API リクエストを記録する前 (2.1.301 より前) に書かれています。それらのリクエストはレスポンスの requestId から推定され「推定」と表示されます。入力とレスポンスのみ表示されます。",
+  "messageViewer.apiView.inferredTag": "推定",
   "messageViewer.apiView.inputs": "このリクエストに入った記録行: {{n}}",
   "messageViewer.apiView.kept": "messages[0..{{keep}}) は前のリクエストからそのまま引き継がれる",
   "messageViewer.apiView.loading": "APIリクエストを構築中…",

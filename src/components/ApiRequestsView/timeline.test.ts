@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApiRequest, ApiView, SourceLine } from "@/types/apiView.types";
-import { buildTimeline, cacheBreakpoints, usageSummary } from "./timeline";
+import { buildTimeline, cacheBreakpoints, inferredNotice, requestAnchor, usageSummary } from "./timeline";
 import { previewHeadline } from "./format";
 
 const line = (n: number): SourceLine => ({
@@ -56,6 +56,38 @@ describe("buildTimeline", () => {
   });
 });
 
+describe("requestAnchor", () => {
+  it("places an inferred request at its first input, not its response", () => {
+    const inferred: ApiRequest = {
+      ...request("r", 0),
+      line: null,
+      inputs: [line(10)],
+      response: {
+        request_id: "r",
+        message_ids: [],
+        lines: [12],
+        uuids: [],
+        timestamp: null,
+        model: null,
+        stop_reason: null,
+        usage: null,
+        content: [],
+      },
+    };
+    expect(requestAnchor(inferred)).toBe(10);
+  });
+});
+
+describe("inferredNotice", () => {
+  it("tells a fully inferred view from a partly inferred one", () => {
+    expect(inferredNotice({ ...view([request("a", 1)], []), recorded: false })).toBe("messageViewer.apiView.inferred");
+    expect(inferredNotice(view([{ ...request("a", 1), line: null }, request("b", 5)], []))).toBe(
+      "messageViewer.apiView.inferredPartial"
+    );
+    expect(inferredNotice(view([request("b", 5)], []))).toBeNull();
+  });
+});
+
 describe("cacheBreakpoints", () => {
   it("keeps only message content paths", () => {
     const keys = cacheBreakpoints([
@@ -63,6 +95,11 @@ describe("cacheBreakpoints", () => {
       { path: ["messages", 22, "content", 0], value: {} },
     ]);
     expect([...keys]).toEqual(["22:0"]);
+  });
+
+  it("skips entries that are not objects", () => {
+    const keys = cacheBreakpoints([null, 3, { path: ["messages", 1, "content", 0] }]);
+    expect([...keys]).toEqual(["1:0"]);
   });
 });
 

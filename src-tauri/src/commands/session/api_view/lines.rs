@@ -3,7 +3,7 @@
 use super::hashing::message_hash;
 use super::MessageSource;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub(super) struct ParsedLines {
     /// Index `i` is line `i + 1`; `None` for blank or malformed lines.
@@ -89,9 +89,12 @@ impl ParsedLines {
             .collect()
     }
 
-    /// Every message a `tail` hash can name: blobs, user lines and assistant
-    /// turns, keyed by hash, with their role and content.
-    pub fn hash_index(&self) -> HashMap<String, (String, Value, MessageSource)> {
+    /// The `wanted` messages among those a `tail` hash can name: blobs, user
+    /// lines and assistant turns, keyed by hash, with their role and content.
+    pub fn hash_index(
+        &self,
+        wanted: &HashSet<&str>,
+    ) -> HashMap<String, (String, Value, MessageSource)> {
         let mut index = HashMap::new();
         for (i, value) in self.iter() {
             match str_field(value, "type") {
@@ -99,6 +102,9 @@ impl ParsedLines {
                     if let (Some(hash), Some(message)) =
                         (str_field(value, "hash"), value.get("message"))
                     {
+                        if !wanted.contains(hash) {
+                            continue;
+                        }
                         let role = str_field(message, "role").unwrap_or("user").to_string();
                         let content = message.get("content").cloned().unwrap_or(Value::Null);
                         index.insert(
@@ -109,12 +115,17 @@ impl ParsedLines {
                 }
                 Some("user") => {
                     if let Some(message) = value.get("message") {
-                        let role = str_field(message, "role").unwrap_or("user").to_string();
-                        let content = message.get("content").cloned().unwrap_or(Value::Null);
-                        let source = MessageSource::Lines { lines: vec![i + 1] };
-                        index
-                            .entry(message_hash(&role, &content))
-                            .or_insert((role, content, source));
+                        let role = str_field(message, "role").unwrap_or("user");
+                        let content = message.get("content").unwrap_or(&Value::Null);
+                        let hash = message_hash(role, content);
+                        if wanted.contains(hash.as_str()) {
+                            let source = MessageSource::Lines { lines: vec![i + 1] };
+                            index.entry(hash).or_insert((
+                                role.to_string(),
+                                content.clone(),
+                                source,
+                            ));
+                        }
                     }
                 }
                 _ => {}
@@ -122,14 +133,16 @@ impl ParsedLines {
         }
         for turn in self.assistant_turns() {
             let content = Value::Array(self.merged_content(&turn.lines));
+            let hash = message_hash("assistant", &content);
+            if !wanted.contains(hash.as_str()) {
+                continue;
+            }
             let source = MessageSource::Lines {
                 lines: turn.lines.iter().map(|i| i + 1).collect(),
             };
-            index.entry(message_hash("assistant", &content)).or_insert((
-                "assistant".to_string(),
-                content,
-                source,
-            ));
+            index
+                .entry(hash)
+                .or_insert(("assistant".to_string(), content, source));
         }
         index
     }

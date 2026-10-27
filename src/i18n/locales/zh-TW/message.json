@@ -28,6 +28,8 @@
   "messageViewer.apiView.filtersDisabled": "篩選不適用於 API 請求檢視",
   "messageViewer.apiView.inRequest": "已包含在此請求中",
   "messageViewer.apiView.inferred": "此記錄未儲存 API 請求（Claude Code 2.1.301 之前）。請求依回應的 requestId 推斷：僅顯示輸入與回應，不含請求本文。",
+  "messageViewer.apiView.inferredPartial": "此工作階段的一部分寫於 Claude Code 記錄 API 請求之前（2.1.301 之前）。這些請求依回應的 requestId 推斷並標示為「推斷」：僅顯示輸入與回應，不含請求本文。",
+  "messageViewer.apiView.inferredTag": "推斷",
   "messageViewer.apiView.inputs": "進入此請求的記錄行：{{n}}",
   "messageViewer.apiView.kept": "messages[0..{{keep}}) 從上一個請求原樣保留",
   "messageViewer.apiView.loading": "正在建立 API 請求…",

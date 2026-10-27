@@ -28,6 +28,8 @@
   "messageViewer.apiView.filtersDisabled": "API 요청 보기에는 필터가 적용되지 않습니다",
   "messageViewer.apiView.inRequest": "이 요청에 포함됨",
   "messageViewer.apiView.inferred": "이 기록에는 API 요청이 저장되어 있지 않습니다 (Claude Code 2.1.301 이전). 요청은 응답의 requestId로 추정되며, 입력과 응답만 표시되고 요청 본문은 없습니다.",
+  "messageViewer.apiView.inferredPartial": "이 세션의 일부는 Claude Code가 API 요청을 기록하기 전(2.1.301 이전)에 작성되었습니다. 해당 요청은 응답의 requestId로 추정되어 '추정됨'으로 표시되며, 입력과 응답만 표시되고 요청 본문은 없습니다.",
+  "messageViewer.apiView.inferredTag": "추정됨",
   "messageViewer.apiView.inputs": "요청에 들어간 기록 행: {{n}}",
   "messageViewer.apiView.kept": "messages[0..{{keep}})는 이전 요청에서 그대로 이어짐",
   "messageViewer.apiView.loading": "API 요청 구성 중…",
