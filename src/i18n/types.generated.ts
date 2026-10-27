@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-25T15:54:43.879Z
- * 총 키 개수: 2408
+ * 생성 시간: 2026-10-26T22:12:52.031Z
+ * 총 키 개수: 2436
  * Namespace 수: 13
  */
 
@@ -1572,7 +1572,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (124개)
+ * message namespace의 번역 키 (152개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1610,6 +1610,34 @@ export type MessageKeys =
   | 'messageContentDisplay.showMore'
   | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
+  | 'messageViewer.apiView.cacheBreakpoint'
+  | 'messageViewer.apiView.collapseAll'
+  | 'messageViewer.apiView.error'
+  | 'messageViewer.apiView.expandAll'
+  | 'messageViewer.apiView.inRequest'
+  | 'messageViewer.apiView.inferred'
+  | 'messageViewer.apiView.inputs'
+  | 'messageViewer.apiView.kept'
+  | 'messageViewer.apiView.loading'
+  | 'messageViewer.apiView.messageCount'
+  | 'messageViewer.apiView.newMessages'
+  | 'messageViewer.apiView.noResponse'
+  | 'messageViewer.apiView.notInRequest'
+  | 'messageViewer.apiView.openInTranscript'
+  | 'messageViewer.apiView.params'
+  | 'messageViewer.apiView.problems'
+  | 'messageViewer.apiView.request'
+  | 'messageViewer.apiView.response'
+  | 'messageViewer.apiView.shape'
+  | 'messageViewer.apiView.source.blob'
+  | 'messageViewer.apiView.source.lines'
+  | 'messageViewer.apiView.source.unresolved'
+  | 'messageViewer.apiView.summary'
+  | 'messageViewer.apiView.toggle'
+  | 'messageViewer.apiView.tools'
+  | 'messageViewer.apiView.unattributed'
+  | 'messageViewer.apiView.unchecked'
+  | 'messageViewer.apiView.usage'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'
@@ -3546,6 +3574,34 @@ export type TranslationKey =
   | 'messageContentDisplay.showMore'
   | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
+  | 'messageViewer.apiView.cacheBreakpoint'
+  | 'messageViewer.apiView.collapseAll'
+  | 'messageViewer.apiView.error'
+  | 'messageViewer.apiView.expandAll'
+  | 'messageViewer.apiView.inRequest'
+  | 'messageViewer.apiView.inferred'
+  | 'messageViewer.apiView.inputs'
+  | 'messageViewer.apiView.kept'
+  | 'messageViewer.apiView.loading'
+  | 'messageViewer.apiView.messageCount'
+  | 'messageViewer.apiView.newMessages'
+  | 'messageViewer.apiView.noResponse'
+  | 'messageViewer.apiView.notInRequest'
+  | 'messageViewer.apiView.openInTranscript'
+  | 'messageViewer.apiView.params'
+  | 'messageViewer.apiView.problems'
+  | 'messageViewer.apiView.request'
+  | 'messageViewer.apiView.response'
+  | 'messageViewer.apiView.shape'
+  | 'messageViewer.apiView.source.blob'
+  | 'messageViewer.apiView.source.lines'
+  | 'messageViewer.apiView.source.unresolved'
+  | 'messageViewer.apiView.summary'
+  | 'messageViewer.apiView.toggle'
+  | 'messageViewer.apiView.tools'
+  | 'messageViewer.apiView.unattributed'
+  | 'messageViewer.apiView.unchecked'
+  | 'messageViewer.apiView.usage'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'

@@ -1,4 +1,4 @@
-import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -44,6 +44,8 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
     toggleContentType,
     resetMessageFilter,
     isMessageFilterActive,
+    isApiViewOpen,
+    toggleApiView,
   } = useAppStore();
 
   const isActive = isMessageFilterActive();
@@ -120,6 +122,14 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           />
         )}
       </div>
+
+      <div className="h-3.5 w-px bg-border/40 shrink-0" />
+      <FilterToggle
+        active={isApiViewOpen}
+        onClick={toggleApiView}
+        label={t("messageViewer.apiView.toggle")}
+        icon={<Network className="w-3.5 h-3.5" />}
+      />
 
       {/* Reset button */}
       {isActive && (
