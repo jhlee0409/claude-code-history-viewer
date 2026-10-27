@@ -225,3 +225,30 @@ fn resumed_session_infers_requests_for_responses_written_before_recording() {
     let left: Vec<usize> = view.unattributed.iter().map(|s| s.line).collect();
     assert_eq!(left, vec![3]);
 }
+
+#[test]
+fn input_lines_carry_their_full_content_kind_and_message() {
+    let view = build_api_view(&recorded_transcript());
+    let hook = &view.requests[0].inputs[1];
+    assert_eq!(hook.found_in, Some(0));
+    assert_eq!(hook.content, json!("hook says something long"));
+
+    let second = &view.requests[1].inputs;
+    let result = &second[0];
+    assert_eq!(result.kind, "user:tool_result");
+    assert_eq!(result.tool_use_id.as_deref(), Some("toolu_1"));
+    assert_eq!(result.found_in, Some(2));
+    assert_eq!(result.content[0]["content"], json!("file-a file-b"));
+    let queued = &second[1];
+    assert_eq!(queued.found_in, Some(3));
+    assert_eq!(queued.content, json!("queued message long text"));
+}
+
+#[test]
+fn a_line_with_no_text_shows_its_whole_record() {
+    let view = build_api_view(&recorded_transcript());
+    let mode = &view.unattributed[0];
+    assert!(mode.record);
+    assert_eq!(mode.content["mode"], json!("default"));
+    assert!(!view.requests[0].inputs[0].record);
+}

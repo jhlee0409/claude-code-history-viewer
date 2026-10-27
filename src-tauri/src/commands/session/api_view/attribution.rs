@@ -4,7 +4,8 @@
 //! hooks around tool calls) by their text.
 
 use super::lines::{str_field, ParsedLines};
-use super::text::{all_strings, line_text, preview, snippet};
+use super::source_line::{locate, message_texts, source_line, MessageTexts};
+use super::text::{line_text, snippet};
 use super::{ApiRequest, ApiResponse, SourceLine};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,14 +27,14 @@ pub(super) fn attribute(parsed: &ParsedLines, requests: &mut [ApiRequest]) -> Ve
             claimed[i] = true;
         }
     }
-    let texts: Vec<Option<String>> = requests.iter().map(request_text).collect();
+    let texts: Vec<MessageTexts> = requests.iter().map(message_texts).collect();
 
     attach_responses(parsed, requests, &mut claimed);
     for (r, request) in requests.iter_mut().enumerate() {
         let lines = chain_inputs(parsed, request, &mut claimed);
         request.inputs = lines
             .into_iter()
-            .map(|i| source_line(parsed, i, texts[r].as_deref()))
+            .map(|i| source_line(parsed, i, Some(&texts[r])))
             .collect();
     }
     attach_by_text(parsed, requests, &texts, &mut claimed);
@@ -128,7 +129,7 @@ fn chain_inputs(parsed: &ParsedLines, request: &ApiRequest, claimed: &mut [bool]
 fn attach_by_text(
     parsed: &ParsedLines,
     requests: &mut [ApiRequest],
-    texts: &[Option<String>],
+    texts: &[MessageTexts],
     claimed: &mut [bool],
 ) {
     for (i, value) in parsed.iter() {
@@ -144,64 +145,12 @@ fn attach_by_text(
             .position(|r| r.timestamp.as_deref().is_some_and(|t| t >= at));
         let Some(first) = first else { continue };
         let last = (first + TEXT_LOOKAHEAD).min(requests.len());
-        let found = (first..last).find(|&r| {
-            texts[r]
-                .as_deref()
-                .is_some_and(|text| text.contains(&needle))
-        });
+        let found = (first..last).find(|&r| locate(&texts[r], &needle).is_some());
         if let Some(r) = found {
             claimed[i] = true;
             requests[r]
                 .inputs
-                .push(source_line(parsed, i, texts[r].as_deref()));
+                .push(source_line(parsed, i, Some(&texts[r])));
         }
     }
-}
-
-/// Everything the request's new messages say; `None` when it has none.
-fn request_text(request: &ApiRequest) -> Option<String> {
-    if request.new_messages.is_empty() {
-        return None;
-    }
-    let mut out = String::new();
-    for message in &request.new_messages {
-        all_strings(&message.content, &mut out);
-    }
-    Some(out)
-}
-
-fn source_line(parsed: &ParsedLines, i: usize, request_text: Option<&str>) -> SourceLine {
-    let value = parsed.get(i).unwrap_or(&Value::Null);
-    let text = line_text(value);
-    let in_request =
-        request_text.and_then(|haystack| snippet(&text).map(|needle| haystack.contains(&needle)));
-    SourceLine {
-        line: i + 1,
-        uuid: str_field(value, "uuid").map(str::to_string),
-        kind: kind(value),
-        label: label(value),
-        timestamp: str_field(value, "timestamp").map(str::to_string),
-        preview: preview(&text, value),
-        in_request,
-    }
-}
-
-fn kind(value: &Value) -> String {
-    let base = str_field(value, "type").unwrap_or("unknown");
-    let detail = value
-        .pointer("/attachment/type")
-        .and_then(Value::as_str)
-        .or_else(|| str_field(value, "subtype"))
-        .or_else(|| str_field(value, "operation"));
-    match detail {
-        Some(detail) => format!("{base}:{detail}"),
-        None => base.to_string(),
-    }
-}
-
-fn label(value: &Value) -> Option<String> {
-    let attachment = value.get("attachment")?;
-    str_field(attachment, "hookName")
-        .or_else(|| str_field(attachment, "hookEvent"))
-        .map(str::to_string)
 }

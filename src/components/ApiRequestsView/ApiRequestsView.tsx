@@ -2,15 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { api } from "@/services/api";
-import { useAppStore } from "@/store/useAppStore";
 import { errorDetail } from "@/utils/errorDetail";
+import { scrollBehavior } from "@/utils/motion";
 import { LoadingRows } from "@/components/ui/loading-rows";
 import type { ApiShape, ApiView, SourceLine } from "@/types/apiView.types";
 import { ApiRequestCard } from "./ApiRequestCard";
 import { SourceLineList } from "./SourceLineList";
 import { buildTimeline, inferredNotice } from "./timeline";
+import { ApiNavContext, buildLinks, type ApiNavigation } from "./navigation";
 
-function LooseLines({ lines, onOpen }: { lines: SourceLine[]; onOpen: (uuid: string) => void }) {
+/** Classes that flash the element a link jumped to. */
+const FLASH = ["ring-2", "ring-accent"];
+const FLASH_MS = 1500;
+
+function LooseLines({ lines }: { lines: SourceLine[] }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
@@ -29,7 +34,7 @@ function LooseLines({ lines, onOpen }: { lines: SourceLine[]; onOpen: (uuid: str
       </button>
       {open && (
         <div className="pl-4">
-          <SourceLineList lines={lines} onOpen={onOpen} />
+          <SourceLineList lines={lines} />
         </div>
       )}
     </div>
@@ -48,8 +53,7 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
   const [view, setView] = useState<ApiView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const toggleApiView = useAppStore((s) => s.toggleApiView);
-  const navigateToMessage = useAppStore((s) => s.navigateToMessage);
+  const [target, setTarget] = useState<{ anchor: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,12 +82,28 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
     [view]
   );
 
-  const openInTranscript = useCallback(
-    (uuid: string) => {
-      toggleApiView();
-      navigateToMessage(uuid);
-    },
-    [toggleApiView, navigateToMessage]
+  const reveal = useCallback((requestId: string, anchor: string) => {
+    setExpanded((current) => (current.has(requestId) ? current : new Set(current).add(requestId)));
+    setTarget({ anchor });
+  }, []);
+
+  // Scroll once the expanded card has rendered its content.
+  useEffect(() => {
+    if (!target) return;
+    const el = document.getElementById(target.anchor);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: scrollBehavior() });
+    el.classList.add(...FLASH);
+    const timer = window.setTimeout(() => el.classList.remove(...FLASH), FLASH_MS);
+    return () => {
+      window.clearTimeout(timer);
+      el.classList.remove(...FLASH);
+    };
+  }, [target, expanded]);
+
+  const navigation = useMemo<ApiNavigation | null>(
+    () => (view ? { links: buildLinks(view), reveal } : null),
+    [view, reveal]
   );
 
   const toggle = (id: string) =>
@@ -104,44 +124,45 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
   const allExpanded = expanded.size === view.requests.length && view.requests.length > 0;
   const notice = inferredNotice(view);
   return (
-    <div className="flex-1 min-h-0 overflow-auto px-3 py-2">
-      <div className="flex flex-wrap items-center gap-3 text-caption text-muted-foreground px-1">
-        <span>
-          {t("messageViewer.apiView.summary", {
-            requests: view.requests.length,
-            lines: view.line_count,
-            unattributed: view.unattributed.length,
-          })}
-        </span>
-        <button
-          type="button"
-          className="underline hover:text-foreground"
-          onClick={() => setExpanded(allExpanded ? new Set() : new Set(view.requests.map((r) => r.id)))}
-        >
-          {allExpanded ? t("messageViewer.apiView.collapseAll") : t("messageViewer.apiView.expandAll")}
-        </button>
+    <ApiNavContext.Provider value={navigation}>
+      <div className="flex-1 min-h-0 overflow-auto px-3 py-2">
+        <div className="flex flex-wrap items-center gap-3 text-caption text-muted-foreground px-1">
+          <span>
+            {t("messageViewer.apiView.summary", {
+              requests: view.requests.length,
+              lines: view.line_count,
+              unattributed: view.unattributed.length,
+            })}
+          </span>
+          <button
+            type="button"
+            className="underline hover:text-foreground"
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(view.requests.map((r) => r.id)))}
+          >
+            {allExpanded ? t("messageViewer.apiView.collapseAll") : t("messageViewer.apiView.expandAll")}
+          </button>
+        </div>
+        {notice && (
+          <p className="flex items-start gap-2 mt-2 px-1 text-caption text-muted-foreground">
+            <Info className="w-3.5 h-3.5 mt-1 shrink-0" />
+            {t(notice)}
+          </p>
+        )}
+        {timeline.map((item) =>
+          item.kind === "loose" ? (
+            <LooseLines key={`loose-${item.lines[0]!.line}`} lines={item.lines} />
+          ) : (
+            <ApiRequestCard
+              key={item.request.id}
+              request={item.request}
+              number={item.number}
+              shape={item.shapeChanged && item.request.shape_hash ? shapes.get(item.request.shape_hash) ?? null : null}
+              expanded={expanded.has(item.request.id)}
+              onToggle={() => toggle(item.request.id)}
+            />
+          )
+        )}
       </div>
-      {notice && (
-        <p className="flex items-start gap-2 mt-2 px-1 text-caption text-muted-foreground">
-          <Info className="w-3.5 h-3.5 mt-1 shrink-0" />
-          {t(notice)}
-        </p>
-      )}
-      {timeline.map((item) =>
-        item.kind === "loose" ? (
-          <LooseLines key={`loose-${item.lines[0]!.line}`} lines={item.lines} onOpen={openInTranscript} />
-        ) : (
-          <ApiRequestCard
-            key={item.request.id}
-            request={item.request}
-            number={item.number}
-            shape={item.shapeChanged && item.request.shape_hash ? shapes.get(item.request.shape_hash) ?? null : null}
-            expanded={expanded.has(item.request.id)}
-            onToggle={() => toggle(item.request.id)}
-            onOpen={openInTranscript}
-          />
-        )
-      )}
-    </div>
+    </ApiNavContext.Provider>
   );
 }

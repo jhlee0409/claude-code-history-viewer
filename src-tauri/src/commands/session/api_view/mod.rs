@@ -17,6 +17,7 @@ mod attribution;
 mod hashing;
 mod lines;
 mod requests;
+mod source_line;
 #[cfg(test)]
 mod tests;
 mod text;
@@ -111,10 +112,21 @@ pub struct SourceLine {
     /// Hook name, queue operation and similar detail.
     pub label: Option<String>,
     pub timestamp: Option<String>,
+    /// Short text for a one-line summary.
     pub preview: String,
+    /// Everything the line says: a message `content` (string or blocks), the
+    /// text an attachment or system line put into the context, or the whole
+    /// record when it says nothing else.
+    pub content: Value,
+    /// `content` is the whole record: the line put no text into the context.
+    pub record: bool,
+    /// The tool call the line answers (tool result) or ran around (hook).
+    pub tool_use_id: Option<String>,
     /// Whether the line's text appears in the request's new messages;
     /// `None` when that cannot be checked.
     pub in_request: Option<bool>,
+    /// The message (`index`) the line's text was found in.
+    pub found_in: Option<usize>,
 }
 
 /// Build the API view of one transcript file's contents.

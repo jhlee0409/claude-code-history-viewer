@@ -46,6 +46,20 @@ export function buildTimeline(view: ApiView): TimelineItem[] {
   return items;
 }
 
+/**
+ * Lines that are one of the request's messages verbatim (a user line the
+ * request sent as is), by line number → message index.
+ */
+export function sameAsMessages(request: ApiRequest): Map<number, number> {
+  const same = new Map<number, number>();
+  for (const message of request.new_messages) {
+    if (message.source.kind === "lines" && message.source.lines.length === 1) {
+      same.set(message.source.lines[0]!, message.index);
+    }
+  }
+  return same;
+}
+
 /** The notice to show when some or all requests were inferred. */
 export function inferredNotice(
   view: ApiView

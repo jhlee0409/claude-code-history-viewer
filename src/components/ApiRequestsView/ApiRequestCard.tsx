@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 import type { ApiMessage, ApiRequest, ApiShape, MessageSource } from "@/types/apiView.types";
 import { ApiContent } from "./ApiContent";
 import { SourceLineList } from "./SourceLineList";
-import { cacheBreakpoints, usageSummary } from "./timeline";
+import { JumpLink } from "./JumpLink";
+import { anchors, useApiNav } from "./navigation";
+import { cacheBreakpoints, sameAsMessages, usageSummary } from "./timeline";
 import { clockStamp } from "./format";
 import { Num } from "@/lib/format/Num";
 import { useFormat } from "@/lib/format/useFormat";
@@ -47,8 +49,22 @@ function useSourceLabel() {
   };
 }
 
-function MessageView({ message, cached }: { message: ApiMessage; cached: Set<string> }) {
+interface MessageViewProps {
+  message: ApiMessage;
+  requestId: string;
+  cached: Set<string>;
+}
+
+function MessageView({ message, requestId, cached }: MessageViewProps) {
+  const { t } = useTranslation();
   const sourceLabel = useSourceLabel();
+  const nav = useApiNav();
+  // An assistant turn sent back as context is a previous request's response,
+  // already shown there in full.
+  const firstLine = message.source.kind === "lines" ? message.source.lines[0] : undefined;
+  const answered = firstLine != null ? nav?.links.responses.get(firstLine) : undefined;
+  const repeat = answered != null && answered.requestId !== requestId;
+  const [open, setOpen] = useState(!repeat);
   const cachedBlocks = useMemo(() => {
     const blocks = new Set<number>();
     for (const key of cached) {
@@ -58,13 +74,31 @@ function MessageView({ message, cached }: { message: ApiMessage; cached: Set<str
     return blocks;
   }, [cached, message.index]);
   return (
-    <div className={cn("rounded-row border px-2 py-1 my-1", message.source.kind === "unresolved" ? "border-destructive" : "border-border")}>
-      <div className="flex items-center gap-2 text-caption">
+    <div
+      id={anchors.message(requestId, message.index)}
+      className={cn("rounded-row border px-2 py-1 my-1", message.source.kind === "unresolved" ? "border-destructive" : "border-border")}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-caption">
         <span data-mono="id" className="font-mono text-muted-foreground">messages[{message.index}]</span>
         <span data-mono="code" className="font-mono font-medium">{message.role || "?"}</span>
         <span className="text-muted-foreground">{sourceLabel(message.source)}</span>
+        {repeat && answered && (
+          <>
+            <JumpLink requestId={answered.requestId} anchor={anchors.request(answered.requestId)}>
+              {t("messageViewer.apiView.responseOf", { n: answered.number })}
+            </JumpLink>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="text-muted-foreground hover:text-foreground underline"
+              aria-expanded={open}
+            >
+              {open ? t("messageViewer.apiView.hide") : t("messageViewer.apiView.show")}
+            </button>
+          </>
+        )}
       </div>
-      <ApiContent content={message.content} cachedBlocks={cachedBlocks} />
+      {open && <ApiContent content={message.content} cachedBlocks={cachedBlocks} />}
     </div>
   );
 }
@@ -119,15 +153,15 @@ interface ApiRequestCardProps {
   shape: ApiShape | null;
   expanded: boolean;
   onToggle: () => void;
-  onOpen: (uuid: string) => void;
 }
 
-export function ApiRequestCard({ request, number, shape, expanded, onToggle, onOpen }: ApiRequestCardProps) {
+export function ApiRequestCard({ request, number, shape, expanded, onToggle }: ApiRequestCardProps) {
   const { t } = useTranslation();
   const cached = useMemo(() => cacheBreakpoints(request.cache_control), [request.cache_control]);
+  const sameAs = useMemo(() => sameAsMessages(request), [request]);
   const Chevron = expanded ? ChevronDown : ChevronRight;
   return (
-    <article className="rounded-md border border-border bg-card my-2">
+    <article id={anchors.request(request.id)} className="rounded-md border border-border bg-card my-2">
       <button
         type="button"
         onClick={onToggle}
@@ -150,7 +184,7 @@ export function ApiRequestCard({ request, number, shape, expanded, onToggle, onO
           )}
           {request.inputs.length > 0 && (
             <Section title={t("messageViewer.apiView.inputs", { n: request.inputs.length })}>
-              <SourceLineList lines={request.inputs} onOpen={onOpen} />
+              <SourceLineList lines={request.inputs} requestId={request.id} sameAs={sameAs} />
             </Section>
           )}
           {request.keep > 0 && (
@@ -161,7 +195,7 @@ export function ApiRequestCard({ request, number, shape, expanded, onToggle, onO
           {request.new_messages.length > 0 && (
             <Section title={t("messageViewer.apiView.newMessages", { n: request.new_messages.length })}>
               {request.new_messages.map((m) => (
-                <MessageView key={m.index} message={m} cached={cached} />
+                <MessageView key={m.index} message={m} requestId={request.id} cached={cached} />
               ))}
             </Section>
           )}
@@ -173,7 +207,7 @@ export function ApiRequestCard({ request, number, shape, expanded, onToggle, onO
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
-                <ApiContent content={request.response.content} />
+                <ApiContent content={request.response.content} anchorTools />
               </>
             ) : (
               <p className="text-caption text-muted-foreground">{t("messageViewer.apiView.noResponse")}</p>

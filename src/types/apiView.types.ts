@@ -65,7 +65,16 @@ export interface SourceLine {
   kind: string;
   label: string | null;
   timestamp: string | null;
+  /** Short text for a one-line summary. */
   preview: string;
+  /** Everything the line says: a message content, attachment text, or the record. */
+  content: unknown;
+  /** `content` is the whole record: the line put no text into the context. */
+  record: boolean;
+  /** The tool call the line answers (tool result) or ran around (hook). */
+  tool_use_id: string | null;
   /** Whether the line's text appears in the request; null when unchecked. */
   in_request: boolean | null;
+  /** Index of the message the line's text was found in. */
+  found_in: number | null;
 }
