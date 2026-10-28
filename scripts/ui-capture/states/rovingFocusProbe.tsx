@@ -30,7 +30,18 @@ export function RovingFocusProbe() {
       [data-visibility="selected"] [data-roving-item="b"],
       [data-visibility="ancestor"] [data-roving-wrap="a"],
       [data-runtime-hidden] { display: none !important; }
+      [data-visibility="visibility-hidden"] [data-roving-item="a"],
+      [data-visibility="inherited-hidden"] [data-roving-wrap="a"],
+      [data-visibility="visible-override"] [data-roving-wrap="a"] { visibility: hidden; }
+      [data-visibility="visibility-collapse"] [data-roving-item="a"],
+      [data-visibility="inherited-collapse"] [data-roving-wrap="a"],
+      [data-visibility="collapse-override"] [data-roving-wrap="a"] { visibility: collapse; }
+      [data-visibility="visible-override"] [data-roving-item="a"],
+      [data-visibility="collapse-override"] [data-roving-item="a"] { visibility: visible; }
+      [data-visibility="visibility-middle"] [data-roving-item="b"] { visibility: hidden; }
+      .roving-concealed [data-roving-wrap="a"] { visibility: hidden; }
       @media (max-width: 800px) {
+        [data-visibility="visibility-responsive"] [data-roving-item="a"] { visibility: hidden; }
         [data-visibility="responsive"] [data-roving-item="a"] { display: none; }
       }
     `}</style>

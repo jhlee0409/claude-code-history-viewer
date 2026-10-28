@@ -92,6 +92,31 @@ describe.skipIf(!ENABLED)("CSS visibility and effective roving direction", () =>
         });
       });
     }
+    for (const visibility of ["visibility-hidden", "inherited-hidden", "visibility-collapse", "inherited-collapse", "visible-override", "collapse-override", "visibility-middle"]) {
+      for (const [role, family] of [["radiogroup", "radio"], ["toolbar", "toolbar"]]) {
+        it(`${engine}: ${family} computed ${visibility} respects native availability and visible overrides`, async () => {
+          await withPage(engine, visibility, async (page) => {
+            const group = page.getByRole(role);
+            const override = visibility.endsWith("override");
+            const middle = visibility === "visibility-middle";
+            const entry = override || middle ? "A" : "B";
+            expect(await item(group, "A").evaluate((el) => getComputedStyle(el).visibility)).toBe(override || middle ? "visible" : visibility.includes("collapse") ? "collapse" : "hidden");
+            // Unlike display:none, these hidden buttons keep their layout boxes.
+            expect((await item(group, "A").boundingBox()).width).toBeGreaterThan(0);
+            await enter(page, engine, group, entry, family);
+            await page.keyboard.press("ArrowRight");
+            await focused(item(group, override ? "B" : "C"));
+            await stop(group, family === "radio" ? entry : override ? "B" : "C");
+            await page.keyboard.press("Home");
+            await focused(item(group, entry));
+            await page.keyboard.press(tabKey(engine));
+            await focused(page.locator(`[data-after-${family}]`));
+            await page.keyboard.press(tabKey(engine, true));
+            await focused(item(group, entry));
+          });
+        });
+      }
+    }
     for (const visibility of ["first", "middle", "ancestor", "selected"]) {
       it(`${engine}: ${visibility} hidden items leave visible entry and native arrows`, async () => {
         await withPage(engine, visibility, async (page) => {
@@ -120,6 +145,54 @@ describe.skipIf(!ENABLED)("CSS visibility and effective roving direction", () =>
           // Rejection stays controlled even when its checked item is hidden.
           expect(await page.getByRole("radiogroup").locator('[aria-checked="true"]').textContent()).toBe(visibility === "selected" ? "B" : "A");
           expect(await page.locator("[data-requests]").textContent()).not.toBe("[]");
+        });
+      });
+    }
+    for (const mode of ["class", "media"]) {
+      it(`${engine}: ${mode} visibility changes repair entry without size changes or React renders`, async () => {
+        await withPage(engine, mode === "media" ? "visibility-responsive" : "visible", async (page) => {
+          const groups = [page.getByRole("radiogroup", { includeHidden: true }), page.getByRole("toolbar", { includeHidden: true })];
+          for (const group of groups) await group.evaluate((el) => { el.style.width = "500px"; el.style.height = "60px"; });
+          const before = await Promise.all(groups.map((group) => group.boundingBox()));
+          for (const hidden of [true, false, true, false]) {
+            // The class lives OUTSIDE the groups. Visibility preserves every box;
+            // ResizeObserver on either the items or groups cannot detect this.
+            if (mode === "class") await page.locator("[data-gallery-ready]").evaluate((el, hide) => el.classList.toggle("roving-concealed", hide), hidden);
+            else await page.setViewportSize({ width: hidden ? 700 : 1200, height: 900 });
+            for (const [index, family] of [[0, "radio"], [1, "toolbar"]]) {
+              const group = groups[index];
+              const entry = hidden || family === "toolbar" ? "B" : "A";
+              await stop(group, entry);
+              const box = await group.boundingBox();
+              expect([box.width, box.height]).toEqual([before[index].width, before[index].height]);
+              await enter(page, engine, group, entry, family);
+              await page.keyboard.press("ArrowRight");
+              await focused(item(group, entry === "A" ? "B" : "C"));
+              await page.keyboard.press("Home");
+              await focused(item(group, hidden ? "B" : "A"));
+              // Leave toolbar on B so reveal must preserve its last visible stop.
+              if (!hidden && family === "toolbar") await page.keyboard.press("ArrowRight");
+              await page.keyboard.press(tabKey(engine));
+              await focused(page.locator(`[data-after-${family}]`));
+              await page.keyboard.press(tabKey(engine, true));
+              await focused(item(group, entry));
+            }
+          }
+          for (const [group, family] of [[groups[0], "radio"], [groups[1], "toolbar"]]) {
+            await page.locator(`[data-before-${family}]`).focus();
+            await group.evaluate((el) => { el.style.visibility = "collapse"; });
+            await expect.poll(() => group.locator('[tabindex="0"]').count()).toBe(0);
+            await page.keyboard.press(tabKey(engine));
+            await focused(page.locator(`[data-after-${family}]`));
+            await item(group, "A").evaluate((el) => { el.style.visibility = "visible"; });
+            await stop(group, "A");
+            await enter(page, engine, group, "A", family);
+            await page.keyboard.press("ArrowRight");
+            await focused(item(group, "A"));
+            await group.evaluate((el) => { el.style.visibility = ""; });
+            await item(group, "A").evaluate((el) => { el.style.visibility = ""; });
+            await stop(group, "A");
+          }
         });
       });
     }
