@@ -16,7 +16,10 @@ if (args.length && (args.length !== 2 || args[0] !== "--candidate")) {
   throw new Error("Usage: series-check.mjs [--candidate file.json]");
 }
 const candidate = args.length ? JSON.parse(readFileSync(args[1], "utf8")) : null;
-if (candidate) {
+if (args.length) {
+  if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) {
+    throw new Error("Invalid candidate object: light and dark colour arrays required");
+  }
   for (const theme of ["light", "dark"]) {
     const colors = candidate[theme];
     if (!Array.isArray(colors) || colors.length !== 4 || colors.some((c) => !Array.isArray(c) || c.length !== 3 || c.some((v) => typeof v !== "number" || !Number.isFinite(v)) || c[0] < 0 || c[0] > 1 || c[1] < 0 || c[2] < 0 || c[2] > 360)) {

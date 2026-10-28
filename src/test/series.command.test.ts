@@ -20,6 +20,10 @@ describe("series-check reproducible measurement command", () => {
   it.each([
     ["duplicate categories", { light: Array(4).fill([0.5, 0, 0]), dark: Array(4).fill([0.7, 0, 0]) }, "distance"],
     ["invisible marks", { light: Array(4).fill([1, 0, 0]), dark: Array(4).fill([0, 0, 0]) }, "contrast"],
+    ["null candidate root", null, "invalid-object"],
+    ["false candidate root", false, "invalid-object"],
+    ["zero candidate root", 0, "invalid-object"],
+    ["empty string candidate root", "", "invalid-object"],
     ["malformed triples", { light: [[0.5, 0, "not a hue"]], dark: [] }, "invalid"],
   ] as const)("rejects %s rather than rounding or skipping failures", (_name, candidate, failure) => {
     mkdirSync("scratch", { recursive: true });
@@ -30,7 +34,9 @@ describe("series-check reproducible measurement command", () => {
       const result = spawnSync(process.execPath, ["scripts/tokens/series-check.mjs", "--candidate", file], { encoding: "utf8" });
       expect(result.error).toBeUndefined();
       expect(result.status).toBe(1);
-      if (failure === "invalid") {
+      if (failure === "invalid-object") {
+        expect(result.stderr).toContain("Invalid candidate object");
+      } else if (failure === "invalid") {
         expect(result.stderr).toContain("Invalid light candidate");
       } else {
         const report = JSON.parse(result.stdout);
