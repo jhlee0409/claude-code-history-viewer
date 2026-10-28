@@ -318,6 +318,9 @@ function Adoption() {
       <ChipToggle pressed={false} disabled onPressedChange={() => { throw new Error("disabled chip activated"); }}>Unavailable</ChipToggle>
     </ChipToggleGroup>
     <button type="button" data-after-toolbar="">After toolbar</button>
+    <Segmented value="one" onValueChange={() => {}} aria-label="Header mode">
+      <SegmentedItem value="one">First</SegmentedItem><SegmentedItem value="two">Second</SegmentedItem>
+    </Segmented>
     <Tabs defaultValue="overview">
       <TabsList aria-label="Probe pages"><TabsTrigger value="overview">Overview</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList>
       <TabsContent value="overview">Overview body</TabsContent><TabsContent value="details">Detail body</TabsContent>

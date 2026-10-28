@@ -18,9 +18,6 @@ import type {
   RecentEditsScope,
 } from "@/store/slices/recentEditsSlice";
 
-/** The selected look comes from `aria-checked` (index.css), not from here. */
-const buttonClass = (extra?: string) => cn("segmented-item text-caption", extra);
-
 const SCOPES: Array<{
   id: RecentEditsScope;
   labelKey: string;
@@ -100,9 +97,7 @@ export const RecentEditsScopeToggle: React.FC<RecentEditsScopeToggleProps> = ({
               key={scope.id}
               value={scope.id}
               disabled={scopeDisabled}
-              className={buttonClass(
-                cn("px-3 py-1.5", scopeDisabled && "cursor-not-allowed opacity-50")
-              )}
+              className={scopeDisabled ? "cursor-not-allowed" : undefined}
             >
               {t(scope.labelKey, scope.fallback)}
             </SegmentedItem>
@@ -157,7 +152,7 @@ export const RecentEditsDensityToggle: React.FC<
             value={id}
             aria-label={label}
             title={label}
-            className={buttonClass("px-2 py-1.5")}
+            className="px-2"
           >
             <Icon className="h-3.5 w-3.5" aria-hidden="true" />
           </SegmentedItem>

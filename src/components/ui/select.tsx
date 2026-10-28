@@ -31,7 +31,7 @@ const SelectTrigger = React.forwardRef<
         "flex w-full items-center justify-between rounded-md",
         controlSize === "field" ? "h-10" : controlSize === "header" ? "h-auto min-h-7 pointer-coarse:min-h-11" : "h-auto min-h-6.5 pointer-coarse:min-h-11",
         "border bg-background px-3",
-        controlSize === "field" ? "py-2" : "py-1",
+        controlSize === "field" ? "py-2" : "py-0",
         "text-body transition-colors",
         fieldControlClasses,
         "data-[state=open]:border-line-selected",

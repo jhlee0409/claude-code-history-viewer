@@ -14,6 +14,6 @@ export function ChipToggleGroup({ className, onKeyDown, onFocus, ...props }: Rea
 
 export function ChipToggle({ pressed, onPressedChange, className, onClick, ...props }: Omit<ButtonProps, "variant"> & { pressed: boolean; onPressedChange: (pressed: boolean) => void }) {
   return <Button {...props} type={props.type ?? "button"} variant="outline" data-chip-toggle="" aria-pressed={pressed}
-    className={cn("h-auto min-h-6.5 pointer-coarse:min-h-11 px-2 py-1 text-list aria-pressed:border-line-selected aria-pressed:bg-surface-selected forced-colors:aria-pressed:border-[Highlight]", className)}
+    className={cn("h-auto min-h-6.5 pointer-coarse:min-h-11 px-2 py-0 text-list aria-pressed:border-line-selected aria-pressed:bg-surface-selected forced-colors:aria-pressed:border-[Highlight]", className)}
     onClick={(event) => { onClick?.(event); if (!event.defaultPrevented) onPressedChange(!pressed); }} />;
 }

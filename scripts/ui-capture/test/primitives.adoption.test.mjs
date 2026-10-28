@@ -33,6 +33,19 @@ const tabKey = (engine) => engine === "webkit" ? "Alt+Tab" : "Tab";
 
 describe.skipIf(!ENABLED)("F2b composed controls", () => {
   for (const engine of ["webkit", "chromium"]) {
+    it(`${engine}: compact toolbar controls are 26px and header controls are 28px`, async () => {
+      await pageFor(engine, false, async (page) => {
+        for (const control of [
+          page.getByRole("radio", { name: "Tokens", exact: true }),
+          page.getByRole("button", { name: "User", exact: true }),
+          page.getByRole("combobox", { name: "Choose provider" }),
+        ]) {
+          expect((await control.boundingBox()).height).toBe(26);
+        }
+        expect((await page.getByRole("combobox", { name: "Unavailable provider" }).boundingBox()).height).toBe(28);
+        expect((await page.getByRole("radio", { name: "First", exact: true }).boundingBox()).height).toBe(28);
+      });
+    });
     it(`${engine}: radio arrows select and Tab exits the whole group`, async () => {
       await pageFor(engine, false, async (page) => {
         const group = page.getByRole("radiogroup", { name: "Metric" });

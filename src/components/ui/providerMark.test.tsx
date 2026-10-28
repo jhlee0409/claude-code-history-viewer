@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ProviderDot } from "@/components/ProjectTree/components/ProviderDot";
 import { PROVIDER_IDS } from "@/utils/providers";
 import { ProviderMark } from "./providerMark";
+import "@/i18n";
 
 describe("provider shape adoption", () => {
   it("names standalone marks and keeps unknown providers honest", () => {
