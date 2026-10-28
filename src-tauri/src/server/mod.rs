@@ -1268,6 +1268,110 @@ mod tests {
         server.abort();
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn family_evidence_loopback_http_matches_public_native() {
+        use crate::commands::provider_evidence_tests::{
+            assert_opencode, assert_openhands, assert_pi_bash, assert_pi_results, opencode_fixture,
+            openhands_fixture, pi_fixture,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut windows = 0;
+        for (provider, sqlite) in [
+            ("openhands", false),
+            ("opencode", false),
+            ("opencode", true),
+            ("kilo", true),
+            ("pi", false),
+            ("ompi", false),
+        ] {
+            let (path, _env) = match provider {
+                "openhands" => (openhands_fixture(home.path()), None),
+                "opencode" | "kilo" => {
+                    let (p, _, e) = opencode_fixture(home.path(), provider, sqlite);
+                    (p, Some(e))
+                }
+                _ => (pi_fixture(home.path(), provider).0, None),
+            };
+            for (offset, limit) in [
+                (0, 200),
+                (0, 1),
+                (1, 2),
+                (3, 3),
+                (6, 4),
+                (9, 2),
+                (99, 2),
+                (0, 0),
+            ] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.clone(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status,response)=post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":provider,"sessionPath":path,"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+                assert_eq!(status, 200, "{provider} {response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                match provider {
+                    "openhands" => assert_openhands(&response),
+                    "opencode" | "kilo" => assert_opencode(&response),
+                    _ => {
+                        assert_pi_results(&response);
+                        assert_pi_bash(&response);
+                    }
+                }
+                windows += 1;
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.clone(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+        }
+        let outside = home.path().join("private.jsonl");
+        std::fs::write(
+            &outside,
+            include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl"),
+        )
+        .unwrap();
+        for (provider, path) in [
+            ("openhands", "openhands://../private".into()),
+            ("opencode", "opencode://proj1/../private".into()),
+            ("kilo", "kilo://proj1/../private".into()),
+            ("pi", outside.to_string_lossy().into_owned()),
+            ("ompi", outside.to_string_lossy().into_owned()),
+            ("unknown-trbe", outside.to_string_lossy().into_owned()),
+        ] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("evidence-only-needle"));
+        }
+        assert_eq!(windows, 48);
+        eprintln!("TRbe family loopback {address}: 6 store cases / 48 windows / 6 non-paginated / 6 refusal controls");
+        server.abort();
+    }
+
     async fn post_loopback_json(
         address: std::net::SocketAddr,
         route: &str,

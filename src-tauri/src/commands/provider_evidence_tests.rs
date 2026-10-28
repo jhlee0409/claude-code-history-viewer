@@ -1,4 +1,255 @@
 //! Family-specific raw evidence → public commands; complete legacy snapshots.
+#[tokio::test]
+#[serial_test::serial]
+async fn family_openhands_merged_replayed_calls_keep_observation_ownership() {
+    let home = crate::test_utils::SandboxHome::new();
+    let events = home.path().join(".openhands/sessions/linked/events");
+    std::fs::create_dir_all(&events).unwrap();
+    let records = json!([
+        {"id":0,"action":"message","source":"user","args":{"content":"fixture"}},
+        {"id":99,"action":"run","source":"agent","args":{"command":"first"}},
+        {"id":100,"action":"run","source":"agent","args":{"command":"parallel"}},
+        {"id":1,"observation":"run","cause":100,"content":"same","extras":{"metadata":{"exit_code":0}}},
+        {"id":2,"observation":"run","cause":99,"content":"same","extras":null},
+        {"id":99,"action":"run","source":"agent","args":{"command":"replayed"}},
+        {"id":3,"observation":"run","cause":99,"content":"same","extras":{"metadata":{"exit_code":2}}},
+        {"id":4,"observation":"run","cause":404,"content":"same","extras":false}
+    ]);
+    for (i, record) in records.as_array().unwrap().iter().enumerate() {
+        std::fs::write(events.join(format!("{i}.json")), record.to_string()).unwrap();
+    }
+    let full = load_provider_messages("openhands".into(), "openhands://linked".into())
+        .await
+        .unwrap();
+    assert_eq!(full.len(), 5);
+    for (owner, position, ordinal) in [(1, 1, 4), (2, 1, 3), (3, 1, 6), (4, 0, 7)] {
+        let message = serde_json::to_value(&full[owner]).unwrap();
+        let result = &message["content"][position];
+        assert_eq!(result["content"], "same");
+        assert_eq!(result.get("toolUseResult"), records[ordinal].get("extras"));
+        assert_eq!(
+            result["toolUseResultSource"],
+            json!({"messageUuid":format!("linked-{}",records[ordinal]["id"]),"sessionId":"linked","contentIndex":0,"association":"single_result"})
+        );
+    }
+    for (offset, limit) in [(0, 1), (1, 2), (2, 2), (4, 3), (5, 2), (99, 1)] {
+        let page = load_provider_messages_paginated(
+            "openhands".into(),
+            "openhands://linked".into(),
+            Some(offset),
+            Some(limit),
+            None,
+        )
+        .await
+        .unwrap();
+        let end = full.len().saturating_sub(offset);
+        let start = end.saturating_sub(limit);
+        assert_eq!(
+            serde_json::to_value(page.messages).unwrap(),
+            serde_json::to_value(&full[start..end]).unwrap()
+        );
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn family_pi_merged_replayed_calls_keep_result_ownership() {
+    let home = crate::test_utils::SandboxHome::new();
+    for provider in ["pi", "ompi"] {
+        let (path, _) = pi_fixture(home.path(), provider);
+        let records = json!([
+            {"type":"session","version":3,"id":"linked-pi","cwd":"/fixture"},
+            {"type":"message","id":"first","message":{"role":"assistant","content":[{"type":"toolCall","id":"duplicate","name":"bash","arguments":{}},{"type":"toolCall","id":"parallel","name":"bash","arguments":{}}]}},
+            {"type":"message","id":"r1","parentId":"first","message":{"role":"toolResult","toolCallId":"parallel","content":"same","details":null}},
+            {"type":"message","id":"r2","parentId":"r1","message":{"role":"toolResult","toolCallId":"duplicate","content":"same","details":false}},
+            {"type":"compaction","id":"compact","parentId":"r2","summary":"fixture summary"},
+            {"type":"message","id":"replay","parentId":"compact","message":{"role":"assistant","content":[{"type":"toolCall","id":"duplicate","name":"bash","arguments":{}}]}},
+            {"type":"message","id":"r3","parentId":"replay","message":{"role":"toolResult","toolCallId":"duplicate","content":"same","details":0}},
+            {"type":"message","id":"orphan","parentId":"r3","message":{"role":"toolResult","toolCallId":"unknown","content":"same","details":""}}
+        ]);
+        let mut data = String::new();
+        for record in records.as_array().unwrap() {
+            data.push_str(&record.to_string());
+            data.push('\n');
+        }
+        std::fs::write(&path, data).unwrap();
+        let full = load_provider_messages(provider.into(), path.clone())
+            .await
+            .unwrap();
+        assert_eq!(full.len(), 4);
+        for (owner, position, ordinal) in [(0, 2, 2), (0, 3, 3), (2, 1, 6), (3, 0, 7)] {
+            let message = serde_json::to_value(&full[owner]).unwrap();
+            let result = &message["content"][position];
+            assert_eq!(result.get("toolUseResult"), records[ordinal].get("message"));
+            assert_eq!(
+                result["toolUseResultSource"],
+                json!({"messageUuid":records[ordinal]["id"],"sessionId":"linked-pi","contentIndex":0,"association":"single_result"})
+            );
+        }
+        for (offset, limit) in [(0, 1), (1, 2), (2, 2), (4, 3), (99, 1)] {
+            let page = load_provider_messages_paginated(
+                provider.into(),
+                path.clone(),
+                Some(offset),
+                Some(limit),
+                None,
+            )
+            .await
+            .unwrap();
+            let end = full.len().saturating_sub(offset);
+            let start = end.saturating_sub(limit);
+            assert_eq!(
+                serde_json::to_value(page.messages).unwrap(),
+                serde_json::to_value(&full[start..end]).unwrap()
+            );
+        }
+    }
+}
+
+pub(crate) fn assert_pi_bash(page: &Value) {
+    let records: Vec<Value> = include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl")
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    for message in page["messages"].as_array().unwrap() {
+        let uuid = message["uuid"].as_str().unwrap();
+        if let Some(i) = uuid.strip_prefix("bash-") {
+            let ordinal: usize = i.parse().unwrap();
+            let raw = &records[ordinal + 10]["message"];
+            assert_eq!(
+                message["sourceExecution"],
+                json!({"messageUuid":uuid,"sessionId":"pi-evidence","association":"local_execution","message":raw})
+            );
+            assert_eq!(message["type"], "system");
+            assert_eq!(message["subtype"], "bash_execution");
+            assert!(
+                message["content"].is_string(),
+                "local ! command must not become a synthetic tool result"
+            );
+            assert!(message["toolUseResult"].is_null());
+        } else {
+            assert!(message.get("sourceExecution").is_none());
+        }
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn family_pi_bash_execution_preserves_raw_not_tool_result() {
+    let home = crate::test_utils::SandboxHome::new();
+    for provider in ["pi", "ompi"] {
+        let (path, _) = pi_fixture(home.path(), provider);
+        let page = load_provider_messages_paginated(provider.into(), path, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            page.messages
+                .iter()
+                .filter(|m| m.uuid.starts_with("bash-"))
+                .count(),
+            6
+        );
+        assert_pi_bash(&serde_json::to_value(page).unwrap());
+    }
+}
+
+pub(crate) fn pi_fixture(home: &Path, provider: &str) -> (String, String) {
+    let project = home.join(if provider == "pi" {
+        ".pi/agent/sessions/--fixture--"
+    } else {
+        ".omp/agent/sessions/--fixture--"
+    });
+    std::fs::create_dir_all(&project).unwrap();
+    let path = project.join("evidence.jsonl");
+    std::fs::write(
+        &path,
+        include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl"),
+    )
+    .unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(
+            std::fs::FileTimes::new().set_modified(
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_759_276_800),
+            ),
+        )
+        .unwrap();
+    (
+        path.to_string_lossy().into(),
+        project.to_string_lossy().into(),
+    )
+}
+
+pub(crate) fn assert_pi_results(page: &Value) {
+    let records: Vec<Value> = include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl")
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    for message in page["messages"].as_array().unwrap() {
+        let uuid = message["uuid"].as_str().unwrap();
+        if let Some(i) = uuid.strip_prefix("result-") {
+            let ordinal: usize = i.parse().unwrap();
+            let result = &message["content"][0];
+            assert_eq!(result["type"], "tool_result");
+            assert_eq!(
+                result.get("toolUseResult"),
+                Some(&records[ordinal + 2]["message"])
+            );
+            assert_eq!(
+                result["toolUseResultSource"],
+                json!({"messageUuid":uuid,"sessionId":"pi-evidence","contentIndex":0,"association":"single_result"})
+            );
+            assert!(
+                result["toolUseResult"].get("exitCode").is_none(),
+                "do not fabricate a standard exit field from details or prose"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn family_pi_preserves_tool_result_message() {
+    let home = crate::test_utils::SandboxHome::new();
+    for provider in ["pi", "ompi"] {
+        let (path, _) = pi_fixture(home.path(), provider);
+        let page = load_provider_messages_paginated(provider.into(), path, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 15);
+        assert_eq!(
+            page.messages
+                .iter()
+                .filter(|m| m.uuid.starts_with("result-"))
+                .count(),
+            8
+        );
+        assert_pi_results(&serde_json::to_value(page).unwrap());
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn family_pi_legacy_consumers() {
+    let home = crate::test_utils::SandboxHome::new();
+    let mut observed = Vec::new();
+    for provider in ["pi", "ompi"] {
+        let (path, project) = pi_fixture(home.path(), provider);
+        observed.push(responses(provider, &path, &project, home.path()).await);
+    }
+    let observed = json!(observed);
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/tool-result-evidence-pi-legacy.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        observed, expected,
+        "whole Pi/OMP legacy responses and consumers"
+    );
+}
+
 pub(crate) struct StoreEnv(Vec<(String, Option<std::ffi::OsString>)>);
 impl StoreEnv {
     fn set(key: &str, value: &Path) -> Self {
@@ -206,12 +457,27 @@ pub(crate) fn strip_additions(value: &mut Value) {
     match value {
         Value::Array(values) => values.iter_mut().for_each(strip_additions),
         Value::Object(object) => {
-            if object.get("type").and_then(Value::as_str) == Some("tool_result") {
-                object.remove("toolUseResult");
-                object.remove("toolUseResultSource");
-            }
-            for v in object.values_mut() {
-                strip_additions(v);
+            // Strip only declared transport additions at actual message/result locations,
+            // never same-named properties inside arbitrary recorded JSON.
+            if object.contains_key("uuid")
+                && object.contains_key("sessionId")
+                && object.contains_key("provider")
+            {
+                if object.get("subtype").and_then(Value::as_str) == Some("bash_execution") {
+                    object.remove("sourceExecution");
+                }
+                if let Some(blocks) = object.get_mut("content").and_then(Value::as_array_mut) {
+                    for block in blocks {
+                        if block["type"] == "tool_result" {
+                            block.as_object_mut().unwrap().remove("toolUseResult");
+                            block.as_object_mut().unwrap().remove("toolUseResultSource");
+                        }
+                    }
+                }
+            } else {
+                for v in object.values_mut() {
+                    strip_additions(v);
+                }
             }
         }
         _ => {}

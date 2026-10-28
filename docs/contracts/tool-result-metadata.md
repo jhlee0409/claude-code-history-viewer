@@ -106,12 +106,57 @@ shares this parser and receives the same preservation, retaining its own
 provider tag and history-root guard. Codex/Open Interpreter search matches the
 legacy display fields only, excluding these additive envelopes from matching
 while retaining them on returned results. This avoids new hidden-metadata
-search hits. This slice does not claim preservation for OpenHands,
-OpenCode/Kilo, Pi/OMP or other provider
-pathways; each needs its own raw fixture and public/consumer parity proof.
+search hits. The Codex slice alone is not proof for other provider pathways.
 
 Old responses without these optional properties remain valid. Consumers must
 handle absent/unassigned/unknown data without inventing success, failure,
 interruption or process status. The API adapter passes the entire JSON through
 in both transports. This prerequisite does not implement TR0 UI, outcome
 normalization, grouping eligibility, raw-history access, or new permissions.
+
+## OpenHands / OpenCode-Kilo / Pi-OMP continuation
+
+- **OpenHands classic** observation `extras` becomes that observation result's
+  `toolUseResult`; missing extras adds neither field. Provenance identifies the
+  observation UUID/session and its sole normalized result (`contentIndex:0`).
+- **OpenCode / Kilo core** emitted tool results retain the exact part `state`
+  in `toolUseResult`. Provenance identifies the owning message/session,
+  normalized pre-merge result `contentIndex`, and ordered decoded `partIndex`.
+  No exit-code field or result for running/missing/null state is invented.
+- **Pi / OMP** `toolResult` retains its complete raw nested `message` (including
+  optional opaque `details`) in `toolUseResult`. Provenance is source entry
+  ID/session, `contentIndex:0`, `association:"single_result"`.
+
+Pi/OMP `bashExecution` is a distinct local execution, not an assistant tool
+result. Its existing string `content`, system type and `bash_execution` subtype
+remain unchanged. Only that source message receives this optional **message**
+property (absent on all other messages):
+
+```json
+{
+  "sourceExecution": {
+    "messageUuid": "source-entry-id",
+    "sessionId": "source-session",
+    "association": "local_execution",
+    "message": {
+      "role": "bashExecution",
+      "command": "true",
+      "output": "",
+      "exitCode": 0,
+      "cancelled": false,
+      "truncated": false,
+      "timestamp": 1759276800000
+    }
+  }
+}
+```
+
+The nested message is the recorded JSON, not a reconstructed schema. Missing,
+explicit null, false, zero and unknown properties stay distinct. It is never
+broadcast to an assistant call or session siblings. No `toolUseResult` is
+fabricated for a local execution. Legacy responses without `sourceExecution`
+remain valid. No frontend type/adapter/UI change is included.
+
+See [provider scope and verification boundaries](provider-result-evidence-scope.md)
+for store coverage, source index semantics, full-response baselines and remaining
+unverified pathways. This remains partial TRbe, not all-provider certification.
