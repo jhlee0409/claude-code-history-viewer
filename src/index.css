@@ -1647,7 +1647,7 @@
   /* === Segmented control (one shared style) ===
      Session/Project, row density, analytics Overview/Tokens, the phone's
      Overview/Tokens/Edits nav, Project overview/Session details, metric
-     mode. The track holds the items; the selected one (aria-pressed,
+     mode. F2b owns this compatibility block. The selected item (aria-checked, aria-pressed,
      aria-selected, or aria-current="page" in a nav) gets its own surface and an
      accent outline (tokens --segmented-*). Padding and type size stay on each
      control. */
@@ -1657,32 +1657,32 @@
   }
 
   .segmented-item {
-    @apply rounded-md font-medium text-muted-foreground transition-colors duration-200;
+    @apply rounded-md font-medium text-muted-foreground transition-colors;
+    border: 1px solid transparent;
   }
 
   .segmented-item:not(:disabled):hover {
     @apply text-foreground;
   }
 
+  .segmented-item[aria-checked="true"],
   .segmented-item[aria-pressed="true"],
   .segmented-item[aria-selected="true"],
   .segmented-item[aria-current="page"],
   .segmented-item[data-active="true"] {
     background-color: var(--segmented-selected);
     color: var(--segmented-selected-foreground);
-    box-shadow:
-      inset 0 0 0 1px var(--segmented-selected-border),
-      0 1px 2px oklch(0 0 0 / 0.08);
+    border-color: var(--segmented-selected-border);
   }
 
   /* Keyboard focus, for every segmented control (the base layer removes the
      browser outline). A 2px accent ring outside the item, with a 1px gap of
-     track: it reads apart from the selected item's inset 1px border, takes no
+     track: it reads apart from the selected item's 1px border, takes no
      layout space, fits inside the track's padding, and outlines survive
      forced-colors mode. ≥3:1 against the track in every theme
      (src/test/segmentedControl.contrast.test.tsx). */
   .segmented-item:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
 

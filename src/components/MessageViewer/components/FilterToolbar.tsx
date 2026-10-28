@@ -1,6 +1,7 @@
 import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
 import { useAppStore } from "../../../store/useAppStore";
 
 interface FilterToggleProps {
@@ -12,21 +13,21 @@ interface FilterToggleProps {
 
 function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
   return (
-    <button
-      onClick={onClick}
+    <ChipToggle
+      pressed={active}
+      onPressedChange={onClick}
       className={cn(
         "flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border transition-colors",
         active
           ? "bg-accent/15 text-accent border-accent/30"
           : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
       )}
-      aria-pressed={active}
       aria-label={label}
       title={label}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </ChipToggle>
   );
 }
 
@@ -49,7 +50,8 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
   const isActive = isMessageFilterActive();
 
   return (
-    <div
+    <ChipToggleGroup
+      aria-label={t("filter.title")}
       className={cn(
         "flex flex-wrap items-center gap-1.5 px-3 py-1 border-b border-border/30 shrink-0 min-h-[32px]",
         isActive && "bg-accent/5"
@@ -135,6 +137,6 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           </button>
         </>
       )}
-    </div>
+    </ChipToggleGroup>
   );
 }

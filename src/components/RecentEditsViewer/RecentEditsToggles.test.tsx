@@ -14,14 +14,14 @@ import {
 } from "./RecentEditsToggles";
 
 describe("RecentEditsScopeToggle", () => {
-  it("reflects the selected scope through aria-pressed", () => {
+  it("reflects the selected scope through aria-checked", () => {
     render(<RecentEditsScopeToggle value="session" onChange={() => {}} />);
 
     expect(
-      screen.getByRole("button", { name: "Session" }).getAttribute("aria-pressed")
+      screen.getByRole("radio", { name: "Session" }).getAttribute("aria-checked")
     ).toBe("true");
     expect(
-      screen.getByRole("button", { name: "Project" }).getAttribute("aria-pressed")
+      screen.getByRole("radio", { name: "Project" }).getAttribute("aria-checked")
     ).toBe("false");
   });
 
@@ -29,7 +29,7 @@ describe("RecentEditsScopeToggle", () => {
     const onChange = vi.fn();
     render(<RecentEditsScopeToggle value="session" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Project" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Project" }));
 
     expect(onChange).toHaveBeenCalledWith("project");
   });
@@ -52,8 +52,8 @@ describe("RecentEditsScopeToggle", () => {
       />
     );
 
-    const session = screen.getByRole("button", { name: "Session" });
-    const project = screen.getByRole("button", { name: "Project" });
+    const session = screen.getByRole("radio", { name: "Session" });
+    const project = screen.getByRole("radio", { name: "Project" });
 
     expect(session.hasAttribute("disabled")).toBe(true);
     expect(project.hasAttribute("disabled")).toBe(false);
@@ -87,8 +87,8 @@ describe("RecentEditsScopeToggle", () => {
       />
     );
 
-    const session = screen.getByRole("button", { name: "Session" });
-    const project = screen.getByRole("button", { name: "Project" });
+    const session = screen.getByRole("radio", { name: "Session" });
+    const project = screen.getByRole("radio", { name: "Project" });
 
     expect(session.hasAttribute("disabled")).toBe(true);
     expect(project.hasAttribute("disabled")).toBe(true);
@@ -104,18 +104,18 @@ describe("RecentEditsScopeToggle", () => {
 });
 
 describe("RecentEditsDensityToggle", () => {
-  it("reflects the selected density through aria-pressed", () => {
+  it("reflects the selected density through aria-checked", () => {
     render(<RecentEditsDensityToggle value="compact" onChange={() => {}} />);
 
     expect(
       screen
-        .getByRole("button", { name: "Compact rows" })
-        .getAttribute("aria-pressed")
+        .getByRole("radio", { name: "Compact rows" })
+        .getAttribute("aria-checked")
     ).toBe("true");
     expect(
       screen
-        .getByRole("button", { name: "Full cards" })
-        .getAttribute("aria-pressed")
+        .getByRole("radio", { name: "Full cards" })
+        .getAttribute("aria-checked")
     ).toBe("false");
   });
 
@@ -123,7 +123,7 @@ describe("RecentEditsDensityToggle", () => {
     const onChange = vi.fn();
     render(<RecentEditsDensityToggle value="compact" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Full cards" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Full cards" }));
 
     expect(onChange).toHaveBeenCalledWith("standard");
   });

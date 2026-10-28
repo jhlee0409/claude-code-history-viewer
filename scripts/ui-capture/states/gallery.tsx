@@ -30,7 +30,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { Notice } from "@/components/ui/notice";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
+import { MetricModeToggle } from "@/components/ui/MetricModeToggle";
+import { PageHeader } from "@/components/ui/pageHeader";
+import { ProviderMark } from "@/components/ui/providerMark";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -45,10 +50,10 @@ import {
 const query = new URLSearchParams(location.search);
 if (query.get("theme") === "dark") document.documentElement.classList.add("dark");
 
-const BUTTON_VARIANTS = ["default", "destructive", "outline", "secondary", "ghost", "link", "accent", "success", "warning"] as const;
+const BUTTON_VARIANTS = ["primary", "destructive", "outline", "secondary", "ghost", "link"] as const;
 const BUTTON_SIZES = [
-  { ctl: "sm", size: "sm", variant: "default" },
-  { ctl: "lg", size: "lg", variant: "default" },
+  { ctl: "sm", size: "sm", variant: "primary" },
+  { ctl: "lg", size: "lg", variant: "primary" },
   { ctl: "icon", size: "icon", variant: "ghost" },
   { ctl: "icon-sm", size: "icon-sm", variant: "ghost" },
   { ctl: "icon-lg", size: "icon-lg", variant: "outline" },
@@ -191,11 +196,18 @@ function App() {
         </Tabs>
       </Row>
       <Row id="segmented" label=".segmented">
-        <div className="segmented" role="group">
-          <button className="segmented-item px-3 py-1 text-list" aria-pressed="true" data-ctl="segmented:item" data-src="selected">Overview</button>
-          <button className="segmented-item px-3 py-1 text-list" aria-pressed="false" data-ctl="segmented:item" data-src="default">Tokens</button>
-          <button className="segmented-item px-3 py-1 text-list" aria-pressed="false" disabled data-ctl="segmented:item" data-src="disabled">Edits</button>
-        </div>
+        <Segmented value="overview" onValueChange={() => {}} aria-label="View mode">
+          <SegmentedItem value="overview" data-ctl="segmented:item" data-src="selected">Overview</SegmentedItem>
+          <SegmentedItem value="tokens" data-ctl="segmented:item" data-src="default">Tokens</SegmentedItem>
+          <SegmentedItem value="edits" disabled data-ctl="segmented:item" data-src="disabled">Edits</SegmentedItem>
+        </Segmented>
+      </Row>
+      <Row id="chips" label="ChipToggle">
+        <ChipToggleGroup aria-label="Message filters">
+          <ChipToggle pressed data-ctl="chip:toggle" data-src="selected" onPressedChange={() => {}}>User</ChipToggle>
+          <ChipToggle pressed={false} data-ctl="chip:toggle" data-src="default" onPressedChange={() => {}}>Assistant</ChipToggle>
+          <ChipToggle pressed={false} data-ctl="chip:toggle" data-src="disabled" disabled onPressedChange={() => {}}>Unavailable</ChipToggle>
+        </ChipToggleGroup>
       </Row>
       <Row id="card" label="Card">
         {CARD_VARIANTS.map((v) => (
@@ -292,6 +304,29 @@ function PressProbe({ mode, state }: { mode: (typeof PRESS_MODES)[number]; state
   );
 }
 
+function Adoption() {
+  const [metric, setMetric] = useState<"tokens" | "cost_estimated">("tokens");
+  const [user, setUser] = useState(true);
+  const [assistant, setAssistant] = useState(false);
+  return <div className="bg-background text-foreground min-h-screen p-6" data-gallery-ready="true">
+    <PageHeader title="Analytics" description="F2b component contracts" controls={<ProviderMark provider="codex" />} />
+    <MetricModeToggle value={metric} onChange={setMetric} />
+    <button type="button" data-after-radio="">After radio</button>
+    <ChipToggleGroup aria-label="Probe filters">
+      <ChipToggle pressed={user} onPressedChange={setUser}>User</ChipToggle>
+      <ChipToggle pressed={assistant} onPressedChange={setAssistant}>Assistant</ChipToggle>
+      <ChipToggle pressed={false} disabled onPressedChange={() => { throw new Error("disabled chip activated"); }}>Unavailable</ChipToggle>
+    </ChipToggleGroup>
+    <button type="button" data-after-toolbar="">After toolbar</button>
+    <Tabs defaultValue="overview">
+      <TabsList aria-label="Probe pages"><TabsTrigger value="overview">Overview</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList>
+      <TabsContent value="overview">Overview body</TabsContent><TabsContent value="details">Detail body</TabsContent>
+    </Tabs>
+    <Select defaultValue="claude"><SelectTrigger aria-label="Choose provider" controlSize="toolbar"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="claude">Claude</SelectItem><SelectItem value="codex">Codex</SelectItem></SelectContent></Select>
+    <Select disabled defaultValue="claude"><SelectTrigger aria-label="Unavailable provider" controlSize="header"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="claude">Claude</SelectItem></SelectContent></Select>
+  </div>;
+}
+
 function Probes() {
   const [loading, setLoading] = useState(false);
   return (
@@ -331,4 +366,4 @@ if (query.get("view") === "probes") {
   });
 }
 
-createRoot(document.getElementById("root")!).render(query.get("view") === "probes" ? <Probes /> : <App />);
+createRoot(document.getElementById("root")!).render(query.get("view") === "probes" ? <Probes /> : query.get("view") === "adoption" ? <Adoption /> : <App />);

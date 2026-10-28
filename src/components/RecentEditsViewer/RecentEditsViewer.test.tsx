@@ -156,7 +156,7 @@ describe("the Edits screen asks for its scope and grouping", () => {
       grouping: "file",
       sessionFilePath: undefined,
     });
-    expect(screen.getByRole("button", { name: "Session" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("radio", { name: "Session" }).hasAttribute("disabled")).toBe(true);
   });
 
   it("without an open session, the rows are grouped as the project scope groups them", () => {
@@ -177,9 +177,9 @@ describe("the Edits screen asks for its scope and grouping", () => {
   it("the scope and density toggles write their preferences", () => {
     state = baseState({ recentEditsScope: "session", recentEditsList: listFor(sessionRequest, [edit("/project/a.ts")]) });
     render(<RecentEditsViewer />);
-    fireEvent.click(screen.getByRole("button", { name: "Project" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Project" }));
     expect(fn("setRecentEditsScope")).toHaveBeenCalledWith("project");
-    fireEvent.click(screen.getByRole("button", { name: "Compact rows" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Compact rows" }));
     expect(fn("setRecentEditsDensity")).toHaveBeenCalledWith("compact");
   });
 });
@@ -210,7 +210,7 @@ describe("the Edits screen shows only the rows answering its request", () => {
     state = baseState({ recentEditsList: listFor(projectRequest, []) });
     render(<RecentEditsViewer />);
     expect(screen.getByText("recentEdits.noEdits")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Project" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Project" })).toBeTruthy();
   });
 });
 
