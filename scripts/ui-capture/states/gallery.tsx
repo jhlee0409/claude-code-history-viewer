@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
 import { MetricModeToggle } from "@/components/ui/MetricModeToggle";
+import { RovingFocusProbe } from "./rovingFocusProbe";
 import { PageHeader } from "@/components/ui/pageHeader";
 import { ProviderMark } from "@/components/ui/providerMark";
 import { Badge } from "@/components/ui/badge";
@@ -369,4 +370,4 @@ if (query.get("view") === "probes") {
   });
 }
 
-createRoot(document.getElementById("root")!).render(query.get("view") === "probes" ? <Probes /> : query.get("view") === "adoption" ? <Adoption /> : <App />);
+createRoot(document.getElementById("root")!).render(query.get("view") === "roving" ? <RovingFocusProbe /> : query.get("view") === "probes" ? <Probes /> : query.get("view") === "adoption" ? <Adoption /> : <App />);

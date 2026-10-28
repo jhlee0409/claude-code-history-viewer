@@ -12,6 +12,9 @@ export function useRovingFocus(ref: RefObject<HTMLDivElement | null>, selector: 
     ref.current?.querySelectorAll<HTMLButtonElement>(selector).forEach((item) => { item.tabIndex = item === current ? 0 : -1; });
   });
   const onFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+    // Radio entry follows committed selection, not a request the parent may reject
+    // or defer. Only toolbars move their Tab stop with focus alone.
+    if (selectOnFocus) return;
     const item = (event.target as HTMLElement).closest<HTMLButtonElement>(selector);
     if (!item || !items().includes(item)) return;
     items().forEach((candidate) => { candidate.tabIndex = candidate === item ? 0 : -1; });
