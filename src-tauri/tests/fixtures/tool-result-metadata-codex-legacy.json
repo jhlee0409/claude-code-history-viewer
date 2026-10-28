@@ -1,0 +1,611 @@
+[
+  [
+    {
+      "content": [
+        {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        {
+          "content": "  \u001b[32mok\u001b[0m\n\n",
+          "tool_use_id": "duplicate",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:01Z",
+      "toolUse": {
+        "id": "duplicate",
+        "input": {
+          "command": "pwd"
+        },
+        "name": "shell_command",
+        "type": "tool_use"
+      },
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "use-function"
+    },
+    {
+      "content": [
+        {
+          "id": "parallel",
+          "input": {
+            "patch": "*** Begin Patch\n*** End Patch"
+          },
+          "name": "apply_patch",
+          "type": "tool_use"
+        },
+        {
+          "content": "same\n",
+          "tool_use_id": "parallel",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:03Z",
+      "toolUse": {
+        "id": "parallel",
+        "input": {
+          "patch": "*** Begin Patch\n*** End Patch"
+        },
+        "name": "apply_patch",
+        "type": "tool_use"
+      },
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "use-custom"
+    },
+    {
+      "content": [
+        {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        {
+          "content": "same\n",
+          "tool_use_id": "duplicate",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:04Z",
+      "toolUse": {
+        "id": "duplicate",
+        "input": {
+          "command": "pwd"
+        },
+        "name": "shell_command",
+        "type": "tool_use"
+      },
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "use-replay"
+    },
+    {
+      "content": [
+        {
+          "content": "same\n",
+          "tool_use_id": "orphan",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:07Z",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "result-orphan"
+    },
+    {
+      "content": [
+        {
+          "content": "Error: stdout only\n",
+          "tool_use_id": "plain",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:08Z",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "result-plain"
+    },
+    {
+      "content": [
+        {
+          "content": "",
+          "tool_use_id": "empty",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:09Z",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "result-empty"
+    },
+    {
+      "content": [
+        {
+          "content": null,
+          "tool_use_id": "missing",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "codex-structured",
+      "timestamp": "2026-10-01T00:00:10Z",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "result-missing"
+    }
+  ],
+  {
+    "has_more": false,
+    "messages": [
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          {
+            "content": "  \u001b[32mok\u001b[0m\n\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:01Z",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-function"
+      },
+      {
+        "content": [
+          {
+            "id": "parallel",
+            "input": {
+              "patch": "*** Begin Patch\n*** End Patch"
+            },
+            "name": "apply_patch",
+            "type": "tool_use"
+          },
+          {
+            "content": "same\n",
+            "tool_use_id": "parallel",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:03Z",
+        "toolUse": {
+          "id": "parallel",
+          "input": {
+            "patch": "*** Begin Patch\n*** End Patch"
+          },
+          "name": "apply_patch",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-custom"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          {
+            "content": "same\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:04Z",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-replay"
+      },
+      {
+        "content": [
+          {
+            "content": "same\n",
+            "tool_use_id": "orphan",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:07Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-orphan"
+      },
+      {
+        "content": [
+          {
+            "content": "Error: stdout only\n",
+            "tool_use_id": "plain",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:08Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-plain"
+      },
+      {
+        "content": [
+          {
+            "content": "",
+            "tool_use_id": "empty",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:09Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-empty"
+      },
+      {
+        "content": [
+          {
+            "content": null,
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:10Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-missing"
+      }
+    ],
+    "next_offset": 7,
+    "total_count": 7
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "content": null,
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:10Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-missing"
+      }
+    ],
+    "next_offset": 1,
+    "total_count": 7
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "content": "Error: stdout only\n",
+            "tool_use_id": "plain",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:08Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-plain"
+      },
+      {
+        "content": [
+          {
+            "content": "",
+            "tool_use_id": "empty",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:09Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-empty"
+      }
+    ],
+    "next_offset": 3,
+    "total_count": 7
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "id": "parallel",
+            "input": {
+              "patch": "*** Begin Patch\n*** End Patch"
+            },
+            "name": "apply_patch",
+            "type": "tool_use"
+          },
+          {
+            "content": "same\n",
+            "tool_use_id": "parallel",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:03Z",
+        "toolUse": {
+          "id": "parallel",
+          "input": {
+            "patch": "*** Begin Patch\n*** End Patch"
+          },
+          "name": "apply_patch",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-custom"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          {
+            "content": "same\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:04Z",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-replay"
+      },
+      {
+        "content": [
+          {
+            "content": "same\n",
+            "tool_use_id": "orphan",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:07Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-orphan"
+      }
+    ],
+    "next_offset": 6,
+    "total_count": 7
+  },
+  {
+    "has_more": false,
+    "messages": [
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          {
+            "content": "  \u001b[32mok\u001b[0m\n\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:01Z",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "command": "pwd"
+          },
+          "name": "shell_command",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-function"
+      }
+    ],
+    "next_offset": 7,
+    "total_count": 7
+  },
+  {
+    "has_more": false,
+    "messages": [],
+    "next_offset": 7,
+    "total_count": 7
+  },
+  {
+    "has_more": false,
+    "messages": [],
+    "next_offset": 99,
+    "total_count": 7
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "content": null,
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "codex-structured",
+        "timestamp": "2026-10-01T00:00:10Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-missing"
+      }
+    ],
+    "next_offset": 1,
+    "total_count": 7
+  }
+]

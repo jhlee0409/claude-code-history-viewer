@@ -76,8 +76,39 @@ looked up from another message/session or cached by tool ID.
 Claude pagination still slices in pre-merge index space and merges only within
 the returned window. An orphan receives its own metadata without loading an
 older page. Other providers still materialize, merge and slice in post-merge
-space; their normalized content variants are not rewritten, and this contract
-does not promise raw metadata their loaders never expose.
+space.
+
+## Codex structured output (TRbe bounded slice)
+
+For Codex `function_call_output` and `custom_tool_call_output`, when `output`
+is a JSON string decoding to an object with its own `output` property, the
+**entire decoded wrapper** is preserved as the result block's `toolUseResult`.
+The legacy normalized `content` remains that inner `output`, including null or
+empty output. Wrapper fields such as `metadata.exit_code` and interruption
+signals, unknown fields and all JSON value distinctions are retained without
+renaming or deriving a verdict. This is decoded JSON preservation, not a copy
+of the wrapper's original JSON encoding/whitespace.
+
+`toolUseResultSource` uses the source output item's ID (or the existing
+`codex-N` fallback UUID), current rollout session ID and `contentIndex: 0` — the
+single normalized result's position **before either merge**, not a byte offset,
+raw JSONL line number, or its final assistant content position. The payload is
+attached before Codex's provider-local merge; duplicate call IDs, replay and
+out-of-order results never replace another result's metadata. Existing legacy
+call placement is unchanged and is not proof of a unique originating call.
+
+Plain output strings (including `Process exited ...` prose), JSON strings
+without an `output` property, and already-object output retain their previous
+content representation and do not gain these fields. Already-object metadata
+is already present in `content`; it is not duplicated into a new envelope.
+No missing exit code or interruption flag is synthesized. Open Interpreter
+shares this parser and receives the same preservation, retaining its own
+provider tag and history-root guard. Codex/Open Interpreter search matches the
+legacy display fields only, excluding these additive envelopes from matching
+while retaining them on returned results. This avoids new hidden-metadata
+search hits. This slice does not claim preservation for OpenHands,
+OpenCode/Kilo, Pi/OMP or other provider
+pathways; each needs its own raw fixture and public/consumer parity proof.
 
 Old responses without these optional properties remain valid. Consumers must
 handle absent/unassigned/unknown data without inventing success, failure,

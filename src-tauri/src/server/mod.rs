@@ -1200,6 +1200,93 @@ mod tests {
         assert!(!response.to_string().contains("unassignable"));
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn codex_structured_metadata_loopback_http_matches_native() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_codex_structured_metadata, CODEX_STRUCTURED_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (provider, root) in [("codex", ".codex"), ("openinterpreter", ".openinterpreter")] {
+            let path = home
+                .path()
+                .join(root)
+                .join("sessions/rollout-structured.jsonl");
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (7, 2), (99, 2)] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_loopback_json(address, "load_provider_messages_paginated", serde_json::json!({
+                    "provider":provider, "sessionPath":path.to_string_lossy(), "offset":offset, "limit":limit, "excludeSidechain":false,
+                })).await;
+                assert_eq!(status, 200, "{response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                assert_codex_structured_metadata(&response);
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.to_string_lossy().into(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            assert_codex_structured_metadata(&serde_json::json!({"messages":response}));
+        }
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("rollout-secret.jsonl");
+        std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+        for provider in ["codex", "openinterpreter", "unknown-trbe"] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("result-function"));
+        }
+        eprintln!("TRbe loopback {address}: 2 providers, 14 paginated windows, 2 non-paginated responses, 3 refusal controls");
+        server.abort();
+    }
+
+    async fn post_loopback_json(
+        address: std::net::SocketAddr,
+        route: &str,
+        body: serde_json::Value,
+    ) -> (u16, serde_json::Value) {
+        let route = route.to_string();
+        tokio::task::spawn_blocking(move || {
+            use std::io::{Read, Write};
+            let mut socket = std::net::TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            let body = body.to_string();
+            write!(socket, "POST /api/{route} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            let mut response = String::new();
+            socket.read_to_string(&mut response).unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            let status = headers.split_whitespace().nth(1).unwrap().parse().unwrap();
+            (status, serde_json::from_str(body).unwrap())
+        }).await.unwrap()
+    }
     /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
     /// shared `--serve` instance runs in. The body is `Null` when it is not
     /// JSON.

@@ -227,7 +227,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 return Ok(results);
             }
             if let Some(content) = &msg.content {
-                if crate::utils::search_json_value_case_insensitive(content, &query_lower) {
+                if codex::rollout_content_matches(content, &query_lower) {
                     results.push(msg);
                 }
             }

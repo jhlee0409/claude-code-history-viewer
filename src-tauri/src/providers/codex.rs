@@ -648,6 +648,27 @@ fn rollout_might_contain_query(rollout_path: &Path, query_lower: &str) -> bool {
     false
 }
 
+/// Search the historical display shape, excluding only the additive evidence fields.
+/// Used by both providers sharing the Codex rollout parser; returned messages
+/// still retain the full evidence envelope.
+pub(crate) fn rollout_content_matches(content: &Value, query_lower: &str) -> bool {
+    let Some(blocks) = content.as_array() else {
+        return search_json_value_case_insensitive(content, query_lower);
+    };
+    blocks.iter().any(|block| {
+        if block.get("type").and_then(Value::as_str) == Some("tool_result") {
+            block.as_object().is_some_and(|fields| {
+                fields.iter().any(|(key, value)| {
+                    !matches!(key.as_str(), "toolUseResult" | "toolUseResultSource")
+                        && search_json_value_case_insensitive(value, query_lower)
+                })
+            })
+        } else {
+            search_json_value_case_insensitive(block, query_lower)
+        }
+    })
+}
+
 fn is_searchable_codex_result(message: &ClaudeMessage) -> bool {
     !matches!(message.role.as_deref(), Some("developer" | "system"))
 }
@@ -713,9 +734,10 @@ pub fn search(query: &str, limit: usize, filters: &Value) -> Result<Vec<ClaudeMe
             .into_iter()
             .filter(|msg| {
                 is_searchable_codex_result(msg)
-                    && msg.content.as_ref().is_some_and(|content| {
-                        search_json_value_case_insensitive(content, &query_lower)
-                    })
+                    && msg
+                        .content
+                        .as_ref()
+                        .is_some_and(|content| rollout_content_matches(content, &query_lower))
             })
             .collect();
 
@@ -1386,20 +1408,8 @@ fn convert_codex_item(
                 model.cloned(),
             ))
         }
-        "function_call_output" => {
-            let output = item.get("output").cloned().unwrap_or(Value::Null);
-            let output = normalize_tool_output(output);
-            let call_id = item
-                .get("call_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let content = serde_json::json!([{
-                "type": "tool_result",
-                "tool_use_id": call_id,
-                "content": output
-            }]);
+        "function_call_output" | "custom_tool_call_output" => {
+            let content = serde_json::json!([codex_tool_result(item, &uuid, session_id)]);
 
             Some(build_codex_message(
                 uuid,
@@ -1439,31 +1449,6 @@ fn convert_codex_item(
                 Some("assistant"),
                 Some(content),
                 model.cloned(),
-            ))
-        }
-        "custom_tool_call_output" => {
-            let output = item.get("output").cloned().unwrap_or(Value::Null);
-            let output = normalize_tool_output(output);
-            let call_id = item
-                .get("call_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let content = serde_json::json!([{
-                "type": "tool_result",
-                "tool_use_id": call_id,
-                "content": output
-            }]);
-
-            Some(build_codex_message(
-                uuid,
-                session_id,
-                timestamp,
-                "user",
-                Some("user"),
-                Some(content),
-                None,
             ))
         }
         "web_search_call" => {
@@ -1812,6 +1797,33 @@ fn normalize_web_search_input(action: Value) -> Value {
     }
 
     Value::Object(input)
+}
+
+/// Preserve the decoded result envelope before either display merge. The
+/// provenance identifies the source output item, never the matched call.
+fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
+    let output = item.get("output").cloned().unwrap_or(Value::Null);
+    let wrapper = output
+        .as_str()
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        .filter(|parsed| parsed.get("output").is_some());
+    let content = wrapper.as_ref().map_or_else(
+        || normalize_tool_output(output),
+        |parsed| parsed["output"].clone(),
+    );
+    let mut result = serde_json::json!({
+        "type": "tool_result",
+        "tool_use_id": item.get("call_id").and_then(Value::as_str).unwrap_or(""),
+        "content": content
+    });
+    if let Some(wrapper) = wrapper {
+        result["toolUseResult"] = wrapper;
+        result["toolUseResultSource"] = serde_json::json!({
+            "messageUuid": uuid, "sessionId": session_id,
+            "contentIndex": 0, "association": "single_result"
+        });
+    }
+    result
 }
 
 fn normalize_tool_output(output: Value) -> Value {

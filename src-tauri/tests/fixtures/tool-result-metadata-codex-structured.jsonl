@@ -1,0 +1,11 @@
+{"timestamp":"2026-10-01T00:00:00Z","type":"session_meta","payload":{"id":"codex-structured","cwd":"/fixture"}}
+{"timestamp":"2026-10-01T00:00:01Z","type":"response_item","payload":{"id":"use-function","type":"function_call","name":"shell_command","call_id":"duplicate","arguments":"{\"command\":\"pwd\"}"}}
+{"timestamp":"2026-10-01T00:00:02Z","type":"response_item","payload":{"id":"result-function","type":"function_call_output","call_id":"duplicate","output":"{\"output\":\"  \\u001b[32mok\\u001b[0m\\n\\n\",\"metadata\":{\"exit_code\":0,\"interrupted\":false},\"future\":{\"null\":null,\"false\":false,\"zero\":0,\"empty\":\"\",\"array\":[]}}"}}
+{"timestamp":"2026-10-01T00:00:03Z","type":"response_item","payload":{"id":"use-custom","type":"custom_tool_call","name":"apply_patch","call_id":"parallel","input":"*** Begin Patch\n*** End Patch"}}
+{"timestamp":"2026-10-01T00:00:04Z","type":"response_item","payload":{"id":"use-replay","type":"function_call","name":"shell_command","call_id":"duplicate","arguments":"{\"command\":\"pwd\"}"}}
+{"timestamp":"2026-10-01T00:00:05Z","type":"response_item","payload":{"id":"result-replay","type":"function_call_output","call_id":"duplicate","output":"{\"output\":\"same\\n\",\"metadata\":{\"exit_code\":2,\"interrupted\":true}}"}}
+{"timestamp":"2026-10-01T00:00:06Z","type":"response_item","payload":{"id":"result-custom","type":"custom_tool_call_output","call_id":"parallel","output":"{\"output\":\"same\\n\",\"metadata\":{\"exit_code\":null,\"interrupted\":false},\"future\":{}}"}}
+{"timestamp":"2026-10-01T00:00:07Z","type":"response_item","payload":{"id":"result-orphan","type":"function_call_output","call_id":"orphan","output":"{\"output\":\"same\\n\",\"metadata\":null}"}}
+{"timestamp":"2026-10-01T00:00:08Z","type":"response_item","payload":{"id":"result-plain","type":"function_call_output","call_id":"plain","output":"Process exited with code 9\nOutput:\nError: stdout only\n"}}
+{"timestamp":"2026-10-01T00:00:09Z","type":"response_item","payload":{"id":"result-empty","type":"custom_tool_call_output","call_id":"empty","output":"{\"output\":\"\",\"interrupted\":false}"}}
+{"timestamp":"2026-10-01T00:00:10Z","type":"response_item","payload":{"id":"result-missing","type":"function_call_output","call_id":"missing","output":"{\"output\":null,\"future\":[]}"}}
