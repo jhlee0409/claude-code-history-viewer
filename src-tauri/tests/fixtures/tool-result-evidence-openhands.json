@@ -1,0 +1,109 @@
+[
+  {
+    "id": 0,
+    "timestamp": "2026-10-01T00:00:00Z",
+    "source": "user",
+    "action": "message",
+    "args": {
+      "content": "fixture"
+    },
+    "extras": {
+      "metadata": {
+        "exit_code": 77
+      }
+    }
+  },
+  {
+    "id": 1,
+    "timestamp": "2026-10-01T00:00:01Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": {
+      "metadata": {
+        "exit_code": 0
+      },
+      "unknown": "evidence-only-needle",
+      "null": null,
+      "false": false,
+      "zero": 0,
+      "empty": ""
+    }
+  },
+  {
+    "id": 2,
+    "timestamp": "2026-10-01T00:00:02Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": null
+  },
+  {
+    "id": 3,
+    "timestamp": "2026-10-01T00:00:03Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": false
+  },
+  {
+    "id": 4,
+    "timestamp": "2026-10-01T00:00:04Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": 0
+  },
+  {
+    "id": 5,
+    "timestamp": "2026-10-01T00:00:05Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": ""
+  },
+  {
+    "id": 6,
+    "timestamp": "2026-10-01T00:00:06Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": {}
+  },
+  {
+    "id": 7,
+    "timestamp": "2026-10-01T00:00:07Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": []
+  },
+  {
+    "id": 8,
+    "timestamp": "2026-10-01T00:00:08Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "error",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+    "extras": {
+      "metadata": {
+        "exit_code": 2
+      }
+    }
+  },
+  {
+    "id": 9,
+    "timestamp": "2026-10-01T00:00:09Z",
+    "source": "agent",
+    "cause": 99,
+    "observation": "run",
+    "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n"
+  }
+]
