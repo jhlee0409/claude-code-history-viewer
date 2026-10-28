@@ -3,7 +3,8 @@
 #[serial_test::serial]
 async fn family_openhands_merged_replayed_calls_keep_observation_ownership() {
     let home = crate::test_utils::SandboxHome::new();
-    let events = home.path().join(".openhands/sessions/linked/events");
+    let events =
+        crate::test_utils::native_fixture_path(home.path(), ".openhands/sessions/linked/events");
     std::fs::create_dir_all(&events).unwrap();
     let records = json!([
         {"id":0,"action":"message","source":"user","args":{"content":"fixture"}},
@@ -154,11 +155,14 @@ async fn family_pi_bash_execution_preserves_raw_not_tool_result() {
 }
 
 pub(crate) fn pi_fixture(home: &Path, provider: &str) -> (String, String) {
-    let project = home.join(if provider == "pi" {
-        ".pi/agent/sessions/--fixture--"
-    } else {
-        ".omp/agent/sessions/--fixture--"
-    });
+    let project = crate::test_utils::native_fixture_path(
+        home,
+        if provider == "pi" {
+            ".pi/agent/sessions/--fixture--"
+        } else {
+            ".omp/agent/sessions/--fixture--"
+        },
+    );
     std::fs::create_dir_all(&project).unwrap();
     let path = project.join("evidence.jsonl");
     std::fs::write(
@@ -232,6 +236,30 @@ async fn family_pi_preserves_tool_result_message() {
 
 #[tokio::test]
 #[serial_test::serial]
+async fn family_pi_fixture_spelling_matches_discovery() {
+    let home = crate::test_utils::SandboxHome::new();
+    // A redundant component reproduces the same string-identity mismatch on
+    // Unix as mixed separators do on Windows. Do not change the stats resolver
+    // to make a malformed fixture match a discovered session.
+    let fixture_home = home.path().join(".");
+    let mut observed = Vec::new();
+    for provider in ["pi", "ompi"] {
+        let (path, project) = pi_fixture(&fixture_home, provider);
+        observed.push(responses(provider, &path, &project, home.path()).await);
+    }
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/tool-result-evidence-pi-legacy.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        json!(observed),
+        expected,
+        "whole responses with native fixture paths"
+    );
+}
+
+#[tokio::test]
+#[serial_test::serial]
 async fn family_pi_legacy_consumers() {
     let home = crate::test_utils::SandboxHome::new();
     let mut observed = Vec::new();
@@ -274,10 +302,13 @@ pub(crate) fn opencode_fixture(
     provider: &str,
     sqlite: bool,
 ) -> (String, String, StoreEnv) {
-    let root = home.join(format!(
-        ".local/share/{provider}-{}",
-        if sqlite { "sqlite" } else { "json" }
-    ));
+    let root = crate::test_utils::native_fixture_path(
+        home,
+        &format!(
+            ".local/share/{provider}-{}",
+            if sqlite { "sqlite" } else { "json" }
+        ),
+    );
     std::fs::create_dir_all(&root).unwrap();
     let env = StoreEnv::set(
         if provider == "kilo" {
@@ -321,11 +352,11 @@ pub(crate) fn opencode_fixture(
             ),
             ("message/ses_001/msg_001.json", message),
         ] {
-            let path = root.join("storage").join(path);
+            let path = crate::test_utils::native_fixture_path(&root.join("storage"), path);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, value.to_string()).unwrap();
         }
-        let dir = root.join("storage/part/msg_001");
+        let dir = crate::test_utils::native_fixture_path(&root, "storage/part/msg_001");
         std::fs::create_dir_all(&dir).unwrap();
         for (i, part) in parts.as_array().unwrap().iter().enumerate() {
             std::fs::write(dir.join(format!("part_{i:02}.json")), part.to_string()).unwrap();
@@ -406,7 +437,8 @@ use serde_json::{json, Value};
 use std::path::Path;
 
 pub(crate) fn openhands_fixture(home: &Path) -> String {
-    let events = home.join(".openhands/sessions/evidence/events");
+    let events =
+        crate::test_utils::native_fixture_path(home, ".openhands/sessions/evidence/events");
     std::fs::create_dir_all(&events).unwrap();
     let fixture: Value = serde_json::from_str(include_str!(
         "../../tests/fixtures/tool-result-evidence-openhands.json"
@@ -494,6 +526,36 @@ fn normalize_root(value: &mut Value, home: &str) {
         Value::Array(values) => values.iter_mut().for_each(|v| normalize_root(v, home)),
         Value::Object(object) => object.values_mut().for_each(|v| normalize_root(v, home)),
         _ => {}
+    }
+}
+
+#[test]
+fn family_root_normalization_keeps_embedded_and_json_escaped_paths() {
+    for (home, path) in [
+        ("/sandbox", "/sandbox/.pi/agent/sessions/evidence.jsonl"),
+        (
+            r"C:\sandbox",
+            r"C:\sandbox\.pi\agent\sessions\evidence.jsonl",
+        ),
+    ] {
+        let embedded = format!("see {path}\n\u{1b}[31mError\u{1b}[0m\n");
+        let encoded = serde_json::to_string(&json!({"path":path})).unwrap();
+        let double_encoded = serde_json::to_string(&encoded).unwrap();
+        let mut observed = json!({
+            "path":path,
+            "messages":[{"content":embedded,"json":encoded,"nestedJson":double_encoded}],
+            "flags":[null,false,0,"",[]]
+        });
+        normalize_root(&mut observed, home);
+        assert_eq!(
+            observed,
+            json!({
+                "path":"$HOME/.pi/agent/sessions/evidence.jsonl",
+                "messages":[{"content":embedded,"json":encoded,"nestedJson":double_encoded}],
+                "flags":[null,false,0,"",[]]
+            }),
+            "only standalone sandbox-root paths may change"
+        );
     }
 }
 

@@ -65,7 +65,10 @@ pub(crate) fn assert_codex_structured_metadata(page: &Value) {
 #[serial_test::serial]
 async fn codex_structured_result_metadata_survives_public_api() {
     let home = crate::test_utils::SandboxHome::new();
-    let path = home.path().join(".codex/sessions/rollout-structured.jsonl");
+    let path = crate::test_utils::native_fixture_path(
+        home.path(),
+        ".codex/sessions/rollout-structured.jsonl",
+    );
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
     let page = load_provider_messages_paginated(
@@ -85,7 +88,10 @@ async fn codex_structured_result_metadata_survives_public_api() {
 #[serial_test::serial]
 async fn codex_structured_legacy_response_parity() {
     let home = crate::test_utils::SandboxHome::new();
-    let path = home.path().join(".codex/sessions/rollout-structured.jsonl");
+    let path = crate::test_utils::native_fixture_path(
+        home.path(),
+        ".codex/sessions/rollout-structured.jsonl",
+    );
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
     let mut responses = Vec::new();
@@ -156,7 +162,13 @@ async fn codex_structured_legacy_response_parity() {
 #[serial_test::serial]
 async fn codex_structured_consumer_response_parity() {
     let home = crate::test_utils::SandboxHome::new();
-    let path = home.path().join(".codex/sessions/rollout-structured.jsonl");
+    // A redundant component exercises the discovery/string-identity seam on
+    // every OS, including Unix where forward slashes are already native.
+    let fixture_home = home.path().join(".");
+    let path = crate::test_utils::native_fixture_path(
+        &fixture_home,
+        ".codex/sessions/rollout-structured.jsonl",
+    );
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
     std::fs::OpenOptions::new()
@@ -246,7 +258,7 @@ async fn codex_structured_shared_openinterpreter_keeps_legacy_search() {
     let home = crate::test_utils::SandboxHome::new();
     let _env = InterpreterHome(std::env::var_os("INTERPRETER_HOME"));
     let root = home.path().join(".openinterpreter");
-    let path = root.join("sessions/rollout-structured.jsonl");
+    let path = crate::test_utils::native_fixture_path(&root, "sessions/rollout-structured.jsonl");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::env::set_var("INTERPRETER_HOME", &root);
     std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
@@ -352,7 +364,7 @@ async fn result_metadata_keeps_ambiguous_payload_once_and_exact_source_across_pa
 #[serial_test::serial]
 async fn result_metadata_does_not_change_codex_normalized_results() {
     let home = crate::test_utils::SandboxHome::new();
-    let path = home.path().join(".codex/sessions/codex.jsonl");
+    let path = crate::test_utils::native_fixture_path(home.path(), ".codex/sessions/codex.jsonl");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, CODEX_FIXTURE).unwrap();
     let page = load_provider_messages_paginated(
