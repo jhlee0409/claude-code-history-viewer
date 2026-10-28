@@ -7,6 +7,288 @@ pub(crate) const CLAUDE_FIXTURE: &str =
 pub(crate) const CODEX_FIXTURE: &str =
     include_str!("../../tests/fixtures/tool-result-metadata-codex.jsonl");
 
+pub(crate) const CODEX_STRUCTURED_FIXTURE: &str =
+    include_str!("../../tests/fixtures/tool-result-metadata-codex-structured.jsonl");
+
+/// The source position, not equal content or a tool ID, specifies the oracle.
+pub(crate) fn assert_codex_structured_metadata(page: &Value) {
+    let expected = [
+        ("use-function", 1, "result-function", 2),
+        ("use-custom", 1, "result-custom", 6),
+        ("use-replay", 1, "result-replay", 5),
+        ("result-orphan", 0, "result-orphan", 7),
+        ("result-empty", 0, "result-empty", 9),
+        ("result-missing", 0, "result-missing", 10),
+    ];
+    let records: Vec<Value> = CODEX_STRUCTURED_FIXTURE
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let mut checked = 0;
+    for message in page["messages"].as_array().unwrap() {
+        for (owner, position, source, line) in expected {
+            if message["uuid"] != owner {
+                continue;
+            }
+            let result = &message["content"][position];
+            let wrapper: Value =
+                serde_json::from_str(records[line]["payload"]["output"].as_str().unwrap()).unwrap();
+            assert_eq!(result["type"], "tool_result");
+            assert_eq!(result["content"], wrapper["output"]);
+            assert_eq!(
+                result.get("toolUseResult"),
+                Some(&wrapper),
+                "source {source}"
+            );
+            assert_eq!(
+                result["toolUseResultSource"],
+                json!({
+                    "messageUuid":source, "sessionId":"codex-structured",
+                    "contentIndex":0, "association":"single_result"
+                })
+            );
+            checked += 1;
+        }
+        if message["uuid"] == "result-plain" {
+            let result = &message["content"][0];
+            assert_eq!(result["content"], "Error: stdout only\n");
+            assert!(result.get("toolUseResult").is_none());
+            assert!(result.get("toolUseResultSource").is_none());
+        }
+    }
+    if page["messages"].as_array().unwrap().len() == 7 {
+        assert_eq!(checked, 6, "full fixture must exercise every source result");
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn codex_structured_result_metadata_survives_public_api() {
+    let home = crate::test_utils::SandboxHome::new();
+    let path = crate::test_utils::native_fixture_path(
+        home.path(),
+        ".codex/sessions/rollout-structured.jsonl",
+    );
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+    let page = load_provider_messages_paginated(
+        "codex".into(),
+        path.to_string_lossy().into(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(page.total_count, 7);
+    assert_codex_structured_metadata(&serde_json::to_value(page).unwrap());
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn codex_structured_legacy_response_parity() {
+    let home = crate::test_utils::SandboxHome::new();
+    let path = crate::test_utils::native_fixture_path(
+        home.path(),
+        ".codex/sessions/rollout-structured.jsonl",
+    );
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+    let mut responses = Vec::new();
+    responses.push(
+        serde_json::to_value(
+            super::multi_provider::load_provider_messages(
+                "codex".into(),
+                path.to_string_lossy().into(),
+            )
+            .await
+            .unwrap(),
+        )
+        .unwrap(),
+    );
+    for (offset, limit) in [
+        (0, 200),
+        (0, 1),
+        (1, 2),
+        (3, 3),
+        (6, 4),
+        (7, 2),
+        (99, 2),
+        (0, 0),
+    ] {
+        responses.push(
+            serde_json::to_value(
+                load_provider_messages_paginated(
+                    "codex".into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap(),
+            )
+            .unwrap(),
+        );
+    }
+    let mut responses = json!(responses);
+    for response in responses.as_array_mut().unwrap() {
+        let messages = if response.is_array() {
+            response.as_array_mut().unwrap()
+        } else {
+            response["messages"].as_array_mut().unwrap()
+        };
+        for message in messages {
+            for block in message["content"].as_array_mut().unwrap() {
+                if block["type"] == "tool_result" {
+                    block.as_object_mut().unwrap().remove("toolUseResult");
+                    block.as_object_mut().unwrap().remove("toolUseResultSource");
+                }
+            }
+        }
+    }
+    // Recorded from d63f524d before the provider implementation changed.
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/tool-result-metadata-codex-legacy.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        responses, expected,
+        "complete legacy responses, only two additive result properties stripped"
+    );
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn codex_structured_consumer_response_parity() {
+    let home = crate::test_utils::SandboxHome::new();
+    // A redundant component exercises the discovery/string-identity seam on
+    // every OS, including Unix where forward slashes are already native.
+    let fixture_home = home.path().join(".");
+    let path = crate::test_utils::native_fixture_path(
+        &fixture_home,
+        ".codex/sessions/rollout-structured.jsonl",
+    );
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(
+            std::fs::FileTimes::new().set_modified(
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_759_276_800),
+            ),
+        )
+        .unwrap();
+    let sessions = super::multi_provider::load_provider_sessions(
+        "codex".into(),
+        "codex:///fixture".into(),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(sessions.len(), 1);
+    let stats =
+        super::stats::get_session_token_stats(path.to_string_lossy().into(), None, None, None)
+            .await
+            .unwrap();
+    let mut searches = Vec::new();
+    for query in [
+        "same",
+        "result-function",
+        "codex-structured",
+        "Output",
+        "Error",
+    ] {
+        for filters in [
+            json!({}),
+            json!({"hasToolCalls":true}),
+            json!({"hasErrors":false}),
+        ] {
+            let found = crate::providers::codex::search(query, 100, &filters).unwrap();
+            searches.push(json!({"query":query,"filters":filters,"messages":found}));
+        }
+    }
+    let mut observed = json!({"sessions":sessions,"stats":stats,"searches":searches});
+    fn normalize(value: &mut Value, root: &str) {
+        match value {
+            Value::String(s) => {
+                if let Some(suffix) = s.strip_prefix(root) {
+                    *s = format!("$HOME{}", suffix.replace('\\', "/"));
+                }
+            }
+            Value::Array(values) => values.iter_mut().for_each(|v| normalize(v, root)),
+            Value::Object(object) => {
+                if object.get("type").and_then(Value::as_str) == Some("tool_result") {
+                    object.remove("toolUseResult");
+                    object.remove("toolUseResultSource");
+                }
+                for v in object.values_mut() {
+                    normalize(v, root);
+                }
+            }
+            _ => {}
+        }
+    }
+    normalize(&mut observed, &home.path().to_string_lossy());
+    // Only the sandbox root is substituted; file mtime is fixed above.
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/tool-result-metadata-codex-consumers.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        observed, expected,
+        "full discovery, filtered-search and stats responses"
+    );
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn codex_structured_shared_openinterpreter_keeps_legacy_search() {
+    struct InterpreterHome(Option<std::ffi::OsString>);
+    impl Drop for InterpreterHome {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(previous) => std::env::set_var("INTERPRETER_HOME", previous),
+                None => std::env::remove_var("INTERPRETER_HOME"),
+            }
+        }
+    }
+    let home = crate::test_utils::SandboxHome::new();
+    let _env = InterpreterHome(std::env::var_os("INTERPRETER_HOME"));
+    let root = home.path().join(".openinterpreter");
+    let path = crate::test_utils::native_fixture_path(&root, "sessions/rollout-structured.jsonl");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::env::set_var("INTERPRETER_HOME", &root);
+    std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+    for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (7, 2), (99, 2)] {
+        let page = load_provider_messages_paginated(
+            "openinterpreter".into(),
+            path.to_string_lossy().into(),
+            Some(offset),
+            Some(limit),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(page.total_count, 7);
+        assert!(page
+            .messages
+            .iter()
+            .all(|message| message.provider.as_deref() == Some("openinterpreter")));
+        assert_codex_structured_metadata(&serde_json::to_value(page).unwrap());
+    }
+    let found = crate::providers::openinterpreter::search("same", 100).unwrap();
+    assert_eq!(found.len(), 3);
+    assert!(
+        crate::providers::openinterpreter::search("result-function", 100)
+            .unwrap()
+            .is_empty(),
+        "source-only metadata must not create new search matches"
+    );
+}
+
 /// Validate result provenance independently of assistant placement/ID lookup.
 pub(crate) fn assert_source_metadata(page: &Value) {
     let records: Vec<Value> = CLAUDE_FIXTURE
@@ -82,7 +364,7 @@ async fn result_metadata_keeps_ambiguous_payload_once_and_exact_source_across_pa
 #[serial_test::serial]
 async fn result_metadata_does_not_change_codex_normalized_results() {
     let home = crate::test_utils::SandboxHome::new();
-    let path = home.path().join(".codex/sessions/codex.jsonl");
+    let path = crate::test_utils::native_fixture_path(home.path(), ".codex/sessions/codex.jsonl");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, CODEX_FIXTURE).unwrap();
     let page = load_provider_messages_paginated(
