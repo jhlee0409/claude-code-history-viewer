@@ -18,7 +18,8 @@
  * Every card is a ToolRow (TR0, TR1a) whose outcome comes from toolOutcome.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../transcript/resultSearchText";
 import { ResultSearchContext, useResultProvider } from "../transcript/resultProvider";
 import { searchHits } from "./unifiedCards/shared";
 import {
@@ -43,7 +44,8 @@ export type { Props as UnifiedToolExecutionRendererProps };
 export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer(props: Props) {
   const provider = useResultProvider();
   const active = provider !== undefined && provider !== "claude";
-  const hit = active && searchHits(props.searchQuery, JSON.stringify(props.toolUse), JSON.stringify(props.toolResults));
+  const query = props.searchQuery?.trim() ?? "";
+  const hit = useMemo(() => active && query !== "" && searchHits(query, resultSearchText(props.toolUse), resultSearchText(props.toolResults)), [active, query, props.toolUse, props.toolResults]);
   return <ResultSearchContext.Provider value={active ? { searchQuery: props.searchQuery, revealFor: hit ? props.searchQuery : undefined, isCurrentMatch: props.isCurrentMatch, currentMatchIndex: props.currentMatchIndex } : {}}><CardDispatcher {...props} /></ResultSearchContext.Provider>;
 });
 

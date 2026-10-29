@@ -1,4 +1,5 @@
-import { useContext, type ReactNode } from "react";
+import { useContext, useMemo, type ReactNode } from "react";
+import { resultSearchText } from "./resultSearchText";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { DetailZone } from "./DetailZone";
 import { ToolRow } from "./ToolRow";
@@ -11,6 +12,7 @@ interface RecordedResultProps {
   icon: ReactNode;
   record: unknown;
   meta?: ReactNode;
+  target?: ReactNode;
   family?: ToolFamily;
   expandKey: string;
   searchQuery?: string;
@@ -21,18 +23,19 @@ interface RecordedResultProps {
  * Nested bodies already have a result owner; do not repeat its outcome/facts.
  * Category labels describe the record, not a made-up invocation or tool ID.
  */
-export function RecordedResult({ title, icon, record, meta, family = "other", expandKey, searchQuery, children }: RecordedResultProps) {
+export function RecordedResult({ title, icon, record, meta, target, family = "other", expandKey, searchQuery, children }: RecordedResultProps) {
   const ambient = useContext(RendererDefaultsContext);
   const provider = useResultProvider();
   const inherited = useResultSearch();
   const outcome = toolOutcome(null, [{ content: record }], family, provider);
   const query = searchQuery ?? inherited.revealFor;
-  const hit = query?.trim() && JSON.stringify(record)?.toLowerCase().includes(query.toLowerCase());
+  const normalizedQuery = query?.trim().toLowerCase() ?? "";
+  const hit = useMemo(() => normalizedQuery !== "" && resultSearchText(record).toLowerCase().includes(normalizedQuery), [record, normalizedQuery]);
   if (ambient.defaultExpanded) {
     return <div data-result-body="" className="space-y-2">{meta}{children}</div>;
   }
   return (
-    <ToolRow icon={icon} verb={title} outcome={outcome} family={family} expandKey={expandKey} revealFor={hit ? query : undefined}>
+    <ToolRow icon={icon} verb={title} target={target} outcome={outcome} family={family} expandKey={expandKey} revealFor={hit ? query : undefined}>
       <DetailZone kind="result" meta={meta}>{children}</DetailZone>
     </ToolRow>
   );

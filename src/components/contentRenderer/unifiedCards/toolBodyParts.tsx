@@ -80,7 +80,7 @@ export function OtherRecordedFields({
 }) {
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
-  const hit = searchQuery !== undefined && searchHits(searchQuery, JSON.stringify(rest, null, 2));
+  const hit = searchQuery !== undefined && searchQuery.trim() !== "" && searchHits(searchQuery, JSON.stringify(rest, null, 2));
   const highlight = hit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
   return <Leftover ctx={{ input: rest, expandKey, pathCtx, t, searchQuery, highlight }} rest={rest} />;
 }

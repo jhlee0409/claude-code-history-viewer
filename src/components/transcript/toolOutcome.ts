@@ -178,6 +178,14 @@ export function normalizeResult(
   );
 
   if (typeof result.is_error === "boolean") out.isError = result.is_error;
+  // Legacy MCP router records carry an explicit error union. This is not a
+  // generic `error`-key heuristic: other providers keep their opaque schemas.
+  if (legacy && contentObject &&
+    (contentObject.type === "mcp_tool_call" || typeof contentObject.server === "string") &&
+    (typeof contentObject.method === "string" || typeof contentObject.function === "string")) {
+    const error = contentObject.error;
+    if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
+  }
   if (core && own) {
     if (own.status === "completed") out.completed = true;
     if (own.status === "error") out.isError = true;
@@ -653,7 +661,7 @@ export function toolOutcome(
   //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
   const providerError = normalized.some((n) => n.isError === true);
   const textOutrankedByExit = family === "process" && exitCode !== undefined;
-  const errorContent = !textOutrankedByExit && normalized.some((n) => n.errorText !== undefined);
+  const errorContent = !textOutrankedByExit && normalized.some((n) => n.completed !== true && n.errorText !== undefined);
   if (providerError || errorCode !== undefined || errorContent) {
     const reason: OutcomeReason =
       exitCode === 0 || codesDisagree

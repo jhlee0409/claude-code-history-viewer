@@ -18,8 +18,8 @@
  * a search match past the cap opens it.
  *
  * `highlight` (TR1a, the generic JSON body): with a search query, the hits
- * in the text and in the stderr zone are marked (plain text only; ANSI
- * output is not marked).
+ * in the displayed text and stderr are marked. ANSI is stripped only in a
+ * matching zone; a nonmatching zone keeps its recorded colours.
  *
  * Text wraps by default. `wrap={false}` keeps each recorded line on one
  * visual line and lets the well scroll sideways, for output whose lines are
@@ -94,7 +94,7 @@ function Zone({ id, text, wrap, className, mark = null }: { id: string; text: st
       tabIndex={wrap ? undefined : 0}
       className={cn("m-0 overflow-x-auto font-mono text-code", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre", className)}
     >
-      {mark ? (
+      {mark && stripAnsiCodes(text).toLowerCase().includes(mark.searchQuery.trim().toLowerCase()) ? (
         <HighlightedText text={stripAnsiCodes(text)} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
       ) : hasAnsiCodes(text) ? (
         <AnsiText text={text} />
@@ -131,7 +131,7 @@ export function OutputBlock({
   const total = mainLines.length + errLines.length;
   const overCap = mainLines.length > lineCap || errLines.length > lineCap;
   const query = searchQuery?.trim().toLowerCase() ?? "";
-  const searchHit = query !== "" && `${main}\n${stderr}`.toLowerCase().includes(query);
+  const searchHit = query !== "" && [main, stderr].some(text => stripAnsiCodes(text).toLowerCase().includes(query));
   // A search hit past the cap opens the whole block once; the toggle then says
   // so and still collapses it (review round 6); a new matching query reveals
   // again (review round 7).

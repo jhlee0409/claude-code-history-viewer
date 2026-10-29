@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
 import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
@@ -42,8 +43,9 @@ export const DefaultCard = memo(function DefaultCard({
   const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
-  const inputHit = searchHits(searchQuery, JSON.stringify(input, null, 2));
-  const resultHit = searchHits(searchQuery, JSON.stringify(toolResults));
+  const query = searchQuery.trim();
+  const inputHit = useMemo(() => query !== "" && searchHits(query, JSON.stringify(toolUse.input ?? {}, null, 2)), [query, toolUse.input]);
+  const resultHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolResults)), [query, toolResults]);
   const idHit = searchHits(searchQuery, toolId);
   const highlight: TextHighlight | undefined = inputHit || idHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
   const routed = routedBody(name, { input, expandKey, pathCtx, t, searchQuery, highlight: inputHit ? highlight : undefined });

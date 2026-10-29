@@ -111,13 +111,16 @@ const TaskRow = memo(function TaskRow({
   const statusColor = statusInfo?.color ?? "text-muted-foreground";
   const hasDescription = task.isCreate && !!task.description;
   const [expanded, setExpanded] = useCaptureExpandState(`task-item-${task.id}`, false);
+  const Head = hasDescription ? Button : "div";
 
   return (
     <div className="border-b border-border/50 last:border-b-0">
-      <Button aria-expanded={expanded} aria-controls={expandedContentId} variant="ghost" size="sm"
-        type="button"
-        onClick={hasDescription ? () => setExpanded(prev => !prev) : undefined}
-        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse") : t("taskOperation.expand")) : undefined}
+      <Head {...(hasDescription ? {
+        "aria-expanded": expanded, "aria-controls": expandedContentId,
+        variant: "ghost" as const, size: "sm" as const, type: "button" as const,
+        onClick: () => setExpanded(prev => !prev),
+        "aria-label": expanded ? t("taskOperation.collapse") : t("taskOperation.expand"),
+      } : {})}
         className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           hasDescription && "hover:bg-muted/50 transition-colors",
@@ -148,15 +151,15 @@ const TaskRow = memo(function TaskRow({
             task.status === "in_progress" && "animate-spin"
           )}
         />
-      </Button>
+      </Head>
 
-      <div id={expandedContentId} hidden={!expanded}>{expanded && task.description && (
+      {hasDescription && <div id={expandedContentId} hidden={!expanded}>{expanded && task.description && (
         <div className={cn("px-4 pb-2", layout.smallText)}>
           <span className={cn("text-foreground/70", layout.bodyText)}>
             {task.description}
           </span>
         </div>
-      )}</div>
+      )}</div>}
     </div>
   );
 });

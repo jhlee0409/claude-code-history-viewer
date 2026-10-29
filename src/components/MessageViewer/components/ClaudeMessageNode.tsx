@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../store/useAppStore";
 import { cn } from "@/lib/utils";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
+import { ResultProviderContext, useResultProvider } from "@/components/transcript/resultProvider";
 import type { ProgressData } from "../../../types";
 import { ClaudeContentArrayRenderer } from "../../contentRenderer";
 import {
@@ -69,6 +70,7 @@ export const ClaudeMessageNode = React.memo(
     hideHeader = false,
   }: MessageNodeProps) => {
     const { t } = useTranslation();
+    const inheritedProvider = useResultProvider();
     const messageFilter = useAppStore((s) => s.messageFilter);
     const subagentSessions = useAppStore((s) => s.subagentSessions);
     const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
@@ -408,6 +410,7 @@ export const ClaudeMessageNode = React.memo(
 
     // Default message rendering
     return (
+      <ResultProviderContext.Provider value={message.provider ?? inheritedProvider}>
       <ExpandKeyProvider value={message.uuid}>
         <div
           data-message-uuid={message.uuid}
@@ -504,6 +507,7 @@ export const ClaudeMessageNode = React.memo(
           </div>
         </div>
       </ExpandKeyProvider>
+      </ResultProviderContext.Provider>
     );
   },
 );

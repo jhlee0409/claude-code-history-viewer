@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { Button } from "@/components/ui/button";
 
 import { FileText, ChevronRight } from "lucide-react";
@@ -33,6 +33,12 @@ export const CodebaseContextRenderer = ({
     contextData.relevant_files || contextData.relevantFiles || [];
 
   const [showFiles, setShowFiles] = useCaptureExpandState("codebase-files", false);
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const matchingIndex = query !== "" && Array.isArray(relevantFiles) ? relevantFiles.findIndex(file => String(file).toLowerCase().includes(query)) : -1;
+  useEffect(() => {
+    if (matchingIndex >= 0) setShowFiles(true);
+  }, [matchingIndex, query, setShowFiles]);
+  const visibleFiles = Array.isArray(relevantFiles) ? (matchingIndex >= 10 ? relevantFiles : relevantFiles.slice(0, 10)) : [];
 
   return (
     <RecordedResult title={t('codebaseContextRenderer.codebaseContext')}
@@ -68,7 +74,7 @@ export const CodebaseContextRenderer = ({
             </Button>
             <div id={showFilesContentId} hidden={!showFiles}>{showFiles && (
               <div className="mt-2 space-y-1">
-                {relevantFiles.slice(0, 10).map((file, idx) => (
+                {visibleFiles.map((file, idx) => (
                   <div
                     key={idx}
                     className={`${layout.smallText} font-mono px-2 py-1 rounded bg-accent/20 text-accent`}
@@ -85,9 +91,9 @@ export const CodebaseContextRenderer = ({
                     )}
                   </div>
                 ))}
-                {relevantFiles.length > 10 && (
+                {relevantFiles.length > visibleFiles.length && (
                   <div className={`${layout.smallText} italic text-muted-foreground`}>
-                    {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - 10 })}
+                    {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - visibleFiles.length })}
                   </div>
                 )}
               </div>

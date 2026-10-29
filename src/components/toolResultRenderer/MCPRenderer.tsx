@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Globe, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { RecordedResult } from "@/components/transcript/RecordedResult";
+import { CodeTarget, TargetWell } from "@/components/transcript/ToolRow";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { HighlightedText } from "../common/HighlightedText";
 import { safeStringify } from "@/utils/jsonUtils";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
+import { OutputBlock } from "@/components/transcript/OutputBlock";
 
 type Props = {
   mcpData: Record<string, unknown>;
@@ -29,10 +31,16 @@ export const MCPRenderer = ({
   const showResultContentId = useId();
   const { t } = useTranslation();
   const server = mcpData.server || "unknown";
-  const method = mcpData.method || "unknown";
-  const params = mcpData.params || {};
-  const result = mcpData.result || {};
+  const method = mcpData.method || mcpData.function || "unknown";
+  const params = Object.hasOwn(mcpData, "params") ? mcpData.params : {};
+  const result = Object.hasOwn(mcpData, "result") ? mcpData.result : {};
   const error = mcpData.error;
+  // Keep false/null/zero/empty error values and every unrendered field as data.
+  // A result beside an error is independent content, not consumed by that error.
+  const rest = Object.fromEntries(Object.entries(mcpData).filter(([key]) =>
+    !["type", "server", "method", "function", "params"].includes(key) &&
+    !(key === "result" && !error) && !(key === "error" && !!error)));
+  const errorText = typeof error === "string" ? error : safeStringify(error, 2);
 
   // Build a stable unique suffix from MCP data (server.method or function name)
   const mcpId = `${String(server)}.${String(method)}`;
@@ -43,11 +51,13 @@ export const MCPRenderer = ({
   return (
     <RecordedResult title={t('mcpRenderer.mcpToolCall')}
         icon={<Globe className="w-4 h-4" />}
+        target={<CodeTarget text={mcpId} highlight={searchQuery?.trim() ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined} />}
         meta={
           <div className={`${layout.smallText} text-tool-mcp`}>
             {String(server)}.{String(method)}
           </div>
         } record={mcpData} expandKey={`mcp-renderer-${mcpId}`} searchQuery={searchQuery}>
+        <TargetWell text={mcpId} highlight={searchQuery?.trim() ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined} />
         <div className="space-y-2">
           {/* 매개변수 */}
           <div>
@@ -76,13 +86,13 @@ export const MCPRenderer = ({
               <div className={`${layout.bodyText} text-destructive`}>
                 {searchQuery ? (
                   <HighlightedText
-                    text={String(error)}
+                    text={errorText}
                     searchQuery={searchQuery}
                     isCurrentMatch={isCurrentMatch}
                     currentMatchIndex={currentMatchIndex}
                   />
                 ) : (
-                  String(error)
+                  errorText
                 )}
               </div>
             </div>
@@ -105,6 +115,7 @@ export const MCPRenderer = ({
             </div>
           )}
         </div>
+        {Object.keys(rest).length > 0 && <OutputBlock text={safeStringify(rest, 2)} source="file" expandKey={`mcp-${mcpId}-recorded`} searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />}
       </RecordedResult>
   );
 };

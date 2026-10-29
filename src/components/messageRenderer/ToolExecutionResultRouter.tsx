@@ -155,11 +155,7 @@ export const ToolExecutionResultRouter: React.FC<
   ) {
     return (
       <TerminalStreamRenderer
-        command={toolResult.command as string}
-        stream={toolResult.stream as string}
-        output={toolResult.output as string}
-        timestamp={toolResult.timestamp as string}
-        exitCode={toolResult.exitCode as number}
+        record={toolResult}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
         currentMatchIndex={currentMatchIndex}
