@@ -23,7 +23,7 @@ export const StructuredPatchRenderer = ({ toolResult }: { toolResult: Record<str
     target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}>
     <div className="flex min-h-row-list flex-wrap items-center justify-between gap-2 text-caption text-fg-3">
       <span>{t("structuredPatch.areasChanged", { count: sections.length })}</span>
-      {sections.length > 0 && <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: sections.map(section => section.newText).join("\n") }]} />}
+      {sections.length > 0 && <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: sections.map(section => section.copyText ?? section.newText).join("\n") }]} />}
     </div>
     {sections.length > 0 && <DiffComparisonBody mode={mode} sections={sections} filePath={filePath} expandKey="structured-patch" />}
     {content && <FileContent title={t("structuredPatch.updatedFileContent")} fileData={{ content, filePath, numLines: content.split("\n").length, startLine: 1, totalLines: content.split("\n").length }} />}

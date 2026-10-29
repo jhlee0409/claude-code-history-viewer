@@ -47,6 +47,8 @@ export interface DiffSection {
   oldStart?: number;
   newStart?: number;
   lines?: DiffLine[];
+  /** Legacy reconstructed after-copy payload, including recorded patch metadata. */
+  copyText?: string;
 }
 
 export interface DiffViewProps {
