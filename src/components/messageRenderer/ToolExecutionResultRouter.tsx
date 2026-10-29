@@ -305,6 +305,13 @@ export const ToolExecutionResultRouter: React.FC<
     return <StructuredPatchRenderer toolResult={toolResult} />;
   }
 
+  // A bare content wrapper can use the text/history renderer below. An opaque
+  // wrapper with sibling fields must stay whole: unwrapping only `content`
+  // silently loses recorded false/null/zero values (e.g. Forgecode results).
+  if (typeof toolResult.content === "string" && Object.keys(toolResult).some(key => key !== "content") && !toolResult.stdout && !toolResult.stderr) {
+    return <FallbackRenderer toolResult={toolResult} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
+  }
+
   // Handle direct content that might be JSONL Claude session history
   if (
     toolResult.content &&

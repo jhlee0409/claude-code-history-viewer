@@ -5014,5 +5014,3734 @@
       "next_offset": 1,
       "total_count": 1
     }
+  },
+  "copilot": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "ls",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "copilot",
+        "role": "user",
+        "sessionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "timestamp": "2026-01-01T00:00:01.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "copilot-cli-user-1"
+      },
+      {
+        "content": [
+          {
+            "text": "running ls",
+            "type": "text"
+          },
+          {
+            "id": "tool-1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "file1\nfile2",
+            "tool_use_id": "tool-1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "messageId": "asst-1",
+        "parentUuid": null,
+        "provider": "copilot",
+        "role": "assistant",
+        "sessionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "timestamp": "2026-01-01T00:00:02.000Z",
+        "toolUse": {
+          "id": "tool-1",
+          "input": {
+            "command": "ls"
+          },
+          "name": "bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": null,
+          "input_tokens": null,
+          "output_tokens": 42,
+          "service_tier": null
+        },
+        "uuid": "copilot-cli-assistant-2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "ls",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "copilot",
+          "role": "user",
+          "sessionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "timestamp": "2026-01-01T00:00:01.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "copilot-cli-user-1"
+        },
+        {
+          "content": [
+            {
+              "text": "running ls",
+              "type": "text"
+            },
+            {
+              "id": "tool-1",
+              "input": {
+                "command": "ls"
+              },
+              "name": "bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "file1\nfile2",
+              "tool_use_id": "tool-1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "messageId": "asst-1",
+          "parentUuid": null,
+          "provider": "copilot",
+          "role": "assistant",
+          "sessionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "timestamp": "2026-01-01T00:00:02.000Z",
+          "toolUse": {
+            "id": "tool-1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "bash",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": null,
+            "output_tokens": 42,
+            "service_tier": null
+          },
+          "uuid": "copilot-cli-assistant-2"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "cline": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Hello from Cline",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cline",
+        "role": "assistant",
+        "sessionId": "1700000000000",
+        "timestamp": "2023-11-14T22:13:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "cline-1"
+      },
+      {
+        "content": [
+          {
+            "id": "cline_tool_cline-2",
+            "input": {
+              "path": "/test.txt"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          },
+          {
+            "content": "file contents",
+            "tool_use_id": "cline_tool_cline-2",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cline",
+        "role": "assistant",
+        "sessionId": "1700000000000",
+        "timestamp": "2023-11-14T22:13:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "cline-2"
+      },
+      {
+        "content": [
+          {
+            "id": "cline_cmd_cline-3",
+            "input": {
+              "command": "npm test"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cline",
+        "role": "assistant",
+        "sessionId": "1700000000000",
+        "timestamp": "2023-11-14T22:13:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "cline-3"
+      },
+      {
+        "content": [
+          {
+            "thinking": "thinking about this...",
+            "type": "thinking"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cline",
+        "role": "assistant",
+        "sessionId": "1700000000000",
+        "timestamp": "2023-11-14T22:13:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "cline-4"
+      },
+      {
+        "content": [
+          {
+            "text": "Something went wrong",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "level": "error",
+        "parentUuid": null,
+        "provider": "cline",
+        "sessionId": "1700000000000",
+        "subtype": "error",
+        "timestamp": "2023-11-14T22:13:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "cline-5"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello from Cline",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cline",
+          "role": "assistant",
+          "sessionId": "1700000000000",
+          "timestamp": "2023-11-14T22:13:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "cline-1"
+        },
+        {
+          "content": [
+            {
+              "id": "cline_tool_cline-2",
+              "input": {
+                "path": "/test.txt"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            },
+            {
+              "content": "file contents",
+              "tool_use_id": "cline_tool_cline-2",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cline",
+          "role": "assistant",
+          "sessionId": "1700000000000",
+          "timestamp": "2023-11-14T22:13:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "cline-2"
+        },
+        {
+          "content": [
+            {
+              "id": "cline_cmd_cline-3",
+              "input": {
+                "command": "npm test"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cline",
+          "role": "assistant",
+          "sessionId": "1700000000000",
+          "timestamp": "2023-11-14T22:13:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "cline-3"
+        },
+        {
+          "content": [
+            {
+              "thinking": "thinking about this...",
+              "type": "thinking"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cline",
+          "role": "assistant",
+          "sessionId": "1700000000000",
+          "timestamp": "2023-11-14T22:13:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "cline-4"
+        },
+        {
+          "content": [
+            {
+              "text": "Something went wrong",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "level": "error",
+          "parentUuid": null,
+          "provider": "cline",
+          "sessionId": "1700000000000",
+          "subtype": "error",
+          "timestamp": "2023-11-14T22:13:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "cline-5"
+        }
+      ],
+      "next_offset": 5,
+      "total_count": 5
+    }
+  },
+  "continue": {
+    "load_provider_messages": [
+      {
+        "content": "why does LOGIN fail?",
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "continue",
+        "role": "user",
+        "sessionId": "sess-a",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "sess-a-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking ZmagicToken",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "continue",
+        "role": "assistant",
+        "sessionId": "sess-a",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "sess-a-1"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": "why does LOGIN fail?",
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "continue",
+          "role": "user",
+          "sessionId": "sess-a",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "sess-a-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking ZmagicToken",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "continue",
+          "role": "assistant",
+          "sessionId": "sess-a",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "sess-a-1"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "pearai": {
+    "load_provider_messages": [
+      {
+        "content": "why does LOGIN fail?",
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "pearai",
+        "role": "user",
+        "sessionId": "sess-a",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "sess-a-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking ZmagicToken",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "pearai",
+        "role": "assistant",
+        "sessionId": "sess-a",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "sess-a-1"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": "why does LOGIN fail?",
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "pearai",
+          "role": "user",
+          "sessionId": "sess-a",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "sess-a-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking ZmagicToken",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "pearai",
+          "role": "assistant",
+          "sessionId": "sess-a",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "sess-a-1"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "codebuddy": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "id": "toolu_abc",
+            "input": {
+              "command": "ls -la",
+              "description": "list files"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "file1.txt\nfile2.txt\n",
+            "tool_use_id": "toolu_abc",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codebuddy",
+        "role": "assistant",
+        "sessionId": "",
+        "timestamp": "2026-05-26T08:51:30.404+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "fc-1"
+      },
+      {
+        "content": [
+          {
+            "content": "command not found",
+            "is_error": true,
+            "tool_use_id": "toolu_y",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codebuddy",
+        "role": "user",
+        "sessionId": "",
+        "timestamp": "2026-10-29T13:36:11.398384+00:00",
+        "toolUse": null,
+        "toolUseResult": {
+          "content": "command not found",
+          "is_error": true,
+          "tool_use_id": "toolu_y",
+          "type": "tool_result"
+        },
+        "type": "user",
+        "uuid": "codebuddy-fcr-3"
+      },
+      {
+        "content": [
+          {
+            "text": "system reminder",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codebuddy",
+        "role": "system",
+        "sessionId": "session-1",
+        "timestamp": "2026-05-26T08:51:30.404+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "msg-sys-1"
+      },
+      {
+        "content": [
+          {
+            "text": "hi",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codebuddy",
+        "role": "assistant",
+        "sessionId": "session-1",
+        "timestamp": "2026-05-26T08:51:30.404+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "msg-a-1"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "id": "toolu_abc",
+              "input": {
+                "command": "ls -la",
+                "description": "list files"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "file1.txt\nfile2.txt\n",
+              "tool_use_id": "toolu_abc",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "codebuddy",
+          "role": "assistant",
+          "sessionId": "",
+          "timestamp": "2026-05-26T08:51:30.404+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "fc-1"
+        },
+        {
+          "content": [
+            {
+              "content": "command not found",
+              "is_error": true,
+              "tool_use_id": "toolu_y",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "codebuddy",
+          "role": "user",
+          "sessionId": "",
+          "timestamp": "2026-10-29T13:36:11.399743+00:00",
+          "toolUse": null,
+          "toolUseResult": {
+            "content": "command not found",
+            "is_error": true,
+            "tool_use_id": "toolu_y",
+            "type": "tool_result"
+          },
+          "type": "user",
+          "uuid": "codebuddy-fcr-3"
+        },
+        {
+          "content": [
+            {
+              "text": "system reminder",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "codebuddy",
+          "role": "system",
+          "sessionId": "session-1",
+          "timestamp": "2026-05-26T08:51:30.404+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "msg-sys-1"
+        },
+        {
+          "content": [
+            {
+              "text": "hi",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "codebuddy",
+          "role": "assistant",
+          "sessionId": "session-1",
+          "timestamp": "2026-05-26T08:51:30.404+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "msg-a-1"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "qwen": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "qwen",
+        "role": "user",
+        "sessionId": "sess-1",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "u1"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "let me reason",
+            "type": "thinking"
+          },
+          {
+            "text": "Checking auth",
+            "type": "text"
+          },
+          {
+            "id": "c1",
+            "input": {
+              "command": "grep -r login"
+            },
+            "name": "run_shell_command",
+            "type": "tool_use"
+          },
+          {
+            "content": "login.rs:42",
+            "tool_use_id": "c1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "qwen3-coder-plus",
+        "parentUuid": "u1",
+        "provider": "qwen",
+        "role": "assistant",
+        "sessionId": "sess-1",
+        "timestamp": "2026-06-20T10:00:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 5,
+          "input_tokens": 7,
+          "output_tokens": 34,
+          "service_tier": null
+        },
+        "uuid": "u2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "qwen",
+          "role": "user",
+          "sessionId": "sess-1",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "u1"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "let me reason",
+              "type": "thinking"
+            },
+            {
+              "text": "Checking auth",
+              "type": "text"
+            },
+            {
+              "id": "c1",
+              "input": {
+                "command": "grep -r login"
+              },
+              "name": "run_shell_command",
+              "type": "tool_use"
+            },
+            {
+              "content": "login.rs:42",
+              "tool_use_id": "c1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "qwen3-coder-plus",
+          "parentUuid": "u1",
+          "provider": "qwen",
+          "role": "assistant",
+          "sessionId": "sess-1",
+          "timestamp": "2026-06-20T10:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 5,
+            "input_tokens": 7,
+            "output_tokens": 34,
+            "service_tier": null
+          },
+          "uuid": "u2"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "cursor-agent": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "fix the LOGIN bug",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor-agent",
+        "role": "user",
+        "sessionId": "uuid-1",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "uuid-1-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Looking into ZmagicToken now",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor-agent",
+        "role": "assistant",
+        "sessionId": "uuid-1",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "uuid-1-1"
+      },
+      {
+        "content": [
+          {
+            "text": "file contents here\n[shell]\n$ cargo build\nCompiling foo v0.1.0",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor-agent",
+        "role": "assistant",
+        "sessionId": "uuid-1",
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "uuid-1-2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "fix the LOGIN bug",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor-agent",
+          "role": "user",
+          "sessionId": "uuid-1",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "uuid-1-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Looking into ZmagicToken now",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor-agent",
+          "role": "assistant",
+          "sessionId": "uuid-1",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "uuid-1-1"
+        },
+        {
+          "content": [
+            {
+              "text": "file contents here\n[shell]\n$ cargo build\nCompiling foo v0.1.0",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor-agent",
+          "role": "assistant",
+          "sessionId": "uuid-1",
+          "timestamp": "2026-06-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "uuid-1-2"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 3
+    }
+  },
+  "gemini": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Hello world",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "gemini",
+        "role": "user",
+        "sessionId": "s-jsonl",
+        "timestamp": "2026-03-24T12:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "user-1"
+      },
+      {
+        "content": [
+          {
+            "text": "Let me check that.",
+            "type": "text"
+          },
+          {
+            "id": "tool-1",
+            "input": {
+              "file_path": "/test.txt"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          },
+          {
+            "content": "file content here",
+            "is_error": false,
+            "tool_use_id": "tool-1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "gemini-3-flash-preview",
+        "parentUuid": null,
+        "provider": "gemini",
+        "role": "assistant",
+        "sessionId": "s-jsonl",
+        "timestamp": "2026-03-24T12:00:02Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "service_tier": null
+        },
+        "uuid": "gemini-2"
+      },
+      {
+        "content": [
+          {
+            "thinking": "**Planning**\nI need to read the file first",
+            "type": "thinking"
+          },
+          {
+            "text": "Done.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "gemini",
+        "role": "assistant",
+        "sessionId": "s-jsonl",
+        "timestamp": "2026-03-24T12:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "service_tier": null
+        },
+        "uuid": "gemini-3"
+      },
+      {
+        "content": [
+          {
+            "id": "tool-err",
+            "input": {
+              "command": "exit 1"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "command failed",
+            "is_error": true,
+            "tool_use_id": "tool-err",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "gemini",
+        "role": "assistant",
+        "sessionId": "s-jsonl",
+        "timestamp": "2026-03-24T12:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "service_tier": null
+        },
+        "uuid": "gemini-err"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello world",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "gemini",
+          "role": "user",
+          "sessionId": "s-jsonl",
+          "timestamp": "2026-03-24T12:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "user-1"
+        },
+        {
+          "content": [
+            {
+              "text": "Let me check that.",
+              "type": "text"
+            },
+            {
+              "id": "tool-1",
+              "input": {
+                "file_path": "/test.txt"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            },
+            {
+              "content": "file content here",
+              "is_error": false,
+              "tool_use_id": "tool-1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "gemini-3-flash-preview",
+          "parentUuid": null,
+          "provider": "gemini",
+          "role": "assistant",
+          "sessionId": "s-jsonl",
+          "timestamp": "2026-03-24T12:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "service_tier": null
+          },
+          "uuid": "gemini-2"
+        },
+        {
+          "content": [
+            {
+              "thinking": "**Planning**\nI need to read the file first",
+              "type": "thinking"
+            },
+            {
+              "text": "Done.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "gemini",
+          "role": "assistant",
+          "sessionId": "s-jsonl",
+          "timestamp": "2026-03-24T12:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "service_tier": null
+          },
+          "uuid": "gemini-3"
+        },
+        {
+          "content": [
+            {
+              "id": "tool-err",
+              "input": {
+                "command": "exit 1"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "command failed",
+              "is_error": true,
+              "tool_use_id": "tool-err",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "gemini",
+          "role": "assistant",
+          "sessionId": "s-jsonl",
+          "timestamp": "2026-03-24T12:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "service_tier": null
+          },
+          "uuid": "gemini-err"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "kimi": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Add a Kimi provider",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kimi",
+        "role": "user",
+        "sessionId": "session-1",
+        "timestamp": "2026-02-02T02:40:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "session-1-1"
+      },
+      {
+        "content": [
+          {
+            "thinking": "I should inspect the provider registry first.",
+            "type": "thinking"
+          },
+          {
+            "text": "I will inspect the provider registry.",
+            "type": "text"
+          },
+          {
+            "id": "tool_1",
+            "input": {
+              "command": "rg provider"
+            },
+            "name": "Shell",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kimi",
+        "role": "assistant",
+        "sessionId": "session-1",
+        "timestamp": "2026-02-02T02:40:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "session-1-2"
+      },
+      {
+        "content": [
+          {
+            "content": "src-tauri/src/providers/mod.rs",
+            "tool_use_id": "tool_1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kimi",
+        "role": "tool",
+        "sessionId": "session-1",
+        "timestamp": "2026-02-02T02:40:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "tool",
+        "uuid": "session-1-3"
+      },
+      {
+        "content": [
+          {
+            "text": "The provider registry is in Rust.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kimi",
+        "role": "assistant",
+        "sessionId": "session-1",
+        "timestamp": "2026-02-02T02:40:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "session-1-4"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Add a Kimi provider",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kimi",
+          "role": "user",
+          "sessionId": "session-1",
+          "timestamp": "2026-02-02T02:40:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "session-1-1"
+        },
+        {
+          "content": [
+            {
+              "thinking": "I should inspect the provider registry first.",
+              "type": "thinking"
+            },
+            {
+              "text": "I will inspect the provider registry.",
+              "type": "text"
+            },
+            {
+              "id": "tool_1",
+              "input": {
+                "command": "rg provider"
+              },
+              "name": "Shell",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kimi",
+          "role": "assistant",
+          "sessionId": "session-1",
+          "timestamp": "2026-02-02T02:40:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "session-1-2"
+        },
+        {
+          "content": [
+            {
+              "content": "src-tauri/src/providers/mod.rs",
+              "tool_use_id": "tool_1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kimi",
+          "role": "tool",
+          "sessionId": "session-1",
+          "timestamp": "2026-02-02T02:40:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "tool",
+          "uuid": "session-1-3"
+        },
+        {
+          "content": [
+            {
+              "text": "The provider registry is in Rust.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kimi",
+          "role": "assistant",
+          "sessionId": "session-1",
+          "timestamp": "2026-02-02T02:40:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "session-1-4"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "grok": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "You are Grok.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "system",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T20:47:50Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-1"
+      },
+      {
+        "content": [
+          {
+            "text": "Hello grok",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "user",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T20:47:50Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-2"
+      },
+      {
+        "content": [
+          {
+            "thinking": "Thinking about hello",
+            "type": "thinking"
+          }
+        ],
+        "isSidechain": null,
+        "model": "grok-4.5",
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "assistant",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T20:47:50Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "rs_1"
+      },
+      {
+        "content": [
+          {
+            "text": "Hi there",
+            "type": "text"
+          },
+          {
+            "id": "call-1",
+            "input": {
+              "target_file": "/tmp/a.txt"
+            },
+            "name": "read_file",
+            "type": "tool_use"
+          },
+          {
+            "content": "file contents",
+            "tool_use_id": "call-1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "grok-4.5",
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "assistant",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T20:47:50Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-4"
+      },
+      {
+        "content": [
+          {
+            "id": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-6",
+            "input": {
+              "query": "rust",
+              "type": "search"
+            },
+            "name": "web_search",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "assistant",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T20:47:50Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-6"
+      },
+      {
+        "content": [
+          {
+            "text": "Final answer",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "grok-4.5",
+        "parentUuid": null,
+        "provider": "grok",
+        "role": "assistant",
+        "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+        "timestamp": "2026-07-27T21:11:25Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": null,
+          "input_tokens": 12345,
+          "output_tokens": null,
+          "service_tier": null
+        },
+        "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-7"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "You are Grok.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "system",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T20:47:50Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-1"
+        },
+        {
+          "content": [
+            {
+              "text": "Hello grok",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "user",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T20:47:50Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-2"
+        },
+        {
+          "content": [
+            {
+              "thinking": "Thinking about hello",
+              "type": "thinking"
+            }
+          ],
+          "isSidechain": null,
+          "model": "grok-4.5",
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "assistant",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T20:47:50Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "rs_1"
+        },
+        {
+          "content": [
+            {
+              "text": "Hi there",
+              "type": "text"
+            },
+            {
+              "id": "call-1",
+              "input": {
+                "target_file": "/tmp/a.txt"
+              },
+              "name": "read_file",
+              "type": "tool_use"
+            },
+            {
+              "content": "file contents",
+              "tool_use_id": "call-1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "grok-4.5",
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "assistant",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T20:47:50Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-4"
+        },
+        {
+          "content": [
+            {
+              "id": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-6",
+              "input": {
+                "query": "rust",
+                "type": "search"
+              },
+              "name": "web_search",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "assistant",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T20:47:50Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-6"
+        },
+        {
+          "content": [
+            {
+              "text": "Final answer",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "model": "grok-4.5",
+          "parentUuid": null,
+          "provider": "grok",
+          "role": "assistant",
+          "sessionId": "019fa555-791c-71e2-8c92-ff2e6fa26d6e",
+          "timestamp": "2026-07-27T21:11:25Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 12345,
+            "output_tokens": null,
+            "service_tier": null
+          },
+          "uuid": "019fa555-791c-71e2-8c92-ff2e6fa26d6e-7"
+        }
+      ],
+      "next_offset": 6,
+      "total_count": 6
+    }
+  },
+  "vibe": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Add Mistral Vibe support",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "vibe",
+        "role": "user",
+        "sessionId": "full-session-id-abc123",
+        "timestamp": "2026-02-02T12:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "msg-1"
+      },
+      {
+        "content": [
+          {
+            "thinking": "Need to mirror Kimi parsing.",
+            "type": "thinking"
+          },
+          {
+            "text": "I'll inspect the provider registry.",
+            "type": "text"
+          },
+          {
+            "id": "call-1",
+            "input": {
+              "path": "providers/mod.rs"
+            },
+            "name": "read_file",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "vibe",
+        "role": "assistant",
+        "sessionId": "full-session-id-abc123",
+        "timestamp": "2026-02-02T12:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "msg-2"
+      },
+      {
+        "content": [
+          {
+            "content": "mod kimi;",
+            "tool_use_id": "call-1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "vibe",
+        "role": "tool",
+        "sessionId": "full-session-id-abc123",
+        "timestamp": "2026-02-02T12:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "tool",
+        "uuid": "msg-3"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Add Mistral Vibe support",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "vibe",
+          "role": "user",
+          "sessionId": "full-session-id-abc123",
+          "timestamp": "2026-02-02T12:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "msg-1"
+        },
+        {
+          "content": [
+            {
+              "thinking": "Need to mirror Kimi parsing.",
+              "type": "thinking"
+            },
+            {
+              "text": "I'll inspect the provider registry.",
+              "type": "text"
+            },
+            {
+              "id": "call-1",
+              "input": {
+                "path": "providers/mod.rs"
+              },
+              "name": "read_file",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "vibe",
+          "role": "assistant",
+          "sessionId": "full-session-id-abc123",
+          "timestamp": "2026-02-02T12:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "msg-2"
+        },
+        {
+          "content": [
+            {
+              "content": "mod kimi;",
+              "tool_use_id": "call-1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "vibe",
+          "role": "tool",
+          "sessionId": "full-session-id-abc123",
+          "timestamp": "2026-02-02T12:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "tool",
+          "uuid": "msg-3"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 3
+    }
+  },
+  "antigravity": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Fix the parser",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "antigravity",
+        "role": "user",
+        "sessionId": "conv-aaa",
+        "timestamp": "2026-06-21T10:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "conv-aaa-step-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Here is my plan",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "antigravity",
+        "role": "assistant",
+        "sessionId": "conv-aaa",
+        "timestamp": "2026-06-21T10:00:05+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "conv-aaa-step-3"
+      },
+      {
+        "content": [
+          {
+            "id": "conv-aaa-step-4-tool",
+            "input": {},
+            "name": "SEARCH_WEB",
+            "type": "tool_use"
+          },
+          {
+            "text": "searched the docs",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "antigravity",
+        "role": "assistant",
+        "sessionId": "conv-aaa",
+        "timestamp": "2026-06-21T10:00:10+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "conv-aaa-step-4"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Fix the parser",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "antigravity",
+          "role": "user",
+          "sessionId": "conv-aaa",
+          "timestamp": "2026-06-21T10:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "conv-aaa-step-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Here is my plan",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "antigravity",
+          "role": "assistant",
+          "sessionId": "conv-aaa",
+          "timestamp": "2026-06-21T10:00:05+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "conv-aaa-step-3"
+        },
+        {
+          "content": [
+            {
+              "id": "conv-aaa-step-4-tool",
+              "input": {},
+              "name": "SEARCH_WEB",
+              "type": "tool_use"
+            },
+            {
+              "text": "searched the docs",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "antigravity",
+          "role": "assistant",
+          "sessionId": "conv-aaa",
+          "timestamp": "2026-06-21T10:00:10+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "conv-aaa-step-4"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 3
+    }
+  },
+  "aider": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "What does this function do?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "role": "user",
+        "sessionId": "aider-session-0",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "aider-1"
+      },
+      {
+        "content": [
+          {
+            "text": "This function calculates the Fibonacci sequence using memoization.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "role": "assistant",
+        "sessionId": "aider-session-0",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "aider-2"
+      },
+      {
+        "content": [
+          {
+            "text": "Tokens: 1,234 sent, 567 received.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "sessionId": "aider-session-0",
+        "subtype": "tool_output",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "aider-3"
+      },
+      {
+        "content": [
+          {
+            "text": "Fix the bug in line 42",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "role": "user",
+        "sessionId": "aider-session-0",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "aider-4"
+      },
+      {
+        "content": [
+          {
+            "text": "I'll fix that bug. Here's the corrected code:\n\n```python\ndef fix():\n    pass\n```",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "role": "assistant",
+        "sessionId": "aider-session-0",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "aider-5"
+      },
+      {
+        "content": [
+          {
+            "text": "Applied edit to src/main.py",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "aider",
+        "sessionId": "aider-session-0",
+        "subtype": "tool_output",
+        "timestamp": "2025-03-26T14:32:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "aider-6"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What does this function do?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "role": "user",
+          "sessionId": "aider-session-0",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "aider-1"
+        },
+        {
+          "content": [
+            {
+              "text": "This function calculates the Fibonacci sequence using memoization.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "role": "assistant",
+          "sessionId": "aider-session-0",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "aider-2"
+        },
+        {
+          "content": [
+            {
+              "text": "Tokens: 1,234 sent, 567 received.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "sessionId": "aider-session-0",
+          "subtype": "tool_output",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "aider-3"
+        },
+        {
+          "content": [
+            {
+              "text": "Fix the bug in line 42",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "role": "user",
+          "sessionId": "aider-session-0",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "aider-4"
+        },
+        {
+          "content": [
+            {
+              "text": "I'll fix that bug. Here's the corrected code:\n\n```python\ndef fix():\n    pass\n```",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "role": "assistant",
+          "sessionId": "aider-session-0",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "aider-5"
+        },
+        {
+          "content": [
+            {
+              "text": "Applied edit to src/main.py",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "aider",
+          "sessionId": "aider-session-0",
+          "subtype": "tool_output",
+          "timestamp": "2025-03-26T14:32:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "aider-6"
+        }
+      ],
+      "next_offset": 6,
+      "total_count": 6
+    }
+  },
+  "goose": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "goose",
+        "role": "user",
+        "sessionId": "s1",
+        "timestamp": "2025-06-21T10:00:00.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "m1"
+      },
+      {
+        "content": [
+          {
+            "text": "Let me check",
+            "type": "text"
+          },
+          {
+            "id": "call1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "developer__shell",
+            "type": "tool_use"
+          },
+          {
+            "content": "file.rs",
+            "is_error": false,
+            "tool_use_id": "call1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "goose",
+        "role": "assistant",
+        "sessionId": "s1",
+        "timestamp": "2025-06-21T10:00:01.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "m2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "goose",
+          "role": "user",
+          "sessionId": "s1",
+          "timestamp": "2025-06-21T10:00:00.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "m1"
+        },
+        {
+          "content": [
+            {
+              "text": "Let me check",
+              "type": "text"
+            },
+            {
+              "id": "call1",
+              "input": {
+                "command": "ls"
+              },
+              "name": "developer__shell",
+              "type": "tool_use"
+            },
+            {
+              "content": "file.rs",
+              "is_error": false,
+              "tool_use_id": "call1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "goose",
+          "role": "assistant",
+          "sessionId": "s1",
+          "timestamp": "2025-06-21T10:00:01.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "m2"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "crush": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "crush",
+        "role": "user",
+        "sessionId": "sess1",
+        "timestamp": "2025-06-15T15:06:40.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "m1"
+      },
+      {
+        "content": [
+          {
+            "text": "checking",
+            "type": "text"
+          },
+          {
+            "id": "t1",
+            "input": {
+              "file_path": "/x.go"
+            },
+            "name": "view",
+            "type": "tool_use"
+          },
+          {
+            "content": "file contents",
+            "is_error": false,
+            "tool_use_id": "t1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "crush",
+        "role": "assistant",
+        "sessionId": "sess1",
+        "timestamp": "2025-06-15T15:06:41.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "m2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "crush",
+          "role": "user",
+          "sessionId": "sess1",
+          "timestamp": "2025-06-15T15:06:40.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "m1"
+        },
+        {
+          "content": [
+            {
+              "text": "checking",
+              "type": "text"
+            },
+            {
+              "id": "t1",
+              "input": {
+                "file_path": "/x.go"
+              },
+              "name": "view",
+              "type": "tool_use"
+            },
+            {
+              "content": "file contents",
+              "is_error": false,
+              "tool_use_id": "t1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "crush",
+          "role": "assistant",
+          "sessionId": "sess1",
+          "timestamp": "2025-06-15T15:06:41.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "m2"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "amazonq": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "amazonq",
+        "role": "user",
+        "sessionId": "/Users/jack/proj",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "/Users/jack/proj-user-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking auth",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "amazonq",
+        "role": "assistant",
+        "sessionId": "/Users/jack/proj",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "a1"
+      },
+      {
+        "content": [
+          {
+            "content": "ok",
+            "tool_use_id": "t1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "amazonq",
+        "role": "user",
+        "sessionId": "/Users/jack/proj",
+        "timestamp": "2026-06-20T10:01:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "/Users/jack/proj-user-1"
+      },
+      {
+        "content": [
+          {
+            "text": "running",
+            "type": "text"
+          },
+          {
+            "id": "t1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "amazonq",
+        "role": "assistant",
+        "sessionId": "/Users/jack/proj",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "a2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "amazonq",
+          "role": "user",
+          "sessionId": "/Users/jack/proj",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "/Users/jack/proj-user-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking auth",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "amazonq",
+          "role": "assistant",
+          "sessionId": "/Users/jack/proj",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "a1"
+        },
+        {
+          "content": [
+            {
+              "content": "ok",
+              "tool_use_id": "t1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "amazonq",
+          "role": "user",
+          "sessionId": "/Users/jack/proj",
+          "timestamp": "2026-06-20T10:01:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "/Users/jack/proj-user-1"
+        },
+        {
+          "content": [
+            {
+              "text": "running",
+              "type": "text"
+            },
+            {
+              "id": "t1",
+              "input": {
+                "command": "ls"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "amazonq",
+          "role": "assistant",
+          "sessionId": "/Users/jack/proj",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "a2"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "kiro": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kiro",
+        "role": "user",
+        "sessionId": "fixture",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "fixture-user-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking auth",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kiro",
+        "role": "assistant",
+        "sessionId": "fixture",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "a1"
+      },
+      {
+        "content": [
+          {
+            "content": "ok",
+            "tool_use_id": "t1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kiro",
+        "role": "user",
+        "sessionId": "fixture",
+        "timestamp": "2026-06-20T10:01:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "fixture-user-1"
+      },
+      {
+        "content": [
+          {
+            "text": "running",
+            "type": "text"
+          },
+          {
+            "id": "t1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "kiro",
+        "role": "assistant",
+        "sessionId": "fixture",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "a2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kiro",
+          "role": "user",
+          "sessionId": "fixture",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "fixture-user-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking auth",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kiro",
+          "role": "assistant",
+          "sessionId": "fixture",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "a1"
+        },
+        {
+          "content": [
+            {
+              "content": "ok",
+              "tool_use_id": "t1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kiro",
+          "role": "user",
+          "sessionId": "fixture",
+          "timestamp": "2026-06-20T10:01:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "fixture-user-1"
+        },
+        {
+          "content": [
+            {
+              "text": "running",
+              "type": "text"
+            },
+            {
+              "id": "t1",
+              "input": {
+                "command": "ls"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kiro",
+          "role": "assistant",
+          "sessionId": "fixture",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "a2"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "llm": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "llm",
+        "role": "user",
+        "sessionId": "c1",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "r1-user"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking auth",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "gpt-4",
+        "parentUuid": null,
+        "provider": "llm",
+        "role": "assistant",
+        "sessionId": "c1",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": null,
+          "input_tokens": 12,
+          "output_tokens": 34,
+          "service_tier": null
+        },
+        "uuid": "r1-asst"
+      },
+      {
+        "content": [
+          {
+            "text": "more detail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "llm",
+        "role": "user",
+        "sessionId": "c1",
+        "timestamp": "2026-06-20T10:01:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "r2-user"
+      },
+      {
+        "content": [
+          {
+            "text": "Here it is",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "gpt-4",
+        "parentUuid": null,
+        "provider": "llm",
+        "role": "assistant",
+        "sessionId": "c1",
+        "timestamp": "2026-06-20T10:01:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": null,
+          "input_tokens": 5,
+          "output_tokens": 8,
+          "service_tier": null
+        },
+        "uuid": "r2-asst"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "llm",
+          "role": "user",
+          "sessionId": "c1",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "r1-user"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking auth",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "model": "gpt-4",
+          "parentUuid": null,
+          "provider": "llm",
+          "role": "assistant",
+          "sessionId": "c1",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 12,
+            "output_tokens": 34,
+            "service_tier": null
+          },
+          "uuid": "r1-asst"
+        },
+        {
+          "content": [
+            {
+              "text": "more detail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "llm",
+          "role": "user",
+          "sessionId": "c1",
+          "timestamp": "2026-06-20T10:01:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "r2-user"
+        },
+        {
+          "content": [
+            {
+              "text": "Here it is",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "model": "gpt-4",
+          "parentUuid": null,
+          "provider": "llm",
+          "role": "assistant",
+          "sessionId": "c1",
+          "timestamp": "2026-06-20T10:01:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 5,
+            "output_tokens": 8,
+            "service_tier": null
+          },
+          "uuid": "r2-asst"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
+  },
+  "zed": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          },
+          {
+            "text": "see auth.rs",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "zed",
+        "role": "user",
+        "sessionId": "t1",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "t1-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Let me look",
+            "type": "text"
+          },
+          {
+            "signature": "sig",
+            "thinking": "reasoning",
+            "type": "thinking"
+          },
+          {
+            "id": "t1",
+            "input": {
+              "q": "login"
+            },
+            "name": "grep",
+            "type": "tool_use"
+          },
+          {
+            "content": "auth.rs:42",
+            "is_error": false,
+            "tool_use_id": "t1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "zed",
+        "role": "assistant",
+        "sessionId": "t1",
+        "timestamp": "2026-06-20T10:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "t1-1"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            },
+            {
+              "text": "see auth.rs",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "zed",
+          "role": "user",
+          "sessionId": "t1",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "t1-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Let me look",
+              "type": "text"
+            },
+            {
+              "signature": "sig",
+              "thinking": "reasoning",
+              "type": "thinking"
+            },
+            {
+              "id": "t1",
+              "input": {
+                "q": "login"
+              },
+              "name": "grep",
+              "type": "tool_use"
+            },
+            {
+              "content": "auth.rs:42",
+              "is_error": false,
+              "tool_use_id": "t1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "zed",
+          "role": "assistant",
+          "sessionId": "t1",
+          "timestamp": "2026-06-20T10:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "t1-1"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "forgecode": {
+    "load_provider_messages": [
+      {
+        "content": "Inspect src/main.rs",
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "forgecode",
+        "role": "user",
+        "sessionId": "conv-001",
+        "timestamp": "2026-01-10T08:00:00+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/0"
+      },
+      {
+        "content": "Check the current parser output",
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "forgecode",
+        "role": "user",
+        "sessionId": "conv-001",
+        "timestamp": "2026-01-10T08:00:03+00:00",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/1"
+      },
+      {
+        "content": [
+          {
+            "id": "tool-123",
+            "input": {
+              "file_path": "/tmp/src/main.rs"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          }
+        ],
+        "costUSD": 0.125,
+        "isSidechain": null,
+        "model": "forge-model-v1",
+        "parentUuid": null,
+        "provider": "forgecode",
+        "role": "assistant",
+        "sessionId": "conv-001",
+        "timestamp": "2026-01-10T08:00:10+00:00",
+        "toolUse": {
+          "id": "tool-123",
+          "input": {
+            "file_path": "/tmp/src/main.rs"
+          },
+          "name": "Read",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 30,
+          "input_tokens": 90,
+          "output_tokens": 45,
+          "service_tier": null
+        },
+        "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/2"
+      },
+      {
+        "content": [
+          {
+            "content": {
+              "content": "fn main() {}",
+              "is_error": false
+            },
+            "is_error": false,
+            "name": "Read",
+            "tool_use_id": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/3",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "forgecode",
+        "role": "user",
+        "sessionId": "conv-001",
+        "timestamp": "2026-01-10T08:00:06+00:00",
+        "toolUse": null,
+        "toolUseResult": {
+          "content": "fn main() {}",
+          "is_error": false
+        },
+        "type": "user",
+        "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/3"
+      },
+      {
+        "content": [
+          {
+            "text": "Done",
+            "type": "text"
+          },
+          {
+            "id": "tool-456",
+            "input": {
+              "file_path": "/tmp/out.rs"
+            },
+            "name": "Write",
+            "type": "tool_use"
+          }
+        ],
+        "costUSD": 0.125,
+        "data": {
+          "forgecodeMessageMetadata": {
+            "relatedConversationIds": [
+              "conv-009"
+            ]
+          },
+          "forgecodeMetrics": {
+            "fileOperations": 2,
+            "filesAccessed": [
+              "/tmp/src/main.rs",
+              "/tmp/out.rs"
+            ],
+            "relatedConversationIds": [
+              "conv-002",
+              "conv-003"
+            ],
+            "sessionStartTime": "2026-01-10T08:00:00+00:00"
+          }
+        },
+        "isSidechain": null,
+        "model": "forge-model-v1",
+        "parentUuid": null,
+        "provider": "forgecode",
+        "role": "assistant",
+        "sessionId": "conv-001",
+        "timestamp": "2026-01-10T08:00:10+00:00",
+        "toolUse": {
+          "id": "tool-456",
+          "input": {
+            "file_path": "/tmp/out.rs"
+          },
+          "name": "Write",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": null,
+          "cache_read_input_tokens": 30,
+          "input_tokens": 90,
+          "output_tokens": 45,
+          "service_tier": null
+        },
+        "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/4"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": "Inspect src/main.rs",
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "forgecode",
+          "role": "user",
+          "sessionId": "conv-001",
+          "timestamp": "2026-01-10T08:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/0"
+        },
+        {
+          "content": "Check the current parser output",
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "forgecode",
+          "role": "user",
+          "sessionId": "conv-001",
+          "timestamp": "2026-01-10T08:00:03+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/1"
+        },
+        {
+          "content": [
+            {
+              "id": "tool-123",
+              "input": {
+                "file_path": "/tmp/src/main.rs"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            }
+          ],
+          "costUSD": 0.125,
+          "isSidechain": null,
+          "model": "forge-model-v1",
+          "parentUuid": null,
+          "provider": "forgecode",
+          "role": "assistant",
+          "sessionId": "conv-001",
+          "timestamp": "2026-01-10T08:00:10+00:00",
+          "toolUse": {
+            "id": "tool-123",
+            "input": {
+              "file_path": "/tmp/src/main.rs"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 30,
+            "input_tokens": 90,
+            "output_tokens": 45,
+            "service_tier": null
+          },
+          "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/2"
+        },
+        {
+          "content": [
+            {
+              "content": {
+                "content": "fn main() {}",
+                "is_error": false
+              },
+              "is_error": false,
+              "name": "Read",
+              "tool_use_id": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/3",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "forgecode",
+          "role": "user",
+          "sessionId": "conv-001",
+          "timestamp": "2026-01-10T08:00:06+00:00",
+          "toolUse": null,
+          "toolUseResult": {
+            "content": "fn main() {}",
+            "is_error": false
+          },
+          "type": "user",
+          "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/3"
+        },
+        {
+          "content": [
+            {
+              "text": "Done",
+              "type": "text"
+            },
+            {
+              "id": "tool-456",
+              "input": {
+                "file_path": "/tmp/out.rs"
+              },
+              "name": "Write",
+              "type": "tool_use"
+            }
+          ],
+          "costUSD": 0.125,
+          "data": {
+            "forgecodeMessageMetadata": {
+              "relatedConversationIds": [
+                "conv-009"
+              ]
+            },
+            "forgecodeMetrics": {
+              "fileOperations": 2,
+              "filesAccessed": [
+                "/tmp/src/main.rs",
+                "/tmp/out.rs"
+              ],
+              "relatedConversationIds": [
+                "conv-002",
+                "conv-003"
+              ],
+              "sessionStartTime": "2026-01-10T08:00:00+00:00"
+            }
+          },
+          "isSidechain": null,
+          "model": "forge-model-v1",
+          "parentUuid": null,
+          "provider": "forgecode",
+          "role": "assistant",
+          "sessionId": "conv-001",
+          "timestamp": "2026-01-10T08:00:10+00:00",
+          "toolUse": {
+            "id": "tool-456",
+            "input": {
+              "file_path": "/tmp/out.rs"
+            },
+            "name": "Write",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": 30,
+            "input_tokens": 90,
+            "output_tokens": 45,
+            "service_tier": null
+          },
+          "uuid": "forgecode://workspace/workspace-alpha/conversation/conv-001/message/4"
+        }
+      ],
+      "next_offset": 5,
+      "total_count": 5
+    }
+  },
+  "cursor": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "Hello from Cursor",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor",
+        "role": "user",
+        "sessionId": "comp-1",
+        "timestamp": "2026-01-24T09:45:46.113Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "user-1"
+      },
+      {
+        "content": [
+          {
+            "id": "toolu_123",
+            "input": {
+              "target_file": "src/main.rs"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          },
+          {
+            "content": "file contents here",
+            "is_error": false,
+            "tool_use_id": "toolu_123",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "cursor",
+        "parentUuid": null,
+        "provider": "cursor",
+        "role": "assistant",
+        "sessionId": "comp-1",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "asst-2"
+      },
+      {
+        "content": [
+          {
+            "thinking": "Let me think about this...",
+            "type": "thinking"
+          }
+        ],
+        "isSidechain": null,
+        "model": "cursor",
+        "parentUuid": null,
+        "provider": "cursor",
+        "role": "assistant",
+        "sessionId": "comp-1",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "asst-3"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello from Cursor",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor",
+          "role": "user",
+          "sessionId": "comp-1",
+          "timestamp": "2026-01-24T09:45:46.113Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "user-1"
+        },
+        {
+          "content": [
+            {
+              "id": "toolu_123",
+              "input": {
+                "target_file": "src/main.rs"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            },
+            {
+              "content": "file contents here",
+              "is_error": false,
+              "tool_use_id": "toolu_123",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "cursor",
+          "parentUuid": null,
+          "provider": "cursor",
+          "role": "assistant",
+          "sessionId": "comp-1",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "asst-2"
+        },
+        {
+          "content": [
+            {
+              "thinking": "Let me think about this...",
+              "type": "thinking"
+            }
+          ],
+          "isSidechain": null,
+          "model": "cursor",
+          "parentUuid": null,
+          "provider": "cursor",
+          "role": "assistant",
+          "sessionId": "comp-1",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "asst-3"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 3
+    }
+  },
+  "trae": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "trae",
+        "role": "user",
+        "sessionId": "sess-a",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "sess-a-0"
+      },
+      {
+        "content": [
+          {
+            "text": "Checking",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "trae",
+        "role": "assistant",
+        "sessionId": "sess-a",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "sess-a-1"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "trae",
+          "role": "user",
+          "sessionId": "sess-a",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "sess-a-0"
+        },
+        {
+          "content": [
+            {
+              "text": "Checking",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "trae",
+          "role": "assistant",
+          "sessionId": "sess-a",
+          "timestamp": "",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "sess-a-1"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
+  "zcode": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "why does LOGIN fail?",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "zcode",
+        "role": "user",
+        "sessionId": "sess-1",
+        "timestamp": "2026-09-05T09:19:16.241Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "m1"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "checking auth",
+            "type": "thinking"
+          },
+          {
+            "id": "call-1",
+            "input": {
+              "file_path": "/x/HANDOFF.md"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          },
+          {
+            "content": "line1",
+            "is_error": false,
+            "tool_use_id": "call-1",
+            "type": "tool_result"
+          }
+        ],
+        "durationMs": 5018,
+        "isSidechain": null,
+        "model": "GLM-5.3",
+        "parentUuid": null,
+        "provider": "zcode",
+        "role": "assistant",
+        "sessionId": "sess-1",
+        "stop_reason": "tool_use",
+        "timestamp": "2026-09-05T09:19:16.241Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 9984,
+          "input_tokens": 2874,
+          "output_tokens": 227,
+          "reasoning_tokens": 10,
+          "service_tier": null
+        },
+        "uuid": "m2"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "why does LOGIN fail?",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "zcode",
+          "role": "user",
+          "sessionId": "sess-1",
+          "timestamp": "2026-09-05T09:19:16.241Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "m1"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "checking auth",
+              "type": "thinking"
+            },
+            {
+              "id": "call-1",
+              "input": {
+                "file_path": "/x/HANDOFF.md"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            },
+            {
+              "content": "line1",
+              "is_error": false,
+              "tool_use_id": "call-1",
+              "type": "tool_result"
+            }
+          ],
+          "durationMs": 5018,
+          "isSidechain": null,
+          "model": "GLM-5.3",
+          "parentUuid": null,
+          "provider": "zcode",
+          "role": "assistant",
+          "sessionId": "sess-1",
+          "stop_reason": "tool_use",
+          "timestamp": "2026-09-05T09:19:16.241Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 9984,
+            "input_tokens": 2874,
+            "output_tokens": 227,
+            "reasoning_tokens": 10,
+            "service_tier": null
+          },
+          "uuid": "m2"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
   }
 }

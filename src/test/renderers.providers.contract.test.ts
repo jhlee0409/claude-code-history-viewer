@@ -3,6 +3,8 @@
  * Uncovered dispatcher IDs stay explicit gaps (never aliases or fake samples).
  */
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import inventory from './fixtures/tr1c/added-provider-inventory.json';
 import { describe, expect, it } from 'vitest';
 import publicResults from './fixtures/tr1c/public-results.json';
 import { normalizeResult, toolOutcome } from '@/components/transcript/toolOutcome';
@@ -11,19 +13,50 @@ const results = (provider: string) => samples[provider]!.load_provider_messages.
 const dispatcher = readFileSync('src-tauri/src/commands/multi_provider.rs', 'utf8').split('fn load_non_claude_messages(')[1]!.split('/// Load messages')[0]!;
 const ids = ['claude', ...[...dispatcher.matchAll(/"([\w-]+)" => providers::/g)].map(m => m[1]!)].sort();
 
+const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : value !== null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, v]) => [key, canonical(v)])) : value;
+
 describe('TR1c current public provider dispatcher and source fixtures', () => {
-  it('enumerates every actual ID; uncovered source routes are explicit gaps', () => {
+  it('pins the added inventory, exact public values, explicit fallback reasons and pagination totals', () => {
+    expect(inventory).toHaveLength(23);
+    expect(new Set(inventory.map(row => row.id)).size).toBe(23);
+    expect(inventory.filter(row => row.toolResultPositive)).toHaveLength(16);
+    for (const row of inventory) {
+      const sample = samples[row.id]!;
+      expect(sample.load_provider_messages).toHaveLength(row.messageCount);
+      expect(results(row.id)).toHaveLength(row.resultCount);
+      expect(row.toolResultPositive).toBe(row.resultCount > 0);
+      expect(row.sourceProvenance.length).toBeGreaterThan(0);
+      expect(createHash('sha256').update(JSON.stringify(canonical(sample))).digest('hex')).toBe(row.responseSha256);
+      expect(sample.load_provider_messages_paginated).toMatchObject({ total_count: row.messageCount, next_offset: row.messageCount, has_more: false });
+      expect(sample.load_provider_messages.every(m => m.provider === row.id)).toBe(true);
+      if (!row.toolResultPositive) {
+        expect(row.remainingReason?.length).toBeGreaterThan(20);
+        expect(row.fallback).toBe('observed text / no-result call only');
+      }
+    }
+  });
+  it('has observed public messages for every dispatcher ID, without claiming results for text-only controls', () => {
     expect(ids).toHaveLength(31);
-    expect(ids.filter(id => !Object.hasOwn(samples, id))).toEqual([
-      'aider', 'amazonq', 'antigravity', 'cline', 'codebuddy', 'continue', 'copilot', 'crush', 'cursor', 'cursor-agent', 'forgecode', 'gemini', 'goose', 'grok', 'kimi', 'kiro', 'llm', 'pearai', 'qwen', 'trae', 'vibe', 'zcode', 'zed',
+    expect(Object.keys(samples).sort()).toEqual(ids);
+    expect(ids.filter(id => results(id).length === 0)).toEqual([
+      'aider', 'antigravity', 'continue', 'cursor-agent', 'llm', 'pearai', 'trae',
     ]);
-    expect(ids.map(id => ({ id, fallback: Object.hasOwn(samples, id) ? 'source fixture → shared row' : 'unverified source → retained shared/JSON fallback' }))).toMatchSnapshot();
+    expect(ids.reduce((count, id) => count + results(id).length, 0)).toBe(78);
   });
   for (const provider of Object.keys(samples)) {
     it(`${provider}: nonempty real normalized results, full/paginated identity, adapter does not mutate`, () => {
       const before = JSON.stringify(samples[provider]);
-      expect(results(provider).length).toBeGreaterThan(0);
-      expect(samples[provider]!.load_provider_messages_paginated.messages).toEqual(samples[provider]!.load_provider_messages);
+      const full = samples[provider]!.load_provider_messages;
+      const page = samples[provider]!.load_provider_messages_paginated.messages;
+      expect(full.length).toBeGreaterThan(0);
+      if (provider === 'codebuddy') {
+        // Raw orphan toolu_y has no timestamp; only that message receives Utc::now().
+        // Preserve both exact responses and pin the sole observed difference.
+        const differences = full.flatMap((m, index) => [...new Set([...Object.keys(m), ...Object.keys(page[index]!)])]
+          .filter(key => JSON.stringify(m[key]) !== JSON.stringify(page[index]![key]))
+          .map(key => ({ index, uuid: m.uuid, key, full: m[key], paginated: page[index]![key] })));
+        expect(differences).toEqual([{ index: 1, uuid: 'codebuddy-fcr-3', key: 'timestamp', full: '2026-10-29T13:36:11.398384+00:00', paginated: '2026-10-29T13:36:11.399743+00:00' }]);
+      } else expect(page).toEqual(full);
       for (const result of results(provider)) expect(toolOutcome(null, [result], 'process', provider).verdict).toMatch(/^(succeeded|failed|unknown)$/);
       expect(JSON.stringify(samples[provider])).toBe(before);
     });
