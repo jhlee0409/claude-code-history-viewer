@@ -2,11 +2,9 @@
  * The diff's comparison modes and its `…` menu (plan §4.3 "펼친 Edit",
  * feature table "고급 비교", TR2a).
  *
- * Unified (DiffView) is the default. The two older viewers — the advanced
- * compare (AdvancedTextDiff, its six methods) and the side-by-side
- * react-diff-viewer — moved behind the menu unchanged; feature parity on
- * the new line model is TR2b. The same menu holds the copies and, where the
- * diff is not already on the Edits screen, "Open in Recent edits".
+ * Unified is the default; split, word emphasis and six advanced methods all
+ * use DiffView's line model and rendering. The menu also holds exact recorded
+ * copy payloads and, outside the Edits screen, "Open in Recent edits".
  */
 import { useState } from "react";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
@@ -115,10 +113,10 @@ export interface DiffComparisonBodyProps {
 }
 
 /** The diff in the chosen mode. One element, so whatever precedes it stays directly above it. */
-export function DiffComparisonBody({ mode, sections, expandKey, context, label, highlight }: DiffComparisonBodyProps) {
+export function DiffComparisonBody({ mode, sections, filePath, expandKey, context, label, highlight }: DiffComparisonBodyProps) {
   const { t } = useTranslation();
   const [method, setMethod] = useState<CompareMethod>("lines");
-  const view = <DiffView highlight={highlight} sections={sections} expandKey={`${expandKey}:${mode}`} context={context} label={label} split={mode === "sideBySide"} method={mode === "words" ? "words" : mode === "advanced" ? method : undefined} />;
+  const view = <DiffView filePath={filePath} highlight={highlight} sections={sections} expandKey={`${expandKey}:${mode}`} context={context} label={label} split={mode === "sideBySide"} method={mode === "words" || mode === "sideBySide" ? "words" : mode === "advanced" ? method : undefined} />;
   if (mode !== "advanced") return view;
   return <div data-diff-mode="advanced" className="space-y-2">
     <Segmented size="toolbar" className="flex-wrap" aria-label={t("advancedTextDiff.comparisonMethod")} value={method} onValueChange={value => COMPARE_METHODS.includes(value as CompareMethod) && setMethod(value as CompareMethod)}>

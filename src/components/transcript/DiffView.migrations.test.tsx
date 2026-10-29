@@ -16,6 +16,10 @@ it("structured patches retain hunk start numbers and every hunk in DiffView", ()
   expect(container.querySelectorAll("[data-diff-view]").length).toBeGreaterThan(0);
   expect([...container.querySelectorAll("[data-diff-old-no]")].map(e => e.textContent)).toEqual(["8", "", "40", ""]);
 });
+it("text editor recorded old/new fields render even without an operation label", () => {
+  const { container } = wrap(<ResultRowContext.Provider value={{ paired: true }}><TextEditorCodeExecutionToolResultRenderer toolUseId="unlabelled" content={{ type: "text_editor_code_execution_result", old_content: "before", new_content: "after" }} /></ResultRowContext.Provider>);
+  expect(container.querySelector("[data-diff-view]")).not.toBeNull();
+});
 it("text editor edits render both recorded sides including empty new content", () => {
   const { container } = wrap(<ResultRowContext.Provider value={{ paired: true }}><TextEditorCodeExecutionToolResultRenderer toolUseId="editor" content={{ type: "text_editor_code_execution_result", operation: "edit", path: "a.ts", old_content: "removed\n", new_content: "", content: "recorded supplement" }} /></ResultRowContext.Provider>);
   expect(container.querySelector("[data-diff-view]")).not.toBeNull();

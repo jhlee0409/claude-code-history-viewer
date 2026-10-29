@@ -21,7 +21,7 @@
  * Its disclosures keep their state in the capture expand registry
  * (`expandKey`), so it needs an `ExpandKeyProvider` above it.
  */
-import { Fragment, useId, useEffect } from "react";
+import { Fragment, useId, useEffect, createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -30,7 +30,8 @@ import { foldContext, comparedLines, pairLines, type DiffLine, type DiffPair } f
 import type { CompareMethod } from "./advancedCompare";
 import { Button } from "@/components/ui/button";
 import { useResultSearch, ResultSearchContext } from "./resultProvider";
-import { HighlightedText } from "../common/HighlightedText";
+import { syntaxRanges } from "./diffSyntax";
+import { HighlightedText, searchMarkBaseClass, searchMarkCurrentClass, searchMarkOtherClass } from "../common/HighlightedText";
 import { searchRanges } from "../common/searchMarks";
 import type { TextHighlight } from "./ToolRow";
 
@@ -59,6 +60,7 @@ export interface DiffViewProps {
   /** Accessible name of the diff (e.g. the file's relative path). */
   label?: string;
   split?: boolean;
+  filePath?: string;
   method?: CompareMethod;
   highlight?: TextHighlight;
   filter?: "add" | "del";
@@ -79,19 +81,25 @@ const NUMBER_CELL = "w-px select-none whitespace-nowrap px-2 text-right align-to
 
 const WORD_TONE = { add: "bg-diff-word-add-bg decoration-diff-word-add-mark", del: "bg-diff-word-del-bg decoration-diff-word-del-mark", context: "" } as const;
 
+const SyntaxContext = createContext("");
+
 function CodeText({ line }: { line: DiffLine }) {
   const highlight = useResultSearch();
   const hits = highlight.searchQuery ? searchRanges(line.text, highlight.searchQuery) : [];
   const emphasis = line.emphasis ?? [];
-  const boundaries = [...new Set([0, line.text.length, ...emphasis.flat(), ...hits.flat()])].sort((a, b) => a - b);
+  const filePath = useContext(SyntaxContext);
+  const syntax = syntaxRanges(line.text, filePath);
+  if (!emphasis.length && !syntax.length) return <HighlightedText text={line.text} searchQuery={highlight.searchQuery ?? ""} isCurrentMatch={highlight.isCurrentMatch} currentMatchIndex={highlight.currentMatchIndex} />;
+  const boundaries = [...new Set([0, line.text.length, ...emphasis.flat(), ...hits.flat(), ...syntax.flatMap(s => [s.start, s.end])])].sort((a, b) => a - b);
   return <>{boundaries.slice(0, -1).map((start, index) => {
     const end = boundaries[index + 1]!;
     const word = emphasis.some(([a, b]) => start >= a && end <= b);
     const match = hits.findIndex(([a, b]) => start >= a && end <= b);
     const active = highlight.isCurrentMatch && match === (highlight.currentMatchIndex ?? 0);
-    return <span key={start} data-diff-word={word ? line.kind : undefined} className={word ? cn("underline decoration-2 underline-offset-2", WORD_TONE[line.kind]) : undefined}>
-      <HighlightedText text={line.text.slice(start, end)} searchQuery={highlight.searchQuery ?? ""} ranges={match >= 0 ? [[0, end - start]] : []} isCurrentMatch={active} currentMatchIndex={0} />
-    </span>;
+    const target = active && start === hits[match]?.[0];
+    const tone = syntax.find(s => start >= s.start && end <= s.end)?.tone;
+    const text = <span data-diff-word={word ? line.kind : undefined} className={cn(word && "underline decoration-2 underline-offset-2", word && WORD_TONE[line.kind], match < 0 && tone)}>{line.text.slice(start, end)}</span>;
+    return match < 0 ? <Fragment key={start}>{text}</Fragment> : <mark key={start} data-search-highlight={target ? "current" : undefined} aria-current={target ? "true" : undefined} className={cn(searchMarkBaseClass, active ? searchMarkCurrentClass : searchMarkOtherClass)}>{text}</mark>;
   })}</>;
 }
 
@@ -184,7 +192,7 @@ function groups(items: Item[]): Array<{ type: "gap"; item: Extract<Item, { type:
   return out;
 }
 
-export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label, split = false, method, highlight, filter }: DiffViewProps) {
+export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label, split = false, filePath = "", method, highlight, filter }: DiffViewProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
   const bodyId = useId();
@@ -201,7 +209,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
   const items: Item[] = [];
   sections.forEach((section, s) => {
     if (sections.length > 1) items.push({ type: "section", key: `s${s}`, text: t("diffView.section", { index: s + 1, total: sections.length }) });
-    const allLines = section.lines ?? comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method);
+    const allLines = comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method, section.lines);
     const rows = filter ? allLines.filter(line => line.kind === filter).map(line => ({ type: "line" as const, line })) : foldContext(allLines, hit ? Infinity : context);
     let run: DiffLine[] = [];
     const flush = () => {
@@ -224,6 +232,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
 
   return (
     <ResultSearchContext.Provider value={search}>
+    <SyntaxContext.Provider value={split ? filePath : ""}>
     <div data-diff-view="" data-diff-mode={split ? "sideBySide" : method ? "advanced" : "unified"} data-diff-added={counts.added} data-diff-removed={counts.removed} className="rounded-row bg-surface-well text-fg">
       <p className="sr-only">{`${t("toolRow.linesAdded", { count: counts.added })}, ${t("toolRow.linesRemoved", { count: counts.removed })}`}</p>
       {/* A long line scrolls sideways: the region is reachable from the keyboard. */}
@@ -274,6 +283,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
         </div>
       )}
     </div>
+    </SyntaxContext.Provider>
     </ResultSearchContext.Provider>
   );
 }

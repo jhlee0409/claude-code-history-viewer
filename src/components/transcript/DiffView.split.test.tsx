@@ -10,6 +10,11 @@ import { DiffComparisonBody } from "./DiffViewComparison";
 
 beforeAll(async () => { await i18n.changeLanguage("en"); });
 beforeEach(() => useExpandRegistry.getState().clearAll());
+it("split retains syntax highlighting for a recorded TypeScript file", () => {
+  const { container } = render(<ExpandKeyProvider value="syntax"><DiffComparisonBody mode="sideBySide" filePath="src/a.ts" sections={[{ oldText: "const a = 1;", newText: "const a = 2;" }]} expandKey="syntax" /></ExpandKeyProvider>);
+  expect(container.querySelector(".text-code-keyword")?.textContent).toBe("const");
+  expect(container.querySelectorAll("[data-diff-word]").length).toBeGreaterThan(0);
+});
 it("split pairs each replacement run in order, pads unequal sides, and keeps blank context signs", () => {
   const { container } = render(<ExpandKeyProvider value="split"><DiffComparisonBody mode="sideBySide" sections={[{ oldText: "same\na\nb\nend\n", newText: "same\nA\nend\nplus\n", oldStart: 10, newStart: 20 }]} expandKey="split" /></ExpandKeyProvider>);
   const pairs = [...container.querySelectorAll("[data-diff-pair]")].map(row => [...row.querySelectorAll("[data-diff-code]")].map(cell => cell.textContent));

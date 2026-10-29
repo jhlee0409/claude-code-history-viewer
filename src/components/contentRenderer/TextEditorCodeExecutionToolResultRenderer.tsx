@@ -98,7 +98,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
             </div>
           )}
 
-          {operation === "edit" && (typeof content.old_content === "string" || typeof content.new_content === "string") && <DiffWithMenu oldText={content.old_content ?? ""} newText={content.new_content ?? ""} filePath={path} expandKey={`text-editor-diff-${toolUseId}`} highlight={highlight} />}
+          {(typeof content.old_content === "string" || typeof content.new_content === "string") && <DiffWithMenu oldText={content.old_content ?? ""} newText={content.new_content ?? ""} filePath={path} expandKey={`text-editor-diff-${toolUseId}`} highlight={highlight} />}
           {/* File content preview */}
           {fileContent && (
             <div className="mt-2">

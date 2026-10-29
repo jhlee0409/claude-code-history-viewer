@@ -11,7 +11,7 @@
  * | NotebookEdit | one summary line (mode · cell · type), then the new source |
  * | TaskCreate | one summary line (subject · active form), then the description |
  * | TaskUpdate | one summary line (status · subject · owner · blocks) |
- * | apply_patch | honest JSON: no parser of its patch exists in the tree yet (TR2b owns it) |
+ * | apply_patch | parsed file/hunk diffs, followed by the complete raw input |
  * | any other name | honest JSON |
  *
  * A structured body is a lossless, searchable view of the recorded input
@@ -68,7 +68,7 @@ export const BODY_BY_NAME: Readonly<Record<string, BodyKind>> = {
   NotebookEdit: "notebook",
   TaskCreate: "taskCreate",
   TaskUpdate: "taskUpdate",
-  // Codex edits: a DiffView body needs a parser of its patch; none exists yet (TR2b).
+  // Codex edits: strict patch parsing with lossless raw-input fallback.
   apply_patch: "patch",
 };
 

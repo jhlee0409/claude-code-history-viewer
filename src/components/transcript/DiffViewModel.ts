@@ -28,8 +28,8 @@ export function pairLines(lines: readonly DiffLine[]): DiffPair[] {
 }
 
 /** Decorate the shared line model without changing source content or counts. */
-export function comparedLines(oldText: string, newText: string, oldStart = 1, newStart = oldStart, method?: CompareMethod): DiffLine[] {
-  const lines = sectionLines(oldText, newText, oldStart, newStart);
+export function comparedLines(oldText: string, newText: string, oldStart = 1, newStart = oldStart, method?: CompareMethod, recorded?: DiffLine[]): DiffLine[] {
+  const lines = recorded ? recorded.map(line => ({ ...line })) : sectionLines(oldText, newText, oldStart, newStart);
   if (!method || method === "lines") return lines;
   const ranges = emphasisRanges(oldText, newText, method);
   let oldAt = 0; let newAt = 0;
