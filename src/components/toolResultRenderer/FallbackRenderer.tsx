@@ -14,7 +14,7 @@ export const FallbackRenderer = ({ toolResult, searchQuery, isCurrentMatch, curr
   const highlight = { isCurrentMatch: isCurrentMatch ?? inherited.isCurrentMatch, currentMatchIndex: currentMatchIndex ?? inherited.currentMatchIndex };
   return (
     <RecordedResult title={t("toolResult.toolExecutionResult")} icon={<Braces className="w-4 h-4" />} record={toolResult} expandKey="fallback-result" searchQuery={query}>
-      <OutputBlock text={JSON.stringify(toolResult, null, 2)} source="text" expandKey="fallback-json" searchQuery={query} highlight={highlight} />
+      <OutputBlock json text={JSON.stringify(toolResult, null, 2)} source="text" expandKey="fallback-json" searchQuery={query} highlight={highlight} />
     </RecordedResult>
   );
 };

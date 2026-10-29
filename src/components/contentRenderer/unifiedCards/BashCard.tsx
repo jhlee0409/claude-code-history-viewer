@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
 import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
@@ -28,6 +29,8 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQue
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, { command: shownIf(isNonEmptyString), description: shownIf(isNonEmptyString), timeout: shownIf(isNumber) });
   const hasRest = Object.keys(rest).length > 0;
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const retainedHit = useMemo(() => query !== "" && resultSearchText(rest).toLowerCase().includes(query), [query, rest]);
 
   return (
     <ToolRow
@@ -39,6 +42,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQue
       family={family}
       toolId={toolId}
       expandKey={expandKey}
+      revealFor={retainedHit ? searchQuery : undefined}
     >
       <DetailZone kind="input" show={description || hasRest ? true : command ? "whenTargetCut" : false}>
         {description && <p className="text-list text-fg-2">{description}</p>}

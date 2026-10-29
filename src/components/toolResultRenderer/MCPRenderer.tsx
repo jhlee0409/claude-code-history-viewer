@@ -31,9 +31,9 @@ export const MCPRenderer = ({
   const showResultContentId = useId();
   const { t } = useTranslation();
   const identifier = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-  const server = identifier(mcpData.server) ? mcpData.server : "unknown";
+  const server = identifier(mcpData.server) ? mcpData.server : t("common.unknown");
   const methodKey = identifier(mcpData.method) ? "method" : identifier(mcpData.function) ? "function" : undefined;
-  const method = methodKey ? mcpData[methodKey] : "unknown";
+  const method = methodKey ? mcpData[methodKey] : t("common.unknown");
   const params = Object.hasOwn(mcpData, "params") ? mcpData.params : {};
   const result = Object.hasOwn(mcpData, "result") ? mcpData.result : {};
   const error = mcpData.error;
@@ -118,7 +118,7 @@ export const MCPRenderer = ({
             </div>
           )}
         </div>
-        {Object.keys(rest).length > 0 && <OutputBlock text={safeStringify(rest, 2)} source="file" expandKey={`mcp-${mcpId}-recorded`} searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />}
+        {Object.keys(rest).length > 0 && <OutputBlock json text={safeStringify(rest, 2)} source="file" expandKey={`mcp-${mcpId}-recorded`} searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />}
       </RecordedResult>
   );
 };

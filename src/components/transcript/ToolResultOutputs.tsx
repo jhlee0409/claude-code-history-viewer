@@ -54,11 +54,11 @@ interface ToolResultOutputsProps {
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
-function GenericResult({ value }: { value: Record<string, unknown> }) {
+function GenericResult({ value, searchQuery, highlight }: { value: Record<string, unknown>; searchQuery?: string; highlight?: ToolResultOutputsProps['highlight'] }) {
   return (
     <RendererDefaultsContext.Provider value={NESTED_OPEN}>
       <div className="mt-2">
-        <FallbackRenderer toolResult={value} />
+        <FallbackRenderer toolResult={value} searchQuery={searchQuery} {...highlight} />
       </div>
     </RendererDefaultsContext.Provider>
   );
@@ -128,7 +128,7 @@ function ResultOutput({
         part.kind === "text" ? (
           <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} searchQuery={searchQuery} highlight={highlight} />
         ) : part.generic && !Array.isArray(part.value) ? (
-          <GenericResult key={index} value={part.value} />
+          <GenericResult key={index} value={part.value} searchQuery={searchQuery} highlight={highlight} />
         ) : (
           <ResultBlock key={index} results={[{ content: part.value }]} />
         ),
@@ -136,7 +136,7 @@ function ResultOutput({
       {!streamText && parts.length === 0 && <OutputBlock expandKey={blockKey} text="" source={source} wrap={wrap} />}
       {recorded !== undefined && <section data-recorded-result="" className="space-y-1">
         <p className="text-caption text-fg-3">{t("toolRow.otherRecordedFields")}</p>
-        <OutputBlock text={JSON.stringify(recorded, null, 2)} source="file" expandKey={`${blockKey}-recorded`} searchQuery={searchQuery} highlight={highlight} />
+        <OutputBlock json text={JSON.stringify(recorded, null, 2)} source="file" expandKey={`${blockKey}-recorded`} searchQuery={searchQuery} highlight={highlight} />
       </section>}
     </>
   );

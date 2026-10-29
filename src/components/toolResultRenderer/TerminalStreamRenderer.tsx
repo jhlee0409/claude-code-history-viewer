@@ -33,7 +33,7 @@ export const TerminalStreamRenderer = ({ record, searchQuery, isCurrentMatch, cu
       <OutputBlock text={stream === "stderr" ? "" : typeof output === "string" ? output : ""} errorText={stream === "stderr" && typeof output === "string" ? output : undefined} source="command" failed={outcome.verdict === "failed"} expandKey="terminal-stream-output" searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />
       {(stdout !== "" || stderr !== "") && <OutputBlock text={stdout} errorText={stderr} source="command" failed={outcome.verdict === "failed"} expandKey="terminal-stream-extra" searchQuery={searchQuery} highlight={highlight} />}
       {content != null && <ToolResultOutputs results={[{ content }]} family="process" expandKey="terminal-content" searchQuery={searchQuery} highlight={highlight} outcomeShown={false} />}
-      {Object.keys(rest).length > 0 && <OutputBlock text={JSON.stringify(rest, null, 2)} source="file" expandKey="terminal-recorded" searchQuery={searchQuery} highlight={highlight} />}
+      {Object.keys(rest).length > 0 && <OutputBlock json text={JSON.stringify(rest, null, 2)} source="file" expandKey="terminal-recorded" searchQuery={searchQuery} highlight={highlight} />}
     </RecordedResult>
   );
 };

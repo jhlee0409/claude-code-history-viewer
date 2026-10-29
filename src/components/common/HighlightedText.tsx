@@ -13,6 +13,8 @@ interface HighlightedTextProps {
   isCurrentMatch?: boolean;
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
   className?: string;
+  /** Source-owned mapped spans, e.g. decoded JSON values in serialized text. */
+  ranges?: [number, number][];
 }
 
 /**
@@ -34,9 +36,10 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
   className,
+  ranges: mappedRanges,
 }) => {
   const highlightedContent = useMemo(() => {
-    const ranges = searchRanges(text, searchQuery);
+    const ranges = mappedRanges ?? searchRanges(text, searchQuery);
     if (ranges.length === 0) {
       return text;
     }
@@ -84,7 +87,7 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
     }
 
     return parts;
-  }, [text, searchQuery, isCurrentMatch, currentMatchIndex]);
+  }, [text, searchQuery, isCurrentMatch, currentMatchIndex, mappedRanges]);
 
   return <span className={className}>{highlightedContent}</span>;
 };

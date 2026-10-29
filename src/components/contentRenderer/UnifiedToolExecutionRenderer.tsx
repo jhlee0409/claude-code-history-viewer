@@ -61,7 +61,7 @@ function CardDispatcher({
   const toolName = canonicalToolName((toolUse.name as string) || "");
 
   switch (toolName) {
-    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
     case "Read":      return <ReadCard toolUse={toolUse} toolResults={toolResults} />;
     case "Edit":
     case "MultiEdit": return <EditCard toolUse={toolUse} toolResults={toolResults} />;

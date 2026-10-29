@@ -15,7 +15,7 @@ export function LegacyExecutionResult({ record, searchQuery, isCurrentMatch, cur
   return (
     <RecordedResult title={t("toolResult.toolExecutionResult")} icon={<SquareTerminal className="w-4 h-4" />} record={record} family="process" expandKey="legacy-execution" searchQuery={searchQuery}>
       {(view.stdout !== "" || view.stderr !== "") && <OutputBlock text={view.stdout} errorText={view.stderr || undefined} source="command" failed={view.outcome.verdict === "failed"} expandKey="legacy-execution-output" searchQuery={searchQuery} highlight={highlight} />}
-      {Object.keys(view.remainder).length > 0 && <OutputBlock text={JSON.stringify(view.remainder, null, 2)} source="text" expandKey="legacy-execution-recorded" searchQuery={searchQuery} highlight={highlight} />}
+      {Object.keys(view.remainder).length > 0 && <OutputBlock json text={JSON.stringify(view.remainder, null, 2)} source="text" expandKey="legacy-execution-recorded" searchQuery={searchQuery} highlight={highlight} />}
     </RecordedResult>
   );
 }
