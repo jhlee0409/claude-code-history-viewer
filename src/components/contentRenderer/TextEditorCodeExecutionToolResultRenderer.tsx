@@ -114,7 +114,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
               </Button>
               <div id={contentId} hidden={!showContent}>
                 {showContent && (
-                  <OutputBlock text={fileContent} source="file" wrap={false} expandKey={`text-editor-content-${toolUseId}`} searchQuery={highlight?.searchQuery} highlight={highlight} />
+                  <OutputBlock text={fileContent} source="file" expandKey={`text-editor-content-${toolUseId}`} searchQuery={highlight?.searchQuery} highlight={highlight} />
                 )}
               </div>
             </div>
