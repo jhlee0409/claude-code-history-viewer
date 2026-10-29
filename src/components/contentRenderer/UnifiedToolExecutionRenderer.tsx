@@ -19,6 +19,8 @@
  */
 
 import { memo } from "react";
+import { ResultSearchContext, useResultProvider } from "../transcript/resultProvider";
+import { searchHits } from "./unifiedCards/shared";
 import {
   BashCard,
   ReadCard,
@@ -38,7 +40,14 @@ import { canonicalToolName } from "./toolNames";
 
 export type { Props as UnifiedToolExecutionRendererProps };
 
-export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer({
+export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer(props: Props) {
+  const provider = useResultProvider();
+  const active = provider !== undefined && provider !== "claude";
+  const hit = active && searchHits(props.searchQuery, JSON.stringify(props.toolUse), JSON.stringify(props.toolResults));
+  return <ResultSearchContext.Provider value={active ? { searchQuery: props.searchQuery, revealFor: hit ? props.searchQuery : undefined, isCurrentMatch: props.isCurrentMatch, currentMatchIndex: props.currentMatchIndex } : {}}><CardDispatcher {...props} /></ResultSearchContext.Provider>;
+});
+
+function CardDispatcher({
   toolUse,
   toolResults,
   onViewSubagent,
@@ -91,4 +100,4 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
       />
     );
   }
-});
+}

@@ -32,7 +32,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { copyTextToClipboard } from "@/utils/clipboard";
-import { hasAnsiCodes } from "@/utils/ansiToHtml";
+import { hasAnsiCodes, stripAnsiCodes } from "@/utils/ansiToHtml";
 import { AnsiText } from "../common/AnsiText";
 import { HighlightedText } from "../common/HighlightedText";
 import { detectOutputKind, type OutputKind } from "./outputKind";
@@ -94,10 +94,10 @@ function Zone({ id, text, wrap, className, mark = null }: { id: string; text: st
       tabIndex={wrap ? undefined : 0}
       className={cn("m-0 overflow-x-auto font-mono text-code", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre", className)}
     >
-      {hasAnsiCodes(text) ? (
+      {mark ? (
+        <HighlightedText text={stripAnsiCodes(text)} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
+      ) : hasAnsiCodes(text) ? (
         <AnsiText text={text} />
-      ) : mark ? (
-        <HighlightedText text={text} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
       ) : (
         text
       )}

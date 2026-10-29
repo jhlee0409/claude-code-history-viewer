@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { Workflow as WorkflowIcon, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../store/useAppStore";
@@ -26,6 +27,7 @@ import { parseWorkflowName, parseWorkflowRunId } from "./workflowParsing";
  * a hit the row's ellipsis hides is still seen.
  */
 export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults, searchQuery = "", isCurrentMatch = false, currentMatchIndex = 0 }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const subagentSessions = useAppStore((s) => s.subagentSessions);
   const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
@@ -39,7 +41,7 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults, s
   const runId = parseWorkflowRunId(toolResults);
   const runAgents = runId ? subagentSessions.filter((s) => s.workflow_run_id === runId) : [];
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
   const hit = searchHits(searchQuery, workflowName, description, runId);

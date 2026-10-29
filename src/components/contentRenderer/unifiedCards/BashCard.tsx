@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { DetailZone } from "../../transcript/DetailZone";
@@ -14,6 +15,7 @@ import { Num } from "@/lib/format/Num";
 const firstLine = (text: string) => text.trimStart().split("\n")[0] ?? "";
 
 export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Bash";
   const toolId = (toolUse.id as string) || "";
@@ -22,7 +24,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQue
   const description = str(input, "description");
   const timeout = num(input, "timeout");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, { command: shownIf(isNonEmptyString), description: shownIf(isNonEmptyString), timeout: shownIf(isNumber) });
   const hasRest = Object.keys(rest).length > 0;

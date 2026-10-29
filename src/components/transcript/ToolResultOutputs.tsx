@@ -27,10 +27,12 @@
  * here: the ToolRow's opened detail owns them, once.
  */
 import { ResultBlock } from "../contentRenderer/unifiedCards/ResultBlock";
+import { useTranslation } from "react-i18next";
+import { useResultProvider, useResultSearch } from "./resultProvider";
 import { FallbackRenderer } from "../toolResultRenderer/FallbackRenderer";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { OutputBlock, type OutputSource } from "./OutputBlock";
-import { normalizeResult, resultContent, withoutErrorCodeEcho, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
+import { normalizeResult, resultContent, recordedResultFields, withoutErrorCodeEcho, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
 
 interface ToolResultOutputsProps {
   results: ToolResultLike[];
@@ -95,15 +97,21 @@ function ResultOutput({
   searchQuery?: string;
   highlight?: ToolResultOutputsProps["highlight"];
 }) {
-  const options = { bareCodeIsExitCode: family === "process" };
+  const provider = useResultProvider();
+  const inheritedSearch = useResultSearch();
+  searchQuery = searchQuery ?? inheritedSearch.searchQuery;
+  highlight = highlight ?? (inheritedSearch.searchQuery ? inheritedSearch : undefined);
+  const { t } = useTranslation();
+  const options = { bareCodeIsExitCode: family === "process", provider };
   const n = normalizeResult(result, options);
+  const recorded = recordedResultFields(result, provider);
   const content = resultContent(result, options);
   const hasStreams = n.stdout !== undefined || n.stderr !== undefined;
   const stdout = n.stdout ?? "";
   const stderr = n.stderr ?? "";
   const streamText = stdout !== "" || stderr !== "";
 
-  if (!hasStreams && !content.recorded) return <ResultBlock results={[result]} />;
+  if (!hasStreams && !content.recorded && recorded === undefined) return <ResultBlock results={[result]} />;
 
   const shown = streamText ? shownByStreams(stdout, stderr) : null;
   const parts = shown ? content.parts.filter((part) => !shown(part)) : content.parts;
@@ -122,6 +130,10 @@ function ResultOutput({
         ),
       )}
       {!streamText && parts.length === 0 && <OutputBlock expandKey={blockKey} text="" source={source} wrap={wrap} />}
+      {recorded !== undefined && <section data-recorded-result="" className="space-y-1">
+        <p className="text-caption text-fg-3">{t("toolRow.otherRecordedFields")}</p>
+        <OutputBlock text={JSON.stringify(recorded, null, 2)} source="file" expandKey={`${blockKey}-recorded`} searchQuery={searchQuery} highlight={highlight} />
+      </section>}
     </>
   );
 }

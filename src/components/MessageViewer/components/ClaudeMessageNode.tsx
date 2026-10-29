@@ -449,6 +449,7 @@ export const ClaudeMessageNode = React.memo(
               {message.content && Array.isArray(message.content) && (
                 <div className="mb-2">
                   <ClaudeContentArrayRenderer
+                    provider={message.provider}
                     content={message.content}
                     searchQuery={searchQuery}
                     filterType={filterType}

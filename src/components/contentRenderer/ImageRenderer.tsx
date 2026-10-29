@@ -134,7 +134,7 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             onLoad={handleImageLoad}
             onClick={openModal}
             className={cn(
-              "w-full h-auto cursor-pointer hover:opacity-90 transition-opacity",
+              "max-w-full w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity",
               layout.rounded,
               isLoading && "opacity-0"
             )}

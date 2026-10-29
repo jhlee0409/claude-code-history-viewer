@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { Bot, Cpu, ExternalLink, Hammer, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
@@ -33,6 +34,7 @@ import { Num } from "@/lib/format/Num";
  * from its first part on.
  */
 export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Agent";
@@ -45,7 +47,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const model = str(input, "model");
   const isolation = str(input, "isolation");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, {
     description: shownIf(isNonEmptyString),

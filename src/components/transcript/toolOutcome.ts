@@ -32,6 +32,7 @@ export type OutcomeReason =
   | "exit-zero"
   | "conflict"
   | "no-error-signal"
+  | "provider-completed"
   | "no-exit-code";
 
 export interface ToolOutcome {
@@ -61,6 +62,8 @@ export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
 
 export interface NormalizedResult {
+  /** Source-owned OpenCode-core tool state, never a session/process status. */
+  completed?: boolean;
   /** `is_error` as recorded: `true`, `false`, or absent. */
   isError?: boolean;
   /** API error code (`error_code`) from the content object or own metadata. */
@@ -93,6 +96,8 @@ const PROCESS_TOOLS = new Set([
   "local_shell",
   "run_shell_command",
   "run_terminal_cmd",
+  "shell_command",
+  "run",
   "terminal",
   "code_execution",
   "bash_code_execution",
@@ -152,7 +157,7 @@ const recordedInteger = (value: unknown): number | undefined =>
  */
 export function normalizeResult(
   result: ToolResultLike,
-  options: { bareCodeIsExitCode?: boolean } = {},
+  options: { bareCodeIsExitCode?: boolean; provider?: string } = {},
 ): NormalizedResult {
   const out: NormalizedResult = {};
   const content = result.content;
@@ -161,11 +166,24 @@ export function normalizeResult(
   const nested = (o: Record<string, unknown> | null) => (o && isPlainObject(o.result) ? o.result : null);
   // Where the fields may sit: own metadata, the content object, then a nested
   // `result` object inside either.
-  const sources = [own, contentObject, nested(own), nested(contentObject)].filter(
+  const legacy = options.provider === undefined || options.provider === "claude";
+  const codex = options.provider === "codex" || options.provider === "openinterpreter";
+  const openhands = options.provider === "openhands";
+  const core = options.provider === "opencode" || options.provider === "kilo";
+  // #749 has distinct source contracts. Opaque Pi details and OpenCode
+  // extension metadata are deliberately NOT generic execution schemas.
+  const metadata = own && isPlainObject(own.metadata) ? own.metadata : null;
+  const sources = (legacy ? [own, contentObject, nested(own), nested(contentObject)] : codex ? [own, metadata, contentObject] : openhands ? [metadata] : []).filter(
     (s): s is Record<string, unknown> => s !== null,
   );
 
   if (typeof result.is_error === "boolean") out.isError = result.is_error;
+  if (core && own) {
+    if (own.status === "completed") out.completed = true;
+    if (own.status === "error") out.isError = true;
+    if (own.status === "cancelled") out.interrupted = true;
+  }
+  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean" && own.isError) out.isError = true;
 
   for (const source of [contentObject, own]) {
     if (source && typeof source.error_code === "string" && source.error_code.length > 0) {
@@ -277,7 +295,7 @@ function consumedByStreams(o: Record<string, unknown>, shown: NormalizedResult, 
  * part, in recorded order. A content object is left out only when
  * `consumedByStreams` says the stream path already shows all of it.
  */
-export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean } = {}): ResultContent {
+export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean; provider?: string } = {}): ResultContent {
   const content = result.content;
   if (content === undefined || content === null) return { recorded: false, parts: [] };
   if (typeof content === "string") return { recorded: true, parts: [{ kind: "text", text: content }] };
@@ -505,6 +523,33 @@ export function rendererContent(result: ToolResultLike): Record<string, unknown>
   return (result.content ?? result) as Record<string, unknown> | string | unknown[];
 }
 
+/** Metadata not consumed by the outcome/output view. Never changes the raw result. */
+export function recordedResultFields(result: ToolResultLike, provider?: string): unknown {
+  if (!provider || provider === "claude" || !Object.hasOwn(result, "toolUseResult")) return undefined;
+  const own = result.toolUseResult;
+  if (!isPlainObject(own)) return own;
+  const n = normalizeResult(result, { provider, bareCodeIsExitCode: true });
+  const codex = provider === "codex" || provider === "openinterpreter";
+  const pi = provider === "pi" || provider === "ompi";
+  const core = provider === "opencode" || provider === "kilo";
+  const execution = codex || provider === "openhands";
+  const remaining = (value: Record<string, unknown>, nested = false): Record<string, unknown> => Object.fromEntries(Object.entries(value).flatMap(([key, v]) => {
+    const executionLevel = codex || (provider === "openhands" && nested);
+    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === JSON.stringify(result.content) && v !== null) return [];
+    if (!nested && key === "error_code" && v === n.errorCode) return [];
+    if (executionLevel && EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof v === "number" && v === n.exitCode && !n.exitCodeConflict) return [];
+    if (executionLevel && key === "interrupted" && v === true && n.interrupted === true) return [];
+    if (executionLevel && (key === "stdout" || key === "stderr") && typeof v === "string" && v !== "" && v === n[key]) return [];
+    if (!nested && execution && key === "metadata" && isPlainObject(v)) {
+      const rest = remaining(v, true);
+      return Object.keys(rest).length > 0 || Object.keys(v).length === 0 ? [[key, rest]] : [];
+    }
+    return [[key, v]];
+  }));
+  const rest = remaining(own);
+  return Object.keys(rest).length > 0 || Object.keys(own).length === 0 ? rest : undefined;
+}
+
 /** What an Agent (Task) result records about its run. */
 export interface AgentStats {
   totalDurationMs?: number;
@@ -561,6 +606,7 @@ export function toolOutcome(
   use: ToolUseLike | null,
   results: ToolResultLike[],
   family: ToolFamily,
+  provider?: string,
 ): ToolOutcome {
   // An orphan (use === null) is judged by its result alone; the pairing only
   // matters for `toolRun` eligibility.
@@ -568,7 +614,7 @@ export function toolOutcome(
   // 1. No result at all.
   if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
-  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process" }));
+  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider }));
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
@@ -613,6 +659,7 @@ export function toolOutcome(
   }
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
+  if (normalized.every((n) => n.completed === true)) return { lifecycle: "completed", verdict: "succeeded", reason: "provider-completed" };
   if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
   if (family === "read-search") return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };

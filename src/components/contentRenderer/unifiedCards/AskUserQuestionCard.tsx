@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { SquareCheckBig, Circle } from "lucide-react";
 import { ToolIcon } from "../../ToolIcon";
 import { Marked, TextTarget, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
@@ -111,10 +112,11 @@ function AskRow({
   isCurrentMatch,
   currentMatchIndex,
 }: Props & { questions: AskQuestion[]; searchQuery: string }) {
+  const provider = useResultProvider();
   const name = (toolUse.name as string) || "AskUserQuestion";
   const toolId = (toolUse.id as string) || "";
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-ask-${toolId}`;
 
   // Reveal + highlight when the search term is anywhere in the questions or
