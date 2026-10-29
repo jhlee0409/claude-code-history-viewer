@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/contexts/theme";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { ToolExecutionResultRouter } from "@/components/messageRenderer/ToolExecutionResultRouter";
+import { TaskNotificationRenderer } from "@/components/contentRenderer/TaskNotificationRenderer";
 
 // Component-state controls of the existing router shapes, not fabricated API responses.
 const CASES: [string, Record<string, unknown> | string, string[]][] = [
@@ -37,6 +38,16 @@ function openAll(container: HTMLElement) {
 beforeAll(async()=>{await i18n.changeLanguage('en');});
 beforeEach(()=>{useExpandRegistry.getState().clearAll();});
 describe('TR1c part2 characterization',()=>{
+  it('retains the visible Notice details preview before expanding it',()=>{
+    const record='<task-notification><task-id>task-preview</task-id><status>completed</status><summary>done-summary</summary></task-notification>\nnotice-preview-one\nnotice-preview-two\nnotice-preview-three\nnotice-full-four';
+    const {container}=render(<ThemeProvider><ExpandKeyProvider value="notice-preview"><TaskNotificationRenderer text={record} /></ExpandKeyProvider></ThemeProvider>);
+    const visible=()=>{const clone=container.cloneNode(true) as HTMLElement;clone.querySelectorAll('[hidden]').forEach(n=>n.remove());return clone.textContent;};
+    expect(visible()).toContain('notice-preview-one');
+    const toggle=[...container.querySelectorAll<HTMLElement>('button[aria-expanded]')].find(b=>b.textContent?.includes(i18n.t('taskNotification.details')))!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');fireEvent.click(toggle);
+    expect(visible()).toContain('notice-full-four');fireEvent.click(toggle);
+    expect(visible()).toContain('notice-preview-one');
+  });
   it.each(CASES)('%s retains existing recorded body values',(_name,record,values)=>{
     const {container}=mount(record);openAll(container);
     const visible=container.cloneNode(true) as HTMLElement;visible.querySelectorAll('[hidden]').forEach(n=>n.remove());

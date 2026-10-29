@@ -427,7 +427,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "px-3 py-2.5",
               "border-t border-border/20"
             )}>
-              <div id={isDetailsExpandedContentId} hidden={!isDetailsExpanded}>{isDetailsExpanded ? (
+              <div id={isDetailsExpandedContentId}>{isDetailsExpanded ? (
                 // Full content
                 <div className={cn(layout.prose, "text-caption animate-fade-in")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
