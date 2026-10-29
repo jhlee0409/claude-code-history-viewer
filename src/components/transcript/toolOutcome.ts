@@ -698,6 +698,17 @@ export function toolOutcome(
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
 }
 
+/** A legacy message-level result is source-owned by its sole top-level call. */
+export function legacyToolCallOutcome(
+  message: { toolUseResult?: unknown; provider?: string },
+  use: ToolUseLike,
+  family: ToolFamily,
+): ToolOutcome {
+  const raw = message.toolUseResult;
+  const results = raw == null ? [] : [isPlainObject(raw) ? { ...raw, toolUseResult: raw } : { content: raw }];
+  return toolOutcome(use, results, family, message.provider);
+}
+
 /**
  * May this call fold into a `toolRun` (TR3 draws the fold)? Only a read or
  * search call whose tool_use and result are both in the loaded window and
