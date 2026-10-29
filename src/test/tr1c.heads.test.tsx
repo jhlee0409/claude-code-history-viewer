@@ -48,6 +48,20 @@ describe('TR1c part2 characterization',()=>{
   });
 });
 describe('TR1c part2 row adoption',()=>{
+  it('a fallback value search opens and marks the original value',()=>{
+    const {container}=mount({future:'fallback-needle'},'fallback-needle');
+    expect(container.querySelector('[data-tool-row] button')?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('mark')?.textContent).toBe('fallback-needle');
+  });
+  it('generic execution retains distinct output and extra values once with honest status',()=>{
+    const {container}=mount({stdout:'stdout-single',stderr:'stderr-single',exitCode:0,interrupted:false,isImage:false,future:'future-single'});openAll(container);
+    expect(container.querySelector('[data-tool-row]')?.getAttribute('data-tool-verdict')).toBe('succeeded');
+    for(const value of ['stdout-single','stderr-single','future-single'])expect(container.textContent?.split(value)).toHaveLength(2);
+    expect(container.textContent?.split('Exit code 0')).toHaveLength(2);
+    expect(container.textContent).toContain('"interrupted": false');
+    expect(container.textContent).toContain('"isImage": false');
+    expect(container.textContent).not.toContain('Completed');
+  });
   it.each(CASES)('%s uses a result ToolRow, linked disclosure and result zone',(_name,record)=>{
     const {container}=mount(record);const row=container.querySelector('[data-tool-row]');
     expect(row).not.toBeNull();
@@ -56,6 +70,15 @@ describe('TR1c part2 row adoption',()=>{
     expect(container.querySelector('[data-detail-zone=result]')).not.toBeNull();
     expect(container.querySelectorAll('[data-detail-zone=input]')).toHaveLength(0);
     expect(container.querySelector('.border-b.border-line-faint')).not.toBeNull();
+    openAll(container);
+    const ids=[...container.querySelectorAll('[id]')].map(n=>n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for(const disclosure of container.querySelectorAll('button[aria-expanded]')){
+      const target=disclosure.getAttribute('aria-controls');
+      expect(target).toBeTruthy();
+      expect([...container.querySelectorAll('[id]')].some(n=>n.id===target)).toBe(true);
+      expect(disclosure.textContent?.trim()||disclosure.getAttribute('aria-label')).toBeTruthy();
+    }
   });
   it.each([[0,'succeeded'],[2,'failed'],[undefined,'unknown']] as const)('terminal result exit %s uses only adapter verdict %s',(exitCode,verdict)=>{
     const {container}=mount({ type:'terminal_stream',command:'command-one',stream:'stderr',output:'warning-one',exitCode });

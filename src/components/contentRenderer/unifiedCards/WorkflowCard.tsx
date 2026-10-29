@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { memo } from "react";
 import { useResultProvider } from "../../transcript/resultProvider";
 import { Workflow as WorkflowIcon, ExternalLink } from "lucide-react";
@@ -104,12 +106,12 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults, s
           <ul>
             {runAgents.map((agent) => (
               <li key={agent.file_path}>
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => {
                     void navigateToSubagent(agent);
                   }}
-                  className="flex min-h-row-list w-full items-center gap-2 rounded-row px-1 text-left text-list hover:bg-surface-hover"
+                  className={cn("h-auto whitespace-normal justify-start font-normal", "flex min-h-row-list w-full items-center gap-2 rounded-row px-1 text-left text-list hover:bg-surface-hover")}
                   aria-label={viewLabel}
                 >
                   <ExternalLink aria-hidden="true" className="w-3.5 h-3.5 shrink-0 text-fg-3" />
@@ -117,7 +119,7 @@ export const WorkflowCard = memo(function WorkflowCard({ toolUse, toolResults, s
                   <span className="shrink-0 text-caption text-fg-3">
                     {t("renderers.agentTool.messages", { defaultValue: "{{count}} messages", count: agent.message_count })}
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

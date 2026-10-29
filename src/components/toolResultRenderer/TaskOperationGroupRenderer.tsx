@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /**
  * TaskOperationGroupRenderer - Renders grouped task operations as a unified board
  *
@@ -102,6 +104,7 @@ const TaskRow = memo(function TaskRow({
 }: {
   task: MergedTask;
 }) {
+  const expandedContentId = useId();
   const { t } = useTranslation();
   const statusInfo = task.status ? TASK_STATUS_CONFIG[task.status] : null;
   const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["pending"]!.icon;
@@ -111,15 +114,15 @@ const TaskRow = memo(function TaskRow({
 
   return (
     <div className="border-b border-border/50 last:border-b-0">
-      <button
+      <Button aria-expanded={expanded} aria-controls={expandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={hasDescription ? () => setExpanded(prev => !prev) : undefined}
         aria-label={hasDescription ? (expanded ? t("taskOperation.collapse") : t("taskOperation.expand")) : undefined}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           hasDescription && "hover:bg-muted/50 transition-colors",
           !hasDescription && "cursor-default"
-        )}
+        ))}
       >
         {hasDescription ? (
           <ChevronRight
@@ -145,15 +148,15 @@ const TaskRow = memo(function TaskRow({
             task.status === "in_progress" && "animate-spin"
           )}
         />
-      </button>
+      </Button>
 
-      {expanded && task.description && (
+      <div id={expandedContentId} hidden={!expanded}>{expanded && task.description && (
         <div className={cn("px-4 pb-2", layout.smallText)}>
           <span className={cn("text-foreground/70", layout.bodyText)}>
             {task.description}
           </span>
         </div>
-      )}
+      )}</div>
     </div>
   );
 });
@@ -187,6 +190,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
   operations,
   taskRegistry,
 }: Props) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   // Use first operation's task ID for unique group key
   const firstTaskId = operations[0]?.task?.id ?? (operations[0]?.input.taskId as string | undefined);
@@ -202,14 +206,14 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
   return (
     <div className={cn(layout.rounded, "border overflow-hidden", styles.container)}>
       {/* Group Header */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
         aria-label={isExpanded ? t("taskOperation.collapse") : t("taskOperation.expand")}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-3 py-2 text-left",
           "hover:bg-muted/30 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -233,10 +237,10 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
         >
           {summary}
         </span>
-      </button>
+      </Button>
 
       {/* Task List */}
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className="border-t border-border/50">
           {tasks.map((task) => (
             <TaskRow
@@ -251,7 +255,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
             />
           ))}
         </div>
-      )}
+      )}</div>
     </div>
   );
 });

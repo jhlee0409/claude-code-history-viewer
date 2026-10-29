@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { SquareTerminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -44,6 +46,7 @@ export const CommandRenderer = ({
   currentMatchIndex = 0,
   variant = "accent",
 }: Props) => {
+  const isCommandExpandedContentId = useId();
   const { t } = useTranslation();
   const [isCommandExpanded, setIsCommandExpanded] = useCaptureExpandState("command", false);
   const colors = VARIANT_COLORS[variant];
@@ -81,18 +84,18 @@ export const CommandRenderer = ({
       {hasCommandGroup && (
         <div className={cn(layout.rounded, "border", colors.bg, colors.border)}>
           {hasExpandableContent ? (
-            <button
+            <Button aria-controls={isCommandExpandedContentId} variant="ghost" size="sm" type="button"
               onClick={() => setIsCommandExpanded(prev => !prev)}
               aria-expanded={isCommandExpanded}
               aria-label={`${isCommandExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${commandGroup.name || t("commandRenderer.commandExecution")}`}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "w-full flex items-center",
                 layout.iconGap,
                 layout.headerPadding,
                 layout.rounded,
                 "text-left transition-colors",
                 colors.hover
-              )}
+              ))}
             >
               <ChevronRight
                 className={cn(
@@ -106,7 +109,7 @@ export const CommandRenderer = ({
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
-            </button>
+            </Button>
           ) : (
             <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
               <SquareTerminal className={cn(layout.iconSize, colors.text)} />
@@ -116,7 +119,7 @@ export const CommandRenderer = ({
             </div>
           )}
 
-          {isCommandExpanded && hasExpandableContent && (
+          <div id={isCommandExpandedContentId} hidden={!isCommandExpanded}>{isCommandExpanded && hasExpandableContent && (
             <div className={layout.contentPadding}>
               {/* Command args if present */}
               {commandGroup.args && (
@@ -184,7 +187,7 @@ export const CommandRenderer = ({
                 </div>
               ))}
             </div>
-          )}
+          )}</div>
         </div>
       )}
 
@@ -302,6 +305,7 @@ const CaveatRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: CaveatRendererProps) => {
+  const isExpandedContentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("caveat", false);
   const { t } = useTranslation();
 
@@ -314,17 +318,17 @@ const CaveatRenderer = ({
 
   return (
     <div className={cn(layout.rounded, "border bg-info/10 border-info/30")}>
-      <button
+      <Button aria-controls={isExpandedContentId} variant="ghost" size="sm" type="button"
         onClick={() => setIsExpanded(prev => !prev)}
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${t("commandRenderer.systemNote")}`}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center",
           layout.iconGap,
           layout.headerPadding,
           layout.rounded,
           "text-left hover:bg-info/20 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -337,9 +341,9 @@ const CaveatRenderer = ({
         <span className={cn(layout.titleText, "text-info")}>
           {t("commandRenderer.systemNote")}
         </span>
-      </button>
+      </Button>
 
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className={cn(layout.contentPadding, layout.smallText, "text-info")}>
           {searchQuery ? (
             <HighlightedText
@@ -352,7 +356,7 @@ const CaveatRenderer = ({
             content
           )}
         </div>
-      )}
+      )}</div>
     </div>
   );
 };

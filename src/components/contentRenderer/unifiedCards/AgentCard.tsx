@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { memo } from "react";
 import { useResultProvider } from "../../transcript/resultProvider";
 import { Bot, Cpu, ExternalLink, Hammer, Timer } from "lucide-react";
@@ -154,18 +156,18 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         )}
       </DetailZone>
       {onViewSubagent && (
-        <button
+        <Button variant="ghost" size="sm"
           data-detail-aside=""
           type="button"
           onClick={() => {
             onViewSubagent(toolId);
           }}
-          className="inline-flex min-h-6 items-center gap-1.5 rounded-row px-1 text-list text-fg-2 hover:bg-surface-hover hover:text-fg"
+          className={cn("h-auto whitespace-normal justify-start font-normal", "inline-flex min-h-6 items-center gap-1.5 rounded-row px-1 text-list text-fg-2 hover:bg-surface-hover hover:text-fg")}
           aria-label={viewLabel}
         >
           <ExternalLink aria-hidden="true" className="w-3.5 h-3.5" />
           {viewLabel}
-        </button>
+        </Button>
       )}
     </ToolRow>
   );

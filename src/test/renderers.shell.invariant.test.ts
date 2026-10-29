@@ -11,6 +11,16 @@ function findings(file:string,text:string){const sf=ts.createSourceFile(file,tex
 function walk(n:ts.Node){if((ts.isJsxOpeningElement(n)||ts.isJsxSelfClosingElement(n))&&n.tagName.getText(sf)==='button')found.push(`${relative(ROOT,file)}:${sf.getLineAndCharacterOfPosition(n.getStart()).line+1} raw button`);ts.forEachChild(n,walk);}walk(sf);return found;}
 describe('TR1c owned renderer shell/control invariant',()=>{
  it('catches actual JSX, not comments or strings',()=>{expect(findings('probe.tsx','const x=<button onClick={()=>{}}>open</button>')).toHaveLength(1);expect(findings('probe.tsx','const x="<button>"; // <button>')).toEqual([]);});
+ it('links every renderer disclosure to its content',()=>{
+  const missing:string[]=[];
+  for(const file of sourceFiles){const sf=ts.createSourceFile(file,readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);function visit(n:ts.Node){if(ts.isJsxOpeningElement(n)&&n.tagName.getText(sf)==='Button'){
+    const attrs=n.attributes.properties.filter(ts.isJsxAttribute);const click=attrs.find(a=>a.name.getText(sf)==='onClick');
+    if(click&&/set(?:Is\w*Expanded|Show\w+|Expanded|Open)|onToggle|toggle/.test(click.getText(sf))){
+      for(const name of ['aria-expanded','aria-controls'])if(!attrs.some(a=>a.name.getText(sf)===name))missing.push(`${relative(ROOT,file)}:${sf.getLineAndCharacterOfPosition(n.getStart()).line+1} ${name}`);
+    }
+   }ts.forEachChild(n,visit);}visit(sf);
+  }expect(missing).toEqual([]);
+ });
  it('has no raw buttons in owned renderer scope',()=>{expect(sourceFiles.flatMap(f=>findings(f,readFileSync(f,'utf8')))).toEqual([]);});
  it('has no old heads in tool result modules (non-tool bodies are explicitly retained)',()=>{
  const toolFiles=files(join(ROOT,'src/components/toolResultRenderer')).concat([join(ROOT,'src/components/messageRenderer/ToolExecutionResultRouter.tsx'),join(ROOT,'src/components/FileContent.tsx')]);

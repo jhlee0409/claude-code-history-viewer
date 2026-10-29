@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { FileContent } from "../FileContent";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { layout } from "@/components/renderers";
 
 type Props = {
@@ -63,20 +63,15 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
   };
 
   return (
-    <Renderer className="bg-tool-code/10 border-tool-code/30">
-      <Renderer.Header
-        title={t("structuredPatch.fileChanges")}
-        icon={<RefreshCw className="w-4 h-4 text-tool-code" />}
-        titleClassName="text-foreground"
-        rightContent={
+    <RecordedResult title={t("structuredPatch.fileChanges")}
+        icon={<RefreshCw className="w-4 h-4" />}
+        meta={
           filePath && (
             <span className={`${layout.smallText} text-tool-code truncate max-w-[150px] md:max-w-[250px]`} title={filePath}>
               {formatShortPath(filePath)}
             </span>
           )
-        }
-      />
-      <Renderer.Content>
+        } record={toolResult} expandKey={"patch-result"}>
         {/* 파일 경로 */}
         <div className="mb-3">
           <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
@@ -127,7 +122,6 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
             />
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

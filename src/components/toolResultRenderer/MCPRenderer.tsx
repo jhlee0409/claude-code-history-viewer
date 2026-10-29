@@ -1,8 +1,10 @@
 "use client";
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 
 import { Globe, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -23,6 +25,8 @@ export const MCPRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
+  const showParamsContentId = useId();
+  const showResultContentId = useId();
   const { t } = useTranslation();
   const server = mcpData.server || "unknown";
   const method = mcpData.method || "unknown";
@@ -37,35 +41,30 @@ export const MCPRenderer = ({
   const [showResult, setShowResult] = useCaptureExpandState(`mcp-${mcpId}:result`, false);
 
   return (
-    <Renderer className="bg-tool-mcp/10 border-tool-mcp/30" expandKey={`mcp-renderer-${mcpId}`}>
-      <Renderer.Header
-        title={t('mcpRenderer.mcpToolCall')}
-        icon={<Globe className={cn(layout.iconSize, "text-tool-mcp")} />}
-        titleClassName="text-foreground"
-        rightContent={
+    <RecordedResult title={t('mcpRenderer.mcpToolCall')}
+        icon={<Globe className="w-4 h-4" />}
+        meta={
           <div className={`${layout.smallText} text-tool-mcp`}>
             {String(server)}.{String(method)}
           </div>
-        }
-      />
-      <Renderer.Content>
+        } record={mcpData} expandKey={`mcp-renderer-${mcpId}`} searchQuery={searchQuery}>
         <div className="space-y-2">
           {/* 매개변수 */}
           <div>
-            <button
+            <Button aria-expanded={showParams} aria-controls={showParamsContentId} variant="ghost" size="sm"
               type="button"
               onClick={() => setShowParams(prev => !prev)}
-              className={cn("flex items-center font-medium cursor-pointer text-tool-mcp", layout.iconSpacing, layout.bodyText)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("flex items-center font-medium cursor-pointer text-tool-mcp", layout.iconSpacing, layout.bodyText))}
             >
               <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showParams && "rotate-90")} />
               <span>{t('mcpRenderer.parameters')}</span>
-            </button>
-            {showParams && (
+            </Button>
+            <div id={showParamsContentId} hidden={!showParams}>{showParams && (
               <TruncatedPre
                 content={safeStringify(params, 2)}
                 className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-tool-mcp/20 text-foreground`}
               />
-            )}
+            )}</div>
           </div>
 
           {/* 결과 */}
@@ -89,24 +88,23 @@ export const MCPRenderer = ({
             </div>
           ) : (
             <div>
-              <button
+              <Button aria-expanded={showResult} aria-controls={showResultContentId} variant="ghost" size="sm"
                 type="button"
                 onClick={() => setShowResult(prev => !prev)}
-                className={cn("flex items-center font-medium cursor-pointer text-tool-mcp", layout.iconSpacing, layout.bodyText)}
+                className={cn("h-auto whitespace-normal justify-start font-normal", cn("flex items-center font-medium cursor-pointer text-tool-mcp", layout.iconSpacing, layout.bodyText))}
               >
                 <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showResult && "rotate-90")} />
                 <span>{t('mcpRenderer.executionResult')}</span>
-              </button>
-              {showResult && (
+              </Button>
+              <div id={showResultContentId} hidden={!showResult}>{showResult && (
                 <TruncatedPre
                   content={safeStringify(result, 2)}
                   className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-muted text-foreground`}
                 />
-              )}
+              )}</div>
             </div>
           )}
         </div>
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

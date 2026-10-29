@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { useTranslation } from 'react-i18next';
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -20,14 +20,8 @@ export const FileListRenderer = ({
 }: Props) => {
   const { t } = useTranslation();
   return (
-    <Renderer className="bg-tool-file/10 border-tool-file/30">
-      <Renderer.Header
-        title={t('fileListRenderer.fileList', { count: Number(toolResult.numFiles) })}
-        icon={<FileText className={cn(layout.iconSize, "text-tool-file")} />}
-        titleClassName="text-foreground"
-      />
-
-      <Renderer.Content>
+    <RecordedResult title={t('fileListRenderer.fileList', { count: Number(toolResult.numFiles) })}
+        icon={<FileText className="w-4 h-4" />} record={toolResult} expandKey={"file-list-result"} searchQuery={searchQuery}>
         <div className="space-y-1">
           {(toolResult.filenames as string[]).map(
             (filePath: string, idx: number) => {
@@ -77,7 +71,6 @@ export const FileListRenderer = ({
             }
           )}
         </div>
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

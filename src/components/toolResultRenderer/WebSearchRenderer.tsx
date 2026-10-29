@@ -4,7 +4,7 @@ import { Globe } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { HighlightedText } from "../common/HighlightedText";
@@ -36,20 +36,15 @@ export const WebSearchRenderer = ({
       : null;
 
   return (
-    <Renderer className="bg-tool-web/10 border-tool-web/30">
-      <Renderer.Header
-        title={t('webSearchRenderer.title')}
-        icon={<Globe className={cn(layout.iconSize, "text-tool-web")} />}
-        titleClassName="text-foreground"
-        rightContent={
+    <RecordedResult title={t('webSearchRenderer.title')}
+        icon={<Globe className="w-4 h-4" />}
+        meta={
           durationSeconds && (
             <span className={`${layout.smallText} text-tool-web`}>
               <Num>{fmt.duration(durationSeconds * 1000)}</Num>
             </span>
           )
-        }
-      />
-      <Renderer.Content>
+        } record={searchData} expandKey={"web-result"} searchQuery={searchQuery}>
         {/* 검색 정보 */}
         <div className="mb-3">
           <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
@@ -164,8 +159,7 @@ export const WebSearchRenderer = ({
             </div>
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };
 

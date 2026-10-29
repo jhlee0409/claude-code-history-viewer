@@ -550,6 +550,23 @@ export function recordedResultFields(result: ToolResultLike, provider?: string):
   return Object.keys(rest).length > 0 || Object.keys(own).length === 0 ? rest : undefined;
 }
 
+/** Legacy execution record view: consume only facts/streams actually displayed.
+ * False/null/empty and every unrelated field remain data, never completion claims.
+ */
+export function legacyExecutionView(record: Record<string, unknown>, provider?: string) {
+  const result = { content: record };
+  const normalized = normalizeResult(result, { provider });
+  const outcome = toolOutcome(null, [result], "process", provider);
+  const remainder = Object.fromEntries(Object.entries(record).filter(([key, value]) => {
+    if ((key === "stdout" || key === "stderr") && typeof value === "string" && value !== "" && value === normalized[key]) return false;
+    if (EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof value === "number" && value === outcome.exitCode && !normalized.exitCodeConflict) return false;
+    if (key === "error_code" && value === outcome.errorCode) return false;
+    if (key === "interrupted" && value === true && normalized.interrupted === true) return false;
+    return true;
+  }));
+  return { stdout: normalized.stdout ?? "", stderr: normalized.stderr ?? "", outcome, remainder };
+}
+
 /** What an Agent (Task) result records about its run. */
 export interface AgentStats {
   totalDurationMs?: number;
