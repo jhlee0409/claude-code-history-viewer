@@ -1,3 +1,5 @@
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
+import { OutputBlock } from "../transcript/OutputBlock";
 import { Button } from "@/components/ui/button";
 /**
  * TextEditorCodeExecutionToolResultRenderer - Renders text editor file operation results
@@ -31,7 +33,7 @@ const isTextEditorError = (
   return content.type === "text_editor_code_execution_tool_result_error";
 };
 
-const TEXT_PREVIEW_LENGTH = 500;
+
 
 export const TextEditorCodeExecutionToolResultRenderer = memo(
   function TextEditorCodeExecutionToolResultRenderer({
@@ -80,11 +82,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
       }
     };
 
-    const truncateContent = (text: string): string => {
-      return text.length > TEXT_PREVIEW_LENGTH
-        ? text.substring(0, TEXT_PREVIEW_LENGTH) + "..."
-        : text;
-    };
+
 
     return (
       <ResultRow
@@ -100,6 +98,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
             </div>
           )}
 
+          {operation === "edit" && (typeof content.old_content === "string" || typeof content.new_content === "string") && <DiffWithMenu oldText={content.old_content ?? ""} newText={content.new_content ?? ""} filePath={path} expandKey={`text-editor-diff-${toolUseId}`} highlight={highlight} />}
           {/* File content preview */}
           {fileContent && (
             <div className="mt-2">
@@ -115,10 +114,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
               </Button>
               <div id={contentId} hidden={!showContent}>
                 {showContent && (
-                  <pre className={cn("mt-2 p-2 overflow-x-auto whitespace-pre-wrap bg-surface-well text-fg", layout.monoText, layout.rounded, layout.codeMaxHeight)}>
-                    {/* A content hit opened the fold: the whole file, so a hit past the preview is shown and marked (CodeRabbit 4378494005). */}
-                    <Marked text={contentHitQuery !== undefined ? fileContent : truncateContent(fileContent)} highlight={highlight} />
-                  </pre>
+                  <OutputBlock text={fileContent} source="file" wrap={false} expandKey={`text-editor-content-${toolUseId}`} searchQuery={highlight?.searchQuery} highlight={highlight} />
                 )}
               </div>
             </div>

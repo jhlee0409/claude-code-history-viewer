@@ -77,7 +77,7 @@ describe("FileEditItem diff views", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "diffView.modeAdvanced" }));
 
     expect(
-      screen.getByText("advancedTextDiff.comparisonMethod")
+      screen.getByRole("radiogroup", { name: "advancedTextDiff.comparisonMethod" })
     ).toBeInTheDocument();
   });
 });

@@ -108,6 +108,7 @@ export const FileEditRenderer = ({ toolResult, searchQuery, edits, kind = "edit"
       {sections.length > 0 && (
         <DiffComparisonBody
           mode={mode}
+          highlight={searchQuery ? { searchQuery } : undefined}
           sections={sections}
           filePath={filePath}
           expandKey={expandKey ?? `file-edit:${filePath}`}

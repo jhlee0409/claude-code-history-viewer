@@ -29,7 +29,7 @@ import { layout } from "@/components/renderers";
 import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
-import { FilteredDiffLines } from "./FilteredDiffLines";
+import { DiffFiltered } from "../transcript/DiffViewComparison";
 import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import { useFileEditActions } from "./useFileEditActions";
 import type { FileEditItemProps, EditViewMode } from "./types";
@@ -463,7 +463,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           {/* Added/removed-only view */}
           {(viewMode === "added" || viewMode === "removed") && (
             <div className="max-h-96 overflow-auto">
-              <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+              <DiffFiltered groups={filteredGroups} kind={viewMode} expandKey={`recent-edits-filter:${edit.session_id}:${edit.file_path}:${edit.timestamp}`} />
             </div>
           )}
 

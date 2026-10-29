@@ -1,4 +1,5 @@
 {
+  "diffView.modeWords": "単語の変更",
   "advancedTextDiff.added": "追加",
   "advancedTextDiff.additions": "追加",
   "advancedTextDiff.changeSummary": "{{count}}箇所の変更、合計{{chars}}文字",

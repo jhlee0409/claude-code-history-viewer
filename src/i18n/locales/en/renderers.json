@@ -1,4 +1,5 @@
 {
+  "diffView.modeWords": "Word changes",
   "advancedTextDiff.added": "Added",
   "advancedTextDiff.additions": "Additions",
   "advancedTextDiff.changeSummary": "{{count}} change parts, {{chars}} characters total",

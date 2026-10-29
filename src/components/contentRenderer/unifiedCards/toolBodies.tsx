@@ -45,6 +45,8 @@
  * `constructor` is JSON).
  */
 import type { ReactNode } from "react";
+import { parseApplyPatch } from "../../transcript/patchDiff";
+import { DiffWithMenu } from "../../transcript/DiffViewComparison";
 import { PathText } from "@/lib/format/PathText";
 import { formatPath } from "@/lib/format/path";
 import { CodeTarget, Marked, TextTarget } from "../../transcript/ToolRow";
@@ -56,7 +58,7 @@ import { InputJson, Leftover, Summary, type BodyContext } from "./toolBodyParts"
 
 export type { BodyContext } from "./toolBodyParts";
 
-export type BodyKind = "todo" | "plan" | "notebook" | "taskCreate" | "taskUpdate" | "json";
+export type BodyKind = "todo" | "plan" | "notebook" | "taskCreate" | "taskUpdate" | "patch" | "json";
 
 export const BODY_BY_NAME: Readonly<Record<string, BodyKind>> = {
   TodoWrite: "todo",
@@ -67,7 +69,7 @@ export const BODY_BY_NAME: Readonly<Record<string, BodyKind>> = {
   TaskCreate: "taskCreate",
   TaskUpdate: "taskUpdate",
   // Codex edits: a DiffView body needs a parser of its patch; none exists yet (TR2b).
-  apply_patch: "json",
+  apply_patch: "patch",
 };
 
 /** The body for a recorded tool name; every name the table does not list is `json`. */
@@ -258,6 +260,20 @@ function taskUpdateBody(ctx: BodyContext): RoutedBody | null {
   };
 }
 
+// apply_patch ----------------------------------------------------------------
+function patchBody(ctx: BodyContext): RoutedBody | null {
+  const source = typeof ctx.input.patch === "string" ? ctx.input.patch : typeof ctx.input.input === "string" ? ctx.input.input : undefined;
+  const files = source !== undefined ? parseApplyPatch(source) : null;
+  if (!files) return null;
+  return { body: <>
+    {files.map((file, index) => <section key={index} className="space-y-1">
+      <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
+      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={file.sections.map(s => s.newText).join("\n")} sections={file.sections} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
+    </section>)}
+    <InputJson value={ctx.input} ctx={ctx} rest />
+  </> };
+}
+
 // Any other name -------------------------------------------------------------
 
 /** The generic body: the input summary as the target, the whole input as JSON. */
@@ -278,6 +294,7 @@ const STRUCTURED: Readonly<Record<Exclude<BodyKind, "json">, (ctx: BodyContext) 
   notebook: notebookBody,
   taskCreate: taskCreateBody,
   taskUpdate: taskUpdateBody,
+  patch: patchBody,
 };
 
 /**

@@ -1,4 +1,5 @@
 {
+  "diffView.modeWords": "單字變更",
   "advancedTextDiff.added": "已新增",
   "advancedTextDiff.additions": "新增",
   "advancedTextDiff.changeSummary": "{{count}}處變更，共{{chars}}字元",

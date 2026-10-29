@@ -21,12 +21,18 @@
  * Its disclosures keep their state in the capture expand registry
  * (`expandKey`), so it needs an `ExpandKeyProvider` above it.
  */
-import { Fragment, useId } from "react";
+import { Fragment, useId, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { replacementCounts } from "@/utils/lineChanges";
-import { foldContext, sectionLines, type DiffLine } from "./DiffViewModel";
+import { foldContext, comparedLines, pairLines, type DiffLine, type DiffPair } from "./DiffViewModel";
+import type { CompareMethod } from "./advancedCompare";
+import { Button } from "@/components/ui/button";
+import { useResultSearch, ResultSearchContext } from "./resultProvider";
+import { HighlightedText } from "../common/HighlightedText";
+import { searchRanges } from "../common/searchMarks";
+import type { TextHighlight } from "./ToolRow";
 
 /** Lines shown before "Show n more lines". */
 export const DIFF_LINE_CAP = 50;
@@ -39,6 +45,7 @@ export interface DiffSection {
   newText: string;
   oldStart?: number;
   newStart?: number;
+  lines?: DiffLine[];
 }
 
 export interface DiffViewProps {
@@ -51,11 +58,15 @@ export interface DiffViewProps {
   context?: number;
   /** Accessible name of the diff (e.g. the file's relative path). */
   label?: string;
+  split?: boolean;
+  method?: CompareMethod;
+  highlight?: TextHighlight;
+  filter?: "add" | "del";
 }
 
 type Item =
   | { type: "section"; key: string; text: string }
-  | { type: "line"; key: string; line: DiffLine }
+  | { type: "line"; key: string; line: DiffLine; pair?: DiffPair }
   | { type: "gap"; key: string; lines: DiffLine[] };
 
 const ROW_TONE = {
@@ -65,6 +76,37 @@ const ROW_TONE = {
 } as const;
 
 const NUMBER_CELL = "w-px select-none whitespace-nowrap px-2 text-right align-top tabular-nums text-fg-3";
+
+const WORD_TONE = { add: "bg-diff-word-add-bg decoration-diff-word-add-mark", del: "bg-diff-word-del-bg decoration-diff-word-del-mark", context: "" } as const;
+
+function CodeText({ line }: { line: DiffLine }) {
+  const highlight = useResultSearch();
+  const hits = highlight.searchQuery ? searchRanges(line.text, highlight.searchQuery) : [];
+  const emphasis = line.emphasis ?? [];
+  const boundaries = [...new Set([0, line.text.length, ...emphasis.flat(), ...hits.flat()])].sort((a, b) => a - b);
+  return <>{boundaries.slice(0, -1).map((start, index) => {
+    const end = boundaries[index + 1]!;
+    const word = emphasis.some(([a, b]) => start >= a && end <= b);
+    const match = hits.findIndex(([a, b]) => start >= a && end <= b);
+    const active = highlight.isCurrentMatch && match === (highlight.currentMatchIndex ?? 0);
+    return <span key={start} data-diff-word={word ? line.kind : undefined} className={word ? cn("underline decoration-2 underline-offset-2", WORD_TONE[line.kind]) : undefined}>
+      <HighlightedText text={line.text.slice(start, end)} searchQuery={highlight.searchQuery ?? ""} ranges={match >= 0 ? [[0, end - start]] : []} isCurrentMatch={active} currentMatchIndex={0} />
+    </span>;
+  })}</>;
+}
+
+function SplitRow({ pair }: { pair: DiffPair }) {
+  const { t } = useTranslation();
+  return <tr data-diff-pair="">{(["left", "right"] as const).map(side => {
+    const line = pair[side];
+    const tone = ROW_TONE[line?.kind ?? "context"];
+    return <Fragment key={side}>
+      <td data-diff-old-no={side === "left" ? "" : undefined} data-diff-new-no={side === "right" ? "" : undefined} className={cn(NUMBER_CELL, tone.gutter)}>{line ? (side === "left" ? line.oldNo : line.newNo) : ""}</td>
+      <td data-diff-marker="" data-diff-line={line?.kind} className={cn("w-px select-none px-1 text-center align-top", tone.gutter, tone.marker)}>{line && line.kind !== "context" && <><span aria-hidden="true">{line.kind === "add" ? "+" : "−"}</span><span className="sr-only">{t(line.kind === "add" ? "diffView.added" : "diffView.removed")}</span></>}</td>
+      <td data-diff-code="" className={cn("w-1/2 whitespace-pre pr-3 pl-1 align-top text-fg", tone.row)}>{line && <CodeText line={line} />}</td>
+    </Fragment>;
+  })}</tr>;
+}
 
 function LineRow({ line }: { line: DiffLine }) {
   const { t } = useTranslation();
@@ -92,7 +134,7 @@ function LineRow({ line }: { line: DiffLine }) {
         )}
       </td>
       <td data-diff-code="" className="whitespace-pre pr-3 pl-1 align-top text-fg">
-        {line.text}
+        <CodeText line={line} />
       </td>
     </tr>
   );
@@ -103,7 +145,7 @@ function LineRow({ line }: { line: DiffLine }) {
  * saying how many; opening shows them in place under it. The toggle stays, so
  * keyboard focus and its state survive (review round 1, amendment 14).
  */
-function GapRows({ lines, stateKey }: { lines: DiffLine[]; stateKey: string }) {
+function GapRows({ lines, stateKey, split }: { lines: DiffLine[]; stateKey: string; split?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useCaptureExpandState(stateKey, false);
   const groupId = useId();
@@ -111,8 +153,8 @@ function GapRows({ lines, stateKey }: { lines: DiffLine[]; stateKey: string }) {
     <tbody id={groupId} data-diff-gap-group="">
       <tr data-diff-gap="">
         {/* UI text, not code: a drag across opened lines selects code only (review round 2). */}
-        <td colSpan={4} className="select-none px-2 py-1 font-sans text-caption text-diff-hunk-fg">
-          <button
+        <td colSpan={split ? 6 : 4} className="select-none px-2 py-1 font-sans text-caption text-diff-hunk-fg">
+          <Button variant="ghost" size="sm"
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
@@ -120,10 +162,10 @@ function GapRows({ lines, stateKey }: { lines: DiffLine[]; stateKey: string }) {
             className="rounded-row px-1 hover:bg-surface-hover hover:text-fg"
           >
             {t("diffView.unchangedLines", { count: lines.length })}
-          </button>
+          </Button>
         </td>
       </tr>
-      {open && lines.map((line, index) => <LineRow key={index} line={line} />)}
+      {open && lines.map((line, index) => split ? <SplitRow key={index} pair={{ left: line, right: line }} /> : <LineRow key={index} line={line} />)}
     </tbody>
   );
 }
@@ -142,20 +184,36 @@ function groups(items: Item[]): Array<{ type: "gap"; item: Extract<Item, { type:
   return out;
 }
 
-export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label }: DiffViewProps) {
+export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label, split = false, method, highlight, filter }: DiffViewProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
   const bodyId = useId();
-  const counts = replacementCounts(sections.map((s) => [s.oldText, s.newText] as const));
+  const inherited = useResultSearch();
+  const search = highlight ?? inherited;
+  const query = search.searchQuery;
+  const hit = !!query?.trim() && sections.some(s => searchRanges(s.oldText + "\n" + s.newText, query).length > 0);
+  useEffect(() => { if (hit) setShowAll(true); }, [query, hit, setShowAll]);
+  const counts = sections.reduce((total, section) => {
+    const counts = section.lines ? { added: section.lines.filter(l => l.kind === "add").length, removed: section.lines.filter(l => l.kind === "del").length } : replacementCounts([[section.oldText, section.newText]]);
+    return { added: total.added + counts.added, removed: total.removed + counts.removed };
+  }, { added: 0, removed: 0 });
 
   const items: Item[] = [];
   sections.forEach((section, s) => {
     if (sections.length > 1) items.push({ type: "section", key: `s${s}`, text: t("diffView.section", { index: s + 1, total: sections.length }) });
-    const rows = foldContext(sectionLines(section.oldText, section.newText, section.oldStart, section.newStart), context);
-    rows.forEach((row, r) => {
-      const key = `s${s}-${r}`;
-      items.push(row.type === "line" ? { type: "line", key, line: row.line } : { type: "gap", key, lines: row.lines });
+    const allLines = section.lines ?? comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method);
+    const rows = filter ? allLines.filter(line => line.kind === filter).map(line => ({ type: "line" as const, line })) : foldContext(allLines, hit ? Infinity : context);
+    let run: DiffLine[] = [];
+    const flush = () => {
+      if (split) pairLines(run).forEach(pair => items.push({ type: "line", key: `s${s}-${items.length}`, line: (pair.left ?? pair.right)!, pair }));
+      else run.forEach(line => items.push({ type: "line", key: `s${s}-${items.length}`, line }));
+      run = [];
+    };
+    rows.forEach(row => {
+      if (row.type === "line") run.push(row.line);
+      else { flush(); items.push({ type: "gap", key: `s${s}-${items.length}`, lines: row.lines }); }
     });
+    flush();
   });
 
   // The cap counts drawn lines; everything from the first line past it waits.
@@ -165,7 +223,8 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
   const visible = cut < 0 || showAll ? items : items.slice(0, cut);
 
   return (
-    <div data-diff-view="" data-diff-added={counts.added} data-diff-removed={counts.removed} className="rounded-row bg-surface-well text-fg">
+    <ResultSearchContext.Provider value={search}>
+    <div data-diff-view="" data-diff-mode={split ? "sideBySide" : method ? "advanced" : "unified"} data-diff-added={counts.added} data-diff-removed={counts.removed} className="rounded-row bg-surface-well text-fg">
       <p className="sr-only">{`${t("toolRow.linesAdded", { count: counts.added })}, ${t("toolRow.linesRemoved", { count: counts.removed })}`}</p>
       {/* A long line scrolls sideways: the region is reachable from the keyboard. */}
       <div className="overflow-x-auto py-1" tabIndex={0} role="group" aria-label={label ?? t("diffView.code")}>
@@ -173,26 +232,27 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
           <thead className="sr-only">
             <tr>
               <th scope="col">{t("diffView.oldLine")}</th>
-              <th scope="col">{t("diffView.newLine")}</th>
+              {!split && <th scope="col">{t("diffView.newLine")}</th>}
               <th scope="col">{t("diffView.change")}</th>
-              <th scope="col">{t("diffView.code")}</th>
+              <th scope="col">{split ? t("diffViewer.before") : t("diffView.code")}</th>
+              {split && <><th scope="col">{t("diffView.newLine")}</th><th scope="col">{t("diffView.change")}</th><th scope="col">{t("diffViewer.after")}</th></>}
             </tr>
           </thead>
           {groups(visible).map((group) =>
             group.type === "gap" ? (
-              <GapRows key={group.item.key} lines={group.item.lines} stateKey={`${expandKey}:gap-${group.item.key}`} />
+              <GapRows split={split} key={group.item.key} lines={group.item.lines} stateKey={`${expandKey}:gap-${group.item.key}`} />
             ) : (
               <tbody key={group.items[0]?.key ?? "rows"}>
                 {group.items.map((item) => (
                   <Fragment key={item.key}>
                     {item.type === "section" && (
                       <tr data-diff-section="">
-                        <td colSpan={4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
+                        <td colSpan={split ? 6 : 4} className="px-2 py-1 font-sans text-caption text-diff-hunk-fg">
                           {item.text}
                         </td>
                       </tr>
                     )}
-                    {item.type === "line" && <LineRow line={item.line} />}
+                    {item.type === "line" && (item.pair ? <SplitRow pair={item.pair} /> : <LineRow line={item.line} />)}
                   </Fragment>
                 ))}
               </tbody>
@@ -202,7 +262,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
       </div>
       {hidden > 0 && (
         <div className="px-3 pb-2">
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onClick={() => setShowAll((v) => !v)}
             aria-expanded={showAll}
@@ -210,9 +270,10 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
             className="text-caption text-fg-2 hover:text-fg"
           >
             {showAll ? t("diffView.showLess") : t("diffView.showMore", { count: hidden })}
-          </button>
+          </Button>
         </div>
       )}
     </div>
+    </ResultSearchContext.Provider>
   );
 }
