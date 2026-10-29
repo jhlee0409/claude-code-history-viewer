@@ -1,3 +1,18 @@
+//! Mistral Vibe CLI provider.
+//!
+//! Two on-disk layouts are supported:
+//!
+//! - **Legacy transcript** — `~/.vibe/logs/session/<session>/` holding
+//!   `meta.json` + `messages.jsonl` (one OpenAI-style message per line).
+//! - **Unified session store** (current Vibe) —
+//!   `~/.vibe/logs/session/unified/<session-id>/` holding `meta.json` plus an
+//!   event-sourced store: content-addressed `chunks/<sha256>.json` files and
+//!   `generations/<seq>/` snapshots. The conversation is recovered from the
+//!   latest generation's `manifest.json`, whose `checkpoint.chunks` list names
+//!   the chunks of the model-facing history in order. Each chunk is a JSON
+//!   array of history entries wrapping an OpenAI-style message
+//!   (`{ "message": { "role": ..., "content": [...] }, "source": "history" }`).
+
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
@@ -9,8 +24,13 @@ use std::path::{Path, PathBuf};
 
 const PROVIDER_ID: &str = "vibe";
 const SESSIONS_DIR: &str = "logs/session";
+const UNIFIED_SESSIONS_DIR: &str = "logs/session/unified";
 const METADATA_FILE: &str = "meta.json";
 const MESSAGES_FILE: &str = "messages.jsonl";
+const CHUNKS_DIR: &str = "chunks";
+const GENERATIONS_DIR: &str = "generations";
+const MANIFEST_FILE: &str = "manifest.json";
+const CURRENT_FILE: &str = "CURRENT";
 const SCHEME: &str = "vibe://";
 
 pub fn detect() -> Option<ProviderInfo> {
@@ -48,33 +68,21 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
+/// Scan a Vibe base path and group its sessions into projects by working
+/// directory.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Vibe base path")?;
     let base = Path::new(base_path);
-    let sessions_root = base.join(SESSIONS_DIR);
-
-    if is_symlink(&sessions_root) || !sessions_root.is_dir() {
-        return Ok(Vec::new());
-    }
 
     let mut by_cwd: HashMap<String, ProjectAccumulator> = HashMap::new();
 
-    for entry in
-        fs::read_dir(&sessions_root).map_err(|e| format!("Failed to read Vibe sessions: {e}"))?
-    {
-        let entry = entry.map_err(|e| format!("Failed to read Vibe session entry: {e}"))?;
-        if entry
-            .file_type()
-            .map_or(true, |ft| ft.is_symlink() || !ft.is_dir())
-        {
-            continue;
-        }
-
-        if let Some(info) = extract_session_info(&entry.path()) {
+    for session_dir in collect_session_dirs(base) {
+        if let Some(info) = extract_session_info(&session_dir) {
             let cwd = info.cwd.unwrap_or_else(|| "unknown".to_string());
             let agg = by_cwd.entry(cwd).or_default();
             agg.session_count += 1;
             agg.message_count += info.message_count;
+            agg.storage_type = Some(info.storage_type.to_string());
             if info.last_modified > agg.last_modified {
                 agg.last_modified = info.last_modified;
             }
@@ -98,7 +106,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
                 last_modified: agg.last_modified,
                 git_info: None,
                 provider: Some(PROVIDER_ID.to_string()),
-                storage_type: Some("jsonl".to_string()),
+                storage_type: agg.storage_type,
                 custom_directory_label: None,
             }
         })
@@ -121,27 +129,16 @@ pub fn load_sessions(
     load_sessions_from_base_path(&base, project_path, exclude_sidechain)
 }
 
+/// Load the sessions of one project from a Vibe base path.
 pub fn load_sessions_from_base_path(
     base_path: &str,
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let target_cwd = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
-    let sessions_root = Path::new(base_path).join(SESSIONS_DIR);
     let mut sessions = Vec::new();
 
-    for entry in
-        fs::read_dir(&sessions_root).map_err(|e| format!("Failed to read Vibe sessions: {e}"))?
-    {
-        let entry = entry.map_err(|e| format!("Failed to read Vibe session entry: {e}"))?;
-        if entry
-            .file_type()
-            .map_or(true, |ft| ft.is_symlink() || !ft.is_dir())
-        {
-            continue;
-        }
-
-        let session_dir = entry.path();
+    for session_dir in collect_session_dirs(Path::new(base_path)) {
         let Some(info) = extract_session_info(&session_dir) else {
             continue;
         };
@@ -168,7 +165,7 @@ pub fn load_sessions_from_base_path(
             summary: info.summary,
             is_renamed: info.is_renamed,
             provider: Some(PROVIDER_ID.to_string()),
-            storage_type: Some("jsonl".to_string()),
+            storage_type: Some(info.storage_type.to_string()),
             entrypoint: None,
         });
     }
@@ -182,6 +179,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     load_messages_from_base_path(&base, session_path)
 }
 
+/// Load one session's messages from a Vibe base path, reading either the
+/// legacy `messages.jsonl` transcript or the unified session store.
 pub fn load_messages_from_base_path(
     base_path: &str,
     session_path: &str,
@@ -200,6 +199,22 @@ pub fn load_messages_from_base_path(
         .map(normalize_timestamp)
         .unwrap_or_default();
 
+    // Unified session store: conversation comes from the checkpoint chunks.
+    if session_dir.join(CHUNKS_DIR).is_dir() {
+        let entries = load_history_entries(&session_dir);
+        let mut messages = Vec::new();
+        let mut counter = 0u64;
+        for entry in &entries {
+            if let Some(message) =
+                convert_history_entry(entry, &session_id, &timestamp, &mut counter)
+            {
+                messages.push(message);
+            }
+        }
+        return Ok(messages);
+    }
+
+    // Legacy transcript: one OpenAI-style message per line.
     let values = read_jsonl_values(&session_dir.join(MESSAGES_FILE))?;
     let mut messages = Vec::new();
     let mut counter = 0u64;
@@ -256,13 +271,411 @@ pub fn search_from_base_path(
     Ok(results)
 }
 
+/// Collect Vibe session directories under `logs/session`.
+///
+/// Legacy sessions live directly under `logs/session/<session>/` (with
+/// `meta.json` + `messages.jsonl`); current Vibe stores them one level deeper
+/// under `logs/session/unified/<session-id>/` (with `meta.json` + `chunks/`).
+/// Sibling directories such as `active/` (lock files) and `plugins/` carry no
+/// `meta.json` and are skipped.
+fn collect_session_dirs(base: &Path) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    for container in [base.join(SESSIONS_DIR), base.join(UNIFIED_SESSIONS_DIR)] {
+        let Ok(read_dir) = fs::read_dir(&container) else {
+            continue;
+        };
+        for entry in read_dir.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
+                continue;
+            }
+            let dir = entry.path();
+            if is_session_dir(&dir) {
+                dirs.push(dir);
+            }
+        }
+    }
+    dirs
+}
+
+/// A session directory carries `meta.json` plus either the unified store's
+/// `chunks/` directory or the legacy `messages.jsonl` transcript. Symlinks
+/// are rejected so a session never resolves outside the sessions root.
+fn is_session_dir(dir: &Path) -> bool {
+    if is_symlink(dir) || !dir.is_dir() {
+        return false;
+    }
+    let metadata = dir.join(METADATA_FILE);
+    if is_symlink(&metadata) || !metadata.is_file() {
+        return false;
+    }
+    let chunks = dir.join(CHUNKS_DIR);
+    if !is_symlink(&chunks) && chunks.is_dir() {
+        return true;
+    }
+    let messages = dir.join(MESSAGES_FILE);
+    !is_symlink(&messages) && messages.is_file()
+}
+
+/// Read the ordered conversation history from a unified session store.
+///
+/// The latest generation's `manifest.json` lists the ordered
+/// `checkpoint.chunks` that make up the model-facing history, so the manifest
+/// is the source of truth for both membership and ordering. When no manifest
+/// is readable (crashed or in-progress session), fall back to every chunk
+/// ordered by modification time.
+fn load_history_entries(session_dir: &Path) -> Vec<Value> {
+    let chunks_dir = session_dir.join(CHUNKS_DIR);
+    if is_symlink(&chunks_dir) {
+        return Vec::new();
+    }
+    let mut entries = Vec::new();
+
+    if let Some(hashes) = resolve_checkpoint_chunks(session_dir) {
+        for hash in hashes {
+            entries.extend(read_chunk_file(&chunks_dir.join(format!("{hash}.json"))));
+        }
+        return entries;
+    }
+
+    let mut chunk_files: Vec<PathBuf> = Vec::new();
+    if let Ok(read_dir) = fs::read_dir(&chunks_dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if is_symlink(&path) {
+                continue;
+            }
+            chunk_files.push(path);
+        }
+    }
+    chunk_files.sort_by_key(|path| {
+        fs::metadata(path)
+            .and_then(|meta| meta.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+    for path in chunk_files {
+        entries.extend(read_chunk_file(&path));
+    }
+    entries
+}
+
+/// Chunk hashes and generation names come from store files (`manifest.json`,
+/// `CURRENT`) and are untrusted: only single file-name components are
+/// accepted, so a malformed store cannot make the provider read outside its
+/// session directory.
+fn is_safe_store_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// Resolve the ordered checkpoint chunk hashes of the latest generation.
+fn resolve_checkpoint_chunks(session_dir: &Path) -> Option<Vec<String>> {
+    let generations = session_dir.join(GENERATIONS_DIR);
+    if is_symlink(&generations) {
+        return None;
+    }
+    let generation = current_generation(session_dir)
+        .filter(|name| is_safe_store_name(name))
+        .filter(|name| {
+            let dir = generations.join(name);
+            !is_symlink(&dir) && dir.join(MANIFEST_FILE).is_file()
+        })
+        .or_else(|| latest_generation(&generations))?;
+    let manifest = read_json_file(&generations.join(&generation).join(MANIFEST_FILE)).ok()?;
+    let chunks: Vec<String> = manifest
+        .get("checkpoint")?
+        .get("chunks")?
+        .as_array()?
+        .iter()
+        .filter_map(|chunk| {
+            chunk
+                .as_str()
+                .filter(|hash| is_safe_store_name(hash))
+                .map(str::to_owned)
+        })
+        .collect();
+    if chunks.is_empty() {
+        None
+    } else {
+        Some(chunks)
+    }
+}
+
+/// The `CURRENT` file points at the newest generation of a session.
+fn current_generation(session_dir: &Path) -> Option<String> {
+    let current = read_json_file(&session_dir.join(CURRENT_FILE)).ok()?;
+    current.get("generation")?.as_str().map(str::to_owned)
+}
+
+/// Generation directories are zero-padded sequence numbers, so the maximum
+/// file name is the latest generation.
+fn latest_generation(generations: &Path) -> Option<String> {
+    fs::read_dir(generations)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| is_safe_store_name(name))
+        .max()
+}
+
+/// A chunk is a JSON array of history entries. A torn write on an active
+/// session can leave a truncated final chunk — skip it instead of failing
+/// the whole session.
+fn read_chunk_file(path: &Path) -> Vec<Value> {
+    if is_symlink(path) {
+        return Vec::new();
+    }
+    let Ok(content) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    match serde_json::from_str::<Value>(&content) {
+        Ok(Value::Array(items)) => items,
+        _ => Vec::new(),
+    }
+}
+
+/// Convert one unified-store history entry into a viewer message.
+///
+/// History entries wrap an OpenAI-style message
+/// (`{ "message": { "role": ..., "content": [...] }, "source": "history" }`).
+/// Tool results arrive as `role: "tool"` messages linked to their call by
+/// `tool_call_id`. Entries carry no per-message id or timestamp, so messages
+/// are numbered in conversation order and stamped with the session start.
+fn convert_history_entry(
+    entry: &Value,
+    session_id: &str,
+    timestamp: &str,
+    counter: &mut u64,
+) -> Option<ClaudeMessage> {
+    let message = entry.get("message")?;
+    let role = message.get("role").and_then(Value::as_str)?;
+    let content = message.get("content");
+    *counter += 1;
+    let uuid = format!("{session_id}-{counter}");
+
+    match role {
+        "user" => Some(build_provider_message(
+            PROVIDER_ID,
+            uuid,
+            session_id,
+            timestamp.to_string(),
+            "user",
+            Some("user"),
+            Some(history_content_to_blocks(content)),
+            None,
+        )),
+        "assistant" => Some(build_provider_message(
+            PROVIDER_ID,
+            uuid,
+            session_id,
+            timestamp.to_string(),
+            "assistant",
+            Some("assistant"),
+            Some(history_content_to_blocks(content)),
+            None,
+        )),
+        "tool" => {
+            let tool_call_id = message
+                .get("tool_call_id")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let is_error = message.get("outcome").and_then(Value::as_str) == Some("failure");
+            let mut result = json!({
+                "type": "tool_result",
+                "tool_use_id": tool_call_id,
+                "content": history_text_content(content),
+            });
+            if is_error {
+                result["is_error"] = Value::Bool(true);
+            }
+            Some(build_provider_message(
+                PROVIDER_ID,
+                uuid,
+                session_id,
+                timestamp.to_string(),
+                "tool",
+                Some("tool"),
+                Some(json!([result])),
+                None,
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// Map unified-store content blocks to viewer blocks: `text` passes through,
+/// `reasoning` becomes a thinking block, `tool_call` becomes a `tool_use`
+/// block, `image` and `resource` attachments are converted to the viewer's
+/// native shapes. Unknown block types are kept as-is for forward
+/// compatibility.
+fn history_content_to_blocks(content: Option<&Value>) -> Value {
+    if let Some(text) = content.and_then(Value::as_str) {
+        return json!([{ "type": "text", "text": text }]);
+    }
+    let Some(items) = content.and_then(Value::as_array) else {
+        return Value::Array(Vec::new());
+    };
+
+    let mut blocks = Vec::new();
+    for item in items {
+        match item.get("type").and_then(Value::as_str) {
+            Some("text") => {
+                if let Some(text) = item.get("text").and_then(Value::as_str) {
+                    blocks.push(json!({ "type": "text", "text": text }));
+                }
+            }
+            Some("reasoning") => {
+                let thinking = reasoning_text(item);
+                if !thinking.is_empty() {
+                    blocks.push(json!({ "type": "thinking", "thinking": thinking }));
+                }
+            }
+            Some("tool_call") => blocks.push(convert_history_tool_call(item)),
+            Some("image") => {
+                if let Some(block) = convert_history_image(item) {
+                    blocks.push(block);
+                }
+            }
+            Some("resource") => {
+                if let Some(block) = convert_history_resource(item) {
+                    blocks.push(block);
+                }
+            }
+            _ => blocks.push(item.clone()),
+        }
+    }
+    Value::Array(blocks)
+}
+
+/// Vibe stores pasted images inline as
+/// `{ "type": "image", "data": <base64>, "mimeType": ... }`; map to the
+/// viewer's base64 image block shape.
+fn convert_history_image(item: &Value) -> Option<Value> {
+    let data = item.get("data").and_then(Value::as_str)?;
+    let mime_type = item
+        .get("mimeType")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            item.get("_meta")
+                .and_then(|meta| meta.get("mistralai.vibe.harness/file-image-resource-link"))
+                .and_then(|link| link.get("mimeType"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("image/png");
+    Some(json!({
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": mime_type,
+            "data": data,
+        }
+    }))
+}
+
+/// Vibe attaches `@file` mentions as
+/// `{ "type": "resource", "resource": { "text": ..., "uri": "file://..." } }`;
+/// map to a plain-text document block so the viewer renders the file content
+/// instead of an unknown-type warning.
+fn convert_history_resource(item: &Value) -> Option<Value> {
+    let resource = item.get("resource")?;
+    let text = resource.get("text").and_then(Value::as_str)?;
+    let title = resource
+        .get("uri")
+        .and_then(Value::as_str)
+        .and_then(|uri| uri.strip_prefix("file://"))
+        .and_then(|path| Path::new(path).file_name())
+        .map(|name| name.to_string_lossy().to_string());
+    let mut block = json!({
+        "type": "document",
+        "source": {
+            "type": "text",
+            "media_type": "text/plain",
+            "data": text,
+        }
+    });
+    if let Some(title) = title {
+        block["title"] = Value::String(title);
+    }
+    Some(block)
+}
+
+/// Reasoning blocks nest their text in a content array
+/// (`{ "type": "reasoning", "content": [{ "text": ... }] }`); accept a flat
+/// `text` field too.
+fn reasoning_text(item: &Value) -> String {
+    if let Some(text) = item.get("text").and_then(Value::as_str) {
+        return text.to_string();
+    }
+    item.get("content")
+        .and_then(Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|block| block.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default()
+}
+
+/// Map a Vibe `tool_call` content block to the viewer's `tool_use` block,
+/// preferring the parsed `arguments.value` and falling back to `arguments.raw`.
+fn convert_history_tool_call(call: &Value) -> Value {
+    let arguments = call.get("arguments");
+    let input = arguments
+        .and_then(|args| args.get("value"))
+        .cloned()
+        .filter(|value| !value.is_null())
+        .or_else(|| {
+            arguments
+                .and_then(|args| args.get("raw"))
+                .and_then(Value::as_str)
+                .and_then(|raw| serde_json::from_str(raw).ok())
+        })
+        .unwrap_or(Value::Null);
+
+    json!({
+        "type": "tool_use",
+        "id": call.get("id").and_then(Value::as_str).unwrap_or(""),
+        "name": call.get("name").and_then(Value::as_str).unwrap_or("tool"),
+        "input": input,
+    })
+}
+
+/// Flatten tool-result content blocks to the plain text the viewer renders.
+fn history_text_content(content: Option<&Value>) -> Value {
+    match content {
+        Some(Value::String(text)) => Value::String(text.clone()),
+        Some(Value::Array(items)) => {
+            let text = items
+                .iter()
+                .filter_map(|block| block.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n");
+            Value::String(text)
+        }
+        other => other.cloned().unwrap_or(Value::Null),
+    }
+}
+
+/// Per-project totals while scanning a Vibe base path.
 #[derive(Debug, Default)]
 struct ProjectAccumulator {
     session_count: usize,
     message_count: usize,
     last_modified: String,
+    storage_type: Option<String>,
 }
 
+/// One discovered Vibe session, before it becomes a `ClaudeSession`.
 #[derive(Debug, Clone)]
 struct SessionInfo {
     session_id: String,
@@ -274,20 +687,25 @@ struct SessionInfo {
     has_tool_use: bool,
     summary: Option<String>,
     is_renamed: bool,
+    storage_type: &'static str,
 }
 
+/// Summary facts extracted from a session's history.
+#[derive(Debug, Default)]
+struct HistorySummary {
+    message_count: usize,
+    has_tool_use: bool,
+    first_user_text: Option<String>,
+}
+
+/// Read one session directory's metadata and history summary.
 fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
     if is_symlink(session_dir) || !session_dir.is_dir() {
         return None;
     }
 
     let metadata_path = session_dir.join(METADATA_FILE);
-    let messages_path = session_dir.join(MESSAGES_FILE);
-    if is_symlink(&metadata_path)
-        || is_symlink(&messages_path)
-        || !metadata_path.is_file()
-        || !messages_path.is_file()
-    {
+    if is_symlink(&metadata_path) || !metadata_path.is_file() {
         return None;
     }
 
@@ -322,18 +740,100 @@ fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
         .map(normalize_timestamp)
         .unwrap_or_else(|| start_time.clone());
 
-    let values = read_jsonl_values(&messages_path).ok()?;
-    let mut message_count = 0usize;
-    let mut has_tool_use = false;
-    let mut first_user = None;
+    let (summary, storage_type, last_modified) = if session_dir.join(CHUNKS_DIR).is_dir() {
+        let entries = load_history_entries(session_dir);
+        let summary = summarize_history_entries(&entries);
+        let last_modified = if end_time.is_empty() {
+            file_modified_iso(&metadata_path).unwrap_or_default()
+        } else {
+            end_time.clone()
+        };
+        (summary, "json", last_modified)
+    } else {
+        let messages_path = session_dir.join(MESSAGES_FILE);
+        if is_symlink(&messages_path) || !messages_path.is_file() {
+            return None;
+        }
+        let values = read_jsonl_values(&messages_path).ok()?;
+        let summary = summarize_transcript_values(&values);
+        let last_modified = if end_time.is_empty() {
+            file_modified_iso(&messages_path).unwrap_or_default()
+        } else {
+            end_time.clone()
+        };
+        (summary, "jsonl", last_modified)
+    };
 
-    for value in &values {
+    if summary.message_count == 0 {
+        return None;
+    }
+
+    Some(SessionInfo {
+        session_id,
+        cwd,
+        message_count: summary.message_count,
+        first_message_time: start_time.clone(),
+        last_message_time: end_time,
+        last_modified,
+        has_tool_use: summary.has_tool_use,
+        summary: title.or(summary.first_user_text),
+        is_renamed,
+        storage_type,
+    })
+}
+
+/// Summarize unified-store history entries: message count, tool usage and
+/// the first user text (used as a fallback session summary).
+fn summarize_history_entries(entries: &[Value]) -> HistorySummary {
+    let mut summary = HistorySummary::default();
+
+    for entry in entries {
+        let Some(message) = entry.get("message") else {
+            continue;
+        };
+        let Some(role) = message.get("role").and_then(Value::as_str) else {
+            continue;
+        };
+        if !matches!(role, "user" | "assistant" | "tool") {
+            continue;
+        }
+        summary.message_count += 1;
+        if role == "tool" {
+            summary.has_tool_use = true;
+        }
+        let Some(items) = message.get("content").and_then(Value::as_array) else {
+            continue;
+        };
+        if items
+            .iter()
+            .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_call"))
+        {
+            summary.has_tool_use = true;
+        }
+        if role == "user" && summary.first_user_text.is_none() {
+            summary.first_user_text = items
+                .iter()
+                .find_map(|block| block.get("text").and_then(Value::as_str))
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+                .map(|text| truncate_chars(text, 200));
+        }
+    }
+
+    summary
+}
+
+/// Summarize legacy `messages.jsonl` records.
+fn summarize_transcript_values(values: &[Value]) -> HistorySummary {
+    let mut summary = HistorySummary::default();
+
+    for value in values {
         let role = value.get("role").and_then(Value::as_str).unwrap_or("");
         if role == "system" {
             continue;
         }
         if matches!(role, "user" | "assistant" | "tool") {
-            message_count += 1;
+            summary.message_count += 1;
         }
         if role == "tool"
             || value
@@ -341,34 +841,14 @@ fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
                 .and_then(Value::as_array)
                 .is_some_and(|calls| !calls.is_empty())
         {
-            has_tool_use = true;
+            summary.has_tool_use = true;
         }
-        if role == "user" && first_user.is_none() {
-            first_user = extract_content_summary(value);
+        if role == "user" && summary.first_user_text.is_none() {
+            summary.first_user_text = extract_content_summary(value);
         }
     }
 
-    if message_count == 0 {
-        return None;
-    }
-
-    let last_modified = if end_time.is_empty() {
-        file_modified_iso(&messages_path).unwrap_or_default()
-    } else {
-        end_time.clone()
-    };
-
-    Some(SessionInfo {
-        session_id,
-        cwd,
-        message_count,
-        first_message_time: start_time.clone(),
-        last_message_time: end_time,
-        last_modified,
-        has_tool_use,
-        summary: title.or(first_user),
-        is_renamed,
-    })
+    summary
 }
 
 fn convert_message(
@@ -590,7 +1070,7 @@ fn convert_tool_call(call: &Value) -> Value {
 
 fn normalize_tool_input(input: Value) -> Value {
     if let Some(s) = input.as_str() {
-        serde_json::from_str(s).unwrap_or_else(|_| json!({ "input": s }))
+        serde_json::from_str(s).unwrap_or_else(|_| json!({"input": s }))
     } else {
         input
     }
@@ -695,6 +1175,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    /// Build a legacy `messages.jsonl` session fixture with metadata.
     fn write_fixture(base: &Path) -> (String, String) {
         let session_dir = base.join("logs/session/session_20260202_120000_abc123");
         fs::create_dir_all(&session_dir).expect("create session dir");
@@ -727,7 +1208,7 @@ mod tests {
             json!({
                 "role": "assistant",
                 "content": "I'll inspect the provider registry.",
-                "reasoning_content": "Need to mirror Kimi parsing.",
+                "reasoning_content": "The registry must list the Vibe provider.",
                 "message_id": "msg-2",
                 "tool_calls": [{
                     "id": "call-1",
@@ -741,7 +1222,7 @@ mod tests {
             json!({
                 "role": "tool",
                 "tool_call_id": "call-1",
-                "content": "mod kimi;",
+                "content": "mod vibe;",
                 "message_id": "msg-3"
             }),
         ];
@@ -755,7 +1236,122 @@ mod tests {
         (cwd.to_string(), session_dir.to_string_lossy().to_string())
     }
 
+    /// Build a unified session store fixture (`logs/session/unified/<id>/`)
+    /// with two checkpoint chunks and a `CURRENT` pointer.
+    fn write_unified_fixture(base: &Path) -> (String, String) {
+        let session_dir = base.join("logs/session/unified/7abdeb96-ca90-7e2a-1257-a26093d8f6e9");
+        let chunks_dir = session_dir.join(CHUNKS_DIR);
+        let generation_dir = session_dir.join(GENERATIONS_DIR).join("0000000000000042");
+        fs::create_dir_all(&chunks_dir).expect("create chunks dir");
+        fs::create_dir_all(&generation_dir).expect("create generation dir");
+
+        let cwd = "/tmp/vibe-unified-demo";
+        let metadata = json!({
+            "session_id": "7abdeb96-ca90-7e2a-1257-a26093d8f6e9",
+            "start_time": "2026-10-24T10:00:00+00:00",
+            "end_time": "2026-10-24T10:30:00+00:00",
+            "environment": { "working_directory": cwd },
+            "title": "Unified store session",
+            "title_source": "auto",
+        });
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            serde_json::to_string_pretty(&metadata).unwrap(),
+        )
+        .expect("write metadata");
+
+        fs::write(
+            session_dir.join(CURRENT_FILE),
+            json!({
+                "generation": "0000000000000042",
+                "session_id": "7abdeb96-ca90-7e2a-1257-a26093d8f6e9",
+                "store_format": "mistral.vibe.unified-session-store/v1",
+            })
+            .to_string(),
+        )
+        .expect("write CURRENT");
+
+        let chunk_a = json!([
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": "Lance le serveur en mode dev" },
+                        { "type": "image", "data": "aW1hZ2U=", "mimeType": "image/png" },
+                        {
+                            "type": "resource",
+                            "resource": {
+                                "text": "contenu de dev.log",
+                                "uri": "file:///tmp/vibe-unified-demo/dev.log"
+                            }
+                        }
+                    ]
+                },
+                "source": "history",
+                "turn_index": 0
+            },
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        { "type": "reasoning", "content": [{ "type": "text", "text": "Je reflechis au build" }] },
+                        { "type": "text", "text": "Je regarde le justfile." }
+                    ]
+                },
+                "source": "history",
+                "turn_index": 0
+            }
+        ]);
+        let chunk_b = json!([
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "tool_call",
+                        "id": "call-1",
+                        "name": "file_system.bash",
+                        "arguments": {
+                            "type": "json",
+                            "raw": "{\"command\":\"just dev\"}",
+                            "value": { "command": "just dev" }
+                        }
+                    }]
+                },
+                "source": "history",
+                "turn_index": 0
+            },
+            {
+                "message": {
+                    "role": "tool",
+                    "name": "file_system.bash",
+                    "outcome": "failure",
+                    "tool_call_id": "call-1",
+                    "content": [{ "type": "text", "text": "{\"returncode\":1,\"stderr\":\"boom\"}" }]
+                },
+                "source": "history",
+                "turn_index": 0
+            }
+        ]);
+        fs::write(chunks_dir.join("aaa.json"), chunk_a.to_string()).expect("write chunk a");
+        fs::write(chunks_dir.join("bbb.json"), chunk_b.to_string()).expect("write chunk b");
+
+        let manifest = json!({
+            "manifest_version": 1,
+            "generation": "0000000000000042",
+            "checkpoint": { "chunks": ["aaa", "bbb"], "path": "checkpoint.json" },
+            "projection_state": { "chunks": [] }
+        });
+        fs::write(
+            generation_dir.join(MANIFEST_FILE),
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .expect("write manifest");
+
+        (cwd.to_string(), session_dir.to_string_lossy().to_string())
+    }
+
     #[test]
+    /// Legacy sessions group into one project by working directory.
     fn scan_projects_groups_sessions_by_working_directory() {
         let temp = TempDir::new().expect("temp dir");
         let (cwd, _) = write_fixture(temp.path());
@@ -769,6 +1365,7 @@ mod tests {
     }
 
     #[test]
+    /// Legacy transcripts parse into sessions and viewer messages.
     fn load_sessions_and_messages_parse_openai_format() {
         let temp = TempDir::new().expect("temp dir");
         let (cwd, session_dir) = write_fixture(temp.path());
@@ -791,6 +1388,155 @@ mod tests {
     }
 
     #[test]
+    /// Unified sessions group into one project by working directory.
+    fn scan_projects_groups_unified_sessions_by_working_directory() {
+        let temp = TempDir::new().expect("temp dir");
+        let (cwd, _) = write_unified_fixture(temp.path());
+
+        let projects = scan_projects_from_path(temp.path().to_str().unwrap()).expect("scan");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, format!("{SCHEME}{cwd}"));
+        assert_eq!(projects[0].session_count, 1);
+        assert_eq!(projects[0].message_count, 4);
+        assert_eq!(projects[0].provider.as_deref(), Some(PROVIDER_ID));
+    }
+
+    #[test]
+    /// A unified store parses into a session and its checkpoint-ordered messages.
+    fn load_sessions_and_messages_parse_unified_store() {
+        let temp = TempDir::new().expect("temp dir");
+        let (cwd, session_dir) = write_unified_fixture(temp.path());
+        let base = temp.path().to_str().unwrap();
+        let project_path = format!("{SCHEME}{cwd}");
+
+        let sessions =
+            load_sessions_from_base_path(base, &project_path, false).expect("load sessions");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].summary.as_deref(),
+            Some("Unified store session")
+        );
+        assert!(!sessions[0].is_renamed);
+        assert!(sessions[0].has_tool_use);
+        assert_eq!(sessions[0].message_count, 4);
+        assert_eq!(sessions[0].storage_type.as_deref(), Some("json"));
+
+        let messages = load_messages_from_base_path(base, &session_dir).expect("load messages");
+        assert_eq!(messages.len(), 4);
+
+        assert_eq!(messages[0].message_type, "user");
+        let user_blocks = messages[0].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(user_blocks[0]["text"], "Lance le serveur en mode dev");
+        // Pasted images map to the viewer's base64 image block shape.
+        assert_eq!(user_blocks[1]["type"], "image");
+        assert_eq!(user_blocks[1]["source"]["media_type"], "image/png");
+        assert_eq!(user_blocks[1]["source"]["data"], "aW1hZ2U=");
+        // `@file` attachments map to a plain-text document block.
+        assert_eq!(user_blocks[2]["type"], "document");
+        assert_eq!(user_blocks[2]["title"], "dev.log");
+        assert_eq!(user_blocks[2]["source"]["data"], "contenu de dev.log");
+
+        assert_eq!(messages[1].message_type, "assistant");
+        let blocks = messages[1].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "thinking");
+        assert_eq!(blocks[0]["thinking"], "Je reflechis au build");
+        assert_eq!(blocks[1]["type"], "text");
+
+        assert_eq!(messages[2].message_type, "assistant");
+        let tool_use = &messages[2].content.as_ref().unwrap()[0];
+        assert_eq!(tool_use["type"], "tool_use");
+        assert_eq!(tool_use["id"], "call-1");
+        assert_eq!(tool_use["name"], "file_system.bash");
+        assert_eq!(tool_use["input"], json!({ "command": "just dev" }));
+
+        assert_eq!(messages[3].message_type, "tool");
+        let result = &messages[3].content.as_ref().unwrap()[0];
+        assert_eq!(result["type"], "tool_result");
+        assert_eq!(result["tool_use_id"], "call-1");
+        assert_eq!(result["content"], "{\"returncode\":1,\"stderr\":\"boom\"}");
+        assert_eq!(result["is_error"], Value::Bool(true));
+    }
+
+    #[test]
+    /// Without a readable manifest (crashed or in-progress session), every
+    /// chunk is read in modification-time order.
+    fn load_messages_unified_falls_back_to_all_chunks_without_manifest() {
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_unified_fixture(temp.path());
+        let session_dir = PathBuf::from(&session_dir);
+        let base = temp.path().to_str().unwrap();
+
+        fs::remove_file(session_dir.join(CURRENT_FILE)).expect("remove CURRENT");
+        fs::remove_file(
+            session_dir
+                .join(GENERATIONS_DIR)
+                .join("0000000000000042")
+                .join(MANIFEST_FILE),
+        )
+        .expect("remove manifest");
+
+        let messages = load_messages_from_base_path(base, session_dir.to_str().unwrap())
+            .expect("load messages");
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0].message_type, "user");
+        assert_eq!(messages[3].message_type, "tool");
+    }
+
+    #[test]
+    /// A session directory without any message content is not surfaced.
+    fn unified_session_without_messages_is_skipped() {
+        let temp = TempDir::new().expect("temp dir");
+        let session_dir = temp.path().join("logs/session/unified/empty-session");
+        fs::create_dir_all(&session_dir).expect("create session dir");
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            json!({
+                "session_id": "empty-session",
+                "start_time": "2026-10-24T10:00:00+00:00",
+                "environment": { "working_directory": "/tmp/vibe-empty" },
+            })
+            .to_string(),
+        )
+        .expect("write metadata");
+
+        let projects = scan_projects_from_path(temp.path().to_str().unwrap()).expect("scan");
+        assert!(projects.is_empty());
+    }
+
+    #[test]
+    /// `CURRENT` wins over the lexicographically-latest generation directory.
+    fn unified_store_prefers_current_generation() {
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_unified_fixture(temp.path());
+        let session_dir = PathBuf::from(&session_dir);
+        let base = temp.path().to_str().unwrap();
+
+        // An older generation that only knows the first chunk.
+        let old_dir = session_dir.join(GENERATIONS_DIR).join("0000000000000007");
+        fs::create_dir_all(&old_dir).expect("create old generation");
+        fs::write(
+            old_dir.join(MANIFEST_FILE),
+            json!({
+                "manifest_version": 1,
+                "generation": "0000000000000007",
+                "checkpoint": { "chunks": ["aaa"], "path": "checkpoint.json" },
+            })
+            .to_string(),
+        )
+        .expect("write old manifest");
+
+        let messages = load_messages_from_base_path(base, session_dir.to_str().unwrap())
+            .expect("load messages");
+        assert_eq!(
+            messages.len(),
+            4,
+            "CURRENT points at generation 42 which lists both chunks"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    /// `VIBE_HOME` overrides the default `~/.vibe` base path.
     fn get_base_path_honors_vibe_home() {
         let temp = TempDir::new().expect("temp dir");
         let vibe_home = temp.path().join(".vibe");
@@ -836,6 +1582,36 @@ mod tests {
         );
     }
 
+    #[test]
+    /// A torn final chunk (truncated JSON while the session is still being
+    /// written) is skipped without failing the whole session load.
+    fn load_messages_unified_skips_torn_chunk() {
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_unified_fixture(temp.path());
+        let session_dir = PathBuf::from(&session_dir);
+        let base = temp.path().to_str().unwrap();
+
+        fs::write(
+            session_dir.join(CHUNKS_DIR).join("ccc.json"),
+            "[{\"message\": {\"role\": \"user\", \"content\": [{\"type\": \"te",
+        )
+        .expect("write torn chunk");
+        // The torn chunk is not referenced by the manifest, so the manifest
+        // path is unaffected; force the mtime fallback to prove it is skipped.
+        fs::remove_file(session_dir.join(CURRENT_FILE)).expect("remove CURRENT");
+        fs::remove_file(
+            session_dir
+                .join(GENERATIONS_DIR)
+                .join("0000000000000042")
+                .join(MANIFEST_FILE),
+        )
+        .expect("remove manifest");
+
+        let messages = load_messages_from_base_path(base, session_dir.to_str().unwrap())
+            .expect("load messages");
+        assert_eq!(messages.len(), 4, "torn chunk skipped, valid chunks kept");
+    }
+
     #[cfg(unix)]
     #[test]
     /// A symlinked session directory must be rejected by the path guard.
@@ -859,6 +1635,28 @@ mod tests {
             .expect_err("symlinked session dir must be rejected");
 
         // The real session still loads fine alongside the rejected link.
+        assert!(load_messages_from_base_path(&base, &session_dir).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    /// A symlinked session directory must be rejected by the path guard, in
+    /// the unified layout too.
+    fn load_messages_unified_rejects_symlinked_session_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_unified_fixture(temp.path());
+        let base = temp.path().to_string_lossy().to_string();
+
+        let outside = TempDir::new().expect("outside dir");
+        let (_ocwd, outside_session) = write_unified_fixture(outside.path());
+        let link = temp.path().join("logs/session/unified/linked-session");
+        unix_fs::symlink(Path::new(&outside_session), &link).expect("create symlink");
+
+        load_messages_from_base_path(&base, &link.to_string_lossy())
+            .expect_err("symlinked session dir must be rejected");
+
         assert!(load_messages_from_base_path(&base, &session_dir).is_ok());
     }
 
@@ -914,5 +1712,210 @@ mod tests {
         assert_eq!(image_blocks[0]["source"]["data"], json!(inline_b64));
         let expected_png = base64::engine::general_purpose::STANDARD.encode(png_bytes);
         assert_eq!(image_blocks[1]["source"]["data"], json!(expected_png));
+    }
+
+    #[test]
+    /// Store names are single path components; separators, `..`, empty and
+    /// absolute names are rejected.
+    fn safe_store_name_rejects_path_components() {
+        assert!(is_safe_store_name("aaa"));
+        assert!(is_safe_store_name("0000000000000042"));
+        assert!(is_safe_store_name("abc-DEF_123"));
+        assert!(!is_safe_store_name(""));
+        assert!(!is_safe_store_name(".."));
+        assert!(!is_safe_store_name("../aaa"));
+        assert!(!is_safe_store_name("aaa/bbb"));
+        assert!(!is_safe_store_name("/etc/passwd"));
+        assert!(!is_safe_store_name("aaa.json"));
+        assert!(!is_safe_store_name("a\\b"));
+    }
+
+    #[test]
+    /// A chunk hash from a manifest must be a single path component: a
+    /// malformed store cannot point the reader at files outside `chunks/`.
+    fn unified_store_rejects_traversal_chunk_hash() {
+        let temp = TempDir::new().expect("temp dir");
+        let session_dir = temp
+            .path()
+            .join("logs/session/unified/session-traversal-chunk");
+        let chunks_dir = session_dir.join(CHUNKS_DIR);
+        let generation_dir = session_dir.join(GENERATIONS_DIR).join("0000000000000001");
+        fs::create_dir_all(&chunks_dir).expect("create chunks dir");
+        fs::create_dir_all(&generation_dir).expect("create generation dir");
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            json!({ "environment": { "working_directory": "/tmp/vibe-traversal" } }).to_string(),
+        )
+        .expect("write metadata");
+        fs::write(
+            session_dir.join(CURRENT_FILE),
+            json!({ "generation": "0000000000000001" }).to_string(),
+        )
+        .expect("write CURRENT");
+        // The traversal target sits inside the session but outside `chunks/`.
+        fs::write(
+            session_dir.join("evil.json"),
+            json!([{ "message": { "role": "user", "content": "from outside chunks" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write outside chunk");
+        fs::write(
+            chunks_dir.join("aaa.json"),
+            json!([{ "message": { "role": "user", "content": "from chunks" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write chunk");
+        fs::write(
+            generation_dir.join(MANIFEST_FILE),
+            json!({ "checkpoint": { "chunks": ["../evil", "aaa"] } }).to_string(),
+        )
+        .expect("write manifest");
+
+        let entries = load_history_entries(&session_dir);
+        assert_eq!(entries.len(), 1, "only the in-store chunk is read");
+        assert_eq!(entries[0]["message"]["content"], json!("from chunks"));
+    }
+
+    #[test]
+    /// A `CURRENT` generation name must be a single path component: a
+    /// malformed store cannot point the reader at a manifest outside
+    /// `generations/`.
+    fn unified_store_rejects_traversal_generation_name() {
+        let temp = TempDir::new().expect("temp dir");
+        let session_dir = temp
+            .path()
+            .join("logs/session/unified/session-traversal-gen");
+        let chunks_dir = session_dir.join(CHUNKS_DIR);
+        let generation_dir = session_dir.join(GENERATIONS_DIR).join("0000000000000001");
+        let escape_dir = session_dir.join("escape");
+        fs::create_dir_all(&chunks_dir).expect("create chunks dir");
+        fs::create_dir_all(&generation_dir).expect("create generation dir");
+        fs::create_dir_all(&escape_dir).expect("create escape dir");
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            json!({ "environment": { "working_directory": "/tmp/vibe-traversal" } }).to_string(),
+        )
+        .expect("write metadata");
+        // `generations/../escape` resolves to `session_dir/escape`.
+        fs::write(
+            session_dir.join(CURRENT_FILE),
+            json!({ "generation": "../escape" }).to_string(),
+        )
+        .expect("write CURRENT");
+        fs::write(
+            chunks_dir.join("aaa.json"),
+            json!([{ "message": { "role": "user", "content": "from gen 1" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write chunk a");
+        fs::write(
+            chunks_dir.join("bbb.json"),
+            json!([{ "message": { "role": "user", "content": "from escape" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write chunk b");
+        fs::write(
+            generation_dir.join(MANIFEST_FILE),
+            json!({ "checkpoint": { "chunks": ["aaa"] } }).to_string(),
+        )
+        .expect("write generation manifest");
+        fs::write(
+            escape_dir.join(MANIFEST_FILE),
+            json!({ "checkpoint": { "chunks": ["bbb"] } }).to_string(),
+        )
+        .expect("write escape manifest");
+
+        let entries = load_history_entries(&session_dir);
+        assert_eq!(entries.len(), 1, "the escaped manifest is not read");
+        assert_eq!(entries[0]["message"]["content"], json!("from gen 1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    /// A symlinked `chunks/` directory is rejected at discovery and at load,
+    /// not followed.
+    fn unified_store_rejects_symlinked_chunks_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let session_dir = temp
+            .path()
+            .join("logs/session/unified/session-symlink-chunks");
+        fs::create_dir_all(&session_dir).expect("create session dir");
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            json!({ "environment": { "working_directory": "/tmp/vibe-symlink" } }).to_string(),
+        )
+        .expect("write metadata");
+        let outside = temp.path().join("outside-chunks");
+        fs::create_dir_all(&outside).expect("create outside dir");
+        fs::write(
+            outside.join("aaa.json"),
+            json!([{ "message": { "role": "user", "content": "from outside" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write outside chunk");
+        unix_fs::symlink(&outside, session_dir.join(CHUNKS_DIR)).expect("symlink chunks dir");
+
+        assert!(
+            !is_session_dir(&session_dir),
+            "discovery rejects the symlink"
+        );
+        assert!(
+            load_history_entries(&session_dir).is_empty(),
+            "load rejects the symlink"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    /// A symlinked `generations/` directory is rejected, not followed: the
+    /// manifest outside the session is never read.
+    fn unified_store_rejects_symlinked_generations_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let session_dir = temp.path().join("logs/session/unified/session-symlink-gen");
+        let chunks_dir = session_dir.join(CHUNKS_DIR);
+        fs::create_dir_all(&chunks_dir).expect("create chunks dir");
+        fs::write(
+            session_dir.join(METADATA_FILE),
+            json!({ "environment": { "working_directory": "/tmp/vibe-symlink" } }).to_string(),
+        )
+        .expect("write metadata");
+        fs::write(
+            session_dir.join(CURRENT_FILE),
+            json!({ "generation": "0000000000000009" }).to_string(),
+        )
+        .expect("write CURRENT");
+        fs::write(
+            chunks_dir.join("aaa.json"),
+            json!([{ "message": { "role": "user", "content": "chunk a" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write chunk a");
+        fs::write(
+            chunks_dir.join("bbb.json"),
+            json!([{ "message": { "role": "user", "content": "chunk b" }, "source": "history" }])
+                .to_string(),
+        )
+        .expect("write chunk b");
+        let outside = temp.path().join("outside-generations/0000000000000009");
+        fs::create_dir_all(&outside).expect("create outside generation");
+        fs::write(
+            outside.join(MANIFEST_FILE),
+            json!({ "checkpoint": { "chunks": ["bbb"] } }).to_string(),
+        )
+        .expect("write outside manifest");
+        unix_fs::symlink(outside.parent().unwrap(), session_dir.join(GENERATIONS_DIR))
+            .expect("symlink generations dir");
+
+        assert!(
+            resolve_checkpoint_chunks(&session_dir).is_none(),
+            "the outside manifest is not resolved"
+        );
+        // The load falls back to the real `chunks/` directory.
+        let entries = load_history_entries(&session_dir);
+        assert_eq!(entries.len(), 2, "both real chunks load, in mtime order");
     }
 }
