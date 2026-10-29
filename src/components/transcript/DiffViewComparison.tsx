@@ -132,7 +132,7 @@ export function DiffFiltered({ groups, kind, expandKey }: { groups: { startLine:
   const { t } = useTranslation();
   if (!groups.length) return <p className="p-3 text-caption text-fg-3">{t("recentEdits.noLinesToShow")}</p>;
   const added = kind === "added";
-  const sections: DiffSection[] = groups.map(group => ({ oldText: added ? "" : group.lines.join("\n"), newText: added ? group.lines.join("\n") : "", oldStart: group.startLine, newStart: group.startLine }));
+  const sections: DiffSection[] = groups.map(group => ({ oldText: added ? "" : group.lines.join("\n"), newText: added ? group.lines.join("\n") : "", oldStart: group.startLine, newStart: group.startLine, lines: group.lines.map((text, index) => ({ text, kind: added ? "add" : "del", oldNo: added ? null : group.startLine + index, newNo: added ? group.startLine + index : null })) }));
   return <ExpandKeyProvider value={expandKey}><DiffView sections={sections} expandKey="filtered" /></ExpandKeyProvider>;
 }
 

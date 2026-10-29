@@ -197,7 +197,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
   const bodyId = useId();
   const inherited = useResultSearch();
-  const search = highlight ?? inherited;
+  const search = highlight ? { ...inherited, ...highlight } : inherited;
   const query = search.searchQuery;
   const hit = !!query?.trim() && sections.some(s => searchRanges(s.oldText + "\n" + s.newText, query).length > 0);
   useEffect(() => { if (hit) setShowAll(true); }, [query, hit, setShowAll]);

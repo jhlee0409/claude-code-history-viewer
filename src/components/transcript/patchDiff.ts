@@ -36,10 +36,10 @@ export function parseApplyPatch(patch: string): PatchFile[] | null {
   let ended = false;
   const flush = () => { if (file && rows.length) file.sections.push(patchSection(rows)); rows = []; };
   for (const value of values) {
+    if (ended) { if (value !== "") return null; continue; }
     const match = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/.exec(value);
     if (match) { flush(); file = { path: match[1]!, sections: [] }; files.push(file); }
     else if (value === "*** End Patch") { flush(); ended = true; }
-    else if (ended) { if (value !== "") return null; }
     else if (!file) return null;
     else if (value.startsWith("@@")) flush();
     else if (value.startsWith("*** Move to: ") || value === "*** End of File") flush();
