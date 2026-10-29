@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
@@ -50,6 +51,7 @@ function replacements(input: Record<string, unknown>): { kind: "edit" | "multiEd
  * the file copies to the menu; its whole text is not repeated in the row.
  */
 export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Edit";
@@ -59,7 +61,7 @@ export const EditCard = memo(function EditCard({ toolUse, toolResults }: Props) 
   const { kind, edits } = replacements(input);
   const counts = replacementCounts(edits.map((e) => [e.oldString, e.newString] as const));
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const facts = recordedEditFacts(toolResults);
   const expandKey = `unified-${toolId}`;
   const shownResults =

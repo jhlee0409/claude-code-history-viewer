@@ -1,4 +1,7 @@
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { Bot, Cpu, ExternalLink, Hammer, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
@@ -33,6 +36,7 @@ import { Num } from "@/lib/format/Num";
  * from its first part on.
  */
 export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Agent";
@@ -45,7 +49,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
   const model = str(input, "model");
   const isolation = str(input, "isolation");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, {
     description: shownIf(isNonEmptyString),
@@ -152,18 +156,18 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         )}
       </DetailZone>
       {onViewSubagent && (
-        <button
+        <Button variant="ghost" size="sm"
           data-detail-aside=""
           type="button"
           onClick={() => {
             onViewSubagent(toolId);
           }}
-          className="inline-flex min-h-6 items-center gap-1.5 rounded-row px-1 text-list text-fg-2 hover:bg-surface-hover hover:text-fg"
+          className={cn("h-auto whitespace-normal justify-start font-normal", "inline-flex min-h-6 items-center gap-1.5 rounded-row px-1 text-list text-fg-2 hover:bg-surface-hover hover:text-fg")}
           aria-label={viewLabel}
         >
           <ExternalLink aria-hidden="true" className="w-3.5 h-3.5" />
           {viewLabel}
-        </button>
+        </Button>
       )}
     </ToolRow>
   );

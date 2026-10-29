@@ -27,10 +27,12 @@
  * here: the ToolRow's opened detail owns them, once.
  */
 import { ResultBlock } from "../contentRenderer/unifiedCards/ResultBlock";
+import { useTranslation } from "react-i18next";
+import { useResultProvider, useResultSearch } from "./resultProvider";
 import { FallbackRenderer } from "../toolResultRenderer/FallbackRenderer";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { OutputBlock, type OutputSource } from "./OutputBlock";
-import { normalizeResult, resultContent, withoutErrorCodeEcho, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
+import { normalizeResult, resultContent, recordedResultFields, withoutErrorCodeEcho, type ContentPart, type ToolFamily, type ToolResultLike } from "./toolOutcome";
 
 interface ToolResultOutputsProps {
   results: ToolResultLike[];
@@ -47,14 +49,16 @@ interface ToolResultOutputsProps {
   searchQuery?: string;
   /** Mark the `searchQuery` hits in the output text (OutputBlock `highlight`; TR1b orphan rows). */
   highlight?: { isCurrentMatch?: boolean; currentMatchIndex?: number };
+  /** False for nested content whose facts are not owned by the enclosing row. */
+  outcomeShown?: boolean;
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
-function GenericResult({ value }: { value: Record<string, unknown> }) {
+function GenericResult({ value, searchQuery, highlight }: { value: Record<string, unknown>; searchQuery?: string; highlight?: ToolResultOutputsProps['highlight'] }) {
   return (
     <RendererDefaultsContext.Provider value={NESTED_OPEN}>
       <div className="mt-2">
-        <FallbackRenderer toolResult={value} />
+        <FallbackRenderer toolResult={value} searchQuery={searchQuery} {...highlight} />
       </div>
     </RendererDefaultsContext.Provider>
   );
@@ -85,6 +89,7 @@ function ResultOutput({
   failed,
   searchQuery,
   highlight,
+  outcomeShown,
 }: {
   result: ToolResultLike;
   family: ToolFamily;
@@ -94,16 +99,23 @@ function ResultOutput({
   failed?: boolean;
   searchQuery?: string;
   highlight?: ToolResultOutputsProps["highlight"];
+  outcomeShown?: boolean;
 }) {
-  const options = { bareCodeIsExitCode: family === "process" };
+  const provider = useResultProvider();
+  const inheritedSearch = useResultSearch();
+  searchQuery = searchQuery ?? inheritedSearch.searchQuery;
+  highlight = highlight ?? (inheritedSearch.searchQuery ? inheritedSearch : undefined);
+  const { t } = useTranslation();
+  const options = { bareCodeIsExitCode: family === "process", provider, outcomeShown };
   const n = normalizeResult(result, options);
+  const recorded = recordedResultFields(result, provider);
   const content = resultContent(result, options);
   const hasStreams = n.stdout !== undefined || n.stderr !== undefined;
   const stdout = n.stdout ?? "";
   const stderr = n.stderr ?? "";
   const streamText = stdout !== "" || stderr !== "";
 
-  if (!hasStreams && !content.recorded) return <ResultBlock results={[result]} />;
+  if (!hasStreams && !content.recorded && recorded === undefined) return <ResultBlock results={[result]} />;
 
   const shown = streamText ? shownByStreams(stdout, stderr) : null;
   const parts = shown ? content.parts.filter((part) => !shown(part)) : content.parts;
@@ -116,22 +128,26 @@ function ResultOutput({
         part.kind === "text" ? (
           <OutputBlock key={index} expandKey={index === firstText ? blockKey : `${blockKey}-part-${index}`} text={part.text} source={source} wrap={wrap} searchQuery={searchQuery} highlight={highlight} />
         ) : part.generic && !Array.isArray(part.value) ? (
-          <GenericResult key={index} value={part.value} />
+          <GenericResult key={index} value={part.value} searchQuery={searchQuery} highlight={highlight} />
         ) : (
           <ResultBlock key={index} results={[{ content: part.value }]} />
         ),
       )}
       {!streamText && parts.length === 0 && <OutputBlock expandKey={blockKey} text="" source={source} wrap={wrap} />}
+      {recorded !== undefined && <section data-recorded-result="" className="space-y-1">
+        <p className="text-caption text-fg-3">{t("toolRow.otherRecordedFields")}</p>
+        <OutputBlock json text={JSON.stringify(recorded, null, 2)} source="file" expandKey={`${blockKey}-recorded`} searchQuery={searchQuery} highlight={highlight} />
+      </section>}
     </>
   );
 }
 
-export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery, highlight }: ToolResultOutputsProps) {
+export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery, highlight, outcomeShown }: ToolResultOutputsProps) {
   return (
     <>
       {withoutErrorCodeEcho(results).map((result, index) => {
         const key = `${expandKey}-result-${index}`;
-        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} />;
+        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} outcomeShown={outcomeShown} />;
       })}
     </>
   );

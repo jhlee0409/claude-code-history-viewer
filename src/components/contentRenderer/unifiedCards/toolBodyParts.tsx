@@ -12,6 +12,8 @@ import { OutputBlock } from "../../transcript/OutputBlock";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { keysCaption } from "./recordShape";
 import { searchHits } from "./shared";
+import { resultSearchText } from "../../transcript/resultSearchText";
+import { useResultSearch } from "../../transcript/resultProvider";
 
 export interface BodyContext {
   input: Record<string, unknown>;
@@ -43,6 +45,7 @@ export function InputJson({ value, ctx, rest = false }: { value: Record<string, 
       )}
       <OutputBlock
         text={JSON.stringify(value, null, 2)}
+        json
         source="file"
         expandKey={`${ctx.expandKey}-${rest ? "input-rest" : "input"}`}
         searchQuery={ctx.searchQuery}
@@ -80,8 +83,12 @@ export function OtherRecordedFields({
 }) {
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
-  const hit = searchQuery !== undefined && searchHits(searchQuery, JSON.stringify(rest, null, 2));
-  const highlight = hit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
+  const inherited = useResultSearch();
+  searchQuery = searchQuery ?? inherited.searchQuery;
+  isCurrentMatch = isCurrentMatch ?? inherited.isCurrentMatch;
+  currentMatchIndex = currentMatchIndex ?? inherited.currentMatchIndex;
+  const hit = searchQuery !== undefined && searchQuery.trim() !== "" && searchHits(searchQuery, resultSearchText(rest));
+  const highlight = hit && searchQuery ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
   return <Leftover ctx={{ input: rest, expandKey, pathCtx, t, searchQuery, highlight }} rest={rest} />;
 }
 

@@ -17,6 +17,7 @@
  */
 
 import { memo, useMemo } from "react";
+import { ResultProviderContext, useResultProvider } from "../transcript/resultProvider";
 import { Markdown } from "../common";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
@@ -43,6 +44,7 @@ import type { SearchFilterType } from "../../store/useAppStore";
 import { isDocumentContent, isSearchResultContent, isContainerUploadContent } from "@/utils/contentTypeGuards";
 
 type Props = {
+  provider?: string;
   content: unknown[];
   searchQuery?: string;
   /** Accepted for callers; tool rows mark hits in ids and content alike. */
@@ -67,6 +69,7 @@ const isObjectItem = (item: unknown): item is Record<string, unknown> => {
 
 export const ClaudeContentArrayRenderer = memo(({
   content,
+  provider,
   searchQuery = "",
   isCurrentMatch = false,
   currentMatchIndex = 0,
@@ -78,6 +81,7 @@ export const ClaudeContentArrayRenderer = memo(({
   skipToolCalls = false,
   onViewSubagent,
 }: Props) => {
+  const inheritedProvider = useResultProvider();
   const { t } = useTranslation();
   const normalizedContent = useMemo(() => (Array.isArray(content) ? contentEntries(content) : []), [content]);
 
@@ -393,6 +397,7 @@ export const ClaudeContentArrayRenderer = memo(({
   };
 
   return (
+    <ResultProviderContext.Provider value={provider ?? inheritedProvider}>
     <div className="space-y-2 text-caption">
       {normalizedContent.map((entry) => (
         <ExpandKeyProvider key={entry.key} value={`${expandPrefix}:${entry.key}`}>
@@ -400,6 +405,7 @@ export const ClaudeContentArrayRenderer = memo(({
         </ExpandKeyProvider>
       ))}
     </div>
+    </ResultProviderContext.Provider>
   );
 });
 

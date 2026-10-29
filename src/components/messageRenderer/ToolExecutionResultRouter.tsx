@@ -1,5 +1,5 @@
+import { LegacyExecutionResult } from "../transcript/LegacyExecutionResult";
 import React from "react";
-import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   ClaudeSessionHistoryRenderer,
@@ -19,12 +19,6 @@ import {
   TaskResultRenderer,
 } from "../toolResultRenderer";
 import { FileContent } from "../FileContent";
-import { CommandOutputDisplay } from "./CommandOutputDisplay";
-import { formatClaudeErrorOutput } from "../../utils/messageUtils";
-import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "@/lib/utils";
-import { layout } from "@/components/renderers";
-import { AnsiText } from "../common/AnsiText";
 
 interface ToolExecutionResultRouterProps {
   toolResult: Record<string, unknown> | string | unknown[];
@@ -161,11 +155,7 @@ export const ToolExecutionResultRouter: React.FC<
   ) {
     return (
       <TerminalStreamRenderer
-        command={toolResult.command as string}
-        stream={toolResult.stream as string}
-        output={toolResult.output as string}
-        timestamp={toolResult.timestamp as string}
-        exitCode={toolResult.exitCode as number}
+        record={toolResult}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
         currentMatchIndex={currentMatchIndex}
@@ -311,6 +301,13 @@ export const ToolExecutionResultRouter: React.FC<
     return <StructuredPatchRenderer toolResult={toolResult} />;
   }
 
+  // A bare content wrapper can use the text/history renderer below. An opaque
+  // wrapper with sibling fields must stay whole: unwrapping only `content`
+  // silently loses recorded false/null/zero values (e.g. Forgecode results).
+  if (typeof toolResult.content === "string" && Object.keys(toolResult).some(key => key !== "content") && !toolResult.stdout && !toolResult.stderr) {
+    return <FallbackRenderer toolResult={toolResult} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
+  }
+
   // Handle direct content that might be JSONL Claude session history
   if (
     toolResult.content &&
@@ -335,108 +332,10 @@ export const ToolExecutionResultRouter: React.FC<
     return <StringRenderer result={toolResult.content} searchQuery={searchQuery} />;
   }
 
-  // Handle generic structured results with various properties
-  const hasError =
-    toolResult.stderr &&
-    typeof toolResult.stderr === "string" &&
-    toolResult.stderr.length > 0;
-  const stdout = typeof toolResult.stdout === "string" ? toolResult.stdout : "";
-  const stderr = typeof toolResult.stderr === "string" ? toolResult.stderr : "";
-  const filePath =
-    typeof toolResult.filePath === "string" ? toolResult.filePath : "";
-  const interrupted =
-    typeof toolResult.interrupted === "boolean" ? toolResult.interrupted : null;
-  const isImage =
-    typeof toolResult.isImage === "boolean" ? toolResult.isImage : null;
-
-  // 메타데이터가 있는지 확인
-  const hasMetadata = interrupted !== null || isImage !== null;
-  const hasOutput =
-    stdout.length > 0 || stderr.length > 0 || filePath.length > 0;
-
-  // Handle completely generic objects (fallback)
-  if (!hasOutput && !hasMetadata && Object.keys(toolResult).length > 0) {
-    return <FallbackRenderer toolResult={toolResult} />;
+  // Unknown records stay JSON. Execution-shaped records use the shared adapter;
+  // stderr alone never means failure and interrupted:false never means completed.
+  if (!["stdout", "stderr", "interrupted", "isImage", "filePath", "exitCode", "exit_code", "return_code"].some(key => Object.hasOwn(toolResult, key))) {
+    return <FallbackRenderer toolResult={toolResult} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
   }
-
-  return (
-    <Renderer
-      className="bg-success/10 border-success/30"
-      hasError={hasError as boolean}
-    >
-      <Renderer.Header
-        title={t("toolResult.toolExecutionResult")}
-        titleClassName="text-success"
-        icon={<Check className="w-4 h-4 text-success" />}
-      />
-      <Renderer.Content>
-        {/* 메타데이터 정보 */}
-        {hasMetadata && (
-          <div className={`grid grid-cols-2 gap-2 mb-3 ${layout.smallText}`}>
-            {interrupted !== null && (
-              <div className="p-2 rounded border bg-card border-border">
-                <div className="text-muted-foreground">{t("toolResult.executionStatus")}</div>
-                <div
-                  className={cn(
-                    "font-medium",
-                    interrupted ? "text-warning" : "text-success"
-                  )}
-                >
-                  {interrupted ? t("toolResult.interrupted") : t("toolResult.completed")}
-                </div>
-              </div>
-            )}
-            {isImage !== null && (
-              <div className="p-2 rounded border bg-card border-border">
-                <div className="text-muted-foreground">{t("toolResult.imageResult")}</div>
-                <div
-                  className={cn(
-                    "font-medium",
-                    isImage ? "text-info" : "text-muted-foreground"
-                  )}
-                >
-                  {isImage ? t("toolResult.included") : t("toolResult.none")}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {stdout.length > 0 && (
-          <div className="mb-2">
-            <div className="text-muted-foreground">{t("toolResult.output")}:</div>
-            <CommandOutputDisplay stdout={stdout} />
-          </div>
-        )}
-
-        {stderr.length > 0 && (
-          <div className="mb-2">
-            <div className="text-destructive">{t("toolResult.error")}:</div>
-            <pre className={`${layout.bodyText} whitespace-pre-wrap bg-destructive/5 p-2 rounded border border-destructive/30 max-h-96 overflow-y-auto text-destructive`}>
-              <AnsiText text={formatClaudeErrorOutput(stderr)} />
-            </pre>
-          </div>
-        )}
-
-        {filePath.length > 0 && (
-          <div className="text-muted-foreground">
-            {t("toolResult.file")}:{" "}
-            <code className="px-1 rounded bg-secondary text-foreground/80">
-              {filePath}
-            </code>
-          </div>
-        )}
-
-        {/* 출력이 없을 때 상태 표시 */}
-        {!hasOutput && hasMetadata && (
-          <div className="text-muted-foreground">{t("toolResult.noOutput")}</div>
-        )}
-
-        {/* 완전히 빈 결과일 때 */}
-        {!hasOutput && !hasMetadata && (
-          <div className="text-muted-foreground">{t("toolResult.executionComplete")}</div>
-        )}
-      </Renderer.Content>
-    </Renderer>
-  );
+  return <LegacyExecutionResult record={toolResult} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
 };

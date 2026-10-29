@@ -18,23 +18,24 @@
  * a search match past the cap opens it.
  *
  * `highlight` (TR1a, the generic JSON body): with a search query, the hits
- * in the text and in the stderr zone are marked (plain text only; ANSI
- * output is not marked).
+ * in the displayed text and stderr are marked. ANSI is stripped only in a
+ * matching zone; a nonmatching zone keeps its recorded colours.
  *
  * Text wraps by default. `wrap={false}` keeps each recorded line on one
  * visual line and lets the well scroll sideways, for output whose lines are
  * records (Grep content-mode matches: a soft-wrapped match would read as the
  * next match, TC13).
  */
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { copyTextToClipboard } from "@/utils/clipboard";
-import { hasAnsiCodes } from "@/utils/ansiToHtml";
+import { hasAnsiCodes, stripAnsiCodes } from "@/utils/ansiToHtml";
 import { AnsiText } from "../common/AnsiText";
 import { HighlightedText } from "../common/HighlightedText";
+import { jsonSearchRanges } from "../common/jsonSearchMarks";
 import { detectOutputKind, type OutputKind } from "./outputKind";
 
 export const DEFAULT_LINE_CAP = 15;
@@ -64,6 +65,8 @@ export interface OutputBlockProps {
   failed?: boolean;
   /** Mark the `searchQuery` hits in the text (which match is current). */
   highlight?: { isCurrentMatch?: boolean; currentMatchIndex?: number };
+  /** Explicit JSON display: map decoded values, never keys or serialized syntax. */
+  json?: boolean;
 }
 
 const LABELLED: Record<OutputSource, ReadonlySet<OutputKind>> = {
@@ -85,7 +88,7 @@ const linesOf = (text: string) => (text === "" ? [] : text.split("\n"));
 
 type Mark = { searchQuery: string; isCurrentMatch?: boolean; currentMatchIndex?: number } | null;
 
-function Zone({ id, text, wrap, className, mark = null }: { id: string; text: string; wrap: boolean; className?: string; mark?: Mark }) {
+function Zone({ id, text, wrap, className, mark = null, ranges }: { id: string; text: string; wrap: boolean; className?: string; mark?: Mark; ranges?: [number, number][] }) {
   return (
     <pre
       id={id}
@@ -94,10 +97,10 @@ function Zone({ id, text, wrap, className, mark = null }: { id: string; text: st
       tabIndex={wrap ? undefined : 0}
       className={cn("m-0 overflow-x-auto font-mono text-code", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre", className)}
     >
-      {hasAnsiCodes(text) ? (
+      {mark && (ranges ? ranges.length > 0 : stripAnsiCodes(text).toLowerCase().includes(mark.searchQuery.trim().toLowerCase())) ? (
+        <HighlightedText text={ranges ? text : stripAnsiCodes(text)} ranges={ranges} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
+      ) : hasAnsiCodes(text) ? (
         <AnsiText text={text} />
-      ) : mark ? (
-        <HighlightedText text={text} searchQuery={mark.searchQuery} isCurrentMatch={mark.isCurrentMatch} currentMatchIndex={mark.currentMatchIndex} />
       ) : (
         text
       )}
@@ -116,6 +119,7 @@ export function OutputBlock({
   showLineCount = true,
   failed = false,
   highlight,
+  json = false,
 }: OutputBlockProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
@@ -131,7 +135,8 @@ export function OutputBlock({
   const total = mainLines.length + errLines.length;
   const overCap = mainLines.length > lineCap || errLines.length > lineCap;
   const query = searchQuery?.trim().toLowerCase() ?? "";
-  const searchHit = query !== "" && `${main}\n${stderr}`.toLowerCase().includes(query);
+  const mappedRanges = useMemo(() => json ? jsonSearchRanges(main, query) : undefined, [json, main, query]);
+  const searchHit = query !== "" && (mappedRanges ? mappedRanges.length > 0 : [main, stderr].some(text => stripAnsiCodes(text).toLowerCase().includes(query)));
   // A search hit past the cap opens the whole block once; the toggle then says
   // so and still collapses it (review round 6); a new matching query reveals
   // again (review round 7).
@@ -170,7 +175,7 @@ export function OutputBlock({
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
-      {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" mark={mark} />}
+      {main !== "" && <Zone id={mainId} text={cap(mainLines, main)} wrap={wrap} className="px-3 py-2" mark={mark} ranges={mappedRanges?.filter(([, end]) => end <= cap(mainLines, main).length)} />}
       {stderr !== "" && (
         <div data-stderr="" className={cn("mx-3 mb-2 border-l-2 pl-2", failed ? "border-status-danger-line" : "border-line")}>
           <code data-mono="code" className="text-caption text-fg-3">

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
@@ -16,12 +17,13 @@ import { OtherRecordedFields } from "./toolBodyParts";
  * `toolOutcome` only (an `error_code` alone reads "Failed · <code>").
  */
 export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const name = (toolUse.name as string) || "WebSearch";
   const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const query = str(input, "query") ?? "";
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, { query: shownIf(isNonEmptyString) });
   const hasRest = Object.keys(rest).length > 0;

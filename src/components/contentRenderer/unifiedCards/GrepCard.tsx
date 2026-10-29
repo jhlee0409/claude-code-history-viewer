@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
@@ -27,6 +28,7 @@ function OutputMode({ mode }: { mode: string }) {
 }
 
 export const GrepCard = memo(function GrepCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Grep";
   const toolId = (toolUse.id as string) || "";
@@ -36,7 +38,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults, searchQue
   const glob = str(input, "glob");
   const outputMode = str(input, "output_mode");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, { pattern: shownIf(isNonEmptyString), path: shownIf(isNonEmptyString), glob: shownIf(isNonEmptyString), output_mode: shownIf(isNonEmptyString) });
   const hasRest = Object.keys(rest).length > 0;

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * ImageRenderer Component
  *
@@ -101,22 +102,22 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
           </div>
 
           <div className={cn("flex items-center", layout.iconGap)}>
-            <button
+            <Button variant="ghost" size="sm" type="button"
               onClick={openModal}
-              className={cn("p-1 hover:bg-accent/50 transition-colors", layout.rounded)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("p-1 hover:bg-accent/50 transition-colors", layout.rounded))}
               title={t("imageRenderer.viewFullscreen")}
               aria-label={t("imageRenderer.viewFullscreen")}
             >
               <ZoomIn className={cn(layout.iconSize, "text-foreground/70")} />
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm" type="button"
               onClick={handleDownload}
-              className={cn("p-1 hover:bg-accent/50 transition-colors", layout.rounded)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("p-1 hover:bg-accent/50 transition-colors", layout.rounded))}
               title={t("imageRenderer.downloadImage")}
               aria-label={t("imageRenderer.downloadImage")}
             >
               <Download className={cn(layout.iconSize, "text-foreground/70")} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -134,7 +135,7 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             onLoad={handleImageLoad}
             onClick={openModal}
             className={cn(
-              "w-full h-auto cursor-pointer hover:opacity-90 transition-opacity",
+              "max-w-full w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity",
               layout.rounded,
               isLoading && "opacity-0"
             )}
@@ -173,32 +174,32 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* 닫기 버튼 */}
-            <button
+            <Button variant="ghost" size="sm" type="button"
               onClick={closeModal}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "absolute top-4 right-4 bg-background/90 rounded-full",
                 layout.containerPadding,
                 "hover:bg-background transition-all shadow-lg"
-              )}
+              ))}
               style={{ zIndex: 10000 }}
               aria-label={t("imageRenderer.close")}
             >
               <X className={cn(layout.iconSize, "text-foreground/80")} />
-            </button>
+            </Button>
 
             {/* 다운로드 버튼 */}
-            <button
+            <Button variant="ghost" size="sm" type="button"
               onClick={handleDownload}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "absolute top-4 right-16 bg-background/90 rounded-full",
                 layout.containerPadding,
                 "hover:bg-background transition-all shadow-lg"
-              )}
+              ))}
               style={{ zIndex: 10000 }}
               aria-label={t("imageRenderer.downloadImage")}
             >
               <Download className={cn(layout.iconSize, "text-foreground/80")} />
-            </button>
+            </Button>
 
             {/* 전체 화면 이미지 */}
             <img

@@ -256,8 +256,13 @@ describe("ToolResultOutputs: only content the stream path showed is left out (re
     expect(text).not.toContain("No output");
   });
 
-  it("'No output' when the only content is a consumed, empty stream record", () => {
+  it("empty streams retain unshown false flags as recorded data", () => {
     const view = outputs([result({ stdout: "", stderr: "", exitCode: 0, interrupted: false, isImage: false })], "process");
+    const json = view.container.querySelector('[data-output-text]');
+    expect(JSON.parse(json?.textContent ?? 'null')).toEqual({ interrupted: false, isImage: false });
+  });
+  it("'No output' when every field of an empty stream is actually shown by its owner", () => {
+    const view = outputs([result({ stdout: "", stderr: "", exitCode: 0 })], "process");
     expect(view.container.textContent).toContain("No output");
   });
 });

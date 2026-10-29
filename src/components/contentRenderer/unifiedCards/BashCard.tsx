@@ -1,4 +1,6 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { DetailZone } from "../../transcript/DetailZone";
@@ -14,6 +16,7 @@ import { Num } from "@/lib/format/Num";
 const firstLine = (text: string) => text.trimStart().split("\n")[0] ?? "";
 
 export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const fmt = useFormat();
   const name = (toolUse.name as string) || "Bash";
   const toolId = (toolUse.id as string) || "";
@@ -22,10 +25,12 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQue
   const description = str(input, "description");
   const timeout = num(input, "timeout");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const rest = unshown(input, { command: shownIf(isNonEmptyString), description: shownIf(isNonEmptyString), timeout: shownIf(isNumber) });
   const hasRest = Object.keys(rest).length > 0;
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const retainedHit = useMemo(() => query !== "" && resultSearchText(rest).toLowerCase().includes(query), [query, rest]);
 
   return (
     <ToolRow
@@ -37,6 +42,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQue
       family={family}
       toolId={toolId}
       expandKey={expandKey}
+      revealFor={retainedHit ? searchQuery : undefined}
     >
       <DetailZone kind="input" show={description || hasRest ? true : command ? "whenTargetCut" : false}>
         {description && <p className="text-list text-fg-2">{description}</p>}

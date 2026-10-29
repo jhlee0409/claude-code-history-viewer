@@ -1,0 +1,215 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TR1c added public provider result/fallback preservation > aider: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "What does this function do?",
+  "This function calculates the Fibonacci sequence using memoization.",
+  "Tokens: 1,234 sent, 567 received.",
+  "Fix the bug in line 42",
+  "I'll fix that bug. Here's the corrected code:
+def fix():
+    pass
+",
+  "Applied edit to src/main.py",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > amazonq: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking auth",
+  "ResultCall not recordedResult1 lineokCopy tool ID",
+  "runningBashlsNo result recordedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > antigravity: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "Fix the parser",
+  "Here is my plan",
+  "SEARCH_WEBNo result recordedInput1 line{}Copy tool IDsearched the docs",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > cline: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Hello from Cline",
+  "Read/test.txtResult1 linefile contentsCopy tool ID",
+  "Bashnpm testNo result recordedCopy tool ID",
+  "Thoughtsthinking about this...",
+  "Something went wrong",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > codebuddy: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Bashls -laInputlist filesResult3 linesfile1.txt
+file2.txt
+Result not verified · No exit code recordedCopy tool ID",
+  "ResultCall not recordedFailedResult1 linecommand not foundCopy tool ID",
+  "system reminder",
+  "hi",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > continue: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking ZmagicToken",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > copilot: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "ls",
+  "running lsbashlsResult2 linesfile1
+file2Result not verified · No exit code recordedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > crush: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "checkingview/x.goInput(file_path)3 lines{
+  "file_path": "/x.go"
+}Result1 linefile contentsCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > cursor: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Hello from Cursor",
+  "ReadResult1 linefile contents hereCopy tool ID",
+  "ThoughtsLet me think about this...",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > cursor-agent: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "fix the LOGIN bug",
+  "Looking into ZmagicToken now",
+  "file contents here
+[shell]
+$ cargo build
+Compiling foo v0.1.0",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > forgecode: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Inspect src/main.rs",
+  "Check the current parser output",
+  "Read/tmp/src/main.rsNo result recordedCopy tool ID",
+  "ResultCall not recordedResultJSON Output4 lines{
+  "content": "fn main() {}",
+  "is_error": false
+}Copy tool ID",
+  "DoneWrite/tmp/out.rsNo result recordedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > gemini: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Hello world",
+  "Let me check that.Read/test.txtResult1 linefile content hereCopy tool ID",
+  "Thoughts**Planning**
+I need to read the file firstDone.",
+  "Bashexit 1FailedResult1 linecommand failedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > goose: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "Let me checkdeveloper__shelllsInput(command)3 lines{
+  "command": "ls"
+}Result1 linefile.rsCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > grok: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "You are Grok.",
+  "Hello grok",
+  "ThoughtsThinking about hello",
+  "Hi thereread_fileResult1 linefile contentsCopy tool ID",
+  "web_searchrustNo result recordedInputOther recorded fields (type)3 lines{
+  "type": "search"
+}Copy tool ID",
+  "Final answer",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > kimi: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Add a Kimi provider",
+  "ThoughtsI should inspect the provider registry first.I will inspect the provider registry.Shellrg providerNo result recordedCopy tool ID",
+  "ResultCall not recordedResult1 linesrc-tauri/src/providers/mod.rsCopy tool ID",
+  "The provider registry is in Rust.",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > kiro: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking auth",
+  "ResultCall not recordedResult1 lineokCopy tool ID",
+  "runningBashlsNo result recordedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > llm: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking auth",
+  "more detail?",
+  "Here it is",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > pearai: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking ZmagicToken",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > qwen: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "Thoughtslet me reasonChecking authrun_shell_commandgrep -r loginInput(command)3 lines{
+  "command": "grep -r login"
+}Result1 linelogin.rs:42Result not verified · No exit code recordedCopy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > trae: preserves text-only fallback without fabricating result/outcome 1`] = `
+[
+  "why does LOGIN fail?",
+  "Checking",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > vibe: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Add Mistral Vibe support",
+  "ThoughtsNeed to mirror Kimi parsing.I'll inspect the provider registry.read_fileproviders/mod.rsNo result recordedCopy tool ID",
+  "ResultCall not recordedResult1 linemod kimi;Copy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > zcode: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?",
+  "Thoughtschecking authRead/x/HANDOFF.mdResult1 lineline1Copy tool ID",
+]
+`;
+
+exports[`TR1c added public provider result/fallback preservation > zed: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "why does LOGIN fail?see auth.rs",
+  "Let me lookThoughtsreasoninggrepInputOther recorded fields (q)3 lines{
+  "q": "login"
+}Result1 lineauth.rs:42Copy tool ID",
+]
+`;

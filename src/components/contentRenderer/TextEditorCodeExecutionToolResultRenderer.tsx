@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 /**
  * TextEditorCodeExecutionToolResultRenderer - Renders text editor file operation results
  *
@@ -102,16 +103,16 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
           {/* File content preview */}
           {fileContent && (
             <div className="mt-2">
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 onClick={() => setShowContent(prev => !prev)}
                 aria-expanded={showContent}
                 aria-controls={contentId}
-                className={cn(layout.smallText, "flex items-center gap-1 cursor-pointer hover:opacity-80 text-fg-3")}
+                className={cn("h-auto whitespace-normal justify-start font-normal", cn(layout.smallText, "flex items-center gap-1 cursor-pointer hover:opacity-80 text-fg-3"))}
               >
                 <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showContent && "rotate-90")} />
                 {t("textEditorCodeExecutionToolResultRenderer.showContent")}
-              </button>
+              </Button>
               <div id={contentId} hidden={!showContent}>
                 {showContent && (
                   <pre className={cn("mt-2 p-2 overflow-x-auto whitespace-pre-wrap bg-surface-well text-fg", layout.monoText, layout.rounded, layout.codeMaxHeight)}>

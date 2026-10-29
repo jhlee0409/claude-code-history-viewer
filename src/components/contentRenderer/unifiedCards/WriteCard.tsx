@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
@@ -21,6 +22,7 @@ import { str, strAny } from "./shared";
  * Anything else is shown as recorded (renderer audit TC15).
  */
 export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Write";
@@ -29,7 +31,7 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
   const filePath = strAny(input, "file_path", "path") ?? "";
   const content = str(input, "content");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
   const confirmations = toolResults.map((result) => writeConfirmationPath(result));
   // A confirmation sentence is left out, not its result: the same result's own

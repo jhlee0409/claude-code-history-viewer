@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { useResultProvider } from "../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../ToolIcon";
 import { Marked, TextTarget, ToolRow, type TextHighlight } from "../transcript/ToolRow";
@@ -78,6 +79,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
   currentMatchIndex = 0,
   atPageBoundary = false,
 }: ClaudeToolResultItemProps) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const toolUseId = typeof toolResult.tool_use_id === "string" ? toolResult.tool_use_id : "";
   const callName = useAppStore((s) => (atPageBoundary ? loadedCallName(s.messages, toolUseId) : null));
@@ -87,7 +89,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
   const name = callName ?? "";
   const family = toolFamily(name);
   const results = [toolResult];
-  const outcome = toolOutcome(null, results, family);
+  const outcome = toolOutcome(null, results, family, provider);
   const expandKey = `result-${toolUseId}`;
 
   const idHit = searchHits(searchQuery, toolUseId);
