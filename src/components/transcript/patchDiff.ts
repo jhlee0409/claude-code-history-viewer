@@ -14,8 +14,8 @@ export function patchSection(values: readonly string[], oldStart = 1, newStart =
     if (kind !== "del") next.push(text);
     lines.push({ kind, text, oldNo: kind === "add" ? null : oldNo++, newNo: kind === "del" ? null : newNo++ });
   }
-  const copyText = values.filter(value => !value.startsWith("-")).map(value => /^[ +]/.test(value) ? value.slice(1) : value).join("\n");
-  return { oldText: old.join("\n"), newText: next.join("\n"), oldStart, newStart, lines, copyText };
+  const copyLines = values.filter(value => !value.startsWith("-")).map(value => /^[ +]/.test(value) ? value.slice(1) : value);
+  return { oldText: old.join("\n"), newText: next.join("\n"), oldStart, newStart, lines, copyLines };
 }
 
 export function structuredSections(value: unknown): DiffSection[] {
