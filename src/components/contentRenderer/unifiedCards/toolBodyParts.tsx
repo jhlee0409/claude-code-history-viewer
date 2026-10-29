@@ -12,6 +12,7 @@ import { OutputBlock } from "../../transcript/OutputBlock";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { keysCaption } from "./recordShape";
 import { searchHits } from "./shared";
+import { resultSearchText } from "../../transcript/resultSearchText";
 
 export interface BodyContext {
   input: Record<string, unknown>;
@@ -80,7 +81,7 @@ export function OtherRecordedFields({
 }) {
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
-  const hit = searchQuery !== undefined && searchQuery.trim() !== "" && searchHits(searchQuery, JSON.stringify(rest, null, 2));
+  const hit = searchQuery !== undefined && searchQuery.trim() !== "" && searchHits(searchQuery, resultSearchText(rest));
   const highlight = hit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
   return <Leftover ctx={{ input: rest, expandKey, pathCtx, t, searchQuery, highlight }} rest={rest} />;
 }

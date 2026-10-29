@@ -49,6 +49,8 @@ interface ToolResultOutputsProps {
   searchQuery?: string;
   /** Mark the `searchQuery` hits in the output text (OutputBlock `highlight`; TR1b orphan rows). */
   highlight?: { isCurrentMatch?: boolean; currentMatchIndex?: number };
+  /** False for nested content whose facts are not owned by the enclosing row. */
+  outcomeShown?: boolean;
 }
 
 /** The generic fallback, opened like ResultBlock's renderers: every key, as recorded. */
@@ -87,6 +89,7 @@ function ResultOutput({
   failed,
   searchQuery,
   highlight,
+  outcomeShown,
 }: {
   result: ToolResultLike;
   family: ToolFamily;
@@ -96,13 +99,14 @@ function ResultOutput({
   failed?: boolean;
   searchQuery?: string;
   highlight?: ToolResultOutputsProps["highlight"];
+  outcomeShown?: boolean;
 }) {
   const provider = useResultProvider();
   const inheritedSearch = useResultSearch();
   searchQuery = searchQuery ?? inheritedSearch.searchQuery;
   highlight = highlight ?? (inheritedSearch.searchQuery ? inheritedSearch : undefined);
   const { t } = useTranslation();
-  const options = { bareCodeIsExitCode: family === "process", provider };
+  const options = { bareCodeIsExitCode: family === "process", provider, outcomeShown };
   const n = normalizeResult(result, options);
   const recorded = recordedResultFields(result, provider);
   const content = resultContent(result, options);
@@ -138,12 +142,12 @@ function ResultOutput({
   );
 }
 
-export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery, highlight }: ToolResultOutputsProps) {
+export function ToolResultOutputs({ results, family, source, expandKey, wrap, failed, searchQuery, highlight, outcomeShown }: ToolResultOutputsProps) {
   return (
     <>
       {withoutErrorCodeEcho(results).map((result, index) => {
         const key = `${expandKey}-result-${index}`;
-        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} />;
+        return <ResultOutput key={key} result={result} family={family} source={source} blockKey={key} wrap={wrap} failed={failed} searchQuery={searchQuery} highlight={highlight} outcomeShown={outcomeShown} />;
       })}
     </>
   );

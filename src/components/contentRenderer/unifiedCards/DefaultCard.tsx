@@ -44,7 +44,7 @@ export const DefaultCard = memo(function DefaultCard({
   const expandKey = `unified-${toolId}`;
 
   const query = searchQuery.trim();
-  const inputHit = useMemo(() => query !== "" && searchHits(query, JSON.stringify(toolUse.input ?? {}, null, 2)), [query, toolUse.input]);
+  const inputHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolUse.input ?? {})), [query, toolUse.input]);
   const resultHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolResults)), [query, toolResults]);
   const idHit = searchHits(searchQuery, toolId);
   const highlight: TextHighlight | undefined = inputHit || idHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;

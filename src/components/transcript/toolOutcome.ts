@@ -275,35 +275,40 @@ const blockText = (block: unknown): string | null => {
 };
 
 /**
- * Is `o` exactly what the stream path shows for this result? Every key must
- * be a stream / outcome field `normalizeResult` reads at this level, holding
- * the value it shows (`shown`); `result` may hold one more such record (the
- * normalizer reads one level down, no deeper). `isImage` is a flag the
- * normalizer knows and shows nothing for. Anything else — an extra key, a
+ * Keep the fields the stream path and owning row did not faithfully show.
+ * Only consume a field `normalizeResult` reads here with its displayed value
+ * (`shown`); `result` may hold one more such record (the
+ * normalizer reads one level down, no deeper). An unshown `isImage` flag
+ * or `interrupted:false` stays recorded data. Anything else — an extra key, a
  * deeper `result`, a value of another type or one another source outranked,
  * an empty object — is not consumed and stays in the parts.
  */
-function consumedByStreams(o: Record<string, unknown>, shown: NormalizedResult, exitKeys: readonly string[], nested: boolean): boolean {
-  const entries = Object.entries(o);
-  return entries.length > 0 && entries.every(([key, value]) => {
+function streamRemainder(o: Record<string, unknown>, shown: NormalizedResult, exitKeys: readonly string[], nested: boolean, outcomeShown: boolean): Record<string, unknown> {
+  const consumed = (key: string, value: unknown): boolean => {
     if (key === "stdout") return typeof value === "string" && value === shown.stdout;
     if (key === "stderr") return typeof value === "string" && value === shown.stderr;
+    if (!outcomeShown) return false;
     if (exitKeys.includes(key)) return recordedInteger(value) !== undefined && value === shown.exitCode && shown.exitCodeConflict !== true;
-    if (key === "interrupted") return typeof value === "boolean" && value === shown.interrupted;
-    if (key === "isImage") return typeof value === "boolean";
+    if (key === "interrupted") return value === true && shown.interrupted === true;
     if (key === "error_code") return !nested && typeof value === "string" && value === shown.errorCode;
-    if (key === "result") return !nested && isPlainObject(value) && consumedByStreams(value, shown, exitKeys, true);
     return false;
-  });
+  };
+  return Object.fromEntries(Object.entries(o).flatMap(([key, value]) => {
+    if (key === "result" && !nested && isPlainObject(value) && Object.keys(value).length > 0) {
+      const rest = streamRemainder(value, shown, exitKeys, true, outcomeShown);
+      return Object.keys(rest).length > 0 ? [[key, rest]] : [];
+    }
+    return consumed(key, value) ? [] : [[key, value]];
+  }));
 }
 
 /**
  * The result's content as ordered parts. Contiguous text runs (a string, or
  * text blocks joined by "\n") and contiguous non-text runs each become one
- * part, in recorded order. A content object is left out only when
- * `consumedByStreams` says the stream path already shows all of it.
+ * part, in recorded order. Stream objects retain the fields the stream path
+ * and owning row do not show, without repeating the streams themselves.
  */
-export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean; provider?: string } = {}): ResultContent {
+export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean; provider?: string; outcomeShown?: boolean } = {}): ResultContent {
   const content = result.content;
   if (content === undefined || content === null) return { recorded: false, parts: [] };
   if (typeof content === "string") return { recorded: true, parts: [{ kind: "text", text: content }] };
@@ -337,11 +342,14 @@ export function resultContent(result: ToolResultLike, options: { bareCodeIsExitC
     const text = blockText(content);
     if (text !== null) return { recorded: true, parts: [{ kind: "text", text }] };
     const exitKeys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
-    if (consumedByStreams(content, normalizeResult(result, options), exitKeys, false)) return { recorded: true, parts: [] };
     const streamKeys = new Set([...STREAM_FIELDS, ...exitKeys]);
     const streamShaped = (o: Record<string, unknown>) => Object.keys(o).some((key) => streamKeys.has(key));
     const generic = streamShaped(content) || (isPlainObject(content.result) && streamShaped(content.result));
-    return { recorded: true, parts: [generic ? { kind: "other", value: content, generic: true } : { kind: "other", value: content }] };
+    if (generic) {
+      const rest = streamRemainder(content, normalizeResult(result, options), exitKeys, false, options.outcomeShown !== false);
+      return { recorded: true, parts: Object.keys(rest).length > 0 ? [{ kind: "other", value: rest, generic: true }] : [] };
+    }
+    return { recorded: true, parts: [{ kind: "other", value: content }] };
   }
   // A number or boolean content: shown as recorded.
   return { recorded: true, parts: [{ kind: "text", text: String(content) }] };

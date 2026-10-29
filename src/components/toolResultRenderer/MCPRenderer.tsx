@@ -30,15 +30,18 @@ export const MCPRenderer = ({
   const showParamsContentId = useId();
   const showResultContentId = useId();
   const { t } = useTranslation();
-  const server = mcpData.server || "unknown";
-  const method = mcpData.method || mcpData.function || "unknown";
+  const identifier = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+  const server = identifier(mcpData.server) ? mcpData.server : "unknown";
+  const methodKey = identifier(mcpData.method) ? "method" : identifier(mcpData.function) ? "function" : undefined;
+  const method = methodKey ? mcpData[methodKey] : "unknown";
   const params = Object.hasOwn(mcpData, "params") ? mcpData.params : {};
   const result = Object.hasOwn(mcpData, "result") ? mcpData.result : {};
   const error = mcpData.error;
   // Keep false/null/zero/empty error values and every unrendered field as data.
   // A result beside an error is independent content, not consumed by that error.
   const rest = Object.fromEntries(Object.entries(mcpData).filter(([key]) =>
-    !["type", "server", "method", "function", "params"].includes(key) &&
+    !(key === "type" && mcpData.type === "mcp_tool_call") &&
+    !(key === "server" && identifier(mcpData.server)) && key !== methodKey && key !== "params" &&
     !(key === "result" && !error) && !(key === "error" && !!error)));
   const errorText = typeof error === "string" ? error : safeStringify(error, 2);
 
