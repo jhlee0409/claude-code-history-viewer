@@ -34,7 +34,7 @@ export const CodebaseContextRenderer = ({
 
   const [showFiles, setShowFiles] = useCaptureExpandState("codebase-files", false);
   const query = searchQuery?.trim().toLowerCase() ?? "";
-  const matchingIndex = query !== "" && Array.isArray(relevantFiles) ? relevantFiles.findIndex(file => String(file).toLowerCase().includes(query)) : -1;
+  const matchingIndex = query !== "" && Array.isArray(relevantFiles) ? relevantFiles.reduce((last: number, file: unknown, index: number) => String(file).toLowerCase().includes(query) ? index : last, -1) : -1;
   useEffect(() => {
     if (matchingIndex >= 0) setShowFiles(true);
   }, [matchingIndex, query, setShowFiles]);

@@ -39,6 +39,11 @@ describe('bot blank-search work is lazy and bounded by stable data',()=>{
 });
 
 describe('bot ANSI/search disclosure contracts (component controls, not index certification)',()=>{
+  it('reveals every matching filename beyond the cap even when an earlier filename also matches',()=>{
+    const record={files_analyzed:12,relevant_files:['shared-hit-first.ts',...Array.from({length:10},(_,i)=>`ordinary-${i}.ts`),'shared-hit-last.ts']};
+    const {container}=render(<Shell><ToolExecutionResultRouter toolResult={record} searchQuery="shared-hit"/></Shell>);
+    expect([...visible(container).querySelectorAll('mark')].map(n=>n.textContent)).toEqual(['shared-hit','shared-hit']);
+  });
   it('nonmatching ANSI zone retains colors while the matching sibling is marked',()=>{
     const {container}=render(<Shell><OutputBlock text={'\u001b[31mred-only\u001b[0m'} errorText={'\u001b[32mneedle-only\u001b[0m'} searchQuery="needle" highlight={{}}/></Shell>);
     const zones=container.querySelectorAll('[data-output-text]');
