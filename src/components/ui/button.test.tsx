@@ -1,7 +1,7 @@
 /**
  * Button state contract (inner-UI plan F2a, G-ST1 · ST4 · ST5 · ST6).
  *
- * - Every variant and size keeps its name (renames are F2b's).
+ * - F2b renames the filled default to primary and removes unused aliases.
  * - Keyboard focus is the base ring: no variant opts out (`outline-none`).
  * - Hover is one step, pressed one more, and nothing changes size (no
  *   `scale-*`). How far each step moves and that labels stay readable on it
@@ -29,14 +29,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 afterEach(cleanup);
 
-const VARIANTS = ["default", "destructive", "outline", "secondary", "ghost", "link", "accent", "success", "warning"] as const;
+const VARIANTS = ["primary", "destructive", "outline", "secondary", "ghost", "link"] as const;
 const SIZES = ["default", "sm", "lg", "icon", "icon-sm", "icon-lg"] as const;
 
 const classesOf = (variant: (typeof VARIANTS)[number], size: (typeof SIZES)[number] = "default") =>
   buttonVariants({ variant, size }).split(/\s+/).filter(Boolean);
 
 describe("Button variants and sizes", () => {
-  it("keeps every variant and size name", () => {
+  it("supports the six F2b variants and every existing size", () => {
     for (const variant of VARIANTS) {
       for (const size of SIZES) expect(classesOf(variant, size).length, `${variant}/${size}`).toBeGreaterThan(0);
     }
