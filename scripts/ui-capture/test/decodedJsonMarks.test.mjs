@@ -10,6 +10,21 @@ import { expandScenarios, inspectorStorage } from '../scenarios.mjs';
 const enabled=browserRequirement({webkit:true,server:true},{label:'decodedJsonMarks.test'}).enabled;
 let app,browser;
 const queries={default:String.raw`C:\default\value-report.txt`,bash:'say "bash-quoted"',result:String.raw`C:\retained\report.txt`};
+// Enter navigates existing results; it does not submit the deferred search.
+// Establish this query's exact initial counter/marks before navigating once.
+async function searchValues(s,route,query){
+ const input=s.page.getByRole('textbox',{name:s.t('messageViewer.searchPlaceholder')});
+ const row=s.page.locator(`[data-message-uuid="json-${route}"]`);
+ const counter=s.page.locator('#main-content span').filter({hasText:/^\d+\/\d+$/});
+ await input.fill(query);await settle(s);
+ expect(await input.inputValue()).toBe(query);
+ expect(await row.locator('mark').allTextContents()).toEqual(Array(3).fill(JSON.stringify(query).slice(1,-1)));
+ if(route==='result')expect(await counter.count()).toBe(0);
+ else expect(await counter.allTextContents()).toEqual(['1/3']);
+ const current=await row.locator('mark[aria-current="true"]').evaluateAll(ms=>ms.map(m=>[...m.parentElement.querySelectorAll('mark')].indexOf(m)));
+ expect(current).toEqual(route==='result'?[]:[2]);
+ await input.press('Enter');await settle(s);
+}
 export function plant(fixture){
  const target=fixture.namedSessions['unknown-outcome'],project=fixture.projects.find(p=>p.name===target.project),session=project.sessions.find(s=>s.title===target.title);
  const t=fs.readFileSync(session.filePath,'utf8').trim().split('\n').map(JSON.parse).find(r=>r.type==='user');
@@ -30,7 +45,7 @@ describe.skipIf(!enabled)('decoded retained JSON: raw server and production WebK
   const observations=[];
   try{
    for(const [route,query] of Object.entries(queries)){
-    await run({do:'transcriptSearch',query});
+    await searchValues(s,route,query);
     const row=s.page.locator(`[data-message-uuid="json-${route}"]`);await row.scrollIntoViewIfNeeded();await settle(s);
     const counter=s.page.locator('#main-content span').filter({hasText:/^\d+\/\d+$/}).first();
     const record={route,query,counter:await counter.count()?await counter.innerText():null,marks:await row.locator('mark').allTextContents(),text:await row.innerText()};observations.push(record);
@@ -49,16 +64,16 @@ describe.skipIf(!enabled)('decoded retained JSON: raw server and production WebK
     else expect(await row.locator('mark[aria-current="true"]').evaluate(m=>[...m.parentElement.querySelectorAll('mark')].indexOf(m))).toBe(1);
     expect(await row.locator('[data-output] button[aria-expanded]').last().getAttribute('aria-expanded')).toBe('true');
     if(route!=='result'){
-     for(const expected of [0,2,1]){
+     for(const [expected,expectedCounter] of [[0,'3/3'],[2,'1/3'],[1,'2/3']]){
       const button=s.page.getByRole('button',{name:s.t('messageViewer.nextMatch')});
       await button.click();await settle(s);
       const current=await row.locator('mark[aria-current="true"]').evaluateAll(ms=>ms.map(m=>[...m.parentElement.querySelectorAll('mark')].indexOf(m)));
-      // Enter advanced the counter to 2/3 (index 1); Next visits 0, 2, 1.
-      expect(current).toEqual([expected]);record.navigation.push({counter:await counter.innerText(),current});
+      // Deliberate Enter advanced to 2/3 (index 1); Next visits 0, 2, 1.
+      expect(current).toEqual([expected]);expect(await counter.innerText()).toBe(expectedCounter);record.navigation.push({counter:await counter.innerText(),current});
      }
     }
     const plain=route==='default'?'value-report':route==='bash'?'bash-quoted':'retained';
-    await run({do:'transcriptSearch',query:plain});
+    await searchValues(s,route,plain);
     expect(await row.locator('mark').allTextContents()).toEqual([plain,plain,plain]);
     if(route!=='result')expect(await counter.innerText()).toBe('2/3');else expect(await counter.count()).toBe(0);
     record.plainQuery={query:plain,counter:await counter.count()?await counter.innerText():null,marks:await row.locator('mark').allTextContents()};
