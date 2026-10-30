@@ -1,4 +1,8 @@
 {
+  "diffView.recordedInput": "Recorded input",
+  "diffView.deleted": "Deleted",
+  "diffView.copyPatch": "Copy patch",
+  "diffView.modeWords": "Word changes",
   "advancedTextDiff.added": "Added",
   "advancedTextDiff.additions": "Additions",
   "advancedTextDiff.changeSummary": "{{count}} change parts, {{chars}} characters total",

@@ -33,13 +33,13 @@ export interface BodyContext {
  * does not show, captioned "Other recorded fields (keys)" — a second
  * "Input" inside the Input zone would say it twice.
  */
-export function InputJson({ value, ctx, rest = false }: { value: Record<string, unknown>; ctx: BodyContext; rest?: boolean }) {
+export function InputJson({ value, ctx, rest = false, caption }: { value: Record<string, unknown>; ctx: BodyContext; rest?: boolean; caption?: string }) {
   const keys = keysCaption(value);
   return (
     <section data-input-json={rest ? "rest" : "whole"} className="space-y-1">
       {rest && (
         <div className="break-words text-caption text-fg-3">
-          {ctx.t("toolRow.otherRecordedFields")}
+          {caption ?? ctx.t("toolRow.otherRecordedFields")}
           {keys && ` ${keys}`}
         </div>
       )}
