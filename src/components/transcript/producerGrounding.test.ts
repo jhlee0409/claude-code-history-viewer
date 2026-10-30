@@ -3,7 +3,7 @@
  * error-prefix 53. Source references: docs/contracts/producer-outcome-ground-truth.md.
  */
 import { describe, expect, it } from "vitest";
-import { normalizeResult, resultContent, toolOutcome, type ToolResultLike } from "./toolOutcome";
+import { isToolRunEligible, normalizeResult, resultContent, toolFamily, toolOutcome, type ToolResultLike } from "./toolOutcome";
 
 const claude = (flag?: boolean, content: unknown = "error: synthetic diagnostic printed by a successful command"): ToolResultLike => ({
   type: "tool_result", tool_use_id: "synthetic-call", content,
@@ -29,7 +29,7 @@ describe("C1: producer flags, not prose", () => {
   });
   it.each(["claude", "pi", "ompi", "codex", "opencode", "kilo", "copilot"])("%s: prose alone has no grounded failure verdict", provider => {
     expect(toolOutcome(null, [{ content: "Error: could be ordinary file contents" }], "process", provider).verdict).toBe("unknown");
-    expect(toolOutcome(null, [{ content: "Error: ordinary file contents" }], "read-search", provider).verdict).toBe("unknown");
+    expect(toolOutcome(null, [{ content: "Error: ordinary file contents" }], "read-search", provider).verdict).toBe(provider === "claude" ? "succeeded" : "unknown");
   });
   it("genuine producer error still fails, even after a no-error sibling", () => {
     expect(toolOutcome(null, [claude(false), claude(true)], "process", "claude")).toMatchObject({ verdict: "failed", reason: "provider-error" });
@@ -102,14 +102,33 @@ describe("C3/C4: OpenHands unavailable sentinel and backend flag provenance", ()
   });
 });
 
-describe("missing producer evidence is not verified read/search success (U7)", () => {
+describe("Claude optional error flag is producer no-error (U7 correction)", () => {
+  it("Claude Read absent is_error succeeds and restores folding eligibility", () => {
+    const use = { name: "Read" };
+    const results = [{ type: "tool_result", tool_use_id: "synthetic-read", content: "Error: ordinary file text" }];
+    expect(toolOutcome(use, results, "read-search", "claude").verdict).toBe("succeeded");
+    expect(isToolRunEligible(use, results, "read-search")).toBe(true);
+  });
+  it("Claude Read absent is_error is fold-eligible independently of its verdict assertion", () => {
+    expect(isToolRunEligible({ name: "Read" }, [{ type: "tool_result", content: "synthetic file text" }], "read-search")).toBe(true);
+  });
+  it.each(["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Edit", "MultiEdit", "Write"])("%s: absent/false means no-error; true still fails (C1)", name => {
+    for (const flag of [undefined, false, true]) {
+      const r = { type: "tool_result", content: "Error: ordinary result text", ...(flag === undefined ? {} : { is_error: flag }) };
+      expect(toolOutcome({ name }, [r], toolFamily(name), "claude").verdict).toBe(flag === true ? "failed" : "succeeded");
+    }
+  });
+});
+
+describe("missing producer evidence on other providers stays unknown", () => {
   it.each(["Read", "Grep", "WebFetch"])("%s: missing flags stay unknown; explicit no-error remains a positive control", name => {
     const use = { name };
-    expect(toolOutcome(use, [{ content: "synthetic contents" }], "read-search", "claude").verdict).toBe("unknown");
-    expect(toolOutcome(use, [{ content: "synthetic contents", is_error: false }], "read-search", "claude").verdict).toBe("succeeded");
+    expect(toolOutcome(use, [{ content: "synthetic contents" }], "read-search", "codex").verdict).toBe("unknown");
+    expect(toolOutcome(use, [{ content: "synthetic contents", is_error: false }], "read-search", "codex").verdict).toBe("succeeded");
+    expect(isToolRunEligible(use, [{ content: "synthetic contents" }], "read-search", "codex")).toBe(false);
   });
-  it.each([200, 403, 404, 418, 500])("WebFetch HTTP code %s is not a process code or a success flag", code => {
+  it.each([200, 403, 404, 418, 500])("WebFetch HTTP code %s is not a producer error flag (HTTP-error-page policy open)", code => {
     const r = { content: "synthetic response", toolUseResult: { bytes: 18, code, codeText: "synthetic status", durationMs: 1, result: "synthetic response", url: "https://example.invalid" } };
-    expect(toolOutcome({ name: "WebFetch" }, [r], "read-search", "claude")).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" });
+    expect(toolOutcome({ name: "WebFetch" }, [r], "read-search", "claude")).toEqual({ lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" });
   });
 });

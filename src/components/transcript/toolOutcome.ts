@@ -49,10 +49,10 @@ export interface ToolOutcome {
 
 /**
  * process: has an exit code (shell, exec, code execution).
- * read-search: reads or searches; an explicit no-error flag on every result
- * is required for success. Missing flags are not verification.
- * other: edits, MCP, agents … — completed but unknown unless an error or an
- * exit code is recorded.
+ * read-search: reads or searches; producer no-error evidence establishes success.
+ * Claude's optional is_error defaults to no-error; other providers need an
+ * explicit no-error flag. Other: Claude edits also use that convention; MCP,
+ * agents and opaque providers stay unknown without an error or exit code.
  */
 export type ToolFamily = "process" | "read-search" | "other";
 
@@ -660,9 +660,7 @@ export function toolOutcome(
   family: ToolFamily,
   provider?: string,
 ): ToolOutcome {
-  // An orphan (use === null) is judged by its result alone; the pairing only
-  // matters for `toolRun` eligibility.
-  void use;
+  // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
   if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
@@ -709,10 +707,18 @@ export function toolOutcome(
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
   if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
-  // Missing flags are unknown, not evidence of successful read/search. Local
-  // WebFetch records include unflagged HTTP403×21/404×8/418×2/500×1 (audit U7).
-  // Only recorded no-error on EVERY part can establish this non-process success.
-  if (family === "read-search" && normalized.every((n) => n.isError === false)) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
+  // Claude/Anthropic is_error is optional: absent/false means no producer error,
+  // not missing evidence. Undefined provider is the legacy Claude route.
+  // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/messages/messages.ts#L5764-L5791
+  // Local structural count: Read absent205/true8, Edit absent136/true1,
+  // WebFetch absent299/true12 (docs/contracts/producer-outcome-ground-truth.md).
+  // HTTP status is not is_error; error-page policy remains an open question.
+  const claude = provider === undefined || provider === "claude";
+  const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
+  const noError = normalized.every((n, i) => n.isError === false ||
+    (claude && (results[i]!.is_error === undefined)));
+  if ((family === "read-search" || claudeEdit) && noError) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
 }
 
@@ -725,7 +731,8 @@ export function isToolRunEligible(
   use: ToolUseLike | null,
   results: ToolResultLike[],
   family: ToolFamily,
+  provider?: string,
 ): boolean {
   if (use === null || results.length === 0 || family !== "read-search") return false;
-  return toolOutcome(use, results, family).verdict === "succeeded";
+  return toolOutcome(use, results, family, provider).verdict === "succeeded";
 }

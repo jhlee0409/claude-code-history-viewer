@@ -120,20 +120,20 @@ const ROWS: Row[] = [
     run: false,
   },
   {
-    name: "error-prefixed prose without producer flags stays unknown (C1)",
+    name: "Claude error-prefixed file contents do not override producer no-error (C1)",
     use: call("Grep"),
     results: [result("Error: path does not exist")],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
-    run: false,
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
+    run: true,
   },
   {
     name: "`errors found` is not the error word (\\b)",
     use: call("Grep"),
     results: [result("errors found: 0")],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
-    run: false,
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
+    run: true,
   },
   {
     name: "exit code 0 (process)",
@@ -228,24 +228,24 @@ const ROWS: Row[] = [
     use: call("Read"),
     results: [result("     1→export * from \"./preview\";", own({ type: "text", file: { filePath: "/repo/src/index.ts", content: "export * from \"./preview\";\n", numLines: 1, startLine: 1, totalLines: 1 } }))],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
-    run: false,
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
+    run: true,
   },
   {
     name: "Grep files_with_matches without an error signal",
     use: call("Grep"),
     results: [result("src/a.ts\nsrc/b.ts", own({ mode: "files_with_matches", numFiles: 2, filenames: ["src/a.ts", "src/b.ts"] }))],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
-    run: false,
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
+    run: true,
   },
   {
     name: "WebFetch HTTP `code: 200` is not an exit code (read·search)",
     use: call("WebFetch"),
     results: [result("2.3 adds retry headers.", own({ code: 200, codeText: "OK", result: "2.3 adds retry headers.", bytes: 2048, durationMs: 120, url: "https://example.com/changelog" }))],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
-    run: false,
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
+    run: true,
   },
   {
     name: "alias return_code in the content object (code execution)",
@@ -308,7 +308,7 @@ const ROWS: Row[] = [
     use: null,
     results: [result("     1→x")],
     family: "read-search",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
     run: false,
   },
   {
@@ -423,7 +423,7 @@ const ROWS: Row[] = [
     use: call("Edit"),
     results: [result("The file /repo/src/a.ts has been updated.")],
     family: "other",
-    expected: { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" },
+    expected: { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" },
     run: false,
   },
 ];
@@ -522,17 +522,17 @@ describe("independent review matrix (§4.2)", () => {
     ["provider error", [result("nothing", { is_error: true })], "process", done("failed", "provider-error")],
     ["api error", [result({ error_code: "unavailable" })], "read-search", done("failed", "api-error-code", { errorCode: "unavailable" })],
     ["error word", [result("ERROR: missing")], "process", done("unknown", "no-exit-code")],
-    ["error word boundary", [result("errors: none")], "read-search", done("unknown", "no-error-signal")],
+    ["error word boundary", [result("errors: none")], "read-search", done("succeeded", "no-error-signal")],
     ["zero plus warning", [result("raw", own({ exitCode: 0, stderr: "fatal warning", stdout: "" }))], "process", done("succeeded", "exit-zero", { exitCode: 0 })],
     ["nonzero", [result({ exit_code: 1 })], "process", done("failed", "exit-nonzero", { exitCode: 1 })],
     ["missing process status", [result("success")], "process", done("unknown", "no-exit-code")],
     ["E15 exact", [result(E15.stderr, own({ ...E15 }))], "process", done("unknown", "no-exit-code")],
     ["false error vs exit 2", [result({ exitCode: 2 }, { is_error: false })], "process", done("failed", "conflict", { exitCode: 2 })],
     ["true error vs exit 0", [result({ exitCode: 0 }, { is_error: true })], "process", done("failed", "conflict", { exitCode: 0 })],
-    ["unflagged read is not verified success (U7)", [result("abc")], "read-search", done("unknown", "no-error-signal")],
+    ["Claude unflagged read uses producer no-error", [result("abc")], "read-search", done("succeeded", "no-error-signal")],
     ["prose is not a status", [result("Exit code 1\nfatal", own({ stderr: "exit code 2" }))], "process", done("unknown", "no-exit-code")],
     ["unassigned envelope ignored", [result("raw", { toolUseResultSource: { association: "unassigned", unassignedToolUseResult: { interrupted: true, exitCode: 2, error_code: "fail" } } })], "process", done("unknown", "no-exit-code")],
-    ["HTTP code is not an exit code", [result({ code: 200 })], "read-search", done("unknown", "no-error-signal")],
+    ["HTTP code is not an exit code", [result({ code: 200 })], "read-search", done("succeeded", "no-error-signal")],
   ];
   it.each(rows)("%s", (_label, results, family, expected) => {
     expect(toolOutcome(use, results, family)).toEqual(expected);
@@ -557,7 +557,7 @@ describe("independent review matrix (§4.2)", () => {
   it("orphans cannot fold; paired successful reads can", () => {
     expect(isToolRunEligible(null, [result("x")], "read-search")).toBe(false);
     expect(isToolRunEligible(use, [result("x", { is_error: false })], "read-search")).toBe(true);
-    expect(isToolRunEligible(use, [result("x")], "read-search")).toBe(false);
+    expect(isToolRunEligible(use, [result("x")], "read-search")).toBe(true);
     expect(isToolRunEligible(use, [result("x", own({ interrupted: true }))], "read-search")).toBe(false);
   });
 });
