@@ -121,7 +121,14 @@ fn chain_inputs(parsed: &ParsedLines, request: &ApiRequest, claimed: &mut [bool]
     // The response the walk has reached, once it has.
     let mut previous: Option<&str> = None;
     let mut next = parent_of(start - 1);
+    // A chain without a cycle visits each line at most once; a broken
+    // transcript can point a response line back at itself.
+    let mut steps = 0;
     while let Some(i) = next {
+        steps += 1;
+        if steps > parsed.len() {
+            break;
+        }
         if parsed.line_type(i) == Some("assistant") {
             let key = parsed.get(i).and_then(response_key);
             if key.is_none() || previous.is_some_and(|p| Some(p) != key) {

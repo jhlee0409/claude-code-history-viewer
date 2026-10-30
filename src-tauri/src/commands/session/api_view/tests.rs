@@ -312,3 +312,19 @@ fn results_written_after_all_parallel_calls_feed_the_next_request() {
     assert_eq!(inputs, vec![vec![1], vec![4, 5]]);
     assert!(view.unattributed.is_empty());
 }
+
+#[test]
+fn a_parent_cycle_ends_the_walk() {
+    // A broken transcript: an assistant line that is its own parent.
+    let text = transcript(&[
+        json!({"type": "assistant", "uuid": "x1", "parentUuid": "x1", "requestId": "req_1",
+               "message": {"id": "msg_1", "role": "assistant", "content": [{"type": "text", "text": "a"}]}}),
+        json!({"type": "user", "uuid": "u2", "parentUuid": "x1", "timestamp": "2026-01-01T00:01:00Z",
+               "message": {"role": "user", "content": "second prompt here"}}),
+        json!({"type": "assistant", "uuid": "x2", "parentUuid": "u2", "requestId": "req_2",
+               "message": {"id": "msg_2", "role": "assistant", "content": [{"type": "text", "text": "b"}]}}),
+    ]);
+    let view = build_api_view(&text);
+    let inputs: Vec<usize> = view.requests[1].inputs.iter().map(|s| s.line).collect();
+    assert_eq!(inputs, vec![2]);
+}
