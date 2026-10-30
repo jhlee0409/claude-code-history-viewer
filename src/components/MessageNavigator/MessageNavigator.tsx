@@ -107,7 +107,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const allEntries = useMemo(() => classifiedRows.map((row) => row.entry), [classifiedRows]);
   const turns = useOutlineTurns(classifiedRows);
   const realTurnsCount = useMemo(
-    () => turns.filter((turn) => turn.turnStartUuid !== null).length,
+    () => turns.filter((turn) => turn.kind === "human").length,
     [turns],
   );
 

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-26T10:45:15.480Z
- * 총 키 개수: 2340
+ * 생성 시간: 2026-10-30T09:05:11.270Z
+ * 총 키 개수: 2344
  * Namespace 수: 13
  */
 
@@ -1684,7 +1684,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (435개)
+ * renderers namespace의 번역 키 (439개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1819,14 +1819,18 @@ export type RenderersKeys =
   | 'diffView.comparison'
   | 'diffView.copied'
   | 'diffView.copyFailed'
+  | 'diffView.copyPatch'
+  | 'diffView.deleted'
   | 'diffView.modeAdvanced'
   | 'diffView.modeSideBySide'
   | 'diffView.modeUnified'
+  | 'diffView.modeWords'
   | 'diffView.moreActions'
   | 'diffView.newLine'
   | 'diffView.oldLine'
   | 'diffView.openFailed'
   | 'diffView.openIn'
+  | 'diffView.recordedInput'
   | 'diffView.removed'
   | 'diffView.section'
   | 'diffView.showLess'
@@ -3218,14 +3222,18 @@ export type TranslationKey =
   | 'diffView.comparison'
   | 'diffView.copied'
   | 'diffView.copyFailed'
+  | 'diffView.copyPatch'
+  | 'diffView.deleted'
   | 'diffView.modeAdvanced'
   | 'diffView.modeSideBySide'
   | 'diffView.modeUnified'
+  | 'diffView.modeWords'
   | 'diffView.moreActions'
   | 'diffView.newLine'
   | 'diffView.oldLine'
   | 'diffView.openFailed'
   | 'diffView.openIn'
+  | 'diffView.recordedInput'
   | 'diffView.removed'
   | 'diffView.section'
   | 'diffView.showLess'

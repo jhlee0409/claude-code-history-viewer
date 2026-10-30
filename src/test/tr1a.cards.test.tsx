@@ -459,7 +459,7 @@ describe("D-R1: one name → body table for the Default path", () => {
     expect(bodyKindFor("TaskCreate")).toBe("taskCreate");
     expect(bodyKindFor("TaskUpdate")).toBe("taskUpdate");
     // No parser for its input exists in the tree yet (TR2b owns it): honest JSON.
-    expect(bodyKindFor("apply_patch")).toBe("json");
+    expect(bodyKindFor("apply_patch")).toBe("patch");
     expect(bodyKindFor("mcp__github__create_issue")).toBe("json");
     expect(bodyKindFor("constructor")).toBe("json");
     expect(bodyKindFor("__proto__")).toBe("json");

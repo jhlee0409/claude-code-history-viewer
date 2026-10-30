@@ -18,6 +18,8 @@ export function getTurnHeaderLabel(
       ? t("navigator.outline.earlierNotLoaded")
       : t("navigator.outline.beforeFirstPrompt");
   }
+  // Existing localized agent-update label; automatic cycles are not prompts.
+  if (turn.kind === "automated") return t("navigator.kind.agentUpdate");
   const key = hasMore ? "navigator.outline.turnLabelLoaded" : "navigator.outline.turnLabel";
   return t(key, { n: turn.turnNumber, total: totalTurns });
 }

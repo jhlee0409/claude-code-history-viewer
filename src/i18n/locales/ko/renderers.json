@@ -1,4 +1,8 @@
 {
+  "diffView.recordedInput": "기록된 입력",
+  "diffView.deleted": "삭제됨",
+  "diffView.copyPatch": "패치 복사",
+  "diffView.modeWords": "단어 변경",
   "advancedTextDiff.added": "추가됨",
   "advancedTextDiff.additions": "추가",
   "advancedTextDiff.changeSummary": "{{count}}개 변경 부분, 총 {{chars}}자",

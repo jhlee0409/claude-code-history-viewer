@@ -9,7 +9,7 @@ pattern, and a system event is not a tool invocation.
 | --- | --- | --- |
 | **ToolRow** | Paired calls (`UnifiedToolExecutionRenderer` and `unifiedCards/*`), unmatched/legacy calls (`ToolUseRenderer`), server/MCP calls, orphan results (`ClaudeToolResultItem`, `ResultRow`), heuristic result-only heads (`RecordedResult`) | One neutral head, recorded tool name when present; otherwise an honest result-category label, never an invented call or ID. Outcome comes only from `toolOutcome`. `aria-expanded` and `aria-controls` link to the detail. |
 | **OutputBlock** | Plain strings, terminal streams, code/bash execution, generic execution streams and unknown JSON (`FallbackRenderer`) | Preserve whitespace/ANSI, ordered content parts and distinct streams. Long output has a reachable show-all control. A neutral `stderr` label is danger-styled only for a failed verdict. Exit/interruption/error facts belong to the owning ToolRow, once. |
-| **DiffView** | Existing Edit/Write displays and file-edit body | Input/Result zones retain labels, input rule, result hairline and tool kind. **TR2b owns** StructuredPatch/MultiEdit/apply_patch/text-editor diff feature parity and advanced/split comparison; TR1c changes those legacy heads, not their diff implementation. |
+| **DiffView** | Existing Edit/Write displays and file-edit body | Input/Result zones retain labels, input rule, result hairline and tool kind. StructuredPatch/MultiEdit/apply_patch/text-editor, Recent Edits filters and restore previews share DiffView; split/word/six-method advanced comparison is available from its `…` menu. |
 | **Notice** | Slash commands/local output/caveats, task notifications, `opencode_step`, system messages | These are recorded notices, not implicit tool calls. Existing bodies remain until **TR4** adopts the Notice pattern. A Pi/OMP `sourceExecution` envelope stays independent of assistant tool use/results. |
 | **Checklist** | Todo/update_plan, task results/operations, agent-task and progress groups | Keep recorded item order/status/body. **TR4** owns checklist state glyphs/prose/animation cleanup; TR1c adopts shared buttons and result heads only. |
 
@@ -66,7 +66,7 @@ not evidence that every provider emits that shape.
 | query + nonempty results | `WebSearchRenderer` / RecordedResult | Ordered existing search-result body |
 | oldTodos/newTodos; task/tasks; success + taskId | `TodoUpdateRenderer` / `TaskResultRenderer` / RecordedResult | Checklist bodies remain TR4-owned |
 | filenames + numFiles | `FileListRenderer` / RecordedResult | Existing ordered paths retained |
-| file object; filePath + edit fields; structuredPatch | `FileContent`; `FileEditRenderer`; `StructuredPatchRenderer` | File/advanced-diff bodies retained; TR2b parity deferred |
+| file object; filePath + edit fields; structuredPatch | `FileContent`; `FileEditRenderer`; `StructuredPatchRenderer` | File bodies retained; diff bodies share DiffView |
 | async agentId + isAsync/completed | Existing MessageViewer grouping | Router deliberately delegates; do not silently remove the owning group |
 | stdout/stderr/interruption/image/file metadata | `LegacyExecutionResult` / RecordedResult + OutputBlock | Shared adapter; unused fields, false/null/zero retained as JSON |
 | any other object | `FallbackRenderer` / RecordedResult + OutputBlock | Every recorded JSON key/value/array position retained, with show-all |
