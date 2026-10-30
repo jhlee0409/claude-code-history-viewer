@@ -21,7 +21,7 @@ const rowVerdicts=(root:HTMLElement)=>[...root.querySelectorAll('[data-tool-row]
 describe('bot provenance regressions — real message and result routes',()=>{
   it('message provider covers legacy sibling and inline content; explicit nested provider still overrides',()=>{
     const message={uuid:'legacy-pi',type:'user',timestamp:'2026-01-01T00:00:00Z',provider:'pi',content:'legacy result',toolUseResult:{stdout:'opaque-pi-output',exitCode:23,interrupted:true}} as ClaudeMessage;
-    const {container}=render(<ThemeProvider><ClaudeMessageNode message={message}/><ResultProviderContext.Provider value="claude"><ExpandKeyProvider value="nested"><ClaudeContentArrayRenderer provider="opencode" content={[{type:'tool_use',id:'nested-use',name:'Read',input:{file_path:'guide.md'}},{type:'tool_result',tool_use_id:'nested-use',content:'guide body',toolUseResult:{status:'completed'}}]}/></ExpandKeyProvider></ResultProviderContext.Provider></ThemeProvider>);
+    const {container}=render(<ThemeProvider><ClaudeMessageNode message={message}/><ResultProviderContext.Provider value="claude"><ExpandKeyProvider value="nested"><ClaudeContentArrayRenderer provider="opencode" content={[{type:'tool_use',id:'nested-use',name:'read',input:{file_path:'guide.md'}},{type:'tool_result',tool_use_id:'nested-use',content:'guide body',toolUseResult:{status:'completed'}}]}/></ExpandKeyProvider></ResultProviderContext.Provider></ThemeProvider>);
     expect(container.querySelector('[data-message-uuid="legacy-pi"] [data-tool-row]')?.getAttribute('data-tool-verdict')).toBe('unknown');
     expect(container.querySelector('[data-message-uuid="legacy-pi"] [data-tool-row]')?.getAttribute('data-tool-lifecycle')).toBe('completed');
     open(container);

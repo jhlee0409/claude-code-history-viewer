@@ -13,7 +13,6 @@ const claude = (flag?: boolean, content: unknown = "error: synthetic diagnostic 
 const pi = (flag: boolean): ToolResultLike => ({
   type: "tool_result", tool_use_id: "synthetic-call", is_error: flag,
   content: [{ type: "text", text: "error: synthetic stdout" }],
-  toolUseResult: { role: "toolResult", toolCallId: "synthetic-call", toolName: "bash", content: [{ type: "text", text: "error: synthetic stdout" }], details: {}, isError: flag, timestamp: 0 },
 });
 
 describe("C1: producer flags, not prose", () => {
@@ -61,7 +60,7 @@ describe("C2: completed is lifecycle, metadata.exit is the process result", () =
       expect(toolOutcome(null, [coreResult(exit)], "process", provider)).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
       // Non-process normal return is completed; thrown failure is error:
       // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
-      expect(toolOutcome(null, [coreResult(exit)], "read-search", provider).verdict).toBe("succeeded");
+      expect(toolOutcome({ name: "read" }, [coreResult(exit)], "read-search", provider).verdict).toBe("succeeded");
     });
     it(`${provider}: sibling codes conflict; status:error stays an error`, () => {
       expect(toolOutcome(null, [coreResult(0), coreResult(2)], "process", provider)).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 2 });
@@ -89,10 +88,31 @@ describe("C2: completed is lifecycle, metadata.exit is the process result", () =
   });
 });
 
+describe("round-2 producer regressions", () => {
+  // OpenCode prompt.ts@b9a39b8:598-644 drops MCP isError; AI SDK 5.0.8
+  // mcp-client.ts@718e5291:287-307 returns error results without throwing.
+  it.each(["opencode", "kilo"])("%s excludes MCP/plugin/unknown completed tools", provider => {
+    for (const name of ["context7_resolve-library-id", "mcp__server__read", "custom_plugin", "unknown", "read_file"]) {
+      expect(toolOutcome({ name }, [coreResult(undefined)], toolFamily(name), provider).verdict).toBe("unknown");
+    }
+    expect(toolOutcome(null, [coreResult(undefined)], "read-search", provider).verdict).toBe("unknown");
+  });
+  it.each(["Command failed\n\nsynthetic\n\nCommand exited with code 2", "Command failed\n\nCommand timed out after 1000 ms"])("Pi historical bash false is not success: %s", content => {
+    expect(toolOutcome({ name: "bash" }, [{ type: "tool_result", content, is_error: false }], "process", "pi").verdict).toBe("unknown");
+  });
+  it("OMP forwarded write false stays unknown even with an Error prefix", () => {
+    expect(toolOutcome({ name: "write" }, [{ type: "tool_result", content: "Error: synthetic device failure", is_error: false }], "other", "ompi").verdict).toBe("unknown");
+  });
+  it("Kilo shell metadata is bounded by the first closing marker", () => {
+    const output = "synthetic\n\n<shell_metadata>\nshell tool terminated command after exceeding timeout 1000 ms.\n</shell_metadata>\nordinary output\n</shell_metadata>";
+    expect(toolOutcome({ name: "bash" }, [coreResult(null, output)], "process", "kilo").lifecycle).toBe("completed");
+  });
+});
+
 describe("round-1 producer regressions", () => {
   it.each(["opencode", "kilo"])("%s non-process completed restores read folding and edit success", provider => {
     // prompt.ts@b9a39b8:1115-1160; Kilo processor.ts@0a9faef:271-310.
-    for (const name of ["read", "grep", "glob", "edit", "write"]) {
+    for (const name of ["read", "grep", "glob", "list", "edit", "write", "webfetch"]) {
       const use = { name };
       const family = toolFamily(name);
       const r = coreResult(undefined);
@@ -114,21 +134,23 @@ describe("round-1 producer regressions", () => {
     expect(toolOutcome(null, [coreResult(null, note)], "process", "kilo").lifecycle).toBe("completed");
     expect(toolOutcome(null, [coreResult(null, `${r.content}\ntrailing text`)], "process", "kilo").lifecycle).toBe("completed");
   });
-  // pi-mono@a922830 edit.ts:159-211/write.ts:67-89 throw/reject failures;
-  // agent-loop.ts:841-863 maps throws to true and normal returns to result.isError === true.
-  it.each(["pi", "ompi"])("%s edit/write explicit false is producer no-error", provider => {
+  // pi-mono@a922830 edit.ts:159-211/write.ts:67-89 throw/reject failures.
+  // OMP 17.3.7 edit/index.ts:191,254,341,363 flags per-file failures;
+  // write.ts:1128-1176 forwards xd:// inner results, so write is NOT certified.
+  it.each(["pi", "ompi"])("%s named edit/write success follows its own producer", provider => {
     for (const name of ["edit", "write"]) {
       const use = { name };
-      expect(toolOutcome(use, [pi(false)], "other", provider).verdict).toBe("succeeded");
+      expect(toolOutcome(use, [pi(false)], "other", provider).verdict).toBe(provider === "ompi" && name === "write" ? "unknown" : "succeeded");
       expect(toolOutcome(use, [pi(true)], "other", provider).verdict).toBe("failed");
       expect(toolOutcome(use, [{ content: "synthetic" }], "other", provider).verdict).toBe("unknown");
       expect(toolOutcome(use, [pi(false), { content: "unverified" }], "other", provider).verdict).toBe("unknown");
       expect(isToolRunEligible(use, [pi(false)], "other", provider)).toBe(false);
     }
   });
-  // bash.ts@a922830:372-408: nonzero true, null/abort/timeout throw -> true.
-  it("Pi bash explicit false establishes success without inventing a numeric exit", () => {
-    expect(toolOutcome({ name: "bash" }, [pi(false)], "process", "pi")).toEqual({ lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" });
+  // Released v0.6.0@00d82865 and v0.7.9@6bed5a91 resolve nonzero/timeout;
+  // agent-loop.ts:196-209 then writes false. A newer single pin is insufficient.
+  it("Pi bash false without a recorded exit stays unknown across producer versions", () => {
+    expect(toolOutcome({ name: "bash" }, [pi(false)], "process", "pi")).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
     expect(toolOutcome({ name: "bash" }, [pi(true)], "process", "pi").verdict).toBe("failed");
     expect(toolOutcome({ name: "bash" }, [pi(false), { content: "unverified" }], "process", "pi").verdict).toBe("unknown");
     expect(toolOutcome({ name: "shell" }, [pi(false)], "process", "pi").verdict).toBe("unknown");
