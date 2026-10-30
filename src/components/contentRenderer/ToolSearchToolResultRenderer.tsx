@@ -1,114 +1,27 @@
-/**
- * ToolSearchToolResultRenderer - Renders MCP tool search results
- *
- * Displays tool discovery results from the MCP tool_search beta feature.
- * Shows found tools with their names, descriptions, server sources, and input schemas.
- * Handles error states and empty results with appropriate styling.
- */
-
 import { memo, useContext } from "react";
-import { Wrench, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { layout } from "../renderers";
 import { ResultRow } from "../transcript/ResultRow";
 import { ResultRowContext } from "../transcript/resultRowContext";
 import { Marked } from "../transcript/ToolRow";
+import { OutputBlock } from "../transcript/OutputBlock";
+import { safeStringify } from "@/utils/jsonUtils";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
-/** Tool search result item */
-interface ToolSearchResult {
-  type: "tool_search_tool_search_result";
-  tool_name: string;
-  server_name?: string;
-  description?: string;
-  input_schema?: Record<string, unknown>;
-}
-
-/** Tool search error */
-interface ToolSearchError {
-  type: "tool_search_tool_result_error";
-  error_code:
-    | "invalid_tool_input"
-    | "unavailable"
-    | "too_many_requests"
-    | "no_results";
-}
-
-type Props = {
-  toolUseId: string;
-  content: ToolSearchResult[] | ToolSearchError;
-};
-
-const isToolSearchError = (
-  content: ToolSearchResult[] | ToolSearchError
-): content is ToolSearchError => {
-  return !Array.isArray(content) && content.type === "tool_search_tool_result_error";
-};
-
-export const ToolSearchToolResultRenderer = memo(
-  function ToolSearchToolResultRenderer({ toolUseId, content }: Props) {
-    const { t } = useTranslation();
-    const errorMessages: Record<string, string> = {
-      ...getCommonToolErrorMessages(t),
-      no_results: t("toolError.noMatchingToolsFound"),
-    };
-    const { highlight } = useContext(ResultRowContext);
-    const result = { type: "tool_search_tool_result", tool_use_id: toolUseId, content };
-
-    if (isToolSearchError(content)) {
-      return (
-        <ResultRow verb="tool_search" result={result} toolUseId={toolUseId}>
-          {errorMessages[content.error_code] && <div className={cn(layout.bodyText, "text-fg-2")}>{errorMessages[content.error_code]}</div>}
-        </ResultRow>
-      );
-    }
-
-    const results = content;
-
-    if (!results || results.length === 0) {
-      return (
-        <ResultRow verb="tool_search" result={result} toolUseId={toolUseId}>
-          <div className={cn(layout.smallText, "text-muted-foreground italic")}>
-            {t("toolSearchToolResultRenderer.noResults")}
-          </div>
-        </ResultRow>
-      );
-    }
-
-    return (
-      <ResultRow verb="tool_search" result={result} toolUseId={toolUseId} meta={`${results.length} ${t("toolSearchToolResultRenderer.found")}`}>
-        <div className="space-y-2">
-          {results.map((item, index) => (
-            <div
-              key={`${item.tool_name}-${index}`}
-              className="bg-card border border-border rounded p-2"
-            >
-              <div className={cn("flex items-center mb-1", layout.iconGap)}>
-                <Wrench className={cn(layout.iconSizeSmall, "text-fg-3")} />
-                <span className={cn(layout.bodyText, "font-medium text-fg")}>
-                  <Marked text={String(item.tool_name ?? "")} highlight={highlight} />
-                </span>
-              </div>
-
-              {item.server_name && (
-                <div className={cn("flex items-center mb-1", layout.iconGap, layout.smallText, "text-fg-3")}>
-                  <Server className={layout.iconSizeSmall} />
-                  <span className="font-mono">
-                    <Marked text={item.server_name} highlight={highlight} />
-                  </span>
-                </div>
-              )}
-
-              {item.description && (
-                <div className={cn(layout.smallText, "mt-1 text-fg-2")}>
-                  <Marked text={item.description} highlight={highlight} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </ResultRow>
-    );
-  }
-);
+/** SDK content is a reference container, not an array of tool definitions.
+ * https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L8010-L8057
+ * Validate every member; unsupported/legacy records remain honest JSON. */
+export const ToolSearchToolResultRenderer = memo(function ToolSearchToolResultRenderer({ toolUseId, content }: { toolUseId: string; content: unknown }) {
+  const { t } = useTranslation();
+  const { highlight } = useContext(ResultRowContext);
+  const c = content != null && typeof content === "object" && !Array.isArray(content) ? content as Record<string, unknown> : {};
+  const references = c.type === "tool_search_tool_search_result" && Array.isArray(c.tool_references) && c.tool_references.every(item => item != null && typeof item === "object" && item.type === "tool_reference" && typeof item.tool_name === "string") ? c.tool_references as { type: "tool_reference"; tool_name: string }[] : null;
+  const error = c.type === "tool_search_tool_result_error";
+  const errors = getCommonToolErrorMessages(t);
+  return <ResultRow verb="tool_search" result={{ type: "tool_search_tool_result", tool_use_id: toolUseId, content }} toolUseId={toolUseId} meta={references ? `${references.length} ${t("toolSearchToolResultRenderer.found")}` : undefined}>
+    {error && typeof c.error_code === "string" && errors[c.error_code] && <div className="text-body text-fg-2">{errors[c.error_code]}</div>}
+    {error && typeof c.error_message === "string" && <div className="text-body text-fg-2"><Marked text={c.error_message} highlight={highlight} /></div>}
+    {references?.length === 0 && <div className="text-caption text-fg-3">{t("toolSearchToolResultRenderer.noResults")}</div>}
+    {references && <ul className="space-y-2">{references.map((item, index) => <li key={index} className="break-words text-body text-fg"><Marked text={item.tool_name} highlight={highlight} /></li>)}</ul>}
+    <OutputBlock text={safeStringify(content, 2)} source="text" json expandKey={`tool-search-record-${toolUseId}`} searchQuery={highlight?.searchQuery} highlight={highlight} />
+  </ResultRow>;
+});

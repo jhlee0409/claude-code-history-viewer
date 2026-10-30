@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-30T09:05:11.270Z
- * 총 키 개수: 2344
+ * 생성 시간: 2026-10-30T18:55:24.684Z
+ * 총 키 개수: 2346
  * Namespace 수: 13
  */
 
@@ -1684,7 +1684,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (439개)
+ * renderers namespace의 번역 키 (441개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1707,6 +1707,7 @@ export type RenderersKeys =
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
   | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.redacted'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -2120,6 +2121,7 @@ export type RenderersKeys =
   | 'webFetchToolResultRenderer.retrievedAt'
   | 'webFetchToolResultRenderer.showContent'
   | 'webSearchRenderer.duration'
+  | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
   | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'
@@ -2488,6 +2490,7 @@ export type TranslationKey =
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
   | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.redacted'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -4796,6 +4799,7 @@ export type TranslationKey =
   | 'webFetchToolResultRenderer.retrievedAt'
   | 'webFetchToolResultRenderer.showContent'
   | 'webSearchRenderer.duration'
+  | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
   | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'

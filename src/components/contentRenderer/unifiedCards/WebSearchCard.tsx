@@ -1,10 +1,12 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
+
 import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
 import { DetailZone } from "../../transcript/DetailZone";
-import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { hasShownResults, recordedWebSearchLinkCount, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
 import { str } from "./shared";
 import { isNonEmptyString, shownIf, unshown } from "./recordShape";
@@ -18,6 +20,8 @@ import { OtherRecordedFields } from "./toolBodyParts";
  */
 export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
   const provider = useResultProvider();
+  const { t } = useTranslation();
+  const linkCount = recordedWebSearchLinkCount(toolResults);
   const name = (toolUse.name as string) || "WebSearch";
   const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
@@ -33,6 +37,7 @@ export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults,
       icon={<ToolIcon toolName="WebSearch" title={null} className="w-4 h-4" />}
       verb={name}
       target={query ? <CodeTarget text={query} /> : undefined}
+      meta={linkCount != null ? t("webSearchRenderer.linkCount", { count: linkCount }) : undefined}
       outcome={outcome}
       family={family}
       toolId={toolId}

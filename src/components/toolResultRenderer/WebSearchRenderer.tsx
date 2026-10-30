@@ -12,6 +12,7 @@ import { safeStringify } from "@/utils/jsonUtils";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+import { webSearchLinks } from "@/utils/anthropicServerTools";
 
 type Props = {
   searchData: Record<string, unknown>;
@@ -68,7 +69,7 @@ export const WebSearchRenderer = ({
         {results.length > 0 && (
           <div>
             <div className={`${layout.smallText} font-medium mb-2 text-muted-foreground`}>
-              {t('webSearchRenderer.results', { count: results.length })}
+              {t("webSearchRenderer.linkCount", { count: webSearchLinks(results).length })}
             </div>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {results.map((result: unknown, index: number) => (
@@ -125,7 +126,9 @@ export const WebSearchRenderer = ({
                           <div className="space-y-2">
                             {resultObj.content.map((item: unknown, idx: number) => (
                               <div key={idx}>
-                                {item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
+                                {item && typeof item === "object" && "url" in item && typeof item.url === "string" ? (
+                                  <SearchResultItem title={"title" in item && typeof item.title === "string" ? item.title : null} url={item.url} description={null} />
+                                ) : item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
                                   <div className={layout.prose}>
                                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                                       {item.text}

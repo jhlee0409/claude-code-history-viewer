@@ -1,4 +1,6 @@
 {
+  "webSearchRenderer.linkCount_other": "{{count}} 筆結果",
+  "advisorToolResultRenderer.redacted": "已隱藏的建議（內容已加密，無法查看明文）。",
   "diffView.recordedInput": "記錄的輸入",
   "diffView.deleted": "已刪除",
   "diffView.copyPatch": "複製修補程式",

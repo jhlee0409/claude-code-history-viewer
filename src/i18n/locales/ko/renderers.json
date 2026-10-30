@@ -1,4 +1,6 @@
 {
+  "webSearchRenderer.linkCount_other": "결과 {{count}}개",
+  "advisorToolResultRenderer.redacted": "비공개 조언 (암호화된 내용으로, 평문을 볼 수 없습니다).",
   "diffView.recordedInput": "기록된 입력",
   "diffView.deleted": "삭제됨",
   "diffView.copyPatch": "패치 복사",

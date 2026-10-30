@@ -140,18 +140,20 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
         break;
       }
 
-      // TextEditorCodeExecutionToolResultContent: { content: { operation?, path?, success? } }
-      case "text_editor_code_execution_tool_result": {
+      // SDK-discriminated records, preserved rather than mapped to invented operation/path.
+      // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192
+      // Tool references: same pinned file L8010-L8057. JSON is escaped by htmlExporter.
+      case "text_editor_code_execution_tool_result":
+      case "tool_search_tool_result":
+        blocks.push({ kind: item.type === "text_editor_code_execution_tool_result" ? "code" : "result", text: JSON.stringify(raw.content, null, 2) ?? "null" });
+        break;
+
+      // SDK L360-L405: opaque ciphertext is not advice text; do not export it as such.
+      case "advisor_tool_result": {
         const c = raw.content as Record<string, unknown> | undefined;
-        const op = typeof c?.operation === "string" ? c.operation : "unknown";
-        const path = typeof c?.path === "string" ? c.path : "";
-        blocks.push({ kind: "code", text: path ? `[File ${op}: ${path}]` : `[File ${op}]` });
+        blocks.push({ kind: "result", text: c?.type === "advisor_redacted_result" ? "[Redacted advice: encrypted content; plaintext unavailable]" : JSON.stringify(c, null, 2) ?? "null" });
         break;
       }
-
-      case "tool_search_tool_result":
-        blocks.push({ kind: "result", text: "[Tool search result]" });
-        break;
 
       case "image":
         blocks.push({ kind: "media", text: "[Image]" });
