@@ -55,7 +55,23 @@ semantics come from the Anthropic contract, not invented local observations.
   appends `<shell_metadata>` abort/timeout notes. [command-timeout.ts:32–41](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41)
   adds environment-timeout wording and an optional multiline deployment message.
   [shell/id.ts:14–16](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell/id.ts#L14-L16)
-  retains ToolID `bash`. This grammar is Kilo-only, not inferred for OpenCode.
+  retains ToolID `bash`. Both current shell and historical bash suffixes require
+  **recorded `metadata.exit:null`**: [shell.ts:662–683](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L662-L683)
+  and [historical bash.ts:508–529](https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L508-L529)
+  return null on abort/timeout, numeric exit on normal completion. Command output
+  can print the same exact suffix; numeric or absent exit must not interrupt.
+  This grammar is Kilo-only, not inferred for OpenCode.
+- **OpenCode error-state interruption**: b9a39b8 [prompt.ts:1300–1318](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1300-L1318)
+  writes an abort error without an interruption flag. Commit [c29392d0](https://github.com/anomalyco/opencode/commit/c29392d0857f11208753bd95be76c6069c070289)
+  introduces `metadata.interrupted:true` in [processor.ts:402–415](https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415);
+  its parent `46f243fea71c65464471fcf1f5a807dd860c0f8f` lacks that writer.
+  Viewer [opencode.rs:1493–1511](https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1493-L1511)
+  and [result_evidence.rs:4–9](https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/result_evidence.rs#L4-L9)
+  preserve the entire state in inline `toolUseResult`, including metadata. Read
+  the flag **only for OpenCode `status:error`**; completed arbitrary metadata
+  and Kilo do not inherit this rule. Lifecycle becomes interrupted/unknown under
+  the existing interruption-first policy (the raw error flag is unchanged). Regression: real renderer
+  `tr1c.botProvenance.test.tsx` covers both provider/state controls and raw immutability.
 - **Pi exact edit/write false = no-error**: pi-mono a922830
   [edit.ts:159–211](https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211),
   [write.ts:67–89](https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89),
@@ -101,7 +117,8 @@ produces `Read/Glob/Edit/Write/WebFetch` from `read/glob/edit/write/webfetch`;
 at normalization **and** final verdict; lowercase raw IDs are not accepted.
 
 Kilo 0a9faeff has no built-in list: [tool registry:274–335](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335)
-and the pinned tool directory contain no list/ls module. Therefore `list` is
+and both pinned directories [tool/](https://github.com/Kilo-Org/kilocode/tree/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool)
+and [kilocode/tool/](https://github.com/Kilo-Org/kilocode/tree/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/tool) contain no list/ls module. Therefore `list` is
 **OpenCode-only**; no historical Kilo list/MCP exception is claimed.
 
 **Owner-delegated frontend-only trade-off:** built-in `grep` and MCP `grep_*`
@@ -109,6 +126,9 @@ both become `Grep`. Completion-only `Grep` stays **unknown** for both providers,
 so built-in grep loses success/folding versus develop until item ② preserves
 raw IDs. This avoids certifying a dropped MCP error as success. Other unlisted
 MCP/plugin/unknown names and aliases such as `read_file` also stay unknown.
+Unlisted built-ins (e.g. Kilo `websearch`, `todowrite`, `task`, `patch`) lose
+develop's completion-derived success too; `websearch` also loses folding until
+its failure paths are grounded.
 A plugin literally named `Read` (or another allowed delivered name) is still
 indistinguishable: this is a bounded delivered-name policy, not proof of raw
 built-in identity. Explicit block false on read/search retains its separate
@@ -127,7 +147,11 @@ backend synthesized that value. At develop f0e8317, see
 Pi/OMP is also affected: `pi.rs:1090–1093` defaults missing `isError` to false
 and attaches no `toolUseResult`. Tests use that backend-shaped block, not an
 invented Pi metadata envelope. The real OMP scan found 0 absent flags, which
-limits observed impact, not the provenance gap. Only OpenHands has the
+limits observed impact, not the provenance gap. In particular **Pi edit/write
+and read/search still accept this backend-defaulted false**; the frontend
+cannot distinguish it from explicit producer false. Comment 4423011250 is only
+partly addressed: 7f39164 removed the Bash exception, not this backend issue.
+Only OpenHands has the
 provenance correction in this PR. Preserving raw flags
 while carrying their provenance is an **open plan item ②**, not a delivered
 universal guarantee. OpenCode/Kilo must also preserve raw `part.tool` alongside
@@ -169,7 +193,10 @@ for those providers is claimed.
   remains an **open owner question**, distinct from tool execution failure.
 - OpenCode/Kilo metadata.exit and interruption markers are read only for process
   results with source state `completed`; arbitrary tool-extension metadata is
-  not interpreted. `status:error` is positive failure; `cancelled` is not an
+  not interpreted. Kilo suffixes additionally require `metadata.exit:null`.
+  OpenCode `status:error` plus `metadata.interrupted:true` sets interrupted
+  lifecycle; without a recorded nonzero exit its verdict is unknown. The raw
+  error flag is preserved. `cancelled` is not an
   upstream ToolState enum and no longer invents interruption.
 - Legacy exit aliases, legacy MCP router error union, and API `error_code`
   compatibility paths predate this lane. Their existing behavior is retained;

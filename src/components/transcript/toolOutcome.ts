@@ -212,7 +212,15 @@ export function normalizeResult(
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
     // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
     // Bash completion is lifecycle only; cancelled is not a source enum.
-    if (own.status === "error") out.isError = true;
+    if (own.status === "error") {
+      out.isError = true;
+      // c29392d0 introduced this abort flag; b9a39b8 prompt.ts:1300-1318
+      // had only an error string. The backend preserves the full part.state
+      // (opencode.rs:1493-1511; result_evidence.rs:4-9). Completed metadata is
+      // arbitrary tool output, not this lifecycle signal. Not inferred for Kilo.
+      // https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415
+      if (options.provider === "opencode" && metadata?.interrupted === true) out.interrupted = true;
+    }
     if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
     // from a non-process tool. #752/4415170647 confused completion and success.
@@ -232,8 +240,13 @@ export function normalizeResult(
         // Current Kilo keeps ToolID bash, but changed the wrapper and timeout grammar.
         // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L687-L723
         // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41
-        out.interrupted = /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
-          /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.)(?:(?!\n<\/shell_metadata>)[\s\S])*\n<\/shell_metadata>$/.test(output);
+        // Both writers return null on abort/timeout, numeric exit on normal return.
+        // Ordinary process output can print these exact suffixes: null is required.
+        // shell.ts:662-683,687-723; historical bash.ts:508-529,533-566 above.
+        out.interrupted = metadata?.exit === null && (
+          /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
+          /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.)(?:(?!\n<\/shell_metadata>)[\s\S])*\n<\/shell_metadata>$/.test(output)
+        );
       }
     }
   }
