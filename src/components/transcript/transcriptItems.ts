@@ -127,6 +127,21 @@ function fold(blocks: readonly TranscriptBlock[], runByBlockId: Map<string, Tool
   return entries;
 }
 
+/** Collision-free structural identity for renderer data (JSON records plus group Maps).
+ * Object/map key order is not content; array order is. No object-reference cache key.
+ */
+function contentSignature(value: unknown): string {
+  if (value === null || typeof value !== "object") return typeof value === "string" ? JSON.stringify(value) : String(value);
+  if (Array.isArray(value)) return `[${value.map(contentSignature).join(",")}]`;
+  if (value instanceof Map) return `map:[${[...value].map(([key, item]) => `[${contentSignature(key)},${contentSignature(item)}]`).sort().join(",")}]`;
+  return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${contentSignature(item)}`).join(",")}}`;
+}
+
+function rendererSignature(source: Omit<FlattenedMessageItem, "originalIndex">): string {
+  // Only the top-level display position is excluded; recorded nested data stays significant.
+  return contentSignature(Object.fromEntries(Object.entries(source).filter(([key]) => key !== "originalIndex")));
+}
+
 export function buildTranscriptItems(flattened: readonly FlattenedMessage[], membership: TurnMembership, options: TranscriptOptions = {}): TranscriptModel {
   const items: TranscriptItem[] = [];
   const turns: TranscriptTurn[] = [];
@@ -149,8 +164,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
   const blocksForRow = (row: FlattenedMessageItem): readonly TranscriptBlock[] => {
     const cached = priorRows.get(row.message.uuid);
     const source = cached?.[0]?.source;
-    const same = source && (Object.keys(row) as (keyof FlattenedMessageItem)[])
-      .every(key => key === "originalIndex" || row[key] === source[key]);
+    const same = source && rendererSignature(row) === rendererSignature(source);
     return same ? cached! : transcriptBlocks(row);
   };
   const starts = new Map(options.turnStartUuids);
@@ -208,7 +222,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
   }
   for (const run of new Set(runByBlockId.values())) {
     run.expanded = options.captureMode === true || run.blocks.some(block => block.sourceBlockIds.some(id => expandedBlockIds.has(id)));
-    if (run.expanded) for (const block of run.blocks) for (const id of block.sourceBlockIds) expandedBlockIds.add(id);
+    if (run.expanded && options.captureMode !== true) for (const block of run.blocks) for (const id of block.sourceBlockIds) expandedBlockIds.add(id);
   }
   return model;
 }

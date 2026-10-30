@@ -33,6 +33,32 @@ describe("incremental transcript identity", () => {
     expect(runs.map(r => [r.id, r.expanded])).toEqual([["run:r1#0", true], ["run:r3#0", true]]);
     expect(before.runByBlockId.get("r1#0")?.blocks).toHaveLength(4);
   });
+  it("capture expansion is temporary when the next model only receives previous", () => {
+    const messages = [tool("r1"), tool("r2")];
+    const membership = member(["r1", 1], ["r2", 1]);
+    const before = buildTranscriptItems(flattened(messages), membership);
+    const capture = buildTranscriptItems(flattened(messages), membership, { previous: before, captureMode: true });
+    const after = buildTranscriptItems(flattened(messages), membership, { previous: capture });
+    expect(capture.runByBlockId.get("r1#0")?.expanded).toBe(true);
+    expect(capture.expandedBlockIds.size).toBe(0);
+    expect(after.runByBlockId.get("r1#0")?.expanded).toBe(false);
+    expect(before.runByBlockId.get("r1#0")?.expanded).toBe(false);
+  });
+  it.each(["explicit", "reveal"] as const)("capture preserves %s expansion including aliases without persisting unrelated runs", mode => {
+    const messages = [tool("r1"), tool("r2"), assistant("break"), tool("r3"), tool("r4")];
+    const membership = new Map(messages.map(m => [m.uuid, 1] as const));
+    const capture = buildTranscriptItems(flattened(messages), membership, {
+      captureMode: true,
+      ...(mode === "explicit" ? { expandedBlockIds: new Set(["r2#1"]) } : { revealTargets: [{ blockId: "r2#1" }] }),
+    });
+    expect([...new Set(capture.runByBlockId.values())].every(run => run.expanded)).toBe(true);
+    expect(capture.expandedBlockIds.has("r2#1")).toBe(true);
+    expect(capture.expandedBlockIds.has("r3#0")).toBe(false);
+    const after = buildTranscriptItems(flattened(messages), membership, { previous: capture });
+    expect(after.runByBlockId.get("r1#0")?.expanded).toBe(true);
+    expect(after.runByBlockId.get("r3#0")?.expanded).toBe(false);
+    expect([...after.expandedBlockIds].sort()).toEqual(["r1#0", "r1#1", "r2#0", "r2#1"]);
+  });
   it("explicit empty expansion closes previous runs and does not mutate prior models", () => {
     const messages = [tool("r1"), tool("r2")];
     const membership = member(["r1", 1], ["r2", 1]);
