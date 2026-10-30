@@ -216,10 +216,12 @@ export function normalizeResult(
       out.isError = true;
       // c29392d0 introduced this abort flag; b9a39b8 prompt.ts:1300-1318
       // had only an error string. The backend preserves the full part.state
-      // (opencode.rs:1493-1511; result_evidence.rs:4-9). Completed metadata is
-      // arbitrary tool output, not this lifecycle signal. Not inferred for Kilo.
+      // (opencode.rs:1493-1511; result_evidence.rs:4-9; shared by kilo.rs:181).
+      // Kilo independently writes the same abort state. Completed metadata is
+      // arbitrary tool output, not this lifecycle signal; require strict true.
       // https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415
-      if (options.provider === "opencode" && metadata?.interrupted === true) out.interrupted = true;
+      // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
+      if (metadata?.interrupted === true) out.interrupted = true;
     }
     if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
@@ -227,7 +229,7 @@ export function normalizeResult(
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
     // https://github.com/anomalyco/opencode/blob/37bb07e7a313d7150038061dbba670410eb0469d/packages/opencode/src/tool/bash.ts#L318-L333
     // Kilo independently verified (not inferred from its fork relationship):
-    // https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L527-L571
+    // https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L508-L566
     if (options.bareCodeIsExitCode && own.status === "completed") {
       const exit = recordedInteger(metadata?.exit);
       if (exit !== undefined) out.exitCode = exit;
@@ -242,7 +244,7 @@ export function normalizeResult(
         // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41
         // Both writers return null on abort/timeout, numeric exit on normal return.
         // Ordinary process output can print these exact suffixes: null is required.
-        // shell.ts:662-683,687-723; historical bash.ts:508-529,533-566 above.
+        // shell.ts:662-683,687-723; historical bash.ts:508-566 above.
         out.interrupted = metadata?.exit === null && (
           /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
           /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.)(?:(?!\n<\/shell_metadata>)[\s\S])*\n<\/shell_metadata>$/.test(output)

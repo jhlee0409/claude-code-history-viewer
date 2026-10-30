@@ -80,9 +80,12 @@ describe('bot provenance regressions — real message and result routes',()=>{
   }
   // OpenCode c29392d0 introduces the abort writer (parent 46f243fe has no flag).
   // https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415
-  // opencode.rs:1493-1511 + result_evidence.rs:4-9 preserve the entire state.
+  // Kilo independently writes the same abort state:
+  // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
+  // kilo.rs:181 shares opencode.rs:1493-1511 + result_evidence.rs:4-9,
+  // preserving the entire state, error content, is_error:true and source association.
   for (const provider of ['opencode', 'kilo'] as const) {
-    it.each([true, false, undefined])(`${provider} error interruption metadata is provider/state scoped: %s`, interrupted => {
+    it.each([true, false, undefined, 'true', 1, null])(`${provider} error interruption metadata requires strict true: %s`, interrupted => {
       const state = { status: 'error', input: { command: 'synthetic' }, error: 'Tool execution aborted', metadata: { ...(interrupted === undefined ? {} : { interrupted }), output: 'synthetic partial output' }, time: { start: 0, end: 1 } };
       const content = [
         { type: 'tool_use', id: 'aborted-call', name: 'Bash', input: state.input },
@@ -90,9 +93,9 @@ describe('bot provenance regressions — real message and result routes',()=>{
       ];
       const before = JSON.stringify(content);
       const { container } = render(<ThemeProvider><ExpandKeyProvider value="aborted-call"><ClaudeContentArrayRenderer provider={provider} content={content}/></ExpandKeyProvider></ThemeProvider>);
-      expect(container.querySelector('[data-tool-row]')?.getAttribute('data-tool-lifecycle')).toBe(provider === 'opencode' && interrupted === true ? 'interrupted' : 'completed');
+      expect(container.querySelector('[data-tool-row]')?.getAttribute('data-tool-lifecycle')).toBe(interrupted === true ? 'interrupted' : 'completed');
       // Existing interruption policy is unknown without a nonzero recorded exit.
-      expect(rowVerdicts(container)).toEqual([provider === 'opencode' && interrupted === true ? 'unknown' : 'failed']);
+      expect(rowVerdicts(container)).toEqual([interrupted === true ? 'unknown' : 'failed']);
       expect(JSON.stringify(content)).toBe(before);
     });
     it(`${provider} completed arbitrary interruption metadata cannot override success`, () => {
