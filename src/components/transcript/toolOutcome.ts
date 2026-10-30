@@ -51,8 +51,9 @@ export interface ToolOutcome {
  * process: has an exit code (shell, exec, code execution).
  * read-search: reads or searches; producer no-error evidence establishes success.
  * Claude's optional is_error defaults to no-error; other providers need an
- * explicit no-error flag. Other: Claude edits also use that convention; MCP,
- * agents and opaque providers stay unknown without an error or exit code.
+ * explicit no-error flag or OpenCode/Kilo non-process completed state.
+ * Other: Claude edits, Pi/OMP edit/write and OpenCode/Kilo completed tools use
+ * their producer no-error convention; opaque tools stay unknown.
  */
 export type ToolFamily = "process" | "read-search" | "other";
 
@@ -181,9 +182,12 @@ export function normalizeResult(
     if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
   }
   if (core && own) {
-    // completed is a lifecycle, not a verdict; cancelled is not a source enum.
-    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/message-v2.ts#L209-L245
+    // For non-process tools a normal return is completed; throws become error.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+    // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
+    // Bash completion is lifecycle only; cancelled is not a source enum.
     if (own.status === "error") out.isError = true;
+    if (!options.bareCodeIsExitCode && own.status === "completed" && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
     // from a non-process tool. #752/4415170647 confused completion and success.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
@@ -199,7 +203,11 @@ export function normalizeResult(
       if (options.provider === "opencode") {
         out.interrupted = /\n\n\(Command (?:was aborted|timed out after \d+ ms)\)$/.test(output);
       } else {
-        out.interrupted = /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output);
+        // Current Kilo keeps ToolID bash, but changed the wrapper and timeout grammar.
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L687-L723
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41
+        out.interrupted = /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
+          /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.[\s\S]*)(?:\n[^\n]*)*\n<\/shell_metadata>$/.test(output);
       }
     }
   }
@@ -706,7 +714,15 @@ export function toolOutcome(
   }
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
-  if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
+  // Pi's pinned built-in bash returns isError:true for every nonzero exit;
+  // null exit, abort and timeout throw, and agent-loop records those as true.
+  // No numeric exit is synthesized. The OMP fork's bash is not certified here.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/bash.ts#L372-L408
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/agent/src/agent-loop.ts#L841-L863
+  const piBashNoError = provider === "pi" && use?.name === "bash" && normalized.every(n => n.isError === false);
+  if (family === "process") return piBashNoError
+    ? { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" }
+    : { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
   // Claude/Anthropic is_error is optional: absent/false means no producer error,
   // not missing evidence. Undefined provider is the legacy Claude route.
   // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
@@ -718,7 +734,12 @@ export function toolOutcome(
   const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
   const noError = normalized.every((n, i) => n.isError === false ||
     (claude && (results[i]!.is_error === undefined)));
-  if ((family === "read-search" || claudeEdit) && noError) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
+  const coreNoError = (provider === "opencode" || provider === "kilo") && normalized.every(n => n.isError === false);
+  // Built-in edit/write reject on failure; agent-loop turns rejection into isError:true.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89
+  const piEdit = (provider === "pi" || provider === "ompi") && (use?.name === "edit" || use?.name === "write");
+  if ((family === "read-search" || claudeEdit || coreNoError || piEdit) && noError) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
 }
 

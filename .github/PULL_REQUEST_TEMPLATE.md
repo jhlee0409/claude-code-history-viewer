@@ -26,7 +26,7 @@ Closes #
 
 ## Producer format ground truth
 
-- [ ] Any code that parses or judges an external record format cites a producer source `URL@SHA:lines` or real-record structural counts (keys/counts only, no private content) in the PR and code/contract documentation; otherwise marked not applicable.
+- [ ] Any code that parses or judges an external record format cites producer `URL@SHA:lines` (tags peeled to a commit; name the producer version/fork covered) or real-record structural counts (keys/counts only, no private content) in the PR and code/contract documentation. N/A only when the PR does not parse or judge any external record. A rule without producer evidence ships only as an honest fallback (raw/unknown).
 - [ ] Reviewer format demands were **verified against the producer before acceptance**; repo-authored fixtures and reviewer claims alone are not ground truth.
 
 ## If this adds a frontend-callable backend command

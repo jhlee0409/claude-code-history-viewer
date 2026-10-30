@@ -26,8 +26,9 @@ describe('bot provenance regressions — real message and result routes',()=>{
     expect(container.querySelector('[data-message-uuid="legacy-pi"] [data-tool-row]')?.getAttribute('data-tool-lifecycle')).toBe('completed');
     open(container);
     expect(container.textContent).toContain('"exitCode": 23');
-    // C2: provider identity still routes fields, but completion alone proves no success.
-    expect(rowVerdicts(container)).toEqual(['unknown','unknown']);
+    // OpenCode non-process completed is producer no-error; Pi opaque exit remains data.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+    expect(rowVerdicts(container)).toEqual(['unknown','succeeded']);
   });
   it('terminal router preserves the full raw record for outcome and independent fields',()=>{
     const record={type:'terminal_stream',command:'demo',stream:'stderr',output:'warning bytes',error_code:'terminal-denied',interrupted:false,future:{zero:0,flag:false,nil:null},content:[{type:'text',text:'distinct-content'}]};

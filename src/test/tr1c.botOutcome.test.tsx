@@ -12,10 +12,12 @@ beforeEach(()=>useExpandRegistry.getState().clearAll());
 const completed={content:'Error handling guide: ordinary file contents',toolUseResult:{status:'completed'}};
 describe('bot source evidence precedence',()=>{
   for(const provider of ['opencode','kilo']) {
-    for(const family of ['read-search','other','process'] as ToolFamily[]) it(`${provider} ${family}: completion is lifecycle only; recorded errors still decide (C1/C2)`,()=>{
-      expect(toolOutcome(null,[completed],family,provider)).toMatchObject({verdict:'unknown',reason:family==='process'?'no-exit-code':'no-error-signal'});
+    for(const family of ['read-search','other','process'] as ToolFamily[]) it(`${provider} ${family}: non-process completion is no-error; process completion is lifecycle (C1/C2)`,()=>{
+      // Normal return -> completed; thrown failure -> error (not bash exit semantics):
+      // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+      expect(toolOutcome(null,[completed],family,provider)).toMatchObject({verdict:family==='process'?'unknown':'succeeded',reason:family==='process'?'no-exit-code':'no-error-signal'});
       expect(toolOutcome(null,[completed,{content:'Error: sibling failure'}],family,provider)).toMatchObject({verdict:'unknown'});
-      expect(toolOutcome(null,[completed,{...completed,content:'second completed text'}],family,provider).verdict).toBe('unknown');
+      expect(toolOutcome(null,[completed,{...completed,content:'second completed text'}],family,provider).verdict).toBe(family==='process'?'unknown':'succeeded');
       for(const explicit of [{is_error:true},{content:{error_code:'explicit-code'}}])expect(toolOutcome(null,[{...completed,...explicit}],family,provider).verdict).toBe('failed');
       expect(toolOutcome(null,[completed,{content:'unknown sibling'}],family,provider).verdict).toBe('unknown');
       expect(toolOutcome(null,[completed,{content:'failed state',toolUseResult:{status:'error'}}],family,provider).verdict).toBe('failed');

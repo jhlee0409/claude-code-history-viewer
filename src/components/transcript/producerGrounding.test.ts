@@ -59,7 +59,9 @@ describe("C2: completed is lifecycle, metadata.exit is the process result", () =
     });
     it.each([null, undefined, "0", false])(`${provider}: unavailable exit %s never becomes success`, exit => {
       expect(toolOutcome(null, [coreResult(exit)], "process", provider)).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
-      expect(toolOutcome(null, [coreResult(exit)], "read-search", provider).verdict).toBe("unknown");
+      // Non-process normal return is completed; thrown failure is error:
+      // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+      expect(toolOutcome(null, [coreResult(exit)], "read-search", provider).verdict).toBe("succeeded");
     });
     it(`${provider}: sibling codes conflict; status:error stays an error`, () => {
       expect(toolOutcome(null, [coreResult(0), coreResult(2)], "process", provider)).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 2 });
@@ -84,6 +86,53 @@ describe("C2: completed is lifecycle, metadata.exit is the process result", () =
   it("does not invent an OpenCode cancelled enum or parse stdout markers without source state", () => {
     expect(toolOutcome(null, [coreResult(undefined, "synthetic", "cancelled")], "process", "opencode").lifecycle).toBe("completed");
     expect(toolOutcome(null, [{ content: "\n\n(Command was aborted)" }], "process", "opencode").lifecycle).toBe("completed");
+  });
+});
+
+describe("round-1 producer regressions", () => {
+  it.each(["opencode", "kilo"])("%s non-process completed restores read folding and edit success", provider => {
+    // prompt.ts@b9a39b8:1115-1160; Kilo processor.ts@0a9faef:271-310.
+    for (const name of ["read", "grep", "glob", "edit", "write"]) {
+      const use = { name };
+      const family = toolFamily(name);
+      const r = coreResult(undefined);
+      expect(toolOutcome(use, [r], family, provider).verdict).toBe("succeeded");
+      expect(isToolRunEligible(use, [r], family, provider)).toBe(family === "read-search");
+      expect(toolOutcome(use, [coreResult(undefined, "synthetic", "error")], family, provider).verdict).toBe("failed");
+      expect(toolOutcome(use, [r, { content: "unverified sibling" }], family, provider).verdict).toBe("unknown");
+    }
+  });
+  // Kilo shell.ts@0a9faef:687-723; command-timeout.ts:32-41 (environment message).
+  it.each([
+    "User aborted the command",
+    "shell tool terminated command after exceeding timeout 1000 ms. If this command is expected to take longer and is not waiting for interactive input, retry with a larger timeout value in milliseconds.",
+    "shell tool terminated command after exceeding environment timeout 1000 ms. synthetic deployment note\nsecond line",
+  ])("Kilo current shell_metadata interruption: %s", note => {
+    const r = coreResult(null, `synthetic output\n\n<shell_metadata>\n${note}\n</shell_metadata>`);
+    expect(toolOutcome({ name: "bash" }, [r], "process", "kilo")).toMatchObject({ lifecycle: "interrupted", verdict: "unknown" });
+    expect(toolOutcome(null, [r], "process", "opencode").lifecycle).toBe("completed");
+    expect(toolOutcome(null, [coreResult(null, note)], "process", "kilo").lifecycle).toBe("completed");
+    expect(toolOutcome(null, [coreResult(null, `${r.content}\ntrailing text`)], "process", "kilo").lifecycle).toBe("completed");
+  });
+  // pi-mono@a922830 edit.ts:159-211/write.ts:67-89 throw/reject failures;
+  // agent-loop.ts:841-863 maps throws to true and normal returns to result.isError === true.
+  it.each(["pi", "ompi"])("%s edit/write explicit false is producer no-error", provider => {
+    for (const name of ["edit", "write"]) {
+      const use = { name };
+      expect(toolOutcome(use, [pi(false)], "other", provider).verdict).toBe("succeeded");
+      expect(toolOutcome(use, [pi(true)], "other", provider).verdict).toBe("failed");
+      expect(toolOutcome(use, [{ content: "synthetic" }], "other", provider).verdict).toBe("unknown");
+      expect(toolOutcome(use, [pi(false), { content: "unverified" }], "other", provider).verdict).toBe("unknown");
+      expect(isToolRunEligible(use, [pi(false)], "other", provider)).toBe(false);
+    }
+  });
+  // bash.ts@a922830:372-408: nonzero true, null/abort/timeout throw -> true.
+  it("Pi bash explicit false establishes success without inventing a numeric exit", () => {
+    expect(toolOutcome({ name: "bash" }, [pi(false)], "process", "pi")).toEqual({ lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" });
+    expect(toolOutcome({ name: "bash" }, [pi(true)], "process", "pi").verdict).toBe("failed");
+    expect(toolOutcome({ name: "bash" }, [pi(false), { content: "unverified" }], "process", "pi").verdict).toBe("unknown");
+    expect(toolOutcome({ name: "shell" }, [pi(false)], "process", "pi").verdict).toBe("unknown");
+    expect(toolOutcome({ name: "bash" }, [pi(false)], "process", "ompi").verdict).toBe("unknown");
   });
 });
 
