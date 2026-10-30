@@ -127,19 +127,34 @@ function fold(blocks: readonly TranscriptBlock[], runByBlockId: Map<string, Tool
   return entries;
 }
 
-/** Collision-free structural identity for renderer data (JSON records plus group Maps).
- * Object/map key order is not content; array order is. No object-reference cache key.
- */
-function contentSignature(value: unknown): string {
-  if (value === null || typeof value !== "object") return typeof value === "string" ? JSON.stringify(value) : String(value);
-  if (Array.isArray(value)) return `[${value.map(contentSignature).join(",")}]`;
-  if (value instanceof Map) return `map:[${[...value].map(([key, item]) => `[${contentSignature(key)},${contentSignature(item)}]`).sort().join(",")}]`;
-  return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${contentSignature(item)}`).join(",")}}`;
-}
-
-function rendererSignature(source: Omit<FlattenedMessageItem, "originalIndex">): string {
-  // Only the top-level display position is excluded; recorded nested data stays significant.
-  return contentSignature(Object.fromEntries(Object.entries(source).filter(([key]) => key !== "originalIndex")));
+/** Build-local structural identity: object/map key order is not content; array order is. */
+function createRendererSignature() {
+  const registryIds = new WeakMap<Map<unknown, unknown>, number>();
+  const registryContents = new Map<string, number>();
+  const contentSignature = (value: unknown): string => {
+    if (value === null || typeof value !== "object") return typeof value === "string" ? JSON.stringify(value) : String(value);
+    if (Array.isArray(value)) return `[${value.map(contentSignature).join(",")}]`;
+    if (value instanceof Map) {
+      let id = registryIds.get(value);
+      if (id === undefined) {
+        const signature = [...value].map(([key, item]) => `[${contentSignature(key)},${contentSignature(item)}]`).sort().join(",");
+        id = registryContents.get(signature);
+        if (id === undefined) {
+          id = registryContents.size;
+          registryContents.set(signature, id);
+        }
+        registryIds.set(value, id);
+      }
+      // Intern by complete content, not a hash. A small token also avoids copying and
+      // comparing the full shared registry string once per leader. Rescan each build.
+      return `map:${id}`;
+    }
+    return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${contentSignature(item)}`).join(",")}}`;
+  };
+  return (source: Omit<FlattenedMessageItem, "originalIndex">): string => {
+    // Only the top-level display position is excluded; recorded nested data stays significant.
+    return contentSignature(Object.fromEntries(Object.entries(source).filter(([key]) => key !== "originalIndex")));
+  };
 }
 
 export function buildTranscriptItems(flattened: readonly FlattenedMessage[], membership: TurnMembership, options: TranscriptOptions = {}): TranscriptModel {
@@ -161,6 +176,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
       priorRows.set(block.messageUuid, cached);
     }
   }
+  const rendererSignature = createRendererSignature();
   const blocksForRow = (row: FlattenedMessageItem): readonly TranscriptBlock[] => {
     const cached = priorRows.get(row.message.uuid);
     const source = cached?.[0]?.source;
@@ -221,8 +237,9 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     for (const id of itemIndexForTarget(model, target)?.expandBlockIds ?? []) expandedBlockIds.add(id);
   }
   for (const run of new Set(runByBlockId.values())) {
-    run.expanded = options.captureMode === true || run.blocks.some(block => block.sourceBlockIds.some(id => expandedBlockIds.has(id)));
-    if (run.expanded && options.captureMode !== true) for (const block of run.blocks) for (const id of block.sourceBlockIds) expandedBlockIds.add(id);
+    const retainedExpansion = run.blocks.some(block => block.sourceBlockIds.some(id => expandedBlockIds.has(id)));
+    run.expanded = options.captureMode === true || retainedExpansion;
+    if (retainedExpansion) for (const block of run.blocks) for (const id of block.sourceBlockIds) expandedBlockIds.add(id);
   }
   return model;
 }

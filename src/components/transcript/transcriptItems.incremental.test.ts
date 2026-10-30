@@ -59,6 +59,28 @@ describe("incremental transcript identity", () => {
     expect(after.runByBlockId.get("r3#0")?.expanded).toBe(false);
     expect([...after.expandedBlockIds].sort()).toEqual(["r1#0", "r1#1", "r2#0", "r2#1"]);
   });
+  it.each(["explicit", "reveal", "capture-only"] as const)("capture → split → ordinary retains only %s expansion", mode => {
+    const messages = [tool("r1"), tool("r2"), tool("r3"), tool("r4"), assistant("gap"), tool("r5"), tool("r6")];
+    const membership = new Map([...messages.map(m => [m.uuid, 1] as const), ["break", 1] as const]);
+    const before = buildTranscriptItems(flattened(messages), membership);
+    const capture = buildTranscriptItems(flattened(messages), membership, {
+      previous: before, captureMode: true,
+      ...(mode === "explicit" ? { expandedBlockIds: new Set(["r2#1"]) } :
+        mode === "reveal" ? { revealTargets: [{ blockId: "r2#1" }] } : {}),
+    });
+    const splitRows = flattened([...messages.slice(0, 2), assistant("break", "boundary"), ...messages.slice(2)]);
+    const split = buildTranscriptItems(splitRows, membership, { previous: capture, captureMode: true });
+    const after = buildTranscriptItems(splitRows, membership, { previous: split });
+    const retained = mode !== "capture-only";
+    expect([...new Set(after.runByBlockId.values())].map(run => [run.id, run.expanded])).toEqual([
+      ["run:r1#0", retained], ["run:r3#0", retained], ["run:r5#0", false],
+    ]);
+    expect([...capture.expandedBlockIds].sort()).toEqual(retained ? [
+      "r1#0", "r1#1", "r2#0", "r2#1", "r3#0", "r3#1", "r4#0", "r4#1",
+    ] : []);
+    expect(before.expandedBlockIds.size).toBe(0);
+    expect([...new Set(split.runByBlockId.values())].every(run => run.expanded)).toBe(true);
+  });
   it("explicit empty expansion closes previous runs and does not mutate prior models", () => {
     const messages = [tool("r1"), tool("r2")];
     const membership = member(["r1", 1], ["r2", 1]);
