@@ -28,6 +28,9 @@ import { COMPARE_METHODS, type CompareMethod } from "./advancedCompare";
 
 import type { TextHighlight } from "./ToolRow";
 import { DiffView, type DiffSection } from "./DiffView";
+import { comparedLines } from "./DiffViewModel";
+import { searchRanges } from "../common/searchMarks";
+import { useResultSearch } from "./resultProvider";
 
 export type ComparisonMode = "unified" | "sideBySide" | "words" | "advanced";
 
@@ -116,13 +119,20 @@ export interface DiffComparisonBodyProps {
 export function DiffComparisonBody({ mode, sections, filePath, expandKey, context, label, highlight }: DiffComparisonBodyProps) {
   const { t } = useTranslation();
   const [method, setMethod] = useState<CompareMethod>("lines");
+  const inherited = useResultSearch();
+  const query = (highlight ? { ...inherited, ...highlight } : inherited).searchQuery;
+  let searchOffset = 0;
   const view = <DiffView filePath={filePath} highlight={highlight} sections={sections} expandKey={`${expandKey}:${mode}`} context={context} label={label} split={mode === "sideBySide"} method={mode === "words" || mode === "sideBySide" ? "words" : mode === "advanced" ? method : undefined} />;
   if (mode !== "advanced") return view;
   return <div data-diff-mode="advanced" className="space-y-2">
     <Segmented size="toolbar" className="flex-wrap" aria-label={t("advancedTextDiff.comparisonMethod")} value={method} onValueChange={value => COMPARE_METHODS.includes(value as CompareMethod) && setMethod(value as CompareMethod)}>
       {COMPARE_METHODS.map(value => <SegmentedItem key={value} value={value}>{t(`advancedTextDiff.modes.${value}`)}</SegmentedItem>)}
     </Segmented>
-    {sections.map((section, index) => <DiffView key={index} sections={[section]} expandKey={`${expandKey}:advanced-${index}`} context={context} label={label} method={method} highlight={highlight} />)}
+    {sections.map((section, index) => {
+      const offset = searchOffset;
+      searchOffset += query ? comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method, section.lines).reduce((total, line) => total + searchRanges(line.text, query).length, 0) : 0;
+      return <DiffView key={index} sections={[section]} expandKey={`${expandKey}:advanced-${index}`} context={context} label={label} method={method} highlight={highlight} searchOffset={offset} />;
+    })}
   </div>;
 }
 
@@ -153,6 +163,8 @@ export interface DiffWithMenuProps {
 export function DiffWithMenu({ oldText, newText, filePath = "", expandKey, sections, highlight }: DiffWithMenuProps) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<ComparisonMode>("unified");
+  // An explicit empty patch has no comparison or after-copy action.
+  if (sections?.length === 0) return null;
   return (
     <div data-diff-with-menu="">
       <div className="flex min-h-row-list items-center justify-end">

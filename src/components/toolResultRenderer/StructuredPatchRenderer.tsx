@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FileContent } from "../FileContent";
 import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { DiffActionsMenu, DiffComparisonBody, type ComparisonMode } from "../transcript/DiffViewComparison";
-import { structuredSections } from "../transcript/patchDiff";
+import { patchAfterText, structuredSections } from "../transcript/patchDiff";
 import { PathText } from "@/lib/format/PathText";
 import { useToolPathContext } from "../transcript/pathContext";
 import { OtherRecordedFields } from "../contentRenderer/unifiedCards/toolBodyParts";
@@ -23,7 +23,7 @@ export const StructuredPatchRenderer = ({ toolResult }: { toolResult: Record<str
     target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}>
     <div className="flex min-h-row-list flex-wrap items-center justify-between gap-2 text-caption text-fg-3">
       <span>{t("structuredPatch.areasChanged", { count: sections.length })}</span>
-      {sections.length > 0 && <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: sections.flatMap(section => section.copyLines ?? (section.newText === "" ? [] : section.newText.split("\n"))).join("\n") }]} />}
+      {sections.length > 0 && <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: patchAfterText(sections) }]} />}
     </div>
     {sections.length > 0 && <DiffComparisonBody mode={mode} sections={sections} filePath={filePath} expandKey="structured-patch" />}
     {content && <FileContent title={t("structuredPatch.updatedFileContent")} fileData={{ content, filePath, numLines: content.split("\n").length, startLine: 1, totalLines: content.split("\n").length }} />}

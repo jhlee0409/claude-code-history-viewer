@@ -45,7 +45,7 @@
  * `constructor` is JSON).
  */
 import type { ReactNode } from "react";
-import { parseApplyPatch } from "../../transcript/patchDiff";
+import { parseApplyPatch, patchAfterText } from "../../transcript/patchDiff";
 import { DiffWithMenu } from "../../transcript/DiffViewComparison";
 import { PathText } from "@/lib/format/PathText";
 import { formatPath } from "@/lib/format/path";
@@ -268,7 +268,7 @@ function patchBody(ctx: BodyContext): RoutedBody | null {
   return { body: <>
     {files.map((file, index) => <section key={index} className="space-y-1">
       <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
-      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={file.sections.map(s => s.newText).join("\n")} sections={file.sections} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
+      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
     </section>)}
     <InputJson value={ctx.input} ctx={ctx} rest />
   </> };

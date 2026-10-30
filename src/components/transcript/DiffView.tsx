@@ -66,6 +66,8 @@ export interface DiffViewProps {
   method?: CompareMethod;
   highlight?: TextHighlight;
   filter?: "add" | "del";
+  /** Matches in preceding sections when a comparison draws separate views. */
+  searchOffset?: number;
 }
 
 type Item =
@@ -84,20 +86,23 @@ const NUMBER_CELL = "w-px select-none whitespace-nowrap px-2 text-right align-to
 const WORD_TONE = { add: "bg-diff-word-add-bg decoration-diff-word-add-mark", del: "bg-diff-word-del-bg decoration-diff-word-del-mark", context: "" } as const;
 
 const SyntaxContext = createContext("");
+const LineMatchContext = createContext<ReadonlyMap<DiffLine, number>>(new Map());
 
-function CodeText({ line }: { line: DiffLine }) {
+function CodeText({ line, mirror = false }: { line: DiffLine; mirror?: boolean }) {
   const highlight = useResultSearch();
+  const currentMatchIndex = useContext(LineMatchContext).get(line) ?? -1;
+  const isCurrentMatch = highlight.isCurrentMatch && !mirror && currentMatchIndex >= 0;
   const hits = highlight.searchQuery ? searchRanges(line.text, highlight.searchQuery) : [];
   const emphasis = line.emphasis ?? [];
   const filePath = useContext(SyntaxContext);
   const syntax = syntaxRanges(line.text, filePath);
-  if (!emphasis.length && !syntax.length) return <HighlightedText text={line.text} searchQuery={highlight.searchQuery ?? ""} isCurrentMatch={highlight.isCurrentMatch} currentMatchIndex={highlight.currentMatchIndex} />;
+  if (!emphasis.length && !syntax.length) return <HighlightedText text={line.text} searchQuery={highlight.searchQuery ?? ""} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
   const boundaries = [...new Set([0, line.text.length, ...emphasis.flat(), ...hits.flat(), ...syntax.flatMap(s => [s.start, s.end])])].sort((a, b) => a - b);
   return <>{boundaries.slice(0, -1).map((start, index) => {
     const end = boundaries[index + 1]!;
     const word = emphasis.some(([a, b]) => start >= a && end <= b);
     const match = hits.findIndex(([a, b]) => start >= a && end <= b);
-    const active = highlight.isCurrentMatch && match === (highlight.currentMatchIndex ?? 0);
+    const active = isCurrentMatch && match === currentMatchIndex;
     const target = active && start === hits[match]?.[0];
     const tone = syntax.find(s => start >= s.start && end <= s.end)?.tone;
     const text = <span data-diff-word={word ? line.kind : undefined} className={cn(word && "underline decoration-2 underline-offset-2", word && WORD_TONE[line.kind], match < 0 && tone)}>{line.text.slice(start, end)}</span>;
@@ -113,7 +118,7 @@ function SplitRow({ pair }: { pair: DiffPair }) {
     return <Fragment key={side}>
       <td data-diff-old-no={side === "left" ? "" : undefined} data-diff-new-no={side === "right" ? "" : undefined} className={cn(NUMBER_CELL, tone.gutter)}>{line ? (side === "left" ? line.oldNo : line.newNo) : ""}</td>
       <td data-diff-marker="" data-diff-line={line?.kind} className={cn("w-px select-none px-1 text-center align-top", tone.gutter, tone.marker)}>{line && line.kind !== "context" && <><span aria-hidden="true">{line.kind === "add" ? "+" : "−"}</span><span className="sr-only">{t(line.kind === "add" ? "diffView.added" : "diffView.removed")}</span></>}</td>
-      <td data-diff-code="" className={cn("w-1/2 whitespace-pre pr-3 pl-1 align-top text-fg", tone.row)}>{line && <CodeText line={line} />}</td>
+      <td data-diff-code="" className={cn("w-1/2 whitespace-pre pr-3 pl-1 align-top text-fg", tone.row)}>{line && <CodeText line={line} mirror={side === "right" && pair.left === pair.right} />}</td>
     </Fragment>;
   })}</tr>;
 }
@@ -194,7 +199,7 @@ function groups(items: Item[]): Array<{ type: "gap"; item: Extract<Item, { type:
   return out;
 }
 
-export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label, split = false, filePath = "", method, highlight, filter }: DiffViewProps) {
+export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context = DIFF_CONTEXT, label, split = false, filePath = "", method, highlight, filter, searchOffset = 0 }: DiffViewProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
   const bodyId = useId();
@@ -208,10 +213,19 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
     return { added: total.added + counts.added, removed: total.removed + counts.removed };
   }, { added: 0, removed: 0 });
 
+  // Allocate the ordinal on source lines before split mirroring/folding.
+  const lineMatches = new Map<DiffLine, number>();
+  let matchOffset = searchOffset;
   const items: Item[] = [];
   sections.forEach((section, s) => {
     if (sections.length > 1) items.push({ type: "section", key: `s${s}`, text: t("diffView.section", { index: s + 1, total: sections.length }) });
     const allLines = comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method, section.lines);
+    allLines.forEach(line => {
+      const count = query ? searchRanges(line.text, query).length : 0;
+      const local = (search.currentMatchIndex ?? 0) - matchOffset;
+      if (local >= 0 && local < count) lineMatches.set(line, local);
+      matchOffset += count;
+    });
     const rows = filter ? allLines.filter(line => line.kind === filter).map(line => ({ type: "line" as const, line })) : foldContext(allLines, hit ? Infinity : context);
     let run: DiffLine[] = [];
     const flush = () => {
@@ -235,6 +249,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
   return (
     <ResultSearchContext.Provider value={search}>
     <SyntaxContext.Provider value={split ? filePath : ""}>
+    <LineMatchContext.Provider value={lineMatches}>
     <div data-diff-view="" data-diff-mode={split ? "sideBySide" : method ? "advanced" : "unified"} data-diff-added={counts.added} data-diff-removed={counts.removed} className="rounded-row bg-surface-well text-fg">
       <p className="sr-only">{`${t("toolRow.linesAdded", { count: counts.added })}, ${t("toolRow.linesRemoved", { count: counts.removed })}`}</p>
       {/* A long line scrolls sideways: the region is reachable from the keyboard. */}
@@ -285,6 +300,7 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
         </div>
       )}
     </div>
+    </LineMatchContext.Provider>
     </SyntaxContext.Provider>
     </ResultSearchContext.Provider>
   );
