@@ -55,13 +55,17 @@ const INJECTED_WRAPPER_TAGS = [
   "environment_context",
   "user_instructions",
   // Codex 0.164.0 ContextualUserFragment markers (not typed input):
-  // https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/recommended_plugins_instructions.rs#L31-L46
-  // https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/turn_aborted.rs#L22-L37
+  // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/recommended_plugins_instructions.rs#L31-L46
+  // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/turn_aborted.rs#L22-L37
   "recommended_plugins",
   "turn_aborted",
+  // Historical emitted wrapper, not merely current-reader compatibility:
+  // https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36
+  // https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601
+  "goal_context",
 ];
 // Internal context has a producer-validated source attribute, not a bare tag.
-// https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/internal_model_context.rs#L107-L148
+// https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/internal_model_context.rs#L64-L136
 // user_goal emission: same revision, context/user_goal.rs#L63-L90.
 const INTERNAL_CONTEXT_BLOCK = /<codex_internal_context source="[a-z][a-z0-9_]*">[\s\S]*?<\/codex_internal_context>/g;
 const INJECTED_WRAPPER_BLOCK = new RegExp(

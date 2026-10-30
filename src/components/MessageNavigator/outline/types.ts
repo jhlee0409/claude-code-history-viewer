@@ -64,17 +64,19 @@ export interface OutlineActivityChild {
 export type OutlineChildRow = OutlineMessageChild | OutlineTaskChild | OutlineActivityChild;
 
 export interface TurnGroup {
+  /** Automated cycles own their work without becoming human prompts. */
+  kind: "human" | "automated" | "unknown";
   /** turnStartUuid, or LEADING_TURN_KEY for the leading group. */
   key: string;
   turnStartUuid: string | null;
-  /** 1-based among real turns in the loaded window; null for the leading group. */
+  /** 1-based among human turns; null for automated and leading groups. */
   turnNumber: number | null;
   /** The turn-start row's entry; null for the leading group. */
   header: NavigatorEntryData | null;
   /** First row of the group. */
   firstUuid: string;
   counts: TurnCounts;
-  /** EXCLUDES the turn-start row itself (the header represents it). */
+  /** Human headers are excluded; automated start payloads remain reachable here. */
   children: OutlineChildRow[];
   /** Every row uuid in the group, header included, in order. */
   uuids: string[];
