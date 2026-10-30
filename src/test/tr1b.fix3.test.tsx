@@ -355,7 +355,7 @@ describe("4378494005: a text-editor result opened by a content hit shows every h
     });
   });
 
-  it("control: without a query the fold stays closed and, opened by hand, shows the 500-character preview", () => {
+  it("control: without a query the fold stays closed, then OutputBlock caps lines with a lossless show-all disclosure", () => {
     const file = fileWith([[820, DEEP]]);
     const { container } = renderContent([editorBlock("editor_plain", file)]);
     const row = rows(container)[0] as HTMLElement;
@@ -363,10 +363,14 @@ describe("4378494005: a text-editor result opened by a content hit shows every h
     const fold = contentFold(wrapperOf(row))!;
     expect(fold.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(fold);
-    const shown = visibleText(wrapperOf(row));
-    expect(shown).toContain(file.slice(0, 500));
-    expect(shown).not.toContain(DEEP);
-    expect(shown).toContain("...");
+    const output = wrapperOf(row).querySelector<HTMLElement>("[data-output]")!;
+    expect(output.querySelector("[data-output-text]")?.textContent).toBe(file.split("\n").slice(0, 15).join("\n"));
+    expect(visibleText(output)).not.toContain(DEEP);
+    const all = output.querySelector<HTMLElement>("button[aria-expanded]")!;
+    expect(all.getAttribute("aria-controls")).toBeTruthy();
+    fireEvent.click(all);
+    expect(all.getAttribute("aria-expanded")).toBe("true");
+    expect(output.querySelector("[data-output-text]")?.textContent).toBe(file);
   });
 
   it("control: a query that hits only the path opens the row, marks the path, and leaves the content fold closed", () => {

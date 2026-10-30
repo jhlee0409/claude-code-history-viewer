@@ -6,6 +6,42 @@
  * lines drawn and the numbers stated can never disagree (amendment 6).
  */
 import { lineDiff } from "@/utils/lineChanges";
+import { emphasisRanges, type CompareMethod, type EmphasisRange } from "./advancedCompare";
+
+export interface DiffPair { left?: DiffLine; right?: DiffLine }
+
+/** Pair only within one contiguous replacement run; context is a hard boundary. */
+export function pairLines(lines: readonly DiffLine[]): DiffPair[] {
+  const result: DiffPair[] = [];
+  let left: DiffLine[] = [];
+  let right: DiffLine[] = [];
+  const flush = () => {
+    for (let i = 0; i < Math.max(left.length, right.length); i++) result.push({ left: left[i], right: right[i] });
+    left = []; right = [];
+  };
+  for (const line of lines) {
+    if (line.kind === "context") { flush(); result.push({ left: line, right: line }); }
+    else (line.kind === "del" ? left : right).push(line);
+  }
+  flush();
+  return result;
+}
+
+/** Decorate the shared line model without changing source content or counts. */
+export function comparedLines(oldText: string, newText: string, oldStart = 1, newStart = oldStart, method?: CompareMethod, recorded?: DiffLine[]): DiffLine[] {
+  const lines = recorded ? recorded.map(line => ({ ...line })) : sectionLines(oldText, newText, oldStart, newStart);
+  if (!method || method === "lines") return lines;
+  const ranges = emphasisRanges(oldText, newText, method);
+  let oldAt = 0; let newAt = 0;
+  for (const line of lines) {
+    const at = line.kind === "add" ? newAt : oldAt;
+    const side = line.kind === "add" ? ranges.new : ranges.old;
+    line.emphasis = side.flatMap(([start, end]) => end > at && start < at + line.text.length ? [[Math.max(0, start - at), Math.min(line.text.length, end - at)] as EmphasisRange] : []);
+    if (line.kind !== "add") oldAt += line.text.length + 1;
+    if (line.kind !== "del") newAt += line.text.length + 1;
+  }
+  return lines;
+}
 
 export type DiffLineKind = "add" | "del" | "context";
 
@@ -16,6 +52,7 @@ export interface DiffLine {
   /** Line number on the new side (`null` on a removed line). */
   newNo: number | null;
   text: string;
+  emphasis?: EmphasisRange[];
 }
 
 /** A diff part's lines: its value without the final newline, split on "\n" (as many as `count`). */

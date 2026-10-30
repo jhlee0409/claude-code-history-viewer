@@ -1,127 +1,32 @@
 import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { FileContent } from "../FileContent";
 import { RecordedResult } from "@/components/transcript/RecordedResult";
-import { layout } from "@/components/renderers";
+import { DiffActionsMenu, DiffComparisonBody, type ComparisonMode } from "../transcript/DiffViewComparison";
+import { patchAfterText, structuredSections } from "../transcript/patchDiff";
+import { PathText } from "@/lib/format/PathText";
+import { useToolPathContext } from "../transcript/pathContext";
+import { OtherRecordedFields } from "../contentRenderer/unifiedCards/toolBodyParts";
 
-type Props = {
-  toolResult: Record<string, unknown>;
-};
-
-export const StructuredPatchRenderer = ({ toolResult }: Props) => {
+export const StructuredPatchRenderer = ({ toolResult }: { toolResult: Record<string, unknown> }) => {
   const { t } = useTranslation();
-  const filePath =
-    typeof toolResult.filePath === "string" ? toolResult.filePath : "";
-  const content =
-    typeof toolResult.content === "string" ? toolResult.content : "";
-  const patches = Array.isArray(toolResult.structuredPatch)
-    ? toolResult.structuredPatch
-    : [];
-
-  // Reconstruct old and new content from patches
-  const reconstructDiff = () => {
-    if (patches.length === 0) return { oldStr: "", newStr: "" };
-
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-
-    patches.forEach((patch: Record<string, unknown>) => {
-      if (Array.isArray(patch.lines)) {
-        patch.lines.forEach((line: unknown) => {
-          if (typeof line === "string") {
-            if (line.startsWith("-")) {
-              oldLines.push(line.substring(1));
-            } else if (line.startsWith("+")) {
-              newLines.push(line.substring(1));
-            } else {
-              // Context line (no prefix or space prefix)
-              const contextLine = line.startsWith(" ")
-                ? line.substring(1)
-                : line;
-              oldLines.push(contextLine);
-              newLines.push(contextLine);
-            }
-          }
-        });
-      }
-    });
-
-    return {
-      oldStr: oldLines.join("\n"),
-      newStr: newLines.join("\n"),
-    };
-  };
-
-  const { oldStr, newStr } = reconstructDiff();
-
-  const formatShortPath = (path: string): string => {
-    if (!path) return "";
-    const parts = path.split('/').filter(Boolean);
-    if (parts.length <= 3) return parts.join('/');
-    return `…/${parts.slice(-3).join('/')}`;
-  };
-
-  return (
-    <RecordedResult title={t("structuredPatch.fileChanges")}
-        icon={<RefreshCw className="w-4 h-4" />}
-        meta={
-          filePath && (
-            <span className={`${layout.smallText} text-tool-code truncate max-w-[150px] md:max-w-[250px]`} title={filePath}>
-              {formatShortPath(filePath)}
-            </span>
-          )
-        } record={toolResult} expandKey={"patch-result"}>
-        {/* 파일 경로 */}
-        <div className="mb-3">
-          <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
-            {t("structuredPatch.filePath")}
-          </div>
-          <code className={`${layout.monoText} block bg-secondary text-foreground p-1.5 rounded`}>
-            {filePath}
-          </code>
-        </div>
-
-        {/* 변경 통계 */}
-        {patches.length > 0 && (
-          <div className="mb-3">
-            <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
-              {t("structuredPatch.changeStats")}
-            </div>
-            <div className={`p-2 rounded border ${layout.smallText} bg-card border-border`}>
-              {t("structuredPatch.areasChanged", { count: patches.length })}
-            </div>
-          </div>
-        )}
-
-        {/* Diff Viewer */}
-        {patches.length > 0 && (oldStr || newStr) && (
-          <EnhancedDiffViewer
-            oldText={oldStr}
-            newText={newStr}
-            filePath={filePath}
-            showAdvancedDiff={true}
-          />
-        )}
-
-        {/* 전체 파일 내용 */}
-        {content && (
-          <div>
-            <div className={`${layout.smallText} font-medium mb-2 text-muted-foreground`}>
-              {t("structuredPatch.updatedFile")}
-            </div>
-            <FileContent
-              title={t("structuredPatch.updatedFileContent")}
-              fileData={{
-                content: content,
-                filePath: filePath,
-                numLines: content.split("\n").length,
-                startLine: 1,
-                totalLines: content.split("\n").length,
-              }}
-            />
-          </div>
-        )}
-      </RecordedResult>
-  );
+  const pathCtx = useToolPathContext();
+  const [mode, setMode] = useState<ComparisonMode>("unified");
+  const filePath = typeof toolResult.filePath === "string" ? toolResult.filePath : "";
+  const content = typeof toolResult.content === "string" ? toolResult.content : "";
+  const sections = structuredSections(toolResult.structuredPatch);
+  // The original patch record remains available, including metadata and unsupported
+  // rows; the reconstructed sides are fragments, never claimed as whole files.
+  const recorded = Object.fromEntries(Object.entries(toolResult).filter(([key]) => !(key === "filePath" && filePath) && !(key === "content" && content)));
+  return <RecordedResult title={t("structuredPatch.fileChanges")} icon={<RefreshCw className="w-4 h-4" />} record={toolResult} expandKey="patch-result"
+    target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}>
+    {sections.length > 0 && <div className="flex min-h-row-list flex-wrap items-center justify-between gap-2 text-caption text-fg-3">
+      <span>{t("structuredPatch.areasChanged", { count: sections.length })}</span>
+      {sections.length > 0 && <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: patchAfterText(sections) }]} />}
+    </div>}
+    {sections.length > 0 && <DiffComparisonBody mode={mode} sections={sections} filePath={filePath} expandKey="structured-patch" />}
+    {content && <FileContent title={t("structuredPatch.updatedFileContent")} fileData={{ content, filePath, numLines: content.split("\n").length, startLine: 1, totalLines: content.split("\n").length }} />}
+    <OtherRecordedFields rest={recorded} expandKey="structured-patch-record" />
+  </RecordedResult>;
 };

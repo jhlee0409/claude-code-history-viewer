@@ -183,8 +183,6 @@ export interface TextEditorResult {
   operation?: "view" | "create" | "edit" | "delete";
   path?: string;
   content?: string;
-  old_content?: string;
-  new_content?: string;
   success?: boolean;
 }
 

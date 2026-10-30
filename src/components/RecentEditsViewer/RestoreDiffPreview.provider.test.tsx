@@ -1,6 +1,6 @@
 /**
  * The restore confirmation renders the real diff viewer, whose
- * AdvancedTextDiff needs an ExpandKeyProvider. The confirmation sits outside
+ * DiffView needs an ExpandKeyProvider. The confirmation sits outside
  * the expanded row that provides one, so the preview must supply its own.
  */
 import { describe, it, expect, vi } from "vitest";
