@@ -27,12 +27,10 @@ export type OutcomeReason =
   | "interrupted"
   | "provider-error"
   | "api-error-code"
-  | "error-content"
   | "exit-nonzero"
   | "exit-zero"
   | "conflict"
   | "no-error-signal"
-  | "provider-completed"
   | "no-exit-code";
 
 export interface ToolOutcome {
@@ -51,10 +49,11 @@ export interface ToolOutcome {
 
 /**
  * process: has an exit code (shell, exec, code execution).
- * read-search: reads or searches; their errors are recorded only as error
- * signals, so "a result and no error signal" is their evidence of success.
- * other: edits, MCP, agents … — completed but unknown unless an error or an
- * exit code is recorded.
+ * read-search: reads or searches; producer no-error evidence establishes success.
+ * Claude's optional is_error defaults to no-error; other providers need an
+ * explicit no-error flag or named OpenCode/Kilo built-in completed state.
+ * Other: Claude edits, Pi edit/write, OMP edit and named core built-ins use
+ * their producer no-error convention; opaque tools stay unknown.
  */
 export type ToolFamily = "process" | "read-search" | "other";
 
@@ -62,14 +61,10 @@ export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
 
 export interface NormalizedResult {
-  /** Source-owned OpenCode-core tool state, never a session/process status. */
-  completed?: boolean;
   /** `is_error` as recorded: `true`, `false`, or absent. */
   isError?: boolean;
   /** API error code (`error_code`) from the content object or own metadata. */
   errorCode?: string;
-  /** The content string when it is an error message (`^error\b`). */
-  errorText?: string;
   /** A recorded integer exit code. */
   exitCode?: number;
   /** Two recorded exit codes for this one result disagree. */
@@ -80,9 +75,6 @@ export interface NormalizedResult {
   /** The block's content when it is a plain string, as recorded. */
   text?: string;
 }
-
-/** The existing error-string rule: a result whose content starts with `error`. */
-export const ERROR_TEXT_PATTERN = /^error\b/i;
 
 // ---------------------------------------------------------------------------
 // Families
@@ -117,6 +109,32 @@ const READ_SEARCH_TOOLS = new Set([
   "webfetch",
   "web_fetch",
 ]);
+
+// Exact backend-delivered names, not raw producer IDs; no lowercasing/aliases.
+// OpenCode @b9a39b816c92592e824c68cdc9a48acf7717e2a2, packages/opencode/src/tool/:
+// read.ts:31-90; grep.ts:16-48; glob.ts:19-56; ls.ts:37-109 (ToolID list);
+// edit.ts:31-74,605-639; write.ts:20-45; webfetch.ts:23-88.
+// glob/list propagate file/ripgrep.ts:206-224 missing-directory rejection.
+// These throw/reject failures; prompt.ts:1115-1160 maps them to error.
+// https://github.com/anomalyco/opencode/tree/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool
+// MCP is NOT covered: prompt.ts:598-644 ignores result.isError, and
+// ai@5.0.8 (718e5291) mcp-client.ts:287-307 returns it without throwing.
+// https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644
+// https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
+// Backend @f0e8317: opencode.rs:1461-1511,1675-1691 emits only the
+// normalized name, not part.tool; Kilo uses that route (kilo.rs:181).
+// read/glob/edit/write/webfetch -> Read/Glob/Edit/Write/WebFetch; list unchanged.
+// grep AND MCP grep_* -> Grep: keep ambiguous Grep unknown until item ②
+// preserves raw IDs (built-in grep success/folding is intentionally deferred).
+// https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
+// Kilo @0a9faeff registry.ts:274-335 has no list built-in (nor tool/ls.ts).
+// https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335
+// Historical Kilo MCP/list is unverified; no completion exception for either.
+// A plugin literally named Read etc. cannot be distinguished without raw IDs.
+const CORE_NO_ERROR_TOOLS = new Set(["Read", "Glob", "Edit", "Write", "WebFetch"]);
+const coreNoErrorTool = (provider?: string, name?: string): boolean =>
+  ((provider === "opencode" || provider === "kilo") && CORE_NO_ERROR_TOOLS.has(name ?? "")) ||
+  (provider === "opencode" && name === "list");
 
 export function toolFamily(name: string): ToolFamily {
   const key = name.toLowerCase();
@@ -157,7 +175,7 @@ const recordedInteger = (value: unknown): number | undefined =>
  */
 export function normalizeResult(
   result: ToolResultLike,
-  options: { bareCodeIsExitCode?: boolean; provider?: string } = {},
+  options: { bareCodeIsExitCode?: boolean; provider?: string; toolName?: string } = {},
 ): NormalizedResult {
   const out: NormalizedResult = {};
   const content = result.content;
@@ -177,7 +195,10 @@ export function normalizeResult(
     (s): s is Record<string, unknown> => s !== null,
   );
 
-  if (typeof result.is_error === "boolean") out.isError = result.is_error;
+  // OpenHands has no producer is_error field: the backend sets it from
+  // observation == "error". Its false default is NOT recorded no-error evidence.
+  // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
+  if (typeof result.is_error === "boolean" && (!openhands || result.is_error)) out.isError = result.is_error;
   // Legacy MCP router records carry an explicit error union. This is not a
   // generic `error`-key heuristic: other providers keep their opaque schemas.
   if (legacy && contentObject &&
@@ -187,11 +208,58 @@ export function normalizeResult(
     if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
   }
   if (core && own) {
-    if (own.status === "completed") out.completed = true;
-    if (own.status === "error") out.isError = true;
-    if (own.status === "cancelled") out.interrupted = true;
+    // For non-process tools a normal return is completed; throws become error.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+    // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
+    // Bash completion is lifecycle only; cancelled is not a source enum.
+    if (own.status === "error") {
+      out.isError = true;
+      // c29392d0 introduced this abort flag; b9a39b8 prompt.ts:1300-1318
+      // had only an error string. The backend preserves the full part.state
+      // (opencode.rs:1493-1511; result_evidence.rs:4-9; shared by kilo.rs:181).
+      // Kilo independently writes the same abort state. Completed metadata is
+      // arbitrary tool output, not this lifecycle signal; require strict true.
+      // https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415
+      // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
+      if (metadata?.interrupted === true) out.interrupted = true;
+    }
+    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
+    // Bash alone owns metadata.exit. Do not promote arbitrary extension data
+    // from a non-process tool. #752/4415170647 confused completion and success.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
+    // https://github.com/anomalyco/opencode/blob/37bb07e7a313d7150038061dbba670410eb0469d/packages/opencode/src/tool/bash.ts#L318-L333
+    // Kilo independently verified (not inferred from its fork relationship):
+    // https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L508-L566
+    if (options.bareCodeIsExitCode && own.status === "completed") {
+      const exit = recordedInteger(metadata?.exit);
+      if (exit !== undefined) out.exitCode = exit;
+      const output = typeof own.output === "string" ? own.output : "";
+      // Only source-appended, end-anchored markers, under the source state.
+      // These establish interruption, never a numeric exit or success.
+      if (options.provider === "opencode") {
+        out.interrupted = /\n\n\(Command (?:was aborted|timed out after \d+ ms)\)$/.test(output);
+      } else {
+        // Current Kilo keeps ToolID bash, but changed the wrapper and timeout grammar.
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L687-L723
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41
+        // Both writers return null on abort/timeout, numeric exit on normal return.
+        // Ordinary process output can print these exact suffixes: null is required.
+        // shell.ts:662-683,687-723; historical bash.ts:508-566 above.
+        out.interrupted = metadata?.exit === null && (
+          /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
+          /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.)(?:(?!\n<\/shell_metadata>)[\s\S])*\n<\/shell_metadata>$/.test(output)
+        );
+      }
+    }
   }
-  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean" && own.isError) out.isError = true;
+  // Pi/OMP record booleans on toolResult; details is opaque. The real pi.rs
+  // route maps absent isError to block false (item ② provenance gap) and does
+  // not attach toolUseResult. Keep this own-metadata compatibility path only.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/bash.ts#L400-L408
+  // Local structural scan: 18279 false toolResults, 53 error-prefixed outputs.
+  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean") {
+    out.isError = own.isError || out.isError === true;
+  }
 
   for (const source of [contentObject, own]) {
     if (source && typeof source.error_code === "string" && source.error_code.length > 0) {
@@ -202,7 +270,6 @@ export function normalizeResult(
 
   if (typeof content === "string") {
     out.text = content;
-    if (ERROR_TEXT_PATTERN.test(content)) out.errorText = content;
   }
 
   const keys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
@@ -210,7 +277,10 @@ export function normalizeResult(
   for (const source of sources) {
     for (const key of keys) {
       const code = recordedInteger(source[key]);
-      if (code !== undefined) codes.push(code);
+      // -1 is OpenHands' "no PS1 metadata available", not a process failure.
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/events/observation/commands.py#L21-L31
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/runtime/utils/bash.py#L375-L414
+      if (code !== undefined && !(openhands && code === -1)) codes.push(code);
     }
   }
   if (codes.length > 0) {
@@ -641,13 +711,11 @@ export function toolOutcome(
   family: ToolFamily,
   provider?: string,
 ): ToolOutcome {
-  // An orphan (use === null) is judged by its result alone; the pairing only
-  // matters for `toolRun` eligibility.
-  void use;
+  // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
   if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
-  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider }));
+  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined }));
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
@@ -663,22 +731,19 @@ export function toolOutcome(
     return withCodes({ lifecycle: "interrupted", verdict, reason: "interrupted" });
   }
 
-  // 3. Recorded error signals; an exit code 0 beside one is a conflict.
-  //    For a process tool, output text that merely starts with `error` is
-  //    not a signal once an exit code is recorded: the recorded code decides
-  //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
+  // 3. Recorded errors, never an English word in arbitrary tool output.
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7919-L7941
+  // Local Claude Bash: 17/3468 is_error:false results start with error;
+  // 0/3582 record an exit alias. #728/4360641128's exit-only fix missed them.
+  // No producer evidence establishes a general ^error failure grammar.
   const providerError = normalized.some((n) => n.isError === true);
-  const textOutrankedByExit = family === "process" && exitCode !== undefined;
-  const errorContent = !textOutrankedByExit && normalized.some((n) => n.completed !== true && n.errorText !== undefined);
-  if (providerError || errorCode !== undefined || errorContent) {
+  if (providerError || errorCode !== undefined) {
     const reason: OutcomeReason =
       exitCode === 0 || codesDisagree
         ? "conflict"
         : providerError
           ? "provider-error"
-          : errorCode !== undefined
-            ? "api-error-code"
-            : "error-content";
+          : "api-error-code";
     return withCodes({ lifecycle: "completed", verdict: "failed", reason });
   }
 
@@ -692,9 +757,30 @@ export function toolOutcome(
   }
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
-  if (normalized.every((n) => n.completed === true)) return { lifecycle: "completed", verdict: "succeeded", reason: "provider-completed" };
+  // Pi v0.6.0/v0.7.9 resolve nonzero exits/timeouts; agent-loop then records
+  // isError:false. A newer pin cannot certify all historical Pi records.
+  // https://github.com/badlogic/pi-mono/blob/6bed5a91/packages/coding-agent/src/tools/bash.ts#L152-L169
   if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
-  if (family === "read-search") return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
+  // Claude/Anthropic is_error is optional: absent/false means no producer error,
+  // not missing evidence. Undefined provider is the legacy Claude route.
+  // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/messages/messages.ts#L5764-L5791
+  // Local structural count: Read absent205/true8, Edit absent136/true1,
+  // WebFetch absent299/true12 (docs/contracts/producer-outcome-ground-truth.md).
+  // HTTP status is not is_error; error-page policy remains an open question.
+  const claude = provider === undefined || provider === "claude";
+  const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
+  const noError = normalized.every((n, i) => n.isError === false ||
+    (claude && (results[i]!.is_error === undefined)));
+  const coreNoError = coreNoErrorTool(provider, typeof use?.name === "string" ? use.name : undefined) && normalized.every(n => n.isError === false);
+  // Built-in edit/write reject on failure; agent-loop turns rejection into isError:true.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89
+  // OMP 17.3.7 edit/index.ts:191,254,341,363 flags per-file errors. Its
+  // write.ts:1128-1176 forwards xd:// isError, so write stays unknown.
+  const piEdit = (provider === "pi" && (use?.name === "edit" || use?.name === "write")) ||
+    (provider === "ompi" && use?.name === "edit");
+  if ((family === "read-search" || claudeEdit || coreNoError || piEdit) && noError) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
 }
 
@@ -718,7 +804,8 @@ export function isToolRunEligible(
   use: ToolUseLike | null,
   results: ToolResultLike[],
   family: ToolFamily,
+  provider?: string,
 ): boolean {
   if (use === null || results.length === 0 || family !== "read-search") return false;
-  return toolOutcome(use, results, family).verdict === "succeeded";
+  return toolOutcome(use, results, family, provider).verdict === "succeeded";
 }

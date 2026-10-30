@@ -35,11 +35,11 @@ describe('TR1c source-owned outcomes reach real content dispatcher rows', () => 
     });
   }
   for(const provider of ['opencode','kilo']) {
-    it(`${provider}: completed, cancelled and error use same outcome vocabulary`, () => {
+    it(`${provider}: completion and non-upstream cancelled state do not invent success/interruption (C2)`, () => {
       const {container}=mount(provider,'msg_001');open(container);
       const rows=[...container.querySelectorAll('[data-tool-row]')];
-      expect(rows[0]?.getAttribute('data-tool-verdict')).toBe('succeeded');
-      expect(rows[1]?.getAttribute('data-tool-lifecycle')).toBe('interrupted');
+      expect(rows[0]?.getAttribute('data-tool-verdict')).toBe('unknown');
+      expect(rows[1]?.getAttribute('data-tool-lifecycle')).toBe('completed');
       expect(container.textContent).toContain('evidence-only-needle');
     });
   }
