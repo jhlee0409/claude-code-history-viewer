@@ -1,6 +1,6 @@
 import type { FlattenedMessage, FlattenedMessageItem } from "../MessageViewer/types";
 import type { ToolOutcome } from "./toolOutcome";
-import { isTurnStart } from "./isTurnStart";
+import { isTurnStart, turnStartKind, type TurnStartKind } from "./isTurnStart";
 import { transcriptBlocks } from "./transcriptBlocks";
 
 /** EV1a lookup hits projected to uuid → ordinal; absent/null is unknown, never inherited. */
@@ -27,6 +27,8 @@ export interface ToolRun {
 }
 export interface TurnSummary { tools: number; files: number; failed: number; unverified: number }
 export interface TranscriptTurn {
+  /** Unknown when a partial loaded window contains no canonical start evidence. */
+  kind: TurnStartKind | "unknown";
   id: string;
   ordinal: number | null;
   partial: boolean;
@@ -184,10 +186,15 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     return same ? cached! : transcriptBlocks(row);
   };
   const starts = new Map(options.turnStartUuids);
+  const startKinds = new Map<number, TurnStartKind>();
   for (const row of flattened) {
     if (row.type !== "message") continue;
     const ordinal = membership.get(row.message.uuid);
-    if (ordinal != null && !starts.has(ordinal) && isTurnStart(row.message, { inSubagent: options.inSubagent ?? false })) starts.set(ordinal, row.message.uuid);
+    const kind = turnStartKind(row.message, { inSubagent: options.inSubagent ?? false });
+    if (ordinal != null && kind !== null) {
+      if (!starts.has(ordinal)) starts.set(ordinal, row.message.uuid);
+      if (starts.get(ordinal) === row.message.uuid) startKinds.set(ordinal, kind);
+    }
   }
   let current: { ordinal: number | null; rows: FlattenedMessageItem[] } | null = null;
   const flush = () => {
@@ -196,9 +203,11 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     const turnBlocks = current.rows.flatMap(blocksForRow);
     const id = `turn:${(current.ordinal === null ? undefined : starts.get(current.ordinal)) ?? first.message.uuid}`;
     const partial = !isTurnStart(first.message, { inSubagent: options.inSubagent ?? false }) || (current.ordinal !== null && starts.has(current.ordinal) && starts.get(current.ordinal) !== first.message.uuid);
+    const firstKind = turnStartKind(first.message, { inSubagent: options.inSubagent ?? false });
+    const kind = (current.ordinal === null ? firstKind : startKinds.get(current.ordinal)) ?? "unknown";
     const prior = priorTurns.get(`${id}:${turnBlocks[0]?.id}`);
-    const unchanged = prior?.ordinal === current.ordinal && prior.partial === partial && prior.blocks.length === turnBlocks.length && prior.blocks.every((block, index) => block === turnBlocks[index]);
-    const turn: TranscriptTurn = unchanged ? prior : { id, ordinal: current.ordinal, partial, blocks: turnBlocks, summary: summarize(turnBlocks) };
+    const unchanged = prior?.kind === kind && prior.ordinal === current.ordinal && prior.partial === partial && prior.blocks.length === turnBlocks.length && prior.blocks.every((block, index) => block === turnBlocks[index]);
+    const turn: TranscriptTurn = unchanged ? prior : { kind, id, ordinal: current.ordinal, partial, blocks: turnBlocks, summary: summarize(turnBlocks) };
     turns.push(turn);
     const parts = fragment(turnBlocks, options);
     for (const [part, partBlocks] of parts.entries()) {

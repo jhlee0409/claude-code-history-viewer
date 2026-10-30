@@ -206,6 +206,25 @@ afterEach(() => {
 });
 
 describe("SessionMinimap", () => {
+  it.each([
+    ['<codex_internal_context source="user_goal">synthetic</codex_internal_context>', "context"],
+    ["<recommended_plugins>synthetic</recommended_plugins>", "context"],
+    ["<turn_aborted>synthetic</turn_aborted>", "context"],
+    ["<bash-stdout>synthetic</bash-stdout>", "command"],
+    ["<bash-stderr>synthetic</bash-stderr>", "command"],
+    ["<heartbeat>synthetic</heartbeat>", "context"],
+  ])("dims generated %s as %s rather than a prompt", (content, kind) => {
+    const rafQueue = installControllableRAF();
+    stubComputedStyle();
+    const ctx = installCanvasContextMock() as ReturnType<typeof installCanvasContextMock> & { paints: { alpha: number; fill: string; w: number }[] };
+    const scrollEl = makeScrollElement({ scrollHeight: 100 });
+    render(<SessionMinimap virtualizer={makeVirtualizer([{ start: 0, size: 100 }], 100)} flattenedMessages={[flattenedItem(makeMessage({ content, provider: content.startsWith("<heartbeat>") ? "codex" : undefined }))]} virtualRows={[]} totalSize={100} getScrollElement={() => scrollEl as unknown as HTMLElement} />);
+    rafQueue.flush();
+    expect(ctx.paints.length).toBeGreaterThan(0);
+    expect(ctx.paints.every(paint => Math.abs(paint.w - (STRIP_WIDTH - 2 * MINIMAP_BAR_PAD_PX - MINIMAP_TICK_GUTTER_PX) * (kind === "context" ? 0.4 : 0.7)) < 0.001)).toBe(true);
+    expect(ctx.paints.every(paint => paint.alpha === (kind === "context" ? 0.25 : 1))).toBe(true);
+    expect(ctx.paints.some(paint => paint.fill === `resolved(${kind === "context" ? "--muted-foreground" : "--info"})`)).toBe(true);
+  });
   it("draws the session as colored blocks", () => {
     const rafQueue = installControllableRAF();
     stubComputedStyle();

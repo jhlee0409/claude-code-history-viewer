@@ -39,7 +39,10 @@ export interface MessageKindInfo {
 }
 
 const TASK_NOTIFICATION_BLOCK = /<task-notification>([\s\S]*?)<\/task-notification>/g;
-const COMMAND_OUTPUT_PREFIXES = ["<local-command-stdout>", "<local-command-stderr>"];
+// Claude Code 2.1.285 bash-mode emits a separate generated user message:
+// ke({content:`<bash-stdout>${C}</bash-stdout><bash-stderr>…`}).
+// Binary evidence and scope: docs/contracts/transcript-items.md, producer grounding.
+const COMMAND_OUTPUT_PREFIXES = ["<local-command-stdout>", "<local-command-stderr>", "<bash-stdout>", "<bash-stderr>"];
 
 /**
  * Wrapper tags that Claude Code and Codex inject into the user turn. This is
@@ -51,7 +54,16 @@ const INJECTED_WRAPPER_TAGS = [
   "system-reminder",
   "environment_context",
   "user_instructions",
+  // Codex 0.164.0 ContextualUserFragment markers (not typed input):
+  // https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/recommended_plugins_instructions.rs#L31-L46
+  // https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/turn_aborted.rs#L22-L37
+  "recommended_plugins",
+  "turn_aborted",
 ];
+// Internal context has a producer-validated source attribute, not a bare tag.
+// https://github.com/openai/codex/blob/fe3b29455488c2e189e43ad5526a107900c5e1b7/codex-rs/core/src/context/internal_model_context.rs#L107-L148
+// user_goal emission: same revision, context/user_goal.rs#L63-L90.
+const INTERNAL_CONTEXT_BLOCK = /<codex_internal_context source="[a-z][a-z0-9_]*">[\s\S]*?<\/codex_internal_context>/g;
 const INJECTED_WRAPPER_BLOCK = new RegExp(
   `<(${INJECTED_WRAPPER_TAGS.join("|")})>[\\s\\S]*?<\\/\\1>`,
   "g",
@@ -118,6 +130,16 @@ function getTextBlocks(message: ClaudeMessage): string[] {
   return texts;
 }
 
+/** Client wake input, not a human prompt. Audit: 34/34 Codex heartbeat
+ * blocks had complete wrappers and producer UserMessage events (exec-heavy
+ * 0.148–0.164 sample); not a Codex-authored binary string. See contract.
+ */
+export function isCodexHeartbeat(message: ClaudeMessage): boolean {
+  if (message.type !== "user" || message.provider !== "codex") return false;
+  const texts = getTextBlocks(message).filter(text => text.trim().length > 0);
+  return texts.length > 0 && texts.every(text => /^<heartbeat>[\s\S]*<\/heartbeat>$/.test(text.trim()));
+}
+
 /** True when the record carries the client's own tool-result payload. */
 function hasToolUseResult(message: ClaudeMessage): boolean {
   return "toolUseResult" in message && message.toolUseResult != null;
@@ -169,7 +191,7 @@ function classifyUserText(text: string): UserBlockKind {
   if (trimmed.startsWith("<") && trimmed.includes("<command-name>")) return "command";
   if (COMMAND_OUTPUT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "command";
   if (INJECTED_TEXT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "context";
-  if (trimmed.startsWith("<") && trimmed.replace(INJECTED_WRAPPER_BLOCK, "").trim() === "") {
+  if (trimmed.startsWith("<") && trimmed.replace(INTERNAL_CONTEXT_BLOCK, "").replace(INJECTED_WRAPPER_BLOCK, "").trim() === "") {
     return "context";
   }
   return "prompt";
@@ -186,6 +208,9 @@ function classifyUserMessage(message: ClaudeMessage): MessageKindInfo {
   // block into its call, and a fork's task directive sits beside an unmerged
   // block without the field.
   if (hasToolUseResult(message)) return { kind: "tool", text: null };
+  // Keep automated Codex wake input out of the existing human-prompt filters.
+  // Its separate automated turn kind belongs to the pure model, not this UI kind.
+  if (isCodexHeartbeat(message)) return { kind: "context", text: getTextBlocks(message)[0] ?? null };
 
   const blocks = getTextBlocks(message)
     .filter((text) => text.trim().length > 0)

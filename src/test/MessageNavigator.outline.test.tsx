@@ -142,6 +142,25 @@ describe("MessageNavigator outline mode", () => {
     storeState.showParallelTasksInNavigator = true;
   });
 
+  it("keeps generated context out of the prompts-only list and bash output labelled command", () => {
+    storeState.navigatorViewMode = "list";
+    storeState.userOnlyFilter = true;
+    const messages = [
+      makeMessage({ uuid: "typed", content: "Synthetic typed prompt" }),
+      makeMessage({ uuid: "goal", content: '<codex_internal_context source="user_goal">Synthetic goal</codex_internal_context>' }),
+      makeMessage({ uuid: "plugins", content: "<recommended_plugins>Synthetic plugins</recommended_plugins>" }),
+      makeMessage({ uuid: "abort", content: "<turn_aborted>Synthetic abort</turn_aborted>" }),
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>Synthetic client wake</heartbeat>" }),
+      makeMessage({ uuid: "output", content: "<bash-stdout>Synthetic output</bash-stdout>" }),
+    ];
+    renderNavigator(messages);
+    const options = screen.getAllByRole("option");
+    // Existing empty-message filtering already hides bash output, independently
+    // of classification. The context rows must now disappear from this filter too.
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveTextContent("Synthetic typed prompt");
+  });
+
   it("toggles navigatorViewMode when the header switch is clicked", () => {
     storeState.navigatorViewMode = "list";
     renderNavigator([
