@@ -142,6 +142,38 @@ describe("MessageNavigator outline mode", () => {
     storeState.showParallelTasksInNavigator = true;
   });
 
+  it("keeps generated context out of the prompts-only list and bash output labelled command", () => {
+    storeState.navigatorViewMode = "list";
+    storeState.userOnlyFilter = true;
+    const messages = [
+      makeMessage({ uuid: "typed", content: "Synthetic typed prompt" }),
+      makeMessage({ uuid: "goal", content: '<codex_internal_context source="user_goal">Synthetic goal</codex_internal_context>' }),
+      makeMessage({ uuid: "plugins", content: "<recommended_plugins>Synthetic plugins</recommended_plugins>" }),
+      makeMessage({ uuid: "abort", content: "<turn_aborted>Synthetic abort</turn_aborted>" }),
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }),
+      makeMessage({ uuid: "output", content: "<bash-stdout>Synthetic output</bash-stdout>" }),
+    ];
+    renderNavigator(messages);
+    const options = screen.getAllByRole("option");
+    // Existing empty-message filtering already hides bash output, independently
+    // of classification. The context rows must now disappear from this filter too.
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveTextContent("Synthetic typed prompt");
+  });
+
+  it("opens a heartbeat-only turn without a duplicate navigation row", () => {
+    storeState.targetMessageUuid = "heartbeat";
+    renderNavigator([
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }),
+    ]);
+    const header = getHeaderItem();
+    fireEvent.keyDown(header, { key: "ArrowRight" });
+    expect(getChildItems()).toHaveLength(0);
+    expect(screen.getAllByRole("treeitem")).toHaveLength(1);
+    fireEvent.keyDown(header, { key: "Enter" });
+    expect(navigateToMessageMock).toHaveBeenCalledExactlyOnceWith("heartbeat");
+  });
+
   it("toggles navigatorViewMode when the header switch is clicked", () => {
     storeState.navigatorViewMode = "list";
     renderNavigator([
@@ -345,8 +377,9 @@ describe("MessageNavigator outline mode", () => {
     expect(activity.className).not.toContain("border-l-accent");
   });
 
-  it("marks a task row selected when the target is one of its notification rows", () => {
+  it("marks the automated header active when its notification is visible", () => {
     storeState.targetMessageUuid = "a1";
+    storeState.visibleMessageUuid = "a1";
 
     renderNavigator([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
@@ -356,9 +389,10 @@ describe("MessageNavigator outline mode", () => {
       }),
     ]);
 
-    const task = getChildItem();
-    expect(task).toHaveAttribute("aria-selected", "true");
-    expect(task.className).toContain("border-l-accent");
+    const automatedHeader = screen.getAllByRole("treeitem").filter(el => el.getAttribute("aria-level") === "1")[1]!;
+    expect(automatedHeader).toHaveAttribute("aria-selected", "true");
+    expect(automatedHeader.className).toContain("border-l-accent");
+    expect(automatedHeader).toHaveTextContent("navigator.kind.agentUpdate");
   });
 
   it("labels an activity row with its source row's kind, not 'Reply', when no reply exists and that row has no preview", () => {
@@ -377,7 +411,7 @@ describe("MessageNavigator outline mode", () => {
   });
 
   it("shows one task row per task id, with the update count read from a batched notification", () => {
-    storeState.targetMessageUuid = "p1"; // auto-opens the turn containing it
+    storeState.targetMessageUuid = "a1";
 
     renderNavigator([
       makeMessage({ uuid: "p1", content: "Launch two agents" }),
@@ -394,6 +428,9 @@ describe("MessageNavigator outline mode", () => {
       }),
     ]);
 
+    for (const header of screen.getAllByRole("treeitem").filter(el => el.getAttribute("aria-level") === "1")) {
+      fireEvent.keyDown(header, { key: "ArrowRight" });
+    }
     const taskRows = getChildItems();
     expect(taskRows).toHaveLength(2);
     // task-a's row merges its batch's two blocks into one row, updateCount 2,
@@ -403,27 +440,24 @@ describe("MessageNavigator outline mode", () => {
     expect(
       screen.getByText("navigator.outline.taskUpdates:2 · taskNotification.status.completed"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Task B running")).toBeInTheDocument();
+    expect(screen.getAllByText("Task B running")).toHaveLength(2);
     expect(
       screen.getByText("navigator.outline.taskUpdates:1 · taskNotification.status.running"),
     ).toBeInTheDocument();
   });
 
   it("shows a task failed (destructive) even when a later update for it is non-failed", () => {
-    storeState.targetMessageUuid = "p1";
+    storeState.targetMessageUuid = "a1";
 
     renderNavigator([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>failed</status><summary>Task A failed</summary></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>completed</status><summary>Task A completed</summary></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>failed</status><summary>Task A failed</summary></task-notification>" + "<task-notification><task-id>task-a</task-id><status>completed</status><summary>Task A completed</summary></task-notification>",
       }),
     ]);
 
+    fireEvent.keyDown(screen.getAllByRole("treeitem").filter(el => el.getAttribute("aria-level") === "1")[1]!, { key: "ArrowRight" });
     const taskRow = getChildItem();
     const icon = taskRow.querySelector("svg");
     expect(icon).toHaveClass("text-destructive");
@@ -792,7 +826,7 @@ describe("MessageNavigator outline mode", () => {
       expect(getChildItem(0)).toHaveAttribute("tabindex", "0");
     });
 
-    it("moves the roving focus to a task row when the target is any of its updates", () => {
+    it("moves the roving focus to the automated header when its notification is targeted", () => {
       const messages = [
         makeMessage({ uuid: "p1", content: "Launch an agent" }),
         makeMessage({
@@ -807,10 +841,12 @@ describe("MessageNavigator outline mode", () => {
       const { rerender } = renderNavigator(messages);
 
       storeState.targetMessageUuid = "a1";
+      storeState.visibleMessageUuid = "a1";
       rerenderWith(rerender, messages);
 
-      expect(headers()[0]).toHaveAttribute("aria-expanded", "true");
-      expect(getChildItem(0)).toHaveAttribute("tabindex", "0");
+      expect(headers()[1]).toHaveAttribute("tabindex", "0");
+      expect(headers()[1]).toHaveAttribute("aria-selected", "true");
+      expect(headers()[0]).toHaveAttribute("aria-selected", "false");
     });
 
     it("opens the target's turn once the session's messages arrive", () => {

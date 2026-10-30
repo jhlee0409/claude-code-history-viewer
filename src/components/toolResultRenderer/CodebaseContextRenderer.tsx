@@ -1,8 +1,10 @@
 "use client";
+import { useEffect, useId } from "react";
+import { Button } from "@/components/ui/button";
 
 import { FileText, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -21,6 +23,7 @@ export const CodebaseContextRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
+  const showFilesContentId = useId();
   const { t } = useTranslation();
   const filesAnalyzed =
     contextData.files_analyzed || contextData.filesAnalyzed || 0;
@@ -30,15 +33,16 @@ export const CodebaseContextRenderer = ({
     contextData.relevant_files || contextData.relevantFiles || [];
 
   const [showFiles, setShowFiles] = useCaptureExpandState("codebase-files", false);
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const matchingIndex = query !== "" && Array.isArray(relevantFiles) ? relevantFiles.reduce((last: number, file: unknown, index: number) => String(file).toLowerCase().includes(query) ? index : last, -1) : -1;
+  useEffect(() => {
+    if (matchingIndex >= 0) setShowFiles(true);
+  }, [matchingIndex, query, setShowFiles]);
+  const visibleFiles = Array.isArray(relevantFiles) ? (matchingIndex >= 10 ? relevantFiles : relevantFiles.slice(0, 10)) : [];
 
   return (
-    <Renderer className="bg-accent/10 border-accent/30">
-      <Renderer.Header
-        title={t('codebaseContextRenderer.codebaseContext')}
-        icon={<FileText className={cn(layout.iconSize, "text-accent")} />}
-        titleClassName="text-accent"
-      />
-      <Renderer.Content>
+    <RecordedResult title={t('codebaseContextRenderer.codebaseContext')}
+        icon={<FileText className="w-4 h-4" />} record={contextData} expandKey={"codebase-result"} searchQuery={searchQuery}>
         <div className={`grid grid-cols-2 gap-4 ${layout.bodyText}`}>
           <div>
             <span className="font-medium text-accent">
@@ -60,17 +64,17 @@ export const CodebaseContextRenderer = ({
 
         {Array.isArray(relevantFiles) && relevantFiles.length > 0 && (
           <div className="mt-3">
-            <button
+            <Button aria-expanded={showFiles} aria-controls={showFilesContentId} variant="ghost" size="sm"
               type="button"
               onClick={() => setShowFiles(prev => !prev)}
-              className={cn("flex items-center font-medium cursor-pointer text-accent", layout.iconSpacing, layout.bodyText)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("flex items-center font-medium cursor-pointer text-accent", layout.iconSpacing, layout.bodyText))}
             >
               <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showFiles && "rotate-90")} />
               <span>{t('codebaseContextRenderer.relevantFiles', { count: relevantFiles.length })}</span>
-            </button>
-            {showFiles && (
+            </Button>
+            <div id={showFilesContentId} hidden={!showFiles}>{showFiles && (
               <div className="mt-2 space-y-1">
-                {relevantFiles.slice(0, 10).map((file, idx) => (
+                {visibleFiles.map((file, idx) => (
                   <div
                     key={idx}
                     className={`${layout.smallText} font-mono px-2 py-1 rounded bg-accent/20 text-accent`}
@@ -87,16 +91,15 @@ export const CodebaseContextRenderer = ({
                     )}
                   </div>
                 ))}
-                {relevantFiles.length > 10 && (
+                {relevantFiles.length > visibleFiles.length && (
                   <div className={`${layout.smallText} italic text-muted-foreground`}>
-                    {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - 10 })}
+                    {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - visibleFiles.length })}
                   </div>
                 )}
               </div>
-            )}
+            )}</div>
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

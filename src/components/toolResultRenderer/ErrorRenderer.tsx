@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import Markdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
@@ -25,13 +25,8 @@ export const ErrorRenderer = ({
   const errorMessage = error.replace("Error: ", "");
 
   return (
-    <Renderer className="bg-destructive/10 border-destructive/30">
-      <Renderer.Header
-        title={t("error.toolExecutionError")}
-        icon={<X className={cn(layout.iconSize, "text-destructive")} />}
-        titleClassName="text-destructive"
-      />
-      <Renderer.Content>
+    <RecordedResult title={t("error.toolExecutionError")}
+        icon={<X className="w-4 h-4" />} record={error} expandKey={"error-result"} searchQuery={searchQuery}>
         <div className={cn(layout.bodyText, layout.containerPadding, layout.rounded, "max-h-80 overflow-y-scroll text-destructive bg-destructive/5 border border-destructive/30 whitespace-pre-wrap")}>
           {searchQuery ? (
             <HighlightedText
@@ -44,7 +39,6 @@ export const ErrorRenderer = ({
             <Markdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{errorMessage}</Markdown>
           )}
         </div>
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

@@ -33,7 +33,7 @@
  * local event interface) passes.
  *
  * `content` (TR1a, amendment 7) is judged the same way: a result's content
- * is read only by the adapter (`resultContent`, `firstResultText`,
+ * is read only by the adapter (`resultContent`, `firstResultText`, `splitLeadingResultText`,
  * `rendererContent`), so no card can inspect its text to decide an outcome
  * or pick a part to show. A `content` read fails on a result-like receiver
  * (property access, element access, destructuring); a typed value that

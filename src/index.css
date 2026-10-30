@@ -3,20 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================
-   ENTERPRISE DESIGN SYSTEM v2: "Command Center"
-   ============================================
-   Tone: Industrial Luxury - Precise, Authoritative Developer Tool
-   Aesthetic: Deep charcoal with warm amber accents
-   Color Space: OKLCH for perceptually uniform gradients
-   Typography: IBM Plex Sans (UI) + JetBrains Mono (Code)
-
-   Key Principles:
-   • Extreme contrast in type scale (12px labels vs 96px headlines)
-   • Layered shadows for depth hierarchy
-   • Noise textures to eliminate flat "plastic" AI look
-   • Sharp geometric forms with intentional breaks
-   ============================================ */
+/* Role-based UI tokens: theme values here, structural cues in consumers. */
 
 /* File regions and who may change them (inner-UI plan §4.1, R9):
    ① tokens — :root, the theme blocks, @theme ........... F1a · F1b · F1c only
@@ -30,6 +17,100 @@
    DESIGN TOKENS
    ============================================ */
 :root {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.25 0.04 0);
+  --series-2: oklch(0.65 0.12 120);
+  --series-3: oklch(0.65 0.2 330);
+  --series-4: oklch(0.33 0.15 285);
+
+  /* F1c data: scalar/prior are achromatic roles, never category identities. */
+  --series-scalar: var(--fg);
+  --series-scalar-soft: var(--fg-3);
+  --series-prior: var(--fg-2);
+  --chart-grid: var(--line-faint);
+  --chart-axis: var(--fg-2);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: oklch(0.48 0.1 65);
+  --provider-claude-surface: var(--surface-hover);
+  --provider-codebuddy: oklch(0.48 0.1 240);
+  --provider-codebuddy-surface: var(--surface-hover);
+  --provider-codex: oklch(0.48 0.1 145);
+  --provider-codex-surface: var(--surface-hover);
+  --provider-continue: oklch(0.48 0.1 125);
+  --provider-continue-surface: var(--surface-hover);
+  --provider-copilot: oklch(0.48 0.1 300);
+  --provider-copilot-surface: var(--surface-hover);
+  --provider-cline: oklch(0.48 0.1 180);
+  --provider-cline-surface: var(--surface-hover);
+  --provider-crush: oklch(0.48 0.1 350);
+  --provider-crush-surface: var(--surface-hover);
+  --provider-cursor: oklch(0.48 0.1 40);
+  --provider-cursor-surface: var(--surface-hover);
+  --provider-cursor-agent: oklch(0.48 0.1 285);
+  --provider-cursor-agent-surface: var(--surface-hover);
+  --provider-forgecode: oklch(0.48 0.1 55);
+  --provider-forgecode-surface: var(--surface-hover);
+  --provider-gemini: oklch(0.48 0.1 300);
+  --provider-gemini-surface: var(--surface-hover);
+  --provider-goose: oklch(0.48 0.1 25);
+  --provider-goose-surface: var(--surface-hover);
+  --provider-grok: oklch(0.48 0 0);
+  --provider-grok-surface: var(--surface-hover);
+  --provider-kilo: oklch(0.48 0.1 210);
+  --provider-kilo-surface: var(--surface-hover);
+  --provider-kimi: oklch(0.48 0.1 325);
+  --provider-kimi-surface: var(--surface-hover);
+  --provider-kiro: oklch(0.48 0.1 160);
+  --provider-kiro-surface: var(--surface-hover);
+  --provider-llm: oklch(0.48 0 0);
+  --provider-llm-surface: var(--surface-hover);
+  --provider-ompi: oklch(0.48 0.1 180);
+  --provider-ompi-surface: var(--surface-hover);
+  --provider-opencode: oklch(0.48 0.1 255);
+  --provider-opencode-surface: var(--surface-hover);
+  --provider-openinterpreter: oklch(0.48 0 0);
+  --provider-openinterpreter-surface: var(--surface-hover);
+  --provider-openhands: oklch(0.48 0 0);
+  --provider-openhands-surface: var(--surface-hover);
+  --provider-pearai: oklch(0.48 0.1 95);
+  --provider-pearai-surface: var(--surface-hover);
+  --provider-pi: oklch(0.48 0.1 180);
+  --provider-pi-surface: var(--surface-hover);
+  --provider-qwen: oklch(0.48 0.1 285);
+  --provider-qwen-surface: var(--surface-hover);
+  --provider-zcode: oklch(0.48 0.1 210);
+  --provider-zcode-surface: var(--surface-hover);
+  --provider-trae: oklch(0.48 0.1 255);
+  --provider-trae-surface: var(--surface-hover);
+  --provider-vibe: oklch(0.48 0.1 55);
+  --provider-vibe-surface: var(--surface-hover);
+  --provider-zed: oklch(0.48 0 0);
+  --provider-zed-surface: var(--surface-hover);
+  --provider-aider: oklch(0.48 0.1 15);
+  --provider-aider-surface: var(--surface-hover);
+  --provider-amazonq: oklch(0.48 0 0);
+  --provider-amazonq-surface: var(--surface-hover);
+  --provider-antigravity: oklch(0.48 0.1 275);
+  --provider-antigravity-surface: var(--surface-hover);
+  --agent-1: oklch(0.48 0.1 210);
+  --agent-1-surface: var(--surface-hover);
+  --agent-1-line: var(--agent-1);
+  --agent-2: oklch(0.48 0.1 285);
+  --agent-2-surface: var(--surface-hover);
+  --agent-2-line: var(--agent-2);
+  --agent-3: oklch(0.48 0.1 160);
+  --agent-3-surface: var(--surface-hover);
+  --agent-3-line: var(--agent-3);
+  --agent-4: oklch(0.48 0 0);
+  --agent-4-surface: var(--surface-hover);
+  --agent-4-line: var(--agent-4);
+  --agent-5: oklch(0.48 0.1 75);
+  --agent-5-surface: var(--surface-hover);
+  --agent-5-line: var(--agent-5);
+
   /* === Mobile Layout Tokens === */
   /* Icon (24) + two caption lines (2 × 15) + spacing: a tab label may wrap to
      two lines (a place keeps its one name, e.g. "Claude Code Settings"). */
@@ -49,24 +130,6 @@
   --duration-normal: 250ms;
   --duration-slow: 400ms;
 
-  /* === Spacing Scale (4px base) === */
-  --space-px: 1px;
-  --space-0: 0;
-  --space-0\.5: 0.125rem;
-  --space-1: 0.25rem;
-  --space-1\.5: 0.375rem;
-  --space-2: 0.5rem;
-  --space-2\.5: 0.625rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
-  --space-24: 6rem;
 
   /* === Radius Scale === */
   --radius: 0.5rem;
@@ -79,14 +142,6 @@
   --radius-3xl: 1.5rem;
   --radius-full: 9999px;
 
-  /* === Z-Index Scale === */
-  --z-base: 0;
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-modal: 300;
-  --z-popover: 400;
-  --z-tooltip: 500;
-  --z-toast: 600;
 
   /* === Shadow Layers (Light Theme) === */
   --shadow-xs: 0 1px 2px oklch(0.2 0.02 260 / 0.06);
@@ -216,8 +271,6 @@
   --sidebar-border: oklch(0.88 0.01 240);
 
   /* === Advanced Gradients (Light) === */
-  --gradient-subtle: linear-gradient(135deg, oklch(0.98 0.005 240) 0%, oklch(0.96 0.01 250) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.98 0.005 240) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.94 0.01 240) 0%, oklch(0.96 0.015 250) 50%, oklch(0.94 0.01 240) 100%);
 
   /* === Glass/Blur Effects (Light) === */
@@ -321,6 +374,52 @@
 
 /* === Dark Theme (Primary - Command Center) === */
 .dark {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.5 0.04 0);
+  --series-2: oklch(0.9 0.16 120);
+  --series-3: oklch(0.8 0.12 330);
+  --series-4: oklch(0.6 0.2 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: oklch(0.78 0.1 65);
+  --provider-codebuddy: oklch(0.78 0.1 240);
+  --provider-codex: oklch(0.78 0.1 145);
+  --provider-continue: oklch(0.78 0.1 125);
+  --provider-copilot: oklch(0.78 0.1 300);
+  --provider-cline: oklch(0.78 0.1 180);
+  --provider-crush: oklch(0.78 0.1 350);
+  --provider-cursor: oklch(0.78 0.1 40);
+  --provider-cursor-agent: oklch(0.78 0.1 285);
+  --provider-forgecode: oklch(0.78 0.1 55);
+  --provider-gemini: oklch(0.78 0.1 300);
+  --provider-goose: oklch(0.78 0.1 25);
+  --provider-grok: oklch(0.78 0 0);
+  --provider-kilo: oklch(0.78 0.1 210);
+  --provider-kimi: oklch(0.78 0.1 325);
+  --provider-kiro: oklch(0.78 0.1 160);
+  --provider-llm: oklch(0.78 0 0);
+  --provider-ompi: oklch(0.78 0.1 180);
+  --provider-opencode: oklch(0.78 0.1 255);
+  --provider-openinterpreter: oklch(0.78 0 0);
+  --provider-openhands: oklch(0.78 0 0);
+  --provider-pearai: oklch(0.78 0.1 95);
+  --provider-pi: oklch(0.78 0.1 180);
+  --provider-qwen: oklch(0.78 0.1 285);
+  --provider-zcode: oklch(0.78 0.1 210);
+  --provider-trae: oklch(0.78 0.1 255);
+  --provider-vibe: oklch(0.78 0.1 55);
+  --provider-zed: oklch(0.78 0 0);
+  --provider-aider: oklch(0.78 0.1 15);
+  --provider-amazonq: oklch(0.78 0 0);
+  --provider-antigravity: oklch(0.78 0.1 275);
+  --agent-1: oklch(0.78 0.1 210);
+  --agent-2: oklch(0.78 0.1 285);
+  --agent-3: oklch(0.78 0.1 160);
+  --agent-4: oklch(0.78 0 0);
+  --agent-5: oklch(0.78 0.1 75);
+
   --background: oklch(0.12 0.015 260);
   --foreground: oklch(0.93 0.01 240);
   --card: oklch(0.16 0.015 260);
@@ -447,8 +546,6 @@
   --shadow-inner: inset 0 2px 4px oklch(0 0 0 / 0.2);
 
   /* === Advanced Gradients (Dark) === */
-  --gradient-subtle: linear-gradient(135deg, oklch(0.14 0.015 260) 0%, oklch(0.12 0.02 270) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(0.18 0.015 260) 0%, oklch(0.12 0.015 260) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.2 0.015 260) 0%, oklch(0.25 0.02 270) 50%, oklch(0.2 0.015 260) 100%);
 
   /* === Glass/Blur Effects (Dark) === */
@@ -501,6 +598,52 @@
 }
 
 .high-contrast {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.25 0.04 0);
+  --series-2: oklch(0.65 0.12 120);
+  --series-3: oklch(0.65 0.2 330);
+  --series-4: oklch(0.33 0.15 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: var(--fg);
+  --provider-codebuddy: var(--fg);
+  --provider-codex: var(--fg);
+  --provider-continue: var(--fg);
+  --provider-copilot: var(--fg);
+  --provider-cline: var(--fg);
+  --provider-crush: var(--fg);
+  --provider-cursor: var(--fg);
+  --provider-cursor-agent: var(--fg);
+  --provider-forgecode: var(--fg);
+  --provider-gemini: var(--fg);
+  --provider-goose: var(--fg);
+  --provider-grok: var(--fg);
+  --provider-kilo: var(--fg);
+  --provider-kimi: var(--fg);
+  --provider-kiro: var(--fg);
+  --provider-llm: var(--fg);
+  --provider-ompi: var(--fg);
+  --provider-opencode: var(--fg);
+  --provider-openinterpreter: var(--fg);
+  --provider-openhands: var(--fg);
+  --provider-pearai: var(--fg);
+  --provider-pi: var(--fg);
+  --provider-qwen: var(--fg);
+  --provider-zcode: var(--fg);
+  --provider-trae: var(--fg);
+  --provider-vibe: var(--fg);
+  --provider-zed: var(--fg);
+  --provider-aider: var(--fg);
+  --provider-amazonq: var(--fg);
+  --provider-antigravity: var(--fg);
+  --agent-1: var(--fg);
+  --agent-2: var(--fg);
+  --agent-3: var(--fg);
+  --agent-4: var(--fg);
+  --agent-5: var(--fg);
+
   --foreground: oklch(0.06 0 0);
   --background: oklch(1 0 0);
   --card: oklch(1 0 0);
@@ -579,6 +722,52 @@
 }
 
 .dark.high-contrast {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.5 0.04 0);
+  --series-2: oklch(0.9 0.16 120);
+  --series-3: oklch(0.8 0.12 330);
+  --series-4: oklch(0.6 0.2 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: var(--fg);
+  --provider-codebuddy: var(--fg);
+  --provider-codex: var(--fg);
+  --provider-continue: var(--fg);
+  --provider-copilot: var(--fg);
+  --provider-cline: var(--fg);
+  --provider-crush: var(--fg);
+  --provider-cursor: var(--fg);
+  --provider-cursor-agent: var(--fg);
+  --provider-forgecode: var(--fg);
+  --provider-gemini: var(--fg);
+  --provider-goose: var(--fg);
+  --provider-grok: var(--fg);
+  --provider-kilo: var(--fg);
+  --provider-kimi: var(--fg);
+  --provider-kiro: var(--fg);
+  --provider-llm: var(--fg);
+  --provider-ompi: var(--fg);
+  --provider-opencode: var(--fg);
+  --provider-openinterpreter: var(--fg);
+  --provider-openhands: var(--fg);
+  --provider-pearai: var(--fg);
+  --provider-pi: var(--fg);
+  --provider-qwen: var(--fg);
+  --provider-zcode: var(--fg);
+  --provider-trae: var(--fg);
+  --provider-vibe: var(--fg);
+  --provider-zed: var(--fg);
+  --provider-aider: var(--fg);
+  --provider-amazonq: var(--fg);
+  --provider-antigravity: var(--fg);
+  --agent-1: var(--fg);
+  --agent-2: var(--fg);
+  --agent-3: var(--fg);
+  --agent-4: var(--fg);
+  --agent-5: var(--fg);
+
   --foreground: oklch(0.98 0 0);
   --background: oklch(0.03 0 0);
   --card: oklch(0.05 0 0);
@@ -756,6 +945,94 @@
 }
 
 @theme inline {
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-scalar: var(--series-scalar);
+  --color-series-scalar-soft: var(--series-scalar-soft);
+  --color-series-prior: var(--series-prior);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  /* F1c identity roles (static names keep Tailwind discovery deterministic). */
+  --color-provider-claude: var(--provider-claude);
+  --color-provider-claude-surface: var(--provider-claude-surface);
+  --color-provider-codebuddy: var(--provider-codebuddy);
+  --color-provider-codebuddy-surface: var(--provider-codebuddy-surface);
+  --color-provider-codex: var(--provider-codex);
+  --color-provider-codex-surface: var(--provider-codex-surface);
+  --color-provider-continue: var(--provider-continue);
+  --color-provider-continue-surface: var(--provider-continue-surface);
+  --color-provider-copilot: var(--provider-copilot);
+  --color-provider-copilot-surface: var(--provider-copilot-surface);
+  --color-provider-cline: var(--provider-cline);
+  --color-provider-cline-surface: var(--provider-cline-surface);
+  --color-provider-crush: var(--provider-crush);
+  --color-provider-crush-surface: var(--provider-crush-surface);
+  --color-provider-cursor: var(--provider-cursor);
+  --color-provider-cursor-surface: var(--provider-cursor-surface);
+  --color-provider-cursor-agent: var(--provider-cursor-agent);
+  --color-provider-cursor-agent-surface: var(--provider-cursor-agent-surface);
+  --color-provider-forgecode: var(--provider-forgecode);
+  --color-provider-forgecode-surface: var(--provider-forgecode-surface);
+  --color-provider-gemini: var(--provider-gemini);
+  --color-provider-gemini-surface: var(--provider-gemini-surface);
+  --color-provider-goose: var(--provider-goose);
+  --color-provider-goose-surface: var(--provider-goose-surface);
+  --color-provider-grok: var(--provider-grok);
+  --color-provider-grok-surface: var(--provider-grok-surface);
+  --color-provider-kilo: var(--provider-kilo);
+  --color-provider-kilo-surface: var(--provider-kilo-surface);
+  --color-provider-kimi: var(--provider-kimi);
+  --color-provider-kimi-surface: var(--provider-kimi-surface);
+  --color-provider-kiro: var(--provider-kiro);
+  --color-provider-kiro-surface: var(--provider-kiro-surface);
+  --color-provider-llm: var(--provider-llm);
+  --color-provider-llm-surface: var(--provider-llm-surface);
+  --color-provider-ompi: var(--provider-ompi);
+  --color-provider-ompi-surface: var(--provider-ompi-surface);
+  --color-provider-opencode: var(--provider-opencode);
+  --color-provider-opencode-surface: var(--provider-opencode-surface);
+  --color-provider-openinterpreter: var(--provider-openinterpreter);
+  --color-provider-openinterpreter-surface: var(--provider-openinterpreter-surface);
+  --color-provider-openhands: var(--provider-openhands);
+  --color-provider-openhands-surface: var(--provider-openhands-surface);
+  --color-provider-pearai: var(--provider-pearai);
+  --color-provider-pearai-surface: var(--provider-pearai-surface);
+  --color-provider-pi: var(--provider-pi);
+  --color-provider-pi-surface: var(--provider-pi-surface);
+  --color-provider-qwen: var(--provider-qwen);
+  --color-provider-qwen-surface: var(--provider-qwen-surface);
+  --color-provider-zcode: var(--provider-zcode);
+  --color-provider-zcode-surface: var(--provider-zcode-surface);
+  --color-provider-trae: var(--provider-trae);
+  --color-provider-trae-surface: var(--provider-trae-surface);
+  --color-provider-vibe: var(--provider-vibe);
+  --color-provider-vibe-surface: var(--provider-vibe-surface);
+  --color-provider-zed: var(--provider-zed);
+  --color-provider-zed-surface: var(--provider-zed-surface);
+  --color-provider-aider: var(--provider-aider);
+  --color-provider-aider-surface: var(--provider-aider-surface);
+  --color-provider-amazonq: var(--provider-amazonq);
+  --color-provider-amazonq-surface: var(--provider-amazonq-surface);
+  --color-provider-antigravity: var(--provider-antigravity);
+  --color-provider-antigravity-surface: var(--provider-antigravity-surface);
+  --color-agent-1: var(--agent-1);
+  --color-agent-1-surface: var(--agent-1-surface);
+  --color-agent-1-line: var(--agent-1-line);
+  --color-agent-2: var(--agent-2);
+  --color-agent-2-surface: var(--agent-2-surface);
+  --color-agent-2-line: var(--agent-2-line);
+  --color-agent-3: var(--agent-3);
+  --color-agent-3-surface: var(--agent-3-surface);
+  --color-agent-3-line: var(--agent-3-line);
+  --color-agent-4: var(--agent-4);
+  --color-agent-4-surface: var(--agent-4-surface);
+  --color-agent-4-line: var(--agent-4-line);
+  --color-agent-5: var(--agent-5);
+  --color-agent-5-surface: var(--agent-5-surface);
+  --color-agent-5-line: var(--agent-5-line);
+
   /* Radius: --radius-sm … --radius-xl live in :root (the scale rounded-sm …
      rounded-xl read); no self-referencing entries here. */
 
@@ -1370,7 +1647,7 @@
   /* === Segmented control (one shared style) ===
      Session/Project, row density, analytics Overview/Tokens, the phone's
      Overview/Tokens/Edits nav, Project overview/Session details, metric
-     mode. The track holds the items; the selected one (aria-pressed,
+     mode. F2b owns this compatibility block. The selected item (aria-checked, aria-pressed,
      aria-selected, or aria-current="page" in a nav) gets its own surface and an
      accent outline (tokens --segmented-*). Padding and type size stay on each
      control. */
@@ -1380,32 +1657,32 @@
   }
 
   .segmented-item {
-    @apply rounded-md font-medium text-muted-foreground transition-colors duration-200;
+    @apply rounded-md font-medium text-muted-foreground transition-colors;
+    border: 1px solid transparent;
   }
 
   .segmented-item:not(:disabled):hover {
     @apply text-foreground;
   }
 
+  .segmented-item[aria-checked="true"],
   .segmented-item[aria-pressed="true"],
   .segmented-item[aria-selected="true"],
   .segmented-item[aria-current="page"],
   .segmented-item[data-active="true"] {
     background-color: var(--segmented-selected);
     color: var(--segmented-selected-foreground);
-    box-shadow:
-      inset 0 0 0 1px var(--segmented-selected-border),
-      0 1px 2px oklch(0 0 0 / 0.08);
+    border-color: var(--segmented-selected-border);
   }
 
   /* Keyboard focus, for every segmented control (the base layer removes the
      browser outline). A 2px accent ring outside the item, with a 1px gap of
-     track: it reads apart from the selected item's inset 1px border, takes no
+     track: it reads apart from the selected item's 1px border, takes no
      layout space, fits inside the track's padding, and outlines survive
      forced-colors mode. ≥3:1 against the track in every theme
      (src/test/segmentedControl.contrast.test.tsx). */
   .segmented-item:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
 

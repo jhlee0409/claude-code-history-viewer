@@ -148,6 +148,13 @@ pub struct RawLogEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClaudeMessage {
     pub uuid: String,
+    /// Standalone local execution source, NOT an assistant tool result.
+    #[serde(
+        rename = "sourceExecution",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source_execution: Option<serde_json::Value>,
     #[serde(rename = "parentUuid")]
     pub parent_uuid: Option<String>,
     #[serde(rename = "sessionId")]

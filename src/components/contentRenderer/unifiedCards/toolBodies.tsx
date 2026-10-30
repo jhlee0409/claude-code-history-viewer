@@ -11,7 +11,7 @@
  * | NotebookEdit | one summary line (mode · cell · type), then the new source |
  * | TaskCreate | one summary line (subject · active form), then the description |
  * | TaskUpdate | one summary line (status · subject · owner · blocks) |
- * | apply_patch | honest JSON: no parser of its patch exists in the tree yet (TR2b owns it) |
+ * | apply_patch | parsed file/hunk diffs, followed by the complete raw input |
  * | any other name | honest JSON |
  *
  * A structured body is a lossless, searchable view of the recorded input
@@ -45,19 +45,20 @@
  * `constructor` is JSON).
  */
 import type { ReactNode } from "react";
+import { parseApplyPatch, patchAfterText } from "../../transcript/patchDiff";
+import { DiffWithMenu } from "../../transcript/DiffViewComparison";
 import { PathText } from "@/lib/format/PathText";
 import { formatPath } from "@/lib/format/path";
 import { CodeTarget, Marked, TextTarget } from "../../transcript/ToolRow";
 import { OutputBlock } from "../../transcript/OutputBlock";
-import { TodoWriteList, type TodoItem } from "../toolUseRenderers/TodoWriteToolRenderer";
-import { UpdatePlanSteps, type UpdatePlanToolInput } from "../toolUseRenderers/UpdatePlanToolRenderer";
+import { TodoWriteList, UpdatePlanSteps, type TodoItem, type UpdatePlanToolInput } from "./checklistBodies";
 import { inputSummary, num, str } from "./shared";
 import { fieldsFit, isNonEmptyArray, isNonEmptyString, isNumber, isRecord, isString, isStringArray, keysCaption, SHOWN, shownAs, shownIf, unshown, unshownMembers } from "./recordShape";
 import { InputJson, Leftover, Summary, type BodyContext } from "./toolBodyParts";
 
 export type { BodyContext } from "./toolBodyParts";
 
-export type BodyKind = "todo" | "plan" | "notebook" | "taskCreate" | "taskUpdate" | "json";
+export type BodyKind = "todo" | "plan" | "notebook" | "taskCreate" | "taskUpdate" | "patch" | "json";
 
 export const BODY_BY_NAME: Readonly<Record<string, BodyKind>> = {
   TodoWrite: "todo",
@@ -67,8 +68,8 @@ export const BODY_BY_NAME: Readonly<Record<string, BodyKind>> = {
   NotebookEdit: "notebook",
   TaskCreate: "taskCreate",
   TaskUpdate: "taskUpdate",
-  // Codex edits: a DiffView body needs a parser of its patch; none exists yet (TR2b).
-  apply_patch: "json",
+  // Codex edits: strict patch parsing with lossless raw-input fallback.
+  apply_patch: "patch",
 };
 
 /** The body for a recorded tool name; every name the table does not list is `json`. */
@@ -259,6 +260,24 @@ function taskUpdateBody(ctx: BodyContext): RoutedBody | null {
   };
 }
 
+// apply_patch ----------------------------------------------------------------
+function patchBody(ctx: BodyContext): RoutedBody | null {
+  const source = typeof ctx.input.patch === "string" ? ctx.input.patch : typeof ctx.input.input === "string" ? ctx.input.input : undefined;
+  const files = source !== undefined ? parseApplyPatch(source) : null;
+  if (!files) return null;
+  return { body: <>
+    {files.map((file, index) => <section key={index} className="space-y-1">
+      <div data-patch-operation={file.operation} className="flex min-w-0 flex-wrap items-center gap-x-2 text-caption text-fg-2">
+        {file.operation === "delete" && <span>{ctx.t("diffView.deleted")}</span>}
+        <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
+        {file.movePath && <><span>{" → "}</span><PathText path={file.movePath} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} /></>}
+      </div>
+      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} copies={[{ label: ctx.t("common.copy"), text: file.source }, { label: ctx.t("diffView.copyPatch"), text: source! }]} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
+    </section>)}
+    <InputJson value={ctx.input} ctx={ctx} rest caption={ctx.t("diffView.recordedInput")} />
+  </> };
+}
+
 // Any other name -------------------------------------------------------------
 
 /** The generic body: the input summary as the target, the whole input as JSON. */
@@ -279,6 +298,7 @@ const STRUCTURED: Readonly<Record<Exclude<BodyKind, "json">, (ctx: BodyContext) 
   notebook: notebookBody,
   taskCreate: taskCreateBody,
   taskUpdate: taskUpdateBody,
+  patch: patchBody,
 };
 
 /**

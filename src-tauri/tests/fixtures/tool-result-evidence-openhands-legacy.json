@@ -1,0 +1,2001 @@
+{
+  "responses": [
+    [
+      {
+        "content": [
+          {
+            "text": "fixture",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-0"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:01Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-1"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:02Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-2"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:03Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-3"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:04Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-4"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:05Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-5"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:06Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-6"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:07Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-7"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": true,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:08Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-8"
+      },
+      {
+        "content": [
+          {
+            "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+            "is_error": false,
+            "tool_use_id": "99",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "openhands",
+        "role": "user",
+        "sessionId": "evidence",
+        "timestamp": "2026-10-01T00:00:09Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "evidence-9"
+      }
+    ],
+    {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-0"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        }
+      ],
+      "next_offset": 10,
+      "total_count": 10
+    },
+    {
+      "has_more": true,
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        }
+      ],
+      "next_offset": 1,
+      "total_count": 10
+    },
+    {
+      "has_more": true,
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 10
+    },
+    {
+      "has_more": true,
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        }
+      ],
+      "next_offset": 6,
+      "total_count": 10
+    },
+    {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-0"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        }
+      ],
+      "next_offset": 10,
+      "total_count": 10
+    },
+    {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:00Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-0"
+        }
+      ],
+      "next_offset": 10,
+      "total_count": 10
+    },
+    {
+      "has_more": false,
+      "messages": [],
+      "next_offset": 99,
+      "total_count": 10
+    },
+    {
+      "has_more": true,
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        }
+      ],
+      "next_offset": 1,
+      "total_count": 10
+    }
+  ],
+  "searches": [
+    {
+      "filters": {},
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {
+        "hasErrors": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "same"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "evidence-only-needle"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "evidence-only-needle"
+    },
+    {
+      "filters": {
+        "hasErrors": true
+      },
+      "messages": [],
+      "query": "evidence-only-needle"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "evidence-only-needle"
+    },
+    {
+      "filters": {},
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "Error"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "Error"
+    },
+    {
+      "filters": {
+        "hasErrors": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:09Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-9"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-8"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-7"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:06Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:05Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:02Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "99",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "OpenHands",
+          "provider": "openhands",
+          "role": "user",
+          "sessionId": "evidence",
+          "timestamp": "2026-10-01T00:00:01Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "evidence-1"
+        }
+      ],
+      "query": "Error"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "Error"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "cancelled"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "cancelled"
+    },
+    {
+      "filters": {
+        "hasErrors": true
+      },
+      "messages": [],
+      "query": "cancelled"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "cancelled"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "evidence"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "evidence"
+    },
+    {
+      "filters": {
+        "hasErrors": true
+      },
+      "messages": [],
+      "query": "evidence"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "evidence"
+    }
+  ],
+  "sessions": [
+    {
+      "actual_session_id": "evidence",
+      "file_path": "openhands://evidence",
+      "first_message_time": "2026-10-01T00:00:00Z",
+      "has_errors": false,
+      "has_tool_use": true,
+      "is_renamed": false,
+      "last_message_time": "2026-10-01T00:00:09Z",
+      "last_modified": "2026-10-01T00:00:09Z",
+      "message_count": 10,
+      "project_name": "OpenHands",
+      "provider": "openhands",
+      "session_id": "openhands://evidence",
+      "storage_type": "json",
+      "summary": "fixture"
+    }
+  ],
+  "stats": {
+    "Ok": {
+      "first_message_time": "2026-10-01T00:00:00Z",
+      "last_message_time": "2026-10-01T00:00:09Z",
+      "message_count": 10,
+      "model_distribution": [],
+      "most_used_tools": [],
+      "project_name": "evidence",
+      "session_id": "evidence",
+      "token_usage_recording": "unknown",
+      "total_cache_creation_tokens": 0,
+      "total_cache_read_tokens": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  }
+}

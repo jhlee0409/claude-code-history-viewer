@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useCallback, useState } from "react";
 import { Check, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -67,17 +68,17 @@ export function ToolIdBadge({
 
   const label = `${t("common.copy")} ${t("common.id")}: ${toolId}`;
   return (
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onClick={handleCopy}
       title={copied ? t("common.copied") : label}
       aria-label={label}
-      className={cn(
+      className={cn("h-auto whitespace-normal justify-start font-normal", cn(
         "w-6 h-6 flex items-center justify-center rounded transition-colors",
         copied ? "text-success" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted",
-      )}
+      ))}
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <Hash className="w-3.5 h-3.5" />}
-    </button>
+    </Button>
   );
 }

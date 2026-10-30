@@ -17,33 +17,33 @@ export type SubagentStyle = {
 export const SUBAGENT_STYLES: Record<string, SubagentStyle> = {
   Explore: {
     icon: Search,
-    bg: "bg-cyan-500/15",
-    text: "text-cyan-600 dark:text-cyan-400",
-    border: "border-cyan-500/30",
+    bg: "bg-agent-1-surface",
+    text: "text-agent-1",
+    border: "border-agent-1-line",
   },
   Plan: {
     icon: Map,
-    bg: "bg-violet-500/15",
-    text: "text-violet-600 dark:text-violet-400",
-    border: "border-violet-500/30",
+    bg: "bg-agent-2-surface",
+    text: "text-agent-2",
+    border: "border-agent-2-line",
   },
   "code-reviewer": {
     icon: ShieldCheck,
-    bg: "bg-emerald-500/15",
-    text: "text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-500/30",
+    bg: "bg-agent-3-surface",
+    text: "text-agent-3",
+    border: "border-agent-3-line",
   },
   "general-purpose": {
     icon: Wrench,
-    bg: "bg-slate-500/15",
-    text: "text-slate-600 dark:text-slate-400",
-    border: "border-slate-500/30",
+    bg: "bg-agent-4-surface",
+    text: "text-agent-4",
+    border: "border-agent-4-line",
   },
   "statusline-setup": {
     icon: Settings,
-    bg: "bg-amber-500/15",
-    text: "text-amber-600 dark:text-amber-400",
-    border: "border-amber-500/30",
+    bg: "bg-agent-5-surface",
+    text: "text-agent-5",
+    border: "border-agent-5-line",
   },
 };
 

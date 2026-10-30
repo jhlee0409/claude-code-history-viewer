@@ -1,7 +1,7 @@
 use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{is_safe_storage_id, search_json_value_case_insensitive};
+use crate::utils::is_safe_storage_id;
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
@@ -687,7 +687,8 @@ pub fn load_messages_at(
             Vec::new()
         };
 
-        let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
+        let (content_value, parts_usage, parts_cost) =
+            process_parts(&part_values, &msg_id, session_id);
 
         // Message-level input/output are aggregate values. Fill only missing
         // fields from parts so cache/reasoning usage is retained without
@@ -801,7 +802,7 @@ pub fn search_at(
                     }
 
                     if let Some(content) = &msg.content {
-                        if search_json_value_case_insensitive(content, &query_lower) {
+                        if super::result_evidence::content_matches(content, &query_lower) {
                             results.push(msg);
                         }
                     }
@@ -1201,7 +1202,8 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
             Err(_) => Vec::new(),
         };
 
-        let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
+        let (content_value, parts_usage, parts_cost) =
+            process_parts(&part_values, &msg_id, session_id);
 
         let final_usage = merge_token_usage(usage, parts_usage);
         let final_cost = cost_usd.or(parts_cost);
@@ -1274,7 +1276,7 @@ fn search_from_db(
                     return Some((results, searched_set));
                 }
                 if let Some(content) = &msg.content {
-                    if search_json_value_case_insensitive(content, query_lower) {
+                    if super::result_evidence::content_matches(content, query_lower) {
                         results.push(msg);
                     }
                 }
@@ -1428,12 +1430,16 @@ fn merge_token_usage(
 
 // is_safe_storage_id is imported from crate::utils
 
-fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {
+fn process_parts(
+    parts: &[Value],
+    message_id: &str,
+    session_id: &str,
+) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {
     let mut content_items: Vec<Value> = Vec::new();
     let mut usage: Option<TokenUsage> = None;
     let mut cost_usd: Option<f64> = None;
 
-    for part in parts {
+    for (part_index, part) in parts.iter().enumerate() {
         let part_type = part.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match part_type {
@@ -1493,6 +1499,15 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     if is_error {
                         tool_result["is_error"] = Value::Bool(true);
                     }
+                    // State belongs to this exact part, not another call with the same ID.
+                    super::result_evidence::attach(
+                        &mut tool_result,
+                        &part["state"],
+                        message_id,
+                        session_id,
+                        content_items.len(),
+                    );
+                    tool_result["toolUseResultSource"]["partIndex"] = Value::from(part_index);
                     content_items.push(tool_result);
                 }
             }
@@ -1787,7 +1802,7 @@ mod tests {
             }
         ]);
 
-        let (content, _, _) = process_parts(parts.as_array().unwrap());
+        let (content, _, _) = process_parts(parts.as_array().unwrap(), "fixture", "session");
         let blocks = content.unwrap();
         let blocks = blocks.as_array().unwrap();
 

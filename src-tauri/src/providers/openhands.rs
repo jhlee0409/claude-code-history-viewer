@@ -19,7 +19,7 @@
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
-use crate::utils::{build_provider_message, search_json_value_case_insensitive};
+use crate::utils::build_provider_message;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::fs;
@@ -195,7 +195,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 let matched = msg
                     .content
                     .as_ref()
-                    .map(|c| search_json_value_case_insensitive(c, &query_lower))
+                    .map(|c| super::result_evidence::content_matches(c, &query_lower))
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some("OpenHands".to_string());
@@ -329,18 +329,20 @@ fn convert_event(event: &Value, sid: &str, idx: usize) -> Option<ClaudeMessage> 
             .map(ToString::to_string)
             .unwrap_or_default();
         let is_error = event.get("observation").and_then(Value::as_str) == Some("error");
+        let mut result = json!({
+            "type":"tool_result", "tool_use_id":tool_use_id,
+            "content":content, "is_error":is_error
+        });
+        if let Some(extras) = event.get("extras") {
+            super::result_evidence::attach(&mut result, extras, &uuid, sid, 0);
+        }
         Some(make_msg(
             PROVIDER,
             uuid,
             sid,
             timestamp,
             "user",
-            vec![json!({
-                "type": "tool_result",
-                "tool_use_id": tool_use_id,
-                "content": content,
-                "is_error": is_error
-            })],
+            vec![result],
         ))
     } else {
         None

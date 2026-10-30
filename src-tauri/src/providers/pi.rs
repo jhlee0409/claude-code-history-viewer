@@ -36,9 +36,7 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
-use crate::utils::{
-    build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
-};
+use crate::utils::{build_provider_message, is_symlink, ms_to_iso};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -289,7 +287,7 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
                 let matched = msg
                     .content
                     .as_ref()
-                    .map(|c| search_json_value_case_insensitive(c, &query_lower))
+                    .map(|c| super::result_evidence::content_matches(c, &query_lower))
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some(project_name.clone());
@@ -810,6 +808,17 @@ fn convert_message_record(
     out.parent_uuid = record_parent(record);
     out.subtype = subtype;
     out.compact_metadata = compact_metadata;
+    if role == "bashExecution" {
+        out.source_execution = Some(json!({
+            "messageUuid":out.uuid,"sessionId":session_id,
+            "association":"local_execution","message":message
+        }));
+    }
+    if role == "toolResult" {
+        if let Some(result) = out.content.as_mut().and_then(|c| c.get_mut(0)) {
+            super::result_evidence::attach(result, message, &out.uuid, session_id, 0);
+        }
+    }
     out.stop_reason = message
         .get("stopReason")
         .and_then(Value::as_str)

@@ -18,7 +18,10 @@
  * Every card is a ToolRow (TR0, TR1a) whose outcome comes from toolOutcome.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../transcript/resultSearchText";
+import { ResultSearchContext, useResultProvider } from "../transcript/resultProvider";
+import { searchHits } from "./unifiedCards/shared";
 import {
   BashCard,
   ReadCard,
@@ -38,7 +41,15 @@ import { canonicalToolName } from "./toolNames";
 
 export type { Props as UnifiedToolExecutionRendererProps };
 
-export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer({
+export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer(props: Props) {
+  const provider = useResultProvider();
+  const active = provider !== undefined && provider !== "claude";
+  const query = props.searchQuery?.trim() ?? "";
+  const hit = useMemo(() => active && query !== "" && searchHits(query, resultSearchText(props.toolUse), resultSearchText(props.toolResults)), [active, query, props.toolUse, props.toolResults]);
+  return <ResultSearchContext.Provider value={active ? { searchQuery: props.searchQuery, revealFor: hit ? props.searchQuery : undefined, isCurrentMatch: props.isCurrentMatch, currentMatchIndex: props.currentMatchIndex } : {}}><CardDispatcher {...props} /></ResultSearchContext.Provider>;
+});
+
+function CardDispatcher({
   toolUse,
   toolResults,
   onViewSubagent,
@@ -50,7 +61,7 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
   const toolName = canonicalToolName((toolUse.name as string) || "");
 
   switch (toolName) {
-    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
     case "Read":      return <ReadCard toolUse={toolUse} toolResults={toolResults} />;
     case "Edit":
     case "MultiEdit": return <EditCard toolUse={toolUse} toolResults={toolResults} />;
@@ -91,4 +102,4 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
       />
     );
   }
-});
+}

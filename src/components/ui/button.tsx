@@ -35,8 +35,7 @@ import { Spinner } from "./spinner";
  *   and alignment, so the size does not change whatever the caller sets.
  *   The variant's look stays.
  *
- * `accent`, `success` and `warning` have no call sites; they keep their
- * names (F2b renames and removes variants) and render `default`.
+ * F2b calls the filled default `primary`; state and event behavior is unchanged.
  */
 const FILLED = "bg-primary text-primary-foreground hover:bg-primary/85 active:bg-primary/70";
 const FILLED_DISABLED = "data-disabled:bg-muted data-disabled:text-fg-disabled";
@@ -50,7 +49,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: `${FILLED} ${FILLED_DISABLED}`,
+        primary: `${FILLED} ${FILLED_DISABLED}`,
         destructive: `bg-destructive text-destructive-foreground hover:bg-destructive/88 active:bg-destructive/76 ${FILLED_DISABLED}`,
         outline:
           "border border-input bg-background hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-background data-disabled:text-fg-disabled",
@@ -58,12 +57,7 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled",
         link: "text-primary underline-offset-4 hover:underline active:decoration-2 data-disabled:text-fg-disabled data-disabled:no-underline",
-        /** @deprecated No call sites; renders `default` until F2b removes it. */
-        accent: `${FILLED} ${FILLED_DISABLED}`,
-        /** @deprecated No call sites; renders `default` until F2b removes it. */
-        success: `${FILLED} ${FILLED_DISABLED}`,
-        /** @deprecated No call sites; renders `default` until F2b removes it. */
-        warning: `${FILLED} ${FILLED_DISABLED}`,
+
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -75,7 +69,7 @@ const buttonVariants = cva(
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: "primary",
       size: "default",
     },
   }

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
@@ -16,13 +17,14 @@ import { str } from "./shared";
  * is left out of the detail (amendment 7, renderer audit NC1).
  */
 export const WebFetchCard = memo(function WebFetchCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const name = (toolUse.name as string) || "WebFetch";
   const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const url = str(input, "url") ?? "";
   const prompt = str(input, "prompt");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
   return (

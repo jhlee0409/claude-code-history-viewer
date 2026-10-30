@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { useEffect, memo } from "react";
 import { Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +24,7 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({
   currentMatchIndex = 0,
   index = 0,
 }: Props) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(`thinking-${index}`, false);
 
@@ -39,16 +42,16 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({
 
   return (
     <div className={cn("bg-thinking border border-thinking-border mt-2 overflow-hidden", layout.rounded)}>
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center text-left",
           layout.headerPadding,
           layout.headerHeight,
           layout.iconGap,
           "hover:bg-thinking/80 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -67,9 +70,9 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({
             {hasMore && "..."}
           </span>
         )}
-      </button>
+      </Button>
 
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className={layout.contentPadding}>
           <div className={cn(layout.bodyText, "text-thinking-foreground whitespace-pre-wrap")}>
             {searchQuery ? (
@@ -84,7 +87,7 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({
             )}
           </div>
         </div>
-      )}
+      )}</div>
     </div>
   );
 });

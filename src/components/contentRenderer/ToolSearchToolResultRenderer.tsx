@@ -6,12 +6,14 @@
  * Handles error states and empty results with appropriate styling.
  */
 
-import { memo } from "react";
-import { Search, Wrench, CircleAlert, Server } from "lucide-react";
+import { memo, useContext } from "react";
+import { Wrench, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getVariantStyles, layout } from "../renderers";
-import { ToolResultCard } from "./ToolResultCard";
+import { layout } from "../renderers";
+import { ResultRow } from "../transcript/ResultRow";
+import { ResultRowContext } from "../transcript/resultRowContext";
+import { Marked } from "../transcript/ToolRow";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
 /** Tool search result item */
@@ -51,19 +53,14 @@ export const ToolSearchToolResultRenderer = memo(
       ...getCommonToolErrorMessages(t),
       no_results: t("toolError.noMatchingToolsFound"),
     };
+    const { highlight } = useContext(ResultRowContext);
+    const result = { type: "tool_search_tool_result", tool_use_id: toolUseId, content };
 
     if (isToolSearchError(content)) {
       return (
-        <ToolResultCard
-          title={t("toolSearchToolResultRenderer.error")}
-          icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-          variant="error"
-          toolUseId={toolUseId}
-        >
-          <div className={cn(layout.bodyText, "text-destructive")}>
-            {errorMessages[content.error_code] || content.error_code}
-          </div>
-        </ToolResultCard>
+        <ResultRow verb="tool_search" result={result} toolUseId={toolUseId}>
+          {errorMessages[content.error_code] && <div className={cn(layout.bodyText, "text-fg-2")}>{errorMessages[content.error_code]}</div>}
+        </ResultRow>
       );
     }
 
@@ -71,62 +68,47 @@ export const ToolSearchToolResultRenderer = memo(
 
     if (!results || results.length === 0) {
       return (
-        <ToolResultCard
-          title={t("toolSearchToolResultRenderer.title")}
-          icon={<Search className={cn(layout.iconSize, "text-muted-foreground")} />}
-          variant="neutral"
-          toolUseId={toolUseId}
-        >
+        <ResultRow verb="tool_search" result={result} toolUseId={toolUseId}>
           <div className={cn(layout.smallText, "text-muted-foreground italic")}>
             {t("toolSearchToolResultRenderer.noResults")}
           </div>
-        </ToolResultCard>
+        </ResultRow>
       );
     }
 
-    const infoStyles = getVariantStyles("info");
-
     return (
-      <ToolResultCard
-        title={t("toolSearchToolResultRenderer.title")}
-        icon={<Search className={cn(layout.iconSize, infoStyles.icon)} />}
-        variant="info"
-        toolUseId={toolUseId}
-        rightContent={
-          <span className={cn(layout.smallText, "px-1.5 py-0.5 rounded", infoStyles.badge, infoStyles.badgeText)}>
-            {results.length} {t("toolSearchToolResultRenderer.found")}
-          </span>
-        }
-      >
+      <ResultRow verb="tool_search" result={result} toolUseId={toolUseId} meta={`${results.length} ${t("toolSearchToolResultRenderer.found")}`}>
         <div className="space-y-2">
-          {results.map((result, index) => (
+          {results.map((item, index) => (
             <div
-              key={`${result.tool_name}-${index}`}
+              key={`${item.tool_name}-${index}`}
               className="bg-card border border-border rounded p-2"
             >
               <div className={cn("flex items-center mb-1", layout.iconGap)}>
-                <Wrench className={cn(layout.iconSizeSmall, infoStyles.accent)} />
-                <span className={cn(layout.bodyText, "font-medium", infoStyles.title)}>
-                  {result.tool_name}
+                <Wrench className={cn(layout.iconSizeSmall, "text-fg-3")} />
+                <span className={cn(layout.bodyText, "font-medium text-fg")}>
+                  <Marked text={String(item.tool_name ?? "")} highlight={highlight} />
                 </span>
               </div>
 
-              {result.server_name && (
-                <div className={cn("flex items-center mb-1", layout.iconGap, layout.smallText, infoStyles.accent)}>
+              {item.server_name && (
+                <div className={cn("flex items-center mb-1", layout.iconGap, layout.smallText, "text-fg-3")}>
                   <Server className={layout.iconSizeSmall} />
-                  <span className="font-mono">{result.server_name}</span>
+                  <span className="font-mono">
+                    <Marked text={item.server_name} highlight={highlight} />
+                  </span>
                 </div>
               )}
 
-              {result.description && (
-                <div className={cn(layout.smallText, "mt-1", infoStyles.accent)}>
-                  {result.description}
+              {item.description && (
+                <div className={cn(layout.smallText, "mt-1 text-fg-2")}>
+                  <Marked text={item.description} highlight={highlight} />
                 </div>
               )}
             </div>
           ))}
         </div>
-      </ToolResultCard>
+      </ResultRow>
     );
   }
 );

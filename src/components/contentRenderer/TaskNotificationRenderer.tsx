@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /* eslint-disable react-refresh/only-export-components */
 /**
  * TaskNotificationRenderer - Mission Control style agent task dashboard
@@ -82,6 +84,7 @@ const TaskRow = memo(function TaskRow({
   notification: TaskNotification;
   index: number;
 }) {
+  const isExpandedContentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(
     `notification-${notification.taskId ?? index}`,
     false,
@@ -100,14 +103,14 @@ const TaskRow = memo(function TaskRow({
       isExpanded ? "bg-muted/30" : "hover:bg-muted/20"
     )}>
       {/* Task row - grid layout for alignment */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm" type="button"
         onClick={() => hasExpandableContent && onToggle()}
         disabled={!hasExpandableContent}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full grid grid-cols-[auto_1fr_auto_auto] items-center gap-3",
           "px-3 py-2 text-left",
           hasExpandableContent ? "cursor-pointer" : "cursor-default"
-        )}
+        ))}
       >
         {/* Index number */}
         <span className="text-caption font-mono text-muted-foreground/50 w-4 text-right">
@@ -167,10 +170,10 @@ const TaskRow = memo(function TaskRow({
             )} />
           )}
         </div>
-      </button>
+      </Button>
 
       {/* Expanded result content */}
-      {isExpanded && hasExpandableContent && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && hasExpandableContent && (
         <div className={cn(
           "px-3 pb-3 ml-7 mr-3",
           "animate-fade-in"
@@ -209,7 +212,7 @@ const TaskRow = memo(function TaskRow({
             </div>
           </div>
         </div>
-      )}
+      )}</div>
     </div>
   );
 });
@@ -221,6 +224,8 @@ const getPreviewLines = (text: string, lineCount: number = 3): string => {
 };
 
 export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({ text }: Props) {
+  const isGroupExpandedContentId = useId();
+  const isDetailsExpandedContentId = useId();
   const { t } = useTranslation();
 
   // Extract first task ID for unique group keys (stable across renders since text is immutable)
@@ -272,15 +277,15 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
         styles.container
       )}>
         {/* Header - Mission Control style */}
-        <button
+        <Button aria-expanded={isGroupExpanded} aria-controls={isGroupExpandedContentId} variant="ghost" size="sm" type="button"
           onClick={() => setIsGroupExpanded(prev => !prev)}
-          className={cn(
+          className={cn("h-auto whitespace-normal justify-start font-normal", cn(
             "w-full flex items-center justify-between",
             "px-3 py-2",
             "bg-gradient-to-r from-transparent via-muted/20 to-transparent",
             "hover:from-muted/10 hover:via-muted/30 hover:to-muted/10",
             "transition-all duration-200"
-          )}
+          ))}
         >
           {/* Left side: Icon + Title + Count */}
           <div className="flex items-center gap-2">
@@ -368,10 +373,10 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               </span>
             </div>
           </div>
-        </button>
+        </Button>
 
         {/* Task list */}
-        {isGroupExpanded && (
+        <div id={isGroupExpandedContentId} hidden={!isGroupExpanded}>{isGroupExpanded && (
           <div className={cn(
             "border-t border-border/50",
             "divide-y divide-border/30"
@@ -384,7 +389,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               />
             ))}
           </div>
-        )}
+        )}</div>
 
         {/* Remaining text - inside card as collapsible content section */}
         {remainingText && (
@@ -393,13 +398,13 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
             "bg-gradient-to-b from-muted/20 to-transparent"
           )}>
             {/* Section header - clickable */}
-            <button
+            <Button aria-expanded={isDetailsExpanded} aria-controls={isDetailsExpandedContentId} variant="ghost" size="sm" type="button"
               onClick={() => setIsDetailsExpanded(prev => !prev)}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "w-full flex items-center justify-between gap-2 px-3 py-1.5",
                 "hover:bg-muted/20 transition-colors",
                 "text-left"
-              )}
+              ))}
             >
               <div className="flex items-center gap-2">
                 <ChevronDown className={cn(
@@ -415,14 +420,14 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               <span className="text-caption text-muted-foreground/60">
                 {isDetailsExpanded ? "Collapse" : "Expand"}
               </span>
-            </button>
+            </Button>
 
             {/* Content - preview or full */}
             <div className={cn(
               "px-3 py-2.5",
               "border-t border-border/20"
             )}>
-              {isDetailsExpanded ? (
+              <div id={isDetailsExpandedContentId}>{isDetailsExpanded ? (
                 // Full content
                 <div className={cn(layout.prose, "text-caption animate-fade-in")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
@@ -448,7 +453,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                     {t("taskNotification.showMore")}
                   </span>
                 </div>
-              )}
+              )}</div>
             </div>
           </div>
         )}

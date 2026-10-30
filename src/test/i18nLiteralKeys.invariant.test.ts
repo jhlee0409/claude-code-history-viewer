@@ -23,10 +23,6 @@ const SRC = path.resolve(__dirname, "..");
 const LOCALES = ["en", "ko", "ja", "zh-CN", "zh-TW"] as const;
 
 const KNOWN_MISSING = new Set([
-  "assistantMessageDetails.cost",
-  "assistantMessageDetails.duration",
-  "assistantMessageDetails.reasoning",
-  "assistantMessageDetails.tokenUsageLabel",
   "common.provider.filterApplyError",
   "error.invalidPresetMcpServers",
   "error.invalidPresetSettings",

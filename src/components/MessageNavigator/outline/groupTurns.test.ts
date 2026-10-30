@@ -152,15 +152,17 @@ describe("groupTurns", () => {
       }),
     ]));
 
-    expect(groups).toHaveLength(1);
+    expect(groups).toHaveLength(2);
     expect(groups[0].counts).toEqual({
       replies: 1,
       // r1 (2 tool_use blocks) + r2 (1) = 3; r3 is a "tool" row carrying no
       // tool_use content block (toolUseResult only), so it contributes 0.
       toolCalls: 3,
-      agentsStarted: 2,
-      agentUpdates: 1,
+      agentsStarted: 0,
+      agentUpdates: 0,
     });
+    expect(groups[1].kind).toBe("automated");
+    expect(groups[1].counts).toEqual({ replies: 0, toolCalls: 0, agentsStarted: 2, agentUpdates: 1 });
   });
 
   it("does not count a task with zero updates among agentsStarted (none observed yet)", () => {
@@ -184,7 +186,7 @@ describe("groupTurns", () => {
       }),
     ]));
 
-    const children = groups[0].children;
+    const children = groups[1].children;
     expect(children).toHaveLength(2);
     expect(children.every((c) => c.type === "task")).toBe(true);
     const taskA = children[0] as OutlineTaskChild;
@@ -195,63 +197,54 @@ describe("groupTurns", () => {
     expect(taskB.updateCount).toBe(1);
   });
 
-  it("merges later updates for the same task id into the same row, bumping updateCount", () => {
+  it("merges batched updates for the same task id into the same row, bumping updateCount", () => {
     const groups = groupTurns(rows([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A starting</summary></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A halfway</summary></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A starting</summary></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>running</status><summary>Task A halfway</summary></task-notification>",
       }),
     ]));
 
-    const children = groups[0].children;
+    const children = groups[1].children;
     expect(children).toHaveLength(1);
     const task = children[0] as OutlineTaskChild;
     expect(task.updateCount).toBe(2);
     expect(task.label).toBe("Task A halfway");
-    expect(task.navigateUuid).toBe("a2");
-    expect(task.uuids).toEqual(["a1", "a2"]);
+    expect(task.navigateUuid).toBe("a1");
+    expect(task.uuids).toEqual(["a1"]);
     expect(task.timestamp).toBe("2026-09-26T06:29:32.477Z");
   });
 
-  it("lists each row once in a task's uuids, even when one row holds several of its blocks", () => {
+  it("lists a batch once in a task's uuids, even when one row holds several of its blocks", () => {
     const groups = groupTurns(rows([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
         content:
           "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>" +
-          "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>completed</status></task-notification>",
+          "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>completed</status></task-notification>",
       }),
     ]));
 
-    const task = groups[0].children[0] as OutlineTaskChild;
+    const task = groups[1].children[0] as OutlineTaskChild;
     expect(task.updateCount).toBe(3);
-    expect(task.uuids).toEqual(["a1", "a2"]);
+    expect(task.uuids).toEqual(["a1"]);
   });
 
-  it("keeps a task's status failed even when a later block reports a different non-failed status", () => {
+  it("keeps a task's status failed even when a later batched block reports a different non-failed status", () => {
     const groups = groupTurns(rows([
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>failed</status><summary>Task A failed</summary></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>completed</status><summary>Task A completed</summary></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>failed</status><summary>Task A failed</summary></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>completed</status><summary>Task A completed</summary></task-notification>",
       }),
     ]));
 
-    const task = groups[0].children[0] as OutlineTaskChild;
+    const task = groups[1].children[0] as OutlineTaskChild;
     expect(task.status).toBe("failed");
     // The label still tracks the last non-empty summary regardless of status.
     expect(task.label).toBe("Task A completed");
@@ -262,15 +255,12 @@ describe("groupTurns", () => {
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>completed</status></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>completed</status></task-notification>",
       }),
     ]));
 
-    const task = groups[0].children[0] as OutlineTaskChild;
+    const task = groups[1].children[0] as OutlineTaskChild;
     expect(task.status).toBe("completed");
   });
 
@@ -279,15 +269,12 @@ describe("groupTurns", () => {
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>failed</status></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>running</status></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>failed</status></task-notification>",
       }),
     ]));
 
-    const task = groups[0].children[0] as OutlineTaskChild;
+    const task = groups[1].children[0] as OutlineTaskChild;
     expect(task.status).toBe("failed");
   });
 
@@ -296,15 +283,12 @@ describe("groupTurns", () => {
       makeMessage({ uuid: "p1", content: "Launch an agent" }),
       makeMessage({
         uuid: "a1",
-        content: "<task-notification><task-id>task-a</task-id><status>failed</status></task-notification>",
-      }),
-      makeMessage({
-        uuid: "a2",
-        content: "<task-notification><task-id>task-a</task-id><status>error</status></task-notification>",
+        content: "<task-notification><task-id>task-a</task-id><status>failed</status></task-notification>" +
+          "<task-notification><task-id>task-a</task-id><status>error</status></task-notification>",
       }),
     ]));
 
-    const task = groups[0].children[0] as OutlineTaskChild;
+    const task = groups[1].children[0] as OutlineTaskChild;
     expect(task.status).toBe("error");
   });
 
@@ -317,12 +301,12 @@ describe("groupTurns", () => {
       }),
     ]));
 
-    const children = groups[0].children;
+    const children = groups[1].children;
     expect(children).toHaveLength(1);
     const task = children[0] as OutlineTaskChild;
     expect(task.type).toBe("task");
     expect(task.taskId).toBeUndefined();
-    expect(task.key).toBe("p1::task:a1:0");
+    expect(task.key).toBe("a1::task:a1:0");
   });
 
   it("builds unique child keys across different turns for the same task id", () => {
@@ -339,11 +323,11 @@ describe("groupTurns", () => {
       }),
     ]));
 
-    expect(groups).toHaveLength(2);
-    const firstTurnKey = (groups[0].children[0] as OutlineTaskChild).key;
-    const secondTurnKey = (groups[1].children[0] as OutlineTaskChild).key;
-    expect(firstTurnKey).toBe("p1::task:task-a");
-    expect(secondTurnKey).toBe("p2::task:task-a");
+    expect(groups).toHaveLength(4);
+    const firstTurnKey = (groups[1].children[0] as OutlineTaskChild).key;
+    const secondTurnKey = (groups[3].children[0] as OutlineTaskChild).key;
+    expect(firstTurnKey).toBe("a1::task:task-a");
+    expect(secondTurnKey).toBe("a2::task:task-a");
     expect(firstTurnKey).not.toBe(secondTurnKey);
   });
 
@@ -356,7 +340,8 @@ describe("groupTurns", () => {
       }),
     ]));
 
-    expect(groups[0].uuids).toEqual(["p1", "a1"]);
+    expect(groups[0].uuids).toEqual(["p1"]);
+    expect(groups[1].uuids).toEqual(["a1"]);
   });
 
   describe("activity summary row", () => {
@@ -470,7 +455,7 @@ describe("groupTurns", () => {
       expect(children[1]).toMatchObject({ type: "message", key: "s1" });
     });
 
-    it("places the activity row at the position of the first collapsed row, interleaved with a task row", () => {
+    it("separates activity before and after a notification cycle", () => {
       const groups = groupTurns(rows([
         makeMessage({ uuid: "p1", content: "Launch an agent and reply" }),
         makeMessage({
@@ -492,12 +477,13 @@ describe("groupTurns", () => {
       ]));
 
       const children = groups[0].children;
-      expect(children.map((c) => c.type)).toEqual(["activity", "task"]);
+      expect(children.map((c) => c.type)).toEqual(["activity"]);
       const activity = children[0] as OutlineActivityChild;
-      // Later collapsed rows (r2) merge into the existing activity child
-      // instead of moving its position or creating a second one.
-      expect(activity.uuids).toEqual(["r1", "r2"]);
-      expect(activity.replies).toBe(2);
+      // The automated cycle owns the later reply instead of the human turn.
+      expect(activity.uuids).toEqual(["r1"]);
+      expect(activity.replies).toBe(1);
+      expect(groups[1].children.map(c => c.type)).toEqual(["task", "activity"]);
+      expect(groups[1].counts.replies).toBe(1);
     });
   });
 });

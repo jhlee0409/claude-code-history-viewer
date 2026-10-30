@@ -54,13 +54,14 @@ const baseText = (results: ToolResultLike[]) => {
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const NON_TEXT_BLOCKS: Array<[string, Record<string, unknown>, string]> = [
-  // The existing tool-result renderers show an image block as its recorded JSON.
+  // The existing tool-result renderers show an image block as the image (TR1b; before, its recorded JSON).
   ["image", { type: "image", source: { type: "base64", media_type: "image/png", data: PNG } }, PNG],
   ["document", { type: "document", title: "PRESERVE_ME_DOCUMENT", source: { type: "text", media_type: "text/plain", data: "DOCUMENT_BODY" } }, "PRESERVE_ME_DOCUMENT"],
   ["search_result", { type: "search_result", title: "PRESERVE_ME_SEARCH", source: "https://example.com/r", content: [{ type: "text", text: "SEARCH_BODY" }] }, "PRESERVE_ME_SEARCH"],
   ["unknown type", { type: "novel-type", marker: "PRESERVE_ME_UNKNOWN" }, "PRESERVE_ME_UNKNOWN"],
 ];
-const shows = (container: HTMLElement, marker: string) => (container.textContent ?? "").includes(marker);
+const shows = (container: HTMLElement, marker: string) =>
+  (container.textContent ?? "").includes(marker) || [...container.querySelectorAll("img")].some((img) => (img.getAttribute("src") ?? "").includes(marker));
 
 beforeAll(async () => {
   await i18n.changeLanguage("en");
@@ -255,8 +256,13 @@ describe("ToolResultOutputs: only content the stream path showed is left out (re
     expect(text).not.toContain("No output");
   });
 
-  it("'No output' when the only content is a consumed, empty stream record", () => {
+  it("empty streams retain unshown false flags as recorded data", () => {
     const view = outputs([result({ stdout: "", stderr: "", exitCode: 0, interrupted: false, isImage: false })], "process");
+    const json = view.container.querySelector('[data-output-text]');
+    expect(JSON.parse(json?.textContent ?? 'null')).toEqual({ interrupted: false, isImage: false });
+  });
+  it("'No output' when every field of an empty stream is actually shown by its owner", () => {
+    const view = outputs([result({ stdout: "", stderr: "", exitCode: 0 })], "process");
     expect(view.container.textContent).toContain("No output");
   });
 });

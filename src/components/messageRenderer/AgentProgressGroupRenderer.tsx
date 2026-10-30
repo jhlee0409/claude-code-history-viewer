@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /**
  * AgentProgressGroupRenderer - Renders grouped agent progress logs
  *
@@ -122,6 +124,7 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
   entries,
   agentId,
 }: AgentProgressGroupRendererProps) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("progress", false);
   const styles = getVariantStyles("info");
@@ -146,13 +149,13 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
   return (
     <div className={cn(layout.rounded, "border overflow-hidden", styles.container)}>
       {/* Header */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-3 py-2 text-left",
           "hover:bg-muted/30 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -191,10 +194,10 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
           {isCompleted && <CircleCheck className="w-3.5 h-3.5 text-success" />}
           {hasError && <CircleAlert className="w-3.5 h-3.5 text-destructive" />}
         </div>
-      </button>
+      </Button>
 
       {/* Expanded Progress List */}
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className="border-t border-border/50 max-h-64 overflow-y-auto">
           {entries.map((entry, index) => (
             <ProgressEntry
@@ -204,7 +207,7 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
             />
           ))}
         </div>
-      )}
+      )}</div>
     </div>
   );
 });

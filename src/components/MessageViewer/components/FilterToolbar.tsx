@@ -1,6 +1,7 @@
 import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
 import { useAppStore } from "../../../store/useAppStore";
 
 interface FilterToggleProps {
@@ -15,23 +16,24 @@ interface FilterToggleProps {
 function FilterToggle({ active, onClick, label, icon, disabledReason }: FilterToggleProps) {
   const disabled = disabledReason != null;
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
+    <ChipToggle
+      pressed={active}
+      onPressedChange={onClick}
+      // aria-disabled keeps the toggle focusable, so its tooltip still says why.
+      aria-disabled={disabled || undefined}
       className={cn(
         "flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border transition-colors",
-        disabled && "opacity-40 cursor-not-allowed",
         active
           ? "bg-accent/15 text-accent border-accent/30"
-          : "bg-transparent text-muted-foreground border-transparent enabled:hover:text-foreground enabled:hover:bg-muted/50"
+          : "bg-transparent text-muted-foreground border-transparent",
+        !active && !disabled && "hover:text-foreground hover:bg-muted/50"
       )}
-      aria-pressed={active}
       aria-label={label}
       title={disabledReason ?? label}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </ChipToggle>
   );
 }
 
@@ -58,7 +60,8 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
   const isActive = !isApiViewOpen && isMessageFilterActive();
 
   return (
-    <div
+    <ChipToggleGroup
+      aria-label={t("filter.title")}
       className={cn(
         "flex flex-wrap items-center gap-1.5 px-3 py-1 border-b border-border/30 shrink-0 min-h-[32px]",
         isActive && "bg-accent/5"
@@ -132,7 +135,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
             onClick={() => toggleContentType("parallelTasks")}
             label={t("filter.content.parallelTasks")}
             icon={<Zap className="w-3.5 h-3.5" />}
-          disabledReason={filtersOff}
+            disabledReason={filtersOff}
           />
         )}
       </div>
@@ -159,6 +162,6 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           </button>
         </>
       )}
-    </div>
+    </ChipToggleGroup>
   );
 }

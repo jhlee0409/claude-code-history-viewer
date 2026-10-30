@@ -76,11 +76,87 @@ looked up from another message/session or cached by tool ID.
 Claude pagination still slices in pre-merge index space and merges only within
 the returned window. An orphan receives its own metadata without loading an
 older page. Other providers still materialize, merge and slice in post-merge
-space; their normalized content variants are not rewritten, and this contract
-does not promise raw metadata their loaders never expose.
+space.
+
+## Codex structured output (TRbe bounded slice)
+
+For Codex `function_call_output` and `custom_tool_call_output`, when `output`
+is a JSON string decoding to an object with its own `output` property, the
+**entire decoded wrapper** is preserved as the result block's `toolUseResult`.
+The legacy normalized `content` remains that inner `output`, including null or
+empty output. Wrapper fields such as `metadata.exit_code` and interruption
+signals, unknown fields and all JSON value distinctions are retained without
+renaming or deriving a verdict. This is decoded JSON preservation, not a copy
+of the wrapper's original JSON encoding/whitespace.
+
+`toolUseResultSource` uses the source output item's ID (or the existing
+`codex-N` fallback UUID), current rollout session ID and `contentIndex: 0` — the
+single normalized result's position **before either merge**, not a byte offset,
+raw JSONL line number, or its final assistant content position. The payload is
+attached before Codex's provider-local merge; duplicate call IDs, replay and
+out-of-order results never replace another result's metadata. Existing legacy
+call placement is unchanged and is not proof of a unique originating call.
+
+Plain output strings (including `Process exited ...` prose), JSON strings
+without an `output` property, and already-object output retain their previous
+content representation and do not gain these fields. Already-object metadata
+is already present in `content`; it is not duplicated into a new envelope.
+No missing exit code or interruption flag is synthesized. Open Interpreter
+shares this parser and receives the same preservation, retaining its own
+provider tag and history-root guard. Codex/Open Interpreter search matches the
+legacy display fields only, excluding these additive envelopes from matching
+while retaining them on returned results. This avoids new hidden-metadata
+search hits. The Codex slice alone is not proof for other provider pathways.
 
 Old responses without these optional properties remain valid. Consumers must
 handle absent/unassigned/unknown data without inventing success, failure,
 interruption or process status. The API adapter passes the entire JSON through
 in both transports. This prerequisite does not implement TR0 UI, outcome
 normalization, grouping eligibility, raw-history access, or new permissions.
+
+## OpenHands / OpenCode-Kilo / Pi-OMP continuation
+
+- **OpenHands classic** observation `extras` becomes that observation result's
+  `toolUseResult`; missing extras adds neither field. Provenance identifies the
+  observation UUID/session and its sole normalized result (`contentIndex:0`).
+- **OpenCode / Kilo core** emitted tool results retain the exact part `state`
+  in `toolUseResult`. Provenance identifies the owning message/session,
+  normalized pre-merge result `contentIndex`, and ordered decoded `partIndex`.
+  No exit-code field or result for running/missing/null state is invented.
+- **Pi / OMP** `toolResult` retains its complete raw nested `message` (including
+  optional opaque `details`) in `toolUseResult`. Provenance is source entry
+  ID/session, `contentIndex:0`, `association:"single_result"`.
+
+Pi/OMP `bashExecution` is a distinct local execution, not an assistant tool
+result. Its existing string `content`, system type and `bash_execution` subtype
+remain unchanged. Only that source message receives this optional **message**
+property (absent on all other messages):
+
+```json
+{
+  "sourceExecution": {
+    "messageUuid": "source-entry-id",
+    "sessionId": "source-session",
+    "association": "local_execution",
+    "message": {
+      "role": "bashExecution",
+      "command": "true",
+      "output": "",
+      "exitCode": 0,
+      "cancelled": false,
+      "truncated": false,
+      "timestamp": 1759276800000
+    }
+  }
+}
+```
+
+The nested message is the recorded JSON, not a reconstructed schema. Missing,
+explicit null, false, zero and unknown properties stay distinct. It is never
+broadcast to an assistant call or session siblings. No `toolUseResult` is
+fabricated for a local execution. Legacy responses without `sourceExecution`
+remain valid. No frontend type/adapter/UI change is included.
+
+See [provider scope and verification boundaries](provider-result-evidence-scope.md)
+for store coverage, source index semantics, full-response baselines and remaining
+unverified pathways. This remains partial TRbe, not all-provider certification.

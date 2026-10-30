@@ -27,7 +27,6 @@ export type OutcomeReason =
   | "interrupted"
   | "provider-error"
   | "api-error-code"
-  | "error-content"
   | "exit-nonzero"
   | "exit-zero"
   | "conflict"
@@ -50,10 +49,11 @@ export interface ToolOutcome {
 
 /**
  * process: has an exit code (shell, exec, code execution).
- * read-search: reads or searches; their errors are recorded only as error
- * signals, so "a result and no error signal" is their evidence of success.
- * other: edits, MCP, agents … — completed but unknown unless an error or an
- * exit code is recorded.
+ * read-search: reads or searches; producer no-error evidence establishes success.
+ * Claude's optional is_error defaults to no-error; other providers need an
+ * explicit no-error flag or named OpenCode/Kilo built-in completed state.
+ * Other: Claude edits, Pi edit/write, OMP edit and named core built-ins use
+ * their producer no-error convention; opaque tools stay unknown.
  */
 export type ToolFamily = "process" | "read-search" | "other";
 
@@ -65,8 +65,6 @@ export interface NormalizedResult {
   isError?: boolean;
   /** API error code (`error_code`) from the content object or own metadata. */
   errorCode?: string;
-  /** The content string when it is an error message (`^error\b`). */
-  errorText?: string;
   /** A recorded integer exit code. */
   exitCode?: number;
   /** Two recorded exit codes for this one result disagree. */
@@ -77,9 +75,6 @@ export interface NormalizedResult {
   /** The block's content when it is a plain string, as recorded. */
   text?: string;
 }
-
-/** The existing error-string rule: a result whose content starts with `error`. */
-export const ERROR_TEXT_PATTERN = /^error\b/i;
 
 // ---------------------------------------------------------------------------
 // Families
@@ -93,6 +88,8 @@ const PROCESS_TOOLS = new Set([
   "local_shell",
   "run_shell_command",
   "run_terminal_cmd",
+  "shell_command",
+  "run",
   "terminal",
   "code_execution",
   "bash_code_execution",
@@ -112,6 +109,32 @@ const READ_SEARCH_TOOLS = new Set([
   "webfetch",
   "web_fetch",
 ]);
+
+// Exact backend-delivered names, not raw producer IDs; no lowercasing/aliases.
+// OpenCode @b9a39b816c92592e824c68cdc9a48acf7717e2a2, packages/opencode/src/tool/:
+// read.ts:31-90; grep.ts:16-48; glob.ts:19-56; ls.ts:37-109 (ToolID list);
+// edit.ts:31-74,605-639; write.ts:20-45; webfetch.ts:23-88.
+// glob/list propagate file/ripgrep.ts:206-224 missing-directory rejection.
+// These throw/reject failures; prompt.ts:1115-1160 maps them to error.
+// https://github.com/anomalyco/opencode/tree/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool
+// MCP is NOT covered: prompt.ts:598-644 ignores result.isError, and
+// ai@5.0.8 (718e5291) mcp-client.ts:287-307 returns it without throwing.
+// https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644
+// https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
+// Backend @f0e8317: opencode.rs:1461-1511,1675-1691 emits only the
+// normalized name, not part.tool; Kilo uses that route (kilo.rs:181).
+// read/glob/edit/write/webfetch -> Read/Glob/Edit/Write/WebFetch; list unchanged.
+// grep AND MCP grep_* -> Grep: keep ambiguous Grep unknown until item ②
+// preserves raw IDs (built-in grep success/folding is intentionally deferred).
+// https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
+// Kilo @0a9faeff registry.ts:274-335 has no list built-in (nor tool/ls.ts).
+// https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335
+// Historical Kilo MCP/list is unverified; no completion exception for either.
+// A plugin literally named Read etc. cannot be distinguished without raw IDs.
+const CORE_NO_ERROR_TOOLS = new Set(["Read", "Glob", "Edit", "Write", "WebFetch"]);
+const coreNoErrorTool = (provider?: string, name?: string): boolean =>
+  ((provider === "opencode" || provider === "kilo") && CORE_NO_ERROR_TOOLS.has(name ?? "")) ||
+  (provider === "opencode" && name === "list");
 
 export function toolFamily(name: string): ToolFamily {
   const key = name.toLowerCase();
@@ -152,7 +175,7 @@ const recordedInteger = (value: unknown): number | undefined =>
  */
 export function normalizeResult(
   result: ToolResultLike,
-  options: { bareCodeIsExitCode?: boolean } = {},
+  options: { bareCodeIsExitCode?: boolean; provider?: string; toolName?: string } = {},
 ): NormalizedResult {
   const out: NormalizedResult = {};
   const content = result.content;
@@ -161,11 +184,82 @@ export function normalizeResult(
   const nested = (o: Record<string, unknown> | null) => (o && isPlainObject(o.result) ? o.result : null);
   // Where the fields may sit: own metadata, the content object, then a nested
   // `result` object inside either.
-  const sources = [own, contentObject, nested(own), nested(contentObject)].filter(
+  const legacy = options.provider === undefined || options.provider === "claude";
+  const codex = options.provider === "codex" || options.provider === "openinterpreter";
+  const openhands = options.provider === "openhands";
+  const core = options.provider === "opencode" || options.provider === "kilo";
+  // #749 has distinct source contracts. Opaque Pi details and OpenCode
+  // extension metadata are deliberately NOT generic execution schemas.
+  const metadata = own && isPlainObject(own.metadata) ? own.metadata : null;
+  const sources = (legacy ? [own, contentObject, nested(own), nested(contentObject)] : codex ? [own, metadata, contentObject] : openhands ? [metadata] : []).filter(
     (s): s is Record<string, unknown> => s !== null,
   );
 
-  if (typeof result.is_error === "boolean") out.isError = result.is_error;
+  // OpenHands has no producer is_error field: the backend sets it from
+  // observation == "error". Its false default is NOT recorded no-error evidence.
+  // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
+  if (typeof result.is_error === "boolean" && (!openhands || result.is_error)) out.isError = result.is_error;
+  // Legacy MCP router records carry an explicit error union. This is not a
+  // generic `error`-key heuristic: other providers keep their opaque schemas.
+  if (legacy && contentObject &&
+    (contentObject.type === "mcp_tool_call" || typeof contentObject.server === "string") &&
+    (typeof contentObject.method === "string" || typeof contentObject.function === "string")) {
+    const error = contentObject.error;
+    if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
+  }
+  if (core && own) {
+    // For non-process tools a normal return is completed; throws become error.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
+    // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
+    // Bash completion is lifecycle only; cancelled is not a source enum.
+    if (own.status === "error") {
+      out.isError = true;
+      // c29392d0 introduced this abort flag; b9a39b8 prompt.ts:1300-1318
+      // had only an error string. The backend preserves the full part.state
+      // (opencode.rs:1493-1511; result_evidence.rs:4-9; shared by kilo.rs:181).
+      // Kilo independently writes the same abort state. Completed metadata is
+      // arbitrary tool output, not this lifecycle signal; require strict true.
+      // https://github.com/anomalyco/opencode/blob/c29392d0857f11208753bd95be76c6069c070289/packages/opencode/src/session/processor.ts#L402-L415
+      // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
+      if (metadata?.interrupted === true) out.interrupted = true;
+    }
+    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
+    // Bash alone owns metadata.exit. Do not promote arbitrary extension data
+    // from a non-process tool. #752/4415170647 confused completion and success.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
+    // https://github.com/anomalyco/opencode/blob/37bb07e7a313d7150038061dbba670410eb0469d/packages/opencode/src/tool/bash.ts#L318-L333
+    // Kilo independently verified (not inferred from its fork relationship):
+    // https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L508-L566
+    if (options.bareCodeIsExitCode && own.status === "completed") {
+      const exit = recordedInteger(metadata?.exit);
+      if (exit !== undefined) out.exitCode = exit;
+      const output = typeof own.output === "string" ? own.output : "";
+      // Only source-appended, end-anchored markers, under the source state.
+      // These establish interruption, never a numeric exit or success.
+      if (options.provider === "opencode") {
+        out.interrupted = /\n\n\(Command (?:was aborted|timed out after \d+ ms)\)$/.test(output);
+      } else {
+        // Current Kilo keeps ToolID bash, but changed the wrapper and timeout grammar.
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L687-L723
+        // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41
+        // Both writers return null on abort/timeout, numeric exit on normal return.
+        // Ordinary process output can print these exact suffixes: null is required.
+        // shell.ts:662-683,687-723; historical bash.ts:508-566 above.
+        out.interrupted = metadata?.exit === null && (
+          /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output) ||
+          /\n\n<shell_metadata>\n(?:User aborted the command|shell tool terminated command after exceeding (?:environment )?timeout \d+ ms\.)(?:(?!\n<\/shell_metadata>)[\s\S])*\n<\/shell_metadata>$/.test(output)
+        );
+      }
+    }
+  }
+  // Pi/OMP record booleans on toolResult; details is opaque. The real pi.rs
+  // route maps absent isError to block false (item ② provenance gap) and does
+  // not attach toolUseResult. Keep this own-metadata compatibility path only.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/bash.ts#L400-L408
+  // Local structural scan: 18279 false toolResults, 53 error-prefixed outputs.
+  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean") {
+    out.isError = own.isError || out.isError === true;
+  }
 
   for (const source of [contentObject, own]) {
     if (source && typeof source.error_code === "string" && source.error_code.length > 0) {
@@ -176,7 +270,6 @@ export function normalizeResult(
 
   if (typeof content === "string") {
     out.text = content;
-    if (ERROR_TEXT_PATTERN.test(content)) out.errorText = content;
   }
 
   const keys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
@@ -184,7 +277,10 @@ export function normalizeResult(
   for (const source of sources) {
     for (const key of keys) {
       const code = recordedInteger(source[key]);
-      if (code !== undefined) codes.push(code);
+      // -1 is OpenHands' "no PS1 metadata available", not a process failure.
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/events/observation/commands.py#L21-L31
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/runtime/utils/bash.py#L375-L414
+      if (code !== undefined && !(openhands && code === -1)) codes.push(code);
     }
   }
   if (codes.length > 0) {
@@ -249,35 +345,40 @@ const blockText = (block: unknown): string | null => {
 };
 
 /**
- * Is `o` exactly what the stream path shows for this result? Every key must
- * be a stream / outcome field `normalizeResult` reads at this level, holding
- * the value it shows (`shown`); `result` may hold one more such record (the
- * normalizer reads one level down, no deeper). `isImage` is a flag the
- * normalizer knows and shows nothing for. Anything else — an extra key, a
+ * Keep the fields the stream path and owning row did not faithfully show.
+ * Only consume a field `normalizeResult` reads here with its displayed value
+ * (`shown`); `result` may hold one more such record (the
+ * normalizer reads one level down, no deeper). An unshown `isImage` flag
+ * or `interrupted:false` stays recorded data. Anything else — an extra key, a
  * deeper `result`, a value of another type or one another source outranked,
  * an empty object — is not consumed and stays in the parts.
  */
-function consumedByStreams(o: Record<string, unknown>, shown: NormalizedResult, exitKeys: readonly string[], nested: boolean): boolean {
-  const entries = Object.entries(o);
-  return entries.length > 0 && entries.every(([key, value]) => {
+function streamRemainder(o: Record<string, unknown>, shown: NormalizedResult, exitKeys: readonly string[], nested: boolean, outcomeShown: boolean): Record<string, unknown> {
+  const consumed = (key: string, value: unknown): boolean => {
     if (key === "stdout") return typeof value === "string" && value === shown.stdout;
     if (key === "stderr") return typeof value === "string" && value === shown.stderr;
+    if (!outcomeShown) return false;
     if (exitKeys.includes(key)) return recordedInteger(value) !== undefined && value === shown.exitCode && shown.exitCodeConflict !== true;
-    if (key === "interrupted") return typeof value === "boolean" && value === shown.interrupted;
-    if (key === "isImage") return typeof value === "boolean";
+    if (key === "interrupted") return value === true && shown.interrupted === true;
     if (key === "error_code") return !nested && typeof value === "string" && value === shown.errorCode;
-    if (key === "result") return !nested && isPlainObject(value) && consumedByStreams(value, shown, exitKeys, true);
     return false;
-  });
+  };
+  return Object.fromEntries(Object.entries(o).flatMap(([key, value]) => {
+    if (key === "result" && !nested && isPlainObject(value) && Object.keys(value).length > 0) {
+      const rest = streamRemainder(value, shown, exitKeys, true, outcomeShown);
+      return Object.keys(rest).length > 0 ? [[key, rest]] : [];
+    }
+    return consumed(key, value) ? [] : [[key, value]];
+  }));
 }
 
 /**
  * The result's content as ordered parts. Contiguous text runs (a string, or
  * text blocks joined by "\n") and contiguous non-text runs each become one
- * part, in recorded order. A content object is left out only when
- * `consumedByStreams` says the stream path already shows all of it.
+ * part, in recorded order. Stream objects retain the fields the stream path
+ * and owning row do not show, without repeating the streams themselves.
  */
-export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean } = {}): ResultContent {
+export function resultContent(result: ToolResultLike, options: { bareCodeIsExitCode?: boolean; provider?: string; outcomeShown?: boolean } = {}): ResultContent {
   const content = result.content;
   if (content === undefined || content === null) return { recorded: false, parts: [] };
   if (typeof content === "string") return { recorded: true, parts: [{ kind: "text", text: content }] };
@@ -311,11 +412,14 @@ export function resultContent(result: ToolResultLike, options: { bareCodeIsExitC
     const text = blockText(content);
     if (text !== null) return { recorded: true, parts: [{ kind: "text", text }] };
     const exitKeys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
-    if (consumedByStreams(content, normalizeResult(result, options), exitKeys, false)) return { recorded: true, parts: [] };
     const streamKeys = new Set([...STREAM_FIELDS, ...exitKeys]);
     const streamShaped = (o: Record<string, unknown>) => Object.keys(o).some((key) => streamKeys.has(key));
     const generic = streamShaped(content) || (isPlainObject(content.result) && streamShaped(content.result));
-    return { recorded: true, parts: [generic ? { kind: "other", value: content, generic: true } : { kind: "other", value: content }] };
+    if (generic) {
+      const rest = streamRemainder(content, normalizeResult(result, options), exitKeys, false, options.outcomeShown !== false);
+      return { recorded: true, parts: Object.keys(rest).length > 0 ? [{ kind: "other", value: rest, generic: true }] : [] };
+    }
+    return { recorded: true, parts: [{ kind: "other", value: content }] };
   }
   // A number or boolean content: shown as recorded.
   return { recorded: true, parts: [{ kind: "text", text: String(content) }] };
@@ -341,6 +445,53 @@ export function writeConfirmationPath(result: ToolResultLike): string | null {
   if (text === null) return null;
   const match = WRITE_CONFIRMATION.exec(text.replace(/\n+$/, ""));
   return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
+/**
+ * Claude's Edit confirmation, as its tool records it: "The file <path> has
+ * been updated successfully." (real history, optionally with the
+ * "file state is current" note), the shorter "The file <path> has been
+ * updated.", and the older sentence without its `cat -n` snippet (the
+ * harness fixtures' shapes). A sentence followed by a
+ * snippet, or by any other note ("the file had been modified on disk …"),
+ * records more than the diff shows and is not a confirmation.
+ */
+const EDIT_CONFIRMATION =
+  /^(?:The file (.+?) has been updated(?: successfully)?\.(?: \(file state is current in your context — no need to Read it back\))?|The file (.+?) has been updated\. Here's the result of running `cat -n` on a snippet of the edited file[.:]?)$/;
+
+/**
+ * The path an Edit / MultiEdit result confirms, when its whole content is
+ * exactly that confirmation sentence (a string or one text block) and
+ * nothing records an error; otherwise `null`: the result is shown as
+ * recorded (review round 1 of PR #746, F1).
+ */
+export function editConfirmationPath(result: ToolResultLike): string | null {
+  if (result.is_error === true) return null;
+  const content = result.content;
+  const text = Array.isArray(content) ? (content.length === 1 ? blockText(content[0]) : null) : blockText(content);
+  if (text === null) return null;
+  const match = EDIT_CONFIRMATION.exec(text.replace(/\n+$/, ""));
+  return match ? (match[1] ?? match[2] ?? null) : null;
+}
+
+/**
+ * The results without the confirmation sentences (`confirms` gives the path
+ * a result confirms, or null) that name `filePath`, the row's own file —
+ * the one thing a Write / Edit row already says. A confirmation's own
+ * stdout / stderr still render (its content emptied); any other result is
+ * passed as is.
+ */
+export function withoutOwnConfirmations(
+  results: ToolResultLike[],
+  filePath: string,
+  confirms: (result: ToolResultLike) => string | null,
+): ToolResultLike[] {
+  return results.flatMap((result) => {
+    if (filePath === "" || confirms(result) !== filePath) return [result];
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
 }
 
 /**
@@ -393,9 +544,11 @@ export function hasShownResults(results: ToolResultLike[]): boolean {
 }
 
 /**
- * The first recorded text of the results, as the Agent and Workflow cards
- * have always read it: a string content, or the first text block of a
- * content array (one block, not the run). `null` when none records text.
+ * The first recorded text of the results, wherever it sits: a string
+ * content, or the first text block of a content array (one block, not the
+ * run). `null` when none records text. A value to read (the Workflow run id),
+ * never a slot to render: a card that shows a text apart from the other parts
+ * takes it with `splitLeadingResultText`, which keeps the recorded order.
  */
 export function firstResultText(results: ToolResultLike[]): string | null {
   for (const result of results) {
@@ -410,9 +563,94 @@ export function firstResultText(results: ToolResultLike[]): string | null {
   return null;
 }
 
+/** A card's leading result text and every part after it (`splitLeadingResultText`). */
+export interface LeadingResultText {
+  /** The text the results record first, or `null` when their first part is not text. */
+  text: string | null;
+  /** Everything else, in recorded order: all the results when `text` is null. */
+  rest: ToolResultLike[];
+}
+
+/**
+ * The text a card may show on its own (the Agent card's prose) and the parts
+ * that follow it (review round 2 of PR #746, R2-F1). Only the very first part
+ * the results record can be lifted: the first result's string content, or
+ * the first block of its content array when that block is text. Then `rest`
+ * is that result's other blocks and streams, and every later result, in
+ * recorded order (a result left with neither is dropped: nothing of it
+ * remains). When the first part is anything else (an image, a document, an
+ * empty first result, no content) nothing is lifted and `rest` is the results
+ * as recorded, so a text is never shown ahead of a part recorded before it.
+ */
+export function splitLeadingResultText(results: ToolResultLike[]): LeadingResultText {
+  const [first, ...later] = results;
+  if (!first) return { text: null, rest: [] };
+  const content = first.content;
+  const lead = Array.isArray(content) ? content[0] : undefined;
+  let text: string;
+  let remaining: unknown[];
+  if (typeof content === "string") {
+    text = content;
+    remaining = [];
+  } else if (Array.isArray(content) && isPlainObject(lead) && lead.type === "text" && "text" in lead) {
+    text = String(lead.text);
+    remaining = content.slice(1);
+  } else {
+    return { text: null, rest: results };
+  }
+  const n = normalizeResult(first);
+  const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+  const head = remaining.length > 0 ? [{ ...first, content: remaining }] : streamText ? [{ ...first, content: "" }] : [];
+  return { text, rest: [...head, ...later] };
+}
+
 /** What the existing result renderers draw for a result: its content, or the block itself when it records none. */
 export function rendererContent(result: ToolResultLike): Record<string, unknown> | string | unknown[] {
   return (result.content ?? result) as Record<string, unknown> | string | unknown[];
+}
+
+/** Metadata not consumed by the outcome/output view. Never changes the raw result. */
+export function recordedResultFields(result: ToolResultLike, provider?: string): unknown {
+  if (!provider || provider === "claude" || !Object.hasOwn(result, "toolUseResult")) return undefined;
+  const own = result.toolUseResult;
+  if (!isPlainObject(own)) return own;
+  const n = normalizeResult(result, { provider, bareCodeIsExitCode: true });
+  const codex = provider === "codex" || provider === "openinterpreter";
+  const pi = provider === "pi" || provider === "ompi";
+  const core = provider === "opencode" || provider === "kilo";
+  const execution = codex || provider === "openhands";
+  const remaining = (value: Record<string, unknown>, nested = false): Record<string, unknown> => Object.fromEntries(Object.entries(value).flatMap(([key, v]) => {
+    const executionLevel = codex || (provider === "openhands" && nested);
+    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === JSON.stringify(result.content) && v !== null) return [];
+    if (!nested && key === "error_code" && v === n.errorCode) return [];
+    if (executionLevel && EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof v === "number" && v === n.exitCode && !n.exitCodeConflict) return [];
+    if (executionLevel && key === "interrupted" && v === true && n.interrupted === true) return [];
+    if (executionLevel && (key === "stdout" || key === "stderr") && typeof v === "string" && v !== "" && v === n[key]) return [];
+    if (!nested && execution && key === "metadata" && isPlainObject(v)) {
+      const rest = remaining(v, true);
+      return Object.keys(rest).length > 0 || Object.keys(v).length === 0 ? [[key, rest]] : [];
+    }
+    return [[key, v]];
+  }));
+  const rest = remaining(own);
+  return Object.keys(rest).length > 0 || Object.keys(own).length === 0 ? rest : undefined;
+}
+
+/** Legacy execution record view: consume only facts/streams actually displayed.
+ * False/null/empty and every unrelated field remain data, never completion claims.
+ */
+export function legacyExecutionView(record: Record<string, unknown>, provider?: string) {
+  const result = { content: record };
+  const normalized = normalizeResult(result, { provider });
+  const outcome = toolOutcome(null, [result], "process", provider);
+  const remainder = Object.fromEntries(Object.entries(record).filter(([key, value]) => {
+    if ((key === "stdout" || key === "stderr") && typeof value === "string" && value !== "" && value === normalized[key]) return false;
+    if (EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof value === "number" && value === outcome.exitCode && !normalized.exitCodeConflict) return false;
+    if (key === "error_code" && value === outcome.errorCode) return false;
+    if (key === "interrupted" && value === true && normalized.interrupted === true) return false;
+    return true;
+  }));
+  return { stdout: normalized.stdout ?? "", stderr: normalized.stderr ?? "", outcome, remainder };
 }
 
 /** What an Agent (Task) result records about its run. */
@@ -471,14 +709,13 @@ export function toolOutcome(
   use: ToolUseLike | null,
   results: ToolResultLike[],
   family: ToolFamily,
+  provider?: string,
 ): ToolOutcome {
-  // An orphan (use === null) is judged by its result alone; the pairing only
-  // matters for `toolRun` eligibility.
-  void use;
+  // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
   if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
-  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process" }));
+  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined }));
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
@@ -494,22 +731,19 @@ export function toolOutcome(
     return withCodes({ lifecycle: "interrupted", verdict, reason: "interrupted" });
   }
 
-  // 3. Recorded error signals; an exit code 0 beside one is a conflict.
-  //    For a process tool, output text that merely starts with `error` is
-  //    not a signal once an exit code is recorded: the recorded code decides
-  //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
+  // 3. Recorded errors, never an English word in arbitrary tool output.
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7919-L7941
+  // Local Claude Bash: 17/3468 is_error:false results start with error;
+  // 0/3582 record an exit alias. #728/4360641128's exit-only fix missed them.
+  // No producer evidence establishes a general ^error failure grammar.
   const providerError = normalized.some((n) => n.isError === true);
-  const textOutrankedByExit = family === "process" && exitCode !== undefined;
-  const errorContent = !textOutrankedByExit && normalized.some((n) => n.errorText !== undefined);
-  if (providerError || errorCode !== undefined || errorContent) {
+  if (providerError || errorCode !== undefined) {
     const reason: OutcomeReason =
       exitCode === 0 || codesDisagree
         ? "conflict"
         : providerError
           ? "provider-error"
-          : errorCode !== undefined
-            ? "api-error-code"
-            : "error-content";
+          : "api-error-code";
     return withCodes({ lifecycle: "completed", verdict: "failed", reason });
   }
 
@@ -523,9 +757,42 @@ export function toolOutcome(
   }
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
+  // Pi v0.6.0/v0.7.9 resolve nonzero exits/timeouts; agent-loop then records
+  // isError:false. A newer pin cannot certify all historical Pi records.
+  // https://github.com/badlogic/pi-mono/blob/6bed5a91/packages/coding-agent/src/tools/bash.ts#L152-L169
   if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
-  if (family === "read-search") return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
+  // Claude/Anthropic is_error is optional: absent/false means no producer error,
+  // not missing evidence. Undefined provider is the legacy Claude route.
+  // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/messages/messages.ts#L5764-L5791
+  // Local structural count: Read absent205/true8, Edit absent136/true1,
+  // WebFetch absent299/true12 (docs/contracts/producer-outcome-ground-truth.md).
+  // HTTP status is not is_error; error-page policy remains an open question.
+  const claude = provider === undefined || provider === "claude";
+  const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
+  const noError = normalized.every((n, i) => n.isError === false ||
+    (claude && (results[i]!.is_error === undefined)));
+  const coreNoError = coreNoErrorTool(provider, typeof use?.name === "string" ? use.name : undefined) && normalized.every(n => n.isError === false);
+  // Built-in edit/write reject on failure; agent-loop turns rejection into isError:true.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89
+  // OMP 17.3.7 edit/index.ts:191,254,341,363 flags per-file errors. Its
+  // write.ts:1128-1176 forwards xd:// isError, so write stays unknown.
+  const piEdit = (provider === "pi" && (use?.name === "edit" || use?.name === "write")) ||
+    (provider === "ompi" && use?.name === "edit");
+  if ((family === "read-search" || claudeEdit || coreNoError || piEdit) && noError) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
+}
+
+/** A legacy message-level result is source-owned by its sole top-level call. */
+export function legacyToolCallOutcome(
+  message: { toolUseResult?: unknown; provider?: string },
+  use: ToolUseLike,
+  family: ToolFamily,
+): ToolOutcome {
+  const raw = message.toolUseResult;
+  const results = raw == null ? [] : [isPlainObject(raw) ? { ...raw, toolUseResult: raw } : { content: raw }];
+  return toolOutcome(use, results, family, message.provider);
 }
 
 /**
@@ -537,7 +804,8 @@ export function isToolRunEligible(
   use: ToolUseLike | null,
   results: ToolResultLike[],
   family: ToolFamily,
+  provider?: string,
 ): boolean {
   if (use === null || results.length === 0 || family !== "read-search") return false;
-  return toolOutcome(use, results, family).verdict === "succeeded";
+  return toolOutcome(use, results, family, provider).verdict === "succeeded";
 }

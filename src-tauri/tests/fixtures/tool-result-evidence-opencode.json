@@ -1,0 +1,11 @@
+[
+  {"id":"part_00","type":"text","text":"fixture"},
+  {"id":"part_01","type":"tool","tool":"bash","callID":"duplicate","state":{"status":"completed","input":{"command":"printf same"},"output":"  same\n\u001b[31mError: stdout only\u001b[0m\n","metadata":{"unknown":"evidence-only-needle","null":null,"false":false,"zero":0,"empty":""}}},
+  {"id":"part_02","type":"tool","tool":"bash","callID":"duplicate","state":{"status":"cancelled","input":{},"output":"same","error":"","metadata":null}},
+  {"id":"part_03","type":"tool","tool":"bash","callID":"parallel","state":{"status":"error","input":{},"error":"same","metadata":false}},
+  {"id":"part_04","type":"tool","tool":"bash","callID":"empty","state":{"status":"completed","input":{},"output":"","metadata":0}},
+  {"id":"part_05","type":"tool","tool":"bash","callID":"pending","state":{"status":"running","input":{},"output":"Error: cancelled exit code: 7"}},
+  {"id":"part_06","type":"tool","tool":"bash","callID":"missing"},
+  {"id":"part_07","type":"tool","tool":"bash","callID":"null","state":null},
+  {"id":"part_08","type":"tool","tool":"bash","callID":"missing-output","state":{"status":"completed","input":{},"metadata":""}}
+]

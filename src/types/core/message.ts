@@ -123,7 +123,16 @@ export interface MessagePayload {
 // Raw Message (from JSONL files)
 // ============================================================================
 
+/** Pi/OMP local ! execution: source evidence, explicitly not a tool result. */
+export interface SourceExecution {
+  messageUuid: string;
+  sessionId: string;
+  association: "local_execution";
+  message: unknown;
+}
+
 export interface RawClaudeMessage {
+  sourceExecution?: SourceExecution;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
@@ -237,6 +246,7 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
 /** System information, warnings, errors, or internal events */
 export interface ClaudeSystemMessage extends BaseClaudeMessage {
   type: "system";
+  sourceExecution?: SourceExecution;
   subtype?: string;
   level?: "info" | "warning" | "error" | "suggestion";
 

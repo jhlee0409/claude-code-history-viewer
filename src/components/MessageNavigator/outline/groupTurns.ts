@@ -1,3 +1,4 @@
+import { turnStartKind } from "../../transcript/isTurnStart";
 import type { ClassifiedRow } from "../classifiedRows";
 import type { NavigatorEntryData } from "../types";
 import {
@@ -194,9 +195,15 @@ function buildTurnGroup(
     throw new Error("buildTurnGroup requires at least one row");
   }
   // The header, when present, is the turn's first row; children exclude it.
-  const childRows = header ? turnRows.slice(1) : turnRows;
+  // A notification header summarizes the cycle; retain its task blocks as
+  // children so batched statuses/results remain reachable when opened.
+  // A heartbeat header has no task blocks; including it would duplicate the
+  // header as an activity child pointing to the same message.
+  const retainTaskBlocks = firstRow.info.kind === "agent-update";
+  const childRows = header && !retainTaskBlocks ? turnRows.slice(1) : turnRows;
   return {
     key,
+    kind: header ? (turnStartKind(firstRow.message, { inSubagent: true }) ?? "human") : "unknown",
     turnStartUuid,
     turnNumber,
     header,
@@ -209,7 +216,8 @@ function buildTurnGroup(
 
 /**
  * Groups a shared, filtered, classified row list into turns. Pure: no React,
- * no store. Boundaries are rows where `isTurnStart(row.info)` is true. Rows
+ * no store. Human prompt boundaries retain the legacy UI predicate; automated
+ * boundaries share the pure model's provenance predicate (owner decision). Rows
  * before the first boundary (or every row, if there is no boundary at all)
  * form the leading group, omitted when empty.
  */
@@ -218,7 +226,9 @@ export function groupTurns(rows: ClassifiedRow[]): TurnGroup[] {
 
   const boundaryIndices: number[] = [];
   rows.forEach((row, index) => {
-    if (isTurnStart(row.info)) boundaryIndices.push(index);
+    if (isTurnStart(row.info) || turnStartKind(row.message, { inSubagent: true }) === "automated") {
+      boundaryIndices.push(index);
+    }
   });
 
   const groups: TurnGroup[] = [];
@@ -235,14 +245,15 @@ export function groupTurns(rows: ClassifiedRow[]): TurnGroup[] {
 
   let turnNumber = 0;
   for (let i = 0; i < boundaryIndices.length; i++) {
-    turnNumber += 1;
     const start = boundaryIndices[i];
     const end = i + 1 < boundaryIndices.length ? boundaryIndices[i + 1] : rows.length;
     const turnRows = rows.slice(start, end);
     const headerRow = turnRows[0];
     if (!headerRow) continue; // boundaryIndices are valid, strictly increasing indices; never empty
+    const automated = turnStartKind(headerRow.message, { inSubagent: true }) === "automated";
+    if (!automated) turnNumber += 1;
     groups.push(
-      buildTurnGroup(turnRows, headerRow.entry.uuid, headerRow.entry.uuid, turnNumber, headerRow.entry),
+      buildTurnGroup(turnRows, headerRow.entry.uuid, headerRow.entry.uuid, automated ? null : turnNumber, headerRow.entry),
     );
   }
 

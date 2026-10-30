@@ -1,0 +1,5054 @@
+[
+  {
+    "responses": [
+      [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:00.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "user"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:01.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-0"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:02.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-1"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:03.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:04.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:05.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:06.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:07.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:08.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-7"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-0"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:21.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-1"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:22.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-2"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:23.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-3"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:24.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-4"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "pi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:25.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-5"
+        }
+      ],
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:00.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "user"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 15,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          }
+        ],
+        "next_offset": 3,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          }
+        ],
+        "next_offset": 6,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          }
+        ],
+        "next_offset": 10,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          }
+        ],
+        "next_offset": 11,
+        "total_count": 15
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 99,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 15
+      }
+    ],
+    "searches": [
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "same"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "Error"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          }
+        ],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "pi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          }
+        ],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence"
+      }
+    ],
+    "sessions": [
+      {
+        "actual_session_id": "pi-evidence",
+        "file_path": "$HOME/.pi/agent/sessions/--fixture--/evidence.jsonl",
+        "first_message_time": "2025-10-01T00:00:00.000Z",
+        "has_errors": false,
+        "has_tool_use": false,
+        "is_renamed": false,
+        "last_message_time": "2025-10-01T00:00:25.000Z",
+        "last_modified": "2025-10-01T00:00:25.000Z",
+        "message_count": 15,
+        "project_name": "fixture",
+        "provider": "pi",
+        "session_id": "$HOME/.pi/agent/sessions/--fixture--/evidence.jsonl",
+        "summary": "fixture"
+      }
+    ],
+    "stats": {
+      "Ok": {
+        "first_message_time": "2025-10-01T00:00:00.000Z",
+        "last_message_time": "2025-10-01T00:00:25.000Z",
+        "message_count": 15,
+        "model_distribution": [],
+        "most_used_tools": [],
+        "project_name": "fixture",
+        "session_id": "pi-evidence",
+        "token_usage_recording": "unknown",
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  },
+  {
+    "responses": [
+      [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:00.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "user"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:01.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-0"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:02.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-1"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:03.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-2"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:04.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-3"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:05.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-4"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:06.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-5"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": true,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:07.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-6"
+        },
+        {
+          "content": [
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "is_error": false,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "user",
+          "sessionId": "pi-evidence",
+          "timestamp": "2025-10-01T00:00:08.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-7"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-0"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:21.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-1"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:22.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-2"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:23.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-3"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:24.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-4"
+        },
+        {
+          "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+          "isSidechain": null,
+          "parentUuid": "user",
+          "provider": "ompi",
+          "role": "system",
+          "sessionId": "pi-evidence",
+          "subtype": "bash_execution",
+          "timestamp": "2025-10-01T00:00:25.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "bash-5"
+        }
+      ],
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:00.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "user"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 15,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          }
+        ],
+        "next_offset": 3,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          }
+        ],
+        "next_offset": 6,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          }
+        ],
+        "next_offset": 10,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          }
+        ],
+        "next_offset": 11,
+        "total_count": 15
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 99,
+        "total_count": 15
+      },
+      {
+        "has_more": true,
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 15
+      }
+    ],
+    "searches": [
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "same"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:08.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-7"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:07.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-6"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:06.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-5"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:05.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-4"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:04.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-3"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:03.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-2"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:02.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-1"
+          },
+          {
+            "content": [
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "is_error": false,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              }
+            ],
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "user",
+            "sessionId": "pi-evidence",
+            "timestamp": "2025-10-01T00:00:01.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "user",
+            "uuid": "result-0"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "Error"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          }
+        ],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:25.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-5"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:24.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-4"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:23.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-3"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[cancelled]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:22.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-2"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n\n[exit code: 2]\n[output truncated]",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:21.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-1"
+          },
+          {
+            "content": "$ printf same\n  same\nError: cancelled [exit code: 77]\n",
+            "isSidechain": null,
+            "parentUuid": "user",
+            "projectName": "fixture",
+            "provider": "ompi",
+            "role": "system",
+            "sessionId": "pi-evidence",
+            "subtype": "bash_execution",
+            "timestamp": "2025-10-01T00:00:20.000Z",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "system",
+            "uuid": "bash-0"
+          }
+        ],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence"
+      }
+    ],
+    "sessions": [
+      {
+        "actual_session_id": "pi-evidence",
+        "file_path": "$HOME/.omp/agent/sessions/--fixture--/evidence.jsonl",
+        "first_message_time": "2025-10-01T00:00:00.000Z",
+        "has_errors": false,
+        "has_tool_use": false,
+        "is_renamed": false,
+        "last_message_time": "2025-10-01T00:00:25.000Z",
+        "last_modified": "2025-10-01T00:00:25.000Z",
+        "message_count": 15,
+        "project_name": "fixture",
+        "provider": "ompi",
+        "session_id": "$HOME/.omp/agent/sessions/--fixture--/evidence.jsonl",
+        "summary": "fixture"
+      }
+    ],
+    "stats": {
+      "Ok": {
+        "first_message_time": "2025-10-01T00:00:00.000Z",
+        "last_message_time": "2025-10-01T00:00:25.000Z",
+        "message_count": 15,
+        "model_distribution": [],
+        "most_used_tools": [],
+        "project_name": "fixture",
+        "session_id": "pi-evidence",
+        "token_usage_recording": "unknown",
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  }
+]
