@@ -443,9 +443,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       {isExpanded && (
         <div className="border-t border-border">
           {/* Full diff view: the unified DiffView (unchanged runs folded,
-              a line cap), the older viewers behind its … menu (TR2a).
+              a line cap), and shared comparison modes behind its … menu.
               ExpandKeyProvider is required by useCaptureExpandState inside
-              DiffView and AdvancedTextDiff, which otherwise throw outside
+              DiffView, which otherwise throws outside
               MessageViewer. */}
           {viewMode === "diff" && (
             <div className="p-3">

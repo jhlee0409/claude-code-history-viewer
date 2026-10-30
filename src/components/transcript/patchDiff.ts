@@ -38,7 +38,9 @@ export function structuredSections(value: unknown): DiffSection[] {
   });
 }
 
-export interface PatchFile { path: string; sections: DiffSection[] }
+// Codex apply_patch.lark:7,13 and streaming_parser.rs:107-135,253-260:
+// delete_hunk and change_move are operations, not missing diff content.
+export interface PatchFile { path: string; operation: "add" | "delete" | "update"; movePath?: string; source: string; sections: DiffSection[] }
 
 /** GROUNDED_SPEC: Codex anchors are not unified-diff coordinates.
  * https://github.com/openai/codex/blob/788b9d7bf6e37f735647b7f84b556c2a807df4d8/codex-rs/apply-patch/src/parser.rs#L193-L247
@@ -49,14 +51,27 @@ export function parseApplyPatch(patch: string): PatchFile[] | null {
   // Rust str::trim uses Unicode White_Space (NEL included, BOM excluded).
   const trimEnd = (text: string) => text.replace(/[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/, "");
   const trim = (text: string) => trimEnd(text).replace(/^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/, "");
+  // parser.rs:194 strips one CR via str::lines() BEFORE wrapper validation.
+  // Keep the second streaming strip below, after boundaries/wrapper checks.
+  let rawLines: string[] = trim(patch).match(/[^\n]*\n|[^\n]+$/g) ?? [];
   let values = trim(patch).replace(/\r\n/g, "\n").split("\n");
   const boundaries = (lines: string[]) => trim(lines[0] ?? "") === "*** Begin Patch" && trim(lines.slice(-1)[0] ?? "") === "*** End Patch";
   if (!boundaries(values)) {
     if (!["<<EOF", "<<'EOF'", '<<"EOF"'].includes(values[0] ?? "") || !values.slice(-1)[0]?.endsWith("EOF") || values.length < 4) return null;
     values = values.slice(1, -1);
+    rawLines = rawLines.slice(1, -1);
     if (!boundaries(values)) return null;
   }
+  // push_delta (streaming_parser.rs:141-145) strips one additional CR only
+  // from newline-terminated lines; finish() receives the final line as-is.
+  values = values.map((value, index) => index < values.length - 1 ? value.replace(/\r$/, "") : value);
   const files: PatchFile[] = [];
+  let fileStart = 0;
+  // Copy this file's recorded header/move/anchor/hunk lines, not after-code.
+  // The boundary newline belongs to neither neighbouring file section.
+  const finishFile = (end: number) => {
+    if (file) file.source = rawLines.slice(fileStart, end).join("").replace(/\r?\n$/, "");
+  };
   let mode: "started" | "add" | "delete" | "update" | "ended" = "started";
   let file: PatchFile | undefined;
   let rows: string[] = [];
@@ -72,20 +87,21 @@ export function parseApplyPatch(patch: string): PatchFile[] | null {
     const trimmed = trim(value);
     // finish() recognizes the last End Patch using trim even in UpdateFile.
     const marker = mode === "update" && index !== values.length - 1 ? trimEnd(value) : trimmed;
-    if (mode === "ended") { if (trimmed !== "") return null; continue; }
+    // finish() handles the final end marker before the EndedPatch arm (:154-160).
+    if (mode === "ended") { if (trimmed !== "" && !(index === values.length - 1 && trimmed === "*** End Patch")) return null; continue; }
     if (mode === "started" && marker.startsWith("*** Environment ID:")) {
       if (environment || trim(marker.slice("*** Environment ID:".length)) === "") return null;
       environment = true; continue;
     }
     if (marker === "*** End Patch") {
       if (!validUpdate()) return null;
-      flush(); mode = "ended"; continue;
+      flush(); finishFile(index); mode = "ended"; continue;
     }
     const header = /^\*\*\* (Add|Delete|Update) File: ([\s\S]+)$/.exec(marker);
     if (header) {
       if (!validUpdate()) return null;
-      flush();
-      file = { path: header[2]!, sections: [] }; files.push(file);
+      flush(); finishFile(index); fileStart = index;
+      file = { path: header[2]!, operation: header[1] === "Add" ? "add" : header[1] === "Delete" ? "delete" : "update", source: "", sections: [] }; files.push(file);
       mode = header[1] === "Add" ? "add" : header[1] === "Delete" ? "delete" : "update";
       hasChunk = false; moved = false; eof = false; continue;
     }
@@ -96,7 +112,7 @@ export function parseApplyPatch(patch: string): PatchFile[] | null {
       if (marker === "") continue;
       if (!context) return null;
     }
-    if (!hasChunk && !moved && marker.startsWith("*** Move to: ")) { moved = true; continue; }
+    if (!hasChunk && !moved && marker.startsWith("*** Move to: ")) { file!.movePath = marker.slice("*** Move to: ".length); moved = true; continue; }
     if (context) {
       if (hasChunk && rows.length === 0) return null;
       flush(); anchor = marker === "@@" ? undefined : marker.slice(3);

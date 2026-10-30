@@ -267,10 +267,14 @@ function patchBody(ctx: BodyContext): RoutedBody | null {
   if (!files) return null;
   return { body: <>
     {files.map((file, index) => <section key={index} className="space-y-1">
-      <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
-      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} copies={[{ label: ctx.t("common.copy"), text: source! }]} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
+      <div data-patch-operation={file.operation} className="flex min-w-0 flex-wrap items-center gap-x-2 text-caption text-fg-2">
+        {file.operation === "delete" && <span>{ctx.t("diffView.deleted")}</span>}
+        <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
+        {file.movePath && <><span>{" → "}</span><PathText path={file.movePath} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} /></>}
+      </div>
+      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} copies={[{ label: ctx.t("common.copy"), text: file.source }, { label: ctx.t("diffView.copyPatch"), text: source! }]} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
     </section>)}
-    <InputJson value={ctx.input} ctx={ctx} rest />
+    <InputJson value={ctx.input} ctx={ctx} rest caption={ctx.t("diffView.recordedInput")} />
   </> };
 }
 

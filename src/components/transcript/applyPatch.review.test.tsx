@@ -52,6 +52,6 @@ it.each([
   show(patch);
   const trigger = screen.getAllByRole("button", { name: i18n.t("diffView.moreActions") })[0]!;
   trigger.focus(); fireEvent.keyDown(trigger, { key: "Enter" });
-  await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: i18n.t("common.copy") })));
+  await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: i18n.t("diffView.copyPatch") })));
   expect(writeText).toHaveBeenCalledExactlyOnceWith(patch);
 });

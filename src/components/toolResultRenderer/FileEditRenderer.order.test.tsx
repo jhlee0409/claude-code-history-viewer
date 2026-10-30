@@ -154,7 +154,7 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     fireEvent.keyDown(menu, { key: "Escape" });
   });
 
-  it("Advanced compare swaps the diff for the existing AdvancedTextDiff; Unified brings the DiffView back", () => {
+  it("Advanced compare uses shared comparison modes; Unified brings the default DiffView back", () => {
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Advanced compare" }));

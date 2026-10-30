@@ -1,4 +1,7 @@
 {
+  "diffView.recordedInput": "記録された入力",
+  "diffView.deleted": "削除済み",
+  "diffView.copyPatch": "パッチをコピー",
   "diffView.modeWords": "単語の変更",
   "advancedTextDiff.added": "追加",
   "advancedTextDiff.additions": "追加",

@@ -1,4 +1,7 @@
 {
+  "diffView.recordedInput": "記錄的輸入",
+  "diffView.deleted": "已刪除",
+  "diffView.copyPatch": "複製修補程式",
   "diffView.modeWords": "單字變更",
   "advancedTextDiff.added": "已新增",
   "advancedTextDiff.additions": "新增",

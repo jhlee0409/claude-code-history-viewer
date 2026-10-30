@@ -59,6 +59,20 @@ it("marker whitespace follows Rust str trim, not JavaScript trim", () => {
   expect(parseApplyPatch("\uFEFF*** Begin Patch\n*** Delete File: a\n*** End Patch")).toBeNull();
   expect(parse("*** Delete File: a\u2028b")?.[0]?.path).toBe("a\u2028b");
 });
+it("accepts the final End Patch even after an earlier end, like finish()", () => {
+  expect(parseApplyPatch("*** Begin Patch\n*** Add File: a\n+x\n*** End Patch\n*** End Patch")?.[0]?.sections[0]?.newText).toBe("x");
+  expect(parseApplyPatch("*** Begin Patch\n*** End Patch\n*** End Patch\n*** End Patch")).toBeNull();
+});
+it.each(["<<EOF", "<<'EOF'", '<<"EOF"'])("validates wrapper lines before the streaming parser strips its CR: %s", wrapper => {
+  const source = `${wrapper}\n*** Begin Patch\n*** Add File: a\n+x\n*** End Patch\nEOF`;
+  expect(parseApplyPatch(source.replace(/\n/g, "\r\n"))).not.toBeNull();
+  expect(parseApplyPatch(source.replace(/\n/g, "\r\r\n"))).toBeNull();
+});
+it("strips CR twice on CRCRLF, but preserves any third CR in code rows", () => {
+  for (const [ending, suffix] of [["\r\r\n", ""], ["\r\r\r\n", "\r"]]) {
+    expect(parseApplyPatch(["*** Begin Patch", "*** Update File: a", "@@", "-old", "+new", "*** End Patch"].join(ending))?.[0]?.sections[0]?.lines?.map(l => l.text)).toEqual([`old${suffix}`, `new${suffix}`]);
+  }
+});
 it("structured patch numbering remains recorded (and defaults stay compatible)", () => {
   expect(structuredSections([{ oldStart: 40, newStart: 42, lines: ["-old", "+new"] }, { lines: [" same"] }]).map(s => s.lines!.map(l => [l.oldNo, l.newNo]))).toEqual([[[40, null], [null, 42]], [[1, 1]]]);
 });
