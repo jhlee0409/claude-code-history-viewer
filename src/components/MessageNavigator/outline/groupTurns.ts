@@ -197,8 +197,10 @@ function buildTurnGroup(
   // The header, when present, is the turn's first row; children exclude it.
   // A notification header summarizes the cycle; retain its task blocks as
   // children so batched statuses/results remain reachable when opened.
-  const automated = turnStartKind(firstRow.message, { inSubagent: true }) === "automated";
-  const childRows = header && !automated ? turnRows.slice(1) : turnRows;
+  // A heartbeat header has no task blocks; including it would duplicate the
+  // header as an activity child pointing to the same message.
+  const retainTaskBlocks = firstRow.info.kind === "agent-update";
+  const childRows = header && !retainTaskBlocks ? turnRows.slice(1) : turnRows;
   return {
     key,
     kind: header ? (turnStartKind(firstRow.message, { inSubagent: true }) ?? "human") : "unknown",

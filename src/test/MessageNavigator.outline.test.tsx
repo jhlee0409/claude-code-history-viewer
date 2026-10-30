@@ -161,6 +161,19 @@ describe("MessageNavigator outline mode", () => {
     expect(options[0]).toHaveTextContent("Synthetic typed prompt");
   });
 
+  it("opens a heartbeat-only turn without a duplicate navigation row", () => {
+    storeState.targetMessageUuid = "heartbeat";
+    renderNavigator([
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>Synthetic client wake</heartbeat>" }),
+    ]);
+    const header = getHeaderItem();
+    fireEvent.keyDown(header, { key: "ArrowRight" });
+    expect(getChildItems()).toHaveLength(0);
+    expect(screen.getAllByRole("treeitem")).toHaveLength(1);
+    fireEvent.keyDown(header, { key: "Enter" });
+    expect(navigateToMessageMock).toHaveBeenCalledExactlyOnceWith("heartbeat");
+  });
+
   it("toggles navigatorViewMode when the header switch is clicked", () => {
     storeState.navigatorViewMode = "list";
     renderNavigator([

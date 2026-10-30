@@ -42,7 +42,10 @@ const TASK_NOTIFICATION_BLOCK = /<task-notification>([\s\S]*?)<\/task-notificati
 // Claude Code 2.1.285 bash-mode emits a separate generated user message:
 // ke({content:`<bash-stdout>${C}</bash-stdout><bash-stderr>…`}).
 // Binary evidence and scope: docs/contracts/transcript-items.md, producer grounding.
-const COMMAND_OUTPUT_PREFIXES = ["<local-command-stdout>", "<local-command-stderr>", "<bash-stdout>", "<bash-stderr>"];
+// Local slash-command output keeps its existing prefix policy; bash-mode output
+// must consume the whole text block, never swallow typed text after a wrapper.
+const COMMAND_OUTPUT_PREFIXES = ["<local-command-stdout>", "<local-command-stderr>"];
+const BASH_OUTPUT_BLOCK = /<(bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
 
 /**
  * Wrapper tags that Claude Code and Codex inject into the user turn. This is
@@ -137,11 +140,14 @@ function getTextBlocks(message: ClaudeMessage): string[] {
 /** Client wake input, not a human prompt. Audit: 34/34 Codex heartbeat
  * blocks had complete wrappers and producer UserMessage events (exec-heavy
  * 0.148–0.164 sample); not a Codex-authored binary string. See contract.
+ * Codex's scheduler reader rejects extra content; keep this text-only fallback
+ * bounded to one envelope, with no text after its first closing marker:
+ * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L75-L109
  */
 export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   if (message.type !== "user" || message.provider !== "codex") return false;
   const texts = getTextBlocks(message).filter(text => text.trim().length > 0);
-  return texts.length > 0 && texts.every(text => /^<heartbeat>[\s\S]*<\/heartbeat>$/.test(text.trim()));
+  return texts.length > 0 && texts.every(text => /^<heartbeat>(?:(?!<\/?heartbeat>)[\s\S])*<\/heartbeat>$/.test(text.trim()));
 }
 
 /** True when the record carries the client's own tool-result payload. */
@@ -194,6 +200,7 @@ function classifyUserText(text: string): UserBlockKind {
   if (isTaskNotification(trimmed)) return "agent-update";
   if (trimmed.startsWith("<") && trimmed.includes("<command-name>")) return "command";
   if (COMMAND_OUTPUT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "command";
+  if (/^<bash-(stdout|stderr)>/.test(trimmed) && trimmed.replace(BASH_OUTPUT_BLOCK, "").trim() === "") return "command";
   if (INJECTED_TEXT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "context";
   if (trimmed.startsWith("<") && trimmed.replace(INTERNAL_CONTEXT_BLOCK, "").replace(INJECTED_WRAPPER_BLOCK, "").trim() === "") {
     return "context";

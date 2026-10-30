@@ -15,6 +15,29 @@ const cases = [
 ] as const;
 
 describe("outline automated cycle ownership (owner decision)", () => {
+  it("does not repeat a heartbeat-only header as an activity child", () => {
+    const groups = groupTurns(getFilteredClassifiedMessages([message("heartbeat", cases[0][1])]));
+    expect(groups[0].children).toEqual([]);
+    expect(groups[0]).toMatchObject({ kind: "automated", turnStartUuid: "heartbeat", uuids: ["heartbeat"] });
+  });
+
+  it("keeps only subsequent work in the heartbeat activity child", () => {
+    const groups = groupTurns(getFilteredClassifiedMessages([
+      message("heartbeat", cases[0][1]),
+      message("reply", "Synthetic reply", "codex", "assistant"),
+    ]));
+    expect(groups[0].children).toMatchObject([{ type: "activity", navigateUuid: "reply", uuids: ["reply"] }]);
+  });
+
+  it("retains every batched notification task with its recorded status", () => {
+    const content = "<task-notification><task-id>one</task-id><status>failed</status><summary>Synthetic failure</summary></task-notification>"
+      + "<task-notification><task-id>two</task-id><status>completed</status><summary>Synthetic success</summary></task-notification>";
+    const groups = groupTurns(getFilteredClassifiedMessages([message("notification", content, "claude")]));
+    expect(groups[0].children).toMatchObject([
+      { type: "task", taskId: "one", status: "failed", navigateUuid: "notification", uuids: ["notification"] },
+      { type: "task", taskId: "two", status: "completed", navigateUuid: "notification", uuids: ["notification"] },
+    ]);
+  });
   it.each(cases)("keeps %s automated tools out of both adjacent human turns", (provider, content) => {
     const automated = message("automated", content, provider);
     const input = [
