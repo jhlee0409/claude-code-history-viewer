@@ -215,6 +215,13 @@ export function createActions({ session, scenario, manifest, t }) {
       await click(group.getByRole("button", { name: t("recentEdits.diff"), exact: true }), "compact row: Diff");
     },
 
+    /** Navigator list: show the real prompts-only filter, not a response mock. */
+    async navigatorPromptsOnly() {
+      await click(page.locator("#inspector").getByRole("button", { name: t("navigator.userOnly"), exact: true }), "navigator prompts only");
+      await parkPointer(page);
+      await settled("navigator prompts only");
+    },
+
     /** The gear (app settings) menu open (desktop toolbar). */
     async gearMenu() {
       await click(page.locator("#app-settings-button"), "open app menu");
