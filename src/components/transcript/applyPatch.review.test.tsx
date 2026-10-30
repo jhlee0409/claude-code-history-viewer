@@ -24,6 +24,53 @@ it("explicit empty sections suppress the shared menu, but an empty recorded whol
   expect(container.querySelector("[data-diff-with-menu]")).not.toBeNull();
 });
 
+it.each([
+  "@@@ -40 +42 @@",
+  "@@ - 40 +42 @@",
+  "@@\t-40 +42 @@",
+  "@@ -040 +42 @@",
+  "@@ -40,01 +42,1 @@",
+  "@@ --40 +42 @@",
+  "@@ -40 +-42 @@",
+  "@@ -40, +42,1 @@",
+  "@@ -40,1 +42, @@",
+  "@@ -40 +42",
+  "@@ -40 +42 extra @@",
+  "@@ -40 +42 +43 @@",
+  "@@ 40 42 @@",
+  "@@@@",
+])("unsupported apply_patch header falls back through the real routed body: %j", header => {
+  const patch = `*** Begin Patch\n*** Update File: a.ts\n${header}\n-old\n+new\n*** End Patch`;
+  const input = { patch };
+  const body = routedBody("apply_patch", { input, expandKey: "unsupported", pathCtx: {}, t: i18n.t });
+  const { container } = render(<ExpandKeyProvider value="unsupported">{body.body}</ExpandKeyProvider>);
+  expect(container.querySelector("[data-diff-view]")).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("diffView.moreActions") })).toBeNull();
+  expect(JSON.parse(container.querySelector("pre")!.textContent!)).toEqual(input);
+});
+
+it.each([
+  { header: "@@ -9007199254740991,3 +9007199254740991,3 @@", rows: " same\n same\n same" },
+  { header: "@@ -9007199254740992 +1 @@", rows: "-old\n+new" },
+  { header: "@@ -1 +9007199254740992 @@", rows: "-old\n+new" },
+  { header: "@@ -1,9007199254740992 +1,1 @@", rows: "-old\n+new" },
+  { header: "@@ -1,1 +1,9007199254740992 @@", rows: "-old\n+new" },
+  { header: "@@ -9007199254740991,2 +1,1 @@", rows: "-old\n+new" },
+  { header: "@@ -1,1 +9007199254740991,2 @@", rows: "-old\n+new" },
+  // Actual rows must remain safe even when counts are omitted or understated.
+  { header: "@@ -9007199254740991 +1 @@", rows: "-one\n-two\n+new" },
+  { header: "@@ -1,1 +9007199254740991,1 @@", rows: "-old\n+one\n+two" },
+  { header: "@@ -9007199254740990,1 +9007199254740990,1 @@", rows: " one\n two\n three" },
+  { header: "@@ -1,-1 +1,1 @@", rows: "-old\n+new" },
+])("unsafe apply_patch coordinates fall back through the real routed body: $header / $rows", ({ header, rows }) => {
+  const input = { patch: `*** Begin Patch\n*** Update File: a.ts\n${header}\n${rows}\n*** End Patch` };
+  const body = routedBody("apply_patch", { input, expandKey: "unsafe", pathCtx: {}, t: i18n.t });
+  const { container } = render(<ExpandKeyProvider value="unsafe">{body.body}</ExpandKeyProvider>);
+  expect(container.querySelector("[data-diff-view]")).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("diffView.moreActions") })).toBeNull();
+  expect(JSON.parse(container.querySelector("pre")!.textContent!)).toEqual(input);
+});
+
 const patchBody = (hunks: string) => routedBody("apply_patch", {
   input: { patch: `*** Begin Patch\n*** Update File: a.ts\n${hunks}\n*** End Patch` },
   expandKey: "patch-review", pathCtx: {}, t: i18n.t,
