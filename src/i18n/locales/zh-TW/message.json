@@ -169,5 +169,6 @@
   "filter.showing": "{{filtered}} / {{total}}",
   "messageViewer.clearSearch": "清除搜尋",
   "messageViewer.prevMatch": "上一個符合項目 (Shift+Enter)",
-  "messageViewer.nextMatch": "下一個符合項目 (Enter)"
+  "messageViewer.nextMatch": "下一個符合項目 (Enter)",
+  "messageViewer.apiView.toolError": "錯誤"
 }

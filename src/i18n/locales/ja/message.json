@@ -169,5 +169,6 @@
   "filter.showing": "{{filtered}} / {{total}}",
   "messageViewer.clearSearch": "検索をクリア",
   "messageViewer.prevMatch": "前の一致 (Shift+Enter)",
-  "messageViewer.nextMatch": "次の一致 (Enter)"
+  "messageViewer.nextMatch": "次の一致 (Enter)",
+  "messageViewer.apiView.toolError": "エラー"
 }

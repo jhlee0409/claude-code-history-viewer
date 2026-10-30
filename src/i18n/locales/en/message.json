@@ -169,5 +169,6 @@
   "filter.showing": "{{filtered}} / {{total}}",
   "messageViewer.clearSearch": "Clear search",
   "messageViewer.prevMatch": "Previous match (Shift+Enter)",
-  "messageViewer.nextMatch": "Next match (Enter)"
+  "messageViewer.nextMatch": "Next match (Enter)",
+  "messageViewer.apiView.toolError": "error"
 }

@@ -169,5 +169,6 @@
   "filter.showing": "{{filtered}} / {{total}}",
   "messageViewer.clearSearch": "清除搜索",
   "messageViewer.prevMatch": "上一个匹配项 (Shift+Enter)",
-  "messageViewer.nextMatch": "下一个匹配项 (Enter)"
+  "messageViewer.nextMatch": "下一个匹配项 (Enter)",
+  "messageViewer.apiView.toolError": "错误"
 }

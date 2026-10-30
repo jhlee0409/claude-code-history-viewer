@@ -53,7 +53,7 @@ function ContentBlock({ block, cached, anchorTools, toolLinks }: BlockProps) {
     header = `tool_use · ${String(b.name)} · ${String(b.id)}`;
     body = b.input;
   } else if (type === "tool_result") {
-    header = `tool_result · ${String(b.tool_use_id)}${b.is_error === true ? " · error" : ""}`;
+    header = `tool_result · ${String(b.tool_use_id)}`;
     body = b.content;
   }
   const toolId = type === "tool_use" ? b.id : type === "tool_result" ? b.tool_use_id : null;
@@ -64,6 +64,9 @@ function ContentBlock({ block, cached, anchorTools, toolLinks }: BlockProps) {
     >
       <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
         <span data-mono="code" className="font-mono">{header}</span>
+        {type === "tool_result" && b.is_error === true && (
+          <span className="text-destructive">{t("messageViewer.apiView.toolError")}</span>
+        )}
         {toolLinks && typeof toolId === "string" && <ToolCallLink type={type} id={toolId} />}
         {cached && (
           <span className="rounded-row bg-accent/15 text-accent px-1">

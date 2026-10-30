@@ -91,7 +91,7 @@ function SourceLineRow({ line, requestId, sameAs, open, onToggle }: RowProps) {
         <span data-mono="code" className="font-mono shrink-0">{line.kind}</span>
         {line.label && (
           <span className={cn("shrink-0", line.label === "error" ? "text-destructive" : "text-muted-foreground")}>
-            {line.label}
+            {line.label === "error" ? t("messageViewer.apiView.toolError") : line.label}
           </span>
         )}
         <ToolLink line={line} />
