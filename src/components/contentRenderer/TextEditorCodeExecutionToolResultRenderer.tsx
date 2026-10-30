@@ -32,7 +32,8 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(function TextEdito
   const view = c.type === "text_editor_code_execution_view_result";
   const create = c.type === "text_editor_code_execution_create_result";
   const replace = c.type === "text_editor_code_execution_str_replace_result";
-  const label = view ? t("textEditorCodeExecutionToolResultRenderer.view") : create ? t("textEditorCodeExecutionToolResultRenderer.create") : replace ? "str_replace" : undefined;
+  // SDK messages.ts:7085–7089; code-execution docs: is_file_update means the file already existed.
+  const label = view ? t("textEditorCodeExecutionToolResultRenderer.view") : create ? t(c.is_file_update === true ? "textEditorCodeExecutionToolResultRenderer.update" : "textEditorCodeExecutionToolResultRenderer.create") : replace ? "str_replace" : undefined;
   // Draw only compatible unified-hunk syntax. The SDK supplies nullable coordinates:
   // null/absent stays blank; never invoke patchSection's default start of 1.
   const lines = Array.isArray(c.lines) && c.lines.every((line): line is string => typeof line === "string" && /^[ +-]/.test(line)) ? c.lines : null;

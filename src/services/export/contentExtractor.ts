@@ -148,10 +148,10 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
         blocks.push({ kind: item.type === "text_editor_code_execution_tool_result" ? "code" : "result", text: JSON.stringify(raw.content, null, 2) ?? "null" });
         break;
 
-      // SDK L360-L405: opaque ciphertext is not advice text; do not export it as such.
+      // SDK L360-L405: ciphertext is opaque; advisor_result.text (L387-L405) is plaintext.
       case "advisor_tool_result": {
         const c = raw.content as Record<string, unknown> | undefined;
-        blocks.push({ kind: "result", text: c?.type === "advisor_redacted_result" ? "[Redacted advice: encrypted content; plaintext unavailable]" : JSON.stringify(c, null, 2) ?? "null" });
+        blocks.push({ kind: "result", text: c?.type === "advisor_redacted_result" ? "[Redacted advice: encrypted content; plaintext unavailable]" : c?.type === "advisor_result" && typeof c.text === "string" ? c.text : JSON.stringify(c, null, 2) ?? "null" });
         break;
       }
 

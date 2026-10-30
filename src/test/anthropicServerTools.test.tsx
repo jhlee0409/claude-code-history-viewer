@@ -8,7 +8,7 @@ import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 
 beforeAll(async () => { await i18n.changeLanguage("en"); });
-beforeEach(() => useExpandRegistry.getState().clearAll());
+beforeEach(async () => { useExpandRegistry.getState().clearAll(); await i18n.changeLanguage("en"); });
 const open = (root: HTMLElement) => {
   for (let i = 0; i < 30; i++) {
     const button = root.querySelector<HTMLButtonElement>('button[aria-expanded="false"]');
@@ -22,15 +22,16 @@ const route = (content: Record<string, unknown>, paired = false, type = "text_ed
   open(container);
   return container;
 };
-it.each([false, true])("C9 tool search reference object renders without throwing (paired=%s)", paired => {
+// SDK cb5fba4 messages.ts:6894–6902 lists the two real server tool names.
+it.each(["tool_search_tool_regex", "tool_search_tool_bm25"].flatMap(name => [false, true].map(paired => [name, paired] as const)))("C9 tool search reference object renders without throwing (%s, paired=%s)", (name, paired) => {
   let root: HTMLElement | undefined;
   let error: unknown;
-  try { root = route({ type: "tool_search_tool_search_result", tool_references: [{ type: "tool_reference", tool_name: "reference_needle" }] }, paired, "tool_search_tool_result", "tool_search"); } catch (caught) { error = caught; }
+  try { root = route({ type: "tool_search_tool_search_result", tool_references: [{ type: "tool_reference", tool_name: "reference_needle" }] }, paired, "tool_search_tool_result", name); } catch (caught) { error = caught; }
   expect(error).toBeUndefined();
   expect(root?.textContent).toContain("reference_needle");
 });
 it("C9 tool search error retains error_message and failed outcome", () => {
-  const root = route({ type: "tool_search_tool_result_error", error_code: "execution_time_exceeded", error_message: "recorded search failure" }, false, "tool_search_tool_result", "tool_search");
+  const root = route({ type: "tool_search_tool_result_error", error_code: "execution_time_exceeded", error_message: "recorded search failure" }, false, "tool_search_tool_result", "tool_search_tool_regex");
   expect(root.textContent).toContain("recorded search failure");
   expect(root.querySelector('[data-tool-verdict="failed"]')).not.toBeNull();
 });
@@ -47,6 +48,17 @@ it("C11 WebSearch counts links, not batches/commentary, on legacy route", () => 
   expect(container.textContent).toContain("3 results");
   expect(container.querySelectorAll('a[href^="https://example.test/"]')).toHaveLength(3);
 });
+it.each([
+  [JSON.stringify({ title: "Compatibility link", url: "https://example.test/json" }), 1],
+  ["commentary", 0], ["{broken", 0], [JSON.stringify({ title: "No URL" }), 0],
+  [{ title: "Direct wins", url: "https://example.test/direct", content: [{ url: "https://example.test/hidden" }] }, 1],
+  [{ content: [{ url: "https://example.test/nested" }, { url: "" }, { text: "commentary" }] }, 1],
+])("legacy WebSearch count equals rendered URL items: %j", (item, count) => {
+  const { container } = render(<ThemeProvider><ExpandKeyProvider value="legacy-web"><ToolExecutionResultRouter toolResult={{ query: "query", results: [item] }} /></ExpandKeyProvider></ThemeProvider>);
+  open(container);
+  expect(container.textContent).toContain(`${count} ${count === 1 ? "result" : "results"}`);
+  expect(container.querySelectorAll('a[href^="https://example.test/"]')).toHaveLength(count);
+});
 it("C11 unified WebSearch card also counts nested links", () => {
   const content = [{ type: "tool_use", id: "web", name: "WebSearch", input: { query: "query" } }, { type: "tool_result", tool_use_id: "web", content: "commentary", toolUseResult: { query: "query", results: [{ tool_use_id: "web", content: [0,1,2].map(i => ({ title: `Link ${i}`, url: `https://example.test/${i}` })) }, "commentary"] } }];
   const { container } = render(<ThemeProvider><ExpandKeyProvider value="web-unified"><ClaudeContentArrayRenderer provider="claude" content={content} /></ExpandKeyProvider></ThemeProvider>);
@@ -54,7 +66,7 @@ it("C11 unified WebSearch card also counts nested links", () => {
   expect(container.textContent).toContain("3 results");
 });
 it("C9 malformed reference members retain raw JSON without crashing", () => {
-  const root = route({ type: "tool_search_tool_search_result", tool_references: [null, { unexpected: "preserved" }] }, false, "tool_search_tool_result", "tool_search");
+  const root = route({ type: "tool_search_tool_search_result", tool_references: [null, { unexpected: "preserved" }] }, false, "tool_search_tool_result", "tool_search_tool_regex");
   expect(root.textContent).toContain("preserved");
 });
 it("C8 nullable and incompatible rows retain the exact record without invented diff", () => {
@@ -72,6 +84,11 @@ it.each([false, true])("C8 actual renderer route renders view fields (paired=%s)
   expect(root.textContent).toContain("recorded view");
   expect(root.textContent).toContain("20");
 });
+it("C8 existing-file create result is labelled Update File", () => {
+  const root = route({ type: "text_editor_code_execution_create_result", is_file_update: true }, true);
+  expect(root.textContent).toContain("Update File");
+  expect(root.textContent).not.toContain("Create File");
+});
 it("C8 create uses its discriminator and records update false", () => {
   const root = route({ type: "text_editor_code_execution_create_result", is_file_update: false });
   expect(root.textContent).toContain("Create");
@@ -87,6 +104,15 @@ it("C8 null coordinates stay unnumbered and nullable diff stays recorded", () =>
   const root = route({ type: "text_editor_code_execution_str_replace_result", lines: ["-before", "+after"], old_start: null, new_start: null, old_lines: null, new_lines: null });
   expect(root.querySelector("[data-diff-view]")).not.toBeNull();
   expect([...root.querySelectorAll("[data-diff-old-no], [data-diff-new-no]")].every(n => n.textContent === "")).toBe(true);
+});
+it.each([
+  ["en", "File not found"], ["ko", "파일을 찾을 수 없습니다"],
+  ["ja", "ファイルが見つかりません"], ["zh-CN", "未找到文件"], ["zh-TW", "找不到檔案"],
+])("C8 SDK file_not_found is translated on the real route (%s)", async (locale, expected) => {
+  await i18n.changeLanguage(locale);
+  const root = route({ type: "text_editor_code_execution_tool_result_error", error_code: "file_not_found", error_message: null }, true);
+  expect(root.textContent).toContain(expected);
+  expect(root.querySelector('[data-tool-verdict="failed"]')).not.toBeNull();
 });
 it("C8 SDK error_message is visible and outcome is failed", () => {
   const root = route({ type: "text_editor_code_execution_tool_result_error", error_code: "file_not_found", error_message: "recorded editor failure" });

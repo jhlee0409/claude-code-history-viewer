@@ -1,13 +1,13 @@
 import fs from "node:fs";
 /** Synthetic records mirror the pinned SDK, not claimed as collected histories.
  * https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192
- * Tool search L8010-L8057; advisor L360-L405. */
+ * Tool search L8010-L8057; server tool names L6894-L6902; advisor L360-L405. */
 export const serverToolCases = [
   ["view", "text_editor_code_execution", "text_editor_code_execution_tool_result", { type: "text_editor_code_execution_view_result", content: "viewneedle", file_type: "text", start_line: 8, num_lines: 1, total_lines: 20 }],
   ["create", "text_editor_code_execution", "text_editor_code_execution_tool_result", { type: "text_editor_code_execution_create_result", is_file_update: false }],
   ["replace", "text_editor_code_execution", "text_editor_code_execution_tool_result", { type: "text_editor_code_execution_str_replace_result", lines: ["-before", "+replacementneedle"], old_start: 40, new_start: 42, old_lines: 1, new_lines: 1 }],
   ["error", "text_editor_code_execution", "text_editor_code_execution_tool_result", { type: "text_editor_code_execution_tool_result_error", error_code: "file_not_found", error_message: "errorneedle" }],
-  ["references", "tool_search", "tool_search_tool_result", { type: "tool_search_tool_search_result", tool_references: [{ type: "tool_reference", tool_name: "referenceneedle" }] }],
+  ["references", "tool_search_tool_regex", "tool_search_tool_result", { type: "tool_search_tool_search_result", tool_references: [{ type: "tool_reference", tool_name: "referenceneedle" }] }],
   ["redacted", "advisor", "advisor_tool_result", { type: "advisor_redacted_result", encrypted_content: "opaque-secret" }],
 ];
 export function plantServerTools(fixture) {

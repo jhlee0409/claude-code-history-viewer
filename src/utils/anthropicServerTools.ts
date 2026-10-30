@@ -1,7 +1,8 @@
 /** Claude local structural recount (111 JSONL files, 29,432 records): 313/318
  * WebSearch results are [{tool_use_id, content:[{title,url},…]}, commentary].
  * All 2,965 entries across 324 batches have string title/url. No record content
- * retained. Reproduce: docs/contracts/anthropic-server-tools.md. Strings are
+ * retained. Claude Code 2.1.285 binary Pn/Dn/Ln at byte 190231056 confirms
+ * batch objects + commentary (SHA-256 and excerpts in the contract). Strings are
  * commentary, never hits; count the links across every recorded batch. */
 /** Searchable SDK plaintext only; encrypted_content is deliberately opaque.
  * https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-30T18:55:24.684Z
- * 총 키 개수: 2346
+ * 생성 시간: 2026-10-30T19:22:11.630Z
+ * 총 키 개수: 2342
  * Namespace 수: 13
  */
 
@@ -1684,7 +1684,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (441개)
+ * renderers namespace의 번역 키 (437개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2058,9 +2058,8 @@ export type RenderersKeys =
   | 'terminalStreamRenderer.exitCode'
   | 'terminalStreamRenderer.title'
   | 'textEditorCodeExecutionToolResultRenderer.create'
-  | 'textEditorCodeExecutionToolResultRenderer.delete'
-  | 'textEditorCodeExecutionToolResultRenderer.edit'
   | 'textEditorCodeExecutionToolResultRenderer.showContent'
+  | 'textEditorCodeExecutionToolResultRenderer.update'
   | 'textEditorCodeExecutionToolResultRenderer.view'
   | 'thinkingRenderer.title'
   | 'toolError.executionTimeExceeded'
@@ -2068,8 +2067,6 @@ export type RenderersKeys =
   | 'toolError.invalidToolInput'
   | 'toolError.invalidUrlFormat'
   | 'toolError.maxUsesExceeded'
-  | 'toolError.noMatchingToolsFound'
-  | 'toolError.permissionDenied'
   | 'toolError.tooManyRequests'
   | 'toolError.unavailable'
   | 'toolError.unsupportedContentType'
@@ -2123,7 +2120,6 @@ export type RenderersKeys =
   | 'webSearchRenderer.duration'
   | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
-  | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'
   | 'webSearchRenderer.title'
   | 'webSearchRenderer.unknownResultFormat'
@@ -4628,9 +4624,8 @@ export type TranslationKey =
   | 'terminalStreamRenderer.exitCode'
   | 'terminalStreamRenderer.title'
   | 'textEditorCodeExecutionToolResultRenderer.create'
-  | 'textEditorCodeExecutionToolResultRenderer.delete'
-  | 'textEditorCodeExecutionToolResultRenderer.edit'
   | 'textEditorCodeExecutionToolResultRenderer.showContent'
+  | 'textEditorCodeExecutionToolResultRenderer.update'
   | 'textEditorCodeExecutionToolResultRenderer.view'
   | 'thinkingRenderer.title'
   | 'time.day'
@@ -4652,8 +4647,6 @@ export type TranslationKey =
   | 'toolError.invalidToolInput'
   | 'toolError.invalidUrlFormat'
   | 'toolError.maxUsesExceeded'
-  | 'toolError.noMatchingToolsFound'
-  | 'toolError.permissionDenied'
   | 'toolError.tooManyRequests'
   | 'toolError.unavailable'
   | 'toolError.unsupportedContentType'
@@ -4801,7 +4794,6 @@ export type TranslationKey =
   | 'webSearchRenderer.duration'
   | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
-  | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'
   | 'webSearchRenderer.title'
   | 'webSearchRenderer.unknownResultFormat'
