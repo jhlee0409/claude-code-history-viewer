@@ -1,5 +1,6 @@
 {
   "webSearchRenderer.linkCount_other": "{{count}}件の結果",
+  "advisorToolResultRenderer.truncated": "出力トークンの上限に達したため、アドバイスが途中で切れています。",
   "advisorToolResultRenderer.redacted": "非公開の助言（暗号化されているため、平文は利用できません）。",
   "diffView.recordedInput": "記録された入力",
   "diffView.deleted": "削除済み",

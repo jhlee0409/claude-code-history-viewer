@@ -1,5 +1,6 @@
 {
   "webSearchRenderer.linkCount_other": "{{count}} 条结果",
+  "advisorToolResultRenderer.truncated": "已达到输出令牌上限，建议内容已截断。",
   "advisorToolResultRenderer.redacted": "已隐藏的建议（内容已加密，无法查看明文）。",
   "diffView.recordedInput": "记录的输入",
   "diffView.deleted": "已删除",

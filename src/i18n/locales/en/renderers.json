@@ -1,6 +1,7 @@
 {
   "webSearchRenderer.linkCount_one": "{{count}} result",
   "webSearchRenderer.linkCount_other": "{{count}} results",
+  "advisorToolResultRenderer.truncated": "Advice truncated: output token limit reached.",
   "advisorToolResultRenderer.redacted": "Redacted advice (encrypted content; plaintext is unavailable).",
   "diffView.recordedInput": "Recorded input",
   "diffView.deleted": "Deleted",

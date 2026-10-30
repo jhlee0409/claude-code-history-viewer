@@ -21,6 +21,38 @@ Pinned producer: [`anthropics/anthropic-sdk-typescript@cb5fba419808e3844fa6407e5
 - Real server tool names are [6894–6902](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L6894-L6902): `tool_search_tool_regex` and `tool_search_tool_bm25`. Tests exercise both names, paired and orphan; the HTTP fixture uses regex.
 - Plain advisor `text` is specified at [387–405](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L387-L405). TS text/HTML export emits it as text (HTML escaped), not JSON. Redacted output remains opaque. The worker regression drives the actual build/search message protocol, with ciphertext negative control.
 
+### Advisor truncation (CodeRabbit 4427862354)
+
+**GROUNDED_SPEC.** The same pinned SDK exposes `stop_reason: string | null` on
+[`BetaAdvisorRedactedResultBlock` (360–374)](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L360-L374)
+and [`BetaAdvisorResultBlock` (387–398)](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L387-L398).
+The latter explicitly says `max_tokens` means output was truncated at the tool's
+budget or model policy cap. [449–457](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L449-L457)
+confirms this for **both** variants (the worker's note is inside the encrypted blob
+in redacted mode). Request/round-trip forms make the field optional (376–405).
+The advisor field is an open string, not itself an enum. It references the top-level
+[`BetaStopReason` union (6965–6973)](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L6965-L6973):
+`end_turn`, `max_tokens`, `stop_sequence`, `tool_use`, `pause_turn`, `compaction`,
+`refusal`, `model_context_window_exceeded`. [6038–6056](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L6038-L6056)
+describes these reasons except `compaction`; no truncation meaning is invented for it.
+
+| Rule | Evidence | Regression |
+|---|---|---|
+| Exact advisor `stop_reason === "max_tokens"` adds a truncation notice, including redacted output | SDK 360–405, 449–457 above | `anthropicServerTools.test.tsx`: actual unified paired/orphan route × five locales × two variants; empty text; other reasons/absent/null controls |
+| TS text, HTML and Markdown exports retain the same notice; HTML stays escaped and ciphertext stays opaque | Same producer fields; shared `extractBlocks` feeds both exporters | `anthropicServerTools.siblings.test.ts`: both variants, other reasons and error controls |
+
+The UI notice uses a static five-locale key, without counts, interpolation or
+plural selection. Exports retain their existing English/language-neutral convention.
+No truncation is inferred from absent/null/unknown values or from advice prose.
+Tests are SDK-shaped synthetic inputs: local redacted histories omit this field.
+Rust/headless export parity (including this notice) remains a separate follow-up.
+
+Round-2 P3 WebSearch compatibility differences are deliberately unchanged here:
+shared `webSearchLinks` still accepts empty string URLs and does not interpret
+JSON-string links/direct-display precedence. The previous structural recount found
+none of these shapes in actual producer records. This advisor-only correction does
+not claim to resolve that non-blocking compatibility difference.
+
 ### Claude Code binary schema and legacy compatibility
 
 Local producer `~/.local/share/claude/versions/2.1.285`, SHA-256 `51f09bd1e021d9fa8a1864c179799bd37cb39962a937935c5cf6823398e86db4`: byte **190231056** contains `Pn` (batch `{tool_use_id,content:[{title,url}]}`), `Dn` (`results: array(union(Pn,string))`, description “Search results and/or text commentary from the model”), and `Ln` (pushes batch objects and text commentary). This is **GROUNDED_BINARY_SCHEMA + GROUNDED_REAL_DATA**, not real-data-only. Schema and builder do not prescribe serialized-JSON link strings.

@@ -41,6 +41,33 @@ it.each([false, true])("C10 redacted advisor is encrypted, not empty (paired=%s)
   expect(root.textContent).not.toContain("No advice provided");
   expect(root.textContent).not.toContain("opaque-secret");
 });
+// SDK cb5fba4 messages.ts:360-405,449-457: both advisor variants record truncation.
+const truncationNotices = [
+  ["en", "Advice truncated: output token limit reached."],
+  ["ko", "출력 토큰 한도에 도달하여 조언이 잘렸습니다."],
+  ["ja", "出力トークンの上限に達したため、アドバイスが途中で切れています。"],
+  ["zh-CN", "已达到输出令牌上限，建议内容已截断。"],
+  ["zh-TW", "已達輸出權杖上限，建議內容已截斷。"],
+] as const;
+it.each(truncationNotices.flatMap(([locale, notice]) => [false, true].flatMap(paired => [false, true].map(redacted => ({ locale, notice, paired, redacted })))))("advisor truncation on real unified route: $locale paired=$paired redacted=$redacted", async ({ locale, notice, paired, redacted }) => {
+  await i18n.changeLanguage(locale);
+  const content = redacted ? { type: "advisor_redacted_result", encrypted_content: "opaque-secret", stop_reason: "max_tokens" } : { type: "advisor_result", text: "Partial advice", stop_reason: "max_tokens" };
+  const root = route(content, paired, "advisor_tool_result", "advisor");
+  expect(root.textContent).toContain(notice);
+  expect(root.textContent).not.toContain("opaque-secret");
+  expect(root.textContent).toContain(redacted ? i18n.t("advisorToolResultRenderer.redacted") : "Partial advice");
+});
+it.each(["end_turn", "stop_sequence", "tool_use", "pause_turn", "compaction", "refusal", "model_context_window_exceeded", null, undefined, "MAX_TOKENS", "unknown"])("advisor does not infer truncation from other stop reasons: %s", stop_reason => {
+  for (const redacted of [false, true]) {
+    const content = redacted ? { type: "advisor_redacted_result", encrypted_content: "opaque-secret", stop_reason } : { type: "advisor_result", text: "Advice", stop_reason };
+    const root = route(content, true, "advisor_tool_result", "advisor");
+    expect(root.textContent).not.toContain(truncationNotices[0][1]);
+  }
+});
+it("advisor empty truncated text still shows the notice", () => {
+  const root = route({ type: "advisor_result", text: "", stop_reason: "max_tokens" }, false, "advisor_tool_result", "advisor");
+  expect(root.textContent).toContain(truncationNotices[0][1]);
+});
 it("C11 WebSearch counts links, not batches/commentary, on legacy route", () => {
   const data = { query: "synthetic query", results: [{ tool_use_id: "search", content: [0,1,2].map(i => ({ title: `Link ${i}`, url: `https://example.test/${i}` })) }, "commentary"] };
   const { container } = render(<ThemeProvider><ExpandKeyProvider value="web-count"><ToolExecutionResultRouter toolResult={data} /></ExpandKeyProvider></ThemeProvider>);

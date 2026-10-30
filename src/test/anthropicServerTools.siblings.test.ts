@@ -3,6 +3,7 @@ import { waitFor } from "@testing-library/react";
 import { messageSearchIndex } from "@/utils/searchIndex";
 import { extractBlocks } from "@/services/export/contentExtractor";
 import { exportToHtml } from "@/services/export/htmlExporter";
+import { exportToMarkdown } from "@/services/export/markdownExporter";
 import { serverResultTexts } from "@/components/contentRenderer/serverResultText";
 import type { ClaudeMessage, ContentItem } from "@/types";
 const blocks = [
@@ -43,6 +44,39 @@ it("plain SDK advisor exports its text instead of serialized metadata", () => {
   const html = exportToHtml([{ ...message, content }], "Advisor");
   expect(html).toContain("Use &lt;safe&gt; advice");
   expect(html).not.toContain("stop_reason");
+});
+it.each([false, true])("advisor truncation survives text, HTML and Markdown export (redacted=%s)", redacted => {
+  const advice = "Partial <safe> advice";
+  const inner = redacted ? { type: "advisor_redacted_result", encrypted_content: "opaque-secret", stop_reason: "max_tokens" } : { type: "advisor_result", text: advice, stop_reason: "max_tokens" };
+  const content = [{ type: "advisor_tool_result", tool_use_id: "truncated", content: inner }] as unknown as ContentItem[];
+  const notice = "[Advice truncated: output token limit reached.]";
+  const text = extractBlocks(content).map(b => b.text).join("\n");
+  const html = exportToHtml([{ ...message, content }], "Advisor");
+  const markdown = exportToMarkdown([{ ...message, content }], "Advisor");
+  for (const output of [text, html, markdown]) {
+    expect(output).toContain(notice);
+    expect(output).not.toContain("opaque-secret");
+    expect(output).toContain(redacted ? "Redacted advice" : "Partial");
+  }
+  if (!redacted) {
+    expect(text).toContain(advice);
+    expect(markdown).toContain(advice);
+    expect(html).toContain("Partial &lt;safe&gt; advice");
+    expect(html).not.toContain("<safe>");
+  }
+});
+it.each(["end_turn", "stop_sequence", "tool_use", "pause_turn", "compaction", "refusal", "model_context_window_exceeded", null, undefined, "MAX_TOKENS", "unknown"])("advisor export leaves other stop reasons unchanged: %s", stop_reason => {
+  for (const inner of [
+    { type: "advisor_result", text: "Complete advice", stop_reason },
+    { type: "advisor_redacted_result", encrypted_content: "opaque-secret", stop_reason },
+    { type: "advisor_tool_result_error", error_code: "invalid_tool_input", stop_reason: "max_tokens" },
+  ]) {
+    const content = [{ type: "advisor_tool_result", tool_use_id: "control", content: inner }] as unknown as ContentItem[];
+    for (const output of [extractBlocks(content)[0]!.text, exportToHtml([{ ...message, content }], "Advisor"), exportToMarkdown([{ ...message, content }], "Advisor")]) {
+      expect(output).not.toContain("Advice truncated:");
+      expect(output).not.toContain("opaque-secret");
+    }
+  }
 });
 it("text and HTML exports retain SDK shape facts and an honest redacted state", () => {
   const text = extractBlocks(blocks as unknown as ContentItem[]).map(b => b.text).join("\n");
