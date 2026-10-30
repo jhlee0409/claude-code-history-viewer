@@ -153,6 +153,8 @@ export interface DiffWithMenuProps {
   expandKey: string;
   sections?: DiffSection[];
   highlight?: TextHighlight;
+  /** Explicit recorded copy actions (e.g. an apply_patch input, not a whole file). */
+  copies?: CopyAction[];
 }
 
 /**
@@ -160,7 +162,7 @@ export interface DiffWithMenuProps {
  * diff view): comparison mode and "Copy After Code", as its old toolbar had.
  * The screen's own layout is ED1; this only swaps the viewer.
  */
-export function DiffWithMenu({ oldText, newText, filePath = "", expandKey, sections, highlight }: DiffWithMenuProps) {
+export function DiffWithMenu({ oldText, newText, filePath = "", expandKey, sections, highlight, copies }: DiffWithMenuProps) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<ComparisonMode>("unified");
   // An explicit empty patch has no comparison or after-copy action.
@@ -168,7 +170,7 @@ export function DiffWithMenu({ oldText, newText, filePath = "", expandKey, secti
   return (
     <div data-diff-with-menu="">
       <div className="flex min-h-row-list items-center justify-end">
-        <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: newText }]} />
+        <DiffActionsMenu mode={mode} onModeChange={setMode} copies={copies ?? [{ label: t("diffViewer.copyAfterCode"), text: newText }]} />
       </div>
       <DiffComparisonBody mode={mode} sections={sections ?? [{ oldText, newText }]} filePath={filePath} expandKey={expandKey} highlight={highlight} />
     </div>

@@ -16,14 +16,15 @@ it("structured patches retain hunk start numbers and every hunk in DiffView", ()
   expect(container.querySelectorAll("[data-diff-view]").length).toBeGreaterThan(0);
   expect([...container.querySelectorAll("[data-diff-old-no]")].map(e => e.textContent)).toEqual(["8", "", "40", ""]);
 });
-it("text editor recorded old/new fields render even without an operation label", () => {
+it("text editor does not invent a diff from fields absent in the SDK", () => {
   const { container } = wrap(<ResultRowContext.Provider value={{ paired: true }}><TextEditorCodeExecutionToolResultRenderer toolUseId="unlabelled" content={{ type: "text_editor_code_execution_result", old_content: "before", new_content: "after" }} /></ResultRowContext.Provider>);
-  expect(container.querySelector("[data-diff-view]")).not.toBeNull();
+  expect(container.querySelector("[data-diff-view]")).toBeNull();
 });
-it("text editor edits render both recorded sides including empty new content", () => {
+it("removing the invented text-editor diff leaves the existing content disclosure intact", () => {
   const { container } = wrap(<ResultRowContext.Provider value={{ paired: true }}><TextEditorCodeExecutionToolResultRenderer toolUseId="editor" content={{ type: "text_editor_code_execution_result", operation: "edit", path: "a.ts", old_content: "removed\n", new_content: "", content: "recorded supplement" }} /></ResultRowContext.Provider>);
-  expect(container.querySelector("[data-diff-view]")).not.toBeNull();
-  expect(container.querySelector("[data-diff-code]")?.textContent).toBe("removed");
+  expect(container.querySelector("[data-diff-view]")).toBeNull();
+  fireEvent.click(container.querySelector<HTMLButtonElement>("button[aria-expanded]")!);
+  expect(container.textContent).toContain("recorded supplement");
 });
 it("apply_patch routes multi-file edits to DiffView while retaining the raw patch and unknown fields", () => {
   const patch = "*** Begin Patch\n*** Update File: a.ts\n@@\n-old\n+new\n*** Add File: b.ts\n+second\n*** End Patch";

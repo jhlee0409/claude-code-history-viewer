@@ -268,7 +268,7 @@ function patchBody(ctx: BodyContext): RoutedBody | null {
   return { body: <>
     {files.map((file, index) => <section key={index} className="space-y-1">
       <PathText path={file.path} ctx={ctx.pathCtx} className="text-code text-fg-2" highlight={ctx.highlight} />
-      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
+      <DiffWithMenu oldText={file.sections.map(s => s.oldText).join("\n")} newText={patchAfterText(file.sections)} sections={file.sections} copies={[{ label: ctx.t("common.copy"), text: source! }]} filePath={file.path} expandKey={`${ctx.expandKey}-patch-${index}`} highlight={ctx.highlight} />
     </section>)}
     <InputJson value={ctx.input} ctx={ctx} rest />
   </> };

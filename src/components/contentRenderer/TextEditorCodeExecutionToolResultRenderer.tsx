@@ -1,4 +1,3 @@
-import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { OutputBlock } from "../transcript/OutputBlock";
 import { Button } from "@/components/ui/button";
 /**
@@ -98,7 +97,9 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
             </div>
           )}
 
-          {(typeof content.old_content === "string" || typeof content.new_content === "string") && <DiffWithMenu oldText={content.old_content ?? ""} newText={content.new_content ?? ""} filePath={path} expandKey={`text-editor-diff-${toolUseId}`} highlight={highlight} />}
+          {/* No old_content/new_content diff: those fields are absent from the SDK.
+              https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192
+              Proper create/view/str_replace/errors support is a separate contract slice. */}
           {/* File content preview */}
           {fileContent && (
             <div className="mt-2">

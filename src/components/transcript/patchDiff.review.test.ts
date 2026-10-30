@@ -1,43 +1,64 @@
 import { expect, it } from "vitest";
 import { parseApplyPatch, structuredSections } from "./patchDiff";
 
+// Producer: openai/codex@788b9d7bf6e37f735647b7f84b556c2a807df4d8,
+// parser.rs:20,44-45; streaming_parser.rs:276-345. Audit C7 probe cases.
 const parse = (body: string) => parseApplyPatch(`*** Begin Patch\n${body}\n*** End Patch`);
-it("numbered apply_patch hunks retain both offsets and increment each side independently", () => {
-  const sections = parse("*** Update File: a.ts\n@@ -40,2 +42,2 @@ title\n same\n-old\n+new\n@@ -90 +120 @@\n-last\n+LAST")![0]!.sections;
-  expect(sections.map(s => [s.oldStart, s.newStart])).toEqual([[40, 42], [90, 120]]);
-  expect(sections.map(s => s.lines!.map(l => [l.oldNo, l.newNo]))).toEqual([[[40, 42], [41, null], [null, 43]], [[90, null], [null, 120]]]);
+it.each([
+  "-40,1 +42,1 @@", "- 40 +42 @@", "@property", "2024 config", "    def f():",
+  "class Foo", "-40,no +42,1 @@", "-40 +42", "-9007199254740992 +42 @@",
+  "-9007199254740991,3 +9007199254740991,3 @@", "+added", "@", "-040 +42 @@",
+])("every @@ space suffix is an anchor, never coordinates: %j", anchor => {
+  const sections = parse(`*** Update File: a.py\n@@ ${anchor}\n-old\n+new`)?.[0]?.sections;
+  expect(sections).toHaveLength(1);
+  expect(sections?.[0]).toMatchObject({ anchor, lines: [{ kind: "del", text: "old", oldNo: null, newNo: null }, { kind: "add", text: "new", oldNo: null, newNo: null }] });
+  expect(sections?.[0]?.oldStart).toBeUndefined();
+  expect(sections?.[0]?.newStart).toBeUndefined();
 });
-it.each(["@@", "@@ class Widget", "@@ def method()", ""])("unnumbered apply_patch header %j does not invent line numbers", header => {
-  const section = parse(`*** Update File: a.ts\n${header ? header + "\n" : ""} same\n-old\n+new`)![0]!.sections[0]!;
-  expect(section.oldStart).toBeUndefined();
-  expect(section.newStart).toBeUndefined();
-  expect(section.lines!.map(l => [l.oldNo, l.newNo])).toEqual([[null, null], [null, null], [null, null]]);
+it.each(["@@\n", ""])("bare and omitted anchors have blank gutters: %j", header => {
+  expect(parse(`*** Update File: a\n${header} same\n-old\n+new`)?.[0]?.sections[0]?.lines?.map(l => [l.oldNo, l.newNo])).toEqual([[null, null], [null, null], [null, null]]);
 });
-it("numbered offsets do not leak to an unnumbered hunk or next file", () => {
-  const files = parse("*** Update File: a.ts\n@@ -40 +42 @@\n-old\n+new\n@@ label\n+next\n*** Add File: b.ts\n+file")!;
-  expect(files[0]!.sections[1]!.lines![0]!.newNo).toBeNull();
-  expect(files[1]!.sections[0]!.lines![0]!.newNo).toBeNull();
-});
-it("zero-count numbered ranges retain the recorded zero start", () => {
-  const section = parse("*** Update File: a.ts\n@@ -0,0 +1,1 @@\n+first")![0]!.sections[0]!;
-  expect([section.oldStart, section.newStart]).toEqual([0, 1]);
-  expect(section.lines![0]!.newNo).toBe(1);
-});
-it.each(["@@ -40,no +42,1 @@", "@@ -40 +42", "@@ -9007199254740992 +42 @@"])("malformed numeric header %j falls back to raw instead of false offsets", header => {
-  expect(parse(`*** Update File: a.ts\n${header}\n-old\n+new`)).toBeNull();
+it("empty lines are empty context, including before an explicit anchor", () => {
+  expect(parse("*** Update File: a\n\n@@ def f():\n a\n\n-b\n+c")?.[0]?.sections.map(s => s.lines?.map(l => [l.kind, l.text]))).toEqual([[["context", ""]], [["context", "a"], ["context", ""], ["del", "b"], ["add", "c"]]]);
 });
 it.each([
-  { header: "@@ -9007199254740991 +9007199254740991 @@", rows: " last", expected: [[9007199254740991, 9007199254740991]] },
-  { header: "@@ -9007199254740990,2 +9007199254740990,2 @@ label", rows: " before\n last", expected: [[9007199254740990, 9007199254740990], [9007199254740991, 9007199254740991]] },
-  { header: "@@ -9007199254740991,1 +0,0 @@", rows: "-last", expected: [[9007199254740991, null]] },
-  { header: "@@ -0,0 +9007199254740991,1 @@", rows: "+last", expected: [[null, 9007199254740991]] },
-  { header: "@@ -0,9007199254740991 +0,9007199254740991 @@", rows: " first", expected: [[0, 0]] },
-  { header: "@@ -0,0 +0,0 @@", rows: " first", expected: [[0, 0]] },
-])("safe boundary coordinates remain exact: $header", ({ header, rows, expected }) => {
-  const section = parse(`*** Update File: a.ts\n${header}\n${rows}`)![0]!.sections[0]!;
-  expect(section.lines!.map(line => [line.oldNo, line.newNo])).toEqual(expected);
+  "*** Environment ID: remote\n*** Update File: a\n@@\n-a\n+b",
+  "*** Environment ID:remote\n*** Delete File: a",
+  "  *** Add File: a   \n+x\n  *** Delete File: b  ",
+  "*** Update File: a  \n@@ @property  \n-a  \n+b  ",
+  "*** Update File: a\n*** Move to: b  \n@@\n-a\n+b\n*** End of File\n\n@@ next\n+x",
+  "*** Add File: empty",
+  "*** Delete File: gone",
+])("upstream accepted metadata/marker examples: %j", body => expect(parse(body)).not.toBeNull());
+it.each(["@@@", "@@\tanchor", "@@@@", "not a row", "\\ No newline at end of file"])("upstream invalid update row falls back: %j", row => expect(parse(`*** Update File: a\n${row}\n-old\n+new`)).toBeNull());
+it.each([
+  "*** Environment ID:\n*** Delete File: a",
+  "*** Environment ID: x\n*** Environment ID: y\n*** Delete File: a",
+  "*** Delete File: a\n*** Environment ID: x",
+  "*** Update File: a",
+  "*** Update File: a\n@@",
+  "*** Update File: a\n@@\n@@ next\n+x",
+  "*** Update File: a\n@@\n+x\n*** End of File\n+x",
+  "*** Add File: a\n-not allowed",
+  "*** Delete File: a\n+not allowed",
+  "*** Update File: a\n+x\n*** Move to: b",
+])("upstream rejects malformed operation structure: %j", body => expect(parse(body)).toBeNull());
+it("patch boundary trim and lenient EOF wrappers mirror upstream", () => {
+  const source = "*** Begin Patch\n*** Update File: a\n@@\n-a\n+b\n*** End Patch";
+  expect(parseApplyPatch(` \n${source} \n\t`)).not.toBeNull();
+  for (const marker of ["<<EOF", "<<'EOF'", '<<"EOF"']) expect(parseApplyPatch(`${marker}\n${source}\nEOF\n`)).not.toBeNull();
+  expect(parseApplyPatch(source + "\ntrailing junk")).toBeNull();
+  expect(parseApplyPatch(source.replace("*** End Patch", "  *** End Patch  "))).not.toBeNull();
+  expect(parseApplyPatch("*** Begin Patch\n*** End Patch")).toEqual([]);
+  // In UpdateFile only trim_end applies before the final line: an indented
+  // marker is a context row, not an end marker (streaming_parser.rs:228,318).
+  expect(parseApplyPatch(source.replace("*** End Patch", "  *** End Patch  \n*** End Patch"))?.[0]?.sections[0]?.lines?.slice(-1)[0]?.text).toBe(" *** End Patch  ");
 });
-
+it("marker whitespace follows Rust str trim, not JavaScript trim", () => {
+  expect(parseApplyPatch("\u0085*** Begin Patch\n*** Delete File: a\n*** End Patch\u0085")).not.toBeNull();
+  expect(parseApplyPatch("\uFEFF*** Begin Patch\n*** Delete File: a\n*** End Patch")).toBeNull();
+  expect(parse("*** Delete File: a\u2028b")?.[0]?.path).toBe("a\u2028b");
+});
 it("structured patch numbering remains recorded (and defaults stay compatible)", () => {
   expect(structuredSections([{ oldStart: 40, newStart: 42, lines: ["-old", "+new"] }, { lines: [" same"] }]).map(s => s.lines!.map(l => [l.oldNo, l.newNo]))).toEqual([[[40, null], [null, 42]], [[1, 1]]]);
 });

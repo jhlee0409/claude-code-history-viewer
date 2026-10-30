@@ -49,6 +49,8 @@ export interface DiffSection {
   lines?: DiffLine[];
   /** Legacy reconstructed after-copy payload, including recorded patch metadata. */
   copyLines?: string[];
+  /** Codex apply_patch change_context; never a file coordinate. */
+  anchor?: string;
 }
 
 export interface DiffViewProps {
@@ -218,7 +220,8 @@ export function DiffView({ sections, expandKey, lineCap = DIFF_LINE_CAP, context
   let matchOffset = searchOffset;
   const items: Item[] = [];
   sections.forEach((section, s) => {
-    if (sections.length > 1) items.push({ type: "section", key: `s${s}`, text: t("diffView.section", { index: s + 1, total: sections.length }) });
+    if (section.anchor !== undefined) items.push({ type: "section", key: `s${s}-anchor`, text: `@@ ${section.anchor}` });
+    else if (sections.length > 1) items.push({ type: "section", key: `s${s}`, text: t("diffView.section", { index: s + 1, total: sections.length }) });
     const allLines = comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method, section.lines);
     allLines.forEach(line => {
       const count = query ? searchRanges(line.text, query).length : 0;
