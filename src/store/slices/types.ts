@@ -235,6 +235,9 @@ export interface AppStoreState {
   // Minimap state
   isMinimapOpen: boolean;
 
+  // API request view state
+  isApiViewOpen: boolean;
+
   // Recent Edits screen state (recentEditsSlice)
   recentEditsDensity: import('./recentEditsSlice').RecentEditsDensity;
   recentEditsScope: import('./recentEditsSlice').RecentEditsScope;
@@ -475,6 +478,9 @@ export interface AppStoreActions {
   // Minimap actions
   toggleMinimap: () => void;
   setMinimapOpen: (open: boolean) => void;
+
+  // API request view actions
+  toggleApiView: () => void;
 
   // Recent Edits screen actions (recentEditsSlice)
   setRecentEditsDensity: (density: import('./recentEditsSlice').RecentEditsDensity) => void;

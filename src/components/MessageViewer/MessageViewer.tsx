@@ -22,6 +22,7 @@ import { CurrentDateBar } from "./components/CurrentDateBar";
 import { SessionMinimap, MINIMAP_WIDTH_PX } from "./components/SessionMinimap";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
+import { ApiRequestsView } from "../ApiRequestsView/ApiRequestsView";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
 import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
@@ -210,6 +211,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const pendingAnchor = useAppStore((s) => s.pendingAnchor) ?? null;
   // The tab on screen: switching tabs starts the find field empty.
   const activeDocumentId = useAppStore((s) => s.activeDocumentId);
+  const isApiViewOpen = useAppStore((s) => s.isApiViewOpen);
   const sessionPath = selectedSession?.file_path ?? null;
   const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
   const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
@@ -956,6 +958,19 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // offset: the list's own render guard plus the visibility gate (switch /
   // Capture Mode / md breakpoint), so no gutter is reserved for an unmounted strip.
   const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
+
+  if (isApiViewOpen && sessionPath && !isCaptureMode) {
+    return (
+      <div className="relative flex-1 h-full flex flex-col min-h-0">
+        <FilterToolbar
+          totalCount={messages.length}
+          filteredCount={displayMessages.length}
+          hasParallelTasks={hasParallelTasks}
+        />
+        <ApiRequestsView sessionPath={sessionPath} reloadKey={messages} />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
