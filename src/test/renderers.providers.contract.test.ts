@@ -77,8 +77,8 @@ describe('TR1c current public provider dispatcher and source fixtures', () => {
   for (const provider of ['opencode', 'kilo']) {
     it(`${provider}: exact tool state, not an invented exit code`, () => {
       const r = results(provider);
-      expect(toolOutcome(null, [r[0]!], 'process', provider).verdict).toBe('succeeded');
-      expect(toolOutcome(null, [r[1]!], 'process', provider).lifecycle).toBe('interrupted');
+      expect(toolOutcome(null, [r[0]!], 'process', provider).verdict).toBe('unknown');
+      expect(toolOutcome(null, [r[1]!], 'process', provider).lifecycle).toBe('completed');
       expect(toolOutcome(null, [r[2]!], 'process', provider).verdict).toBe('failed');
       expect(normalizeResult(r[0]!, { provider }).exitCode).toBeUndefined();
     });

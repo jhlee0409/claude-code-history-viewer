@@ -26,7 +26,8 @@ describe('bot provenance regressions — real message and result routes',()=>{
     expect(container.querySelector('[data-message-uuid="legacy-pi"] [data-tool-row]')?.getAttribute('data-tool-lifecycle')).toBe('completed');
     open(container);
     expect(container.textContent).toContain('"exitCode": 23');
-    expect(rowVerdicts(container)).toEqual(['unknown','succeeded']);
+    // C2: provider identity still routes fields, but completion alone proves no success.
+    expect(rowVerdicts(container)).toEqual(['unknown','unknown']);
   });
   it('terminal router preserves the full raw record for outcome and independent fields',()=>{
     const record={type:'terminal_stream',command:'demo',stream:'stderr',output:'warning bytes',error_code:'terminal-denied',interrupted:false,future:{zero:0,flag:false,nil:null},content:[{type:'text',text:'distinct-content'}]};

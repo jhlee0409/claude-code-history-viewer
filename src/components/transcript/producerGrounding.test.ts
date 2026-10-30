@@ -1,0 +1,115 @@
+/** Structural-only replicas: no user text copied. Local scan: Claude Bash 3582,
+ * is_error:false 3468, error-prefix 17, exit aliases 0; Pi/OMP false 18279,
+ * error-prefix 53. Source references: docs/contracts/producer-outcome-ground-truth.md.
+ */
+import { describe, expect, it } from "vitest";
+import { normalizeResult, resultContent, toolOutcome, type ToolResultLike } from "./toolOutcome";
+
+const claude = (flag?: boolean, content: unknown = "error: synthetic diagnostic printed by a successful command"): ToolResultLike => ({
+  type: "tool_result", tool_use_id: "synthetic-call", content,
+  ...(flag === undefined ? {} : { is_error: flag }),
+  toolUseResult: { stdout: typeof content === "string" ? content : "", stderr: "", interrupted: false, isImage: false, noOutputExpected: false },
+});
+const pi = (flag: boolean): ToolResultLike => ({
+  type: "tool_result", tool_use_id: "synthetic-call", is_error: flag,
+  content: [{ type: "text", text: "error: synthetic stdout" }],
+  toolUseResult: { role: "toolResult", toolCallId: "synthetic-call", toolName: "bash", content: [{ type: "text", text: "error: synthetic stdout" }], details: {}, isError: flag, timestamp: 0 },
+});
+
+describe("C1: producer flags, not prose", () => {
+  it("Claude Bash no-error is not flipped by an error-prefixed stdout", () => {
+    expect(toolOutcome(null, [claude(false)], "process", "claude")).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
+  });
+  it.each(["pi", "ompi"])("%s keeps both false and true producer flags, without interpreting opaque details", provider => {
+    const r = pi(false);
+    expect(normalizeResult(r, { provider }).isError).toBe(false);
+    expect(toolOutcome(null, [r], "process", provider).verdict).toBe("unknown");
+    expect(toolOutcome(null, [pi(true)], "process", provider).verdict).toBe("failed");
+    expect(normalizeResult({ ...r, toolUseResult: { ...r.toolUseResult as object, isError: true } }, { provider }).isError).toBe(true);
+  });
+  it.each(["claude", "pi", "ompi", "codex", "opencode", "kilo", "copilot"])("%s: prose alone has no grounded failure verdict", provider => {
+    expect(toolOutcome(null, [{ content: "Error: could be ordinary file contents" }], "process", provider).verdict).toBe("unknown");
+    expect(toolOutcome(null, [{ content: "Error: ordinary file contents" }], "read-search", provider).verdict).toBe("unknown");
+  });
+  it("genuine producer error still fails, even after a no-error sibling", () => {
+    expect(toolOutcome(null, [claude(false), claude(true)], "process", "claude")).toMatchObject({ verdict: "failed", reason: "provider-error" });
+  });
+  it("multi-part output remains ordered and flags belong to the whole result", () => {
+    const parts = [{ type: "text", text: "error: synthetic stdout" }, { type: "image", source: { type: "url", url: "https://example.invalid/image.png" } }, { type: "text", text: "synthetic tail" }];
+    const r = claude(false, parts);
+    expect(toolOutcome(null, [r], "process", "claude").verdict).toBe("unknown");
+    expect(resultContent(r).parts).toEqual([{ kind: "text", text: "error: synthetic stdout" }, { kind: "other", value: [parts[1]] }, { kind: "text", text: "synthetic tail" }]);
+  });
+});
+
+// Exact preserved state/extras shapes, synthetic values; source-shaped, not live records.
+const coreResult = (exit: unknown, output = "synthetic output", status = "completed"): ToolResultLike => ({
+  type: "tool_result", tool_use_id: "synthetic-core", content: output,
+  toolUseResult: { status, input: { command: "false" }, output, title: "synthetic command", metadata: { output, exit, description: "synthetic command" }, time: { start: 1, end: 2 } },
+});
+const handsResult = (exit: unknown, isError = false): ToolResultLike => ({
+  type: "tool_result", tool_use_id: "synthetic-hands", content: "synthetic command output", is_error: isError,
+  toolUseResult: { command: "synthetic command", metadata: { exit_code: exit, pid: -1, prefix: "", suffix: "" }, hidden: false },
+});
+
+describe("C2: completed is lifecycle, metadata.exit is the process result", () => {
+  for (const provider of ["opencode", "kilo"]) {
+    it.each([0, 1, 2])(`${provider}: recorded exit %s`, exit => {
+      expect(toolOutcome(null, [coreResult(exit)], "process", provider)).toEqual({ lifecycle: "completed", verdict: exit === 0 ? "succeeded" : "failed", reason: exit === 0 ? "exit-zero" : "exit-nonzero", exitCode: exit });
+    });
+    it.each([null, undefined, "0", false])(`${provider}: unavailable exit %s never becomes success`, exit => {
+      expect(toolOutcome(null, [coreResult(exit)], "process", provider)).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
+      expect(toolOutcome(null, [coreResult(exit)], "read-search", provider).verdict).toBe("unknown");
+    });
+    it(`${provider}: sibling codes conflict; status:error stays an error`, () => {
+      expect(toolOutcome(null, [coreResult(0), coreResult(2)], "process", provider)).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 2 });
+      expect(toolOutcome(null, [coreResult(0, "synthetic", "error")], "process", provider)).toMatchObject({ verdict: "failed", reason: "provider-error" });
+    });
+    it(`${provider}: metadata.exit never leaks to other provider contracts`, () => {
+      for (const other of ["claude", "pi", "ompi", "codex", "openhands", "copilot"]) expect(normalizeResult(coreResult(1), { provider: other }).exitCode).toBeUndefined();
+    });
+  }
+  it.each(["\n\n(Command was aborted)", "\n\n(Command timed out after 1000 ms)"])("OpenCode producer suffix %s is interruption, not success", suffix => {
+    expect(toolOutcome(null, [coreResult(null, `synthetic output${suffix}`)], "process", "opencode")).toEqual({ lifecycle: "interrupted", verdict: "unknown", reason: "interrupted" });
+    expect(toolOutcome(null, [coreResult(1, `synthetic output${suffix}`)], "process", "opencode")).toMatchObject({ lifecycle: "interrupted", verdict: "failed", exitCode: 1 });
+  });
+  it("Kilo has its own independently verified bash_metadata grammar", () => {
+    for (const note of ["User aborted the command", "bash tool terminated command after exceeding timeout 1000 ms. If this command is expected to take longer and is not waiting for interactive input, retry with a larger timeout value in milliseconds."]) {
+      const r = coreResult(null, `synthetic output\n\n<bash_metadata>\n${note}\n</bash_metadata>`);
+      expect(toolOutcome(null, [r], "process", "kilo").lifecycle).toBe("interrupted");
+      expect(toolOutcome(null, [r], "process", "claude").lifecycle).toBe("completed");
+    }
+    expect(toolOutcome(null, [coreResult(null, "User aborted the command")], "process", "kilo").lifecycle).toBe("completed");
+  });
+  it("does not invent an OpenCode cancelled enum or parse stdout markers without source state", () => {
+    expect(toolOutcome(null, [coreResult(undefined, "synthetic", "cancelled")], "process", "opencode").lifecycle).toBe("completed");
+    expect(toolOutcome(null, [{ content: "\n\n(Command was aborted)" }], "process", "opencode").lifecycle).toBe("completed");
+  });
+});
+
+describe("C3/C4: OpenHands unavailable sentinel and backend flag provenance", () => {
+  it.each([-1, null, undefined, "0"])("unavailable exit %s stays unknown, not failed or conflicted", exit => {
+    expect(toolOutcome(null, [handsResult(exit)], "process", "openhands")).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
+  });
+  it.each([0, 1, 2])("real exit %s decides without a fabricated false-flag conflict", exit => {
+    expect(toolOutcome(null, [handsResult(exit)], "process", "openhands")).toEqual({ lifecycle: "completed", verdict: exit === 0 ? "succeeded" : "failed", reason: exit === 0 ? "exit-zero" : "exit-nonzero", exitCode: exit });
+  });
+  it("true synthesized error represents observation:error; false is not a producer no-error assertion", () => {
+    expect(normalizeResult(handsResult(2), { provider: "openhands" }).isError).toBeUndefined();
+    expect(toolOutcome(null, [handsResult(-1, true)], "process", "openhands")).toMatchObject({ verdict: "failed", reason: "provider-error" });
+    expect(toolOutcome(null, [handsResult(0), handsResult(2)], "process", "openhands")).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 2 });
+    expect(toolOutcome(null, [handsResult(-1)], "process", "codex")).toMatchObject({ verdict: "failed", exitCode: -1 });
+  });
+});
+
+describe("missing producer evidence is not verified read/search success (U7)", () => {
+  it.each(["Read", "Grep", "WebFetch"])("%s: missing flags stay unknown; explicit no-error remains a positive control", name => {
+    const use = { name };
+    expect(toolOutcome(use, [{ content: "synthetic contents" }], "read-search", "claude").verdict).toBe("unknown");
+    expect(toolOutcome(use, [{ content: "synthetic contents", is_error: false }], "read-search", "claude").verdict).toBe("succeeded");
+  });
+  it.each([200, 403, 404, 418, 500])("WebFetch HTTP code %s is not a process code or a success flag", code => {
+    const r = { content: "synthetic response", toolUseResult: { bytes: 18, code, codeText: "synthetic status", durationMs: 1, result: "synthetic response", url: "https://example.invalid" } };
+    expect(toolOutcome({ name: "WebFetch" }, [r], "read-search", "claude")).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" });
+  });
+});

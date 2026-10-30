@@ -246,10 +246,10 @@ describe("aliased tool names use their normalized evidence (independent review)"
     ["Bash", { content: "done" }, "unknown"],
     ["shell", { content: "done" }, "unknown"],
     ["bash", { content: "permission denied", is_error: true }, "failed"],
-    ["read", { content: "file text" }, "succeeded"],
-    ["read_file", { content: "file text" }, "succeeded"],
+    ["read", { content: "file text" }, "unknown"],
+    ["read_file", { content: "file text" }, "unknown"],
     ["grep", { content: "missing", is_error: true }, "failed"],
-    ["glob", { content: "src/a.ts" }, "succeeded"],
+    ["glob", { content: "src/a.ts" }, "unknown"],
   ] as const)("%s → %s, no process status invented", (name, result, verdict) => {
     const { container } = card(name, { command: "probe", path: "a.txt" }, [result]);
     expect(rowOf(container).getAttribute("data-tool-verdict")).toBe(verdict);

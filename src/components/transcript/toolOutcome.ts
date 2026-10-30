@@ -27,12 +27,10 @@ export type OutcomeReason =
   | "interrupted"
   | "provider-error"
   | "api-error-code"
-  | "error-content"
   | "exit-nonzero"
   | "exit-zero"
   | "conflict"
   | "no-error-signal"
-  | "provider-completed"
   | "no-exit-code";
 
 export interface ToolOutcome {
@@ -51,8 +49,8 @@ export interface ToolOutcome {
 
 /**
  * process: has an exit code (shell, exec, code execution).
- * read-search: reads or searches; their errors are recorded only as error
- * signals, so "a result and no error signal" is their evidence of success.
+ * read-search: reads or searches; an explicit no-error flag on every result
+ * is required for success. Missing flags are not verification.
  * other: edits, MCP, agents … — completed but unknown unless an error or an
  * exit code is recorded.
  */
@@ -62,14 +60,10 @@ export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
 
 export interface NormalizedResult {
-  /** Source-owned OpenCode-core tool state, never a session/process status. */
-  completed?: boolean;
   /** `is_error` as recorded: `true`, `false`, or absent. */
   isError?: boolean;
   /** API error code (`error_code`) from the content object or own metadata. */
   errorCode?: string;
-  /** The content string when it is an error message (`^error\b`). */
-  errorText?: string;
   /** A recorded integer exit code. */
   exitCode?: number;
   /** Two recorded exit codes for this one result disagree. */
@@ -80,9 +74,6 @@ export interface NormalizedResult {
   /** The block's content when it is a plain string, as recorded. */
   text?: string;
 }
-
-/** The existing error-string rule: a result whose content starts with `error`. */
-export const ERROR_TEXT_PATTERN = /^error\b/i;
 
 // ---------------------------------------------------------------------------
 // Families
@@ -177,7 +168,10 @@ export function normalizeResult(
     (s): s is Record<string, unknown> => s !== null,
   );
 
-  if (typeof result.is_error === "boolean") out.isError = result.is_error;
+  // OpenHands has no producer is_error field: the backend sets it from
+  // observation == "error". Its false default is NOT recorded no-error evidence.
+  // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
+  if (typeof result.is_error === "boolean" && (!openhands || result.is_error)) out.isError = result.is_error;
   // Legacy MCP router records carry an explicit error union. This is not a
   // generic `error`-key heuristic: other providers keep their opaque schemas.
   if (legacy && contentObject &&
@@ -187,11 +181,34 @@ export function normalizeResult(
     if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
   }
   if (core && own) {
-    if (own.status === "completed") out.completed = true;
+    // completed is a lifecycle, not a verdict; cancelled is not a source enum.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/message-v2.ts#L209-L245
     if (own.status === "error") out.isError = true;
-    if (own.status === "cancelled") out.interrupted = true;
+    // Bash alone owns metadata.exit. Do not promote arbitrary extension data
+    // from a non-process tool. #752/4415170647 confused completion and success.
+    // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
+    // https://github.com/anomalyco/opencode/blob/37bb07e7a313d7150038061dbba670410eb0469d/packages/opencode/src/tool/bash.ts#L318-L333
+    // Kilo independently verified (not inferred from its fork relationship):
+    // https://github.com/Kilo-Org/kilocode/blob/a77843cbab3006baa4ef7368a5043217a9b6a278/packages/opencode/src/tool/bash.ts#L527-L571
+    if (options.bareCodeIsExitCode && own.status === "completed") {
+      const exit = recordedInteger(metadata?.exit);
+      if (exit !== undefined) out.exitCode = exit;
+      const output = typeof own.output === "string" ? own.output : "";
+      // Only source-appended, end-anchored markers, under the source state.
+      // These establish interruption, never a numeric exit or success.
+      if (options.provider === "opencode") {
+        out.interrupted = /\n\n\(Command (?:was aborted|timed out after \d+ ms)\)$/.test(output);
+      } else {
+        out.interrupted = /\n\n<bash_metadata>\n(?:[^\n]*\n)*(?:User aborted the command|bash tool terminated command after exceeding timeout \d+ ms\.[^\n]*)(?:\n[^\n]*)*\n<\/bash_metadata>$/.test(output);
+      }
+    }
   }
-  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean" && own.isError) out.isError = true;
+  // Pi/OMP record both boolean values on toolResult; details is opaque.
+  // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/bash.ts#L400-L408
+  // Local structural scan: 18279 false toolResults, 53 error-prefixed outputs.
+  if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean") {
+    out.isError = own.isError || out.isError === true;
+  }
 
   for (const source of [contentObject, own]) {
     if (source && typeof source.error_code === "string" && source.error_code.length > 0) {
@@ -202,7 +219,6 @@ export function normalizeResult(
 
   if (typeof content === "string") {
     out.text = content;
-    if (ERROR_TEXT_PATTERN.test(content)) out.errorText = content;
   }
 
   const keys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
@@ -210,7 +226,10 @@ export function normalizeResult(
   for (const source of sources) {
     for (const key of keys) {
       const code = recordedInteger(source[key]);
-      if (code !== undefined) codes.push(code);
+      // -1 is OpenHands' "no PS1 metadata available", not a process failure.
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/events/observation/commands.py#L21-L31
+      // https://github.com/All-Hands-AI/OpenHands/blob/3fe4434c22ee2fd92527844a58569034847ef760/openhands/runtime/utils/bash.py#L375-L414
+      if (code !== undefined && !(openhands && code === -1)) codes.push(code);
     }
   }
   if (codes.length > 0) {
@@ -663,22 +682,19 @@ export function toolOutcome(
     return withCodes({ lifecycle: "interrupted", verdict, reason: "interrupted" });
   }
 
-  // 3. Recorded error signals; an exit code 0 beside one is a conflict.
-  //    For a process tool, output text that merely starts with `error` is
-  //    not a signal once an exit code is recorded: the recorded code decides
-  //    (owner decision on PR #728). Explicit `is_error`/`error_code` still count.
+  // 3. Recorded errors, never an English word in arbitrary tool output.
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7919-L7941
+  // Local Claude Bash: 17/3468 is_error:false results start with error;
+  // 0/3582 record an exit alias. #728/4360641128's exit-only fix missed them.
+  // No producer evidence establishes a general ^error failure grammar.
   const providerError = normalized.some((n) => n.isError === true);
-  const textOutrankedByExit = family === "process" && exitCode !== undefined;
-  const errorContent = !textOutrankedByExit && normalized.some((n) => n.completed !== true && n.errorText !== undefined);
-  if (providerError || errorCode !== undefined || errorContent) {
+  if (providerError || errorCode !== undefined) {
     const reason: OutcomeReason =
       exitCode === 0 || codesDisagree
         ? "conflict"
         : providerError
           ? "provider-error"
-          : errorCode !== undefined
-            ? "api-error-code"
-            : "error-content";
+          : "api-error-code";
     return withCodes({ lifecycle: "completed", verdict: "failed", reason });
   }
 
@@ -692,9 +708,11 @@ export function toolOutcome(
   }
 
   // 5. No error signal and no exit code. (6. stderr never decides.)
-  if (normalized.every((n) => n.completed === true)) return { lifecycle: "completed", verdict: "succeeded", reason: "provider-completed" };
   if (family === "process") return { lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" };
-  if (family === "read-search") return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
+  // Missing flags are unknown, not evidence of successful read/search. Local
+  // WebFetch records include unflagged HTTP403×21/404×8/418×2/500×1 (audit U7).
+  // Only recorded no-error on EVERY part can establish this non-process success.
+  if (family === "read-search" && normalized.every((n) => n.isError === false)) return { lifecycle: "completed", verdict: "succeeded", reason: "no-error-signal" };
   return { lifecycle: "completed", verdict: "unknown", reason: "no-error-signal" };
 }
 
