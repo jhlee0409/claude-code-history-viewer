@@ -45,11 +45,12 @@ semantics come from the Anthropic contract, not invented local observations.
 
 ## Round-1 source verification
 
-- **OpenCode/Kilo named built-in completed = no-error**: exact IDs read/grep/glob/list/edit/write/webfetch only; normal returns become
+- **OpenCode/Kilo named built-in completed = no-error**: backend-delivered Read/Glob/Edit/Write/WebFetch, plus OpenCode-only list; normal returns become
   `completed`, thrown failures become `error`: [OpenCode b9a39b8 prompt.ts:1115–1160](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160),
   independently [Kilo 0a9faeff processor.ts:271–310](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310).
-  Read/search succeeds and regains folding eligibility; edit/write succeeds but
-  never folds. Bash completion still needs `metadata.exit` (C2).
+  Read/Glob/WebFetch regain success and folding; Edit/Write succeed but never
+  fold. Ambiguous Grep stays unknown (round-3 trade-off below). Bash completion
+  still needs `metadata.exit` (C2).
 - **Current Kilo bash interruption**: [shell.ts:687–723](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/shell.ts#L687-L723)
   appends `<shell_metadata>` abort/timeout notes. [command-timeout.ts:32–41](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/command-timeout.ts#L32-L41)
   adds environment-timeout wording and an optional multiline deployment message.
@@ -74,7 +75,7 @@ semantics come from the Anthropic contract, not invented local observations.
   then records false. No version-discriminating field reaches this frontend.
   OMP bash also stays unknown; its implementation differs.
 
-### Exact built-in allowlist (OpenCode b9a39b8)
+### Producer IDs and backend-delivered completion allowlist
 
 All paths below are under `packages/opencode/src/`; links are pinned to
 `b9a39b816c92592e824c68cdc9a48acf7717e2a2`.
@@ -89,9 +90,30 @@ All paths below are under `packages/opencode/src/`; links are pinned to
 | `write` | [tool/write.ts:20–45](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/write.ts#L20-L45): throws scope/read-time/permission errors; awaits Bun.write |
 | `webfetch` | [tool/webfetch.ts:23–88](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/webfetch.ts#L23-L88): throws URL/HTTP/size errors |
 
-The same allowlist gates Kilo completion; no Kilo-only MCP exception is added.
-MCP/plugin/unknown names and aliases (including read_file and uppercase Read)
-are excluded from **completion-derived** success. OpenCode
+The frontend does **not** receive those raw IDs. Viewer
+[opencode.rs:1461–1511](https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1461-L1511)
+emits only `type/id/name/input` for the call and attaches only `part.state` to
+the result. Neither carries raw `part.tool`; TS `ToolUseContent` likewise has
+no original-name field. Kilo uses this loader ([kilo.rs:181](https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/kilo.rs#L181)).
+The [name mapping at opencode.rs:1675–1691](https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691)
+produces `Read/Glob/Edit/Write/WebFetch` from `read/glob/edit/write/webfetch`;
+`list` passes through unchanged. Those exact delivered names gate completion
+at normalization **and** final verdict; lowercase raw IDs are not accepted.
+
+Kilo 0a9faeff has no built-in list: [tool registry:274–335](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335)
+and the pinned tool directory contain no list/ls module. Therefore `list` is
+**OpenCode-only**; no historical Kilo list/MCP exception is claimed.
+
+**Owner-delegated frontend-only trade-off:** built-in `grep` and MCP `grep_*`
+both become `Grep`. Completion-only `Grep` stays **unknown** for both providers,
+so built-in grep loses success/folding versus develop until item ② preserves
+raw IDs. This avoids certifying a dropped MCP error as success. Other unlisted
+MCP/plugin/unknown names and aliases such as `read_file` also stay unknown.
+A plugin literally named `Read` (or another allowed delivered name) is still
+indistinguishable: this is a bounded delivered-name policy, not proof of raw
+built-in identity. Explicit block false on read/search retains its separate
+rule below; the backend does not emit false for these completed MCP results.
+OpenCode
 [prompt.ts:598–644](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644)
 drops MCP isError, while [AI SDK 5.0.8@718e5291 mcp-client.ts:287–307](https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307)
 returns those errors without throwing. Thus MCP errors can be completed.
@@ -108,7 +130,10 @@ invented Pi metadata envelope. The real OMP scan found 0 absent flags, which
 limits observed impact, not the provenance gap. Only OpenHands has the
 provenance correction in this PR. Preserving raw flags
 while carrying their provenance is an **open plan item ②**, not a delivered
-universal guarantee. Copilot CLI (`copilot_cli.rs:1079–1096`) and Kimi
+universal guarantee. OpenCode/Kilo must also preserve raw `part.tool` alongside
+normalized names: built-in grep and MCP grep_* currently collapse to Grep.
+Restoring built-in grep success/folding without certifying MCP errors is deferred
+to that item ② change. Same-name plugin collisions also need raw identity. Copilot CLI (`copilot_cli.rs:1079–1096`) and Kimi
 (`kimi_code.rs:1200`) drop recorded success/false before the frontend; their
 unflagged read/search rows now become unknown and cannot fold. Codex unflagged
 read/search (e.g. web_search without an outcome flag/code) likewise becomes
@@ -131,9 +156,10 @@ for those providers is claimed.
   existing legacy Claude route. Other providers' read/search rows need explicit
   no-error evidence or the grounded completed-state convention. Other-family
   success is limited to paired Claude Edit/MultiEdit/Write (case-insensitive),
-  Pi exact edit/write, OMP exact edit, and OpenCode/Kilo exact built-ins
-  read/grep/glob/list/edit/write/webfetch with explicit false or name-gated
-  completed no-error results. Completion needs a paired exact tool ID; explicit
+  Pi exact edit/write, OMP exact edit, and OpenCode/Kilo exact delivered names
+  Read/Glob/Edit/Write/WebFetch (plus OpenCode-only list) with explicit false or
+  name-gated completed no-error results. Grep completion alone stays unknown.
+  Completion needs a paired allowed delivered name; explicit
   false read/search does not require a paired call (but orphans never fold).
   Read/search family rows can also succeed on explicit block false, for any
   provider except the OpenHands synthesized-false correction. No other
@@ -163,13 +189,13 @@ Their old expectations are migrated, not hidden or treated as ground truth.
 
 **Proposed D-R4 replacement — owner decision required:**
 
-> Producer-recorded outcome evidence outranks output prose; prose alone establishes neither success nor failure. Interruption decides the lifecycle first. A recorded error flag or API error code fails the row; if a recorded exit code disagrees (e.g. exit 0 beside an error flag), it is a conflict. Otherwise a recorded process exit code decides. A false or absent flag means no-error only for tools whose producer records every failure as an error: Claude/Anthropic `tool_result.is_error` absent/false; OpenCode/Kilo **built-in** non-process tools in state `completed` (thrown failures are `status:"error"`; MCP and plugin tool results are excluded because OpenCode records MCP `isError` results as `completed`); Pi built-in edit/write `isError:false`. A default synthesized by the viewer backend is not producer evidence. Process results without a recorded exit code stay unknown even with a no-error flag (Claude `is_error:false` can accompany a non-zero exit; Pi ≤0.7 recorded non-zero exits as `isError:false`). Lifecycle completion alone is not process success, and unavailable-code sentinels (OpenHands `-1`) are not exit codes. Where no producer convention establishes an outcome, missing evidence is unknown.
+> Producer-recorded outcome evidence outranks output prose; prose alone establishes neither success nor failure. Interruption decides the lifecycle first. A normalized error flag or API error code fails the row; disagreement with a recorded exit is a conflict. Otherwise a recorded exit code decides. Process results without a recorded exit stay unknown even with a no-error flag; unavailable OpenHands -1 is not an exit code. For non-process results without positive errors or exits, success requires every result to have normalized no-error: explicit false, or Claude/legacy absent block is_error. Read/search accepts this no-error for any provider except the OpenHands synthesized-false correction. Other-family success additionally needs a paired Claude Edit/MultiEdit/Write (case-insensitive), Pi exact edit/write, OMP exact edit, or an allowed OpenCode/Kilo delivered name. OpenCode/Kilo status:completed supplies normalized false only for paired Read/Glob/Edit/Write/WebFetch and OpenCode-only list; status:error supplies true. Grep completion stays unknown because built-in grep and MCP grep_* collapse to that name; built-in grep success/folding is deferred to backend item ②. Opaque tools do not succeed on completion alone. Synthesized defaults are not producer evidence: this is the item ② target, not a claim that all backend defaults have been corrected here. Missing evidence without one of these conventions is unknown.
 
-This is the round-2 reviewer's replacement, **not owner-approved policy**. No Pi
-bash exception is proposed. The implementation additionally retains OMP edit
-false success from the fork evidence above; that exact inventory is distinct
-from this verbatim proposal. The synthesized-default principle is an item ②
-target; only OpenHands implements the provenance correction here.
+This round-3 proposal matches the implementation's explicit-false read/search
+rule and named edit/core paths; it is **not owner-approved D-R4 policy**. The
+frontend-only Grep trade-off was delegated by the owner, not a new backend
+identity guarantee. No Pi bash exception is proposed. Only OpenHands implements
+the synthesized-false provenance correction here; the other gaps remain item ②.
 
 The owner-approved amendment file is not edited. Existing D-R4's literal rule
 (recorded exit beats Error text, explicit errors still count) remains satisfied;

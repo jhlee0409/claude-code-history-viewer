@@ -110,9 +110,9 @@ const READ_SEARCH_TOOLS = new Set([
   "web_fetch",
 ]);
 
-// Exact built-in IDs only; no lowercasing/aliases/plugin/MCP extrapolation.
+// Exact backend-delivered names, not raw producer IDs; no lowercasing/aliases.
 // OpenCode @b9a39b816c92592e824c68cdc9a48acf7717e2a2, packages/opencode/src/tool/:
-// read.ts:31-90; grep.ts:16-48; glob.ts:18-56; ls.ts:37-101 (ToolID list);
+// read.ts:31-90; grep.ts:16-48; glob.ts:19-56; ls.ts:37-109 (ToolID list);
 // edit.ts:31-74,605-639; write.ts:20-45; webfetch.ts:23-88.
 // glob/list propagate file/ripgrep.ts:206-224 missing-directory rejection.
 // These throw/reject failures; prompt.ts:1115-1160 maps them to error.
@@ -121,8 +121,20 @@ const READ_SEARCH_TOOLS = new Set([
 // ai@5.0.8 (718e5291) mcp-client.ts:287-307 returns it without throwing.
 // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644
 // https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
-// Historical Kilo MCP is unverified; use the same conservative built-in gate.
-const CORE_NO_ERROR_TOOLS = new Set(["read", "grep", "glob", "list", "edit", "write", "webfetch"]);
+// Backend @f0e8317: opencode.rs:1461-1511,1675-1691 emits only the
+// normalized name, not part.tool; Kilo uses that route (kilo.rs:181).
+// read/glob/edit/write/webfetch -> Read/Glob/Edit/Write/WebFetch; list unchanged.
+// grep AND MCP grep_* -> Grep: keep ambiguous Grep unknown until item ②
+// preserves raw IDs (built-in grep success/folding is intentionally deferred).
+// https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
+// Kilo @0a9faeff registry.ts:274-335 has no list built-in (nor tool/ls.ts).
+// https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335
+// Historical Kilo MCP/list is unverified; no completion exception for either.
+// A plugin literally named Read etc. cannot be distinguished without raw IDs.
+const CORE_NO_ERROR_TOOLS = new Set(["Read", "Glob", "Edit", "Write", "WebFetch"]);
+const coreNoErrorTool = (provider?: string, name?: string): boolean =>
+  ((provider === "opencode" || provider === "kilo") && CORE_NO_ERROR_TOOLS.has(name ?? "")) ||
+  (provider === "opencode" && name === "list");
 
 export function toolFamily(name: string): ToolFamily {
   const key = name.toLowerCase();
@@ -201,7 +213,7 @@ export function normalizeResult(
     // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
     // Bash completion is lifecycle only; cancelled is not a source enum.
     if (own.status === "error") out.isError = true;
-    if (!options.bareCodeIsExitCode && CORE_NO_ERROR_TOOLS.has(options.toolName ?? "") && own.status === "completed" && out.isError !== true) out.isError = false;
+    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
     // from a non-process tool. #752/4415170647 confused completion and success.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
@@ -745,7 +757,7 @@ export function toolOutcome(
   const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
   const noError = normalized.every((n, i) => n.isError === false ||
     (claude && (results[i]!.is_error === undefined)));
-  const coreNoError = (provider === "opencode" || provider === "kilo") && CORE_NO_ERROR_TOOLS.has(typeof use?.name === "string" ? use.name : "") && normalized.every(n => n.isError === false);
+  const coreNoError = coreNoErrorTool(provider, typeof use?.name === "string" ? use.name : undefined) && normalized.every(n => n.isError === false);
   // Built-in edit/write reject on failure; agent-loop turns rejection into isError:true.
   // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211
   // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89

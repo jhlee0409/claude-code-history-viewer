@@ -60,7 +60,7 @@ describe("C2: completed is lifecycle, metadata.exit is the process result", () =
       expect(toolOutcome(null, [coreResult(exit)], "process", provider)).toEqual({ lifecycle: "completed", verdict: "unknown", reason: "no-exit-code" });
       // Non-process normal return is completed; thrown failure is error:
       // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
-      expect(toolOutcome({ name: "read" }, [coreResult(exit)], "read-search", provider).verdict).toBe("succeeded");
+      expect(toolOutcome({ name: "Read" }, [coreResult(exit)], "read-search", provider).verdict).toBe("succeeded");
     });
     it(`${provider}: sibling codes conflict; status:error stays an error`, () => {
       expect(toolOutcome(null, [coreResult(0), coreResult(2)], "process", provider)).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 2 });
@@ -92,7 +92,7 @@ describe("round-2 producer regressions", () => {
   // OpenCode prompt.ts@b9a39b8:598-644 drops MCP isError; AI SDK 5.0.8
   // mcp-client.ts@718e5291:287-307 returns error results without throwing.
   it.each(["opencode", "kilo"])("%s excludes MCP/plugin/unknown completed tools", provider => {
-    for (const name of ["context7_resolve-library-id", "mcp__server__read", "custom_plugin", "unknown", "read_file"]) {
+    for (const name of ["context7_resolve-library-id", "mcp__server__read", "custom_plugin", "unknown", "read_file", "Grep", "read", ...(provider === "kilo" ? ["list"] : [])]) {
       expect(toolOutcome({ name }, [coreResult(undefined)], toolFamily(name), provider).verdict).toBe("unknown");
     }
     expect(toolOutcome(null, [coreResult(undefined)], "read-search", provider).verdict).toBe("unknown");
@@ -112,7 +112,7 @@ describe("round-2 producer regressions", () => {
 describe("round-1 producer regressions", () => {
   it.each(["opencode", "kilo"])("%s non-process completed restores read folding and edit success", provider => {
     // prompt.ts@b9a39b8:1115-1160; Kilo processor.ts@0a9faef:271-310.
-    for (const name of ["read", "grep", "glob", "list", "edit", "write", "webfetch"]) {
+    for (const name of ["Read", "Glob", "Edit", "Write", "WebFetch", ...(provider === "opencode" ? ["list"] : [])]) {
       const use = { name };
       const family = toolFamily(name);
       const r = coreResult(undefined);

@@ -13,7 +13,7 @@ const completed={content:'Error handling guide: ordinary file contents',toolUseR
 describe('bot source evidence precedence',()=>{
   for(const provider of ['opencode','kilo']) {
     for(const family of ['read-search','other','process'] as ToolFamily[]) it(`${provider} ${family}: named built-in completion is no-error; process completion is lifecycle (C1/C2)`,()=>{
-      const use={name:family==='read-search'?'read':family==='other'?'edit':'bash'};
+      const use={name:family==='read-search'?'Read':family==='other'?'Edit':'Bash'};
       // Normal return -> completed; thrown failure -> error (not bash exit semantics):
       // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
       expect(toolOutcome(use,[completed],family,provider)).toMatchObject({verdict:family==='process'?'unknown':'succeeded',reason:family==='process'?'no-exit-code':'no-error-signal'});
