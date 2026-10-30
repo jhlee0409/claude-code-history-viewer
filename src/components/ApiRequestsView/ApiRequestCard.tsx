@@ -4,7 +4,8 @@ import { ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ApiMessage, ApiRequest, ApiShape, MessageSource } from "@/types/apiView.types";
 import { ApiContent } from "./ApiContent";
-import { SourceLineList } from "./SourceLineList";
+import { SourceLineList, ToggleAllLines } from "./SourceLineList";
+import { useOpenLines } from "./openLines";
 import { JumpLink } from "./JumpLink";
 import { anchors, useApiNav } from "./navigation";
 import { cacheBreakpoints, sameAsMessages, usageSummary } from "./timeline";
@@ -12,24 +13,29 @@ import { clockStamp } from "./format";
 import { Num } from "@/lib/format/Num";
 import { useFormat } from "@/lib/format/useFormat";
 
-function Section({ title, children, defaultOpen = true }: {
+function Section({ title, children, defaultOpen = true, actions }: {
   title: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  /** Controls shown beside the title while the section is open. */
+  actions?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <section className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-caption font-medium text-muted-foreground hover:text-foreground"
-        aria-expanded={open}
-      >
-        <Chevron className="w-3.5 h-3.5" />
-        {title}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1 text-caption font-medium text-muted-foreground hover:text-foreground"
+          aria-expanded={open}
+        >
+          <Chevron className="w-3.5 h-3.5" />
+          {title}
+        </button>
+        {open && actions}
+      </div>
       {open && <div className="mt-1 pl-4">{children}</div>}
     </section>
   );
@@ -159,6 +165,7 @@ export function ApiRequestCard({ request, number, shape, expanded, onToggle }: A
   const { t } = useTranslation();
   const cached = useMemo(() => cacheBreakpoints(request.cache_control), [request.cache_control]);
   const sameAs = useMemo(() => sameAsMessages(request), [request]);
+  const inputState = useOpenLines(request.inputs, request.id);
   const Chevron = expanded ? ChevronDown : ChevronRight;
   return (
     <article id={anchors.request(request.id)} className="rounded-md border border-border bg-card my-2">
@@ -183,8 +190,11 @@ export function ApiRequestCard({ request, number, shape, expanded, onToggle }: A
             </Section>
           )}
           {request.inputs.length > 0 && (
-            <Section title={t("messageViewer.apiView.inputs", { n: request.inputs.length })}>
-              <SourceLineList lines={request.inputs} requestId={request.id} sameAs={sameAs} />
+            <Section
+              title={t("messageViewer.apiView.inputs", { n: request.inputs.length })}
+              actions={<ToggleAllLines state={inputState} />}
+            >
+              <SourceLineList lines={request.inputs} state={inputState} requestId={request.id} sameAs={sameAs} />
             </Section>
           )}
           {request.keep > 0 && (

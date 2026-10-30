@@ -7,7 +7,8 @@ import { scrollBehavior } from "@/utils/motion";
 import { LoadingRows } from "@/components/ui/loading-rows";
 import type { ApiShape, ApiView, SourceLine } from "@/types/apiView.types";
 import { ApiRequestCard } from "./ApiRequestCard";
-import { SourceLineList } from "./SourceLineList";
+import { SourceLineList, ToggleAllLines } from "./SourceLineList";
+import { useOpenLines } from "./openLines";
 import { buildTimeline, inferredNotice } from "./timeline";
 import { ApiNavContext, buildLinks, type ApiNavigation } from "./navigation";
 
@@ -18,23 +19,27 @@ const FLASH_MS = 1500;
 function LooseLines({ lines }: { lines: SourceLine[] }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const lineState = useOpenLines(lines, null);
   const Chevron = open ? ChevronDown : ChevronRight;
   const kinds = [...new Set(lines.map((l) => l.kind))].join(", ");
   return (
     <div className="my-1 px-3 text-caption text-muted-foreground">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 hover:text-foreground min-w-0"
-        aria-expanded={open}
-      >
-        <Chevron className="w-3.5 h-3.5 shrink-0" />
-        <span className="shrink-0">{t("messageViewer.apiView.unattributed", { n: lines.length })}</span>
-        <span data-mono="code" className="font-mono truncate">{kinds}</span>
-      </button>
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1 hover:text-foreground min-w-0"
+          aria-expanded={open}
+        >
+          <Chevron className="w-3.5 h-3.5 shrink-0" />
+          <span className="shrink-0">{t("messageViewer.apiView.unattributed", { n: lines.length })}</span>
+          <span data-mono="code" className="font-mono truncate">{kinds}</span>
+        </button>
+        {open && <ToggleAllLines state={lineState} />}
+      </div>
       {open && (
         <div className="pl-4">
-          <SourceLineList lines={lines} />
+          <SourceLineList lines={lines} state={lineState} />
         </div>
       )}
     </div>
@@ -53,7 +58,7 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
   const [view, setView] = useState<ApiView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [target, setTarget] = useState<{ anchor: string } | null>(null);
+  const [target, setTarget] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,26 +89,25 @@ export function ApiRequestsView({ sessionPath, reloadKey }: ApiRequestsViewProps
 
   const reveal = useCallback((requestId: string, anchor: string) => {
     setExpanded((current) => (current.has(requestId) ? current : new Set(current).add(requestId)));
-    setTarget({ anchor });
+    setTarget(anchor);
   }, []);
 
-  // Scroll once the expanded card has rendered its content.
+  // Scroll once the expanded card has rendered its content, then let go of
+  // the target so later toggles do not scroll back to it.
   useEffect(() => {
     if (!target) return;
-    const el = document.getElementById(target.anchor);
+    const el = document.getElementById(target);
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: scrollBehavior() });
     el.classList.add(...FLASH);
-    const timer = window.setTimeout(() => el.classList.remove(...FLASH), FLASH_MS);
-    return () => {
-      window.clearTimeout(timer);
-      el.classList.remove(...FLASH);
-    };
+    window.setTimeout(() => el.classList.remove(...FLASH), FLASH_MS);
+    setTarget(null);
   }, [target, expanded]);
 
+  const links = useMemo(() => (view ? buildLinks(view) : null), [view]);
   const navigation = useMemo<ApiNavigation | null>(
-    () => (view ? { links: buildLinks(view), reveal } : null),
-    [view, reveal]
+    () => (links ? { links, reveal, target } : null),
+    [links, reveal, target]
   );
 
   const toggle = (id: string) =>

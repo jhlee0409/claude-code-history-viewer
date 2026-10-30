@@ -252,3 +252,63 @@ fn a_line_with_no_text_shows_its_whole_record() {
     assert_eq!(mode.content["mode"], json!("default"));
     assert!(!view.requests[0].inputs[0].record);
 }
+
+#[test]
+fn results_of_parallel_calls_feed_the_next_request() {
+    // Parallel calls are written call, result, call, result: the results
+    // sit between the lines of the response that made the calls.
+    let call = |id: &str| json!([{"type": "tool_use", "id": id, "name": "Read", "input": {}}]);
+    let result = |id: &str| json!([{"type": "tool_result", "tool_use_id": id, "content": "ok"}]);
+    let text = transcript(&[
+        json!({"type": "user", "uuid": "u1", "timestamp": "2026-01-01T00:00:00Z",
+               "message": {"role": "user", "content": "read both files"}}),
+        json!({"type": "assistant", "uuid": "x1", "parentUuid": "u1", "requestId": "req_1",
+               "message": {"id": "msg_1", "role": "assistant", "content": call("t1")}}),
+        json!({"type": "user", "uuid": "r1", "parentUuid": "x1", "timestamp": "2026-01-01T00:00:01Z",
+               "message": {"role": "user", "content": result("t1")}}),
+        json!({"type": "assistant", "uuid": "x2", "parentUuid": "r1", "requestId": "req_1",
+               "message": {"id": "msg_1", "role": "assistant", "content": call("t2")}}),
+        json!({"type": "user", "uuid": "r2", "parentUuid": "x2", "timestamp": "2026-01-01T00:00:02Z",
+               "message": {"role": "user", "content": result("t2")}}),
+        json!({"type": "assistant", "uuid": "x3", "parentUuid": "r2", "requestId": "req_2",
+               "message": {"id": "msg_2", "role": "assistant", "content": [{"type": "text", "text": "done"}]}}),
+    ]);
+    let view = build_api_view(&text);
+    let inputs: Vec<Vec<usize>> = view
+        .requests
+        .iter()
+        .map(|r| r.inputs.iter().map(|s| s.line).collect())
+        .collect();
+    assert_eq!(inputs, vec![vec![1], vec![3, 5]]);
+    assert!(view.unattributed.is_empty());
+}
+
+#[test]
+fn results_written_after_all_parallel_calls_feed_the_next_request() {
+    // Both calls first, then both results, each a child of its own call:
+    // only the last result is on the chain to the next response.
+    let call = |id: &str| json!([{"type": "tool_use", "id": id, "name": "Read", "input": {}}]);
+    let result = |id: &str| json!([{"type": "tool_result", "tool_use_id": id, "content": "ok"}]);
+    let text = transcript(&[
+        json!({"type": "user", "uuid": "u1", "timestamp": "2026-01-01T00:00:00Z",
+               "message": {"role": "user", "content": "read both files"}}),
+        json!({"type": "assistant", "uuid": "x1", "parentUuid": "u1", "requestId": "req_1",
+               "message": {"id": "msg_1", "role": "assistant", "content": call("t1")}}),
+        json!({"type": "assistant", "uuid": "x2", "parentUuid": "x1", "requestId": "req_1",
+               "message": {"id": "msg_1", "role": "assistant", "content": call("t2")}}),
+        json!({"type": "user", "uuid": "r1", "parentUuid": "x1", "timestamp": "2026-01-01T00:00:01Z",
+               "message": {"role": "user", "content": result("t1")}}),
+        json!({"type": "user", "uuid": "r2", "parentUuid": "x2", "timestamp": "2026-01-01T00:00:02Z",
+               "message": {"role": "user", "content": result("t2")}}),
+        json!({"type": "assistant", "uuid": "x3", "parentUuid": "r2", "requestId": "req_2",
+               "message": {"id": "msg_2", "role": "assistant", "content": [{"type": "text", "text": "done"}]}}),
+    ]);
+    let view = build_api_view(&text);
+    let inputs: Vec<Vec<usize>> = view
+        .requests
+        .iter()
+        .map(|r| r.inputs.iter().map(|s| s.line).collect())
+        .collect();
+    assert_eq!(inputs, vec![vec![1], vec![4, 5]]);
+    assert!(view.unattributed.is_empty());
+}

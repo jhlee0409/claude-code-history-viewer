@@ -64,6 +64,8 @@ export interface ApiNavigation {
   links: ApiLinks;
   /** Expand `requestId`, scroll to the element `anchor` and flash it. */
   reveal: (requestId: string, anchor: string) => void;
+  /** The anchor a link is jumping to, until the view has scrolled there. */
+  target: string | null;
 }
 
 export const ApiNavContext = createContext<ApiNavigation | null>(null);

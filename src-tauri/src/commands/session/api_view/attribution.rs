@@ -37,6 +37,7 @@ pub(super) fn attribute(parsed: &ParsedLines, requests: &mut [ApiRequest]) -> Ve
             .map(|i| source_line(parsed, i, Some(&texts[r])))
             .collect();
     }
+    attach_siblings(parsed, requests, &texts, &mut claimed);
     attach_by_text(parsed, requests, &texts, &mut claimed);
     for request in requests.iter_mut() {
         request.inputs.sort_by_key(|s| s.line);
@@ -62,8 +63,7 @@ fn attach_responses(parsed: &ParsedLines, requests: &mut [ApiRequest], claimed: 
         };
         // A recorded response names its request; an older one only has the
         // `requestId` that `infer_from_responses` keyed its request by.
-        let Some(id) = str_field(first, "requestRef").or_else(|| str_field(first, "requestId"))
-        else {
+        let Some(id) = response_key(first) else {
             continue;
         };
         let Some(&r) = by_id.get(id) else {
@@ -103,25 +103,96 @@ fn attach_responses(parsed: &ParsedLines, requests: &mut [ApiRequest], claimed: 
     }
 }
 
-/// Lines between the previous assistant line and this request's response,
-/// walking `parentUuid` back from the response.
+/// Lines between the previous response and this request's response,
+/// walking `parentUuid` back from the response. Results of parallel calls
+/// are written between the lines of the response that made the calls, so
+/// the walk goes on through that response while it has such lines.
 fn chain_inputs(parsed: &ParsedLines, request: &ApiRequest, claimed: &mut [bool]) -> Vec<usize> {
     let Some(start) = request.response.as_ref().and_then(|r| r.lines.first()) else {
         return Vec::new();
     };
+    let parent_of = |i: usize| {
+        parsed
+            .get(i)
+            .and_then(|v| str_field(v, "parentUuid"))
+            .and_then(|p| parsed.by_uuid(p))
+    };
     let mut lines = Vec::new();
-    let mut parent = parsed
-        .get(start - 1)
-        .and_then(|v| str_field(v, "parentUuid"));
-    while let Some(i) = parent.and_then(|p| parsed.by_uuid(p)) {
-        if claimed[i] || parsed.line_type(i) == Some("assistant") {
-            break;
+    // The response the walk has reached, once it has.
+    let mut previous: Option<&str> = None;
+    let mut next = parent_of(start - 1);
+    while let Some(i) = next {
+        if parsed.line_type(i) == Some("assistant") {
+            let key = parsed.get(i).and_then(response_key);
+            if key.is_none() || previous.is_some_and(|p| Some(p) != key) {
+                break;
+            }
+            previous = key;
+        } else {
+            let between = previous.is_some()
+                && parent_of(i)
+                    .and_then(|p| parsed.get(p))
+                    .and_then(response_key)
+                    == previous;
+            if claimed[i] || (previous.is_some() && !between) {
+                break;
+            }
+            claimed[i] = true;
+            lines.push(i);
         }
-        claimed[i] = true;
-        lines.push(i);
-        parent = parsed.get(i).and_then(|v| str_field(v, "parentUuid"));
+        next = parent_of(i);
     }
     lines
+}
+
+/// The request an assistant line answers.
+fn response_key(value: &Value) -> Option<&str> {
+    str_field(value, "requestRef").or_else(|| str_field(value, "requestId"))
+}
+
+/// The response a line answers, when its parent is a line of one.
+fn parent_response(parsed: &ParsedLines, i: usize) -> Option<&str> {
+    let parent = parsed
+        .get(i)
+        .and_then(|v| str_field(v, "parentUuid"))
+        .and_then(|p| parsed.by_uuid(p))?;
+    if parsed.line_type(parent) != Some("assistant") {
+        return None;
+    }
+    parsed.get(parent).and_then(response_key)
+}
+
+/// A line no chain reaches whose parent is a line of a response (a result of
+/// one of several parallel calls, written after all of them) goes where the
+/// other children of that response went.
+fn attach_siblings(
+    parsed: &ParsedLines,
+    requests: &mut [ApiRequest],
+    texts: &[MessageTexts],
+    claimed: &mut [bool],
+) {
+    let mut next: HashMap<&str, usize> = HashMap::new();
+    for (r, request) in requests.iter().enumerate() {
+        for input in &request.inputs {
+            if let Some(key) = parent_response(parsed, input.line - 1) {
+                if key != request.id {
+                    next.entry(key).or_insert(r);
+                }
+            }
+        }
+    }
+    for (i, value) in parsed.iter() {
+        if claimed[i] || !TEXT_SOURCES.contains(&str_field(value, "type").unwrap_or_default()) {
+            continue;
+        }
+        let Some(&r) = parent_response(parsed, i).and_then(|key| next.get(key)) else {
+            continue;
+        };
+        claimed[i] = true;
+        requests[r]
+            .inputs
+            .push(source_line(parsed, i, Some(&texts[r])));
+    }
 }
 
 /// A line no chain reaches belongs to the first request, at or after its
