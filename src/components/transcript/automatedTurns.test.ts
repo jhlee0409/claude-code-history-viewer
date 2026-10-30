@@ -7,7 +7,7 @@ import { applyMessageDisplayFilter } from "../MessageViewer/helpers/messageDispl
 
 const automatic = [
   { ...user("automatic", "<task-notification><task-id>synthetic</task-id><status>completed</status><summary>Synthetic notification</summary></task-notification>"), provider: "claude" as const },
-  { ...user("automatic", "<heartbeat>Synthetic client wake</heartbeat>"), provider: "codex" as const },
+  { ...user("automatic", "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>"), provider: "codex" as const },
 ];
 
 describe("owner decision: automatic producer cycles are not human prompts", () => {

@@ -24,7 +24,7 @@ it("keeps producer-context capture shapes synthetic and opt-in", () => {
       [{ type: "input_text", text: '<codex_internal_context source="user_goal">Synthetic goal context</codex_internal_context>' }],
       [{ type: "input_text", text: "<recommended_plugins>Synthetic plugin context</recommended_plugins>" }],
       [{ type: "input_text", text: "<turn_aborted>Synthetic abort context</turn_aborted>" }],
-      [{ type: "input_text", text: "<heartbeat>Synthetic client wake</heartbeat>" }],
+      [{ type: "input_text", text: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }],
     ]);
     const bash = records(fixture, "outcomes").filter(r => r.type === "user" && typeof r.message.content === "string").map(r => r.message.content);
     expect(bash.slice(1, 3)).toEqual(["<bash-input>printf synthetic</bash-input>", "<bash-stdout>synthetic</bash-stdout><bash-stderr></bash-stderr>"]);

@@ -10,7 +10,7 @@ const message = (uuid: string, content: ClaudeMessage["content"], provider = "co
 }) as ClaudeMessage;
 
 const cases = [
-  ["codex", "<heartbeat>Synthetic wake</heartbeat>"],
+  ["codex", "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic wake\n  </instructions>\n</heartbeat>"],
   ["claude", "<task-notification><task-id>synthetic-task</task-id><status>completed</status><summary>Synthetic done</summary></task-notification>"],
 ] as const;
 

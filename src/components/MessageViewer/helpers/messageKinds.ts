@@ -137,17 +137,41 @@ function getTextBlocks(message: ClaudeMessage): string[] {
   return texts;
 }
 
-/** Client wake input, not a human prompt. Audit: 34/34 Codex heartbeat
- * blocks had complete wrappers and producer UserMessage events (exec-heavy
- * 0.148–0.164 sample); not a Codex-authored binary string. See contract.
- * Codex's scheduler reader rejects extra content; keep this text-only fallback
- * bounded to one envelope, with no text after its first closing marker:
- * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L75-L109
+/** Client wake fallback: exact scheduler grammar, not proof of host provenance.
+ * The backend drops content_item_kinds; the existing owner policy also accepts
+ * historical unmarked inputs (34/34 local envelopes). Pin the reader, not an emitter:
+ * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L62-L110
+ * L69: one InputText; L78–82: UTF-8 byte/line budget; L87–101: exact fields.
+ * Instructions are opaque: split_once/strip_suffix do not reject inner tags.
+ * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat_tests.rs#L23-L28
  */
 export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   if (message.type !== "user" || message.provider !== "codex") return false;
-  const texts = getTextBlocks(message).filter(text => text.trim().length > 0);
-  return texts.length > 0 && texts.every(text => /^<heartbeat>(?:(?!<\/?heartbeat>)[\s\S])*<\/heartbeat>$/.test(text.trim()));
+  const content = message.content;
+  const text = typeof content === "string" ? content
+    : Array.isArray(content) && content.length === 1 && content[0]?.type === "text"
+      && typeof content[0].text === "string" ? content[0].text : null;
+  if (text === null) return false;
+  // Rust str::lines excludes the final empty segment, but counts blank lines.
+  const lines = text === "" ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+  if (new TextEncoder().encode(text).length + lines * 6 + 64 > 3600) return false;
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  const prefix = "<heartbeat>\n  <automation_id>";
+  const timeSeparator = "</automation_id>\n  <current_time_iso>";
+  const instructionSeparator = "</current_time_iso>\n  <instructions>\n";
+  const suffix = "\n  </instructions>\n</heartbeat>";
+  if (!body.startsWith(prefix)) return false;
+  const timeIndex = body.indexOf(timeSeparator, prefix.length);
+  if (timeIndex === -1) return false;
+  const automationId = body.slice(prefix.length, timeIndex);
+  const timeStart = timeIndex + timeSeparator.length;
+  const instructionIndex = body.indexOf(instructionSeparator, timeStart);
+  if (instructionIndex === -1) return false;
+  const timestamp = body.slice(timeStart, instructionIndex);
+  const instructions = body.slice(instructionIndex + instructionSeparator.length);
+  return /^[A-Za-z0-9_-]{1,128}$/.test(automationId)
+    && /^[0-9TZ:.+-]{1,64}$/.test(timestamp)
+    && instructions.endsWith(suffix);
 }
 
 /** True when the record carries the client's own tool-result payload. */

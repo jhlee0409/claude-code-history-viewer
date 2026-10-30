@@ -150,7 +150,7 @@ describe("MessageNavigator outline mode", () => {
       makeMessage({ uuid: "goal", content: '<codex_internal_context source="user_goal">Synthetic goal</codex_internal_context>' }),
       makeMessage({ uuid: "plugins", content: "<recommended_plugins>Synthetic plugins</recommended_plugins>" }),
       makeMessage({ uuid: "abort", content: "<turn_aborted>Synthetic abort</turn_aborted>" }),
-      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>Synthetic client wake</heartbeat>" }),
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }),
       makeMessage({ uuid: "output", content: "<bash-stdout>Synthetic output</bash-stdout>" }),
     ];
     renderNavigator(messages);
@@ -164,7 +164,7 @@ describe("MessageNavigator outline mode", () => {
   it("opens a heartbeat-only turn without a duplicate navigation row", () => {
     storeState.targetMessageUuid = "heartbeat";
     renderNavigator([
-      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>Synthetic client wake</heartbeat>" }),
+      makeMessage({ uuid: "heartbeat", provider: "codex", content: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }),
     ]);
     const header = getHeaderItem();
     fireEvent.keyDown(header, { key: "ArrowRight" });

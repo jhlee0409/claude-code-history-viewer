@@ -344,7 +344,7 @@ function codexPatchProject(kit, { home, out, rel, fixedNow, namedSessions }) {
     push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: '<codex_internal_context source="user_goal">Synthetic goal context</codex_internal_context>' }] });
     push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<recommended_plugins>Synthetic plugin context</recommended_plugins>" }] });
     push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<turn_aborted>Synthetic abort context</turn_aborted>" }] });
-    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<heartbeat>Synthetic client wake</heartbeat>" }] });
+    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }] });
   }
   patches.forEach((patch, i) => {
     const callId = `call_${kit.hexFor(`${sessionId}#patch${i}`, 24)}`;

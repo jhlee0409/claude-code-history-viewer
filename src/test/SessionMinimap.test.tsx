@@ -212,7 +212,7 @@ describe("SessionMinimap", () => {
     ["<turn_aborted>synthetic</turn_aborted>", "context"],
     ["<bash-stdout>synthetic</bash-stdout>", "command"],
     ["<bash-stderr>synthetic</bash-stderr>", "command"],
-    ["<heartbeat>synthetic</heartbeat>", "context"],
+    ["<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nsynthetic\n  </instructions>\n</heartbeat>", "context"],
   ])("dims generated %s as %s rather than a prompt", (content, kind) => {
     const rafQueue = installControllableRAF();
     stubComputedStyle();
