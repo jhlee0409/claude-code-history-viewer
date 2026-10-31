@@ -3,7 +3,7 @@
 {"timestamp":"2026-01-01T00:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"human-turn","root_turn_id":null}}
 {"type":"turn_context","payload":{"turn_id":"human-turn","model":"synthetic-model","extension":{"null":null,"false":false,"zero":0,"empty":""}}}
 {"type":"response_item","payload":{"id":"use-one","type":"function_call","call_id":"duplicate","name":"exec_command","arguments":"{\"cmd\":\"synthetic\"}"}}
-{"type":"response_item","payload":{"id":"result-one","type":"function_call_output","call_id":"duplicate","output":"Exit code: 0\nWall time: 0 seconds\nOutput:\nError: ordinary stdout\n"}}
+{"type":"response_item","payload":{"id":"result-one","type":"function_call_output","call_id":"duplicate","output":"Wall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\nError: ordinary stdout\n"}}
 {"type":"response_item","payload":{"id":"use-two","type":"function_call","call_id":"duplicate","name":"exec_command","arguments":"{}"}}
 {"type":"response_item","payload":{"id":"result-two","type":"function_call_output","call_id":"duplicate","output":"Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2\nOutput:\nsynthetic failure\n"}}
 {"type":"response_item","payload":{"id":"result-orphan","type":"custom_tool_call_output","call_id":"missing","output":[{"type":"input_text","text":"first-needle"},{"type":"input_image","image_url":"data:image/png;base64,AAAA","detail":null},{"type":"input_text","text":"last-needle"}]}}

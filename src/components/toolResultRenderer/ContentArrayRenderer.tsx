@@ -42,7 +42,7 @@ const ALLOWED_IMAGE_TYPES = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/;
  * An image block's URL, under the media-type and scheme allowlists the
  * orphan result card used (TR1b moved it here, so a result's image shows in
  * the Result zone of a paired or an orphan row alike); null otherwise (the
- * block then shows as recorded JSON).
+ * block then shows a compact media placeholder).
  */
 function safeImageUrl(source: unknown): string | null {
   if (source === null || typeof source !== "object") return null;
@@ -105,7 +105,13 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
     // ImageRenderer supports remote URLs, so use a placeholder here explicitly.
     // Unsupported/malformed media stays in raw records, never in a huge JSON DOM.
     if (["input_image", "input_audio", "image"].includes(String(itemObj.type))) {
-      return <div className={cn("text-muted-foreground", layout.containerPadding)}>{t("contentArray.mediaPlaceholder", { type: String(itemObj.type), size: new TextEncoder().encode(JSON.stringify(item)).length })}</div>;
+      // Count the UTF-8 representation we retain: serialized item JSON here,
+      // data URL text in ImageRenderer's decode-error placeholder.
+      const reference = inputImage && /^https?:\/\//.test(inputImage) ? inputImage : null;
+      return <div className={cn("text-muted-foreground", layout.containerPadding)}>
+        {t("contentArray.mediaPlaceholder", { type: String(itemObj.type), size: new TextEncoder().encode(JSON.stringify(item)).length })}
+        {reference && <pre className="whitespace-pre-wrap break-all">{reference}</pre>}
+      </div>;
     }
     return (
       <div className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}>

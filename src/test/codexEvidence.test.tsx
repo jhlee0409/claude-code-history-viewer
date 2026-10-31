@@ -7,6 +7,7 @@ import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeC
 import { toolOutcome } from "@/components/transcript/toolOutcome";
 import { ToolExecutionResultRouter } from "@/components/messageRenderer/ToolExecutionResultRouter";
 import i18n from "@/i18n";
+import { ImageRenderer } from "@/components/contentRenderer/ImageRenderer";
 import publicMessages from "./fixtures/codex-preservation-public.json";
 
 beforeAll(async () => { await i18n.changeLanguage("en"); });
@@ -39,7 +40,7 @@ describe("Codex producer evidence through the paired renderer", () => {
     expect(container.textContent).not.toContain("Type: input_text");
   });
   it.each([0, 2, -1])("consumes preserved header exit %s, not stdout prose", code => {
-    const result = { type: "tool_result", tool_use_id: "exec", content: "Error: ordinary stdout", codexOutput: { raw: `Exit code: ${code}\nWall time: 0 seconds\nOutput:\nError: ordinary stdout`, exitCode: code, sourceMessageUuid: "source-result" } };
+    const result = { type: "tool_result", tool_use_id: "exec", content: "Error: ordinary stdout", codexOutput: { raw: `Wall time: 0 seconds\nProcess exited with code ${code}\nOutput:\nError: ordinary stdout`, exitCode: code, sourceMessageUuid: "source-result" } };
     expect(toolOutcome(call, [result], "process", "codex")).toMatchObject({ exitCode: code, verdict: code === 0 ? "succeeded" : "failed" });
     const { container } = mount(result);
     expect(container.textContent?.toLowerCase()).toContain(`exit code ${code}`);
@@ -76,11 +77,28 @@ describe("Codex producer evidence through the paired renderer", () => {
     const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[{type:"input_image",image_url:"https://example.invalid/tracker.png"}]}, "exec");
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("input_image");
+    expect(container.textContent).toContain("https://example.invalid/tracker.png");
+    expect(container.querySelector("a, iframe, script")).toBeNull();
+  });
+  it("escapes recorded HTTP references as non-loading text", () => {
+    const image_url = 'https://example.invalid/<img src=x onerror="alert(1)">';
+    const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[{type:"input_image",image_url}]}, "exec");
+    expect(container.textContent).toContain(image_url);
+    expect(container.querySelector("img, a, iframe, script")).toBeNull();
   });
   it("does not dump a supported image payload after a decode failure", () => {
     const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[{type:"input_image",image_url:png}]}, "exec");
     fireEvent.error(container.querySelector("img")!);
     expect(container.textContent).not.toContain(png);
+  });
+  it("hides a data URL payload without a semicolon after decode failure", () => {
+    const imageUrl = `data:image/svg+xml,${"PRIVATE_PAYLOAD".repeat(500)}`;
+    const {container} = render(<ThemeProvider><ImageRenderer imageUrl={imageUrl} /></ThemeProvider>);
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.textContent).toContain("image/svg+xml");
+    expect(container.textContent).toContain(`${new TextEncoder().encode(imageUrl).length} recorded UTF-8 bytes`);
+    expect(container.textContent).not.toContain("PRIVATE_PAYLOAD");
+    expect(container.textContent!.length).toBeLessThan(500);
   });
   it.each(["javascript:alert(1)", "data:text/html;base64,AAAA", "file:///private/image.png"])("keeps unsupported image reference %s as a placeholder", image_url => {
     const { container } = mount({ type: "tool_result", tool_use_id: "exec", content: [{ type: "input_image", image_url }] }, "exec");

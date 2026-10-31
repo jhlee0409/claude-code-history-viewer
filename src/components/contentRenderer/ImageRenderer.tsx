@@ -84,7 +84,7 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
         <p className={cn(layout.bodyText, "text-muted-foreground")}>
           {t("imageRenderer.cannotLoadImage")}
         </p>
-        <p className={cn(layout.smallText, "text-muted-foreground mt-1 break-all")}>{imageUrl.startsWith("data:") ? t("contentArray.mediaPlaceholder", { type: imageUrl.slice(5, imageUrl.indexOf(";")), size: new TextEncoder().encode(imageUrl).length }) : imageUrl}</p>
+        <p className={cn(layout.smallText, "text-muted-foreground mt-1 break-all")}>{imageUrl.startsWith("data:") ? t("contentArray.mediaPlaceholder", { type: imageUrl.match(/^data:([^;,]*)/)?.[1] || "image", size: new TextEncoder().encode(imageUrl).length }) : imageUrl}</p>
       </div>
     );
   }

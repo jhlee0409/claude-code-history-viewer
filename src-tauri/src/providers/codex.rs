@@ -422,7 +422,7 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     let mut msg_counter = 0u64;
     let mut turn = evidence::TurnState::default();
     let mut pending_changes = Vec::new();
-    // Only a paired producer exec tool can authenticate the text header. This
+    // Only a paired producer tool/dialect can authenticate the text header. This
     // stores names, never result evidence, and consumes each association once.
     let mut pending_tool_names = std::collections::HashMap::new();
 
@@ -1882,11 +1882,10 @@ fn codex_tool_result(
 ) -> Value {
     let output = item.get("output").cloned().unwrap_or(Value::Null);
     let plain_evidence = output.as_str().and_then(|raw| {
-        // codex@6aaac694 handlers/unified_exec/exec_command.rs:109,425-450;
-        // write_stdin.rs:37-40,120-132 return the context.rs:524-574 writer.
-        // Only these paired raw producer names authenticate an exec header.
-        // MCP, aliases and orphan results retain raw but never parse an exit.
-        if matches!(output_tool, Some("exec_command" | "write_stdin")) {
+        // Each dialect is authenticated by its producing raw tool, not a
+        // renderer alias. See evidence::authenticates_header for writer pins.
+        // Mismatched/MCP/unknown/orphan outputs still keep their exact raw data.
+        if evidence::authenticates_header(raw, output_tool) {
             evidence::plain_output(raw, uuid)
         } else {
             raw.split_once("\nOutput:\n")
@@ -2091,16 +2090,75 @@ mod tests {
 
     #[test]
     fn codex_plain_exit_header_preserves_source_evidence() {
-        for (raw, code) in [
-            ("Exit code: 0\nWall time: 0.1 seconds\nOutput:\nError: ordinary stdout\n", 0),
-            ("Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2\nOutput:\nsynthetic failure\n", 2),
-            ("Exit code: -1\nWall time: 0 seconds\nOutput:\n", -1),
+        for (tool, header, code) in [
+            (
+                "exec_command",
+                "Wall time: 0.1000 seconds\nProcess exited with code 0",
+                0,
+            ),
+            (
+                "write_stdin",
+                "Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2",
+                2,
+            ),
+            ("apply_patch", "Exit code: 0\nWall time: 0.1 seconds", 0),
+            ("shell_command", "Exit code: -1\nWall time: 0 seconds", -1),
         ] {
-            let result = codex_tool_result(&json!({"type":"function_call_output","call_id":"same","output":raw}), "result-source", "session", Some("exec_command"));
+            let raw = format!("{header}\nOutput:\nError: ordinary stdout\nExit code: 7\nProcess exited with code 8\nOutput:\nExit code: 9");
+            let result = codex_tool_result(
+                &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                "result-source",
+                "session",
+                Some(tool),
+            );
             assert_eq!(result["codexOutput"]["exitCode"], code);
             assert_eq!(result["codexOutput"]["raw"], raw);
             assert_eq!(result["codexOutput"]["sourceMessageUuid"], "result-source");
             assert_eq!(result["content"], raw.split_once("\nOutput:\n").unwrap().1);
+        }
+    }
+
+    #[test]
+    fn codex_mismatched_headers_keep_raw_without_exit() {
+        for tool in [
+            Some("exec_command"),
+            Some("write_stdin"),
+            Some("apply_patch"),
+            Some("shell_command"),
+            Some("shell"),
+            Some("local_shell"),
+            Some("container.exec"),
+            Some("mcp__srv__run"),
+            Some("unknown"),
+            Some("Bash"),
+            None,
+        ] {
+            for (label, supported) in [
+                (
+                    "Process exited with code 2",
+                    matches!(tool, Some("exec_command" | "write_stdin")),
+                ),
+                (
+                    "Exit code: 2",
+                    matches!(tool, Some("apply_patch" | "shell_command")),
+                ),
+            ] {
+                if supported {
+                    continue;
+                }
+                let raw = format!("Wall time: 0 seconds\n{label}\nOutput:\nsynthetic stdout");
+                let result = codex_tool_result(
+                    &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                    "result-source",
+                    "session",
+                    tool,
+                );
+                assert_eq!(
+                    result["codexOutput"],
+                    json!({"raw":raw,"sourceMessageUuid":"result-source"}),
+                    "{tool:?}: {label}"
+                );
+            }
         }
     }
 

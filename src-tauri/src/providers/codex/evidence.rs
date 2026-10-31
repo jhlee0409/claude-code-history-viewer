@@ -2,19 +2,38 @@
 use crate::models::ClaudeMessage;
 use serde_json::{json, Map, Value};
 
+// Match the exact raw producing tool to its header dialect, before parsing.
+// 6aaac694: context.rs:524-541; exec_command.rs:372,436;
+// write_stdin.rs:88-122 -> unified_exec/process_manager.rs:879-883.
+// tools/mod.rs:91-116 is instead used by apply_patch.rs:531-571 via
+// tools/events.rs:384-400. Legacy d0cc662b shell/shell_command.rs:154-155
+// -> shell.rs:238-239 -> events.rs:422-427 -> tools/mod.rs:99-124.
+pub(super) fn authenticates_header(raw: &str, tool: Option<&str>) -> bool {
+    let Some((header, _)) = raw.split_once("\nOutput:\n") else {
+        return false;
+    };
+    let prefix = match tool {
+        Some("exec_command" | "write_stdin") => "Process exited with code ",
+        Some("apply_patch" | "shell_command") => "Exit code: ",
+        _ => return false,
+    };
+    header.lines().any(|line| line.starts_with(prefix))
+}
+
 pub(super) fn plain_output(raw: &str, uuid: &str) -> Option<Value> {
     let (header, _) = raw.split_once("\nOutput:\n")?;
     let mut evidence = json!({"raw":raw,"sourceMessageUuid":uuid});
     // These are producer-owned header lines, NOT a search through stdout.
-    // 788b9d7bf6e37f735647b7f84b556c2a807df4d8 core/src/tools/mod.rs:91-116,
-    // core/src/tools/context.rs:548-567. Current 0.164 writer re-verified:
+    // Callers authenticate the tool/dialect separately; these are two distinct
+    // writer families, not two formats emitted by unified exec.
     // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/context.rs#L524-L574
+    // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/mod.rs#L91-L116
     let mut code = None;
     let mut wall_time = false;
     let mut valid = true;
     let mut seen = std::collections::HashSet::new();
     for line in header.lines() {
-        // Header labels are singular in both pinned exec writers. Keep unknown
+        // Header labels are singular in both pinned header writers. Keep unknown
         // wrappers losslessly, but never certify duplicate metadata as an exit.
         let label = line.split_once(':').map_or(line, |(label, _)| label);
         valid &= seen.insert(label);

@@ -440,5 +440,5 @@
   "outputBlock.showLess": "收合",
   "outputBlock.copy": "複製輸出",
   "outputBlock.empty": "無輸出",
-  "contentArray.mediaPlaceholder": "未預覽的媒體：{{type}}（記錄大小 {{size}} 位元組）"
+  "contentArray.mediaPlaceholder": "未預覽的媒體：{{type}}（記錄的 UTF-8 大小 {{size}} 位元組）"
 }

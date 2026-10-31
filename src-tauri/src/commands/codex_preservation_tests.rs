@@ -109,7 +109,7 @@ fn strip_additive(response: &mut Value) {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn codex_preservation_closed_turns_and_exec_only_headers() {
+async fn codex_preservation_closed_turns_and_producer_headers() {
     let home = crate::test_utils::SandboxHome::new();
     let path = home.path().join(".codex/sessions/rollout-boundaries.jsonl");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -138,6 +138,27 @@ async fn codex_preservation_closed_turns_and_exec_only_headers() {
             find("wait-call")["content"][1]["codexOutput"]["exitCode"],
             2
         );
+        let records: Vec<Value> = include_str!("../../tests/fixtures/codex-boundaries.jsonl")
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        for (owner, index, source) in [
+            ("mcp-call", 1, "mcp-result"),
+            ("unknown-call", 1, "unknown-result"),
+            ("alias-call", 1, "alias-result"),
+            ("orphan-result", 0, "orphan-result"),
+            ("exec-call", 2, "duplicate-result"),
+        ] {
+            let raw = &records
+                .iter()
+                .find(|r| r["payload"]["id"] == source)
+                .unwrap()["payload"]["output"];
+            assert_eq!(
+                find(owner)["content"][index]["codexOutput"],
+                json!({"raw":raw,"sourceMessageUuid":source}),
+                "{source}"
+            );
+        }
         for id in ["mcp-call", "bad-call"] {
             assert!(
                 find(id)["content"][1]["codexOutput"]

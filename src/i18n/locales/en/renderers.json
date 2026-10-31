@@ -449,5 +449,5 @@
   "outputBlock.showLess": "Show less",
   "outputBlock.copy": "Copy output",
   "outputBlock.empty": "No output",
-  "contentArray.mediaPlaceholder": "Media not previewed: {{type}} ({{size}} recorded bytes)"
+  "contentArray.mediaPlaceholder": "Media not previewed: {{type}} ({{size}} recorded UTF-8 bytes)"
 }

@@ -171,7 +171,11 @@ locations reproduces complete develop responses (`5e65489a`).
 - A result's `codexOutput` holds `{raw, sourceMessageUuid, exitCode?}` when the
   legacy normalizer removed a plain `\nOutput:\n` wrapper. `raw` is the exact
   original string, including whitespace and header. `exitCode` is present only
-  for an integer in a paired `exec_command`/`write_stdin` producer header with its wall-time line; stdout after
+  for an integer in the paired tool's producer header with its wall-time line:
+  `Process exited with code N` for `exec_command`/`write_stdin`, or `Exit code: N`
+  for `apply_patch`/legacy `shell_command`. Mismatched tool/header dialects keep
+  raw without an exit. A pending raw name authenticates only its first output;
+  a second output without another call retains raw but is not authenticated. Stdout after
   the first delimiter is never inspected. Unknown/malformed headers stay raw
   without a code (including duplicate header labels). Header order is not tightened. MCP, unknown, alias and orphan outputs preserve raw without parsing an exit. Zero and negative integers survive. This does not read the
   producer's internal, unserialized `success` flag. `toolOutcome` consumes the
@@ -206,7 +210,12 @@ C6 keeps output arrays unchanged in Rust. The existing result renderer and
 image in recorded order. Only allowlisted inline image data URLs are previewed for
 Codex `input_image`; HTTP(S), file references, unsupported/malformed media and
 `input_audio` show a localized type/recorded-byte-size placeholder, never base64
-JSON. Decode failures also hide inline payloads. The shared `ImageRenderer` and
+JSON. HTTP(S) references remain visible as React-escaped, non-link text, never
+loading elements; unsafe references and file IDs remain in raw records only.
+The shared `image` branch (Claude/other providers too) also uses placeholders for
+unsupported media. “Recorded UTF-8 bytes” means the serialized item JSON in
+`ContentArrayRenderer` or data URL string in `ImageRenderer`, not decoded binary
+size. Decode failures also hide inline payloads, including data URLs without `;`. The shared `ImageRenderer` and
 legacy Claude `safeImageUrl` allow remote URLs; that is not a no-fetch policy, so
 this Codex path deliberately does **not** pass remote URLs to that renderer.
 Raw records/IPC values are untouched. Both paired and orphan routes share this
@@ -244,17 +253,24 @@ do not drop source fields or make page references depend on an earlier page.
 
 | Interpretation | Source | Regression |
 |---|---|---|
-| Plain exit header, not stdout; paired exec tools only | [788b9d7 tools/mod.rs:91–116](https://github.com/openai/codex/blob/788b9d7bf6e37f735647b7f84b556c2a807df4d8/codex-rs/core/src/tools/mod.rs#L91-L116), [context.rs:548–567](https://github.com/openai/codex/blob/788b9d7bf6e37f735647b7f84b556c2a807df4d8/codex-rs/core/src/tools/context.rs#L548-L567); current 0.164 [context.rs:524–574](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/context.rs#L524-L574) | `codex_plain_exit_header_preserves_source_evidence`, `codexEvidence.test.tsx` |
+| Process exited header: exec_command/write_stdin, not stdout | [tools/context.rs:524–574](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/context.rs#L524-L574); [tools/handlers/unified_exec/exec_command.rs:372–450](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs#L372-L450); [tools/handlers/unified_exec/write_stdin.rs:88–122](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs#L88-L122) → [unified_exec/process_manager.rs:879–883](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/unified_exec/process_manager.rs#L879-L883) | producer-shaped pairing table, hostile stdout, public boundaries |
+| Exit code header: apply_patch / legacy shell_command | [tools/handlers/apply_patch.rs:531–571](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/apply_patch.rs#L531-L571) → [tools/events.rs:384–400](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/events.rs#L384-L400) → [tools/mod.rs:91–116](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/mod.rs#L91-L116); [tools/handlers/shell/shell_command.rs:154–155](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/handlers/shell/shell_command.rs#L154-L155) → [tools/handlers/shell.rs:238–247](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/handlers/shell.rs#L238-L247) → [tools/events.rs:422–427](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/events.rs#L422-L427) → [tools/mod.rs:99–124](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/mod.rs#L99-L124) | `codex_plain_exit_header_preserves_source_evidence`, mismatched dialect negatives |
 | Text/image output items; success not serialized | [models.rs:2245–2262,2340–2355](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L2245-L2262) | public fixture identity + renderer route |
 | Original message content type and nested host kinds | [models.rs:881–935](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L881-L935), [993–1013](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L993-L1013), [1062–1082](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L1062-L1082) | `codex_preservation_content_item_types` |
 | FileChange update/add/delete | [protocol.rs:3838–3878,4342–4355](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/protocol.rs#L4342-L4355), [items.rs:418–429](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/items.rs#L418-L429) | `codex_preservation_file_changes` |
 | Rollout turn start/context and item completion | [protocol.rs:1517–1520,2063–2075,2302–2323,3428–3433](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/protocol.rs#L3428-L3433) | `codex_preservation_turn_identity`, public + loopback HTTP |
 
-The exact name gate is grounded in the current producer's
-[exec_command handler:109,425–450](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs#L425-L450)
-and [write_stdin:37–40,120–132](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs#L120-L132),
-which return the unified-exec output writer above. Other historical tool families
-are not certified by name similarity. Rollout
+Historical `shell`, `local_shell`, and `container.exec` do **not** authenticate
+plain exit headers. At `7c7b4861d88960f7e3bd5b7f30f8351be666dd84` (the parent of their removal
+`83decfa3`), their handlers pass `freeform: false`: [tools/handlers/shell/shell_handler.rs:105–118](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/shell_handler.rs#L105-L118),
+[tools/handlers/shell/local_shell.rs:67–80](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/local_shell.rs#L67-L80), and
+[tools/handlers/shell/container_exec.rs:56–69](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/container_exec.rs#L56-L69). The common
+[tools/handlers/shell.rs:239–247](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell.rs#L239-L247) →
+[tools/events.rs:326–336](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/events.rs#L326-L336) chooses the
+[tools/mod.rs:52–89](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/mod.rs#L52-L89) structured JSON writer (`output`,
+`metadata.exit_code`, `metadata.duration_seconds`), not either plain header.
+The existing JSON-wrapper preservation is unchanged; these names are unsupported
+for *plain-header authentication*, not unsupported record ingestion. Rollout
 [policy.rs:141–155,202–203,250–281](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/rollout/src/policy.rs#L202-L203)
 does **not persist** `PatchApplyBegin`/`PatchApplyUpdated`; `PatchApplyEnd` is
 Legacy-mode only, and FileChange `item_completed` is Paginated-mode only.

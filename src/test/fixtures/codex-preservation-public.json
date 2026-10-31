@@ -104,7 +104,7 @@
         },
         "codexOutput": {
           "exitCode": 0,
-          "raw": "Exit code: 0\nWall time: 0 seconds\nOutput:\nError: ordinary stdout\n",
+          "raw": "Wall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\nError: ordinary stdout\n",
           "sourceMessageUuid": "result-one"
         },
         "content": "Error: ordinary stdout\n",

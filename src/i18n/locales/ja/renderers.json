@@ -440,5 +440,5 @@
   "outputBlock.showLess": "折りたたむ",
   "outputBlock.copy": "出力をコピー",
   "outputBlock.empty": "出力なし",
-  "contentArray.mediaPlaceholder": "プレビューしないメディア: {{type}}（記録サイズ {{size}} バイト）"
+  "contentArray.mediaPlaceholder": "プレビューしないメディア: {{type}}（記録 UTF-8 サイズ {{size}} バイト）"
 }

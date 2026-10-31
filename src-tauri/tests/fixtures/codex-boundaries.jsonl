@@ -11,7 +11,7 @@
 {"type":"response_item","payload":{"id":"after-alias","type":"message","role":"assistant","content":[{"type":"output_text","text":"Between alias completion and next start"}]}}
 {"type":"event_msg","payload":{"type":"task_started","turn_id":"exec-turn"}}
 {"type":"response_item","payload":{"id":"exec-call","type":"function_call","call_id":"exec","name":"exec_command","arguments":"{}"}}
-{"type":"response_item","payload":{"id":"exec-result","type":"function_call_output","call_id":"exec","output":"Exit code: 0\nWall time: 0 seconds\nOutput:\nExit code: 7\nProcess exited with code 8\nOutput:\nExit code: 9"}}
+{"type":"response_item","payload":{"id":"exec-result","type":"function_call_output","call_id":"exec","output":"Wall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\nExit code: 7\nProcess exited with code 8\nOutput:\nExit code: 9"}}
 {"type":"response_item","payload":{"id":"wait-call","type":"function_call","call_id":"wait","name":"write_stdin","arguments":"{}"}}
 {"type":"response_item","payload":{"id":"wait-result","type":"function_call_output","call_id":"wait","output":"Chunk ID: abc\nWall time: 0.0000 seconds\nProcess exited with code 2\nOutput:\nExit code: 7"}}
 {"type":"response_item","payload":{"id":"mcp-call","type":"function_call","call_id":"mcp","name":"mcp__srv__run","arguments":"{}"}}
@@ -19,3 +19,8 @@
 {"type":"response_item","payload":{"id":"orphan-result","type":"function_call_output","call_id":"absent","output":"Exit code: 1\nWall time: 0 seconds\nOutput:\nnot paired"}}
 {"type":"response_item","payload":{"id":"bad-call","type":"function_call","call_id":"bad","name":"exec_command","arguments":"{}"}}
 {"type":"response_item","payload":{"id":"bad-result","type":"function_call_output","call_id":"bad","output":"banner\nExit code: 5\nWall time: 0 seconds\nOutput:\nExit code: 9"}}
+{"type":"response_item","payload":{"id":"unknown-call","type":"function_call","call_id":"unknown","name":"unknown","arguments":"{}"}}
+{"type":"response_item","payload":{"id":"unknown-result","type":"function_call_output","call_id":"unknown","output":"Wall time: 0 seconds\nProcess exited with code 2\nOutput:\nnot authenticated"}}
+{"type":"response_item","payload":{"id":"alias-call","type":"function_call","call_id":"alias","name":"Bash","arguments":"{}"}}
+{"type":"response_item","payload":{"id":"alias-result","type":"function_call_output","call_id":"alias","output":"Wall time: 0 seconds\nProcess exited with code 2\nOutput:\nnot authenticated"}}
+{"type":"response_item","payload":{"id":"duplicate-result","type":"function_call_output","call_id":"exec","output":"Wall time: 0 seconds\nProcess exited with code 2\nOutput:\nsecond output without another call"}}
