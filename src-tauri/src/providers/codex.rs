@@ -422,6 +422,9 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     let mut msg_counter = 0u64;
     let mut turn = evidence::TurnState::default();
     let mut pending_changes = Vec::new();
+    // Only a paired producer exec tool can authenticate the text header. This
+    // stores names, never result evidence, and consumes each association once.
+    let mut pending_tool_names = std::collections::HashMap::new();
 
     for (source_line, &(start, end)) in ranges.iter().enumerate() {
         let previous_len = messages.len();
@@ -462,8 +465,31 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "response_item" => {
                 if let Some(payload) = val.get("payload") {
-                    if let Some(mut msg) = convert_codex_item(
+                    let kind = payload.get("type").and_then(Value::as_str);
+                    let call_id = payload.get("call_id").and_then(Value::as_str);
+                    if matches!(kind, Some("function_call" | "custom_tool_call")) {
+                        if let Some(id) = call_id {
+                            pending_tool_names.insert(
+                                id.to_string(),
+                                payload
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            );
+                        }
+                    }
+                    let output_tool = if matches!(
+                        kind,
+                        Some("function_call_output" | "custom_tool_call_output")
+                    ) {
+                        call_id.and_then(|id| pending_tool_names.remove(id))
+                    } else {
+                        None
+                    };
+                    if let Some(mut msg) = convert_codex_item_with_tool(
                         payload,
+                        output_tool.as_deref(),
                         &session_id,
                         current_model.as_ref(),
                         &line_timestamp,
@@ -1329,8 +1355,20 @@ fn is_codex_auto_injected_user_text(text: &str) -> bool {
     trimmed.starts_with("<environment_context>")
 }
 
+#[cfg(test)]
 fn convert_codex_item(
     item: &Value,
+    session_id: &str,
+    model: Option<&String>,
+    line_timestamp: &str,
+    counter: &mut u64,
+) -> Option<ClaudeMessage> {
+    convert_codex_item_with_tool(item, None, session_id, model, line_timestamp, counter)
+}
+
+fn convert_codex_item_with_tool(
+    item: &Value,
+    output_tool: Option<&str>,
     session_id: &str,
     model: Option<&String>,
     line_timestamp: &str,
@@ -1443,7 +1481,8 @@ fn convert_codex_item(
             ))
         }
         "function_call_output" | "custom_tool_call_output" => {
-            let content = serde_json::json!([codex_tool_result(item, &uuid, session_id)]);
+            let content =
+                serde_json::json!([codex_tool_result(item, &uuid, session_id, output_tool)]);
 
             Some(build_codex_message(
                 uuid,
@@ -1835,11 +1874,25 @@ fn normalize_web_search_input(action: Value) -> Value {
 
 /// Preserve the decoded result envelope before either display merge. The
 /// provenance identifies the source output item, never the matched call.
-fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
+fn codex_tool_result(
+    item: &Value,
+    uuid: &str,
+    session_id: &str,
+    output_tool: Option<&str>,
+) -> Value {
     let output = item.get("output").cloned().unwrap_or(Value::Null);
-    let plain_evidence = output
-        .as_str()
-        .and_then(|raw| evidence::plain_output(raw, uuid));
+    let plain_evidence = output.as_str().and_then(|raw| {
+        // codex@6aaac694 handlers/unified_exec/exec_command.rs:109,425-450;
+        // write_stdin.rs:37-40,120-132 return the context.rs:524-574 writer.
+        // Only these paired raw producer names authenticate an exec header.
+        // MCP, aliases and orphan results retain raw but never parse an exit.
+        if matches!(output_tool, Some("exec_command" | "write_stdin")) {
+            evidence::plain_output(raw, uuid)
+        } else {
+            raw.split_once("\nOutput:\n")
+                .map(|_| serde_json::json!({"raw":raw,"sourceMessageUuid":uuid}))
+        }
+    });
     let wrapper = output
         .as_str()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
@@ -2043,7 +2096,7 @@ mod tests {
             ("Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2\nOutput:\nsynthetic failure\n", 2),
             ("Exit code: -1\nWall time: 0 seconds\nOutput:\n", -1),
         ] {
-            let result = codex_tool_result(&json!({"type":"function_call_output","call_id":"same","output":raw}), "result-source", "session");
+            let result = codex_tool_result(&json!({"type":"function_call_output","call_id":"same","output":raw}), "result-source", "session", Some("exec_command"));
             assert_eq!(result["codexOutput"]["exitCode"], code);
             assert_eq!(result["codexOutput"]["raw"], raw);
             assert_eq!(result["codexOutput"]["sourceMessageUuid"], "result-source");

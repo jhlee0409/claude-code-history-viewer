@@ -5,6 +5,7 @@ import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { useExpandRegistry } from "@/store/expandRegistryStore";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
 import { toolOutcome } from "@/components/transcript/toolOutcome";
+import { ToolExecutionResultRouter } from "@/components/messageRenderer/ToolExecutionResultRouter";
 import i18n from "@/i18n";
 import publicMessages from "./fixtures/codex-preservation-public.json";
 
@@ -53,9 +54,38 @@ describe("Codex producer evidence through the paired renderer", () => {
     expect(container.textContent).not.toContain("Type: input_text");
     expect(JSON.stringify(result)).toBe(before);
   });
-  it.each(["javascript:alert(1)", "data:text/html;base64,AAAA", "file:///private/image.png"])("keeps unsupported image reference %s as raw data", image_url => {
+  it("reaches input_text through the legacy content-wrapper router", () => {
+    const { container } = render(<ThemeProvider><ToolExecutionResultRouter toolResult={{content:[{type:"input_text",text:"**reachable-text**"}]}} /></ThemeProvider>);
+    expect(container.querySelector("strong")?.textContent).toBe("reachable-text");
+    expect(container.textContent).not.toContain("Type: input_text");
+  });
+  it.each([
+    {type:"input_image",image_url:`data:image/tiff;base64,${"A".repeat(200000)}`},
+    {type:"input_image",image_url:`data:image/png;base64,${"_".repeat(200000)}`},
+    {type:"input_audio",audio_url:`data:audio/wav;base64,${"A".repeat(200000)}`},
+    {type:"image",source:{type:"base64",media_type:"image/tiff",data:"A".repeat(200000)}},
+  ])("shows type and recorded size, never media payload ($type)", item => {
+    const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[item]}, "exec");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain(String(item.type));
+    expect(container.textContent).toContain(String(new TextEncoder().encode(JSON.stringify(item)).length));
+    expect(container.textContent!.length).toBeLessThan(2000);
+    expect(container.textContent).not.toContain("A".repeat(100));
+  });
+  it("does not auto-load a remote recorded image", () => {
+    const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[{type:"input_image",image_url:"https://example.invalid/tracker.png"}]}, "exec");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("input_image");
+  });
+  it("does not dump a supported image payload after a decode failure", () => {
+    const {container} = mount({type:"tool_result",tool_use_id:"exec",content:[{type:"input_image",image_url:png}]}, "exec");
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.textContent).not.toContain(png);
+  });
+  it.each(["javascript:alert(1)", "data:text/html;base64,AAAA", "file:///private/image.png"])("keeps unsupported image reference %s as a placeholder", image_url => {
     const { container } = mount({ type: "tool_result", tool_use_id: "exec", content: [{ type: "input_image", image_url }] }, "exec");
     expect(container.querySelector("img")).toBeNull();
-    expect(container.textContent).toContain(image_url);
+    expect(container.textContent).toContain("input_image");
+    expect(container.textContent).not.toContain(image_url);
   });
 });

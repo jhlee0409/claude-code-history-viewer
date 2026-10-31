@@ -12,7 +12,12 @@ pub(super) fn plain_output(raw: &str, uuid: &str) -> Option<Value> {
     let mut code = None;
     let mut wall_time = false;
     let mut valid = true;
+    let mut seen = std::collections::HashSet::new();
     for line in header.lines() {
+        // Header labels are singular in both pinned exec writers. Keep unknown
+        // wrappers losslessly, but never certify duplicate metadata as an exit.
+        let label = line.split_once(':').map_or(line, |(label, _)| label);
+        valid &= seen.insert(label);
         if let Some(value) = line
             .strip_prefix("Exit code: ")
             .or_else(|| line.strip_prefix("Process exited with code "))
@@ -162,4 +167,43 @@ pub(super) fn file_change(message: &mut ClaudeMessage, record: Value) {
         .as_array_mut()
         .expect("fileChanges is constructed as an array")
         .push(record);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codex_exit_is_only_from_first_header_not_command_output() {
+        for header in [
+            "Exit code: 0\nWall time: 0 seconds",
+            "Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 0",
+        ] {
+            let raw = format!("{header}\nOutput:\nExit code: 7\nProcess exited with code 8\nWall time: 1 seconds\nOutput:\nExit code: 9");
+            assert_eq!(plain_output(&raw, "source").unwrap()["exitCode"], 0);
+        }
+    }
+
+    #[test]
+    fn codex_malformed_header_keeps_raw_without_exit() {
+        for header in [
+            "banner\nExit code: 5\nWall time: 0 seconds",
+            "Exit code: 5",
+            "Exit code: 5\nWall time: 0 seconds\nunknown header",
+            "Exit code: 5\nExit code: 5\nWall time: 0 seconds",
+            "Exit code: +5\nWall time: 0 seconds",
+            "Exit code: 2147483648\nWall time: 0 seconds",
+            "Exit code: 1.5\nWall time: 0 seconds",
+            "Exit code: 5 \nWall time: 0 seconds",
+            "Exit code: 5\nWall time: NaN seconds",
+            "Exit code: 5\nWall time: 0 seconds\nWall time: 0 seconds",
+            "Chunk ID: abc\nChunk ID: def\nWall time: 0 seconds\nProcess exited with code 5",
+        ] {
+            let raw = format!("{header}\nOutput:\nProcess exited with code 7");
+            let output = plain_output(&raw, "source").unwrap();
+            assert!(output.get("exitCode").is_none(), "{header}");
+            assert_eq!(output["raw"], raw);
+            assert_eq!(output["sourceMessageUuid"], "source");
+        }
+    }
 }

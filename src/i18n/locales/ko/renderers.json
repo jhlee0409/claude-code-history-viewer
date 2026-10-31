@@ -439,5 +439,6 @@
   "outputBlock.showAll_other": "전체 {{count}}줄 보기",
   "outputBlock.showLess": "접기",
   "outputBlock.copy": "출력 복사",
-  "outputBlock.empty": "출력 없음"
+  "outputBlock.empty": "출력 없음",
+  "contentArray.mediaPlaceholder": "미리 보지 않는 미디어: {{type}} (기록된 크기 {{size}}바이트)"
 }

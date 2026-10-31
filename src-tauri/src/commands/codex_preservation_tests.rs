@@ -107,6 +107,51 @@ fn strip_additive(response: &mut Value) {
     }
 }
 
+#[tokio::test]
+#[serial_test::serial]
+async fn codex_preservation_closed_turns_and_exec_only_headers() {
+    let home = crate::test_utils::SandboxHome::new();
+    let path = home.path().join(".codex/sessions/rollout-boundaries.jsonl");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        include_str!("../../tests/fixtures/codex-boundaries.jsonl"),
+    )
+    .unwrap();
+    let values = responses(&path).await;
+    for messages in [
+        values[0].as_array().unwrap(),
+        values[1]["messages"].as_array().unwrap(),
+    ] {
+        let find = |id: &str| messages.iter().find(|m| m["uuid"] == id).unwrap();
+        for id in ["after-complete", "after-abort", "after-alias"] {
+            assert!(
+                find(id)["codexEvidence"].get("turn").is_none(),
+                "{id} inherited a closed turn"
+            );
+        }
+        assert_eq!(
+            find("exec-call")["content"][1]["codexOutput"]["exitCode"],
+            0
+        );
+        assert_eq!(
+            find("wait-call")["content"][1]["codexOutput"]["exitCode"],
+            2
+        );
+        for id in ["mcp-call", "bad-call"] {
+            assert!(
+                find(id)["content"][1]["codexOutput"]
+                    .get("exitCode")
+                    .is_none(),
+                "{id}"
+            );
+        }
+        assert!(find("orphan-result")["content"][0]["codexOutput"]
+            .get("exitCode")
+            .is_none());
+    }
+}
+
 #[test]
 fn codex_preservation_turn_identity() {
     let messages = fixture_messages();

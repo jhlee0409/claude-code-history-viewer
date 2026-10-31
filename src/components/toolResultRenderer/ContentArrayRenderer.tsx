@@ -99,8 +99,14 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
     const imageUrl = itemObj.type === "image" ? safeImageUrl(itemObj.source)
       : inputImage ? safeImageUrl(dataImage
         ? { type: "base64", media_type: dataImage[1], data: dataImage[2] }
-        : { type: "url", url: inputImage }) : null;
+        : null) : null;
     if (imageUrl) return <ImageRenderer imageUrl={imageUrl} />;
+    // Recorded Codex URLs must not make unsolicited network requests. The shared
+    // ImageRenderer supports remote URLs, so use a placeholder here explicitly.
+    // Unsupported/malformed media stays in raw records, never in a huge JSON DOM.
+    if (["input_image", "input_audio", "image"].includes(String(itemObj.type))) {
+      return <div className={cn("text-muted-foreground", layout.containerPadding)}>{t("contentArray.mediaPlaceholder", { type: String(itemObj.type), size: new TextEncoder().encode(JSON.stringify(item)).length })}</div>;
+    }
     return (
       <div className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}>
         {(itemObj.type === "text" || itemObj.type === "input_text") && typeof itemObj.text === "string" ? (
