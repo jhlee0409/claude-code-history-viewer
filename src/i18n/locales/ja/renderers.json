@@ -439,5 +439,6 @@
   "outputBlock.showAll_other": "全{{count}}行を表示",
   "outputBlock.showLess": "折りたたむ",
   "outputBlock.copy": "出力をコピー",
-  "outputBlock.empty": "出力なし"
+  "outputBlock.empty": "出力なし",
+  "contentArray.mediaPlaceholder": "プレビューしないメディア: {{type}}（記録 UTF-8 サイズ {{size}} バイト）"
 }

@@ -36,6 +36,10 @@ export interface ToolResultContent {
   /** Exact source JSON; absent/null/false/zero/empty are distinct. */
   toolUseResult?: unknown;
   toolUseResultSource?: ToolUseResultSource;
+  /** Exact plain Codex wrapper and optional producer-header exit, before merge. */
+  codexOutput?: { raw: string; sourceMessageUuid: string; exitCode?: number };
+  /** The result's own producer turn, independent of the matched call. */
+  codexEvidence?: unknown;
 }
 
 export interface ClaudeToolUseResult {

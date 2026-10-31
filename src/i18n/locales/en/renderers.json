@@ -448,5 +448,6 @@
   "outputBlock.showAll_other": "Show all {{count}} lines",
   "outputBlock.showLess": "Show less",
   "outputBlock.copy": "Copy output",
-  "outputBlock.empty": "No output"
+  "outputBlock.empty": "No output",
+  "contentArray.mediaPlaceholder": "Media not previewed: {{type}} ({{size}} recorded UTF-8 bytes)"
 }

@@ -143,6 +143,8 @@ async fn codex_structured_legacy_response_parity() {
                 if block["type"] == "tool_result" {
                     block.as_object_mut().unwrap().remove("toolUseResult");
                     block.as_object_mut().unwrap().remove("toolUseResultSource");
+                    block.as_object_mut().unwrap().remove("codexOutput");
+                    block.as_object_mut().unwrap().remove("codexEvidence");
                 }
             }
         }
@@ -154,7 +156,7 @@ async fn codex_structured_legacy_response_parity() {
     .unwrap();
     assert_eq!(
         responses, expected,
-        "complete legacy responses, only two additive result properties stripped"
+        "complete legacy responses, only declared additive result properties stripped"
     );
 }
 
@@ -223,6 +225,8 @@ async fn codex_structured_consumer_response_parity() {
                 if object.get("type").and_then(Value::as_str) == Some("tool_result") {
                     object.remove("toolUseResult");
                     object.remove("toolUseResultSource");
+                    object.remove("codexOutput");
+                    object.remove("codexEvidence");
                 }
                 for v in object.values_mut() {
                     normalize(v, root);

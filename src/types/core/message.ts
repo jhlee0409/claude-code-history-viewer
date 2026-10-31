@@ -184,7 +184,16 @@ export interface CompactMetadata {
   warning?: string;
 }
 
+/** Additive producer evidence; transport carrier does not assert call ownership. */
+export interface CodexEvidence {
+  turn?: { started?: unknown; context?: unknown };
+  contentItems?: Array<{ type?: unknown }>;
+  contentItemKinds?: unknown;
+  fileChanges?: Array<{ sourceLine: number; record: unknown }>;
+}
+
 export interface BaseClaudeMessage {
+  codexEvidence?: CodexEvidence;
   uuid: string;
   parentUuid?: string;
   sessionId: string;

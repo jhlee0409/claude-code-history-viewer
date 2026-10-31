@@ -276,6 +276,13 @@ export function normalizeResult(
 
   const keys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
   const codes: number[] = [];
+  // Backend-parsed producer header, never arbitrary stdout text. The complete
+  // source wrapper remains in codexOutput.raw (contract: tool-result-metadata).
+  // Codex context.rs@6aaac694:524-574; tools/mod.rs:91-116.
+  if (codex && isPlainObject(result.codexOutput)) {
+    const code = recordedInteger(result.codexOutput.exitCode);
+    if (code !== undefined) codes.push(code);
+  }
   for (const source of sources) {
     for (const key of keys) {
       const code = recordedInteger(source[key]);
@@ -342,7 +349,7 @@ const STREAM_FIELDS = ["stdout", "stderr", "interrupted", "isImage", "error_code
 
 const blockText = (block: unknown): string | null => {
   if (typeof block === "string") return block;
-  if (isPlainObject(block) && block.type === "text" && typeof block.text === "string") return block.text;
+  if (isPlainObject(block) && (block.type === "text" || block.type === "input_text") && typeof block.text === "string") return block.text;
   return null;
 };
 

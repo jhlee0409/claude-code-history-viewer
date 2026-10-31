@@ -1270,6 +1270,57 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn codex_preservation_loopback_http_matches_native() {
+        use crate::commands::codex_preservation_tests::{assert_evidence, FIXTURE};
+        let home = crate::test_utils::SandboxHome::new();
+        let path = home
+            .path()
+            .join(".codex")
+            .join("sessions")
+            .join("rollout-preservation.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, FIXTURE).unwrap();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (99, 2), (0, 0)] {
+            let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                "codex".into(),
+                path.to_string_lossy().into(),
+                Some(offset),
+                Some(limit),
+                Some(false),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy(),"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+            assert_eq!(status, 200);
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            if offset == 0 && limit == 200 {
+                assert_evidence(response["messages"].as_array().unwrap());
+            }
+        }
+        let native = crate::commands::multi_provider::load_provider_messages(
+            "codex".into(),
+            path.to_string_lossy().into(),
+        )
+        .await
+        .unwrap();
+        let (status, response) = post_loopback_json(
+            address,
+            "load_provider_messages",
+            serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy()}),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(response, serde_json::to_value(native).unwrap());
+        assert_evidence(response.as_array().unwrap());
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn family_evidence_loopback_http_matches_public_native() {
         use crate::commands::provider_evidence_tests::{
             assert_opencode, assert_openhands, assert_pi_bash, assert_pi_results, opencode_fixture,

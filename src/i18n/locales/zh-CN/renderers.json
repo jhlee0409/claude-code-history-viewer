@@ -439,5 +439,6 @@
   "outputBlock.showAll_other": "显示全部 {{count}} 行",
   "outputBlock.showLess": "收起",
   "outputBlock.copy": "复制输出",
-  "outputBlock.empty": "无输出"
+  "outputBlock.empty": "无输出",
+  "contentArray.mediaPlaceholder": "未预览的媒体：{{type}}（记录的 UTF-8 大小 {{size}} 字节）"
 }

@@ -97,10 +97,11 @@ attached before Codex's provider-local merge; duplicate call IDs, replay and
 out-of-order results never replace another result's metadata. Existing legacy
 call placement is unchanged and is not proof of a unique originating call.
 
-Plain output strings (including `Process exited ...` prose), JSON strings
-without an `output` property, and already-object output retain their previous
-content representation and do not gain these fields. Already-object metadata
-is already present in `content`; it is not duplicated into a new envelope.
+Plain output strings, JSON strings without an `output` property, and
+already-object output retain their previous content representation and do not
+gain `toolUseResult`/`toolUseResultSource`. Already-object metadata is already
+present in `content`; it is not duplicated into that envelope. The additive
+plain-header contract below preserves evidence independently.
 No missing exit code or interruption flag is synthesized. Open Interpreter
 shares this parser and receives the same preservation, retaining its own
 provider tag and history-root guard. Codex/Open Interpreter search matches the
@@ -160,3 +161,127 @@ remain valid. No frontend type/adapter/UI change is included.
 See [provider scope and verification boundaries](provider-result-evidence-scope.md)
 for store coverage, source index semantics, full-response baselines and remaining
 unverified pathways. This remains partial TRbe, not all-provider certification.
+
+## Codex producer preservation ②a
+
+All existing content, flags, IDs, message order and pagination are unchanged.
+Only the following optional locations are added; stripping **only** these
+locations reproduces complete develop responses (`5e65489a`).
+
+- A result's `codexOutput` holds `{raw, sourceMessageUuid, exitCode?}` when the
+  legacy normalizer removed a plain `\nOutput:\n` wrapper. `raw` is the exact
+  original string, including whitespace and header. `exitCode` is present only
+  for an integer in the paired tool's producer header with its wall-time line:
+  `Process exited with code N` for `exec_command`/`write_stdin`, or `Exit code: N`
+  for `apply_patch`/legacy `shell_command`. Mismatched tool/header dialects keep
+  raw without an exit. A pending raw name authenticates only its first output;
+  a second output without another call retains raw but is not authenticated. Stdout after
+  the first delimiter is never inspected. Unknown/malformed headers stay raw
+  without a code (including duplicate header labels). Header order is not tightened. MCP, unknown, alias and orphan outputs preserve raw without parsing an exit. Zero and negative integers survive. This does not read the
+  producer's internal, unserialized `success` flag. `toolOutcome` consumes the
+  delivered code for Codex/Open Interpreter; no code is inferred in the UI.
+- A message's `codexEvidence.turn` contains the recorded `started` event and/or
+  `context` payload. A new start clears stale context; a different, null or
+  absent context turn ID does not inherit the preceding start. Complete/abort
+  events close the active turn. No turn ID is generated, no prior/next turn is
+  retroactively assigned. A merged result keeps its **own** turn in that result
+  block's `codexEvidence`, independent of the legacy call-ID placement.
+- `codexEvidence.contentItems` is an ordered array of `{type?:unknown}` for
+  **every** original message content item, before the legacy converter drops
+  or renames anything. Its length is the source cardinality. `{}` and
+  `{type:null}` differ. `contentItemKinds`, if present, copies the source
+  `internal_chat_message_metadata_passthrough.content_item_kinds` value exactly,
+  including null/false/zero/empty values.
+  Existing responses without these fields still need a legacy fallback.
+- `codexEvidence.fileChanges` contains `{sourceLine,record}` entries for
+  `item_completed` FileChange and `patch_apply_begin/updated/end`. The complete
+  decoded source event survives, including update `unified_diff`, null/absent `move_path`,
+  add/delete `content`, statuses, IDs, unknown fields and timestamp. sourceLine
+  is the zero-based non-empty JSONL line slot used by `find_line_ranges`
+  (blank empty lines are excluded; invalid non-empty lines retain their slot). The nearest preceding normalized
+  message is a **transport carrier, not a tool-call association**; a leading
+  event waits for the first normalized message. No matching by equal text or
+  tool ID is invented. A rollout with no legacy normalized messages has no
+  carrier and still returns the legacy empty response; supporting event-only
+  rollouts requires a separate session-level envelope contract.
+
+C6 keeps output arrays unchanged in Rust. The existing result renderer and
+`resultContent` adapter interpret `input_text` as text and `input_image` as an
+image in recorded order. Only allowlisted inline image data URLs are previewed for
+Codex `input_image`; HTTP(S), file references, unsupported/malformed media and
+`input_audio` show a localized type/recorded-byte-size placeholder, never base64
+JSON. HTTP(S) references remain visible as React-escaped, non-link text, never
+loading elements; unsafe references and file IDs remain in raw records only.
+The shared `image` branch (Claude/other providers too) also uses placeholders for
+unsupported media. “Recorded UTF-8 bytes” means the serialized item JSON in
+`ContentArrayRenderer` or data URL string in `ImageRenderer`, not decoded binary
+size. Decode failures also hide inline payloads, including data URLs without `;`. The shared `ImageRenderer` and
+legacy Claude `safeImageUrl` allow remote URLs; that is not a no-fetch policy, so
+this Codex path deliberately does **not** pass remote URLs to that renderer.
+Raw records/IPC values are untouched. Both paired and orphan routes share this
+renderer. The `input_text` branch is reachable through the legacy
+`ToolExecutionResultRouter` content-wrapper/array routes (not `resultContent`,
+which already splits text), and is tested through that actual router.
+
+FileChange data is delivered for DiffView consumption; this PR does not add a
+new diff panel or fabricate an apply_patch tool call for code-mode exec. Turn
+identity and original item kinds are available, but grouping and heartbeat
+classification consumption are follow-up **②a2**, not delivered UI behavior.
+The owner chose separate automated goal-continuation turns; existing grouping
+remains unchanged until that wiring lands. Search still matches legacy display
+fields only, not hidden evidence, in both shared rollout providers.
+
+### Turn-envelope compaction follow-up (not implemented)
+
+Full envelopes remain duplicated in this additive message-array contract. The
+fresh parser measurement found 6,398 message and 2,228 result placements over
+138 rollouts: **16,856,511 bytes** of serialized turn values across 8,626
+placements (before JSON property-name overhead). Raw context payloads average
+2,064.95 compact-JSON bytes, maximum 4,034; the reviewer's roughly 20 MB was
+an estimate using a different serialization/counting boundary. These are
+measurements of remaining duplication, **not a claimed size reduction**. A safe compact design must supply `{id, minimal fields}` at each
+message/result and the full envelope once per turn in a session table, including
+mismatched/null/absent IDs without inventing identity. It must preserve result-owned
+turns after call merging and hydrate every independently requested pagination
+window (including windows omitting the carrier). Full-load returns a bare message
+array, while pagination/HTTP use a wrapper: changing all of those contracts and
+adding a frontend resolver is not a contained `attach()` edit. Deliver this with
+②a2's consumer, exact full/paginated/native/HTTP tests and a real-record size gate;
+do not drop source fields or make page references depend on an earlier page.
+
+### Pinned producer evidence
+
+| Interpretation | Source | Regression |
+|---|---|---|
+| Process exited header: exec_command/write_stdin, not stdout | [tools/context.rs:524–574](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/context.rs#L524-L574); [tools/handlers/unified_exec/exec_command.rs:372–450](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs#L372-L450); [tools/handlers/unified_exec/write_stdin.rs:88–122](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs#L88-L122) → [unified_exec/process_manager.rs:879–883](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/unified_exec/process_manager.rs#L879-L883) | producer-shaped pairing table, hostile stdout, public boundaries |
+| Exit code header: apply_patch / legacy shell_command | [tools/handlers/apply_patch.rs:531–571](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/handlers/apply_patch.rs#L531-L571) → [tools/events.rs:384–400](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/events.rs#L384-L400) → [tools/mod.rs:91–116](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/tools/mod.rs#L91-L116); [tools/handlers/shell/shell_command.rs:154–155](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/handlers/shell/shell_command.rs#L154-L155) → [tools/handlers/shell.rs:238–247](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/handlers/shell.rs#L238-L247) → [tools/events.rs:422–427](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/events.rs#L422-L427) → [tools/mod.rs:99–124](https://github.com/openai/codex/blob/d0cc662b8c9239e5886acef9d6762bb33df9a058/codex-rs/core/src/tools/mod.rs#L99-L124) | `codex_plain_exit_header_preserves_source_evidence`, mismatched dialect negatives |
+| Text/image output items; success not serialized | [models.rs:2245–2262,2340–2355](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L2245-L2262) | public fixture identity + renderer route |
+| Original message content type and nested host kinds | [models.rs:881–935](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L881-L935), [993–1013](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L993-L1013), [1062–1082](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L1062-L1082) | `codex_preservation_content_item_types` |
+| FileChange update/add/delete | [protocol.rs:3838–3878,4342–4355](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/protocol.rs#L4342-L4355), [items.rs:418–429](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/items.rs#L418-L429) | `codex_preservation_file_changes` |
+| Rollout turn start/context and item completion | [protocol.rs:1517–1520,2063–2075,2302–2323,3428–3433](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/protocol.rs#L3428-L3433) | `codex_preservation_turn_identity`, public + loopback HTTP |
+
+Historical `shell`, `local_shell`, and `container.exec` do **not** authenticate
+plain exit headers. At `7c7b4861d88960f7e3bd5b7f30f8351be666dd84` (the parent of their removal
+`83decfa3`), their handlers pass `freeform: false`: [tools/handlers/shell/shell_handler.rs:105–118](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/shell_handler.rs#L105-L118),
+[tools/handlers/shell/local_shell.rs:67–80](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/local_shell.rs#L67-L80), and
+[tools/handlers/shell/container_exec.rs:56–69](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell/container_exec.rs#L56-L69). The common
+[tools/handlers/shell.rs:239–247](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/handlers/shell.rs#L239-L247) →
+[tools/events.rs:326–336](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/events.rs#L326-L336) chooses the
+[tools/mod.rs:52–89](https://github.com/openai/codex/blob/7c7b4861d88960f7e3bd5b7f30f8351be666dd84/codex-rs/core/src/tools/mod.rs#L52-L89) structured JSON writer (`output`,
+`metadata.exit_code`, `metadata.duration_seconds`), not either plain header.
+The existing JSON-wrapper preservation is unchanged; these names are unsupported
+for *plain-header authentication*, not unsupported record ingestion. Rollout
+[policy.rs:141–155,202–203,250–281](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/rollout/src/policy.rs#L202-L203)
+does **not persist** `PatchApplyBegin`/`PatchApplyUpdated`; `PatchApplyEnd` is
+Legacy-mode only, and FileChange `item_completed` is Paginated-mode only.
+The parser accepts the Begin/Updated superset if supplied, not a claim they occur
+in normal persisted rollouts.
+
+A read-only **executed Rust parser** rescan of 138 local rollouts delivered
+54/54 plain exit codes (5 nonzero), 204/204 FileChange events and 2,182 message
+`contentItems` envelopes (zero missing on 656 user messages). `contentItemKinds`
+exists on 1,263 messages; Codex did not record it on 314/656 user messages. Only
+structural counts were retained. A separate raw recount found 2,137 exec outputs,
+2,134 array outputs and 179 images in those exec arrays. The earlier audit's
+55 headers / 1,898 array outputs / 58 images are not silently reused as current
+counts; the exact reason for that difference is unconfirmed.
