@@ -34,11 +34,20 @@ The wrapper fallback is deliberately bounded: only complete registered wrappers 
 - **Attachment-only mid-turn prompts are uncovered:** five `attachment/queued_command` human prompts (`commandMode:"prompt"`, `humanTurn:true`, `origin.kind:"human"`), four stored only as attachments, are excluded by the user-type check. This patch does not invent placement/membership rules for them.
 - **Claude `isMeta` is dead at this frontend boundary:** the backend drops the audited 59 meta records before projection. The defensive predicate branch is not evidence that flags survive. `isCompactSummary` is also dropped; the text-prefix heuristic matched only one audited summary. Forwarding flags is future work.
 
-### Open owner decision: Codex goal continuation (P2-C)
+### Codex goal continuation (P2-C): identity delivered, grouping follow-up ②a2
 
-No goal-continuation turn policy is implemented here. Producer tasks without a UserMessage (including user-goal continuation fragments) can still join the preceding human summary when index membership is unknown; with membership they can form separate unknown/partial segments. Round-4 audit measured 278 tasks / 646 tools in full windows. Whether these should be automated requires an owner decision and forwarded producer turn signals (`task_started` / `turn_id`), not a new text-tag inference. This is a known open ownership gap, not certification of those human counts.
+The owner decided that goal-continuation producer turns are separate automated
+turns. Backend item ②a now delivers `codexEvidence.turn.started` and `.context`
+on messages, with the producer's `turn_id`/root identity and exact presence/null
+values; merged tool results retain their own turn envelope. See
+[the transport contract](tool-result-metadata.md).
+This PR deliberately does **not** wire grouping: tasks without a UserMessage can
+still join the preceding human summary when membership is unknown. Round-4
+measured 278 tasks / 646 tools in full windows. ②a2 must consume producer identity,
+not infer boundaries from context tags, and prove separate automated ownership
+in the model and legacy outline. Forwarded identity is not completed grouping.
 
-Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emitter**, not just current-reader compatibility. History search found replacement commit `740d942f901a5a63421298c74dafbeb4255e946d`; its parent `522f549922f6e7b8edbd5e9be3fc720ddb9b256a` defines the user-role wrapper in [goal_context.rs L20–36](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36), emits it from [goals.rs L1599–1601](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601), and uses it for extension steering in [steering.rs L1–12](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/ext/goal/src/steering.rs#L1-L12). Complete wrappers without typed residue classify as context/no turn start; malformed wrappers and mixed human text remain prompts (`legacyGoalContext.test.ts`, AssertionError RED saved). The original audit contained zero local legacy records. This classification correction does **not** implement the still-open goal-continuation cycle ownership policy above.
+Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emitter**, not just current-reader compatibility. History search found replacement commit `740d942f901a5a63421298c74dafbeb4255e946d`; its parent `522f549922f6e7b8edbd5e9be3fc720ddb9b256a` defines the user-role wrapper in [goal_context.rs L20–36](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36), emits it from [goals.rs L1599–1601](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601), and uses it for extension steering in [steering.rs L1–12](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/ext/goal/src/steering.rs#L1-L12). Complete wrappers without typed residue classify as context/no turn start; malformed wrappers and mixed human text remain prompts (`legacyGoalContext.test.ts`, AssertionError RED saved). The original audit contained zero local legacy records. This classification correction does **not** implement the still-unwired goal-continuation cycle ownership policy above.
 
 ### Shared-classifier consumer inventory
 

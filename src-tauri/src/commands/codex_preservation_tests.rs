@@ -174,6 +174,21 @@ async fn codex_preservation_public_evidence() {
     let values = responses(&path).await;
     assert_evidence(values[0].as_array().unwrap());
     assert_evidence(values[1]["messages"].as_array().unwrap());
+    let renderer_fixture: Value = serde_json::from_str(include_str!(
+        "../../../src/test/fixtures/codex-preservation-public.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        values[0], renderer_fixture,
+        "frontend consumes the exact public command response"
+    );
+    if let Ok(destination) = std::env::var("BE1_PUBLIC_RESPONSE") {
+        std::fs::write(
+            destination,
+            serde_json::to_string_pretty(&values[0]).unwrap(),
+        )
+        .unwrap();
+    }
 }
 
 #[tokio::test]

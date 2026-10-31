@@ -389,6 +389,8 @@ pub(crate) fn load_sessions_reporting(
     Ok(sessions)
 }
 
+mod evidence;
+
 /// Load all messages from a Codex rollout file
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = Path::new(session_path);
@@ -418,8 +420,11 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     let mut prev_output_tokens: u32 = 0;
     let mut prev_cached_tokens: u32 = 0;
     let mut msg_counter = 0u64;
+    let mut turn = evidence::TurnState::default();
+    let mut pending_changes = Vec::new();
 
-    for &(start, end) in &ranges {
+    for (source_line, &(start, end)) in ranges.iter().enumerate() {
+        let previous_len = messages.len();
         let line = &mmap[start..end];
         let mut buf = line.to_vec();
         let val: Value = match simd_json::from_slice(&mut buf) {
@@ -449,6 +454,7 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "turn_context" => {
                 if let Some(payload) = val.get("payload") {
+                    turn.context(payload);
                     if let Some(m) = payload.get("model").and_then(|v| v.as_str()) {
                         current_model = Some(m.to_string());
                     }
@@ -456,13 +462,15 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "response_item" => {
                 if let Some(payload) = val.get("payload") {
-                    if let Some(msg) = convert_codex_item(
+                    if let Some(mut msg) = convert_codex_item(
                         payload,
                         &session_id,
                         current_model.as_ref(),
                         &line_timestamp,
                         &mut msg_counter,
                     ) {
+                        evidence::content_items(&mut msg, payload);
+                        turn.attach(&mut msg);
                         if try_merge_tool_result_into_previous(&mut messages, &msg) {
                             continue;
                         }
@@ -473,6 +481,18 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             "event_msg" => {
                 if let Some(payload) = val.get("payload") {
                     let event_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+                    if matches!(event_type, "task_started" | "turn_started") {
+                        turn.start(payload);
+                    }
+                    if evidence::is_file_change(payload) {
+                        let record = serde_json::json!({"sourceLine":source_line,"record":val});
+                        if let Some(carrier) = messages.last_mut() {
+                            evidence::file_change(carrier, record);
+                        } else {
+                            pending_changes.push(record);
+                        }
+                    }
 
                     // Skip events that duplicate response_item messages.
                     // Codex logs user/assistant text in both response_item (type=message)
@@ -532,10 +552,17 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                                 });
                             }
                         }
-                    } else if let Some(msg) =
+                    } else if let Some(mut msg) =
                         convert_codex_event(payload, &session_id, &line_timestamp, &mut msg_counter)
                     {
+                        turn.attach(&mut msg);
                         messages.push(msg);
+                    }
+                    if matches!(
+                        event_type,
+                        "task_complete" | "turn_complete" | "turn_aborted"
+                    ) {
+                        turn.finish();
                     }
                 }
             }
@@ -551,6 +578,11 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                 }
             }
             _ => {}
+        }
+        if messages.len() > previous_len && !pending_changes.is_empty() {
+            for record in pending_changes.drain(..) {
+                evidence::file_change(&mut messages[previous_len], record);
+            }
         }
     }
 
@@ -659,8 +691,10 @@ pub(crate) fn rollout_content_matches(content: &Value, query_lower: &str) -> boo
         if block.get("type").and_then(Value::as_str) == Some("tool_result") {
             block.as_object().is_some_and(|fields| {
                 fields.iter().any(|(key, value)| {
-                    !matches!(key.as_str(), "toolUseResult" | "toolUseResultSource")
-                        && search_json_value_case_insensitive(value, query_lower)
+                    !matches!(
+                        key.as_str(),
+                        "toolUseResult" | "toolUseResultSource" | "codexOutput" | "codexEvidence"
+                    ) && search_json_value_case_insensitive(value, query_lower)
                 })
             })
         } else {
@@ -1803,6 +1837,9 @@ fn normalize_web_search_input(action: Value) -> Value {
 /// provenance identifies the source output item, never the matched call.
 fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
     let output = item.get("output").cloned().unwrap_or(Value::Null);
+    let plain_evidence = output
+        .as_str()
+        .and_then(|raw| evidence::plain_output(raw, uuid));
     let wrapper = output
         .as_str()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
@@ -1816,6 +1853,9 @@ fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
         "tool_use_id": item.get("call_id").and_then(Value::as_str).unwrap_or(""),
         "content": content
     });
+    if let Some(plain_evidence) = plain_evidence {
+        result["codexOutput"] = plain_evidence;
+    }
     if let Some(wrapper) = wrapper {
         result["toolUseResult"] = wrapper;
         result["toolUseResultSource"] = serde_json::json!({

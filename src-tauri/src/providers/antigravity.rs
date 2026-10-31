@@ -623,6 +623,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         messages.push(ClaudeMessage {
             uuid: format!("{session_id}-{sequence}-a"),
             source_execution: None,
+            codex_evidence: None,
             parent_uuid: Some(format!("{session_id}-{sequence}-u")),
             session_id: session_id.clone(),
             timestamp,

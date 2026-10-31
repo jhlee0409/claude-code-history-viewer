@@ -90,11 +90,20 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
     if (itemObj.type === "tool_use") return <ToolUseRenderer toolUse={itemObj} searchQuery={searchQuery} />;
     if (itemObj.type === "tool_result") return <ClaudeToolResultItem toolResult={itemObj} index={index} searchQuery={searchQuery} />;
     if (typeof itemObj.type === "string" && SERVER_RESULT_TYPES.has(itemObj.type)) return <StandaloneServerResult block={itemObj} searchQuery={searchQuery} />;
-    const imageUrl = itemObj.type === "image" ? safeImageUrl(itemObj.source) : null;
+    // Codex FunctionCallOutputContentItem serializes input_text/input_image
+    // directly, unlike Claude's text/image blocks. Interpret here, not in the
+    // backend: content stays byte/value-compatible and raw records stay intact.
+    // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L2245-L2262
+    const inputImage = itemObj.type === "input_image" && typeof itemObj.image_url === "string" ? itemObj.image_url : null;
+    const dataImage = inputImage?.match(/^data:(image\/(?:jpeg|png|gif|webp|bmp|svg\+xml));base64,([A-Za-z0-9+/=\r\n]+)$/);
+    const imageUrl = itemObj.type === "image" ? safeImageUrl(itemObj.source)
+      : inputImage ? safeImageUrl(dataImage
+        ? { type: "base64", media_type: dataImage[1], data: dataImage[2] }
+        : { type: "url", url: inputImage }) : null;
     if (imageUrl) return <ImageRenderer imageUrl={imageUrl} />;
     return (
       <div className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}>
-        {itemObj.type === "text" && typeof itemObj.text === "string" ? (
+        {(itemObj.type === "text" || itemObj.type === "input_text") && typeof itemObj.text === "string" ? (
           <div className={layout.prose}>
             {itemObj.text.includes("<thinking>") && itemObj.text.includes("</thinking>") ? (
               <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
