@@ -40,6 +40,23 @@ export const AdvisorToolResultRenderer = memo(function AdvisorToolResultRenderer
     );
   }
 
+  // SDK L387-L393 and L449-L457: max_tokens means truncated in either variant.
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L449-L457
+  const truncationNotice = content.stop_reason === "max_tokens" ? (
+    <div className={cn(layout.smallText, "text-muted-foreground")}>
+      {t("advisorToolResultRenderer.truncated")}
+    </div>
+  ) : null;
+
+  // SDK pinned discriminator, not absence of text: encrypted output is not empty.
+  // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L360-L405
+  // Local structural recount: 79/79 advisor results have {type, encrypted_content}.
+  if (content.type === "advisor_redacted_result") {
+    return <ResultRow verb="advisor" result={result} toolUseId={toolUseId}>
+      <div className={cn(layout.smallText, "text-muted-foreground")}>{t("advisorToolResultRenderer.redacted")}</div>
+      {truncationNotice}
+    </ResultRow>;
+  }
   const text = typeof content.text === "string" ? content.text : "";
 
   return (
@@ -53,6 +70,7 @@ export const AdvisorToolResultRenderer = memo(function AdvisorToolResultRenderer
           {t("advisorToolResultRenderer.empty")}
         </div>
       )}
+      {truncationNotice}
     </ResultRow>
   );
 });

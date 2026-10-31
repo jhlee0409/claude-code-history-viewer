@@ -20,6 +20,8 @@
  * synthesized: no exit code from stderr or from prose like "Exit code 1".
  */
 
+import { webSearchLinks } from "@/utils/anthropicServerTools";
+
 export type ToolLifecycle = "completed" | "interrupted" | "no-result";
 export type ToolVerdict = "succeeded" | "failed" | "unknown";
 export type OutcomeReason =
@@ -651,6 +653,17 @@ export function legacyExecutionView(record: Record<string, unknown>, provider?: 
     return true;
   }));
   return { stdout: normalized.stdout ?? "", stderr: normalized.stderr ?? "", outcome, remainder };
+}
+
+/** Claude recorded WebSearch batches; result metadata is owned by this adapter.
+ * Local keys/counts: 313/318 wrappers + commentary, 2,965 title/url links;
+ * docs/contracts/anthropic-server-tools.md (not an outer-array result count). */
+export function recordedWebSearchLinkCount(results: ToolResultLike[]): number | undefined {
+  const batches = results.flatMap(result => {
+    const own = ownMetadata(result);
+    return Array.isArray(own?.results) ? own.results : [];
+  });
+  return batches.length > 0 ? webSearchLinks(batches).length : undefined;
 }
 
 /** What an Agent (Task) result records about its run. */

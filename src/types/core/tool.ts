@@ -178,13 +178,12 @@ export interface TextEditorCodeExecutionToolResultContent {
   content: TextEditorResult | TextEditorError;
 }
 
-export interface TextEditorResult {
-  type: "text_editor_code_execution_result";
-  operation?: "view" | "create" | "edit" | "delete";
-  path?: string;
-  content?: string;
-  success?: boolean;
-}
+/** SDK cb5fba419808e3844fa6407e59577ab7ba346b79 messages.ts:7085-7192.
+ * https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192 */
+export type TextEditorResult =
+  | { type: "text_editor_code_execution_create_result"; is_file_update: boolean }
+  | { type: "text_editor_code_execution_view_result"; content: string; file_type: "text" | "image" | "pdf"; num_lines: number | null; start_line: number | null; total_lines: number | null }
+  | { type: "text_editor_code_execution_str_replace_result"; lines: string[] | null; new_lines: number | null; new_start: number | null; old_lines: number | null; old_start: number | null };
 
 export interface TextEditorError {
   type: "text_editor_code_execution_tool_result_error";
@@ -193,8 +192,8 @@ export interface TextEditorError {
     | "unavailable"
     | "too_many_requests"
     | "execution_time_exceeded"
-    | "file_not_found"
-    | "permission_denied";
+    | "file_not_found";
+  error_message: string | null;
 }
 
 // ============================================================================
@@ -204,15 +203,13 @@ export interface TextEditorError {
 export interface ToolSearchToolResultContent {
   type: "tool_search_tool_result";
   tool_use_id: string;
-  content: ToolSearchResult[] | ToolSearchError;
+  content: ToolSearchResult | ToolSearchError;
 }
 
+/** https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L8010-L8057 */
 export interface ToolSearchResult {
   type: "tool_search_tool_search_result";
-  tool_name: string;
-  server_name?: string;
-  description?: string;
-  input_schema?: Record<string, unknown>;
+  tool_references: { type: "tool_reference"; tool_name: string }[];
 }
 
 export interface ToolSearchError {
@@ -221,7 +218,8 @@ export interface ToolSearchError {
     | "invalid_tool_input"
     | "unavailable"
     | "too_many_requests"
-    | "no_results";
+    | "execution_time_exceeded";
+  error_message: string | null;
 }
 
 /**
@@ -234,10 +232,11 @@ export interface AdvisorToolResultContent {
   content: AdvisorResult | AdvisorError;
 }
 
-export interface AdvisorResult {
-  type: "advisor_result";
-  text?: string;
-}
+/** SDK messages.ts:360-405,470-476; encrypted content is opaque, never advice text.
+ * https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L360-L405 */
+export type AdvisorResult =
+  | { type: "advisor_result"; text: string; stop_reason?: string | null }
+  | { type: "advisor_redacted_result"; encrypted_content: string; stop_reason?: string | null };
 
 export interface AdvisorError {
   type: "advisor_tool_result_error";

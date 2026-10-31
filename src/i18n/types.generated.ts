@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-30T09:05:11.270Z
- * 총 키 개수: 2344
+ * 생성 시간: 2026-10-30T20:05:27.400Z
+ * 총 키 개수: 2343
  * Namespace 수: 13
  */
 
@@ -1684,7 +1684,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (439개)
+ * renderers namespace의 번역 키 (438개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1707,6 +1707,8 @@ export type RenderersKeys =
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
   | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.redacted'
+  | 'advisorToolResultRenderer.truncated'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -2057,9 +2059,8 @@ export type RenderersKeys =
   | 'terminalStreamRenderer.exitCode'
   | 'terminalStreamRenderer.title'
   | 'textEditorCodeExecutionToolResultRenderer.create'
-  | 'textEditorCodeExecutionToolResultRenderer.delete'
-  | 'textEditorCodeExecutionToolResultRenderer.edit'
   | 'textEditorCodeExecutionToolResultRenderer.showContent'
+  | 'textEditorCodeExecutionToolResultRenderer.update'
   | 'textEditorCodeExecutionToolResultRenderer.view'
   | 'thinkingRenderer.title'
   | 'toolError.executionTimeExceeded'
@@ -2067,8 +2068,6 @@ export type RenderersKeys =
   | 'toolError.invalidToolInput'
   | 'toolError.invalidUrlFormat'
   | 'toolError.maxUsesExceeded'
-  | 'toolError.noMatchingToolsFound'
-  | 'toolError.permissionDenied'
   | 'toolError.tooManyRequests'
   | 'toolError.unavailable'
   | 'toolError.unsupportedContentType'
@@ -2120,8 +2119,8 @@ export type RenderersKeys =
   | 'webFetchToolResultRenderer.retrievedAt'
   | 'webFetchToolResultRenderer.showContent'
   | 'webSearchRenderer.duration'
+  | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
-  | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'
   | 'webSearchRenderer.title'
   | 'webSearchRenderer.unknownResultFormat'
@@ -2488,6 +2487,8 @@ export type TranslationKey =
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
   | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.redacted'
+  | 'advisorToolResultRenderer.truncated'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -4625,9 +4626,8 @@ export type TranslationKey =
   | 'terminalStreamRenderer.exitCode'
   | 'terminalStreamRenderer.title'
   | 'textEditorCodeExecutionToolResultRenderer.create'
-  | 'textEditorCodeExecutionToolResultRenderer.delete'
-  | 'textEditorCodeExecutionToolResultRenderer.edit'
   | 'textEditorCodeExecutionToolResultRenderer.showContent'
+  | 'textEditorCodeExecutionToolResultRenderer.update'
   | 'textEditorCodeExecutionToolResultRenderer.view'
   | 'thinkingRenderer.title'
   | 'time.day'
@@ -4649,8 +4649,6 @@ export type TranslationKey =
   | 'toolError.invalidToolInput'
   | 'toolError.invalidUrlFormat'
   | 'toolError.maxUsesExceeded'
-  | 'toolError.noMatchingToolsFound'
-  | 'toolError.permissionDenied'
   | 'toolError.tooManyRequests'
   | 'toolError.unavailable'
   | 'toolError.unsupportedContentType'
@@ -4796,8 +4794,8 @@ export type TranslationKey =
   | 'webFetchToolResultRenderer.retrievedAt'
   | 'webFetchToolResultRenderer.showContent'
   | 'webSearchRenderer.duration'
+  | 'webSearchRenderer.linkCount'
   | 'webSearchRenderer.query'
-  | 'webSearchRenderer.results'
   | 'webSearchRenderer.seconds'
   | 'webSearchRenderer.title'
   | 'webSearchRenderer.unknownResultFormat'
