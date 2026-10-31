@@ -1996,6 +1996,21 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    #[test]
+    fn codex_plain_exit_header_preserves_source_evidence() {
+        for (raw, code) in [
+            ("Exit code: 0\nWall time: 0.1 seconds\nOutput:\nError: ordinary stdout\n", 0),
+            ("Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2\nOutput:\nsynthetic failure\n", 2),
+            ("Exit code: -1\nWall time: 0 seconds\nOutput:\n", -1),
+        ] {
+            let result = codex_tool_result(&json!({"type":"function_call_output","call_id":"same","output":raw}), "result-source", "session");
+            assert_eq!(result["codexOutput"]["exitCode"], code);
+            assert_eq!(result["codexOutput"]["raw"], raw);
+            assert_eq!(result["codexOutput"]["sourceMessageUuid"], "result-source");
+            assert_eq!(result["content"], raw.split_once("\nOutput:\n").unwrap().1);
+        }
+    }
+
     struct EnvVarGuard {
         key: &'static str,
         original: Option<OsString>,
