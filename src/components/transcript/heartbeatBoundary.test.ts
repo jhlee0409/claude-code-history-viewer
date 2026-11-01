@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ClaudeMessage } from "@/types";
 import { classifyMessage, isCodexHeartbeat } from "../MessageViewer/helpers/messageKinds";
 import { applyMessageDisplayFilter } from "../MessageViewer/helpers/messageDisplayFilter";
 import { getFilteredClassifiedMessages } from "../MessageNavigator/classifiedRows";
@@ -9,7 +10,41 @@ import { flattened, user } from "./transcriptItems.fixtures";
 // Scheduler shape: Codex 0.164.0 history/src/heartbeat.rs L75–109.
 // Body text is synthetic. Real-data structure audit: 34/34 whole envelopes.
 const envelope = "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic wake\n  </instructions>\n</heartbeat>";
-const message = (content: string) => ({ ...user("input", content), provider: "codex" as const });
+const message = (content: string) => ({ ...user("input", content), provider: "codex" as const, codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds: ["user.heartbeat"] } });
+const userOnly = { roles: { user: true, assistant: false }, contentTypes: { text: true, thinking: true, toolCalls: true, commands: true, parallelTasks: true } };
+
+describe("owner decision B: timestamp-correlated unmarked envelopes (viewer rule)", () => {
+  const unmarked = () => ({ ...message(envelope), timestamp: "2026-09-23T00:00:00Z", codexEvidence: { contentItems: [{ type: "input_text" }] } });
+  const routes = (input: ClaudeMessage, automated: boolean) => {
+    expect(isCodexHeartbeat(input)).toBe(automated);
+    expect(classifyMessage(input).kind).toBe(automated ? "context" : "prompt");
+    expect(groupTurns(getFilteredClassifiedMessages([input]))[0]).toMatchObject({ kind: automated ? "automated" : "human", turnNumber: automated ? null : 1 });
+    expect(buildTranscriptItems(flattened([input]), new Map()).turns[0]).toMatchObject({ kind: automated ? "automated" : "human" });
+    expect(applyMessageDisplayFilter([input], userOnly)).toEqual(automated ? [] : [input]);
+  };
+  it.each([undefined, ["user.text"]])("accepts absent/default kinds with matching time: %j", kinds => {
+    const input = unmarked();
+    routes({ ...input, codexEvidence: { ...input.codexEvidence, ...(kinds ? { contentItemKinds: kinds } : {}) } }, true);
+  });
+  it.each(["2026-09-22T23:59:55Z", "2026-09-23T00:00:05Z", "2026-09-23T02:00:02.900+02:00"])("accepts inclusive ±5s tolerance: %s", timestamp => routes({ ...unmarked(), timestamp }, true));
+  it("requires matching timestamps even when original evidence is absent", () => {
+    routes({ ...unmarked(), codexEvidence: undefined }, true);
+    routes({ ...unmarked(), timestamp: "2026-09-23T00:00:05.001Z", codexEvidence: undefined }, false);
+  });
+  it.each(["2026-09-23T00:00:05.001Z", "2026-09-22T23:59:54.999Z", "", "invalid"])("preserves mismatched/missing record time: %s", timestamp => routes({ ...unmarked(), timestamp }, false));
+  it.each([
+    envelope + " typed text", "typed text " + envelope, envelope.replace(/\n/g, "\r\n"),
+    envelope.replace("2026-09-23T00:00:00Z", ""), envelope.replace("2026-09-23T00:00:00Z", "1".repeat(64)), "Ordinary typed user text",
+  ])("preserves envelope deviations and invalid embedded time: %s", content => routes({ ...unmarked(), content }, false));
+  it.each([null, false, 0, [], ["user.heartbeat", "user.text"], ["unknown"]])("rejects present malformed/unknown kinds at matching time: %j", contentItemKinds => {
+    routes({ ...unmarked(), codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds } }, false);
+  });
+  it("preserves dropped source siblings and extra displayed text", () => {
+    routes({ ...unmarked(), codexEvidence: { contentItems: [{ type: "input_text" }, { type: "input_image" }] } }, false);
+    routes({ ...unmarked(), content: [{ type: "text", text: envelope }, { type: "text", text: "Typed text" }] }, false);
+  });
+  it("does not impose the viewer timestamp rule on host-marked reader inputs", () => routes({ ...message(envelope), timestamp: "" }, true));
+});
 
 describe("heartbeat whole-message boundary", () => {
   it.each([
@@ -95,7 +130,7 @@ describe("heartbeat whole-message boundary", () => {
       expect(isCodexHeartbeat({ ...base, codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds } })).toBe(false);
     }
     expect(isCodexHeartbeat({ ...base, codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds: ["user.heartbeat"] } })).toBe(true);
-    // Old responses remain the explicitly documented grammar-only fallback.
+    // Host-marked inputs keep the reader rule without timestamp correlation.
     expect(isCodexHeartbeat(base)).toBe(true);
   });
 

@@ -47,6 +47,8 @@ export interface ToolOutcome {
    * (an interruption).
    */
   errorCode?: string;
+  /** Exact associated Codex FileChange decline; presentation only, verdict stays failed. */
+  declined?: true;
 }
 
 /**
@@ -780,7 +782,9 @@ export function toolOutcome(
         : providerError
           ? "provider-error"
           : "api-error-code";
-    return withCodes({ lifecycle: "completed", verdict: "failed", reason });
+    return withCodes({ lifecycle: "completed", verdict: "failed", reason,
+      ...(changes.some(change => change.status === "declined") ? { declined: true as const } : {}),
+    });
   }
 
   // 4. A recorded exit code decides; `is_error: false` beside a non-zero code

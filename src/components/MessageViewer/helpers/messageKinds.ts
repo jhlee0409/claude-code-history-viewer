@@ -139,7 +139,9 @@ function getTextBlocks(message: ClaudeMessage): string[] {
 
 /** Client wake fallback: exact scheduler grammar, not proof of host provenance.
  * Delivered source cardinality/types and host kinds are authoritative when present.
- * Old responses without them retain the explicit grammar-only fallback. Reader:
+ * Unmarked inputs use owner-approved viewer decision B: exact grammar plus
+ * embedded/record time within ±5s (local 34 envelopes: max 2.9s). This is NOT
+ * the Codex origin rule; see docs/contracts/codex-frontend-turns-diffs.md. Reader:
  * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L62-L110
  * L69: one InputText; L78–82: UTF-8 byte/line budget; L87–101: exact fields.
  * Instructions are opaque: split_once/strip_suffix do not reject inner tags.
@@ -152,10 +154,11 @@ export function isCodexHeartbeat(message: ClaudeMessage): boolean {
     const items = evidence.contentItems;
     if (!Array.isArray(items) || items.length !== 1 || items[0]?.type !== "input_text") return false;
   }
-  if (evidence && (Object.hasOwn(evidence, "contentItems") || Object.hasOwn(evidence, "contentItemKinds"))) {
-    const kinds = evidence.contentItemKinds;
-    if (!Array.isArray(kinds) || kinds.length !== 1 || kinds[0] !== "user.heartbeat") return false;
-  }
+  const kinds = evidence?.contentItemKinds;
+  const hostMarked = Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.heartbeat";
+  // Absent kinds and exactly the default user.text are the only legacy shapes.
+  if (!hostMarked && evidence && Object.hasOwn(evidence, "contentItemKinds")
+    && !(Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.text")) return false;
   const content = message.content;
   const text = typeof content === "string" ? content
     : Array.isArray(content) && content.length === 1 && content[0]?.type === "text"
@@ -180,7 +183,12 @@ export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   const instructions = body.slice(instructionIndex + instructionSeparator.length);
   return /^[A-Za-z0-9_-]{1,128}$/.test(automationId)
     && /^[0-9TZ:.+-]{1,64}$/.test(timestamp)
-    && instructions.endsWith(suffix);
+    && instructions.endsWith(suffix)
+    // Host-marked input retains the exact reader grammar (even its ASCII-only
+    // timestamp check); only the viewer fallback requires real, correlated time.
+    && (hostMarked || (Number.isFinite(Date.parse(timestamp))
+      && Number.isFinite(Date.parse(message.timestamp))
+      && Math.abs(Date.parse(timestamp) - Date.parse(message.timestamp)) <= 5_000));
 }
 
 /** True when the record carries the client's own tool-result payload. */

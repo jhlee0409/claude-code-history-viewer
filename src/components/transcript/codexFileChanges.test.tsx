@@ -53,6 +53,7 @@ describe("producer FileChange through the actual paired renderer", () => {
         if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
         expect(paired.container.querySelector("[data-codex-file-change]")?.textContent).toContain(label);
         expect(paired.container.querySelector("[data-tool-row]")?.getAttribute("data-tool-verdict")).toBe("failed");
+        expect(paired.container.querySelector("[data-tool-row]")?.textContent).toContain(label);
         expect(paired.container.textContent).toContain("producer-new");
         paired.unmount();
       }
@@ -65,6 +66,7 @@ describe("producer FileChange through the actual paired renderer", () => {
       expect(toolOutcome(use, [], "other", "codex", changes)).toMatchObject({ lifecycle: "completed", verdict: "failed", reason: "provider-error" });
       expect(toolOutcome(use, [{ content: "not evidence", toolUseResult: { exit_code: 0 } }], "other", "codex", changes)).toMatchObject({ verdict: "failed", reason: "conflict", exitCode: 0 });
       expect(toolOutcome(use, [{ toolUseResult: { interrupted: true } }], "other", "codex", changes)).toMatchObject({ lifecycle: "interrupted", verdict: "unknown" });
+      if (status === "declined") expect(toolOutcome(use, [{ toolUseResult: { exit_code: 0 } }], "other", "codex", changes)).toMatchObject({ verdict: "failed", reason: "conflict", declined: true });
       expect(toolOutcome(use, [], "other", "claude", changes)).toMatchObject({ lifecycle: "no-result", verdict: "unknown" });
     }
     expect(toolOutcome(use, [], "other", "codex", [{ status: "completed" }])).toMatchObject({ lifecycle: "completed", verdict: "unknown" });

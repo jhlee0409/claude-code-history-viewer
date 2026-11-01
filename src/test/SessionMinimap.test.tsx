@@ -218,7 +218,7 @@ describe("SessionMinimap", () => {
     stubComputedStyle();
     const ctx = installCanvasContextMock() as ReturnType<typeof installCanvasContextMock> & { paints: { alpha: number; fill: string; w: number }[] };
     const scrollEl = makeScrollElement({ scrollHeight: 100 });
-    render(<SessionMinimap virtualizer={makeVirtualizer([{ start: 0, size: 100 }], 100)} flattenedMessages={[flattenedItem(makeMessage({ content, provider: content.startsWith("<heartbeat>") ? "codex" : undefined }))]} virtualRows={[]} totalSize={100} getScrollElement={() => scrollEl as unknown as HTMLElement} />);
+    render(<SessionMinimap virtualizer={makeVirtualizer([{ start: 0, size: 100 }], 100)} flattenedMessages={[flattenedItem(makeMessage({ content, timestamp: "2026-09-23T00:00:00Z", provider: content.startsWith("<heartbeat>") ? "codex" : undefined }))]} virtualRows={[]} totalSize={100} getScrollElement={() => scrollEl as unknown as HTMLElement} />);
     rafQueue.flush();
     expect(ctx.paints.length).toBeGreaterThan(0);
     expect(ctx.paints.every(paint => Math.abs(paint.w - (STRIP_WIDTH - 2 * MINIMAP_BAR_PAD_PX - MINIMAP_TICK_GUTTER_PX) * (kind === "context" ? 0.4 : 0.7)) < 0.001)).toBe(true);
