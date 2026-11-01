@@ -18,14 +18,18 @@ function formatTimestamp(timestamp: string): { date: string; time: string } {
   };
 }
 
+function quoteBlock(text: string): string {
+  return text.split(/\r\n|\r|\n/).map((line) => `> ${line}`).join("\n");
+}
+
 function blockToMarkdown(block: ExtractedBlock): string {
   switch (block.kind) {
     case "thinking":
       return `<details>\n<summary>Thinking</summary>\n\n${block.text}\n\n</details>`;
     case "tool":
-      return `> **Tool:** \`${block.text}\``;
+      return quoteBlock(`**Tool:** \`${block.text}\``);
     case "result":
-      return `> ${block.text}`;
+      return quoteBlock(block.text);
     case "code":
       return `\`\`\`\n${block.text}\n\`\`\``;
     case "media":

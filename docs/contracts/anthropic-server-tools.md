@@ -45,7 +45,8 @@ The UI notice uses a static five-locale key, without counts, interpolation or
 plural selection. Exports retain their existing English/language-neutral convention.
 No truncation is inferred from absent/null/unknown values or from advice prose.
 Tests are SDK-shaped synthetic inputs: local redacted histories omit this field.
-Rust/headless export parity (including this notice) remains a separate follow-up.
+Rust/headless export parity (including this notice) is covered by
+[`headless-export-parity.md`](headless-export-parity.md) and the shared Rust/TS corpus.
 
 Round-2 P3 WebSearch compatibility differences are deliberately unchanged here:
 shared `webSearchLinks` still accepts empty string URLs and does not interpret
@@ -92,4 +93,4 @@ Errors use the existing `toolOutcome.normalizeResult` API `error_code` conventio
 - Frontend export: `contentExtractor.ts` preserves editor/tool-search records as escaped JSON and explicitly labels encrypted advisor results. `htmlExporter.ts` consumes those blocks and already escapes non-text content; no second parser is needed. Regression tests exercise both text extraction and HTML output.
 - Prior tests containing the invented editor `{operation,path,success}` shape are compatibility controls only. A recorded legacy `path` stays searchable in raw JSON; it is no longer presented as a dedicated SDK path field with an ellipsis. The existing search-hit preservation assertions remain in force.
 - **Follow-up:** Claude Code client `ToolSearch` has **98 `tool_reference` items inside ordinary `tool_result.content` arrays**, not C9 server result objects. Dedicated ordinary-result reference rendering is a separate route and is not claimed here.
-- **Follow-up, deliberately not edited:** `src-tauri/src/export.rs:227–245` still reads nonexistent editor `operation/path`, emits a generic tool-search placeholder, and has no explicit advisor-redacted branch. The headless export needs a separate Rust parity change and Rust gates. This frontend-only task ran no Cargo.
+- **Headless export:** `src-tauri/src/export.rs` now preserves editor/tool-search fields as escaped JSON, explicitly handles advisor plaintext/redaction and stop notices, and shares a producer-shaped corpus with the frontend. See [`headless-export-parity.md`](headless-export-parity.md) for grounding, comparison semantics and remaining shared limitations.
