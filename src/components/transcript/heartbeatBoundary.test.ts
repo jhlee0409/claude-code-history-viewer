@@ -49,6 +49,21 @@ describe("owner decision B: timestamp-correlated unmarked envelopes (viewer rule
     envelope + " typed text", "typed text " + envelope, envelope.replace(/\n/g, "\r\n"),
     envelope.replace("2026-09-23T00:00:00Z", ""), envelope.replace("2026-09-23T00:00:00Z", "1".repeat(64)), "Ordinary typed user text",
   ])("preserves envelope deviations and invalid embedded time: %s", content => routes({ ...unmarked(), content }, false));
+  // Engines may normalize impossible calendar dates (2026-02-30 -> 2026-03-02);
+  // the viewer rule must treat them as invalid time, not correlate them.
+  it.each([
+    ["2026-02-30T00:00:00Z", "2026-03-02T00:00:00Z"],
+    ["2026-03-02T00:00:00Z", "2026-02-30T00:00:00Z"],
+    ["2026-04-31T00:00:00Z", "2026-05-01T00:00:00Z"],
+    ["2026-09-23T24:00:00Z", "2026-09-24T00:00:00Z"],
+    ["2026-09-23T00:60:00Z", "2026-09-23T01:00:00Z"],
+    ["2026-09-23T00:00:00+24:00", "2026-09-22T00:00:00Z"],
+  ])("rejects impossible calendar/clock values: embedded=%s record=%s", (embedded, timestamp) => {
+    routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", embedded), timestamp }, false);
+  });
+  it("accepts a real leap day", () => {
+    routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", "2028-02-29T00:00:00Z"), timestamp: "2028-02-29T00:00:01Z" }, true);
+  });
   it.each([null, false, 0, [], ["user.heartbeat", "user.text"], ["unknown"]])("rejects present malformed/unknown kinds at matching time: %j", contentItemKinds => {
     routes({ ...unmarked(), codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds } }, false);
   });

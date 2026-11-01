@@ -186,11 +186,38 @@ export function isCodexHeartbeat(message: ClaudeMessage): boolean {
     && instructions.endsWith(suffix)
     // Host-marked input retains the exact reader grammar (even its ASCII-only
     // timestamp check); only the viewer fallback requires real, correlated time.
-    && (hostMarked || (/(?:Z|[+-]\d{2}:?\d{2})$/.test(timestamp)
-      && /(?:Z|[+-]\d{2}:?\d{2})$/.test(message.timestamp)
-      && Number.isFinite(Date.parse(timestamp))
-      && Number.isFinite(Date.parse(message.timestamp))
-      && Math.abs(Date.parse(timestamp) - Date.parse(message.timestamp)) <= 5_000));
+    && (hostMarked || isCorrelatedInstant(timestamp, message.timestamp));
+}
+
+/**
+ * Strict ISO-8601 instant with an explicit zone. Rejects impossible calendar or
+ * clock values that `Date.parse` may silently normalize (e.g. 2026-02-30).
+ */
+function parseZonedInstant(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s, frac, zone, sign, zh, zm] = m;
+  const year = Number(y), month = Number(mo), day = Number(d);
+  const hour = Number(h), minute = Number(mi), second = Number(s);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > daysInMonth) return null;
+  let offsetMinutes = 0;
+  if (zone !== "Z") {
+    const oh = Number(zh), om = Number(zm);
+    if (oh > 23 || om > 59) return null;
+    offsetMinutes = (sign === "-" ? -1 : 1) * (oh * 60 + om);
+  }
+  const millis = frac === undefined ? 0 : Number(frac.slice(0, 3).padEnd(3, "0"));
+  return Date.UTC(year, month - 1, day, hour, minute, second, millis) - offsetMinutes * 60_000;
+}
+
+/** Owner-approved viewer rule: both instants valid, zoned, and within ±5s. */
+function isCorrelatedInstant(embedded: string, recorded: unknown): boolean {
+  const a = parseZonedInstant(embedded);
+  const b = parseZonedInstant(recorded);
+  return a !== null && b !== null && Math.abs(a - b) <= 5_000;
 }
 
 /** True when the record carries the client's own tool-result payload. */
