@@ -428,12 +428,10 @@ export const createMessageSlice: StateCreator<
 
         const existing = get().messages;
         const known = new Set(existing.map((m) => m.uuid));
-        const fresh = applySystemMessageFilter(
-          page.messages.filter((m) => !known.has(m.uuid))
-        );
+        const loaded = page.messages.filter((m) => !known.has(m.uuid));
 
         set({
-          messages: fresh.length > 0 ? [...fresh, ...existing] : existing,
+          messages: loaded.length > 0 ? applySystemMessageFilter([...loaded, ...existing]) : existing,
           pagination: {
             currentOffset: page.next_offset,
             pageSize: MESSAGE_PAGE_SIZE,

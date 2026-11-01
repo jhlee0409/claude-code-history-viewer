@@ -186,7 +186,9 @@ export function isCodexHeartbeat(message: ClaudeMessage): boolean {
     && instructions.endsWith(suffix)
     // Host-marked input retains the exact reader grammar (even its ASCII-only
     // timestamp check); only the viewer fallback requires real, correlated time.
-    && (hostMarked || (Number.isFinite(Date.parse(timestamp))
+    && (hostMarked || (/(?:Z|[+-]\d{2}:?\d{2})$/.test(timestamp)
+      && /(?:Z|[+-]\d{2}:?\d{2})$/.test(message.timestamp)
+      && Number.isFinite(Date.parse(timestamp))
       && Number.isFinite(Date.parse(message.timestamp))
       && Math.abs(Date.parse(timestamp) - Date.parse(message.timestamp)) <= 5_000));
 }

@@ -61,7 +61,8 @@ All Codex links below pin `6aaac694803004a63c6f393d153c96d22521a6b9`.
   calls an unmarked envelope `User`. The viewer additionally classifies it as
   automated only when kinds are absent or exactly `["user.text"]`, the entire
   single-text input matches that reader's exact LF/field/ASCII/UTF-8-budget grammar,
-  and both timestamps parse and differ by **at most 5 seconds (inclusive)**. The
+  and both timestamps have an explicit zone (`Z` or a signed hour/minute offset),
+  parse, and differ by **at most 5 seconds (inclusive)**. The
   embedded `current_time_iso` is compared to the normalized record timestamp,
   never the active turn's trigger. Missing/invalid time, larger skew, extra source
   or displayed items, and any envelope deviation stay human. Host-marked inputs

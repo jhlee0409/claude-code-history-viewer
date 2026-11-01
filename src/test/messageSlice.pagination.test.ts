@@ -214,6 +214,44 @@ describe("messageSlice — chat-style pagination", () => {
     await store.getState().selectSession(makeSession({provider: "codex"}));
     expect(groupTurns(getFilteredClassifiedMessages(store.getState().messages)).map(t => t.kind)).toEqual(["unknown"]);
   });
+  it.each([false, true])("retains a Codex start across an older-page boundary (showSystemMessages=%s)", async (showSystemMessages) => {
+    const withTurn = (message: ClaudeMessage, id: string, input = false): ClaudeMessage => ({
+      ...message,
+      provider: "codex",
+      codexEvidence: { turn: {
+        started: { type: "task_started", turn_id: id },
+        context: { turn_id: id },
+        ...(input ? { input: { type: "user_message", message: "Typed prompt" } } : {}),
+      } },
+    });
+    const start = withTurn({ ...user("boundary-start"), type: "progress", role: "system", data: { type: "waiting_for_task", status: "started", taskId: "g" } }, "g");
+    const context = withTurn(user("boundary-context", "<environment_context>cwd</environment_context>"), "g");
+    const source = [
+      withTurn(user("human", "Typed prompt"), "h", true),
+      withTurn(tool("human-work"), "h", true),
+      start,
+      context,
+      ...Array.from({ length: MESSAGE_PAGE_SIZE - 1 }, (_, i) => withTurn(tool(`auto-${i}`), "g")),
+    ];
+    const backend = makeBackend(source.length);
+    backend.all.splice(0, source.length, ...source);
+    installBackend(backend);
+    const store = createTestStore();
+    store.setState({ showSystemMessages });
+    await store.getState().selectSession(makeSession({ provider: "codex" }));
+    expect(groupTurns(getFilteredClassifiedMessages(store.getState().messages)).map(t => t.kind)).toEqual(["unknown"]);
+
+    await store.getState().loadMoreMessages();
+
+    const visible = store.getState().messages;
+    expect(groupTurns(getFilteredClassifiedMessages(visible)).map(t => t.kind)).toEqual(["human", "automated"]);
+    expect(buildTranscriptItems(flattened(visible), new Map()).turns.map(t => t.kind)).toEqual(["human", "automated"]);
+    expect(visible.some(m => m.uuid === start.uuid)).toBe(showSystemMessages);
+    if (!showSystemMessages) expect(visible.find(m => m.uuid === context.uuid)?.codexLoadedStart).toEqual(start);
+    expect(visible.map(m => m.uuid)).toEqual(source.filter(m => showSystemMessages || m.type !== "progress").map(m => m.uuid));
+    expect(store.getState().pagination).toMatchObject({ currentOffset: source.length, totalCount: source.length, hasMore: false, isLoadingMore: false });
+  });
+
   it("selectSession loads only the newest window", async () => {
     const store = createTestStore();
     const backend = makeBackend(500);

@@ -27,6 +27,19 @@ describe("owner decision B: timestamp-correlated unmarked envelopes (viewer rule
     routes({ ...input, codexEvidence: { ...input.codexEvidence, ...(kinds ? { contentItemKinds: kinds } : {}) } }, true);
   });
   it.each(["2026-09-22T23:59:55Z", "2026-09-23T00:00:05Z", "2026-09-23T02:00:02.900+02:00"])("accepts inclusive ±5s tolerance: %s", timestamp => routes({ ...unmarked(), timestamp }, true));
+  it.each([
+    ["2026-09-23T00:00:00", "2026-09-23T00:00:00"],
+    ["2026-09-23T00:00:00", "2026-09-23T00:00:00Z"],
+    ["2026-09-23T00:00:00Z", "2026-09-23T00:00:00"],
+    ["2026-09-23", "2026-09-23T00:00:00Z"],
+    ["2026-09-23T00:00:00Z", "2026-09-23"],
+  ])("requires explicit zones on both times: embedded=%s record=%s", (embedded, timestamp) => {
+    routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", embedded), timestamp }, false);
+  });
+  it.each(["2026-09-23T09:00:00+09:00", "2026-09-22T17:00:00-07:00", "2026-09-23T09:00:00+0900"])("accepts explicit equivalent zones on both times: %s", timestamp => {
+    routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", timestamp) }, true);
+    routes({ ...unmarked(), timestamp }, true);
+  });
   it("requires matching timestamps even when original evidence is absent", () => {
     routes({ ...unmarked(), codexEvidence: undefined }, true);
     routes({ ...unmarked(), timestamp: "2026-09-23T00:00:05.001Z", codexEvidence: undefined }, false);
