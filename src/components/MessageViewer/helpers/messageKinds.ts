@@ -138,8 +138,10 @@ function getTextBlocks(message: ClaudeMessage): string[] {
 }
 
 /** Client wake fallback: exact scheduler grammar, not proof of host provenance.
- * The backend drops content_item_kinds; the existing owner policy also accepts
- * historical unmarked inputs (34/34 local envelopes). Pin the reader, not an emitter:
+ * Delivered source cardinality/types and host kinds are authoritative when present.
+ * Unmarked inputs use owner-approved viewer decision B: exact grammar plus
+ * embedded/record time within ±5s (local 34 envelopes: max 2.9s). This is NOT
+ * the Codex origin rule; see docs/contracts/codex-frontend-turns-diffs.md. Reader:
  * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L62-L110
  * L69: one InputText; L78–82: UTF-8 byte/line budget; L87–101: exact fields.
  * Instructions are opaque: split_once/strip_suffix do not reject inner tags.
@@ -147,6 +149,16 @@ function getTextBlocks(message: ClaudeMessage): string[] {
  */
 export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   if (message.type !== "user" || message.provider !== "codex") return false;
+  const evidence = message.codexEvidence;
+  if (evidence && Object.hasOwn(evidence, "contentItems")) {
+    const items = evidence.contentItems;
+    if (!Array.isArray(items) || items.length !== 1 || items[0]?.type !== "input_text") return false;
+  }
+  const kinds = evidence?.contentItemKinds;
+  const hostMarked = Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.heartbeat";
+  // Absent kinds and exactly the default user.text are the only legacy shapes.
+  if (!hostMarked && evidence && Object.hasOwn(evidence, "contentItemKinds")
+    && !(Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.text")) return false;
   const content = message.content;
   const text = typeof content === "string" ? content
     : Array.isArray(content) && content.length === 1 && content[0]?.type === "text"
@@ -171,7 +183,50 @@ export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   const instructions = body.slice(instructionIndex + instructionSeparator.length);
   return /^[A-Za-z0-9_-]{1,128}$/.test(automationId)
     && /^[0-9TZ:.+-]{1,64}$/.test(timestamp)
-    && instructions.endsWith(suffix);
+    && instructions.endsWith(suffix)
+    // Host-marked input retains the exact reader grammar (even its ASCII-only
+    // timestamp check); only the viewer fallback requires real, correlated time.
+    && (hostMarked || isCorrelatedInstant(timestamp, message.timestamp));
+}
+
+/**
+ * Strict ISO-8601 instant with an explicit zone. Rejects impossible calendar or
+ * clock values that `Date.parse` may silently normalize (e.g. 2026-02-30).
+ */
+function parseZonedInstant(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s, frac, zone, sign, zh, zm] = m;
+  const year = Number(y), month = Number(mo), day = Number(d);
+  const hour = Number(h), minute = Number(mi), second = Number(s);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
+  if (day < 1 || day > utcDaysInMonth(year, month)) return null;
+  let offsetMinutes = 0;
+  if (zone !== "Z") {
+    const oh = Number(zh), om = Number(zm);
+    if (oh > 23 || om > 59) return null;
+    offsetMinutes = (sign === "-" ? -1 : 1) * (oh * 60 + om);
+  }
+  const millis = frac === undefined ? 0 : Number(frac.slice(0, 3).padEnd(3, "0"));
+  // setUTCFullYear keeps years 0-99 literal (Date.UTC would remap them to 19xx).
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, millis);
+  return date.getTime() - offsetMinutes * 60_000;
+}
+
+function utcDaysInMonth(year: number, month: number): number {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, 0);
+  return date.getUTCDate();
+}
+
+/** Owner-approved viewer rule: both instants valid, zoned, and within ±5s. */
+function isCorrelatedInstant(embedded: string, recorded: unknown): boolean {
+  const a = parseZonedInstant(embedded);
+  const b = parseZonedInstant(recorded);
+  return a !== null && b !== null && Math.abs(a - b) <= 5_000;
 }
 
 /** True when the record carries the client's own tool-result payload. */

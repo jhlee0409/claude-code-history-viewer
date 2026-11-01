@@ -262,6 +262,7 @@ function taskUpdateBody(ctx: BodyContext): RoutedBody | null {
 
 // apply_patch ----------------------------------------------------------------
 function patchBody(ctx: BodyContext): RoutedBody | null {
+  if (ctx.preferProducerDiff) return { body: <InputJson value={ctx.input} ctx={ctx} /> };
   const source = typeof ctx.input.patch === "string" ? ctx.input.patch : typeof ctx.input.input === "string" ? ctx.input.input : undefined;
   const files = source !== undefined ? parseApplyPatch(source) : null;
   if (!files) return null;

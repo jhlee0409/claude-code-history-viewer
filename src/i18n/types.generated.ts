@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-31T13:33:40.608Z
- * 총 키 개수: 2344
+ * 생성 시간: 2026-11-01T04:18:54.294Z
+ * 총 키 개수: 2347
  * Namespace 수: 13
  */
 
@@ -1684,7 +1684,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (439개)
+ * renderers namespace의 번역 키 (442개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1782,6 +1782,9 @@ export type RenderersKeys =
   | 'codebaseContextRenderer.contextWindow'
   | 'codebaseContextRenderer.filesCount'
   | 'codebaseContextRenderer.relevantFiles'
+  | 'codexFileChange.declined'
+  | 'codexFileChange.failed'
+  | 'codexFileChange.heading'
   | 'commandOutputDisplay.buildOutput'
   | 'commandOutputDisplay.jsonOutput'
   | 'commandOutputDisplay.packageManagement'
@@ -2896,6 +2899,9 @@ export type TranslationKey =
   | 'codebaseContextRenderer.contextWindow'
   | 'codebaseContextRenderer.filesCount'
   | 'codebaseContextRenderer.relevantFiles'
+  | 'codexFileChange.declined'
+  | 'codexFileChange.failed'
+  | 'codexFileChange.heading'
   | 'collapsibleToolResult.editsCount'
   | 'collapsibleToolResult.noOutput'
   | 'collapsibleToolResult.result'
@@ -4832,6 +4838,7 @@ export type TranslationPrefix =
   | 'claudeSessionHistoryRenderer'
   | 'codeExecutionToolResultRenderer'
   | 'codebaseContextRenderer'
+  | 'codexFileChange'
   | 'collapsibleToolResult'
   | 'commandOutputDisplay'
   | 'commandRenderer'

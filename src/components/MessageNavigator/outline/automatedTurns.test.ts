@@ -6,7 +6,7 @@ import { groupTurns } from "./groupTurns";
 import { getTurnHeaderLabel } from "./turnHeaderLabel";
 
 const message = (uuid: string, content: ClaudeMessage["content"], provider = "codex", type = "user") => ({
-  uuid, content, provider, type, role: type, timestamp: "2026-09-26T06:29:32.477Z",
+  uuid, content, provider, type, role: type, timestamp: "2026-09-23T00:00:00Z",
 }) as ClaudeMessage;
 
 const cases = [

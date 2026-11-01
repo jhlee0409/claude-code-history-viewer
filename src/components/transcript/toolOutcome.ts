@@ -47,6 +47,8 @@ export interface ToolOutcome {
    * (an interruption).
    */
   errorCode?: string;
+  /** Exact associated Codex FileChange decline; presentation only, verdict stays failed. */
+  declined?: true;
 }
 
 /**
@@ -61,6 +63,15 @@ export type ToolFamily = "process" | "read-search" | "other";
 
 export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
+
+/** FileChange add/delete content is recorded file text, not result prose or a
+ * success flag (Codex protocol.rs@6aaac694:4342–4355). Keep raw field reads
+ * at this adapter boundary; consumers receive only validated text. */
+export function recordedFileChangeContent(value: unknown): string | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const content = (value as Record<string, unknown>).content;
+  return typeof content === "string" ? content : undefined;
+}
 
 export interface NormalizedResult {
   /** `is_error` as recorded: `true`, `false`, or absent. */
@@ -730,12 +741,19 @@ export function toolOutcome(
   results: ToolResultLike[],
   family: ToolFamily,
   provider?: string,
+  codexFileChanges: readonly { status: string }[] = [],
 ): ToolOutcome {
   // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
-  if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
+  const changes = provider === "codex" && use !== null ? codexFileChanges : [];
+  if (results.length === 0 && changes.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
   const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined }));
+  // A uniquely associated FileChange's failed/declined enum is explicit error
+  // evidence, not prose or a fabricated exit (protocol.rs@6aaac694:3883–3887;
+  // tools/events.rs:298–342). Keep D-R4 interruption/conflict precedence below.
+  // Completed is lifecycle only and must not manufacture success.
+  for (const change of changes) normalized.push(change.status === "failed" || change.status === "declined" ? { isError: true } : {});
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
@@ -764,7 +782,9 @@ export function toolOutcome(
         : providerError
           ? "provider-error"
           : "api-error-code";
-    return withCodes({ lifecycle: "completed", verdict: "failed", reason });
+    return withCodes({ lifecycle: "completed", verdict: "failed", reason,
+      ...(changes.some(change => change.status === "declined") ? { declined: true as const } : {}),
+    });
   }
 
   // 4. A recorded exit code decides; `is_error: false` beside a non-zero code

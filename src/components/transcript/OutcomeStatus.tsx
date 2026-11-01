@@ -19,6 +19,7 @@ import type { TFunction } from "i18next";
 import type { ToolOutcome } from "./toolOutcome";
 
 function failedLabel(outcome: ToolOutcome, t: TFunction): string {
+  if (outcome.declined) return t("codexFileChange.declined");
   if (outcome.errorCode !== undefined) return t("toolOutcome.failedErrorCode", { code: outcome.errorCode });
   if (outcome.exitCode !== undefined) return t("toolOutcome.failedExitCode", { code: outcome.exitCode });
   return t("toolOutcome.failed");

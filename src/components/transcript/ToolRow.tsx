@@ -242,8 +242,8 @@ export function WhenTargetCut({ children }: { children: ReactNode }) {
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
   const failed = outcome.lifecycle === "completed" && outcome.verdict === "failed";
   // What the header label already says (OutcomeStatus).
-  const headerSaysErrorCode = failed && outcome.errorCode !== undefined;
-  const headerSaysExitCode = failed && !headerSaysErrorCode && outcome.exitCode !== undefined;
+  const headerSaysErrorCode = failed && !outcome.declined && outcome.errorCode !== undefined;
+  const headerSaysExitCode = failed && !outcome.declined && !headerSaysErrorCode && outcome.exitCode !== undefined;
   const facts: string[] = [];
   if (outcome.exitCode !== undefined && !headerSaysExitCode) facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
   if (outcome.errorCode !== undefined && !headerSaysErrorCode) facts.push(t("toolOutcome.errorCode", { code: outcome.errorCode }));

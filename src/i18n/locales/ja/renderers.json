@@ -440,5 +440,8 @@
   "outputBlock.showLess": "折りたたむ",
   "outputBlock.copy": "出力をコピー",
   "outputBlock.empty": "出力なし",
-  "contentArray.mediaPlaceholder": "プレビューしないメディア: {{type}}（記録 UTF-8 サイズ {{size}} バイト）"
+  "contentArray.mediaPlaceholder": "プレビューしないメディア: {{type}}（記録 UTF-8 サイズ {{size}} バイト）",
+  "codexFileChange.failed": "失敗",
+  "codexFileChange.declined": "拒否",
+  "codexFileChange.heading": "ファイル変更"
 }
