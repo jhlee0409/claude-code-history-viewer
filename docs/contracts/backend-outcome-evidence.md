@@ -99,8 +99,9 @@ flag. The frontend computes it from the already-delivered full `part.state` in
 All references in this table are pinned to the two immutable commits above,
 **not a guarantee for other producer versions**. Each allowlisted built-in return
 has either a non-wrapper metadata key or a non-empty webfetch title, so none
-succeeds with its provider's default custom shape at these pins. The exclusion
-can conservatively make a genuine built-in unknown on other versions. File-relative
+succeeds with its provider's default custom shape at these pins. On other versions
+the exclusion can both miss (a changed custom wrapper falls back to name-based
+success) and over-exclude (a genuine built-in becomes unknown). File-relative
 titles may be empty at the worktree root; empty title alone is not an exclusion.
 
 | Tool ID | OpenCode success fields / source | Kilo success fields / source |
