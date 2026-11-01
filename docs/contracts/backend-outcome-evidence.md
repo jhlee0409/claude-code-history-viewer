@@ -43,8 +43,26 @@ built-in provenance; that existing policy has the class limitation below.
 ## Same-id custom tools: owner decision
 
 **CONTRADICTED:** an exact raw tool ID does not authenticate a built-in.
-The fix removes only this PR's new `grep` success path. It does not silently
-reverse the owner-approved D-R4 behavior for the existing allowlist.
+**Owner decision 2026-11-01: option C.** Keep the existing name-based
+Read/Glob/Edit/Write/WebFetch and OpenCode-only list no-error policy, but rule out
+stored results matching the default custom-tool wrapper shape. Grep stays unknown.
+This is a derived exclusion, not proof that a built-in ran, and not a new producer
+flag. The frontend computes it from the already-delivered full `part.state` in
+`toolUseResult`; no backend marker, schema change or raw-record rewrite is needed.
+
+- OpenCode: exact empty `title:""` and empty metadata object `{}` → completion
+  alone is unknown (`registry.ts:55–59`, linked below).
+- Kilo: exact empty `title:""` and a metadata object whose keys are a subset of
+  **`truncated`, `outputPath`, `approval`** → completion alone is unknown.
+  `registry.ts:216–229` supplies truncation keys for string custom results;
+  `tool/tool.ts:133–147` also supplies them for built-ins; `processor.ts:274–277`
+  merges permission approval. Neither truncation nor approval proves origin.
+- Require actual empty title and object metadata, not absent/null/malformed fields.
+  Missing fields retain the bounded compatibility policy; explicit error states
+  still fail. Only the completion-derived no-error inference is excluded.
+- This exclusion applies per result, at normalization, to both raw-ID and legacy
+  delivered-name paths. One genuine sibling cannot certify a custom-shaped result.
+  Explicit producer flags and process exits keep their separate existing rules.
 
 ### Collision resolution (not merely registry membership)
 
@@ -72,14 +90,18 @@ reverse the owner-approved D-R4 behavior for the existing allowlist.
   Kilo has an in-memory `Builtin` symbol
   ([sandbox/network.ts:78–85](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/kilocode/sandbox/network.ts#L78-L85)),
   but it is on the executable tool object, not its stored result. The completion
-  writer copies only the result title/metadata/output/attachments into state
+  writer copies result title/output/attachments and merges result metadata with
+  permission `metadata.approval` recorded while running into completion state
   ([processor.ts:271–289](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L289)).
 
 ### Stored shapes: candidates, not authentication
 
-All references in this table are to the two immutable commits above. File-relative
-titles may be empty at the worktree root, so a non-empty-title-only test would
-also reject legitimate built-ins.
+All references in this table are pinned to the two immutable commits above,
+**not a guarantee for other producer versions**. Each allowlisted built-in return
+has either a non-wrapper metadata key or a non-empty webfetch title, so none
+succeeds with its provider's default custom shape at these pins. The exclusion
+can conservatively make a genuine built-in unknown on other versions. File-relative
+titles may be empty at the worktree root; empty title alone is not an exclusion.
 
 | Tool ID | OpenCode success fields / source | Kilo success fields / source |
 |---|---|---|
@@ -97,7 +119,8 @@ However, the session invokes `tool.execute.after` on the result before returning
 ([prompt.ts:550–589](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L550-L589));
 `Plugin.trigger` hands the same mutable output to every hook
 ([plugin/index.ts:53–67](https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/plugin/index.ts#L53-L67)).
-Thus even the OpenCode shape is not a reliable provenance discriminator.
+Thus the shape cannot prove built-in provenance, but the unchanged default
+custom shape can rule out a pinned built-in success.
 
 Kilo is a stronger direct counterexample: its wrapper explicitly accepts custom
 `result.title` and arbitrary `result.metadata`, then adds `truncated` and possibly
@@ -107,10 +130,14 @@ shape. The committed real-renderer regression covers that case.
 Kilo's built-in `Tool.wrap` also adds `truncated` (and `outputPath` on truncation)
 when the tool did not already supply it
 ([tool.ts:133–147](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/tool.ts#L133-L147)).
-Those wrapper keys therefore cannot distinguish a built-in from a custom tool.
-Every candidate in the table is forgeable; **no allowlisted tool has a reliable
-stored discriminator at these pins**. A derived boolean cannot repair absent
-provenance, so no new shape/provenance marker is emitted.
+Those wrapper keys cannot positively authenticate a built-in; `approval` is
+not authentication either, because custom tools share the ask bridge
+([registry.ts:209–214](https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L209-L214)).
+Every built-in-looking candidate in the table is forgeable. **Cannot prove a
+built-in ran; can rule out the default custom shape.** Object-returning Kilo
+custom tools and OpenCode `tool.execute.after` hooks may still look built-in and
+receive name-based success. Option C reduces that exposure; it does not eliminate
+false success or recover absent provenance. No persisted derived marker is emitted.
 
 The viewer already passes all of `part.state`, including title and metadata,
 through `result_evidence::attach` to the result's own `toolUseResult`
@@ -118,12 +145,12 @@ through `result_evidence::attach` to the result's own `toolUseResult`
 and new unstripped raw-ID tests cover JSON/SQLite OpenCode and SQLite Kilo,
 full and paginated responses. This is not a backend field-loss problem.
 
-**Owner decision needed (class issue):** either keep D-R4 as an explicitly
-name-based compatibility heuristic, or make completion-only Read/Glob/Edit/Write/
-WebFetch and OpenCode list unknown until the producer records trustworthy tool
-origin. Recommend the latter for correctness, acknowledging that success badges
-and success-gated folding would be lost for genuine built-ins too. This commit
-only keeps `grep` unknown as authorized; it does not implement that broader change.
+Option C retains success badges and success-gated folding for genuine
+allowlisted built-in shapes, while default custom-shaped results remain unknown
+and do not fold. Kilo list has no pinned built-in and remains unknown regardless
+of shape; Grep remains unknown even with raw `grep` and built-in-looking metadata.
+Regression: `opencodeCustomShape.test.tsx` exercises both providers through
+`ClaudeContentArrayRenderer`, including error/legacy/malformed/sibling controls.
 
 
 ## Provider-default audit
@@ -195,3 +222,17 @@ zero outcome/reason changes and zero loader errors (OMP 28/14,732; Gemini
 observation or an HTTP smoke. The fix1 regression was first run on `d124ae2e`:
 three actual renderer AssertionErrors, then 42/42 focused tests passed after
 removing the new raw-grep completion exception.
+
+Fix2 (owner option C) first ran on `3e1b8935d8cc8727bb5a7b834f60d51290c316b6`:
+31 regression cases failed with actual renderer/pure-outcome AssertionErrors;
+51 controls passed. The completed source-shaped suite also covers folding and
+raw immutability. A synthetic SQLite public-command probe then verified exact
+stored state through full and paginated responses and the actual renderer:
+35 rows per provider per route (140 rendered checks), including default custom,
+truncation/approval variants, genuine shapes, errors, Grep and Kilo list.
+
+Fresh read-only backend-loader runs against the same pinned develop and fix2
+again loaded 214 sessions / 18,229 results with zero loader errors and zero
+outcome/reason changes. No new local OpenCode/Kilo evidence is claimed. Reproduction
+scripts, tested diffs and counts-only receipts: `scratch/be2/fix2/`. Temporary
+probe registrations and the detached base worktree were removed before gates.

@@ -136,10 +136,11 @@ const READ_SEARCH_TOOLS = new Set([
 // https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
 // The backend now additionally preserves exact part.tool as rawToolName.
 // Raw IDs are names, not provenance: same-id custom tools override built-ins.
-// No reliable stored discriminator exists (Kilo plugins control title/metadata;
-// OpenCode after-execute hooks mutate results). Grep remains unknown; the
-// pre-existing D-R4 rules below await the owner decision documented in
-// docs/contracts/backend-outcome-evidence.md#same-id-custom-tools-owner-decision.
+// Shapes cannot prove a built-in ran (Kilo custom objects / OpenCode hooks can
+// forge them), but can rule out the default custom shape at these pinned commits.
+// Owner decision 2026-11-01: option C retains the name-based policy with that
+// exclusion; Grep stays unknown. See docs/contracts/backend-outcome-evidence.md
+// #same-id-custom-tools-owner-decision for every allowlisted return branch.
 // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/grep.ts#L16-L48
 // Kilo independently defines grep and propagates failures via the processor:
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/grep.ts#L22-L76
@@ -190,6 +191,20 @@ const EXIT_CODE_KEYS = ["exitCode", "exit_code", "return_code", "returncode"] as
 function ownMetadata(result: ToolResultLike): Record<string, unknown> | null {
   const own = result.toolUseResult;
   return isPlainObject(own) ? own : null;
+}
+
+// Derived exclusion, not producer provenance or a persisted marker. Inspect only
+// the result's own delivered state; missing/malformed fields prove nothing.
+// OpenCode b9a39b8 registry.ts:55-59: fromPlugin title:"", metadata:{}.
+// Kilo 0a9faeff registry.ts:216-229: string return title:"", wrapper metadata;
+// tool/tool.ts:133-147 adds truncated/outputPath, processor.ts:274-277 merges
+// permission approval. None of the pinned allowlisted built-ins succeeds with
+// this shape (per-tool citations in backend-outcome-evidence.md's shape table).
+function defaultCustomToolShape(provider: string | undefined, state: Record<string, unknown>): boolean {
+  if (state.title !== "" || !isPlainObject(state.metadata)) return false;
+  const keys = Object.keys(state.metadata);
+  if (provider === "opencode") return keys.length === 0;
+  return provider === "kilo" && keys.every(key => key === "truncated" || key === "outputPath" || key === "approval");
 }
 
 const recordedInteger = (value: unknown): number | undefined =>
@@ -253,7 +268,8 @@ export function normalizeResult(
       // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
       if (metadata?.interrupted === true) out.interrupted = true;
     }
-    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName, options.rawToolName) && own.status === "completed" && out.isError !== true) out.isError = false;
+    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName, options.rawToolName) &&
+      own.status === "completed" && !defaultCustomToolShape(options.provider, own) && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
     // from a non-process tool. #752/4415170647 confused completion and success.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
