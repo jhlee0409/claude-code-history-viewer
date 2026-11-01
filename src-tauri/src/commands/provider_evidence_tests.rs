@@ -412,6 +412,36 @@ async fn family_opencode_preserves_exact_part_state() {
 
 #[tokio::test]
 #[serial_test::serial]
+async fn family_opencode_raw_tool_name_reaches_public_responses() {
+    let home = crate::test_utils::SandboxHome::new();
+    for (provider, sqlite) in [("opencode", false), ("opencode", true), ("kilo", true)] {
+        let (path, _, _env) = opencode_fixture(home.path(), provider, sqlite);
+        let full = load_provider_messages(provider.into(), path.clone())
+            .await
+            .unwrap();
+        let page = load_provider_messages_paginated(provider.into(), path, None, None, None)
+            .await
+            .unwrap();
+        // Deliberately inspect the unstripped public payload, not the legacy snapshot.
+        for messages in [full, page.messages] {
+            let calls: Vec<Value> = messages
+                .iter()
+                .filter_map(|m| m.content.as_ref().and_then(Value::as_array))
+                .flatten()
+                .filter(|b| b["type"] == "tool_use")
+                .map(|b| json!({"name": b["name"], "rawToolName": b.get("rawToolName")}))
+                .collect();
+            assert_eq!(
+                calls,
+                vec![json!({"name":"Bash", "rawToolName":"bash"}); 8],
+                "{provider} sqlite={sqlite}: raw IDs must survive full and paginated commands"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+#[serial_test::serial]
 async fn family_opencode_legacy_consumers() {
     let home = crate::test_utils::SandboxHome::new();
     let mut observed = Vec::new();

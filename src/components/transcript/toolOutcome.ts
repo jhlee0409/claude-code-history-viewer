@@ -135,7 +135,11 @@ const READ_SEARCH_TOOLS = new Set([
 // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644
 // https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
 // The backend now additionally preserves exact part.tool as rawToolName.
-// Grep alone remains ambiguous; only raw grep authenticates the built-in.
+// Raw IDs are names, not provenance: same-id custom tools override built-ins.
+// No reliable stored discriminator exists (Kilo plugins control title/metadata;
+// OpenCode after-execute hooks mutate results). Grep remains unknown; the
+// pre-existing D-R4 rules below await the owner decision documented in
+// docs/contracts/backend-outcome-evidence.md#same-id-custom-tools-owner-decision.
 // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/grep.ts#L16-L48
 // Kilo independently defines grep and propagates failures via the processor:
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/grep.ts#L22-L76
@@ -147,7 +151,7 @@ const READ_SEARCH_TOOLS = new Set([
 // Legacy payloads without rawToolName retain the bounded delivered-name policy.
 const CORE_NO_ERROR_TOOLS = new Set(["Read", "Glob", "Edit", "Write", "WebFetch"]);
 const CORE_RAW_NAMES: Readonly<Record<string, string>> = {
-  read: "Read", grep: "Grep", glob: "Glob", edit: "Edit", write: "Write", webfetch: "WebFetch",
+  read: "Read", glob: "Glob", edit: "Edit", write: "Write", webfetch: "WebFetch",
 };
 const coreNoErrorTool = (provider?: string, name?: string, rawToolName?: unknown): boolean => {
   if (provider !== "opencode" && provider !== "kilo") return false;

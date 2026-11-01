@@ -1481,8 +1481,8 @@ fn process_parts(
                     "type": "tool_use",
                     "id": tool_id,
                     "name": tool_name,
-                    // Exact producer identity survives the shared Kilo route.
-                    // OpenCode b9a39b8 tool/grep.ts:16; Kilo 0a9faeff tool/grep.ts:22-23.
+                    // Exact producer tool ID (not built-in provenance) survives the shared Kilo route.
+                    // OpenCode b9a39b8 tool/grep.ts:8; Kilo 0a9faeff tool/grep.ts:22-23.
                     "rawToolName": part.get("tool"),
                     "input": input
                 }));

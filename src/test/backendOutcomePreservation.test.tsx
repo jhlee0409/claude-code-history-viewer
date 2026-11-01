@@ -8,7 +8,7 @@ import i18n from '@/i18n';
 beforeAll(async () => { await i18n.changeLanguage('en'); });
 describe('backend producer outcome preservation through the real renderer', () => {
   for (const provider of ['opencode', 'kilo']) {
-    it.each([['grep', 'succeeded'], ['grep_search', 'unknown'], ['Grep', 'unknown'], ['read_file', 'unknown']])(`${provider} exact raw tool %s`, (rawToolName, expected) => {
+    it.each([['grep', 'unknown'], ['grep_search', 'unknown'], ['Grep', 'unknown'], ['read_file', 'unknown']])(`${provider} exact raw tool %s`, (rawToolName, expected) => {
       const { container } = render(<ThemeProvider><ExpandKeyProvider value="evidence"><ClaudeContentArrayRenderer provider={provider} content={[
         { type: 'tool_use', id: 'c', name: 'Grep', rawToolName, input: { pattern: 'synthetic' } },
         { type: 'tool_result', tool_use_id: 'c', content: 'Error is ordinary search text', toolUseResult: { status: 'completed' } },
@@ -16,6 +16,15 @@ describe('backend producer outcome preservation through the real renderer', () =
       expect(container.querySelector('[data-tool-row]')?.getAttribute('data-tool-verdict')).toBe(expected);
     });
   }
+  it('Kilo custom grep may return the built-in title and metadata shape', () => {
+    const { container } = render(<ThemeProvider><ExpandKeyProvider value="evidence"><ClaudeContentArrayRenderer provider="kilo" content={[
+      { type: 'tool_use', id: 'c', name: 'Grep', rawToolName: 'grep', input: { pattern: 'synthetic' } },
+      { type: 'tool_result', tool_use_id: 'c', content: 'custom output', toolUseResult: {
+        status: 'completed', title: 'synthetic', metadata: { matches: 0, truncated: false },
+      } },
+    ]}/></ExpandKeyProvider></ThemeProvider>);
+    expect(container.querySelector('[data-tool-row]')?.getAttribute('data-tool-verdict')).toBe('unknown');
+  });
   for (const provider of ['pi', 'ompi', 'gemini', 'cursor', 'zcode', 'goose', 'crush', 'zed', 'copilot', 'kimi', 'forgecode']) {
     it.each([['derived', false, 'unknown'], [undefined, false, 'succeeded'], ['derived', true, 'failed']] as const)(`${provider}: flag provenance %s/%s`, (source, isError, expected) => {
       const { container } = render(<ThemeProvider><ExpandKeyProvider value="evidence"><ClaudeContentArrayRenderer provider={provider} content={[
