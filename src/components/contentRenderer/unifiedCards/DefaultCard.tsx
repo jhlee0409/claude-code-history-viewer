@@ -44,7 +44,7 @@ export const DefaultCard = memo(function DefaultCard({
   const producerChanges = provider === "codex" ? changes.matched.get(toolId) : undefined;
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider, producerChanges);
   const expandKey = `unified-${toolId}`;
 
   const query = searchQuery.trim();

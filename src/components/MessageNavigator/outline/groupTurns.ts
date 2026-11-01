@@ -225,11 +225,17 @@ export function groupTurns(rows: ClassifiedRow[]): TurnGroup[] {
   if (rows.length === 0) return [];
 
   const boundaryIndices: number[] = [];
+  let automatedProducer: string | undefined;
   rows.forEach((row, index) => {
     const priorId = rows[index - 1]?.producerTurnId;
     const producerBoundary = priorId !== undefined && row.producerTurnId !== undefined && row.producerTurnId !== priorId;
-    if (producerBoundary || isTurnStart(row.info) || row.turnStartKind === "automated" || turnStartKind(row.message, { inSubagent: true }) === "automated") {
+    const automated = row.turnStartKind === "automated" || turnStartKind(row.message, { inSubagent: true }) === "automated";
+    // The projected start may precede its heartbeat input. Both belong to one
+    // producer cycle, not two automated headers. Unknown IDs never coalesce.
+    const repeatedAutomated = automated && row.producerTurnId !== undefined && row.producerTurnId === automatedProducer;
+    if (producerBoundary || isTurnStart(row.info) || (automated && !repeatedAutomated)) {
       boundaryIndices.push(index);
+      automatedProducer = automated ? row.producerTurnId : undefined;
     }
   });
 

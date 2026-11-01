@@ -4,7 +4,7 @@ import { recordedFileChangeContent } from "./toolOutcome";
 import { patchSection } from "./patchDiff";
 
 export interface CodexChange { path: string; operation: "update" | "add" | "delete"; movePath?: string; source: string; sections: DiffSection[] | null }
-export interface CodexChangeEvent { id: string; turnId?: string; carrier: string; changes: CodexChange[]; record: unknown }
+export interface CodexChangeEvent { id: string; turnId?: string; carrier: string; status: "completed" | "failed" | "declined" | "unknown"; changes: CodexChange[]; record: unknown }
 const obj = (v: unknown): Record<string, unknown> | undefined => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : undefined;
 
 /** Recorded unified coordinates ONLY. Reject malformed/count-mismatched hunks
@@ -63,7 +63,12 @@ export function codexChangeEvents(messages: readonly ClaudeMessage[]): CodexChan
           files.push({ path, operation: change.type, source: contents, sections: [patchSection(rows.map(line => `${change.type === "add" ? "+" : "-"}${line}`), null, null)] });
         }
       }
-      if (files.length) events.push({ id, turnId: typeof payload?.turn_id === "string" ? payload.turn_id : undefined, carrier: message.uuid, changes: files, record: entry.record });
+      // protocol.rs@6aaac694:3883–3887: completed/failed/declined. Even
+      // rejected patches retain intended changes (tools/events.rs:298–342).
+      // Legacy PatchApplyEnd records success; absence is not success.
+      const status = ["completed", "failed", "declined"].includes(String(item.status)) ? item.status as "completed" | "failed" | "declined"
+        : item.type === "patch_apply_end" && typeof item.success === "boolean" ? (item.success ? "completed" : "failed") : "unknown";
+      if (files.length) events.push({ id, status, turnId: typeof payload?.turn_id === "string" ? payload.turn_id : undefined, carrier: message.uuid, changes: files, record: entry.record });
     }
   }
   return events;

@@ -10,6 +10,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
+import { groupTurns } from "../components/MessageNavigator/outline/groupTurns";
+import { getFilteredClassifiedMessages } from "../components/MessageNavigator/classifiedRows";
+import { buildTranscriptItems } from "../components/transcript/transcriptItems";
+import { flattened, tool, user } from "../components/transcript/transcriptItems.fixtures";
 import type {
   ClaudeMessage,
   ClaudeSession,
@@ -192,6 +196,24 @@ describe("messageSlice — chat-style pagination", () => {
     expect(url.searchParams.get("msg")).toBe("uuid-1");
   });
 
+  it("retains a loaded Codex start for outline/model/export while hiding its progress row", async () => {
+    const turn = { started: { type: "task_started", turn_id: "g" }, context: { turn_id: "g" } };
+    const withTurn = (message: ClaudeMessage): ClaudeMessage => ({ ...message, provider: "codex", codexEvidence: { turn } });
+    const source = [withTurn({ ...user("start"), type: "progress", role: "system", data: { type: "waiting_for_task", status: "started", taskId: "g" } }), withTurn(user("context", "<environment_context>cwd</environment_context>")), withTurn(tool("work"))];
+    const backend = makeBackend(3);backend.all.splice(0, 3, ...source);installBackend(backend);
+    const store = createTestStore();
+    await store.getState().selectSession(makeSession({provider: "codex"}));
+    const visible = store.getState().messages;
+    expect(visible.map(m => m.uuid)).toEqual(["context", "work"]);
+    expect(groupTurns(getFilteredClassifiedMessages(visible)).map(t => t.kind)).toEqual(["automated"]);
+    expect(buildTranscriptItems(flattened(visible), new Map()).turns.map(t => t.kind)).toEqual(["automated"]);
+    expect(groupTurns(getFilteredClassifiedMessages(await store.getState().fetchFullSessionMessages())).map(t => t.kind)).toEqual(["automated"]);
+    expect(groupTurns(getFilteredClassifiedMessages(visible.slice(1))).map(t => t.kind)).toEqual(["unknown"]);
+    // A new partial load cannot reuse the earlier window's hidden start.
+    backend.all.splice(0, 1);
+    await store.getState().selectSession(makeSession({provider: "codex"}));
+    expect(groupTurns(getFilteredClassifiedMessages(store.getState().messages)).map(t => t.kind)).toEqual(["unknown"]);
+  });
   it("selectSession loads only the newest window", async () => {
     const store = createTestStore();
     const backend = makeBackend(500);

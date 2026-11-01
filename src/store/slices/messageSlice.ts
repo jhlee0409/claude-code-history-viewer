@@ -37,6 +37,7 @@ import {
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown, supportsSubagents } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { retainLoadedCodexStarts } from "../../components/transcript/codexTurns";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 import {
   type WebUINavigationOptions,
@@ -316,10 +317,10 @@ export const createMessageSlice: StateCreator<
     messages: ClaudeMessage[]
   ): ClaudeMessage[] => {
     if (get().showSystemMessages) return messages;
-    return messages.filter(
+    return retainLoadedCodexStarts(messages, messages.filter(
       (m) =>
         !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-    );
+    ));
   };
 
   /** Whether sidechain messages should be excluded server-side right now. */
@@ -747,10 +748,10 @@ export const createMessageSlice: StateCreator<
         : all;
       return showSystem
         ? sidechainFiltered
-        : sidechainFiltered.filter(
+        : retainLoadedCodexStarts(sidechainFiltered, sidechainFiltered.filter(
             (m) =>
               !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-          );
+          ));
     })();
 
     fullSessionCache = { key, promise };

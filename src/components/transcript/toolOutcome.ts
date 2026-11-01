@@ -739,12 +739,19 @@ export function toolOutcome(
   results: ToolResultLike[],
   family: ToolFamily,
   provider?: string,
+  codexFileChanges: readonly { status: string }[] = [],
 ): ToolOutcome {
   // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
-  if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
+  const changes = provider === "codex" && use !== null ? codexFileChanges : [];
+  if (results.length === 0 && changes.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
   const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined }));
+  // A uniquely associated FileChange's failed/declined enum is explicit error
+  // evidence, not prose or a fabricated exit (protocol.rs@6aaac694:3883–3887;
+  // tools/events.rs:298–342). Keep D-R4 interruption/conflict precedence below.
+  // Completed is lifecycle only and must not manufacture success.
+  for (const change of changes) normalized.push(change.status === "failed" || change.status === "declined" ? { isError: true } : {});
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);

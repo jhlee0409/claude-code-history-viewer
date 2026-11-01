@@ -40,6 +40,7 @@ export function CodexChangeDiff({ events, expandKey }: { events: readonly CodexC
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
   return <>{events.map((event, ei) => <section key={ei} data-codex-file-change={event.id} className="space-y-1">
+    {(event.status === "failed" || event.status === "declined") && <div className="text-caption text-fg-2">{t(`codexFileChange.${event.status}`)}</div>}
     {event.changes.map((file, fi) => <section key={fi} className="space-y-1">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-caption text-fg-2">
         {file.operation === "delete" && <span>{t("diffView.deleted")}</span>}
