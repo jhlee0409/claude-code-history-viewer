@@ -86,6 +86,19 @@ describe("heartbeat whole-message boundary", () => {
     expect(isCodexHeartbeat({ ...input, type: "assistant" })).toBe(false);
   });
 
+  it("honors original item cardinality and host kinds even when normalization dropped siblings", () => {
+    const base = { ...message(envelope), content: [{ type: "text" as const, text: envelope }] };
+    for (const contentItems of [[{ type: "input_text" }, { type: "input_audio" }], [{ type: "output_text" }], [{}], [], [{ type: "input_text" }, { type: "input_image" }]]) {
+      expect(isCodexHeartbeat({ ...base, codexEvidence: { contentItems, contentItemKinds: ["user.heartbeat"] } })).toBe(false);
+    }
+    for (const contentItemKinds of [null, false, 0, [], ["user.text"], ["user.heartbeat", "user.text"]]) {
+      expect(isCodexHeartbeat({ ...base, codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds } })).toBe(false);
+    }
+    expect(isCodexHeartbeat({ ...base, codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds: ["user.heartbeat"] } })).toBe(true);
+    // Old responses remain the explicitly documented grammar-only fallback.
+    expect(isCodexHeartbeat(base)).toBe(true);
+  });
+
   it("preserves separate typed text blocks", () => {
     const input = { ...message(envelope), content: [{ type: "text" as const, text: envelope }, { type: "text" as const, text: "Please help" }] };
     expect(isCodexHeartbeat(input)).toBe(false);

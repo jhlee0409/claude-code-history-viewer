@@ -1,6 +1,7 @@
 import type { FlattenedMessage, FlattenedMessageItem } from "../MessageViewer/types";
 import type { ToolOutcome } from "./toolOutcome";
-import { isTurnStart, turnStartKind, type TurnStartKind } from "./isTurnStart";
+import { turnStartKinds, type TurnStartKind } from "./isTurnStart";
+import { codexAutomatedTurns, codexTurnId } from "./codexTurns";
 import { transcriptBlocks } from "./transcriptBlocks";
 
 /** EV1a lookup hits projected to uuid → ordinal; absent/null is unknown, never inherited. */
@@ -185,12 +186,14 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     const same = source && rendererSignature(row) === rendererSignature(source);
     return same ? cached! : transcriptBlocks(row);
   };
+  const automatedUuids = codexAutomatedTurns(flattened.flatMap(row => row.type === "message" ? [row.message] : [])).uuids;
+  const boundaryKinds = turnStartKinds(flattened.flatMap(row => row.type === "message" ? [row.message] : []), { inSubagent: options.inSubagent ?? false });
   const starts = new Map(options.turnStartUuids);
   const startKinds = new Map<number, TurnStartKind>();
   for (const row of flattened) {
     if (row.type !== "message") continue;
     const ordinal = membership.get(row.message.uuid);
-    const kind = turnStartKind(row.message, { inSubagent: options.inSubagent ?? false });
+    const kind = boundaryKinds.get(row.message.uuid) ?? null;
     if (ordinal != null && kind !== null) {
       if (!starts.has(ordinal)) starts.set(ordinal, row.message.uuid);
       if (starts.get(ordinal) === row.message.uuid) startKinds.set(ordinal, kind);
@@ -202,8 +205,8 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     const first = current.rows[0]!;
     const turnBlocks = current.rows.flatMap(blocksForRow);
     const id = `turn:${(current.ordinal === null ? undefined : starts.get(current.ordinal)) ?? first.message.uuid}`;
-    const partial = !isTurnStart(first.message, { inSubagent: options.inSubagent ?? false }) || (current.ordinal !== null && starts.has(current.ordinal) && starts.get(current.ordinal) !== first.message.uuid);
-    const firstKind = turnStartKind(first.message, { inSubagent: options.inSubagent ?? false });
+    const partial = !boundaryKinds.has(first.message.uuid) || (current.ordinal !== null && starts.has(current.ordinal) && starts.get(current.ordinal) !== first.message.uuid);
+    const firstKind = boundaryKinds.get(first.message.uuid) ?? (automatedUuids.has(first.message.uuid) ? "automated" : undefined);
     const kind = (current.ordinal === null ? firstKind : startKinds.get(current.ordinal)) ?? "unknown";
     const prior = priorTurns.get(`${id}:${turnBlocks[0]?.id}`);
     const unchanged = prior?.kind === kind && prior.ordinal === current.ordinal && prior.partial === partial && prior.blocks.length === turnBlocks.length && prior.blocks.every((block, index) => block === turnBlocks[index]);
@@ -225,6 +228,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     }
     current = null;
   };
+  let previousProducerTurn: string | undefined;
   for (const row of flattened) {
     if (row.type !== "message") {
       flush();
@@ -232,8 +236,11 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
       continue;
     }
     const ordinal = membership.get(row.message.uuid) ?? null;
-    const startsTemporary = ordinal === null && isTurnStart(row.message, { inSubagent: options.inSubagent ?? false });
-    if (current && (current.ordinal !== ordinal || startsTemporary)) flush();
+    const startsTemporary = ordinal === null && boundaryKinds.has(row.message.uuid);
+    const producerTurn = codexTurnId(row.message);
+    const newProducerTurn = producerTurn !== undefined && previousProducerTurn !== undefined && producerTurn !== previousProducerTurn;
+    if (current && (current.ordinal !== ordinal || startsTemporary || (ordinal === null && newProducerTurn))) flush();
+    previousProducerTurn = producerTurn;
     current ??= { ordinal, rows: [] };
     current.rows.push(row);
   }

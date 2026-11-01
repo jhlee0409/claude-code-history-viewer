@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../store/useAppStore";
 import { cn } from "@/lib/utils";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
+import { CodexUnassignedFileChanges } from "@/components/transcript/CodexFileChanges";
 import { ResultProviderContext, useResultProvider } from "@/components/transcript/resultProvider";
 import type { ProgressData } from "../../../types";
 import { ClaudeContentArrayRenderer } from "../../contentRenderer";
@@ -484,6 +485,8 @@ export const ClaudeMessageNode = React.memo(
                   />
                 </div>
               )}
+
+              <CodexUnassignedFileChanges message={message} />
 
               {messageFilter.contentTypes.toolCalls &&
                 message.type === "assistant" &&

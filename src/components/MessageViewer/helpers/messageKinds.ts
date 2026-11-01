@@ -138,8 +138,8 @@ function getTextBlocks(message: ClaudeMessage): string[] {
 }
 
 /** Client wake fallback: exact scheduler grammar, not proof of host provenance.
- * The backend drops content_item_kinds; the existing owner policy also accepts
- * historical unmarked inputs (34/34 local envelopes). Pin the reader, not an emitter:
+ * Delivered source cardinality/types and host kinds are authoritative when present.
+ * Old responses without them retain the explicit grammar-only fallback. Reader:
  * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L62-L110
  * L69: one InputText; L78–82: UTF-8 byte/line budget; L87–101: exact fields.
  * Instructions are opaque: split_once/strip_suffix do not reject inner tags.
@@ -147,6 +147,15 @@ function getTextBlocks(message: ClaudeMessage): string[] {
  */
 export function isCodexHeartbeat(message: ClaudeMessage): boolean {
   if (message.type !== "user" || message.provider !== "codex") return false;
+  const evidence = message.codexEvidence;
+  if (evidence && Object.hasOwn(evidence, "contentItems")) {
+    const items = evidence.contentItems;
+    if (!Array.isArray(items) || items.length !== 1 || items[0]?.type !== "input_text") return false;
+  }
+  if (evidence && (Object.hasOwn(evidence, "contentItems") || Object.hasOwn(evidence, "contentItemKinds"))) {
+    const kinds = evidence.contentItemKinds;
+    if (!Array.isArray(kinds) || kinds.length !== 1 || kinds[0] !== "user.heartbeat") return false;
+  }
   const content = message.content;
   const text = typeof content === "string" ? content
     : Array.isArray(content) && content.length === 1 && content[0]?.type === "text"

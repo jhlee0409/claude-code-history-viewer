@@ -1,4 +1,6 @@
 import type { ClaudeMessage } from "../../types";
+import { codexTurnId } from "../transcript/codexTurns";
+import { turnStartKinds, type TurnStartKind } from "../transcript/isTurnStart";
 import type { NavigatorEntryData } from "./types";
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { isEmptyMessage } from "../MessageViewer/helpers/messageHelpers";
@@ -63,6 +65,8 @@ export interface ClassifiedRow {
   message: ClaudeMessage;
   info: MessageKindInfo;
   entry: NavigatorEntryData;
+  turnStartKind?: TurnStartKind;
+  producerTurnId?: string;
 }
 
 /**
@@ -75,6 +79,7 @@ export function getFilteredClassifiedMessages(messages: ClaudeMessage[]): Classi
   if (!messages || messages.length === 0) return [];
 
   const rows: ClassifiedRow[] = [];
+  const starts = turnStartKinds(messages, { inSubagent: true });
   let turnIndex = 0;
 
   for (const message of messages) {
@@ -107,7 +112,7 @@ export function getFilteredClassifiedMessages(messages: ClaudeMessage[]): Classi
       turnIndex,
     };
 
-    rows.push({ message, info, entry });
+    rows.push({ message, info, entry, turnStartKind: starts.get(message.uuid), producerTurnId: codexTurnId(message) });
   }
 
   return rows;

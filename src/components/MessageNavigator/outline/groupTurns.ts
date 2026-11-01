@@ -203,7 +203,7 @@ function buildTurnGroup(
   const childRows = header && !retainTaskBlocks ? turnRows.slice(1) : turnRows;
   return {
     key,
-    kind: header ? (turnStartKind(firstRow.message, { inSubagent: true }) ?? "human") : "unknown",
+    kind: header ? (firstRow.turnStartKind ?? turnStartKind(firstRow.message, { inSubagent: true }) ?? "human") : "unknown",
     turnStartUuid,
     turnNumber,
     header,
@@ -226,7 +226,9 @@ export function groupTurns(rows: ClassifiedRow[]): TurnGroup[] {
 
   const boundaryIndices: number[] = [];
   rows.forEach((row, index) => {
-    if (isTurnStart(row.info) || turnStartKind(row.message, { inSubagent: true }) === "automated") {
+    const priorId = rows[index - 1]?.producerTurnId;
+    const producerBoundary = priorId !== undefined && row.producerTurnId !== undefined && row.producerTurnId !== priorId;
+    if (producerBoundary || isTurnStart(row.info) || row.turnStartKind === "automated" || turnStartKind(row.message, { inSubagent: true }) === "automated") {
       boundaryIndices.push(index);
     }
   });
@@ -250,10 +252,11 @@ export function groupTurns(rows: ClassifiedRow[]): TurnGroup[] {
     const turnRows = rows.slice(start, end);
     const headerRow = turnRows[0];
     if (!headerRow) continue; // boundaryIndices are valid, strictly increasing indices; never empty
-    const automated = turnStartKind(headerRow.message, { inSubagent: true }) === "automated";
-    if (!automated) turnNumber += 1;
+    const automated = headerRow.turnStartKind === "automated" || turnStartKind(headerRow.message, { inSubagent: true }) === "automated";
+    const human = !automated && isTurnStart(headerRow.info);
+    if (human) turnNumber += 1;
     groups.push(
-      buildTurnGroup(turnRows, headerRow.entry.uuid, headerRow.entry.uuid, automated ? null : turnNumber, headerRow.entry),
+      buildTurnGroup(turnRows, headerRow.entry.uuid, human || automated ? headerRow.entry.uuid : null, human ? turnNumber : null, human || automated ? headerRow.entry : null),
     );
   }
 

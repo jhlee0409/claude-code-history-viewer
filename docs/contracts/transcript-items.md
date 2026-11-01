@@ -41,11 +41,11 @@ turns. Backend item ②a now delivers `codexEvidence.turn.started` and `.context
 on messages, with the producer's `turn_id`/root identity and exact presence/null
 values; merged tool results retain their own turn envelope. See
 [the transport contract](tool-result-metadata.md).
-This PR deliberately does **not** wire grouping: tasks without a UserMessage can
-still join the preceding human summary when membership is unknown. Round-4
-measured 278 tasks / 646 tools in full windows. ②a2 must consume producer identity,
-not infer boundaries from context tags, and prove separate automated ownership
-in the model and legacy outline. Forwarded identity is not completed grouping.
+Frontend ②a2 now consumes that identity in the model and legacy outline; see
+[codex-frontend-turns-diffs.md](codex-frontend-turns-diffs.md) for the exact
+legacy fallback, partial-window policy and verification boundary. Round-4
+measured 278 tasks / 646 tools in full windows (722 including partial windows).
+A context tag without matching producer identity still creates no new cycle.
 
 Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emitter**, not just current-reader compatibility. History search found replacement commit `740d942f901a5a63421298c74dafbeb4255e946d`; its parent `522f549922f6e7b8edbd5e9be3fc720ddb9b256a` defines the user-role wrapper in [goal_context.rs L20–36](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36), emits it from [goals.rs L1599–1601](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601), and uses it for extension steering in [steering.rs L1–12](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/ext/goal/src/steering.rs#L1-L12). Complete wrappers without typed residue classify as context/no turn start; malformed wrappers and mixed human text remain prompts (`legacyGoalContext.test.ts`, AssertionError RED saved). The original audit contained zero local legacy records. This classification correction does **not** implement the still-unwired goal-continuation cycle ownership policy above.
 

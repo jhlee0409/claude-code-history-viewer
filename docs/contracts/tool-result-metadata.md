@@ -223,13 +223,11 @@ renderer. The `input_text` branch is reachable through the legacy
 `ToolExecutionResultRouter` content-wrapper/array routes (not `resultContent`,
 which already splits text), and is tested through that actual router.
 
-FileChange data is delivered for DiffView consumption; this PR does not add a
-new diff panel or fabricate an apply_patch tool call for code-mode exec. Turn
-identity and original item kinds are available, but grouping and heartbeat
-classification consumption are follow-up **②a2**, not delivered UI behavior.
-The owner chose separate automated goal-continuation turns; existing grouping
-remains unchanged until that wiring lands. Search still matches legacy display
-fields only, not hidden evidence, in both shared rollout providers.
+The original ②a slice only delivered these fields. Frontend **②a2** now
+consumes FileChange, producer turn identity and original heartbeat item kinds:
+see [codex-frontend-turns-diffs.md](codex-frontend-turns-diffs.md). It never
+fabricates an apply_patch call for code-mode exec. Search still matches legacy
+display fields only, not hidden evidence, in both shared rollout providers.
 
 ### Turn-envelope compaction follow-up (not implemented)
 

@@ -5,6 +5,7 @@
  * Uses @tanstack/react-virtual for efficient rendering of large message lists.
  */
 
+import { CodexFileChangeProvider } from "../transcript/CodexFileChanges";
 import { useRef, useCallback, useMemo, useState, useEffect, useLayoutEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
@@ -958,6 +959,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
 
   return (
+    <CodexFileChangeProvider messages={messages}>
     <div className="relative flex-1 h-full flex flex-col">
       {/* Search Toolbar - Editorial aesthetic */}
       <div
@@ -1518,5 +1520,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       )}
     </div>
+    </CodexFileChangeProvider>
   );
 };

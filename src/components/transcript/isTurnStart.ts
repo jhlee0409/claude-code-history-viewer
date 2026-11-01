@@ -3,6 +3,20 @@ import { classifyMessage, isCodexHeartbeat } from "../MessageViewer/helpers/mess
 
 export type TurnStartKind = "human" | "automated";
 
+import { codexAutomatedTurns } from "./codexTurns";
+
+/** Loaded-window projection shared by model and outline; no ordinal is synthesized. */
+export function turnStartKinds(messages: readonly ClaudeMessage[], ctx: { inSubagent: boolean }): ReadonlyMap<string, TurnStartKind> {
+  const automated = codexAutomatedTurns(messages).starts;
+  const kinds = new Map<string, TurnStartKind>();
+  for (const message of messages) {
+    if (message.isSidechain && !ctx.inSubagent) continue;
+    const kind = automated.has(message.uuid) ? "automated" : turnStartKind(message, ctx);
+    if (kind) kinds.set(message.uuid, kind);
+  }
+  return kinds;
+}
+
 /** Transcript/index boundary and provenance, separate from legacy UI row kinds. */
 export function turnStartKind(message: ClaudeMessage, ctx: { inSubagent: boolean }): TurnStartKind | null {
   if (message.type !== "user" || (message.isSidechain && !ctx.inSubagent)) return null;

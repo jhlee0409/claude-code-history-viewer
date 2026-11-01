@@ -62,6 +62,15 @@ export type ToolFamily = "process" | "read-search" | "other";
 export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
 
+/** FileChange add/delete content is recorded file text, not result prose or a
+ * success flag (Codex protocol.rs@6aaac694:4342–4355). Keep raw field reads
+ * at this adapter boundary; consumers receive only validated text. */
+export function recordedFileChangeContent(value: unknown): string | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const content = (value as Record<string, unknown>).content;
+  return typeof content === "string" ? content : undefined;
+}
+
 export interface NormalizedResult {
   /** `is_error` as recorded: `true`, `false`, or absent. */
   isError?: boolean;
