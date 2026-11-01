@@ -17,7 +17,7 @@ The raw source was downloaded and the following line anchors checked.
 | C10 plain advisor text is prose; redacted advice is opaque, never decrypted or emitted as prose | [360–405, 470–484](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L360-L405) | plain/redacted × stop reason controls, ciphertext negative control |
 | Exact max_tokens adds a separate truncation notice on either advisor variant | [449–457](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L449-L457) | both variants, empty text, absent/null/unknown/error controls |
 | Exact refusal on either advisor variant adds a declined notice; no verdict is inferred from prose | SDK's open string refers to top-level reasons [6965–6973](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L6965-L6973); Claude Code binary below | both variants; error variants do not acquire a notice |
-| C11 server web search retains the frontend's title-summary policy (first five results), safely escaped rather than executable links | [8868–8892, 9070–9095](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L8868-L8892) | title, empty, error, five-result cap; missing-title/dangerous-URL case is explicitly legacy compatibility |
+| C11 server web search retains the frontend's title-summary policy (first five results), safely escaped rather than executable links | [8868–8892](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L8868-L8892), [9070–9115](https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L9070-L9115) | title, empty, error, five-result cap; missing-title/dangerous-URL case is explicitly legacy compatibility |
 
 C8/C9 are intentionally **readable escaped JSON**, matching the frontend. That is
 faithful preservation, not a raw-JSON failure. JSON member order is not a producer
@@ -30,6 +30,8 @@ Rechecked local Claude Code **2.1.285**, SHA-256
 The executable contains several copies/string-table matches: use the actual
 JavaScript implementation, not the first string-table occurrence.
 
+- Byte **181509917**, `lb` in the `j0r` scope: extracts `.content`. Do not use
+  the unrelated URL helper with the same minified name at byte 176682983.
 - Byte **181510409**, `j0r`: accepts only `advisor_result` or
   `advisor_redacted_result`, reads string `stop_reason`, checks the known reason
   list, otherwise returns `unknown`.
@@ -48,6 +50,10 @@ error/unknown variants or guessed from absent fields.
 `src-tauri/tests/fixtures/export-parity.json` is synthetic data shaped from the
 producer evidence above, **not producer evidence itself**. It is shared by:
 
+- Rust `export::tests::hostile_html_uses_literal_escaped_output` and Vitest also
+  consume `export-hostile.json`: 17 reviewer-modeled hostile controls across all
+  seven HTML block kinds, with literal escaped-output expectations independent of
+  either renderer, dangerous-link negatives and opaque-ciphertext checks.
 - Rust `export::tests::server_tool_export_parity_*`: exact extracted text/kind and
   escaped HTML block rendering.
 - Vitest `src/test/export/headlessParity.test.ts`: actual TS extraction and HTML
@@ -61,7 +67,12 @@ producer evidence above, **not producer evidence itself**. It is shared by:
   collapse whitespace and trim it. Headers, metadata and engine-specific markup
   are outside this block comparison. Assert corpus cardinality on both outputs.
 
-The harness uses private Hermes scratch and deletes its synthetic exports in a
+The frontend CI `ui-harness` gate runs the parity harness immediately after
+`build.sh`, reusing its existing `cchv-server` binary, Node and JS dependencies.
+No new browser, dependency install or Rust build is needed for this step.
+
+The harness uses private Hermes scratch locally (`RUNNER_TEMP` on CI) and deletes
+its synthetic exports in a
 `finally` block. Real-history verification keeps only keys/counts and binary
 checksums; session paths and exported content never enter this repository.
 

@@ -1,0 +1,87 @@
+[
+  {
+    "name": "advisor-plain-refusal",
+    "block": {"type":"advisor_tool_result","tool_use_id":"a","content":{"type":"advisor_result","text":"<advice title=\"quoted & safe\"><script>alert(1)</script></advice>","stop_reason":"refusal"}},
+    "html": ["<div class=\"result\">&lt;advice title=&quot;quoted &amp; safe&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;/advice&gt;\n\n[Advisor declined to advise on this request.]</div>"]
+  },
+  {
+    "name": "advisor-redacted-truncated",
+    "block": {"type":"advisor_tool_result","tool_use_id":"a","content":{"type":"advisor_redacted_result","encrypted_content":"<script>opaque-do-not-display</script>","stop_reason":"max_tokens"}},
+    "html": ["<div class=\"result\">[Redacted advice: encrypted content; plaintext unavailable]\n\n[Advice truncated: output token limit reached.]</div>"]
+  },
+  {
+    "name": "advisor-redacted-refusal",
+    "block": {"type":"advisor_tool_result","tool_use_id":"a","content":{"type":"advisor_redacted_result","encrypted_content":"<script>opaque-do-not-display</script>","stop_reason":"refusal"}},
+    "html": ["<div class=\"result\">[Redacted advice: encrypted content; plaintext unavailable]\n\n[Advisor declined to advise on this request.]</div>"]
+  },
+  {
+    "name": "editor-view-breakout",
+    "block": {"type":"text_editor_code_execution_tool_result","tool_use_id":"e","content":{"type":"text_editor_code_execution_view_result","content":"</div><script>alert(1)</script><safe>","file_type":"text","num_lines":1,"start_line":1,"total_lines":1}},
+    "html": ["<div class=\"code-block\">{", "&quot;content&quot;: &quot;&lt;/div&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;safe&gt;&quot;"]
+  },
+  {
+    "name": "tool-search-reference",
+    "block": {"type":"tool_search_tool_result","tool_use_id":"q","content":{"type":"tool_search_tool_search_result","tool_references":[{"type":"tool_reference","tool_name":"<img src=x onerror=alert(1)>&<safe>"}]}},
+    "html": ["<div class=\"result\">{", "&quot;tool_name&quot;: &quot;&lt;img src=x onerror=alert(1)&gt;&amp;&lt;safe&gt;&quot;"]
+  },
+  {
+    "name": "web-search-title-attribute",
+    "block": {"type":"web_search_tool_result","tool_use_id":"s","content":[{"type":"web_search_result","title":"\"><img src=x onerror=alert(1)>&","url":"https://example.test","encrypted_content":"opaque-do-not-display","page_age":null}]},
+    "html": ["<p class=\"search\">[Web search: &quot;&gt;&lt;img src=x onerror=alert(1)&gt;&amp;]</p>"]
+  },
+  {
+    "name": "web-search-legacy-url-fallback",
+    "block": {"type":"web_search_tool_result","tool_use_id":"s","content":[{"type":"web_search_result","url":"javascript:alert(1)\"><script>bad</script>","encrypted_content":"opaque-do-not-display","page_age":null}]},
+    "html": ["<p class=\"search\">[Web search: javascript:alert(1)&quot;&gt;&lt;script&gt;bad&lt;/script&gt;]</p>"]
+  },
+  {
+    "name": "web-fetch-url",
+    "block": {"type":"web_fetch_tool_result","tool_use_id":"f","content":{"type":"web_fetch_result","url":"javascript:alert(1)\"><script>bad</script>"}},
+    "html": ["<p class=\"search\">[Web fetch: javascript:alert(1)&quot;&gt;&lt;script&gt;bad&lt;/script&gt;]</p>"]
+  },
+  {
+    "name": "raw-html-as-visible-text",
+    "block": {"type":"text","text":"<div title=\"quoted & safe\">\n<script>alert(1)</script>\n</div>"},
+    "html": ["&lt;div title=&quot;quoted &amp; safe&quot;&gt;", "&lt;script&gt;alert(1)&lt;/script&gt;", "&lt;/div&gt;"]
+  },
+  {
+    "name": "markdown-quote-and-dangerous-link",
+    "block": {"type":"text","text":"> <script>alert(1)</script>\n>\n> [x](javascript:alert(1))"},
+    "html": ["<blockquote>", "&lt;script&gt;alert(1)&lt;/script&gt;", "</blockquote>"]
+  },
+  {
+    "name": "thinking-breakout",
+    "block": {"type":"thinking","thinking":"</p></details><script>alert(1)</script>\"&"},
+    "html": ["<p class=\"thinking\">&lt;/p&gt;&lt;/details&gt;&lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;</p></details>"]
+  },
+  {
+    "name": "tool-summary-attribute",
+    "block": {"type":"tool_use","id":"t","name":"\"><img src=x onerror=alert(1)>","input":{"command":"<script>alert(1)</script>"}},
+    "html": ["<div class=\"tool\">&quot;&gt;&lt;img src=x onerror=alert(1)&gt;(command: &lt;script&gt;alert(1)&lt;/script&gt;)</div>"]
+  },
+  {
+    "name": "ordinary-result-breakout",
+    "block": {"type":"tool_result","tool_use_id":"t","content":"</div><script>alert(1)</script>\"&"},
+    "html": ["<div class=\"result\">&lt;/div&gt;&lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;</div>"]
+  },
+  {
+    "name": "mcp-result-breakout",
+    "block": {"type":"mcp_tool_result","tool_use_id":"m","content":"<script>alert(1)</script>"},
+    "html": ["<div class=\"result\">&lt;script&gt;alert(1)&lt;/script&gt;</div>"]
+  },
+  {
+    "name": "code-stdout-breakout",
+    "block": {"type":"bash_code_execution_tool_result","tool_use_id":"b","content":{"type":"bash_code_execution_result","stdout":"</div><script>alert(1)</script>\"&","stderr":"","return_code":0,"content":[]}},
+    "html": ["<div class=\"code-block\">&lt;/div&gt;&lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;</div>"]
+  },
+  {
+    "name": "document-title",
+    "block": {"type":"document","title":"<script>alert(1)</script>\"&","source":{}},
+    "html": ["<p class=\"media\">[Document: &lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;]</p>"]
+  },
+  {
+    "name": "search-result-title",
+    "block": {"type":"search_result","title":"<script>alert(1)</script>","source":"s","content":[]},
+    "html": ["<p class=\"search\">[Search: &lt;script&gt;alert(1)&lt;/script&gt;]</p>"]
+  }
+]

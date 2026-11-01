@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { readFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { readFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createServer } from "vite";
@@ -9,7 +9,8 @@ import { JSDOM } from "jsdom";
 // No browser/network or real transcript is involved; both actual HTML exporters run.
 const binary = path.resolve(process.argv[2] ?? "src-tauri/target/debug/claude-code-history-viewer");
 const cases = JSON.parse(await readFile("src-tauri/tests/fixtures/export-parity.json", "utf8"));
-const scratch = path.join(process.env.HOME, ".hermes/cache/scratch");
+const scratch = process.env.RUNNER_TEMP ?? path.join(process.env.HOME, ".hermes/cache/scratch");
+await mkdir(scratch, { recursive: true });
 const dir = await mkdtemp(path.join(scratch, "ex1-parity-"));
 const server = await createServer({
   configFile: false,

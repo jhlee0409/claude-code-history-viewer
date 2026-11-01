@@ -861,6 +861,48 @@ mod tests {
     }
 
     #[test]
+    fn hostile_html_uses_literal_escaped_output() {
+        // Independent literal oracle: never derive expectations with block_to_html
+        // or escape_html. Modeled on the round-1 reviewer's hostile-input probe.
+        // Missing-title URL fallback is a legacy compatibility control, not SDK shape.
+        let cases: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/export-hostile.json")).unwrap();
+        let cases = cases.as_array().unwrap();
+        assert_eq!(cases.len(), 17);
+        for case in cases {
+            let html = render_session_html(
+                &[json!({"type":"assistant", "message":{"content":[case["block"]]}})],
+                "Hostile export",
+            );
+            for expected in case["html"].as_array().unwrap() {
+                let expected = expected.as_str().unwrap();
+                assert!(
+                    html.contains(expected),
+                    "{}: missing literal escaped HTML {expected:?}",
+                    case["name"]
+                );
+            }
+            let lower = html.to_ascii_lowercase();
+            for forbidden in [
+                "<script",
+                "<img",
+                "<advice",
+                "<safe>",
+                "href=\"javascript:",
+                "href='javascript:",
+                "opaque-do-not-display",
+                "raw HTML omitted",
+            ] {
+                assert!(
+                    !lower.contains(&forbidden.to_ascii_lowercase()),
+                    "{}: unsafe or lost HTML {forbidden:?}",
+                    case["name"]
+                );
+            }
+        }
+    }
+
+    #[test]
     fn server_tool_export_parity_editor() {
         assert_server_tool_cases("text_editor_code_execution_tool_result");
     }

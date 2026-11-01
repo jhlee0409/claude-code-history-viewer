@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import cases from "../../../src-tauri/tests/fixtures/export-parity.json";
+import hostileCases from "../../../src-tauri/tests/fixtures/export-hostile.json";
 import { extractBlocks } from "@/services/export/contentExtractor";
 import { exportToHtml } from "@/services/export/htmlExporter";
 import { exportToMarkdown } from "@/services/export/markdownExporter";
@@ -18,6 +19,18 @@ describe("headless/frontend export shared oracle", () => {
     expect(dom.querySelector(".content")?.textContent).toBe(text);
     expect(dom.querySelector(".content")?.innerHTML).not.toContain("<safe>");
     expect(dom.textContent).not.toContain("opaque-do-not-display");
+  });
+
+  it.each(hostileCases)("literal escaped HTML: $name", ({ block, html }) => {
+    // Inspect the serialized public export, not an expectation built by its renderer.
+    const message = { uuid: "hostile", type: "assistant", timestamp: "2026-01-01T00:00:00Z", content: [block] } as unknown as ClaudeMessage;
+    const output = exportToHtml([message], "Hostile export");
+    for (const literal of html) expect(output).toContain(literal);
+    expect(output).not.toMatch(/<script|<img|<advice|<safe>|href=["']javascript:|opaque-do-not-display|raw HTML omitted/i);
+    const dom = document.createElement("div");
+    dom.innerHTML = output;
+    expect(dom.querySelector(".content script, .content img, .content [onerror], .content [onclick]")).toBeNull();
+    expect(dom.querySelector('.content [href^="javascript:"]')).toBeNull();
   });
 
   it("quotes every tool-summary line as well as result lines", () => {
