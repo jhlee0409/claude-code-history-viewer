@@ -15,6 +15,8 @@ export interface ToolUseContent {
   type: "tool_use";
   id: string;
   name: string;
+  /** Exact producer part.tool (OpenCode/Kilo), separate from the display alias. */
+  rawToolName?: unknown;
   input: Record<string, unknown>;
 }
 
@@ -33,6 +35,8 @@ export interface ToolResultContent {
   tool_use_id: string;
   content: string;
   is_error?: boolean;
+  /** Derived false is a viewer default/comparison, not producer no-error. */
+  is_error_source?: "producer" | "derived";
   /** Exact source JSON; absent/null/false/zero/empty are distinct. */
   toolUseResult?: unknown;
   toolUseResultSource?: ToolUseResultSource;

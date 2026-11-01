@@ -1481,6 +1481,9 @@ fn process_parts(
                     "type": "tool_use",
                     "id": tool_id,
                     "name": tool_name,
+                    // Exact producer identity survives the shared Kilo route.
+                    // OpenCode b9a39b8 tool/grep.ts:16; Kilo 0a9faeff tool/grep.ts:22-23.
+                    "rawToolName": part.get("tool"),
                     "input": input
                 }));
 
@@ -2386,5 +2389,18 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_empty");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_empty");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for raw in ["grep", "grep_search", "Grep", "read_file"] {
+            let part = serde_json::json!({"type":"tool","tool":raw,"callID":"c","state":{"status":"completed","input":{},"output":"synthetic"}});
+            let (content, _, _) = process_parts(&[part], "m", "s");
+            assert_eq!(content.unwrap()[0]["rawToolName"], raw);
+        }
     }
 }

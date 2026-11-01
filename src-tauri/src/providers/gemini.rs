@@ -673,16 +673,17 @@ fn convert_gemini_response(
             // If tool has result, add tool_result block
             if let Some(result) = tc.get("result") {
                 let result_content = extract_tool_result_content(result);
-                let status = tc
-                    .get("status")
-                    .and_then(Value::as_str)
-                    .unwrap_or("success");
+                let status = tc.get("status").and_then(Value::as_str).unwrap_or("");
 
                 content_blocks.push(serde_json::json!({
                     "type": "tool_result",
                     "tool_use_id": tool_id,
                     "content": result_content,
-                    "is_error": status == "error"
+                    "is_error": status == "error",
+                    // Only explicit producer success is no-error; absence/unknown are derived.
+                    // https://github.com/google-gemini/gemini-cli/blob/6814e00d6b148c3a1d57244d5d7040f7c541009d/packages/core/src/services/chatRecordingTypes.ts#L54-L60
+                    // https://github.com/google-gemini/gemini-cli/blob/6814e00d6b148c3a1d57244d5d7040f7c541009d/packages/core/src/scheduler/tool-executor.ts#L480-L520
+                    "is_error_source": if status == "success" { "producer" } else { "derived" }
                 }));
             }
 
@@ -1648,5 +1649,20 @@ mod tests {
         assert_eq!(arr[0]["type"], "thinking");
         assert_eq!(arr[1]["type"], "text");
         assert_eq!(arr[1]["text"], "Here is my answer.");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let msg = convert_gemini_response(
+            &serde_json::json!({"toolCalls":[{"id":"c","name":"read_file","result":{}}]}),
+            "m",
+            "s",
+            "",
+        );
+        assert_eq!(msg.content.unwrap()[1]["is_error_source"], "derived");
     }
 }

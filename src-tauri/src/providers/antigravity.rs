@@ -355,8 +355,7 @@ fn merge_tool_names_into_messages(
             "type": "tool_use",
             "id": format!("{session_id}-tool-{index}"),
             "name": tool_name,
-            "input": {},
-            "is_error": false
+            "input": {}
         }));
     }
 

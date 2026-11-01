@@ -1,5 +1,9 @@
 # Producer-grounded tool outcomes (item ①)
 
+> Historical frontend-only baseline. [Item ③b backend evidence](backend-outcome-evidence.md)
+> supersedes the deferred raw-name/provenance/Copilot/Kimi gaps below; it records
+> the current wire contract and corrects fixture-only findings in the old audit.
+
 Scope: C1–C4 of the format audit, plus the corrected interpretation of Claude
 optional error flags on read/search/edit results (U7). This is a frontend interpretation change; no provider
 record, backend serializer, raw content, or source envelope is rewritten.

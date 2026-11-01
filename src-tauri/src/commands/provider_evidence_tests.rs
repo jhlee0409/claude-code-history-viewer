@@ -503,6 +503,9 @@ pub(crate) fn strip_additions(value: &mut Value) {
                         if block["type"] == "tool_result" {
                             block.as_object_mut().unwrap().remove("toolUseResult");
                             block.as_object_mut().unwrap().remove("toolUseResultSource");
+                            block.as_object_mut().unwrap().remove("is_error_source");
+                        } else if block["type"] == "tool_use" {
+                            block.as_object_mut().unwrap().remove("rawToolName");
                         }
                     }
                 }

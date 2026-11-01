@@ -1089,7 +1089,7 @@ fn convert_assistant_bubble(
         let status = tool_data
             .get("status")
             .and_then(Value::as_str)
-            .unwrap_or("completed");
+            .unwrap_or("");
         let raw_args = tool_data
             .get("rawArgs")
             .and_then(Value::as_str)
@@ -1112,7 +1112,8 @@ fn convert_assistant_bubble(
                 "type": "tool_result",
                 "tool_use_id": tool_call_id,
                 "content": text,
-                "is_error": status == "error" || status == "rejected"
+                "is_error": status == "error" || status == "rejected",
+                "is_error_source": "derived"
             }));
         }
     } else if !text.is_empty() {
@@ -1597,5 +1598,22 @@ mod tests {
             vec!["new-proj", "old-proj"],
             "valid workspaces survive a corrupt sibling, newest first: {names:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let msg = convert_assistant_bubble(
+            &serde_json::json!({"toolFormerData":{"name":"read_file"}}),
+            "synthetic",
+            "m",
+            "s",
+            "",
+        )
+        .unwrap();
+        assert_eq!(msg.content.unwrap()[1]["is_error_source"], "derived");
     }
 }
