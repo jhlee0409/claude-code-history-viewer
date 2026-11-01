@@ -7,6 +7,9 @@ import { CodexFileChangeProvider, CodexUnassignedFileChanges } from "./CodexFile
 import { assistant } from "./transcriptItems.fixtures";
 import { toolOutcome } from "./toolOutcome";
 import type { ClaudeMessage } from "@/types";
+import { ThemeProvider } from "@/contexts/theme";
+import { ClaudeMessageNode } from "../MessageViewer/components/ClaudeMessageNode";
+import { groupAgentProgressMessages } from "../MessageViewer/helpers/agentProgressHelpers";
 import { codexChangeEvents, unifiedSections } from "./codexFileChangeModel";
 
 const patch = "*** Begin Patch\n*** Update File: a.ts\n@@\n-input-old\n+input-new\n*** End Patch";
@@ -17,6 +20,25 @@ const event = { timestamp: "2026-01-01T00:00:00Z", type: "event_msg", payload: {
 const messages: ClaudeMessage[] = [{ ...call, provider: "codex", codexEvidence: { turn } }, { ...assistant("carrier"), provider: "codex", codexEvidence: { turn, fileChanges: [{ sourceLine: 4, record: event }] } }];
 
 describe("producer FileChange through the actual paired renderer", () => {
+  it.each(["started", "completed", "system", "empty"])("preserves an unassigned event on the backend's %s carrier through ClaudeMessageNode", branch => {
+    // codex.rs:514–517 attaches FileChange to the last converted message;
+    // :1612–1674 can make that a task progress or compaction system row.
+    const carrier: ClaudeMessage = { ...messages[1]!, content: branch === "empty" ? [] : "Context compacted", ...(branch === "system" ? { type: "system", subtype: "microcompact_boundary" } : branch === "empty" ? {} : { type: "progress", data: { type: "waiting_for_task", status: branch, taskId: "t" } }) };
+    expect(groupAgentProgressMessages([carrier]).size).toBe(0);
+    const view = render(<ThemeProvider><CodexFileChangeProvider messages={[carrier]}><ClaudeMessageNode message={carrier} depth={0} /></CodexFileChangeProvider></ThemeProvider>);
+    expect(view.container.querySelector("[data-codex-unassigned]")?.textContent).toContain("producer-new");
+    expect(view.container.querySelectorAll("[data-codex-file-change]")).toHaveLength(1);
+    view.unmount();
+  });
+  it.each([["en", "File changes"], ["ko", "파일 변경"], ["ja", "ファイル変更"], ["zh-CN", "文件更改"], ["zh-TW", "檔案變更"]])("localizes the unassigned-change heading through the message route (%s)", async (locale, heading) => {
+    await act(() => i18n.changeLanguage(locale));
+    try {
+      const carrier = messages[1]!;
+      const view = render(<ThemeProvider><CodexFileChangeProvider messages={[carrier]}><ClaudeMessageNode message={carrier} depth={0} /></CodexFileChangeProvider></ThemeProvider>);
+      expect(view.container.querySelector("[data-codex-unassigned]")?.firstElementChild?.textContent).toBe(heading);
+      view.unmount();
+    } finally { await act(() => i18n.changeLanguage("en")); }
+  });
   it.each(["en", "ko", "ja", "zh-CN", "zh-TW"])("shows failed and declined status in standalone and matched Result routes (%s)", async locale => {
     await act(() => i18n.changeLanguage(locale));
     try {

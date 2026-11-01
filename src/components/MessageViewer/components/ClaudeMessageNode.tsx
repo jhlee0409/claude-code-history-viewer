@@ -348,6 +348,7 @@ export const ClaudeMessageNode = React.memo(
                 toolUseID={message.toolUseID}
                 parentToolUseID={message.parentToolUseID}
               />
+              <CodexUnassignedFileChanges message={message} />
             </div>
           </div>
         </ExpandKeyProvider>
@@ -395,6 +396,7 @@ export const ClaudeMessageNode = React.memo(
                 currentMatchIndex={currentMatchIndex}
                 expandKey={message.uuid}
               />
+              <CodexUnassignedFileChanges message={message} />
             </div>
           </div>
         </ExpandKeyProvider>

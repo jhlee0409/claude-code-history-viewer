@@ -4,6 +4,9 @@ import { getFilteredClassifiedMessages } from "../MessageNavigator/classifiedRow
 import { groupTurns } from "../MessageNavigator/outline/groupTurns";
 import { applyMessageDisplayFilter } from "../MessageViewer/helpers/messageDisplayFilter";
 import { buildTranscriptItems } from "./transcriptItems";
+import { retainLoadedCodexStarts } from "./codexTurns";
+import { assistant } from "./transcriptItems.fixtures";
+import { flattenMessageTree } from "../MessageViewer/helpers/flattenMessageTree";
 import { flattened, tool, user } from "./transcriptItems.fixtures";
 
 const turn = (id: string) => ({ started: { type: "task_started", turn_id: id }, context: { turn_id: id, model: "synthetic" } });
@@ -13,6 +16,23 @@ const start = (id: string): ClaudeMessage => ({ ...withTurn(user(`start-${id}`),
 const humanOnly = { roles: { user: true, assistant: false }, contentTypes: { text: true, thinking: true, toolCalls: true, commands: true, parallelTasks: true } };
 
 describe("Codex producer turn identity through real model and outline routes", () => {
+  it.each([false, true])("carries an empty automated start to the first retained same-cycle outline row (previous identity %s)", identified => {
+    const prior = identified ? withTurn(user("human"), "h") : user("human");
+    const empty = withTurn(assistant("empty", [{ type: "text", text: "  " }]), "g");
+    const messages = [prior, start("g"), empty, { ...goal("g"), timestamp: "2026-01-02T12:00:00Z" }, withTurn(tool("work"), "g")];
+    for (const visible of [messages, retainLoadedCodexStarts(messages, messages.filter(m => m.type !== "progress"))]) {
+      const outline = groupTurns(getFilteredClassifiedMessages(visible));
+      expect(outline.map(t => [t.kind, t.counts.toolCalls])).toEqual([["human", 0], ["automated", 1]]);
+      expect(outline[1]?.turnStartUuid).toBe("g");
+      expect(buildTranscriptItems(flattened(visible), new Map()).turns.map(t => [t.kind, t.summary.tools])).toEqual([["human", 0], ["automated", 1]]);
+    }
+    const hidden = flattenMessageTree({ messages, hiddenMessageIds: ["empty"], agentTaskGroups: new Map(), agentTaskMemberUuids: new Set(), agentProgressGroups: new Map(), agentProgressMemberUuids: new Set(), taskOperationGroups: new Map(), taskOperationMemberUuids: new Set() });
+    expect(hidden.some(row => row.type === "hidden-placeholder")).toBe(true);
+    expect(buildTranscriptItems(hidden, new Map()).turns.map(t => [t.kind, t.summary.tools])).toEqual([["human", 0], ["automated", 1]]);
+    expect(groupTurns(getFilteredClassifiedMessages(messages.filter(m => m.uuid !== "empty"))).map(t => t.kind)).toEqual(["human", "automated"]);
+    // Cropping away the actual loaded marker must not promote copied turn evidence.
+    expect(groupTurns(getFilteredClassifiedMessages(messages.slice(2))).map(t => t.kind)).toEqual(["unknown"]);
+  });
   it("separates consecutive no-input producer cycles without numbering them as prompts", () => {
     const messages = [withTurn(user("human"), "h"), withTurn(tool("human-tool"), "h"), start("g1"), goal("g1"), withTurn(tool("goal-tool1"), "g1"), start("g2"), goal("g2"), withTurn(tool("goal-tool2"), "g2"), withTurn(user("next"), "n")];
     const model = buildTranscriptItems(flattened(messages), new Map());

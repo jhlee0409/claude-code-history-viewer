@@ -53,10 +53,11 @@ export function CodexChangeDiff({ events, expandKey }: { events: readonly CodexC
 }
 
 export function CodexUnassignedFileChanges({ message }: { message: ClaudeMessage }) {
+  const { t } = useTranslation();
   const events = useCodexChanges().unassigned.get(message.uuid);
   if (!events?.length) return null;
   return <section className="space-y-2" data-codex-unassigned="">
-    <div className="text-caption text-fg-2">FileChange</div>
+    <div className="text-caption text-fg-2">{t("codexFileChange.heading")}</div>
     <CodexChangeDiff events={events} expandKey={`${message.uuid}-filechange`} />
   </section>;
 }

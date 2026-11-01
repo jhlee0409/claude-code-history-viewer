@@ -442,5 +442,6 @@
   "outputBlock.empty": "无输出",
   "contentArray.mediaPlaceholder": "未预览的媒体：{{type}}（记录的 UTF-8 大小 {{size}} 字节）",
   "codexFileChange.failed": "失败",
-  "codexFileChange.declined": "已拒绝"
+  "codexFileChange.declined": "已拒绝",
+  "codexFileChange.heading": "文件更改"
 }
