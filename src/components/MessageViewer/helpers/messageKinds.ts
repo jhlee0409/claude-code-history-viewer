@@ -201,8 +201,7 @@ function parseZonedInstant(value: unknown): number | null {
   const year = Number(y), month = Number(mo), day = Number(d);
   const hour = Number(h), minute = Number(mi), second = Number(s);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  if (day < 1 || day > daysInMonth) return null;
+  if (day < 1 || day > utcDaysInMonth(year, month)) return null;
   let offsetMinutes = 0;
   if (zone !== "Z") {
     const oh = Number(zh), om = Number(zm);
@@ -210,7 +209,17 @@ function parseZonedInstant(value: unknown): number | null {
     offsetMinutes = (sign === "-" ? -1 : 1) * (oh * 60 + om);
   }
   const millis = frac === undefined ? 0 : Number(frac.slice(0, 3).padEnd(3, "0"));
-  return Date.UTC(year, month - 1, day, hour, minute, second, millis) - offsetMinutes * 60_000;
+  // setUTCFullYear keeps years 0-99 literal (Date.UTC would remap them to 19xx).
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, millis);
+  return date.getTime() - offsetMinutes * 60_000;
+}
+
+function utcDaysInMonth(year: number, month: number): number {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, 0);
+  return date.getUTCDate();
 }
 
 /** Owner-approved viewer rule: both instants valid, zoned, and within ±5s. */

@@ -64,6 +64,18 @@ describe("owner decision B: timestamp-correlated unmarked envelopes (viewer rule
   it("accepts a real leap day", () => {
     routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", "2028-02-29T00:00:00Z"), timestamp: "2028-02-29T00:00:01Z" }, true);
   });
+  // Date.UTC maps years 0-99 to 1900-1999; four-digit years must stay literal.
+  it.each([
+    ["0001-01-01T00:00:00Z", "1901-01-01T00:00:00Z"],
+    ["1901-01-01T00:00:00Z", "0001-01-01T00:00:00Z"],
+    ["0099-12-31T23:59:59Z", "1999-12-31T23:59:59Z"],
+  ])("keeps two-digit-range years literal: embedded=%s record=%s", (embedded, timestamp) => {
+    routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", embedded), timestamp }, false);
+  });
+  it.each([["1900-02-29T00:00:00Z", false], ["2000-02-29T00:00:00Z", true], ["2100-02-29T00:00:00Z", false]] as const)(
+    "applies century leap rules: %s", (instant, expected) => {
+      routes({ ...unmarked(), content: envelope.replace("2026-09-23T00:00:00Z", instant), timestamp: instant }, expected);
+    });
   it.each([null, false, 0, [], ["user.heartbeat", "user.text"], ["unknown"]])("rejects present malformed/unknown kinds at matching time: %j", contentItemKinds => {
     routes({ ...unmarked(), codexEvidence: { contentItems: [{ type: "input_text" }], contentItemKinds } }, false);
   });
