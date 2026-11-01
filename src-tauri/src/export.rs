@@ -66,6 +66,11 @@ fn nested<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a 
         .and_then(|c| c.get(key))
 }
 
+fn json_content(obj: &serde_json::Map<String, Value>) -> String {
+    serde_json::to_string_pretty(obj.get("content").unwrap_or(&Value::Null))
+        .unwrap_or_else(|_| "null".to_string())
+}
+
 fn str_field<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a str> {
     obj.get(key).and_then(|v| v.as_str())
 }
@@ -175,6 +180,7 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                                     .and_then(|v| v.as_str())
                                     .or_else(|| r.get("url").and_then(|v| v.as_str()))
                             })
+                            .filter(|title| !title.is_empty())
                             .collect();
                         if urls.is_empty() {
                             "[Web search results]".to_string()
@@ -190,7 +196,9 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                 });
             }
             "web_fetch_tool_result" => {
-                let url = nested(obj, "url").and_then(Value::as_str);
+                let url = nested(obj, "url")
+                    .and_then(Value::as_str)
+                    .filter(|url| !url.is_empty());
                 let text = match url {
                     Some(u) => format!("[Web fetch: {u}]"),
                     None => "[Web fetch result]".to_string(),
@@ -224,25 +232,57 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                     text,
                 });
             }
-            "text_editor_code_execution_tool_result" => {
-                let op = nested(obj, "operation")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                let path = nested(obj, "path").and_then(|v| v.as_str()).unwrap_or("");
-                let text = if path.is_empty() {
-                    format!("[File {op}]")
-                } else {
-                    format!("[File {op}: {path}]")
-                };
+            // Preserve SDK discriminants/fields, not invented operation/path summaries.
+            // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192
+            // Tool search is an object with tool_references (same source L8010-L8057).
+            // Readable JSON matches TS; HTML escaping happens in block_to_html.
+            "text_editor_code_execution_tool_result" | "tool_search_tool_result" => {
                 blocks.push(ExtractedBlock {
-                    kind: BlockKind::Code,
+                    kind: if typ == "text_editor_code_execution_tool_result" {
+                        BlockKind::Code
+                    } else {
+                        BlockKind::Result
+                    },
+                    text: json_content(obj),
+                });
+            }
+            "advisor_tool_result" => {
+                // SDK cb5fba4198 messages.ts L360-L405,449-L457: ciphertext is opaque;
+                // exact max_tokens on either advice variant means truncation.
+                // Claude Code 2.1.285 j0r/khe/Wa: refusal means declined, not truncated.
+                // Pinned binary hash/offsets: docs/contracts/headless-export-parity.md.
+                let variant = nested(obj, "type").and_then(Value::as_str);
+                let is_advice =
+                    matches!(variant, Some("advisor_result" | "advisor_redacted_result"));
+                let text = match variant {
+                    Some("advisor_redacted_result") => {
+                        "[Redacted advice: encrypted content; plaintext unavailable]".to_string()
+                    }
+                    Some("advisor_result") => nested(obj, "text")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| json_content(obj)),
+                    _ => json_content(obj),
+                };
+                let notice = if is_advice {
+                    match nested(obj, "stop_reason").and_then(Value::as_str) {
+                        Some("max_tokens") => "[Advice truncated: output token limit reached.]",
+                        Some("refusal") => "[Advisor declined to advise on this request.]",
+                        _ => "",
+                    }
+                } else {
+                    ""
+                };
+                let text = [text.as_str(), notice]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                blocks.push(ExtractedBlock {
+                    kind: BlockKind::Result,
                     text,
                 });
             }
-            "tool_search_tool_result" => blocks.push(ExtractedBlock {
-                kind: BlockKind::Result,
-                text: "[Tool search result]".to_string(),
-            }),
             "image" => blocks.push(ExtractedBlock {
                 kind: BlockKind::Media,
                 text: "[Image]".to_string(),
@@ -423,12 +463,11 @@ fn format_timestamp(ts: &str) -> (String, String) {
     }
 }
 
-/// Render markdown to HTML. comrak with `unsafe_ = false` (the default) drops raw
-/// HTML rather than emitting it, so injected markup never executes. (The TS
-/// exporter escapes raw HTML to visible text instead; both are safe — the input
-/// is trusted conversation data and raw HTML in message text is rare.)
+/// Render markdown to HTML, escaping raw HTML to visible text like the TS
+/// exporter. Never enable unsafe HTML: report content must not execute markup.
 fn render_markdown(text: &str) -> String {
     let mut options = comrak::Options::default();
+    options.render.escape = true;
     options.render.hardbreaks = true; // matches marked({ breaks: true })
     options.extension.autolink = true;
     options.extension.table = true;
@@ -778,6 +817,85 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // Producer-shaped synthetic inputs; source citations live in the export contract.
+    // The same corpus/visible-text oracle is exercised by the TS exporter and CLI harness.
+    fn assert_server_tool_cases(typ: &str) {
+        let cases: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/export-parity.json")).unwrap();
+        let cases: Vec<_> = cases
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|case| case["block"]["type"] == typ)
+            .collect();
+        assert_ne!(cases.len(), 0, "no parity cases for {typ}");
+        for case in cases {
+            let blocks = extract_blocks(&json!([case["block"]]));
+            assert_eq!(blocks.len(), 1, "{}", case["name"]);
+            assert_eq!(
+                blocks[0].text,
+                case["text"].as_str().unwrap(),
+                "{}",
+                case["name"]
+            );
+            let kind = match case["kind"].as_str().unwrap() {
+                "code" => BlockKind::Code,
+                "search" => BlockKind::Search,
+                _ => BlockKind::Result,
+            };
+            assert_eq!(blocks[0].kind, kind, "{}", case["name"]);
+            let html = render_session_html(
+                &[json!({"type":"assistant", "message":{"content":[case["block"]]}})],
+                "Parity",
+            );
+            assert!(
+                html.contains(&block_to_html(&ExtractedBlock {
+                    kind,
+                    text: case["text"].as_str().unwrap().to_string(),
+                })),
+                "{}",
+                case["name"]
+            );
+            assert!(!html.contains("opaque-do-not-display"));
+        }
+    }
+
+    #[test]
+    fn server_tool_export_parity_editor() {
+        assert_server_tool_cases("text_editor_code_execution_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_tool_search() {
+        assert_server_tool_cases("tool_search_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_advisor() {
+        assert_server_tool_cases("advisor_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_web_search() {
+        assert_server_tool_cases("web_search_tool_result");
+    }
+
+    #[test]
+    fn empty_search_fields_match_frontend_placeholders() {
+        // Compatibility controls: SDK string fields have no nonempty constraint,
+        // but these empty values were not observed locally. TS uses truthiness
+        // for fetch URLs and drops empty search titles (without falling back).
+        let content = json!([
+            {"type":"web_search_tool_result", "tool_use_id":"search", "content":[
+                {"type":"web_search_result", "title":"", "url":"https://example.test", "encrypted_content":"opaque", "page_age":null}
+            ]},
+            {"type":"web_fetch_tool_result", "tool_use_id":"fetch", "content":{"type":"web_fetch_result", "url":""}}
+        ]);
+        let blocks = extract_blocks(&content);
+        assert_eq!(blocks[0].text, "[Web search results]");
+        assert_eq!(blocks[1].text, "[Web fetch result]");
+    }
+
     #[test]
     fn extract_string_content() {
         let blocks = extract_blocks(&json!("hello"));
@@ -899,9 +1017,19 @@ mod tests {
     }
 
     #[test]
+    fn render_markdown_preserves_raw_html_as_visible_text() {
+        let out = render_markdown("hi <script>alert(1)</script> <b>literal</b>");
+        assert!(
+            out.contains("&lt;script&gt;alert(1)&lt;/script&gt;"),
+            "{out}"
+        );
+        assert!(out.contains("&lt;b&gt;literal&lt;/b&gt;"), "{out}");
+        assert!(!out.contains("<script>"));
+    }
+
+    #[test]
     fn render_markdown_neutralizes_raw_html() {
-        // comrak with unsafe_ = false drops raw HTML (the TS exporter escapes it
-        // to visible text instead). Either way no executable markup survives.
+        // Raw tags remain readable as escaped text, never executable HTML.
         let out = render_markdown("hi <script>alert(1)</script>");
         assert!(!out.contains("<script>"));
         assert!(out.contains("hi"));

@@ -1,0 +1,574 @@
+[
+  {
+    "block": {
+      "content": {
+        "is_file_update": false,
+        "type": "text_editor_code_execution_create_result"
+      },
+      "tool_use_id": "create-False",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "create-False",
+    "text": "{\n  \"is_file_update\": false,\n  \"type\": \"text_editor_code_execution_create_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "is_file_update": true,
+        "type": "text_editor_code_execution_create_result"
+      },
+      "tool_use_id": "create-True",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "create-True",
+    "text": "{\n  \"is_file_update\": true,\n  \"type\": \"text_editor_code_execution_create_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "content": "Synthetic <safe>\nsecond line",
+        "file_type": "text",
+        "num_lines": 2,
+        "start_line": 8,
+        "total_lines": 20,
+        "type": "text_editor_code_execution_view_result"
+      },
+      "tool_use_id": "view-text",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "view-text",
+    "text": "{\n  \"content\": \"Synthetic <safe>\\nsecond line\",\n  \"file_type\": \"text\",\n  \"num_lines\": 2,\n  \"start_line\": 8,\n  \"total_lines\": 20,\n  \"type\": \"text_editor_code_execution_view_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "content": "Synthetic <safe>\nsecond line",
+        "file_type": "image",
+        "num_lines": 2,
+        "start_line": 8,
+        "total_lines": 20,
+        "type": "text_editor_code_execution_view_result"
+      },
+      "tool_use_id": "view-image",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "view-image",
+    "text": "{\n  \"content\": \"Synthetic <safe>\\nsecond line\",\n  \"file_type\": \"image\",\n  \"num_lines\": 2,\n  \"start_line\": 8,\n  \"total_lines\": 20,\n  \"type\": \"text_editor_code_execution_view_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "content": "Synthetic <safe>\nsecond line",
+        "file_type": "pdf",
+        "num_lines": 2,
+        "start_line": 8,
+        "total_lines": 20,
+        "type": "text_editor_code_execution_view_result"
+      },
+      "tool_use_id": "view-pdf",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "view-pdf",
+    "text": "{\n  \"content\": \"Synthetic <safe>\\nsecond line\",\n  \"file_type\": \"pdf\",\n  \"num_lines\": 2,\n  \"start_line\": 8,\n  \"total_lines\": 20,\n  \"type\": \"text_editor_code_execution_view_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "lines": [
+          "-before",
+          "+after"
+        ],
+        "new_lines": 1,
+        "new_start": 9,
+        "old_lines": 1,
+        "old_start": 8,
+        "type": "text_editor_code_execution_str_replace_result"
+      },
+      "tool_use_id": "replace-False",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "replace-False",
+    "text": "{\n  \"lines\": [\n    \"-before\",\n    \"+after\"\n  ],\n  \"new_lines\": 1,\n  \"new_start\": 9,\n  \"old_lines\": 1,\n  \"old_start\": 8,\n  \"type\": \"text_editor_code_execution_str_replace_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "lines": null,
+        "new_lines": null,
+        "new_start": null,
+        "old_lines": null,
+        "old_start": null,
+        "type": "text_editor_code_execution_str_replace_result"
+      },
+      "tool_use_id": "replace-True",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "replace-True",
+    "text": "{\n  \"lines\": null,\n  \"new_lines\": null,\n  \"new_start\": null,\n  \"old_lines\": null,\n  \"old_start\": null,\n  \"type\": \"text_editor_code_execution_str_replace_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "invalid_tool_input",
+        "error_message": "Synthetic <error>",
+        "type": "text_editor_code_execution_tool_result_error"
+      },
+      "tool_use_id": "editor-invalid_tool_input",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "editor-invalid_tool_input",
+    "text": "{\n  \"error_code\": \"invalid_tool_input\",\n  \"error_message\": \"Synthetic <error>\",\n  \"type\": \"text_editor_code_execution_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "error_message": null,
+        "type": "text_editor_code_execution_tool_result_error"
+      },
+      "tool_use_id": "editor-unavailable",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "editor-unavailable",
+    "text": "{\n  \"error_code\": \"unavailable\",\n  \"error_message\": null,\n  \"type\": \"text_editor_code_execution_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "too_many_requests",
+        "error_message": "Synthetic <error>",
+        "type": "text_editor_code_execution_tool_result_error"
+      },
+      "tool_use_id": "editor-too_many_requests",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "editor-too_many_requests",
+    "text": "{\n  \"error_code\": \"too_many_requests\",\n  \"error_message\": \"Synthetic <error>\",\n  \"type\": \"text_editor_code_execution_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "execution_time_exceeded",
+        "error_message": "Synthetic <error>",
+        "type": "text_editor_code_execution_tool_result_error"
+      },
+      "tool_use_id": "editor-execution_time_exceeded",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "editor-execution_time_exceeded",
+    "text": "{\n  \"error_code\": \"execution_time_exceeded\",\n  \"error_message\": \"Synthetic <error>\",\n  \"type\": \"text_editor_code_execution_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "file_not_found",
+        "error_message": "Synthetic <error>",
+        "type": "text_editor_code_execution_tool_result_error"
+      },
+      "tool_use_id": "editor-file_not_found",
+      "type": "text_editor_code_execution_tool_result"
+    },
+    "kind": "code",
+    "name": "editor-file_not_found",
+    "text": "{\n  \"error_code\": \"file_not_found\",\n  \"error_message\": \"Synthetic <error>\",\n  \"type\": \"text_editor_code_execution_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "tool_references": [],
+        "type": "tool_search_tool_search_result"
+      },
+      "tool_use_id": "references-0",
+      "type": "tool_search_tool_result"
+    },
+    "kind": "result",
+    "name": "references-0",
+    "text": "{\n  \"tool_references\": [],\n  \"type\": \"tool_search_tool_search_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "tool_references": [
+          {
+            "tool_name": "synthetic_tool",
+            "type": "tool_reference"
+          }
+        ],
+        "type": "tool_search_tool_search_result"
+      },
+      "tool_use_id": "references-1",
+      "type": "tool_search_tool_result"
+    },
+    "kind": "result",
+    "name": "references-1",
+    "text": "{\n  \"tool_references\": [\n    {\n      \"tool_name\": \"synthetic_tool\",\n      \"type\": \"tool_reference\"\n    }\n  ],\n  \"type\": \"tool_search_tool_search_result\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "error_message": "Synthetic <error>",
+        "type": "tool_search_tool_result_error"
+      },
+      "tool_use_id": "tool-search-error",
+      "type": "tool_search_tool_result"
+    },
+    "kind": "result",
+    "name": "tool-search-error",
+    "text": "{\n  \"error_code\": \"unavailable\",\n  \"error_message\": \"Synthetic <error>\",\n  \"type\": \"tool_search_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": "end_turn",
+        "text": "Synthetic <advice>\nsecond line",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-False-end_turn",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-False-end_turn",
+    "text": "Synthetic <advice>\nsecond line"
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": "max_tokens",
+        "text": "Synthetic <advice>\nsecond line",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-False-max_tokens",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-False-max_tokens",
+    "text": "Synthetic <advice>\nsecond line\n\n[Advice truncated: output token limit reached.]"
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": "refusal",
+        "text": "Synthetic <advice>\nsecond line",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-False-refusal",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-False-refusal",
+    "text": "Synthetic <advice>\nsecond line\n\n[Advisor declined to advise on this request.]"
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": null,
+        "text": "Synthetic <advice>\nsecond line",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-False-None",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-False-None",
+    "text": "Synthetic <advice>\nsecond line"
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": "future_reason",
+        "text": "Synthetic <advice>\nsecond line",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-False-future_reason",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-False-future_reason",
+    "text": "Synthetic <advice>\nsecond line"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": "end_turn",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-True-end_turn",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-True-end_turn",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": "max_tokens",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-True-max_tokens",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-True-max_tokens",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]\n\n[Advice truncated: output token limit reached.]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": "refusal",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-True-refusal",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-True-refusal",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]\n\n[Advisor declined to advise on this request.]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": null,
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-True-None",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-True-None",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": "future_reason",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-True-future_reason",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-True-future_reason",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "type": "advisor_tool_result_error"
+      },
+      "tool_use_id": "advisor-error",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-error",
+    "text": "{\n  \"error_code\": \"unavailable\",\n  \"type\": \"advisor_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": [
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Synthetic <title>",
+          "type": "web_search_result",
+          "url": "https://example.test/?a=1&b=2"
+        }
+      ],
+      "tool_use_id": "web-search",
+      "type": "web_search_tool_result"
+    },
+    "kind": "search",
+    "name": "web-search",
+    "text": "[Web search: Synthetic <title>]"
+  },
+  {
+    "block": {
+      "content": [],
+      "tool_use_id": "web-search-empty",
+      "type": "web_search_tool_result"
+    },
+    "kind": "search",
+    "name": "web-search-empty",
+    "text": "[Web search results]"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "type": "web_search_tool_result_error"
+      },
+      "tool_use_id": "web-search-error",
+      "type": "web_search_tool_result"
+    },
+    "kind": "search",
+    "name": "web-search-error",
+    "text": "[Web search results]"
+  },
+  {
+    "block": {
+      "content": {
+        "text": "",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-absent-False",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-absent-False",
+    "text": ""
+  },
+  {
+    "block": {
+      "content": {
+        "stop_reason": "max_tokens",
+        "text": "",
+        "type": "advisor_result"
+      },
+      "tool_use_id": "advisor-empty-truncated-False",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-empty-truncated-False",
+    "text": "[Advice truncated: output token limit reached.]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-absent-True",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-absent-True",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]"
+  },
+  {
+    "block": {
+      "content": {
+        "encrypted_content": "opaque-do-not-display",
+        "stop_reason": "max_tokens",
+        "type": "advisor_redacted_result"
+      },
+      "tool_use_id": "advisor-empty-truncated-True",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-empty-truncated-True",
+    "text": "[Redacted advice: encrypted content; plaintext unavailable]\n\n[Advice truncated: output token limit reached.]"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "stop_reason": "max_tokens",
+        "type": "advisor_tool_result_error"
+      },
+      "tool_use_id": "advisor-error-max_tokens",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-error-max_tokens",
+    "text": "{\n  \"error_code\": \"unavailable\",\n  \"stop_reason\": \"max_tokens\",\n  \"type\": \"advisor_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": {
+        "error_code": "unavailable",
+        "stop_reason": "refusal",
+        "type": "advisor_tool_result_error"
+      },
+      "tool_use_id": "advisor-error-refusal",
+      "type": "advisor_tool_result"
+    },
+    "kind": "result",
+    "name": "advisor-error-refusal",
+    "text": "{\n  \"error_code\": \"unavailable\",\n  \"stop_reason\": \"refusal\",\n  \"type\": \"advisor_tool_result_error\"\n}"
+  },
+  {
+    "block": {
+      "content": [
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 0",
+          "type": "web_search_result",
+          "url": "https://example.test/0"
+        },
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 1",
+          "type": "web_search_result",
+          "url": "https://example.test/1"
+        },
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 2",
+          "type": "web_search_result",
+          "url": "https://example.test/2"
+        },
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 3",
+          "type": "web_search_result",
+          "url": "https://example.test/3"
+        },
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 4",
+          "type": "web_search_result",
+          "url": "https://example.test/4"
+        },
+        {
+          "encrypted_content": "opaque",
+          "page_age": null,
+          "title": "Title 5",
+          "type": "web_search_result",
+          "url": "https://example.test/5"
+        }
+      ],
+      "tool_use_id": "web-search-cap",
+      "type": "web_search_tool_result"
+    },
+    "kind": "search",
+    "name": "web-search-cap",
+    "text": "[Web search: Title 0, Title 1, Title 2, Title 3, Title 4]"
+  },
+  {
+    "block": {
+      "content": [
+        {
+          "url": "javascript:alert(1)"
+        }
+      ],
+      "tool_use_id": "web-search-url-compat",
+      "type": "web_search_tool_result"
+    },
+    "kind": "search",
+    "name": "web-search-url-compat",
+    "text": "[Web search: javascript:alert(1)]"
+  }
+]

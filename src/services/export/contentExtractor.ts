@@ -157,9 +157,12 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
           ? "[Redacted advice: encrypted content; plaintext unavailable]"
           : isPlaintext && typeof c.text === "string" ? c.text : JSON.stringify(c, null, 2) ?? "null";
         // SDK L387-L393,449-L457: both advisor variants use max_tokens for truncation.
-        // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L449-L457
-        const notice = (isRedacted || isPlaintext) && c?.stop_reason === "max_tokens"
-          ? "[Advice truncated: output token limit reached.]" : "";
+        // Claude Code 2.1.285 (SHA256 51f09bd1e021d9fa8a1864c179799bd37cb39962a937935c5cf6823398e86db4)
+        // j0r/khe at byte 181510409 and Wa at 202269540: exact refusal means declined.
+        // See docs/contracts/headless-export-parity.md; do not infer reasons from text.
+        const notice = !isRedacted && !isPlaintext ? ""
+          : c?.stop_reason === "max_tokens" ? "[Advice truncated: output token limit reached.]"
+          : c?.stop_reason === "refusal" ? "[Advisor declined to advise on this request.]" : "";
         blocks.push({ kind: "result", text: [text, notice].filter(Boolean).join("\n\n") });
         break;
       }
