@@ -1,5 +1,9 @@
 # Producer-grounded tool outcomes (item ①)
 
+> Historical frontend-only baseline. [Item ③b backend evidence](backend-outcome-evidence.md)
+> supersedes the deferred raw-name/provenance/Copilot/Kimi gaps below; it records
+> the current wire contract and corrects fixture-only findings in the old audit.
+
 Scope: C1–C4 of the format audit, plus the corrected interpretation of Claude
 optional error flags on read/search/edit results (U7). This is a frontend interpretation change; no provider
 record, backend serializer, raw content, or source envelope is rewritten.
@@ -227,16 +231,17 @@ against reading ordinary output as failure, but incorrectly equated OpenCode
 bash equation, not the non-process no-error convention.
 Their old expectations are migrated, not hidden or treated as ground truth.
 
-**Proposed D-R4 replacement — owner decision required:**
+**D-R4 current wording** (only the OpenCode/Kilo default-custom-shape exclusion clause is the owner decision of 2026-11-01, option C; the other edits since the approved round-6 wording are implementation-contract updates from item ②, not separate owner approvals):
 
-> Producer-recorded outcome evidence outranks output prose; prose alone establishes neither success nor failure. Interruption decides the lifecycle first: an interrupted row is failed only with a nonzero recorded exit, otherwise unknown, even with a positive error flag or API error code. For non-interrupted rows, a normalized error flag or API error code fails the row; disagreement with a recorded exit is a conflict. Otherwise a recorded exit code decides. Process results without a recorded exit stay unknown even with a no-error flag; unavailable OpenHands -1 is not an exit code. For non-process results without positive errors or exits, success requires every result to have normalized no-error: explicit false, or Claude/legacy absent block is_error. Read/search accepts this no-error for any provider except the OpenHands synthesized-false correction. Other-family success additionally needs a paired Claude Edit/MultiEdit/Write (case-insensitive), Pi exact edit/write, OMP exact edit, or an allowed OpenCode/Kilo delivered name. OpenCode/Kilo status:completed supplies normalized false only for paired Read/Glob/Edit/Write/WebFetch and OpenCode-only list; status:error supplies true. Grep completion stays unknown because built-in grep and MCP grep_* collapse to that name; built-in grep success/folding is deferred to backend item ②. Opaque tools do not succeed on completion alone. Synthesized defaults are not producer evidence: this is the item ② target, not a claim that all backend defaults have been corrected here. Missing evidence without one of these conventions is unknown.
+> Producer-recorded outcome evidence outranks output prose; prose alone establishes neither success nor failure. Interruption decides the lifecycle first: an interrupted row is failed only with a nonzero recorded exit, otherwise unknown, even with a positive error flag or API error code. For non-interrupted rows, a normalized error flag or API error code fails the row; disagreement with a recorded exit is a conflict. Otherwise a recorded exit code decides. Process results without a recorded exit stay unknown even with a no-error flag; unavailable OpenHands -1 is not an exit code. For non-process results without positive errors or exits, success requires every result to have normalized no-error: explicit false, or Claude/legacy absent block is_error. Read/search accepts producer no-error for any provider, excluding viewer-derived false (including older OpenHands synthesized false). Other-family success additionally needs a paired Claude Edit/MultiEdit/Write (case-insensitive), Pi exact edit/write, OMP exact edit, or an allowed OpenCode/Kilo delivered name. OpenCode/Kilo status:completed supplies normalized false only for paired Read/Glob/Edit/Write/WebFetch and OpenCode-only list, except stored default custom shapes: OpenCode empty title plus empty metadata object, Kilo empty title plus a metadata object containing only wrapper keys truncated/outputPath/approval. This frontend-derived exclusion rules out the pinned default custom shape; it cannot prove that a built-in ran. Kilo object-returning custom tools and OpenCode tool.execute.after hooks may still look built-in. The per-tool evidence is pinned to OpenCode b9a39b816c92592e824c68cdc9a48acf7717e2a2 and Kilo 0a9faeff69fff8712da184ee5188bb7985c6f057; on other versions the exclusion can both miss (a changed custom wrapper then falls back to name-based success) and over-exclude (a genuine built-in becomes unknown). Missing/malformed shape fields are not defaulted. status:error supplies true. Grep completion stays unknown even with exact raw grep: same-ID custom tools can override built-ins, so raw identity does not prove origin. Opaque tools do not succeed on completion alone. Synthesized defaults are not producer evidence: an is_error_source:derived false cannot establish producer no-error; positive derived error mappings retain their existing behavior. Missing evidence without one of these conventions is unknown.
 
-This round-3 proposal matches the implementation's explicit-false read/search
-rule and named edit/core paths; it is **not owner-approved D-R4 policy**. The
-frontend-only Grep trade-off was delegated by the owner, not a new backend
-identity guarantee. No Pi bash exception is proposed. Only OpenHands implements
-the synthesized-false provenance correction here; the other gaps remain item ②.
-
-The owner-approved amendment file is not edited. Existing D-R4's literal rule
-(recorded exit beats Error text, explicit errors still count) remains satisfied;
-the replacement makes its missing-field/provenance boundary explicit.
+The owner approved option C's OpenCode/Kilo exclusion on 2026-11-01; this is
+not approval of every historical proposal above. The remaining historical
+frontend-only/deferred statements are superseded by
+[the backend evidence contract](backend-outcome-evidence.md), including raw IDs,
+derived-false handling and Copilot/Kimi preservation. The completion exclusion
+is applied before both read/search and other-family verdict paths, on each
+result's own delivered state; it preserves explicit errors and process rules.
+The [per-tool table](backend-outcome-evidence.md#stored-shapes-candidates-not-authentication)
+cites every allowlisted built-in's non-default return shape at the two pins.
+No producer-origin marker is invented. No Pi bash exception is added.

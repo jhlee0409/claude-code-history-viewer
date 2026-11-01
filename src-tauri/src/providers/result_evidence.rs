@@ -1,6 +1,14 @@
 //! Source-owned evidence, attached before display merging; never an outcome verdict.
 use serde_json::{json, Value};
 
+/// Copy the producer value exactly; never manufacture a false flag for absence.
+/// Viewer audit baseline 44644405 pi.rs:1090-1093, crush.rs:505, zed.rs:365.
+pub(super) fn copy_error_flag(result: &mut Value, raw: &Value, key: &str) {
+    if let Some(flag) = raw.get(key) {
+        result["is_error"] = flag.clone();
+    }
+}
+
 pub(super) fn attach(result: &mut Value, raw: &Value, uuid: &str, session: &str, index: usize) {
     result["toolUseResult"] = raw.clone();
     result["toolUseResultSource"] = json!({
