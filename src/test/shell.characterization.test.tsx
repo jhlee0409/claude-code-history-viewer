@@ -141,6 +141,10 @@ const {
     activeProviders: [],
     setSelectedSession: vi.fn(),
     fontScale: 100,
+    viewerMode: "standard" as "standard" | "reading",
+    setViewerMode: vi.fn(async () => {}),
+    loadViewerMode: vi.fn(async () => {}),
+    exitCaptureMode: vi.fn(),
     highContrast: false,
     pagination: {
       currentOffset: 0,

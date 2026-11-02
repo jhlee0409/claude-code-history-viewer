@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
 import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
@@ -98,6 +98,10 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     activeProviders: [],
     setSelectedSession: vi.fn(),
     fontScale: 100,
+    viewerMode: "standard" as "standard" | "reading",
+    setViewerMode: vi.fn(async () => {}),
+    loadViewerMode: vi.fn(async () => {}),
+    exitCaptureMode: vi.fn(),
     highContrast: false,
     pagination: {
       currentOffset: 0,
@@ -163,6 +167,10 @@ vi.mock("@/components/ProjectTree", () => ({
 
 vi.mock("@/components/MessageViewer", () => ({
   MessageViewer: () => <div>message-viewer</div>,
+}));
+
+vi.mock("@/components/ReadingViewer", () => ({
+  ReadingViewer: () => <div>reading-viewer</div>,
 }));
 
 vi.mock("@/components/MessageNavigator", () => ({
@@ -343,12 +351,16 @@ describe("App accessibility smoke", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
+    appStoreState.viewerMode = "standard";
+    appStoreState.selectedProject.provider = "claude";
     resetComputedMock();
     resetStoreLoadFlags();
   });
 
   it("renders skip links and landmark targets", () => {
     render(<App />);
+    expect(appStoreState.loadViewerMode).toHaveBeenCalledOnce();
+    expect(appStoreState.reloadCurrent).toHaveBeenCalledWith("restore");
 
     expect(
       screen.getByRole("link", { name: "Skip to project explorer" })
@@ -466,6 +478,58 @@ describe("App accessibility smoke", () => {
       }
     }
   );
+
+  it("replaces only the transcript and hides navigator landmarks in reading mode", () => {
+    useAppStoreMock.getState().viewerMode = "reading";
+    render(<App />);
+    expect(screen.getByText("reading-viewer")).toBeInTheDocument();
+    expect(screen.queryByText("message-viewer")).toBeNull();
+    expect(document.getElementById("message-navigator")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Skip to inspector" })).toBeNull();
+    expect(screen.getByRole("button", { name: "reading.standard" })).toBeEnabled();
+  });
+
+  it("temporarily falls back for unsupported providers without changing preference", () => {
+    useAppStoreMock.getState().viewerMode = "reading";
+    useAppStoreMock.getState().selectedProject.provider = "codex";
+    render(<App />);
+    expect(screen.getByText("message-viewer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "reading.reading" })).toBeDisabled();
+    expect(useAppStoreMock.getState().viewerMode).toBe("reading");
+    expect(useAppStoreMock.getState().setViewerMode).not.toHaveBeenCalled();
+  });
+
+  it("restores the saved Inspector when returning to standard mode", () => {
+    appStoreState.viewerMode = "reading";
+    const view = render(<App />);
+    expect(document.getElementById("inspector")).toBeNull();
+    expect(appStoreState.isInspectorOpen).toBe(true);
+    appStoreState.viewerMode = "standard";
+    view.rerender(<App />);
+    expect(screen.getByText("message-viewer")).toBeInTheDocument();
+    expect(document.getElementById("inspector")).not.toBeNull();
+    expect(document.getElementById("message-navigator")).not.toBeNull();
+    expect(appStoreState.setInspectorOpen).not.toHaveBeenCalled();
+  });
+
+  it("leaves non-transcript registry screens unchanged by the reading preference", () => {
+    appStoreState.viewerMode = "reading";
+    Object.assign(computedMock, { isMessagesView: false, isBoardView: true });
+    render(<App />);
+    expect(screen.getByText("session-board")).toBeInTheDocument();
+    expect(screen.queryByText("reading-viewer")).toBeNull();
+    expect(screen.queryByRole("group", { name: "reading.mode" })).toBeNull();
+  });
+
+  it("exits capture before entering reading mode", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "reading.reading" }));
+    expect(useAppStoreMock.getState().exitCaptureMode).toHaveBeenCalledOnce();
+    expect(useAppStoreMock.getState().setViewerMode).toHaveBeenCalledWith("reading");
+    expect(appStoreState.exitCaptureMode.mock.invocationCallOrder[0]).toBeLessThan(
+      appStoreState.setViewerMode.mock.invocationCallOrder[0]!,
+    );
+  });
 
   it("replays a WebUI message link from browser history", async () => {
     render(<App />);

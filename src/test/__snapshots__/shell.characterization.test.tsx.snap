@@ -1154,13 +1154,35 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
             class="flex h-full overflow-hidden"
           >
             <div
-              class="flex-1 min-w-0 overflow-x-hidden"
+              class="flex min-h-0 flex-1 min-w-0 flex-col overflow-x-hidden"
             >
               <div
-                data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
-                data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
-                data-stub="MessageViewer"
-              />
+                aria-label="Viewing mode"
+                class="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2"
+                role="group"
+              >
+                <button
+                  aria-pressed="true"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress bg-secondary text-secondary-foreground hover:bg-foreground/20 hover:text-foreground active:bg-foreground/34 data-disabled:bg-muted data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Standard
+                </button>
+                <button
+                  aria-pressed="false"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Reading
+                </button>
+              </div>
+              <div
+                class="min-h-0 flex-1"
+              >
+                <div
+                  data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
+                  data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
+                  data-stub="MessageViewer"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -2312,13 +2334,35 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
             class="flex h-full overflow-hidden"
           >
             <div
-              class="flex-1 min-w-0 overflow-x-hidden"
+              class="flex min-h-0 flex-1 min-w-0 flex-col overflow-x-hidden"
             >
               <div
-                data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
-                data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
-                data-stub="MessageViewer"
-              />
+                aria-label="Viewing mode"
+                class="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2"
+                role="group"
+              >
+                <button
+                  aria-pressed="true"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress bg-secondary text-secondary-foreground hover:bg-foreground/20 hover:text-foreground active:bg-foreground/34 data-disabled:bg-muted data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Standard
+                </button>
+                <button
+                  aria-pressed="false"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Reading
+                </button>
+              </div>
+              <div
+                class="min-h-0 flex-1"
+              >
+                <div
+                  data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
+                  data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
+                  data-stub="MessageViewer"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -3974,13 +4018,35 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
             class="flex h-full overflow-hidden"
           >
             <div
-              class="flex-1 min-w-0 overflow-x-hidden"
+              class="flex min-h-0 flex-1 min-w-0 flex-col overflow-x-hidden"
             >
               <div
-                data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
-                data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
-                data-stub="MessageViewer"
-              />
+                aria-label="Viewing mode"
+                class="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2"
+                role="group"
+              >
+                <button
+                  aria-pressed="true"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress bg-secondary text-secondary-foreground hover:bg-foreground/20 hover:text-foreground active:bg-foreground/34 data-disabled:bg-muted data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Standard
+                </button>
+                <button
+                  aria-pressed="false"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Reading
+                </button>
+              </div>
+              <div
+                class="min-h-0 flex-1"
+              >
+                <div
+                  data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
+                  data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
+                  data-stub="MessageViewer"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -5033,13 +5099,35 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
             class="flex h-full overflow-hidden"
           >
             <div
-              class="flex-1 min-w-0 overflow-x-hidden"
+              class="flex min-h-0 flex-1 min-w-0 flex-col overflow-x-hidden"
             >
               <div
-                data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
-                data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
-                data-stub="MessageViewer"
-              />
+                aria-label="Viewing mode"
+                class="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2"
+                role="group"
+              >
+                <button
+                  aria-pressed="true"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress bg-secondary text-secondary-foreground hover:bg-foreground/20 hover:text-foreground active:bg-foreground/34 data-disabled:bg-muted data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Standard
+                </button>
+                <button
+                  aria-pressed="false"
+                  class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled h-8 rounded-md px-3 text-list"
+                >
+                  Reading
+                </button>
+              </div>
+              <div
+                class="min-h-0 flex-1"
+              >
+                <div
+                  data-handlers="onBack,onClearSearch,onFilterTypeChange,onNextMatch,onPrevMatch,onSearchChange"
+                  data-props="{"messages":[],"isLoading":false,"selectedSession":{"session_id":"session-1","actual_session_id":"session-1","summary":"session summary","project_name":"project-1","file_path":"/tmp/session.jsonl","has_tool_use":false,"has_errors":false},"sessionSearch":{"query":"","matches":[],"currentMatchIndex":-1,"filterType":"content"}}"
+                  data-stub="MessageViewer"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -13,6 +13,45 @@ use std::sync::Arc;
 use super::state::AppState;
 use crate::commands;
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareReadingParams {
+    session_path: String,
+    force_refresh: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReadingParams {
+    document_id: String,
+    capability: String,
+}
+
+pub async fn prepare_reading_document(
+    Json(p): Json<PrepareReadingParams>,
+) -> Result<Json<crate::reading::PreparedDocument>, ApiError> {
+    require_history_path(&p.session_path)?;
+    Ok(Json(
+        crate::reading::prepare_reading_document(p.session_path, p.force_refresh).await?,
+    ))
+}
+
+pub async fn export_reading_document(
+    Json(p): Json<ExportReadingParams>,
+) -> Result<Json<String>, ApiError> {
+    Ok(Json(crate::reading::export_reading_document(
+        p.document_id,
+        p.capability,
+    )?))
+}
+
+pub async fn reading_document(request: axum::extract::Request) -> axum::response::Response {
+    let response =
+        crate::reading::document_response(&format!("http://reading.localhost{}", request.uri()));
+    let (parts, body) = response.into_parts();
+    axum::response::Response::from_parts(parts, axum::body::Body::from(body))
+}
+
 // ─── History-root guard ───────────────────────────────────────────────────────
 
 /// Caller-supplied session / project paths must sit under a configured history

@@ -22,6 +22,11 @@ export function useAppInitialization(deps: {
 
   const initializeApp = useAppStore((s) => s.initializeApp);
   const reloadCurrent = useAppStore((s) => s.reloadCurrent);
+  const loadViewerMode = useAppStore((s) => s.loadViewerMode);
+
+  useEffect(() => {
+    void loadViewerMode();
+  }, [loadViewerMode]);
   const fontScale = useAppStore((s) => s.fontScale);
   const highContrast = useEffectiveHighContrast();
   const watcherEnabled = useAppStore((s) => s.watcherEnabled);

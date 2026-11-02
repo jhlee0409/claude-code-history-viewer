@@ -5,6 +5,7 @@ pub mod export;
 pub mod menu;
 pub mod models;
 pub mod providers;
+pub mod reading;
 pub mod utils;
 pub mod window_state;
 pub mod wsl;
@@ -148,6 +149,9 @@ fn run_tauri() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        .register_uri_scheme_protocol("reading", |_context, request| {
+            reading::document_response(&request.uri().to_string())
+        })
         // Single-instance plugin MUST be registered first so the second
         // invocation is intercepted before any other plugin does any work.
         // The callback receives the second process's argv; we re-parse it
@@ -214,6 +218,8 @@ fn run_tauri() {
                 Mutex<Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>>,
             >)
         .invoke_handler(tauri::generate_handler![
+            reading::prepare_reading_document,
+            reading::export_reading_document,
             crate::cli::get_startup_session_hint,
             get_claude_folder_path,
             validate_claude_folder,

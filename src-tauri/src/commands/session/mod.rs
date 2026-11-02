@@ -90,6 +90,8 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     is_safe_history_file_path(path)
 }
 
+pub(crate) use rename::configured_claude_dirs;
+
 /// Reject session / project paths that fall outside the configured history
 /// roots: the supported providers' on-disk roots, every Claude directory the
 /// user has configured (`~/.claude`, `CLAUDE_CONFIG_DIR`, Settings → Custom

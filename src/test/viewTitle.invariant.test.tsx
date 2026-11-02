@@ -188,6 +188,10 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       activeProviders: [],
       setSelectedSession: vi.fn(),
       fontScale: 100,
+      viewerMode: "standard",
+      setViewerMode: vi.fn(async () => {}),
+      loadViewerMode: vi.fn(async () => {}),
+      exitCaptureMode: vi.fn(),
       highContrast: false,
       pagination: {
         currentOffset: 0,

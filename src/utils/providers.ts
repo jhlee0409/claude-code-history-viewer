@@ -296,6 +296,10 @@ export interface ConversationBreakdownCoverage {
   hasLimitedProviders: boolean;
 }
 
+export function supportsReadingView(provider?: string): boolean {
+  return provider === "claude";
+}
+
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "aider":

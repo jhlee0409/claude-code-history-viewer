@@ -23,6 +23,9 @@ import { useAppStore } from "@/store/useAppStore";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
+import { ReadingViewer } from "@/components/ReadingViewer";
+import { supportsReadingView } from "@/utils/providers";
+import type { ViewerMode } from "@/store/slices/settingsSlice";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
@@ -187,7 +190,12 @@ export const EmptyScreen = () => {
  * transitional form of `empty`, plan §4.1, until documents arrive in T8).
  */
 export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
+  const { t } = useTranslation();
   const selectedSession = useAppStore((s) => s.selectedSession);
+  const selectedProject = useAppStore((s) => s.selectedProject);
+  const viewerMode = useAppStore((s) => s.viewerMode);
+  const setViewerMode = useAppStore((s) => s.setViewerMode);
+  const exitCaptureMode = useAppStore((s) => s.exitCaptureMode);
   const messages = useAppStore((s) => s.messages);
   const isLoading = useAppStore((s) => s.isLoading);
   const sessionSearch = useAppStore((s) => s.sessionSearch);
@@ -198,10 +206,26 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
   const goToPrevMatch = useAppStore((s) => s.goToPrevMatch);
 
   if (!selectedSession) return <EmptyScreen />;
+  const readingSupported = supportsReadingView(selectedSession.provider ?? selectedProject?.provider ?? "claude");
+  const isReadingMode = viewerMode === "reading" && readingSupported;
+  const changeViewerMode = (mode: ViewerMode) => {
+    if (mode === "reading") exitCaptureMode();
+    void setViewerMode(mode);
+  };
   return (
     <div className="flex h-full overflow-hidden">
-      <div className="flex-1 min-w-0 overflow-x-hidden">
-        <MessageViewer
+      <div className="flex min-h-0 flex-1 min-w-0 flex-col overflow-x-hidden">
+        <div className="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2" role="group" aria-label={t("reading.mode")}>
+          <Button size="sm" variant={isReadingMode ? "ghost" : "secondary"} aria-pressed={!isReadingMode} onClick={() => changeViewerMode("standard")}>
+            {t("reading.standard")}
+          </Button>
+          <Button size="sm" variant={isReadingMode ? "secondary" : "ghost"} aria-pressed={isReadingMode} disabled={!readingSupported} title={!readingSupported ? t("reading.unsupported") : undefined} onClick={() => changeViewerMode("reading")}>
+            {t("reading.reading")}
+          </Button>
+          {!readingSupported && <span className="ml-2 text-list text-muted-foreground">{t("reading.unsupported")}</span>}
+        </div>
+        <div className="min-h-0 flex-1">
+        {isReadingMode ? <ReadingViewer key={selectedSession.file_path} session={selectedSession} /> : <MessageViewer
           messages={messages}
           isLoading={isLoading}
           selectedSession={selectedSession}
@@ -212,7 +236,8 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
           onNextMatch={goToNextMatch}
           onPrevMatch={goToPrevMatch}
           onBack={() => analyticsActions.switchToBoard()}
-        />
+        />}
+        </div>
       </div>
     </div>
   );

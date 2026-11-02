@@ -46,6 +46,7 @@ aho-corasick = "1.1"
 lru = "0.16"
 anyhow = "1.0"
 base64 = "0.22"
+sha2 = "0.10"
 urlencoding = "2.1"
 tempfile = "3.24.0"
 trash = "5.2"
@@ -79,9 +80,11 @@ dispatch2 = "0.3"
 # tree through tempfile; no new crate.
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1", features = ["fs"] }
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_Threading"] }
 
 [dev-dependencies]
 # Core testing utilities

@@ -147,6 +147,7 @@ export interface AppStoreState {
   analytics: AnalyticsState;
 
   // Settings state
+  viewerMode: import("./settingsSlice").ViewerMode;
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   fontScale: number;
@@ -369,6 +370,8 @@ export interface AppStoreActions {
   clearAnalyticsErrors: () => void;
 
   // Settings actions
+  setViewerMode: (mode: import("./settingsSlice").ViewerMode) => Promise<void>;
+  loadViewerMode: () => Promise<void>;
   setExcludeSidechain: (exclude: boolean) => void;
   setShowSystemMessages: (show: boolean) => void;
   setFontScale: (scale: number) => Promise<void>;
