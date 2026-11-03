@@ -162,6 +162,26 @@ const installBackend = (backend: ReturnType<typeof makeBackend>) => {
 // ---------------------------------------------------------------------------
 
 describe("messageSlice — chat-style pagination", () => {
+  it("distinguishes watcher tail refresh, older-page prepend, and filter replacement", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    const kind = () => store.getState().messageUpdateKind;
+    await store.getState().selectSession(makeSession());
+    expect(kind()).toBe("replace");
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("watcher");
+    expect(kind()).toBe("tail-refresh");
+    await store.getState().loadMoreMessages();
+    expect(kind()).toBe("prepend");
+    installBackend(makeBackend(502));
+    await store.getState().reloadCurrent("filter");
+    expect(kind()).toBe("replace");
+    await store.getState().reloadCurrent("refresh");
+    expect(kind()).toBe("tail-refresh");
+    await store.getState().selectSession(makeSession({ session_id: "other", file_path: "/tmp/other.jsonl" }));
+    expect(kind()).toBe("replace");
+  });
+
   beforeEach(() => {
     mockApi.mockReset();
     mockToastError.mockReset();

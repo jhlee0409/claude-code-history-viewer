@@ -180,6 +180,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // 메시지 로딩 상태 — 로딩 스피너 표시 조건
     isLoadingMessages,
     setActiveSessionNearBottom,
+    messageUpdateKind,
   } = useAppStore();
 
   // Session minimap: combines the settings switch, Capture Mode, and the md
@@ -192,6 +193,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
     [messages],
   );
+
+  // Follow source writes, not display-filter/group expansion or virtual-row count.
+  const messageUuids = useMemo(() => messages.map((message) => message.uuid), [messages]);
 
   // Apply role + content type filters
   const displayMessages = useMemo(
@@ -640,7 +644,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // A saved anchor, like a target, replaces the initial scroll to the bottom.
     targetMessageUuid: targetMessageUuid ?? anchorHere?.anchor?.messageUuid ?? null,
     onNearBottomChange: setActiveSessionNearBottom,
-    firstItemKey: messages[0]?.uuid ?? null,
+    messageUuids,
+    messageUpdateKind,
   });
 
   // ─── Load-earlier (chat-style message pagination) ──────────────────────

@@ -52,8 +52,12 @@ import {
 /** Pagination state for project token stats */
 export type ProjectTokenStatsPagination = ProjectTokenStatsPaginationState;
 
+/** The operation that committed the current source-message window. */
+export type MessageUpdateKind = "replace" | "prepend" | "tail-refresh";
+
 export interface MessageSliceState {
   messages: ClaudeMessage[];
+  messageUpdateKind: MessageUpdateKind;
   pagination: PaginationState;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
@@ -92,6 +96,8 @@ export interface MessageSliceState {
 export type ReloadReason = "watcher" | "filter" | "refresh" | "restore";
 
 export interface SelectSessionOptions extends WebUINavigationOptions {
+  /** Store-internal provenance: filter/restore reloads must not live-follow. */
+  reloadReason?: ReloadReason;
   /**
    * The session's whole message list, already in hand (the board's lane
    * cache): it is opened from this instead of fetched.
@@ -220,6 +226,7 @@ const areMessagesEquivalent = (
 
 const initialMessageState: MessageSliceState = {
   messages: [],
+  messageUpdateKind: "replace",
   pagination: { ...INITIAL_PAGINATION },
   isLoadingMessages: false,
   isLoadingTokenStats: false,
@@ -432,6 +439,7 @@ export const createMessageSlice: StateCreator<
 
         set({
           messages: loaded.length > 0 ? applySystemMessageFilter([...loaded, ...existing]) : existing,
+          messageUpdateKind: "prepend",
           pagination: {
             currentOffset: page.next_offset,
             pageSize: MESSAGE_PAGE_SIZE,
@@ -479,7 +487,7 @@ export const createMessageSlice: StateCreator<
     const target = fresh?.file_path === current.file_path ? fresh : current;
     // Same file, so `selectSession` takes its in-place path; "none" because a
     // reload is not a WebUI history step.
-    await get().selectSession(target, { history: "none" });
+    await get().selectSession(target, { history: "none", reloadReason: reason });
   },
 
   selectSession: async (session: ClaudeSession, options) => {
@@ -520,6 +528,7 @@ export const createMessageSlice: StateCreator<
       nextRequestId("subagents");
       set({
         messages: [],
+        messageUpdateKind: "replace",
         pagination: { ...INITIAL_PAGINATION },
         isLoadingMessages: true,
         subagentSessions: [],
@@ -556,6 +565,7 @@ export const createMessageSlice: StateCreator<
       clearSearchIndex();
       set({
         messages: cached,
+        messageUpdateKind: "replace",
         isLoadingMessages: false,
         pagination: {
           currentOffset: cached.length,
@@ -597,6 +607,10 @@ export const createMessageSlice: StateCreator<
 
       // Apply system message filter (client-side; window-local)
       const filteredMessages = applySystemMessageFilter(windowMessages);
+      const messageUpdateKind: MessageUpdateKind =
+        isInPlaceReload && (options?.reloadReason === "watcher" || options?.reloadReason === "refresh")
+          ? "tail-refresh"
+          : "replace";
 
       const duration = performance.now() - start;
       if (import.meta.env.DEV) {
@@ -614,13 +628,14 @@ export const createMessageSlice: StateCreator<
       };
 
       if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
-        set({ isLoadingMessages: false, pagination: nextPagination });
+        set({ isLoadingMessages: false, pagination: nextPagination, messageUpdateKind });
         return;
       }
 
       // Update state first to allow UI to render immediately
       set({
         messages: filteredMessages,
+        messageUpdateKind,
         pagination: nextPagination,
         isLoadingMessages: false,
       });
