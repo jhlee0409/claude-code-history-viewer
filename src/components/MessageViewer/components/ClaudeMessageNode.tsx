@@ -15,9 +15,6 @@ import { ResultProviderContext, useResultProvider } from "@/components/transcrip
 import type { ProgressData } from "../../../types";
 import { ClaudeContentArrayRenderer } from "../../contentRenderer";
 import {
-  ClaudeToolUseDisplay,
-  MessageContentDisplay,
-  ToolExecutionResultRouter,
   ProgressRenderer,
   AgentProgressGroupRenderer,
   FileHistorySnapshotRenderer,
@@ -28,11 +25,9 @@ import {
   TaskOperationGroupRenderer,
 } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
-import { isEmptyMessage } from "../helpers/messageHelpers";
-import {
-  isToolUseContent,
-  isToolResultContent,
-} from "../../../utils/typeGuards";
+import { sourceVisibility } from "../../transcript/sourceVisibility";
+import { legacyOwnership } from "../../transcript/sourceEnvelope";
+import { MessageSourcePrefix, MessageSourceExtras } from "../../transcript/MessageSourceEnvelope";
 import { isActionModifier } from "../../../utils/platform";
 import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
@@ -188,7 +183,7 @@ export const ClaudeMessageNode = React.memo(
     }
 
     // Skip empty messages
-    if (isEmptyMessage(message)) {
+    if (sourceVisibility(message, isInSubagent, false) === "hidden") {
       return null;
     }
 
@@ -403,13 +398,7 @@ export const ClaudeMessageNode = React.memo(
       );
     }
 
-    const hasInlineToolResult =
-      Array.isArray(message.content) &&
-      message.content.some(isToolResultContent);
-    const shouldRenderLegacyToolResult =
-      (message.type === "user" || message.type === "assistant") &&
-      message.toolUseResult != null &&
-      !hasInlineToolResult;
+    const shouldRenderLegacyToolResult = legacyOwnership(message).result;
 
     // Default message rendering
     return (
@@ -441,16 +430,7 @@ export const ClaudeMessageNode = React.memo(
             {!hideHeader && <MessageHeader message={message} />}
 
             <div className="w-full">
-              {(message.type !== "assistant" ||
-                messageFilter.contentTypes.text) && (
-                <MessageContentDisplay
-                  content={extractClaudeMessageContent(message)}
-                  messageType={message.type}
-                  searchQuery={searchQuery}
-                  isCurrentMatch={isCurrentMatch}
-                  currentMatchIndex={currentMatchIndex}
-                />
-              )}
+              <MessageSourcePrefix message={message} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
 
               {message.content && Array.isArray(message.content) && (
                 <div className="mb-2">
@@ -488,26 +468,7 @@ export const ClaudeMessageNode = React.memo(
                 </div>
               )}
 
-              <CodexUnassignedFileChanges message={message} />
-
-              {messageFilter.contentTypes.toolCalls &&
-                message.type === "assistant" &&
-                message.toolUse &&
-                !(
-                  Array.isArray(message.content) &&
-                  message.content.some(isToolUseContent)
-                ) && <ClaudeToolUseDisplay toolUse={message.toolUse} />}
-
-              {(message.type !== "assistant" ||
-                messageFilter.contentTypes.toolCalls) &&
-                shouldRenderLegacyToolResult && (
-                  <ToolExecutionResultRouter
-                    toolResult={message.toolUseResult!}
-                    searchQuery={searchQuery}
-                    isCurrentMatch={isCurrentMatch}
-                    currentMatchIndex={currentMatchIndex}
-                  />
-                )}
+              <MessageSourceExtras message={message} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
             </div>
           </div>
         </div>

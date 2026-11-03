@@ -111,6 +111,8 @@ export interface FlattenedMessageItem {
   message: ClaudeMessage;
   depth: number;
   originalIndex: number;
+  /** Exact group membership from the existing grouping result, not source proximity. */
+  groupLeaderUuid?: string;
   /** True if this message is the first (leader) of an agent task group */
   isGroupLeader: boolean;
   /** True if this message is a non-leader member of an agent task group */
