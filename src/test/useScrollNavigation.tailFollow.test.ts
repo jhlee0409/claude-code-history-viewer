@@ -107,6 +107,14 @@ describe("useScrollNavigation — source tail vs prepend", () => {
     expect(h.scrollToIndex).not.toHaveBeenCalled();
   });
 
+  it("does not follow a prior head rotated past the retained previous tail", () => {
+    const h = mount();
+    // The old tail is retained before the new last UUID, but that UUID is
+    // already in the source: reordering is not a newly written suffix.
+    h.update({ messageUuids: [...initialUuids.slice(1), initialUuids[0]!], messagesLength: 125 });
+    expect(h.scrollToIndex).not.toHaveBeenCalled();
+  });
+
   it("does not mistake a filter reload revealing an existing suffix for new writes", () => {
     const h = mount();
     h.update({ messageUuids: [...initialUuids, "previously-filtered"], messagesLength: 125, messageUpdateKind: "replace" });

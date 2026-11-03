@@ -157,6 +157,18 @@ const installBackend = (backend: ReturnType<typeof makeBackend>) => {
   );
 };
 
+/** Hold the next page response while a newer request takes ownership. */
+const deferNextPage = () => {
+  type Page = ReturnType<ReturnType<typeof makeBackend>["page"]>;
+  let release!: (page: Page) => void;
+  const pending = new Promise<Page>((resolve) => { release = resolve; });
+  mockApi.mockImplementationOnce((cmd: string) => {
+    expect(cmd).toBe("load_provider_messages_paginated");
+    return pending;
+  });
+  return release;
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -180,6 +192,75 @@ describe("messageSlice — chat-style pagination", () => {
     expect(kind()).toBe("tail-refresh");
     await store.getState().selectSession(makeSession({ session_id: "other", file_path: "/tmp/other.jsonl" }));
     expect(kind()).toBe("replace");
+  });
+
+  it("rejects a stale watcher response after a newer filter replacement", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    await store.getState().selectSession(makeSession());
+
+    const release = deferNextPage();
+    const stale = store.getState().reloadCurrent("watcher");
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("filter");
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("replace");
+    expect(current.messages.at(-1)?.uuid).toBe("uuid-501");
+
+    release(makeBackend(502).page({ offset: 0, limit: MESSAGE_PAGE_SIZE }));
+    await stale;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().messageUpdateKind).toBe("replace");
+  });
+
+  it("rejects a stale older-page response after a newer tail refresh", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    await store.getState().selectSession(makeSession());
+
+    const release = deferNextPage();
+    const older = store.getState().loadMoreMessages();
+    // loadMoreMessages queues its fetch on the older-page promise chain.
+    await Promise.resolve();
+    expect(store.getState().pagination.isLoadingMore).toBe(true);
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("watcher");
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("tail-refresh");
+    expect(current.messages).toHaveLength(MESSAGE_PAGE_SIZE);
+    expect(current.messages.at(-1)?.uuid).toBe("uuid-501");
+
+    release(makeBackend(500).page({ offset: MESSAGE_PAGE_SIZE, limit: MESSAGE_PAGE_SIZE }));
+    await older;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().messageUpdateKind).toBe("tail-refresh");
+  });
+
+  it("rejects a stale response from a different source with the same session ID", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    const original = makeSession();
+    await store.getState().selectSession(original);
+
+    const release = deferNextPage();
+    const stale = store.getState().reloadCurrent("watcher");
+    const other = makeSession({ file_path: "/review-other-source/session.jsonl", provider: "codex" });
+    expect(other.session_id).toBe(original.session_id);
+    installBackend(makeBackend(10));
+    await store.getState().selectSession(other);
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("replace");
+    expect(current.messages).toHaveLength(10);
+    expect(current.selectedSession).toEqual(other);
+
+    release(makeBackend(501).page({ offset: 0, limit: MESSAGE_PAGE_SIZE }));
+    await stale;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().selectedSession).toEqual(other);
+    expect(store.getState().messageUpdateKind).toBe("replace");
   });
 
   beforeEach(() => {
