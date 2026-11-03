@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { contentEntryVisible } from "./contentVisibility";
 import { ResultProviderContext, useResultProvider } from "../transcript/resultProvider";
 import { Markdown } from "../common";
 import { ThinkingRenderer } from "./ThinkingRenderer";
@@ -56,6 +57,7 @@ export const ContentEntryRenderer = memo(({ entry, firstTextIndex = -1, provider
   const shownResults = (results: Record<string, unknown>[]) => skipToolResults ? [] : results;
   const skipOrphanResult = skipToolCalls || skipToolResults;
   const renderEntry = () => {
+        if (!contentEntryVisible(entry, { firstTextIndex, skipFirstText, skipText, skipThinking, skipCommands, skipToolCalls, skipToolResults })) return null;
         if (entry.kind === "toolExecution") {
           if (skipToolCalls) return null;
           return (

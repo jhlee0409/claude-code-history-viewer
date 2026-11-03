@@ -3,7 +3,8 @@ import type { ToolOutcome } from "./toolOutcome";
 import { turnStartKinds, type TurnStartKind } from "./isTurnStart";
 import { codexAutomatedTurns, codexTurnId } from "./codexTurns";
 import { transcriptBlocks } from "./transcriptBlocks";
-import { rowVisibility } from "./sourceVisibility";
+import { rowVisibility, visibleTranscriptBlocks } from "./sourceVisibility";
+import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 import type { BlockRender } from "./sourceEnvelope";
 
 /** EV1a lookup hits projected to uuid → ordinal; absent/null is unknown, never inherited. */
@@ -54,9 +55,12 @@ export interface TurnChunk {
 }
 export type TranscriptItem = TurnChunk | { kind: "date-divider" | "hidden"; id: string; source: Exclude<FlattenedMessage, FlattenedMessageItem> };
 export interface TranscriptModel {
+  /** Snapshot of the entry-filter policy; cached visible rows cannot cross policies. */
+  visibilityKey?: string;
   items: readonly TranscriptItem[];
   turns: readonly TranscriptTurn[];
   messageToItemIndexes: ReadonlyMap<string, readonly number[]>;
+  messageToFirstBlockId: ReadonlyMap<string, string>;
   blockToItemIndex: ReadonlyMap<string, number>;
   blocks: ReadonlyMap<string, TranscriptBlock>;
   runByBlockId: ReadonlyMap<string, ToolRun>;
@@ -64,6 +68,8 @@ export interface TranscriptModel {
   expandedBlockIds: ReadonlySet<string>;
 }
 export interface TranscriptOptions {
+  /** Same assistant content filters as production; input rows retain full source evidence. */
+  contentTypes?: MessageFilterContentTypes;
   inSubagent?: boolean;
   /** Canonical start UUIDs from the turn index; lookup hits alone do not contain these. */
   turnStartUuids?: ReadonlyMap<number, string>;
@@ -80,7 +86,9 @@ export interface TargetLocation { itemIndex: number; blockId: string; expandBloc
 
 /** The only public target-resolution entry; callers apply expansion before scrolling. */
 export function itemIndexForTarget(model: TranscriptModel, target: TranscriptTarget): TargetLocation | null {
-  const sourceId = "blockId" in target ? target.blockId : `${target.messageUuid}#${target.contentIndex ?? 0}`;
+  const sourceId = "blockId" in target ? target.blockId : target.contentIndex === undefined
+    ? model.messageToFirstBlockId.get(target.messageUuid) : `${target.messageUuid}#${target.contentIndex}`;
+  if (sourceId === undefined) return null;
   const itemIndex = model.blockToItemIndex.get(sourceId);
   const block = model.blocks.get(sourceId);
   if (itemIndex === undefined || !block) return null;
@@ -169,6 +177,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
   const items: TranscriptItem[] = [];
   const turns: TranscriptTurn[] = [];
   const messageToItemIndexes = new Map<string, number[]>();
+  const messageToFirstBlockId = new Map<string, string>();
   const blockToItemIndex = new Map<string, number>();
   const blocks = new Map<string, TranscriptBlock>();
   const runByBlockId = new Map<string, ToolRun>();
@@ -192,11 +201,17 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
     }
   }
   const rendererSignature = createRendererSignature();
+  const visibilityKey = JSON.stringify([options.contentTypes?.text ?? true, options.contentTypes?.thinking ?? true, options.contentTypes?.commands ?? true, options.contentTypes?.toolCalls ?? true]);
+  const projectedRows = new Map<string, readonly TranscriptBlock[]>();
   const blocksForRow = (row: FlattenedMessageItem): readonly TranscriptBlock[] => {
+    const projected = projectedRows.get(row.message.uuid);
+    if (projected) return projected;
     const cached = priorRows.get(row.message.uuid);
     const source = cached?.[0]?.source;
-    const same = source && rendererSignature(row) === rendererSignature(source);
-    return same ? cached! : transcriptBlocks(row);
+    const same = options.previous?.visibilityKey === visibilityKey && source && rendererSignature(row) === rendererSignature(source);
+    const result = same ? cached! : visibleTranscriptBlocks(transcriptBlocks(row), options.contentTypes);
+    projectedRows.set(row.message.uuid, result);
+    return result;
   };
   const automatedUuids = codexAutomatedTurns(flattened.flatMap(row => row.type === "message" ? [row.message] : [])).uuids;
   const boundaryKinds = turnStartKinds(flattened.flatMap(row => row.type === "message" ? [row.message] : []), { inSubagent: options.inSubagent ?? false });
@@ -240,6 +255,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
       const itemIndex = items.length;
       items.push({ kind: "turn", id: `${id}:${partBlocks[0]!.id}`, turn, turnStart: part === 0 ? { kind: "turnStart", partial: turn.partial } : null, blocks: partBlocks, entries: partEntries, part: part + 1, parts: parts.length, posinset: 0, setsize: -1 });
       for (const block of partBlocks) {
+        if (!messageToFirstBlockId.has(block.messageUuid)) messageToFirstBlockId.set(block.messageUuid, block.id);
         for (const sourceId of block.sourceBlockIds) {
           blocks.set(sourceId, block);
           blockToItemIndex.set(sourceId, itemIndex);
@@ -259,6 +275,7 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
       continue;
     }
     if (rowVisibility(row, options.inSubagent) !== "visible") continue;
+    if (blocksForRow(row).length === 0) continue;
     const ordinal = membership.get(row.message.uuid) ?? null;
     const producerTurn = codexTurnId(row.message);
     // The loaded progress row already owns this automated producer cycle. Its
@@ -311,12 +328,14 @@ export function buildTranscriptItems(flattened: readonly FlattenedMessage[], mem
   chunks.forEach((chunk, index) => { chunk.posinset = index + 1; chunk.setsize = options.complete ? chunks.length : -1; });
   for (const [member, leader] of aliases) {
     const indexes = messageToItemIndexes.get(leader);
-    const block = blocks.get(`${leader}#0`);
+    const firstId = messageToFirstBlockId.get(leader);
+    const block = firstId === undefined ? undefined : blocks.get(firstId);
     if (!indexes || !block) continue;
     messageToItemIndexes.set(member, [...indexes]);
+    messageToFirstBlockId.set(member, block.id);
     blocks.set(`${member}#0`, block);
     blockToItemIndex.set(`${member}#0`, indexes[0]!);
   }
-  const model: TranscriptModel = { items, turns, messageToItemIndexes, blockToItemIndex, blocks, runByBlockId, expandedBlockIds };
+  const model: TranscriptModel = { items, turns, messageToItemIndexes, messageToFirstBlockId, blockToItemIndex, blocks, runByBlockId, expandedBlockIds, visibilityKey };
   return model;
 }

@@ -26,6 +26,7 @@ import {
 } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { sourceVisibility } from "../../transcript/sourceVisibility";
+import { messageContentVisibility } from "../../contentRenderer/contentVisibility";
 import { legacyOwnership } from "../../transcript/sourceEnvelope";
 import { MessageSourcePrefix, MessageSourceExtras } from "../../transcript/MessageSourceEnvelope";
 import { isActionModifier } from "../../../utils/platform";
@@ -442,27 +443,13 @@ export const ClaudeMessageNode = React.memo(
                     isCurrentMatch={isCurrentMatch}
                     currentMatchIndex={currentMatchIndex}
                     skipToolResults={shouldRenderLegacyToolResult}
-                    skipText={
-                      message.type === "assistant" &&
-                      !messageFilter.contentTypes.text
-                    }
+                    {...messageContentVisibility(message, messageFilter.contentTypes)}
                     // The bubble above already shows the first text block;
                     // providers that store user turns as content arrays
                     // (pi/oh-my-pi) would otherwise render it twice. Later
                     // text blocks still render.
                     skipFirstText={!!extractClaudeMessageContent(message)}
-                    skipThinking={
-                      message.type === "assistant" &&
-                      !messageFilter.contentTypes.thinking
-                    }
-                    skipCommands={
-                      message.type === "assistant" &&
-                      !messageFilter.contentTypes.commands
-                    }
-                    skipToolCalls={
-                      message.type === "assistant" &&
-                      !messageFilter.contentTypes.toolCalls
-                    }
+
                     onViewSubagent={handleViewSubagent}
                   />
                 </div>

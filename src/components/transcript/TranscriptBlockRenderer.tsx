@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { messageContentVisibility } from "../contentRenderer/contentVisibility";
 import { ContentEntryRenderer, type ContentEntryOptions } from "../contentRenderer/ContentEntryRenderer";
 import { ClaudeMessageNode } from "../MessageViewer/components/ClaudeMessageNode";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
@@ -28,17 +29,14 @@ export const TranscriptBlockRenderer = memo(({ block, ...options }: { block: Tra
   />;
   const content = Array.isArray(message.content) ? message.content : [];
   const firstTextIndex = content.findIndex(item => item !== null && typeof item === "object" && item.type === "text");
-  const assistant = message.type === "assistant";
+
   return <ResultProviderContext.Provider value={message.provider ?? inheritedProvider}>
     <ExpandKeyProvider value={message.uuid}>
       {render.first && <MessageSourcePrefix message={message} {...options} />}
       <ContentEntryRenderer {...options} provider={message.provider} entry={render.entry}
         firstTextIndex={firstTextIndex} skipFirstText={!!extractClaudeMessageContent(message)}
         skipToolResults={legacyOwnership(message).result}
-        skipText={assistant && !messageFilter.contentTypes.text}
-        skipThinking={assistant && !messageFilter.contentTypes.thinking}
-        skipCommands={assistant && !messageFilter.contentTypes.commands}
-        skipToolCalls={assistant && !messageFilter.contentTypes.toolCalls} />
+        {...messageContentVisibility(message, messageFilter.contentTypes)} />
       {render.last && <MessageSourceExtras message={message} {...options} />}
     </ExpandKeyProvider>
   </ResultProviderContext.Provider>;
