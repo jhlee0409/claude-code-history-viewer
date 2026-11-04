@@ -24,7 +24,16 @@ export function useFilterReadingPosition({ sessionPath, messages, getScrollEleme
     // The subscription runs before React replaces the old measured DOM.
     // showSystemMessages changes first; its HTTP reload arrives later.
     return useAppStore.subscribe((state, previous) => {
-      if (state.selectedSession?.file_path !== sessionPath || state.targetMessageUuid !== previous.targetMessageUuid) {
+      if (state.selectedSession?.file_path !== sessionPath || state.targetMessageUuid !== previous.targetMessageUuid ||
+        (state.messages !== previous.messages && state.messageUpdateKind !== "replace")) {
+        pending.current = null;
+        cancelRef.current();
+        return;
+      }
+      // A zero-population system filter may complete its HTTP reload with
+      // the same messages array. Do not carry that anchor into a later write.
+      if (pending.current && state.messages === previous.messages && state.pagination !== previous.pagination &&
+        !state.pagination.isLoadingMore && !state.isLoadingMessages) {
         pending.current = null;
         cancelRef.current();
         return;

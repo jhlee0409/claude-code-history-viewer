@@ -45,4 +45,16 @@ describe("filter source-anchor ownership", () => {
   it("does not react to append/prepend without a display filter change", () => {
     const f = fixture(); f.change(); expect(f.viewport.scrollTop).toBe(500); expect(f.props.restoringRef.current).toBe(false);
   });
+  it("clears a no-op HTTP filter anchor before a later append", () => {
+    const f = fixture(); f.capture();
+    const previous = { selectedSession: { file_path: "session-A" }, targetMessageUuid: null, messageFilter: {}, showSystemMessages: false, messages, pagination: { isLoadingMore: false }, isLoadingMessages: false };
+    act(() => { for (const fn of store.listeners) fn({ ...previous, pagination: { isLoadingMore: false } }, previous); });
+    f.change(); expect(f.viewport.scrollTop).toBe(500);
+  });
+  it("yields a pending filter anchor to a real append or prepend", () => {
+    const f = fixture(); f.capture();
+    const previous = { selectedSession: { file_path: "session-A" }, targetMessageUuid: null, messageFilter: {}, showSystemMessages: false, messages };
+    act(() => { for (const fn of store.listeners) fn({ ...previous, messages: [], messageUpdateKind: "tail-refresh" }, previous); });
+    f.change(); expect(f.viewport.scrollTop).toBe(500);
+  });
 });
