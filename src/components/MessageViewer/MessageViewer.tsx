@@ -663,6 +663,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   useFilterReadingPosition({
     sessionPath,
     messages: displayMessages,
+    messageFilter,
     getScrollElement,
     getScrollIndex,
     virtualizer,

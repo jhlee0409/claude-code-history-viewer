@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@/store/useAppStore";
+import type { MessageFilter } from "@/store/slices/filterSlice";
 import type { ClaudeMessage } from "@/types";
 
 interface Options {
   sessionPath: string | null;
   messages: ClaudeMessage[];
+  messageFilter: MessageFilter;
   getScrollElement: () => HTMLElement | null;
   getScrollIndex: (uuid: string) => number | null;
   virtualizer: Virtualizer<HTMLElement, Element>;
@@ -14,8 +16,8 @@ interface Options {
 }
 
 /** Preserve a source row, not its obsolete flat index, across display filters. */
-export function useFilterReadingPosition({ sessionPath, messages, getScrollElement, getScrollIndex, virtualizer, explicitTarget, restoringRef }: Options) {
-  const pending = useRef<{ uuid: string; offset: number; messages: ClaudeMessage[]; sessionPath: string } | null>(null);
+export function useFilterReadingPosition({ sessionPath, messages, messageFilter, getScrollElement, getScrollIndex, virtualizer, explicitTarget, restoringRef }: Options) {
+  const pending = useRef<{ uuid: string; offset: number; messages: ClaudeMessage[]; sessionPath: string; filter: MessageFilter | null } | null>(null);
   const cancelRef = useRef<() => void>(() => {});
   const latest = useRef({ messages, explicitTarget, getScrollElement });
   useLayoutEffect(() => { latest.current = { messages, explicitTarget, getScrollElement }; });
@@ -55,15 +57,25 @@ export function useFilterReadingPosition({ sessionPath, messages, getScrollEleme
       // the read tail source at the tail, otherwise the first visible row.
       const atTail = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
       const node = atTail ? visible.at(-1) : visible[0];
-      if (node?.dataset.messageUuid) pending.current = { uuid: node.dataset.messageUuid, offset: node.getBoundingClientRect().top - bounds.top, messages: current.messages, sessionPath };
+      if (node?.dataset.messageUuid) pending.current = {
+        uuid: node.dataset.messageUuid,
+        offset: node.getBoundingClientRect().top - bounds.top,
+        messages: current.messages,
+        sessionPath,
+        filter: state.messageFilter !== previous.messageFilter ? state.messageFilter : null,
+      };
     });
   }, [sessionPath]);
 
   useLayoutEffect(() => {
     const anchor = pending.current;
-    if (!anchor || anchor.messages === messages) return;
+    if (!anchor) return;
+    // A client filter finishes at its own React commit, even if projection
+    // reused the same array. System filters instead await their HTTP source
+    // commit (or the subscription's same-source no-op settlement).
+    if (anchor.filter ? anchor.filter !== messageFilter : anchor.messages === messages) return;
     pending.current = null;
-    if (anchor.sessionPath !== sessionPath || explicitTarget) return;
+    if (anchor.messages === messages || anchor.sessionPath !== sessionPath || explicitTarget) return;
     const viewport = getScrollElement();
     const index = getScrollIndex(anchor.uuid);
     // A filtered-out source is unavailable: retain the existing viewport
@@ -101,7 +113,7 @@ export function useFilterReadingPosition({ sessionPath, messages, getScrollEleme
     viewport.addEventListener("keydown", onKey);
     restore();
     return stop;
-  }, [sessionPath, messages, explicitTarget, getScrollElement, getScrollIndex, virtualizer, restoringRef]);
+  }, [sessionPath, messages, messageFilter, explicitTarget, getScrollElement, getScrollIndex, virtualizer, restoringRef]);
 
   useEffect(() => () => { pending.current = null; cancelRef.current(); }, [sessionPath]);
 }

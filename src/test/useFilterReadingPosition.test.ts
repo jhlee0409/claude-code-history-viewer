@@ -2,6 +2,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import type { ClaudeMessage } from "@/types";
+import type { MessageFilter } from "@/store/slices/filterSlice";
 import { useFilterReadingPosition } from "@/components/MessageViewer/hooks/useFilterReadingPosition";
 
 const store = vi.hoisted(() => ({ listeners: new Set<(state: Record<string, unknown>, previous: Record<string, unknown>) => void>() }));
@@ -16,9 +17,10 @@ function fixture() {
   let start = 550;
   row.getBoundingClientRect = () => ({ top: start - viewport.scrollTop, bottom: start - viewport.scrollTop + 100, height: 100 } as DOMRect);
   const restoringRef = { current: false };
-  const props = { sessionPath: "session-A", messages, getScrollElement: () => viewport, getScrollIndex: vi.fn((): number | null => 4), virtualizer: { getOffsetForIndex: vi.fn(() => [700]) } as unknown as Virtualizer<HTMLElement, Element>, explicitTarget: null as string | null, restoringRef };
+  const messageFilter: MessageFilter = { roles: { user: true, assistant: true }, contentTypes: { text: true, thinking: true, toolCalls: true, commands: true, parallelTasks: true } };
+  const props = { sessionPath: "session-A", messages, messageFilter, getScrollElement: () => viewport, getScrollIndex: vi.fn((): number | null => 4), virtualizer: { getOffsetForIndex: vi.fn(() => [700]) } as unknown as Virtualizer<HTMLElement, Element>, explicitTarget: null as string | null, restoringRef };
   const hook = renderHook(options => useFilterReadingPosition(options), { initialProps: props });
-  const capture = () => act(() => { const previous = { selectedSession: { file_path: "session-A" }, targetMessageUuid: null, messageFilter: {}, showSystemMessages: false }; for (const fn of store.listeners) fn({ ...previous, messageFilter: {} }, previous); });
+  const capture = () => act(() => { const previous = { selectedSession: { file_path: "session-A" }, targetMessageUuid: null, messageFilter: props.messageFilter, showSystemMessages: false }; props.messageFilter = { ...props.messageFilter }; for (const fn of store.listeners) fn({ ...previous, messageFilter: props.messageFilter }, previous); });
   const change = () => { start = 700; hook.rerender({ ...props, messages: [] }); };
   return { viewport, row, props, hook, capture, change, move: (value: number) => { start = value; } };
 }
