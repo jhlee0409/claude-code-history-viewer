@@ -10,6 +10,7 @@ import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { SCROLL_HIGHLIGHT_DELAY_MS } from "../types";
 import { scrollBehavior } from "@/utils/motion";
+import type { MessageUpdateKind } from "@/store/slices/messageSlice";
 
 // Scroll behavior constants
 const SCROLL_RETRY_DELAY_MS = 50;
@@ -19,6 +20,7 @@ const SCROLL_THRESHOLD_PX = 100;
 const MIN_MESSAGES_FOR_SCROLL_BUTTONS = 5;
 const SCROLL_BOTTOM_TOLERANCE_PX = 5;
 const MAX_SCROLL_RETRY_ATTEMPTS = 3;
+const EMPTY_MESSAGE_UUIDS: readonly string[] = [];
 
 interface UseScrollNavigationOptions {
   scrollContainerRef: React.RefObject<OverlayScrollbarsComponentRef | null>;
@@ -37,12 +39,10 @@ interface UseScrollNavigationOptions {
   targetMessageUuid?: string | null;
   /** Reports whether the message viewport is close enough to live-follow new writes. */
   onNearBottomChange?: (nearBottom: boolean) => void;
-  /**
-   * Key of the FIRST list item. When the list grows while this key changes,
-   * older messages were PREPENDED (chat-style pagination) — auto-scroll to
-   * bottom must not fire in that case.
-   */
-  firstItemKey?: string | null;
+  /** Chronological source UUIDs, before display filtering and row grouping. */
+  messageUuids?: readonly string[];
+  /** Only a live refresh may follow; older-page loads and filter reloads may not. */
+  messageUpdateKind?: MessageUpdateKind;
 }
 
 interface UseScrollNavigationReturn {
@@ -67,7 +67,8 @@ export const useScrollNavigation = ({
   scrollElementReady = false,
   targetMessageUuid,
   onNearBottomChange,
-  firstItemKey = null,
+  messageUuids = EMPTY_MESSAGE_UUIDS,
+  messageUpdateKind = "replace",
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -77,8 +78,7 @@ export const useScrollNavigation = ({
   // Tracks whether user is near bottom for auto-scroll on new messages
   const isNearBottomRef = useRef(true);
   const lastReportedNearBottomRef = useRef<boolean | null>(null);
-  const prevMessagesLengthRef = useRef(0);
-  const prevFirstItemKeyRef = useRef<string | null>(null);
+  const prevMessageUuidsRef = useRef<readonly string[]>(EMPTY_MESSAGE_UUIDS);
 
   // Helper to get the scroll viewport element
   const getScrollViewport = useCallback(() => {
@@ -328,30 +328,35 @@ export const useScrollNavigation = ({
     };
   }, [messagesLength, getScrollViewport, reportNearBottom]);
 
-  // Reset prevMessagesLength on session switch
+  // A new session establishes its own source window and near-bottom state.
   useEffect(() => {
-    prevMessagesLengthRef.current = 0;
-    prevFirstItemKeyRef.current = null;
+    prevMessageUuidsRef.current = EMPTY_MESSAGE_UUIDS;
     lastReportedNearBottomRef.current = null;
     reportNearBottom(true);
   }, [selectedSessionId, reportNearBottom]);
 
   // Auto-scroll to bottom when new messages arrive and user was already at bottom
   useEffect(() => {
-    const prevLength = prevMessagesLengthRef.current;
-    prevMessagesLengthRef.current = messagesLength;
+    const previous = prevMessageUuidsRef.current;
+    prevMessageUuidsRef.current = messageUuids;
 
-    // Growth with a changed head = older page PREPENDED — keep the viewport
-    // where it is (the prepend anchor in MessageViewer handles compensation).
-    const prevFirstKey = prevFirstItemKeyRef.current;
-    prevFirstItemKeyRef.current = firstItemKey;
-    const isPrepend =
-      prevLength > 0 && messagesLength > prevLength && prevFirstKey !== firstItemKey;
+    // A latest-N refresh can evict the head and grow, retain, or shrink the
+    // rendered row count. Prove a new source suffix after the old tail instead
+    // of inferring prepend from the head or append from virtual-row growth.
+    // Retained-tail overlap also rejects deletion and reordered old messages.
+    const previousTail = previous.at(-1);
+    const nextTail = messageUuids.at(-1);
+    const previousTailIndex = previousTail ? messageUuids.indexOf(previousTail) : -1;
+    const hasNewTail =
+      previousTailIndex >= 0 &&
+      previousTailIndex < messageUuids.length - 1 &&
+      nextTail !== undefined &&
+      !previous.includes(nextTail);
 
     if (
-      prevLength > 0 &&
-      messagesLength > prevLength &&
-      !isPrepend &&
+      messageUpdateKind === "tail-refresh" &&
+      hasNewTail &&
+      messagesLength > 0 &&
       isNearBottomRef.current &&
       !targetMessageUuid &&
       scrollReadyForSessionId === selectedSessionId
@@ -361,7 +366,7 @@ export const useScrollNavigation = ({
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [messagesLength, firstItemKey, scrollToBottom, scrollReadyForSessionId, selectedSessionId, targetMessageUuid]);
+  }, [messageUuids, messageUpdateKind, messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId, targetMessageUuid]);
 
   return {
     showScrollToTop,
