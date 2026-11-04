@@ -91,6 +91,7 @@ vi.mock("@/store/useAppStore", () => {
   const useAppStoreMock = (selector?: (s: Record<string, unknown>) => unknown) =>
     selector ? selector(storeState) : storeState;
   useAppStoreMock.getState = () => storeState;
+  useAppStoreMock.subscribe = vi.fn(() => () => {});
   return { useAppStore: useAppStoreMock };
 });
 
