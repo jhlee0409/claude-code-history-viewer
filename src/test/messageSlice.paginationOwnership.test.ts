@@ -233,6 +233,57 @@ describe("pagination request ownership in the real app store", () => {
     expect(http.inFlight).toBe(0);
   });
 
+  it("preserves the unavailable reset after a current reload HTTP 500 with an older page in flight", async () => {
+    const { http, store } = await prepare();
+    const { navigationEpoch, activeDocumentId } = store.getState();
+    const older = store.getState().loadMoreMessages();
+    await vi.waitFor(() => expect(http.requests).toHaveLength(3));
+    expect(http.requests[2]!.args).toMatchObject({ sessionPath: SESSION.file_path, offset: 400, limit: 200 });
+    expect(store.getState().pagination).toEqual({
+      currentOffset: 400, pageSize: 200, totalCount: 1000,
+      hasMore: true, isLoadingMore: true,
+    });
+    const reload = store.getState().reloadCurrent("watcher");
+    await vi.waitFor(() => expect(http.requests).toHaveLength(4));
+    expect(http.requests[3]!.args).toMatchObject({ sessionPath: SESSION.file_path, offset: 0, limit: 400 });
+    http.requests[3]!.reply(500);
+    await reload;
+
+    // The failed current document owns a fresh empty window, not the old
+    // 400-message pagination captured while its older-page spinner was raised.
+    const expectUnavailable = () => {
+      const state = store.getState();
+      expect(state.pagination).toEqual({
+        currentOffset: 0, pageSize: 0, totalCount: 0,
+        hasMore: false, isLoadingMore: false,
+      });
+      expect(state.messages).toEqual([]);
+      expect(state.selectedSession).toBeNull();
+      expect(state.isLoadingMessages).toBe(false);
+      expect(state.error).toBeNull();
+      expect(state.navigationEpoch).toBe(navigationEpoch);
+      expect(state.activeDocumentId).toBe(activeDocumentId);
+      expect(state.documents.find((doc) => doc.id === activeDocumentId)).toMatchObject({
+        unavailable: "session",
+        session: { filePath: SESSION.file_path },
+        live: { session: null, parentStack: [] },
+      });
+      expect(toast.error).not.toHaveBeenCalled();
+    };
+    try {
+      expect(http.completed).toEqual([200, 200, 500]);
+      expect(http.inFlight).toBe(1);
+      expectUnavailable();
+    } finally {
+      // Drain the stale request even when a regression fails the reset check.
+      http.requests[2]!.reply();
+      await older;
+    }
+    expectUnavailable();
+    expect(http.completed).toEqual([200, 200, 500, 200]);
+    expect(http.inFlight).toBe(0);
+  });
+
   it("keeps the real document-unavailable cleanup for a current reload error", async () => {
     const { http, store } = await prepare();
     const reload = store.getState().reloadCurrent("watcher");
