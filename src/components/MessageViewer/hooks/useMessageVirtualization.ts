@@ -5,7 +5,7 @@
  * using @tanstack/react-virtual.
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import type { ClaudeMessage } from "../../../types";
 import type {
@@ -174,6 +174,37 @@ export const useMessageVirtualization = ({
       const height = element.getBoundingClientRect().height;
       return height > 0 ? height : MIN_ROW_HEIGHT;
     },
+  });
+
+  const mountedRowKeys = useRef(new WeakMap<Element, VirtualItem["key"]>());
+  useLayoutEffect(() => {
+    const measurements: { index: number; height: number }[] = [];
+    for (const [key, node] of virtualizer.elementsCache) {
+      const index = virtualizer.indexFromElement(node);
+      // A removed/reindexed node must not resize the new occupant of its index.
+      if (!node.isConnected || !Number.isInteger(index) || index < 0 ||
+          index >= virtualizer.options.count || virtualizer.options.getItemKey(index) !== key) continue;
+      if (mountedRowKeys.current.get(node) === key) continue;
+      mountedRowKeys.current.set(node, key);
+      // Idle refs already measure synchronously. During wheel scrolling core
+      // skips that read; reconcile each new node/key once before paint instead
+      // of waiting for RO (and another estimated range to mount).
+      if (virtualizer.isScrolling) {
+        measurements.push({ index, height: virtualizer.options.measureElement(node, undefined, virtualizer) });
+      }
+    }
+    if (measurements.length === 0) return;
+
+    // resizeItem retains core's anchor adjustments. Layout-effect updates are
+    // already committed before paint; don't ask the React adapter to flushSync
+    // reentrantly inside this commit. Restore normal scroll/RO notification.
+    const onChange = virtualizer.options.onChange;
+    virtualizer.setOptions({ ...virtualizer.options, onChange: instance => onChange(instance, false) });
+    try {
+      for (const { index, height } of measurements) virtualizer.resizeItem(index, height);
+    } finally {
+      virtualizer.setOptions({ ...virtualizer.options, onChange });
+    }
   });
 
   // Get scroll index for a UUID (resolves group members to their leaders)
