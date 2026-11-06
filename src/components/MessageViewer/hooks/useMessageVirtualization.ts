@@ -7,6 +7,7 @@
 
 import { useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { ENABLE_WHEEL_TRANSACTION_PROTOTYPE, useTranscriptWheelBoundary, useTranscriptWheelTransaction } from "./useTranscriptWheelTransaction";
 import type { ClaudeMessage } from "../../../types";
 import type {
   FlattenedMessage,
@@ -42,6 +43,8 @@ interface UseMessageVirtualizationOptions {
   isInSubagent?: boolean;
   /** Height before the virtual list inside the same scroll viewport. */
   scrollMargin?: number;
+  /** Isolated input-path prototype; removal restores native wheel ownership. */
+  wheelTransactionPrototype?: boolean;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -71,6 +74,7 @@ export const useMessageVirtualization = ({
   isCaptureMode = false,
   isInSubagent = false,
   scrollMargin = 0,
+  wheelTransactionPrototype = ENABLE_WHEEL_TRANSACTION_PROTOTYPE,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -156,6 +160,7 @@ export const useMessageVirtualization = ({
   );
 
   // Initialize virtualizer
+  const wheelTransaction = useTranscriptWheelTransaction();
   const virtualizer = useVirtualizer({
     count: flattenedMessages.length,
     getScrollElement,
@@ -163,6 +168,9 @@ export const useMessageVirtualization = ({
     getItemKey,
     overscan: VIRTUALIZER_OVERSCAN,
     scrollMargin,
+    observeElementOffset: wheelTransaction.observeOffset,
+    scrollToFn: wheelTransaction.scrollToFn,
+    useFlushSync: !wheelTransaction.active.current,
     // Consume layout measurements before paint. Deferring RO to another rAF
     // leaves newly mounted rows at estimated positions during wheel scrolling.
     useAnimationFrameWithResizeObserver: false,
@@ -177,6 +185,7 @@ export const useMessageVirtualization = ({
   });
 
   const mountedRowKeys = useRef(new WeakMap<Element, VirtualItem["key"]>());
+  useTranscriptWheelBoundary(wheelTransactionPrototype, virtualizer, wheelTransaction);
   useLayoutEffect(() => {
     const measurements: { index: number; height: number }[] = [];
     for (const [key, node] of virtualizer.elementsCache) {
