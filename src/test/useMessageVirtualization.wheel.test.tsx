@@ -2,8 +2,13 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useMessageVirtualization } from "@/components/MessageViewer/hooks/useMessageVirtualization";
 import type { ClaudeMessage } from "@/types";
+import { useState } from "react";
+import { toast } from "sonner";
+import i18n from "@/i18n";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-function fixture(quantize = false, enabled = true) {
+function fixture(quantize = false, enabled = true, boundary = false) {
+  const notifications = vi.spyOn(toast, "error");
   const errors = vi.spyOn(console, "error");
   vi.spyOn(console, "debug").mockImplementation(() => {});
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -55,8 +60,12 @@ function fixture(quantize = false, enabled = true) {
     wheelTransactionPrototype: enabled,
   };
   let current: ReturnType<typeof useMessageVirtualization>;
+  let replaceMessages: (append: boolean) => void;
   function Harness() {
-    current = useMessageVirtualization(options);
+    const [liveMessages, setMessages] = useState(messages);
+    replaceMessages = append => setMessages(previous => append
+      ? [...previous, { ...previous[0]!, uuid: "stream-append" }] : [...previous]);
+    current = useMessageVirtualization({ ...options, messages: liveMessages });
     if (renderError && current.virtualizer.isScrolling) throw renderError;
     return <>{current.virtualRows.map(row => <div key={row.key} ref={node => {
       current.virtualizer.measureElement(node);
@@ -67,7 +76,7 @@ function fixture(quantize = false, enabled = true) {
       }
     }} data-index={row.index} aria-hidden={row.index % 7 === 0 ? "true" : undefined} style={{ transform: `translateY(${row.start}px)` }} />)}</>;
   }
-  const view = render(<Harness />, { container: scroller });
+  const view = render(boundary ? <ErrorBoundary><Harness /></ErrorBoundary> : <Harness />, { container: scroller });
   releases.length = 0;
   const wheel = (init: WheelEventInit = {}, target: HTMLElement = scroller, native = false) => {
     const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 3795.779541015625, ...init });
@@ -75,10 +84,11 @@ function fixture(quantize = false, enabled = true) {
     else act(() => { target.dispatchEvent(event); });
     return event;
   };
-  return { scroller, wheel, releases, covered, errors, view, current: () => current!,
+  return { scroller, wheel, releases, covered, errors, notifications, view, current: () => current!,
     setSource: (element: HTMLElement | null) => { source = element; },
     duringCommit: (action: () => void) => { duringCommit = action; },
     throwDuringRender: (error: Error) => { renderError = error; },
+    replaceMessages: (append: boolean) => replaceMessages(append),
   };
 }
 
@@ -238,11 +248,11 @@ it("probe B: observer teardown during the flush commit never restores through a 
     expect(f.current().virtualizer.scrollElement).toBeNull();
     expect(f.scroller.scrollTop).toBe(0);
     expect(f.releases).toEqual([]);
-    expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/could not scroll/i);
+    expect(f.notifications).not.toHaveBeenCalled();
   } finally { window.removeEventListener("error", handle); }
 });
 
-it("probe A: actual renderer failure leaves a visible fallback and no throwing wheel listener on an unmounted owner", () => {
+it("probe A: preserves the original uncaught render error without duplicate wheel notification", () => {
   const f = fixture();
   f.errors.mockImplementation(() => {});
   const boom = new Error("probe-row-boom");
@@ -257,13 +267,54 @@ it("probe A: actual renderer failure leaves a visible fallback and no throwing w
     expect(uncaught).toEqual([boom]);
     expect(f.scroller.scrollTop).toBe(0);
     expect(f.releases).toEqual([]);
-    expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/could not scroll/i);
+    expect(f.notifications).not.toHaveBeenCalled();
     expect(f.errors.mock.calls.some(args => args.includes(boom))).toBe(true);
     // The failed tree cannot reconcile native scrolls; detached logical state
     // is not reused or written into a replacement owner.
     expect(f.current().virtualizer.scrollElement).toBeNull();
     expect(f.wheel({ ctrlKey: true }).defaultPrevented).toBe(false);
   } finally { window.removeEventListener("error", handle); }
+});
+
+it.each([false, true])("silently cancels normal messages owner replacement (stream append=%s)", append => {
+  const f = fixture();
+  const previous = f.current().flattenedMessages.length;
+  f.duringCommit(() => f.replaceMessages(append));
+  expect(f.wheel().defaultPrevented).toBe(true);
+  expect(f.current().flattenedMessages.length).toBe(previous + (append ? 1 : 0));
+  expect(f.releases).toEqual([]);
+  expect(f.scroller.scrollTop).toBe(0);
+  expect(document.querySelector('[role="alert"]')).toBeNull();
+  expect(f.notifications).not.toHaveBeenCalled();
+  expect(f.errors).not.toHaveBeenCalled();
+});
+
+it("does not turn another viewer's normal streaming cancellation into a global failure", () => {
+  const first = fixture();
+  const second = fixture();
+  first.duringCommit(() => first.replaceMessages(true));
+  expect(first.wheel().defaultPrevented).toBe(true);
+  expect(first.releases).toEqual([]);
+  expect(second.releases).toEqual([]);
+  expect(first.notifications).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')).toBeNull();
+  first.view.unmount();
+  expect(second.notifications).not.toHaveBeenCalled();
+});
+
+it("leaves actual render-crash feedback to the existing localized ErrorBoundary exactly once", () => {
+  const f = fixture(false, true, true);
+  f.errors.mockImplementation(() => {});
+  const boom = new Error("boundary-original-row-boom");
+  f.throwDuringRender(boom);
+  f.wheel();
+  expect(f.view.getAllByRole("heading", { name: i18n.t("error.unexpectedError") })).toHaveLength(1);
+  expect(f.scroller.textContent).toContain(boom.message);
+  expect(f.errors.mock.calls.some(args => args.includes(boom))).toBe(true);
+  expect(f.notifications).not.toHaveBeenCalled();
+  expect(f.releases).toEqual([]);
+  f.view.unmount();
+  expect(document.querySelector('[role="alert"]')).toBeNull();
 });
 
 it("M7: chains a subpixel logical maximum even when physical scrollTop rounded down", () => {
@@ -321,4 +372,4 @@ it("M8: removes every wheel listener across commits and unmount", () => {
   expect(listeners.size).toBe(0);
 });
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { cleanup(); toast.dismiss(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });

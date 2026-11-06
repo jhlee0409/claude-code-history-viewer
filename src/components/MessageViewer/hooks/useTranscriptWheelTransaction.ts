@@ -1,5 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 import { elementScroll, observeElementOffset, type Virtualizer } from "@tanstack/react-virtual";
 
 type TranscriptVirtualizer = Virtualizer<HTMLElement, Element>;
@@ -12,23 +14,30 @@ type OffsetObserver = {
 // PROTOTYPE ENABLE: isolated branch only; not a product preference or rollout.
 export const ENABLE_WHEEL_TRANSACTION_PROTOTYPE = true;
 
-// Outside the React owner: a failed render may already have removed that tree.
-// Never replay consumed input into a replacement transcript or an old viewport.
-function showFailure(document: Document) {
-  if (document.querySelector("[data-transcript-wheel-failure]")) return;
-  const alert = document.createElement("div");
-  alert.dataset.transcriptWheelFailure = "";
-  alert.setAttribute("role", "alert");
-  alert.textContent = "Transcript could not scroll. Try again or reopen this conversation.";
-  alert.style.cssText = "position:fixed;bottom:16px;left:16px;right:16px;z-index:2147483647;padding:16px;background:#331111;color:white;border:1px solid #ff9999";
-  document.body.append(alert);
-}
-
 /** Own logical offset delivery while deferring the physical offset. Core remains
  * the only anchor policy: its resizeItem corrections change the logical target,
  * and its normal range/measurement pipeline commits before the single release.
  * Nothing here acknowledges compositor/raster readiness. */
 export function useTranscriptWheelTransaction(owner?: unknown) {
+  // Reuse the app notification host outside the transcript's render tree.
+  // A failure episode belongs to this viewer, never to a document-global key.
+  const notification = useRef<string | number | null>(null);
+  const mounted = useRef(false);
+  const clearFailure = useCallback(() => {
+    const id = notification.current;
+    notification.current = null;
+    if (id !== null) toast.dismiss(id);
+  }, []);
+  const reportFailure = useCallback(() => {
+    if (!mounted.current || notification.current !== null) return;
+    const release = () => { if (notification.current === id) notification.current = null; };
+    const id = toast.error(i18n.t("error.unexpectedError"), { onDismiss: release, onAutoClose: release });
+    notification.current = id;
+  }, []);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; clearFailure(); };
+  }, [clearFailure]);
   const selection = useRef(owner);
   selection.current = owner;
   const active = useRef(false);
@@ -50,11 +59,11 @@ export function useTranscriptWheelTransaction(owner?: unknown) {
     if (!active.current) elementScroll(offset, options, instance);
   }, []);
 
-  return { observeOffset, scrollToFn, active, deliverOffset, lastRelease, selection };
+  return { observeOffset, scrollToFn, active, deliverOffset, lastRelease, selection, reportFailure, clearFailure };
 }
 
 export function useTranscriptWheelBoundary(enabled: boolean, instance: TranscriptVirtualizer,
-  { active, deliverOffset, lastRelease, selection }: ReturnType<typeof useTranscriptWheelTransaction>) {
+  { active, deliverOffset, lastRelease, selection, reportFailure, clearFailure }: ReturnType<typeof useTranscriptWheelTransaction>) {
     // Like core's _willUpdate, resolve after every commit: OverlayScrollbars can
     // replace its viewport without changing getScrollElement's function identity.
     useLayoutEffect(() => {
@@ -130,7 +139,8 @@ export function useTranscriptWheelBoundary(enabled: boolean, instance: Transcrip
             observer.deliver(target, true);
           });
           if (!owns()) {
-            showFailure(scroller.ownerDocument);
+            // Selection, streaming data and viewport replacement are normal
+            // cancellation, not scroll failures. React owns render-error UI.
             if (renderFailure) console.error("Wheel transaction render failed", renderFailure);
             return;
           }
@@ -149,17 +159,17 @@ export function useTranscriptWheelBoundary(enabled: boolean, instance: Transcrip
           }
           if (coveredUntil < neededUntil || renderFailure) {
             rollback();
-            showFailure(scroller.ownerDocument);
+            if (!renderFailure) reportFailure();
             return;
           }
           elementScroll(destination, { behavior: "instant" }, instance);
           lastRelease.current = { element: scroller, physical: scroller.scrollTop, logical: destination };
-          scroller.ownerDocument.querySelector("[data-transcript-wheel-failure]")?.remove();
+          clearFailure();
         } catch (error) {
           let restored = false;
           try { restored = rollback(); }
           catch (rollbackError) { console.error("Wheel transaction rollback failed", rollbackError); }
-          showFailure(scroller.ownerDocument);
+          if (!renderFailure) reportFailure();
           if (restored) throw error; // Original exception, only after recovery.
           console.error("Wheel transaction failed after owner disposal", error);
         } finally {
