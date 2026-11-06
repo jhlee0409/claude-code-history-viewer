@@ -163,7 +163,9 @@ export const useMessageVirtualization = ({
     getItemKey,
     overscan: VIRTUALIZER_OVERSCAN,
     scrollMargin,
-    useAnimationFrameWithResizeObserver: true,
+    // Consume layout measurements before paint. Deferring RO to another rAF
+    // leaves newly mounted rows at estimated positions during wheel scrolling.
+    useAnimationFrameWithResizeObserver: false,
     // Enable dynamic measurement
     measureElement: (element) => {
       if (!element) return MIN_ROW_HEIGHT;
