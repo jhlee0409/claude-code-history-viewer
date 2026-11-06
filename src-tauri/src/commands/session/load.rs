@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use super::timestamp_fill::fill_missing_timestamps;
 use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
@@ -1894,9 +1895,7 @@ fn parse_line_simd(
             session_id: log_entry
                 .session_id
                 .unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry
-                .timestamp
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
             ..Default::default()
@@ -1943,9 +1942,7 @@ fn parse_line_simd(
         session_id: log_entry
             .session_id
             .unwrap_or_else(|| "unknown-session".to_string()),
-        timestamp: log_entry
-            .timestamp
-            .unwrap_or_else(|| Utc::now().to_rfc3339()),
+        timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
         tool_use: log_entry.tool_use.or(extracted_tool_use),
@@ -2067,6 +2064,11 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
 
     // Sort by line number to maintain original order
     messages.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let end = line_starts.get(i + 1).map_or(mmap.len(), |&e| e - 1);
+        &mmap[line_starts[i]..end]
+    };
+    fill_missing_timestamps(line_starts.len(), line_at, &mut messages);
     Ok(messages.into_iter().map(|(_, msg)| msg).collect())
 }
 
@@ -2519,6 +2521,11 @@ fn load_message_window_from_file(
         .collect();
 
     parsed.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let (start, end) = line_ranges[i];
+        &mmap[start..end]
+    };
+    fill_missing_timestamps(line_ranges.len(), line_at, &mut parsed);
     let messages: Vec<ClaudeMessage> = parsed.into_iter().map(|(_, msg)| msg).collect();
 
     Ok((messages, total_count, start_idx == 0))
@@ -2972,6 +2979,77 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 3);
         assert!(page.has_more);
+    }
+
+    fn create_sample_undated_blob(session_id: &str) -> String {
+        format!(
+            r#"{{"type":"api-request-blob","sessionId":"{session_id}","hash":"h","message":{{"role":"user","content":"blob"}}}}"#
+        )
+    }
+
+    #[tokio::test]
+    async fn test_undated_message_inherits_previous_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_blob("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        let timestamps: Vec<&str> = messages.iter().map(|m| m.timestamp.as_str()).collect();
+        assert_eq!(
+            timestamps,
+            [
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T11:00:00Z"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leading_undated_message_takes_next_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_undated_blob("s1"),
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(messages[0].timestamp, "2025-06-26T10:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn test_paginated_undated_message_looks_before_its_page() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_blob("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        // offset counts from the end: skip "second", take only the blob.
+        let page =
+            load_session_messages_paginated(file_path.to_string_lossy().to_string(), 1, 1, None)
+                .await
+                .unwrap();
+
+        assert_eq!(page.messages.len(), 1);
+        assert_eq!(page.messages[0].message_type, "api-request-blob");
+        assert_eq!(page.messages[0].timestamp, "2025-06-26T10:00:00Z");
     }
 
     #[tokio::test]
