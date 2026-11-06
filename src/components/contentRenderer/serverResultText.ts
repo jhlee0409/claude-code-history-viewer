@@ -4,6 +4,8 @@
  * row opens for a hit in its results and its result bodies mark it (TR1b).
  */
 
+import { serverToolTexts } from "@/utils/anthropicServerTools";
+
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const strings = (record: Record<string, unknown>, ...keys: string[]) => keys.flatMap((key) => (typeof record[key] === "string" ? [record[key] as string] : []));
 
@@ -11,6 +13,7 @@ export function serverResultTexts(blocks: Record<string, unknown>[]): string[] {
   const out: string[] = [];
   for (const block of blocks) {
     const body = block.content;
+    out.push(...serverToolTexts(block.type, body));
     switch (block.type) {
       case "web_search_tool_result":
         if (Array.isArray(body)) for (const item of body) if (isRecord(item)) out.push(...strings(item, "title", "url"));

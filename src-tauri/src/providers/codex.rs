@@ -389,6 +389,8 @@ pub(crate) fn load_sessions_reporting(
     Ok(sessions)
 }
 
+mod evidence;
+
 /// Load all messages from a Codex rollout file
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = Path::new(session_path);
@@ -418,8 +420,14 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     let mut prev_output_tokens: u32 = 0;
     let mut prev_cached_tokens: u32 = 0;
     let mut msg_counter = 0u64;
+    let mut turn = evidence::TurnState::default();
+    let mut pending_changes = Vec::new();
+    // Only a paired producer tool/dialect can authenticate the text header. This
+    // stores names, never result evidence, and consumes each association once.
+    let mut pending_tool_names = std::collections::HashMap::new();
 
-    for &(start, end) in &ranges {
+    for (source_line, &(start, end)) in ranges.iter().enumerate() {
+        let previous_len = messages.len();
         let line = &mmap[start..end];
         let mut buf = line.to_vec();
         let val: Value = match simd_json::from_slice(&mut buf) {
@@ -449,6 +457,7 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "turn_context" => {
                 if let Some(payload) = val.get("payload") {
+                    turn.context(payload);
                     if let Some(m) = payload.get("model").and_then(|v| v.as_str()) {
                         current_model = Some(m.to_string());
                     }
@@ -456,13 +465,38 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "response_item" => {
                 if let Some(payload) = val.get("payload") {
-                    if let Some(msg) = convert_codex_item(
+                    let kind = payload.get("type").and_then(Value::as_str);
+                    let call_id = payload.get("call_id").and_then(Value::as_str);
+                    if matches!(kind, Some("function_call" | "custom_tool_call")) {
+                        if let Some(id) = call_id {
+                            pending_tool_names.insert(
+                                id.to_string(),
+                                payload
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            );
+                        }
+                    }
+                    let output_tool = if matches!(
+                        kind,
+                        Some("function_call_output" | "custom_tool_call_output")
+                    ) {
+                        call_id.and_then(|id| pending_tool_names.remove(id))
+                    } else {
+                        None
+                    };
+                    if let Some(mut msg) = convert_codex_item_with_tool(
                         payload,
+                        output_tool.as_deref(),
                         &session_id,
                         current_model.as_ref(),
                         &line_timestamp,
                         &mut msg_counter,
                     ) {
+                        evidence::content_items(&mut msg, payload);
+                        turn.attach(&mut msg);
                         if try_merge_tool_result_into_previous(&mut messages, &msg) {
                             continue;
                         }
@@ -473,6 +507,18 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             "event_msg" => {
                 if let Some(payload) = val.get("payload") {
                     let event_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+                    if matches!(event_type, "task_started" | "turn_started") {
+                        turn.start(payload);
+                    }
+                    if evidence::is_file_change(payload) {
+                        let record = serde_json::json!({"sourceLine":source_line,"record":val});
+                        if let Some(carrier) = messages.last_mut() {
+                            evidence::file_change(carrier, record);
+                        } else {
+                            pending_changes.push(record);
+                        }
+                    }
 
                     // Skip events that duplicate response_item messages.
                     // Codex logs user/assistant text in both response_item (type=message)
@@ -532,10 +578,17 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                                 });
                             }
                         }
-                    } else if let Some(msg) =
+                    } else if let Some(mut msg) =
                         convert_codex_event(payload, &session_id, &line_timestamp, &mut msg_counter)
                     {
+                        turn.attach(&mut msg);
                         messages.push(msg);
+                    }
+                    if matches!(
+                        event_type,
+                        "task_complete" | "turn_complete" | "turn_aborted"
+                    ) {
+                        turn.finish();
                     }
                 }
             }
@@ -551,6 +604,11 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                 }
             }
             _ => {}
+        }
+        if messages.len() > previous_len && !pending_changes.is_empty() {
+            for record in pending_changes.drain(..) {
+                evidence::file_change(&mut messages[previous_len], record);
+            }
         }
     }
 
@@ -659,8 +717,10 @@ pub(crate) fn rollout_content_matches(content: &Value, query_lower: &str) -> boo
         if block.get("type").and_then(Value::as_str) == Some("tool_result") {
             block.as_object().is_some_and(|fields| {
                 fields.iter().any(|(key, value)| {
-                    !matches!(key.as_str(), "toolUseResult" | "toolUseResultSource")
-                        && search_json_value_case_insensitive(value, query_lower)
+                    !matches!(
+                        key.as_str(),
+                        "toolUseResult" | "toolUseResultSource" | "codexOutput" | "codexEvidence"
+                    ) && search_json_value_case_insensitive(value, query_lower)
                 })
             })
         } else {
@@ -1295,8 +1355,20 @@ fn is_codex_auto_injected_user_text(text: &str) -> bool {
     trimmed.starts_with("<environment_context>")
 }
 
+#[cfg(test)]
 fn convert_codex_item(
     item: &Value,
+    session_id: &str,
+    model: Option<&String>,
+    line_timestamp: &str,
+    counter: &mut u64,
+) -> Option<ClaudeMessage> {
+    convert_codex_item_with_tool(item, None, session_id, model, line_timestamp, counter)
+}
+
+fn convert_codex_item_with_tool(
+    item: &Value,
+    output_tool: Option<&str>,
     session_id: &str,
     model: Option<&String>,
     line_timestamp: &str,
@@ -1409,7 +1481,8 @@ fn convert_codex_item(
             ))
         }
         "function_call_output" | "custom_tool_call_output" => {
-            let content = serde_json::json!([codex_tool_result(item, &uuid, session_id)]);
+            let content =
+                serde_json::json!([codex_tool_result(item, &uuid, session_id, output_tool)]);
 
             Some(build_codex_message(
                 uuid,
@@ -1801,8 +1874,24 @@ fn normalize_web_search_input(action: Value) -> Value {
 
 /// Preserve the decoded result envelope before either display merge. The
 /// provenance identifies the source output item, never the matched call.
-fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
+fn codex_tool_result(
+    item: &Value,
+    uuid: &str,
+    session_id: &str,
+    output_tool: Option<&str>,
+) -> Value {
     let output = item.get("output").cloned().unwrap_or(Value::Null);
+    let plain_evidence = output.as_str().and_then(|raw| {
+        // Each dialect is authenticated by its producing raw tool, not a
+        // renderer alias. See evidence::authenticates_header for writer pins.
+        // Mismatched/MCP/unknown/orphan outputs still keep their exact raw data.
+        if evidence::authenticates_header(raw, output_tool) {
+            evidence::plain_output(raw, uuid)
+        } else {
+            raw.split_once("\nOutput:\n")
+                .map(|_| serde_json::json!({"raw":raw,"sourceMessageUuid":uuid}))
+        }
+    });
     let wrapper = output
         .as_str()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
@@ -1816,6 +1905,9 @@ fn codex_tool_result(item: &Value, uuid: &str, session_id: &str) -> Value {
         "tool_use_id": item.get("call_id").and_then(Value::as_str).unwrap_or(""),
         "content": content
     });
+    if let Some(plain_evidence) = plain_evidence {
+        result["codexOutput"] = plain_evidence;
+    }
     if let Some(wrapper) = wrapper {
         result["toolUseResult"] = wrapper;
         result["toolUseResultSource"] = serde_json::json!({
@@ -1995,6 +2087,80 @@ mod tests {
     use std::ffi::OsString;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn codex_plain_exit_header_preserves_source_evidence() {
+        for (tool, header, code) in [
+            (
+                "exec_command",
+                "Wall time: 0.1000 seconds\nProcess exited with code 0",
+                0,
+            ),
+            (
+                "write_stdin",
+                "Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2",
+                2,
+            ),
+            ("apply_patch", "Exit code: 0\nWall time: 0.1 seconds", 0),
+            ("shell_command", "Exit code: -1\nWall time: 0 seconds", -1),
+        ] {
+            let raw = format!("{header}\nOutput:\nError: ordinary stdout\nExit code: 7\nProcess exited with code 8\nOutput:\nExit code: 9");
+            let result = codex_tool_result(
+                &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                "result-source",
+                "session",
+                Some(tool),
+            );
+            assert_eq!(result["codexOutput"]["exitCode"], code);
+            assert_eq!(result["codexOutput"]["raw"], raw);
+            assert_eq!(result["codexOutput"]["sourceMessageUuid"], "result-source");
+            assert_eq!(result["content"], raw.split_once("\nOutput:\n").unwrap().1);
+        }
+    }
+
+    #[test]
+    fn codex_mismatched_headers_keep_raw_without_exit() {
+        for tool in [
+            Some("exec_command"),
+            Some("write_stdin"),
+            Some("apply_patch"),
+            Some("shell_command"),
+            Some("shell"),
+            Some("local_shell"),
+            Some("container.exec"),
+            Some("mcp__srv__run"),
+            Some("unknown"),
+            Some("Bash"),
+            None,
+        ] {
+            for (label, supported) in [
+                (
+                    "Process exited with code 2",
+                    matches!(tool, Some("exec_command" | "write_stdin")),
+                ),
+                (
+                    "Exit code: 2",
+                    matches!(tool, Some("apply_patch" | "shell_command")),
+                ),
+            ] {
+                if supported {
+                    continue;
+                }
+                let raw = format!("Wall time: 0 seconds\n{label}\nOutput:\nsynthetic stdout");
+                let result = codex_tool_result(
+                    &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                    "result-source",
+                    "session",
+                    tool,
+                );
+                assert_eq!(
+                    result["codexOutput"],
+                    json!({"raw":raw,"sourceMessageUuid":"result-source"}),
+                    "{tool:?}: {label}"
+                );
+            }
+        }
+    }
 
     struct EnvVarGuard {
         key: &'static str,

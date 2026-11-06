@@ -5979,6 +5979,7 @@ mod tests {
         ClaudeMessage {
             uuid: "test-uuid".to_string(),
             source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session-123".to_string(),
             timestamp: "2025-06-26T10:00:00Z".to_string(),
@@ -6340,6 +6341,7 @@ mod tests {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
             source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),

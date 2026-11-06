@@ -20,6 +20,8 @@
  * synthesized: no exit code from stderr or from prose like "Exit code 1".
  */
 
+import { webSearchLinks } from "@/utils/anthropicServerTools";
+
 export type ToolLifecycle = "completed" | "interrupted" | "no-result";
 export type ToolVerdict = "succeeded" | "failed" | "unknown";
 export type OutcomeReason =
@@ -45,6 +47,8 @@ export interface ToolOutcome {
    * (an interruption).
    */
   errorCode?: string;
+  /** Exact associated Codex FileChange decline; presentation only, verdict stays failed. */
+  declined?: true;
 }
 
 /**
@@ -59,6 +63,15 @@ export type ToolFamily = "process" | "read-search" | "other";
 
 export type ToolUseLike = Record<string, unknown>;
 export type ToolResultLike = Record<string, unknown>;
+
+/** FileChange add/delete content is recorded file text, not result prose or a
+ * success flag (Codex protocol.rs@6aaac694:4342–4355). Keep raw field reads
+ * at this adapter boundary; consumers receive only validated text. */
+export function recordedFileChangeContent(value: unknown): string | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const content = (value as Record<string, unknown>).content;
+  return typeof content === "string" ? content : undefined;
+}
 
 export interface NormalizedResult {
   /** `is_error` as recorded: `true`, `false`, or absent. */
@@ -121,20 +134,35 @@ const READ_SEARCH_TOOLS = new Set([
 // ai@5.0.8 (718e5291) mcp-client.ts:287-307 returns it without throwing.
 // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L598-L644
 // https://github.com/vercel/ai/blob/718e5291/packages/ai/src/tool/mcp/mcp-client.ts#L287-L307
-// Backend @f0e8317: opencode.rs:1461-1511,1675-1691 emits only the
-// normalized name, not part.tool; Kilo uses that route (kilo.rs:181).
-// read/glob/edit/write/webfetch -> Read/Glob/Edit/Write/WebFetch; list unchanged.
-// grep AND MCP grep_* -> Grep: keep ambiguous Grep unknown until item ②
-// preserves raw IDs (built-in grep success/folding is intentionally deferred).
+// The backend now additionally preserves exact part.tool as rawToolName.
+// Raw IDs are names, not provenance: same-id custom tools override built-ins.
+// Shapes cannot prove a built-in ran (Kilo custom objects / OpenCode hooks can
+// forge them), but can rule out the default custom shape at these pinned commits.
+// Owner decision 2026-11-01: option C retains the name-based policy with that
+// exclusion; Grep stays unknown. See docs/contracts/backend-outcome-evidence.md
+// #same-id-custom-tools-owner-decision for every allowlisted return branch.
+// https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/grep.ts#L16-L48
+// Kilo independently defines grep and propagates failures via the processor:
+// https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/grep.ts#L22-L76
+// https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
 // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
 // Kilo @0a9faeff registry.ts:274-335 has no list built-in (nor tool/ls.ts).
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335
 // Historical Kilo MCP/list is unverified; no completion exception for either.
-// A plugin literally named Read etc. cannot be distinguished without raw IDs.
+// Legacy payloads without rawToolName retain the bounded delivered-name policy.
 const CORE_NO_ERROR_TOOLS = new Set(["Read", "Glob", "Edit", "Write", "WebFetch"]);
-const coreNoErrorTool = (provider?: string, name?: string): boolean =>
-  ((provider === "opencode" || provider === "kilo") && CORE_NO_ERROR_TOOLS.has(name ?? "")) ||
-  (provider === "opencode" && name === "list");
+const CORE_RAW_NAMES: Readonly<Record<string, string>> = {
+  read: "Read", glob: "Glob", edit: "Edit", write: "Write", webfetch: "WebFetch",
+};
+const coreNoErrorTool = (provider?: string, name?: string, rawToolName?: unknown): boolean => {
+  if (provider !== "opencode" && provider !== "kilo") return false;
+  if (rawToolName !== undefined) {
+    return typeof rawToolName === "string" &&
+      ((Object.hasOwn(CORE_RAW_NAMES, rawToolName) && CORE_RAW_NAMES[rawToolName] === name) ||
+        (provider === "opencode" && rawToolName === "list" && name === "list"));
+  }
+  return CORE_NO_ERROR_TOOLS.has(name ?? "") || (provider === "opencode" && name === "list");
+};
 
 export function toolFamily(name: string): ToolFamily {
   const key = name.toLowerCase();
@@ -165,6 +193,20 @@ function ownMetadata(result: ToolResultLike): Record<string, unknown> | null {
   return isPlainObject(own) ? own : null;
 }
 
+// Derived exclusion, not producer provenance or a persisted marker. Inspect only
+// the result's own delivered state; missing/malformed fields prove nothing.
+// OpenCode b9a39b8 registry.ts:55-59: fromPlugin title:"", metadata:{}.
+// Kilo 0a9faeff registry.ts:216-229: string return title:"", wrapper metadata;
+// tool/tool.ts:133-147 adds truncated/outputPath, processor.ts:274-277 merges
+// permission approval. None of the pinned allowlisted built-ins succeeds with
+// this shape (per-tool citations in backend-outcome-evidence.md's shape table).
+function defaultCustomToolShape(provider: string | undefined, state: Record<string, unknown>): boolean {
+  if (state.title !== "" || !isPlainObject(state.metadata)) return false;
+  const keys = Object.keys(state.metadata);
+  if (provider === "opencode") return keys.length === 0;
+  return provider === "kilo" && keys.every(key => key === "truncated" || key === "outputPath" || key === "approval");
+}
+
 const recordedInteger = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isInteger(value) ? value : undefined;
 
@@ -175,7 +217,7 @@ const recordedInteger = (value: unknown): number | undefined =>
  */
 export function normalizeResult(
   result: ToolResultLike,
-  options: { bareCodeIsExitCode?: boolean; provider?: string; toolName?: string } = {},
+  options: { bareCodeIsExitCode?: boolean; provider?: string; toolName?: string; rawToolName?: unknown } = {},
 ): NormalizedResult {
   const out: NormalizedResult = {};
   const content = result.content;
@@ -198,7 +240,10 @@ export function normalizeResult(
   // OpenHands has no producer is_error field: the backend sets it from
   // observation == "error". Its false default is NOT recorded no-error evidence.
   // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
-  if (typeof result.is_error === "boolean" && (!openhands || result.is_error)) out.isError = result.is_error;
+  // Derived false is an application comparison/default, not a producer assertion.
+  // Keep positive derived error mappings; older OpenHands payloads need the legacy guard.
+  if (typeof result.is_error === "boolean" &&
+    (result.is_error || (result.is_error_source !== "derived" && !openhands))) out.isError = result.is_error;
   // Legacy MCP router records carry an explicit error union. This is not a
   // generic `error`-key heuristic: other providers keep their opaque schemas.
   if (legacy && contentObject &&
@@ -223,7 +268,8 @@ export function normalizeResult(
       // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L883-L898
       if (metadata?.interrupted === true) out.interrupted = true;
     }
-    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName) && own.status === "completed" && out.isError !== true) out.isError = false;
+    if (!options.bareCodeIsExitCode && coreNoErrorTool(options.provider, options.toolName, options.rawToolName) &&
+      own.status === "completed" && !defaultCustomToolShape(options.provider, own) && out.isError !== true) out.isError = false;
     // Bash alone owns metadata.exit. Do not promote arbitrary extension data
     // from a non-process tool. #752/4415170647 confused completion and success.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/tool/bash.ts#L249-L265
@@ -252,9 +298,8 @@ export function normalizeResult(
       }
     }
   }
-  // Pi/OMP record booleans on toolResult; details is opaque. The real pi.rs
-  // route maps absent isError to block false (item ② provenance gap) and does
-  // not attach toolUseResult. Keep this own-metadata compatibility path only.
+  // Pi/OMP record booleans on toolResult; details is opaque. The backend now
+  // preserves absent isError as absent. Keep this own-metadata compatibility path.
   // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/bash.ts#L400-L408
   // Local structural scan: 18279 false toolResults, 53 error-prefixed outputs.
   if ((options.provider === "pi" || options.provider === "ompi") && typeof own?.isError === "boolean") {
@@ -274,6 +319,13 @@ export function normalizeResult(
 
   const keys: readonly string[] = options.bareCodeIsExitCode ? [...EXIT_CODE_KEYS, "code"] : EXIT_CODE_KEYS;
   const codes: number[] = [];
+  // Backend-parsed producer header, never arbitrary stdout text. The complete
+  // source wrapper remains in codexOutput.raw (contract: tool-result-metadata).
+  // Codex context.rs@6aaac694:524-574; tools/mod.rs:91-116.
+  if (codex && isPlainObject(result.codexOutput)) {
+    const code = recordedInteger(result.codexOutput.exitCode);
+    if (code !== undefined) codes.push(code);
+  }
   for (const source of sources) {
     for (const key of keys) {
       const code = recordedInteger(source[key]);
@@ -340,7 +392,7 @@ const STREAM_FIELDS = ["stdout", "stderr", "interrupted", "isImage", "error_code
 
 const blockText = (block: unknown): string | null => {
   if (typeof block === "string") return block;
-  if (isPlainObject(block) && block.type === "text" && typeof block.text === "string") return block.text;
+  if (isPlainObject(block) && (block.type === "text" || block.type === "input_text") && typeof block.text === "string") return block.text;
   return null;
 };
 
@@ -653,6 +705,17 @@ export function legacyExecutionView(record: Record<string, unknown>, provider?: 
   return { stdout: normalized.stdout ?? "", stderr: normalized.stderr ?? "", outcome, remainder };
 }
 
+/** Claude recorded WebSearch batches; result metadata is owned by this adapter.
+ * Local keys/counts: 313/318 wrappers + commentary, 2,965 title/url links;
+ * docs/contracts/anthropic-server-tools.md (not an outer-array result count). */
+export function recordedWebSearchLinkCount(results: ToolResultLike[]): number | undefined {
+  const batches = results.flatMap(result => {
+    const own = ownMetadata(result);
+    return Array.isArray(own?.results) ? own.results : [];
+  });
+  return batches.length > 0 ? webSearchLinks(batches).length : undefined;
+}
+
 /** What an Agent (Task) result records about its run. */
 export interface AgentStats {
   totalDurationMs?: number;
@@ -710,12 +773,19 @@ export function toolOutcome(
   results: ToolResultLike[],
   family: ToolFamily,
   provider?: string,
+  codexFileChanges: readonly { status: string }[] = [],
 ): ToolOutcome {
   // An orphan can have a verdict but can never become fold-eligible.
   // 1. No result at all.
-  if (results.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
+  const changes = provider === "codex" && use !== null ? codexFileChanges : [];
+  if (results.length === 0 && changes.length === 0) return { lifecycle: "no-result", verdict: "unknown", reason: "no-result-recorded" };
 
-  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined }));
+  const normalized = results.map((r) => normalizeResult(r, { bareCodeIsExitCode: family === "process", provider, toolName: typeof use?.name === "string" ? use.name : undefined, rawToolName: use?.rawToolName }));
+  // A uniquely associated FileChange's failed/declined enum is explicit error
+  // evidence, not prose or a fabricated exit (protocol.rs@6aaac694:3883–3887;
+  // tools/events.rs:298–342). Keep D-R4 interruption/conflict precedence below.
+  // Completed is lifecycle only and must not manufacture success.
+  for (const change of changes) normalized.push(change.status === "failed" || change.status === "declined" ? { isError: true } : {});
   const codes = normalized.flatMap((n) => (n.exitCode === undefined ? [] : [n.exitCode]));
   const exitCode = codes.find((c) => c !== 0) ?? codes[0];
   const codesDisagree = new Set(codes).size > 1 || normalized.some((n) => n.exitCodeConflict === true);
@@ -744,7 +814,9 @@ export function toolOutcome(
         : providerError
           ? "provider-error"
           : "api-error-code";
-    return withCodes({ lifecycle: "completed", verdict: "failed", reason });
+    return withCodes({ lifecycle: "completed", verdict: "failed", reason,
+      ...(changes.some(change => change.status === "declined") ? { declined: true as const } : {}),
+    });
   }
 
   // 4. A recorded exit code decides; `is_error: false` beside a non-zero code
@@ -772,7 +844,7 @@ export function toolOutcome(
   const claudeEdit = claude && typeof use?.name === "string" && /^(?:edit|multiedit|write)$/.test(use.name.toLowerCase());
   const noError = normalized.every((n, i) => n.isError === false ||
     (claude && (results[i]!.is_error === undefined)));
-  const coreNoError = coreNoErrorTool(provider, typeof use?.name === "string" ? use.name : undefined) && normalized.every(n => n.isError === false);
+  const coreNoError = coreNoErrorTool(provider, typeof use?.name === "string" ? use.name : undefined, use?.rawToolName) && normalized.every(n => n.isError === false);
   // Built-in edit/write reject on failure; agent-loop turns rejection into isError:true.
   // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/edit.ts#L159-L211
   // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/coding-agent/src/core/tools/write.ts#L67-L89

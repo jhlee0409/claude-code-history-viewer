@@ -888,6 +888,8 @@ fn map_tool_message(
                 "content": tool_result_content.clone().unwrap_or_else(|| payload.clone()),
                 "name": tool_name,
                 "is_error": extract_bool(payload, &["is_error", "isError", "error"]),
+                // Missing/non-boolean aliases must not turn an any() default into no-error.
+                "is_error_source": if ["is_error", "isError", "error"].iter().any(|key| payload.get(key).and_then(Value::as_bool).is_some()) { "producer" } else { "derived" },
             })])),
             model,
         );
@@ -1466,6 +1468,20 @@ fn value_to_f64(value: &Value) -> Option<f64> {
             .and_then(value_to_f64),
         _ => None,
     }
+}
+
+#[cfg(test)]
+#[test]
+fn outcome_preservation_missing_forgecode_flags_are_derived() {
+    let message = map_tool_message(
+        "w",
+        "c",
+        0,
+        &json!({"role":"tool","content":"synthetic"}),
+        String::new(),
+        None,
+    );
+    assert_eq!(message.content.unwrap()[0]["is_error_source"], "derived");
 }
 
 /// Extract a bool value from a JSON object key.

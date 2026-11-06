@@ -502,13 +502,11 @@ fn map_part(part: &Value) -> Option<Value> {
             let d = data?;
             let id = d.get("tool_call_id").and_then(Value::as_str).unwrap_or("");
             let content = d.get("content").and_then(Value::as_str).unwrap_or("");
-            let is_error = d.get("is_error").and_then(Value::as_bool).unwrap_or(false);
-            Some(json!({
-                "type": "tool_result",
-                "tool_use_id": id,
-                "content": content,
-                "is_error": is_error
-            }))
+            let mut block = json!({
+                "type": "tool_result", "tool_use_id": id, "content": content
+            });
+            super::result_evidence::copy_error_flag(&mut block, d, "is_error");
+            Some(block)
         }
         // finish / image_url / binary / shell_command: not rendered for the MVP.
         _ => None,
@@ -646,5 +644,15 @@ mod tests {
         assert_ne!(epoch_to_iso(1_750_000_000), "");
         assert_ne!(epoch_to_iso(1_750_000_000_000), "");
         assert_eq!(epoch_to_iso(0), "");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let block=map_part(&serde_json::json!({"type":"tool_result","data":{"tool_call_id":"c","content":"synthetic"}})).unwrap();
+        assert_ne!(block["is_error"], serde_json::json!(false));
     }
 }

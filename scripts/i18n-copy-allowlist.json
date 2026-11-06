@@ -211,8 +211,7 @@
         "settingsManager.presets.settingsCount",
         "settingsManager.unified.hooks.commandCount",
         "settingsManager.unified.projectSelector.projectCount",
-        "structuredPatch.areasChanged",
-        "webSearchRenderer.results"
+        "structuredPatch.areasChanged"
       ],
       "ja": [
         "advancedTextDiff.changeSummary",
@@ -317,8 +316,7 @@
         "settingsManager.presets.settingsCount",
         "settingsManager.unified.hooks.commandCount",
         "settingsManager.unified.projectSelector.projectCount",
-        "structuredPatch.areasChanged",
-        "webSearchRenderer.results"
+        "structuredPatch.areasChanged"
       ],
       "zh-CN": [
         "advancedTextDiff.changeSummary",
@@ -423,8 +421,7 @@
         "settingsManager.presets.settingsCount",
         "settingsManager.unified.hooks.commandCount",
         "settingsManager.unified.projectSelector.projectCount",
-        "structuredPatch.areasChanged",
-        "webSearchRenderer.results"
+        "structuredPatch.areasChanged"
       ],
       "zh-TW": [
         "advancedTextDiff.changeSummary",
@@ -529,8 +526,7 @@
         "settingsManager.presets.settingsCount",
         "settingsManager.unified.hooks.commandCount",
         "settingsManager.unified.projectSelector.projectCount",
-        "structuredPatch.areasChanged",
-        "webSearchRenderer.results"
+        "structuredPatch.areasChanged"
       ]
     },
     "parenthetical-plural": {

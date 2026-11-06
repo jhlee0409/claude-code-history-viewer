@@ -16,6 +16,7 @@ import { resultSearchText } from "../../transcript/resultSearchText";
 import { useResultSearch } from "../../transcript/resultProvider";
 
 export interface BodyContext {
+  preferProducerDiff?: boolean;
   input: Record<string, unknown>;
   expandKey: string;
   pathCtx: PathContext;

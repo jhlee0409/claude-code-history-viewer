@@ -12,6 +12,26 @@ import { safeStringify } from "@/utils/jsonUtils";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+// Compatibility only: Claude Code 2.1.285 emits batch objects + commentary,
+// not JSON-string links (docs/contracts/anthropic-server-tools.md).
+// Normalize once so the legacy count and renderer inspect the same items.
+const legacyResult = (item: unknown): unknown => {
+  if (typeof item !== "string") return item;
+  try {
+    const parsed: unknown = JSON.parse(item);
+    if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed) &&
+      ["title", "url", "description"].some(key => typeof (parsed as Record<string, unknown>)[key] === "string" && (parsed as Record<string, unknown>)[key])) return parsed;
+  } catch { /* Malformed JSON remains commentary. */ }
+  return item;
+};
+const legacyLinkCount = (items: unknown[]): number => items.reduce<number>((count, item) => {
+  if (item == null || typeof item !== "object" || Array.isArray(item)) return count;
+  const result = item as Record<string, unknown>;
+  const url = typeof result.url === "string" ? result.url : "";
+  // Direct presentation wins over nested content, exactly as below.
+  if ([result.title, url, result.description].some(value => typeof value === "string" && value)) return count + (url ? 1 : 0);
+  return count + (Array.isArray(result.content) ? result.content.filter(link => link != null && typeof link === "object" && "url" in link && typeof link.url === "string" && link.url).length : 0);
+}, 0);
 
 type Props = {
   searchData: Record<string, unknown>;
@@ -29,7 +49,7 @@ export const WebSearchRenderer = ({
   const { t } = useTranslation();
   const fmt = useFormat();
   const query = typeof searchData.query === "string" ? searchData.query : "";
-  const results = Array.isArray(searchData.results) ? searchData.results : [];
+  const results = Array.isArray(searchData.results) ? searchData.results.map(legacyResult) : [];
   const durationSeconds =
     typeof searchData.durationSeconds === "number"
       ? searchData.durationSeconds
@@ -68,7 +88,7 @@ export const WebSearchRenderer = ({
         {results.length > 0 && (
           <div>
             <div className={`${layout.smallText} font-medium mb-2 text-muted-foreground`}>
-              {t('webSearchRenderer.results', { count: results.length })}
+              {t("webSearchRenderer.linkCount", { count: legacyLinkCount(results) })}
             </div>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {results.map((result: unknown, index: number) => (
@@ -77,38 +97,11 @@ export const WebSearchRenderer = ({
                   className="p-3 rounded border transition-colors bg-card border-border hover:border-tool-web/50"
                 >
                   {typeof result === "string" ? (
-                    (() => {
-                      try {
-                        const trimmed = result.trim();
-                        if (
-                          (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-                          (trimmed.startsWith("[") && trimmed.endsWith("]"))
-                        ) {
-                          const parsed = JSON.parse(trimmed);
-                          if (parsed && typeof parsed === "object") {
-                            const title = typeof parsed.title === "string" ? parsed.title : null;
-                            const url = typeof parsed.url === "string" ? parsed.url : null;
-                            const description = typeof parsed.description === "string" ? parsed.description : null;
-
-                            if (title || url || description) {
-                              return (
-                                <SearchResultItem title={title} url={url} description={description} />
-                              );
-                            }
-                          }
-                        }
-                      } catch {
-                        // JSON 파싱 실패시 일반 텍스트로 처리
-                      }
-
-                      return (
-                        <div className={layout.prose}>
-                          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
-                            {result}
-                          </ReactMarkdown>
-                        </div>
-                      );
-                    })()
+                    <div className={layout.prose}>
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
+                        {result}
+                      </ReactMarkdown>
+                    </div>
                   ) : result && typeof result === "object" ? (
                     (() => {
                       const resultObj = result as Record<string, unknown>;
@@ -125,7 +118,9 @@ export const WebSearchRenderer = ({
                           <div className="space-y-2">
                             {resultObj.content.map((item: unknown, idx: number) => (
                               <div key={idx}>
-                                {item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
+                                {item && typeof item === "object" && "url" in item && typeof item.url === "string" ? (
+                                  <SearchResultItem title={"title" in item && typeof item.title === "string" ? item.title : null} url={item.url} description={null} />
+                                ) : item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
                                   <div className={layout.prose}>
                                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                                       {item.text}

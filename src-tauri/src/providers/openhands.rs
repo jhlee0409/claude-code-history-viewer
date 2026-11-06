@@ -331,7 +331,7 @@ fn convert_event(event: &Value, sid: &str, idx: usize) -> Option<ClaudeMessage> 
         let is_error = event.get("observation").and_then(Value::as_str) == Some("error");
         let mut result = json!({
             "type":"tool_result", "tool_use_id":tool_use_id,
-            "content":content, "is_error":is_error
+            "content":content, "is_error":is_error, "is_error_source":"derived"
         });
         if let Some(extras) = event.get("extras") {
             super::result_evidence::attach(&mut result, extras, &uuid, sid, 0);

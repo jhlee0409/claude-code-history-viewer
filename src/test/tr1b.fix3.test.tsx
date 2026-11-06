@@ -422,10 +422,22 @@ describe("4378494005: a one-line body value holding the hit is not cut by an ell
     expect(mark!.closest(".truncate"), `the marked line is not an ellipsis cut: ${mark!.closest(".truncate")?.className}`).toBeNull();
   });
 
-  it.each(ONE_LINE_HITS)("control: without a hit, the $label stays one line with an ellipsis", ({ block }) => {
+  it.each(ONE_LINE_HITS.filter(({ label }) => label !== "text_editor path"))("control: without a hit, the $label stays one line with an ellipsis", ({ block }) => {
     const { container } = renderContent([block], { searchQuery: "" });
     const row = rows(container)[0] as HTMLElement;
     fireEvent.click(buttonOf(row));
     expect(wrapperOf(row).querySelectorAll("[data-tool-detail] .truncate").length).toBeGreaterThan(0);
+  });
+  it("control: invented legacy editor path stays exact recorded JSON, not an SDK path field", () => {
+    // SDK cb5fba4198 messages.ts:7085-7192 has no result.path/operation.
+    // Keep the hit/mark assertions above; migrate only the obsolete ellipsis contract.
+    const { block } = ONE_LINE_HITS.find(({ label }) => label === "text_editor path")!;
+    const { container } = renderContent([block], { searchQuery: "" });
+    const row = rows(container)[0] as HTMLElement;
+    fireEvent.click(buttonOf(row));
+    const record = [...wrapperOf(row).querySelectorAll("[data-output-text]")].map(e => e.textContent).find(value => value?.includes('"path"'));
+    const metadata = Object.fromEntries(Object.entries(block.content as Record<string, unknown>).filter(([key]) => key !== "content"));
+    expect(JSON.parse(record!)).toEqual(metadata);
+    expect(wrapperOf(row).querySelectorAll("[data-tool-detail] .truncate")).toHaveLength(0);
   });
 });

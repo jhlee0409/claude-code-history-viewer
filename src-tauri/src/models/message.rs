@@ -155,6 +155,14 @@ pub struct ClaudeMessage {
         skip_serializing_if = "Option::is_none"
     )]
     pub source_execution: Option<serde_json::Value>,
+    /// Codex source identity/kinds/events, never a synthesized display message.
+    #[serde(
+        rename = "codexEvidence",
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_json"
+    )]
+    pub codex_evidence: Option<serde_json::Value>,
     #[serde(rename = "parentUuid")]
     pub parent_uuid: Option<String>,
     #[serde(rename = "sessionId")]

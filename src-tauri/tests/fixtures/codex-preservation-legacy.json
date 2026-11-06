@@ -1,0 +1,858 @@
+[
+  [
+    {
+      "content": [
+        {
+          "text": "Synthetic prompt",
+          "type": "text"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "be1-session",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "before-turn"
+    },
+    {
+      "content": null,
+      "data": {
+        "message": "Task started",
+        "status": "started",
+        "taskId": "human-turn",
+        "type": "waiting_for_task"
+      },
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "sessionId": "be1-session",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "toolUse": null,
+      "toolUseID": "human-turn",
+      "toolUseResult": null,
+      "type": "progress",
+      "uuid": "codex-event-2"
+    },
+    {
+      "content": [
+        {
+          "id": "duplicate",
+          "input": {
+            "cmd": "synthetic",
+            "command": "synthetic"
+          },
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        {
+          "content": "Error: ordinary stdout\n",
+          "tool_use_id": "duplicate",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "model": "synthetic-model",
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": {
+        "id": "duplicate",
+        "input": {
+          "cmd": "synthetic",
+          "command": "synthetic"
+        },
+        "name": "Bash",
+        "type": "tool_use"
+      },
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "use-one"
+    },
+    {
+      "content": [
+        {
+          "id": "duplicate",
+          "input": {},
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        {
+          "content": "synthetic failure\n",
+          "tool_use_id": "duplicate",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "model": "synthetic-model",
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": {
+        "id": "duplicate",
+        "input": {},
+        "name": "Bash",
+        "type": "tool_use"
+      },
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "use-two"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "first-needle",
+              "type": "input_text"
+            },
+            {
+              "detail": null,
+              "image_url": "data:image/png;base64,AAAA",
+              "type": "input_image"
+            },
+            {
+              "text": "last-needle",
+              "type": "input_text"
+            }
+          ],
+          "tool_use_id": "missing",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "result-orphan"
+    },
+    {
+      "content": null,
+      "data": {
+        "message": "Task completed",
+        "status": "completed",
+        "taskId": "human-turn",
+        "type": "waiting_for_task"
+      },
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseID": "human-turn",
+      "toolUseResult": null,
+      "type": "progress",
+      "uuid": "codex-event-8"
+    },
+    {
+      "content": null,
+      "data": {
+        "message": "Task started",
+        "status": "started",
+        "taskId": "goal-turn",
+        "type": "waiting_for_task"
+      },
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "sessionId": "be1-session",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "toolUse": null,
+      "toolUseID": "goal-turn",
+      "toolUseResult": null,
+      "type": "progress",
+      "uuid": "codex-event-9"
+    },
+    {
+      "content": [
+        {
+          "text": "Synthetic injected continuation",
+          "type": "text"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "goal-context"
+    },
+    {
+      "content": [
+        {
+          "text": "Synthetic reply",
+          "type": "text"
+        }
+      ],
+      "isSidechain": null,
+      "model": "synthetic-model",
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "assistant",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "assistant",
+      "uuid": "explicit-null-turn"
+    },
+    {
+      "content": [
+        {
+          "content": "Process exited with code 9\nordinary prose, not a producer header",
+          "tool_use_id": "absent",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "no-header"
+    },
+    {
+      "content": [
+        {
+          "content": null,
+          "toolUseResult": {
+            "metadata": {
+              "exit_code": 0
+            },
+            "output": null,
+            "unknown": false
+          },
+          "toolUseResultSource": {
+            "association": "single_result",
+            "contentIndex": 0,
+            "messageUuid": "zero-wrapper",
+            "sessionId": "be1-session"
+          },
+          "tool_use_id": "missing",
+          "type": "tool_result"
+        }
+      ],
+      "isSidechain": null,
+      "parentUuid": null,
+      "provider": "codex",
+      "role": "user",
+      "sessionId": "be1-session",
+      "timestamp": "",
+      "toolUse": null,
+      "toolUseResult": null,
+      "type": "user",
+      "uuid": "zero-wrapper"
+    }
+  ],
+  {
+    "has_more": false,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "Synthetic prompt",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "before-turn"
+      },
+      {
+        "content": null,
+        "data": {
+          "message": "Task started",
+          "status": "started",
+          "taskId": "human-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "2026-01-01T00:00:01Z",
+        "toolUse": null,
+        "toolUseID": "human-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-2"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "cmd": "synthetic",
+              "command": "synthetic"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "Error: ordinary stdout\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "cmd": "synthetic",
+            "command": "synthetic"
+          },
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-one"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {},
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "synthetic failure\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {},
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-two"
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "text": "first-needle",
+                "type": "input_text"
+              },
+              {
+                "detail": null,
+                "image_url": "data:image/png;base64,AAAA",
+                "type": "input_image"
+              },
+              {
+                "text": "last-needle",
+                "type": "input_text"
+              }
+            ],
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-orphan"
+      },
+      {
+        "content": null,
+        "data": {
+          "message": "Task completed",
+          "status": "completed",
+          "taskId": "human-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseID": "human-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-8"
+      },
+      {
+        "content": null,
+        "data": {
+          "message": "Task started",
+          "status": "started",
+          "taskId": "goal-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "2026-01-01T00:00:03Z",
+        "toolUse": null,
+        "toolUseID": "goal-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-9"
+      },
+      {
+        "content": [
+          {
+            "text": "Synthetic injected continuation",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "goal-context"
+      },
+      {
+        "content": [
+          {
+            "text": "Synthetic reply",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "explicit-null-turn"
+      },
+      {
+        "content": [
+          {
+            "content": "Process exited with code 9\nordinary prose, not a producer header",
+            "tool_use_id": "absent",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "no-header"
+      },
+      {
+        "content": [
+          {
+            "content": null,
+            "toolUseResult": {
+              "metadata": {
+                "exit_code": 0
+              },
+              "output": null,
+              "unknown": false
+            },
+            "toolUseResultSource": {
+              "association": "single_result",
+              "contentIndex": 0,
+              "messageUuid": "zero-wrapper",
+              "sessionId": "be1-session"
+            },
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "zero-wrapper"
+      }
+    ],
+    "next_offset": 11,
+    "total_count": 11
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "content": null,
+            "toolUseResult": {
+              "metadata": {
+                "exit_code": 0
+              },
+              "output": null,
+              "unknown": false
+            },
+            "toolUseResultSource": {
+              "association": "single_result",
+              "contentIndex": 0,
+              "messageUuid": "zero-wrapper",
+              "sessionId": "be1-session"
+            },
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "zero-wrapper"
+      }
+    ],
+    "next_offset": 1,
+    "total_count": 11
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "Synthetic reply",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "explicit-null-turn"
+      },
+      {
+        "content": [
+          {
+            "content": "Process exited with code 9\nordinary prose, not a producer header",
+            "tool_use_id": "absent",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "no-header"
+      }
+    ],
+    "next_offset": 3,
+    "total_count": 11
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": null,
+        "data": {
+          "message": "Task completed",
+          "status": "completed",
+          "taskId": "human-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseID": "human-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-8"
+      },
+      {
+        "content": null,
+        "data": {
+          "message": "Task started",
+          "status": "started",
+          "taskId": "goal-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "2026-01-01T00:00:03Z",
+        "toolUse": null,
+        "toolUseID": "goal-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-9"
+      },
+      {
+        "content": [
+          {
+            "text": "Synthetic injected continuation",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "goal-context"
+      }
+    ],
+    "next_offset": 6,
+    "total_count": 11
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": null,
+        "data": {
+          "message": "Task started",
+          "status": "started",
+          "taskId": "human-turn",
+          "type": "waiting_for_task"
+        },
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "sessionId": "be1-session",
+        "timestamp": "2026-01-01T00:00:01Z",
+        "toolUse": null,
+        "toolUseID": "human-turn",
+        "toolUseResult": null,
+        "type": "progress",
+        "uuid": "codex-event-2"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {
+              "cmd": "synthetic",
+              "command": "synthetic"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "Error: ordinary stdout\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {
+            "cmd": "synthetic",
+            "command": "synthetic"
+          },
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-one"
+      },
+      {
+        "content": [
+          {
+            "id": "duplicate",
+            "input": {},
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "synthetic failure\n",
+            "tool_use_id": "duplicate",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "synthetic-model",
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "assistant",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": {
+          "id": "duplicate",
+          "input": {},
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "use-two"
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "text": "first-needle",
+                "type": "input_text"
+              },
+              {
+                "detail": null,
+                "image_url": "data:image/png;base64,AAAA",
+                "type": "input_image"
+              },
+              {
+                "text": "last-needle",
+                "type": "input_text"
+              }
+            ],
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "result-orphan"
+      }
+    ],
+    "next_offset": 10,
+    "total_count": 11
+  },
+  {
+    "has_more": false,
+    "messages": [],
+    "next_offset": 99,
+    "total_count": 11
+  },
+  {
+    "has_more": true,
+    "messages": [
+      {
+        "content": [
+          {
+            "content": null,
+            "toolUseResult": {
+              "metadata": {
+                "exit_code": 0
+              },
+              "output": null,
+              "unknown": false
+            },
+            "toolUseResultSource": {
+              "association": "single_result",
+              "contentIndex": 0,
+              "messageUuid": "zero-wrapper",
+              "sessionId": "be1-session"
+            },
+            "tool_use_id": "missing",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "codex",
+        "role": "user",
+        "sessionId": "be1-session",
+        "timestamp": "",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "zero-wrapper"
+      }
+    ],
+    "next_offset": 1,
+    "total_count": 11
+  }
+]

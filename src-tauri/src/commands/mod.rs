@@ -16,6 +16,8 @@ pub mod watcher;
 pub mod wsl;
 
 #[cfg(test)]
+pub(crate) mod codex_preservation_tests;
+#[cfg(test)]
 mod proptest_examples;
 #[cfg(test)]
 pub(crate) mod provider_evidence_tests;

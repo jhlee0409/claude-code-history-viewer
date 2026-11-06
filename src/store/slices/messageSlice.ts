@@ -37,6 +37,7 @@ import {
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown, supportsSubagents } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { retainLoadedCodexStarts } from "../../components/transcript/codexTurns";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 import {
   type WebUINavigationOptions,
@@ -51,8 +52,12 @@ import {
 /** Pagination state for project token stats */
 export type ProjectTokenStatsPagination = ProjectTokenStatsPaginationState;
 
+/** The operation that committed the current source-message window. */
+export type MessageUpdateKind = "replace" | "prepend" | "tail-refresh";
+
 export interface MessageSliceState {
   messages: ClaudeMessage[];
+  messageUpdateKind: MessageUpdateKind;
   pagination: PaginationState;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
@@ -91,6 +96,8 @@ export interface MessageSliceState {
 export type ReloadReason = "watcher" | "filter" | "refresh" | "restore";
 
 export interface SelectSessionOptions extends WebUINavigationOptions {
+  /** Store-internal provenance: filter/restore reloads must not live-follow. */
+  reloadReason?: ReloadReason;
   /**
    * The session's whole message list, already in hand (the board's lane
    * cache): it is opened from this instead of fetched.
@@ -219,6 +226,7 @@ const areMessagesEquivalent = (
 
 const initialMessageState: MessageSliceState = {
   messages: [],
+  messageUpdateKind: "replace",
   pagination: { ...INITIAL_PAGINATION },
   isLoadingMessages: false,
   isLoadingTokenStats: false,
@@ -316,10 +324,10 @@ export const createMessageSlice: StateCreator<
     messages: ClaudeMessage[]
   ): ClaudeMessage[] => {
     if (get().showSystemMessages) return messages;
-    return messages.filter(
+    return retainLoadedCodexStarts(messages, messages.filter(
       (m) =>
         !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-    );
+    ));
   };
 
   /** Whether sidechain messages should be excluded server-side right now. */
@@ -427,12 +435,11 @@ export const createMessageSlice: StateCreator<
 
         const existing = get().messages;
         const known = new Set(existing.map((m) => m.uuid));
-        const fresh = applySystemMessageFilter(
-          page.messages.filter((m) => !known.has(m.uuid))
-        );
+        const loaded = page.messages.filter((m) => !known.has(m.uuid));
 
         set({
-          messages: fresh.length > 0 ? [...fresh, ...existing] : existing,
+          messages: loaded.length > 0 ? applySystemMessageFilter([...loaded, ...existing]) : existing,
+          messageUpdateKind: "prepend",
           pagination: {
             currentOffset: page.next_offset,
             pageSize: MESSAGE_PAGE_SIZE,
@@ -480,7 +487,7 @@ export const createMessageSlice: StateCreator<
     const target = fresh?.file_path === current.file_path ? fresh : current;
     // Same file, so `selectSession` takes its in-place path; "none" because a
     // reload is not a WebUI history step.
-    await get().selectSession(target, { history: "none" });
+    await get().selectSession(target, { history: "none", reloadReason: reason });
   },
 
   selectSession: async (session: ClaudeSession, options) => {
@@ -521,6 +528,7 @@ export const createMessageSlice: StateCreator<
       nextRequestId("subagents");
       set({
         messages: [],
+        messageUpdateKind: "replace",
         pagination: { ...INITIAL_PAGINATION },
         isLoadingMessages: true,
         subagentSessions: [],
@@ -557,6 +565,7 @@ export const createMessageSlice: StateCreator<
       clearSearchIndex();
       set({
         messages: cached,
+        messageUpdateKind: "replace",
         isLoadingMessages: false,
         pagination: {
           currentOffset: cached.length,
@@ -570,6 +579,9 @@ export const createMessageSlice: StateCreator<
       return;
     }
 
+    // An in-place reload takes over an older page's loading flag. Keep the
+    // exact pagination it inherited so cleanup cannot stop a successor page.
+    const ownedPagination = get().pagination;
     try {
       const sessionPath = session.file_path;
       const start = performance.now();
@@ -598,6 +610,10 @@ export const createMessageSlice: StateCreator<
 
       // Apply system message filter (client-side; window-local)
       const filteredMessages = applySystemMessageFilter(windowMessages);
+      const messageUpdateKind: MessageUpdateKind =
+        isInPlaceReload && (options?.reloadReason === "watcher" || options?.reloadReason === "refresh")
+          ? "tail-refresh"
+          : "replace";
 
       const duration = performance.now() - start;
       if (import.meta.env.DEV) {
@@ -615,13 +631,14 @@ export const createMessageSlice: StateCreator<
       };
 
       if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
-        set({ isLoadingMessages: false, pagination: nextPagination });
+        set({ isLoadingMessages: false, pagination: nextPagination, messageUpdateKind });
         return;
       }
 
       // Update state first to allow UI to render immediately
       set({
         messages: filteredMessages,
+        messageUpdateKind,
         pagination: nextPagination,
         isLoadingMessages: false,
       });
@@ -654,6 +671,13 @@ export const createMessageSlice: StateCreator<
       // and nothing else would. A newer load of a session has taken it over.
       if (owner.ownsSpinner() && get().isLoadingMessages) {
         set({ isLoadingMessages: false });
+      }
+      if (
+        owner.ownsSpinner() &&
+        get().pagination === ownedPagination &&
+        ownedPagination.isLoadingMore
+      ) {
+        set({ pagination: { ...ownedPagination, isLoadingMore: false } });
       }
     }
   },
@@ -747,10 +771,10 @@ export const createMessageSlice: StateCreator<
         : all;
       return showSystem
         ? sidechainFiltered
-        : sidechainFiltered.filter(
+        : retainLoadedCodexStarts(sidechainFiltered, sidechainFiltered.filter(
             (m) =>
               !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-          );
+          ));
     })();
 
     fullSessionCache = { key, promise };

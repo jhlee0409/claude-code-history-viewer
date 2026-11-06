@@ -6,6 +6,7 @@
  */
 
 import FlexSearch from "flexsearch";
+import { serverToolTexts } from "./anthropicServerTools";
 import type { Document as FlexSearchDocument } from "flexsearch";
 
 // ============================================================================
@@ -154,6 +155,7 @@ const extractSearchableText = (message: ClaudeMessageMinimal): string => {
             // worker must index the same content types as the main path, or
             // search silently misses them.
             const itemType = item.type as string | undefined;
+            parts.push(...serverToolTexts(itemType, item.content));
             if (
               itemType === "web_search_tool_result" &&
               isRecord(item.content)

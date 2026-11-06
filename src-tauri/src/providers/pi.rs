@@ -1087,10 +1087,6 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
         .get("toolCallId")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let is_error = message
-        .get("isError")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
     let blocks = content_blocks(message);
     let content = if blocks
         .iter()
@@ -1106,12 +1102,13 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
     } else {
         Value::Array(blocks)
     };
-    vec![json!({
-        "type": "tool_result",
-        "tool_use_id": tool_use_id,
-        "content": content,
-        "is_error": is_error
-    })]
+    let mut block = json!({
+        "type": "tool_result", "tool_use_id": tool_use_id, "content": content
+    });
+    // pi-mono a922830 agent-loop.ts:841-863 writes isError; absence is not false.
+    // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/agent/src/agent-loop.ts#L841-L863
+    super::result_evidence::copy_error_flag(&mut block, message, "isError");
+    vec![block]
 }
 
 fn convert_content_item(item: &Value) -> Option<Value> {
@@ -1630,5 +1627,30 @@ mod tests {
             load_messages(&file.to_string_lossy()).is_err(),
             "load_messages must reject a file outside the sessions root"
         );
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [
+            None,
+            Some(serde_json::json!(false)),
+            Some(serde_json::json!(true)),
+            Some(serde_json::json!(null)),
+            Some(serde_json::json!("false")),
+        ] {
+            let mut record = serde_json::json!({"toolCallId":"c","content":[{"type":"text","text":"synthetic"}]});
+            if let Some(v) = flag.clone() {
+                record["isError"] = v;
+            }
+            let block = &tool_result_blocks(&record)[0];
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.and_then(|v| v.as_bool())
+            );
+        }
     }
 }

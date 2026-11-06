@@ -184,7 +184,20 @@ export interface CompactMetadata {
   warning?: string;
 }
 
+/** Additive producer evidence; transport carrier does not assert call ownership. */
+export interface CodexEvidence {
+  turn?: { started?: unknown; context?: unknown };
+  contentItems?: Array<{ type?: unknown }>;
+  contentItemKinds?: unknown;
+  fileChanges?: Array<{ sourceLine: number; record: unknown }>;
+}
+
 export interface BaseClaudeMessage {
+  codexEvidence?: CodexEvidence;
+  /** Frontend view projection only: the actual loaded progress/start row hidden
+   * by the system-message toggle, carried by the cycle's first retained row.
+   * Never serialized to the provider or inferred from copied turn evidence. */
+  codexLoadedStart?: ClaudeMessage;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
