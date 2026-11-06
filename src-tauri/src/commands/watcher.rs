@@ -393,27 +393,41 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
 }
 
 /// Extract Mistral Vibe session identifiers from files under
-/// `~/.vibe/logs/session/{session_dir}/`.
+/// `~/.vibe/logs/session/{session_dir}/` (legacy transcripts) or
+/// `~/.vibe/logs/session/unified/{session_id}/` (unified session store).
 fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
-    let filename = path.file_name()?.to_str()?;
-    if !matches!(filename, "messages.jsonl" | "meta.json") {
+    // Cheap pre-filter: `extract_provider_paths` dispatches every `.json` /
+    // `.jsonl` under the watched roots here, and resolving the Vibe home
+    // reads env/home — it must not happen for unrelated providers' files.
+    if !is_vibe_candidate_file(path) {
         return None;
     }
 
     let sessions_root = crate::providers::vibe::get_base_path()
         .map(PathBuf::from)
         .map(|base| base.join("logs/session"))?;
+    let canonical_root = sessions_root.canonicalize().unwrap_or(sessions_root);
     let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    let session_dir = canonical_path.parent()?;
-    let relative = session_dir
-        .strip_prefix(
-            sessions_root
-                .canonicalize()
-                .unwrap_or(sessions_root.clone()),
-        )
-        .ok()?;
 
-    if relative.components().count() != 1 {
+    // The session directory is the nearest ancestor holding `meta.json`.
+    let mut session_dir = canonical_path.parent()?.to_path_buf();
+    loop {
+        if session_dir.join("meta.json").is_file() {
+            break;
+        }
+        if session_dir == canonical_root || !session_dir.starts_with(&canonical_root) {
+            return None;
+        }
+        session_dir = session_dir.parent()?.to_path_buf();
+    }
+
+    // One component: legacy transcript dir; two components: `unified/<id>`.
+    let relative = session_dir.strip_prefix(&canonical_root).ok()?;
+    if relative.components().count() > 2 {
+        return None;
+    }
+
+    if !is_relevant_vibe_file(&canonical_path, &session_dir) {
         return None;
     }
 
@@ -439,6 +453,60 @@ fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
         format!("vibe://{cwd}"),
         session_dir.to_string_lossy().to_string(),
     ))
+}
+
+/// Only files that change the rendered conversation should trigger a
+/// refresh: session metadata, the legacy transcript, and the unified store's
+/// chunks, generation manifests and journal.
+fn is_relevant_vibe_file(path: &Path, session_dir: &Path) -> bool {
+    let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if matches!(filename, "meta.json" | "messages.jsonl" | "CURRENT") {
+        return true;
+    }
+    let Ok(relative) = path.strip_prefix(session_dir) else {
+        return false;
+    };
+    let in_store_subdir = relative
+        .components()
+        .next()
+        .and_then(|first| first.as_os_str().to_str())
+        .is_some_and(|first| matches!(first, "chunks" | "generations" | "journal"));
+    if in_store_subdir {
+        return matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("json" | "jsonl")
+        );
+    }
+    false
+}
+
+/// Filesystem-free candidate check: session metadata and transcript files by
+/// name, plus unified-store files by their two nearest ancestor directory
+/// names (`chunks/`, `generations/<gen>/`, `journal/`).
+fn is_vibe_candidate_file(path: &Path) -> bool {
+    let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if matches!(filename, "meta.json" | "messages.jsonl" | "CURRENT") {
+        return true;
+    }
+    if !matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("json" | "jsonl")
+    ) {
+        return false;
+    }
+    let parent = path.parent().and_then(|parent| parent.file_name());
+    let grandparent = path
+        .parent()
+        .and_then(|parent| parent.parent())
+        .and_then(|grandparent| grandparent.file_name());
+    [parent, grandparent]
+        .into_iter()
+        .flatten()
+        .any(|name| matches!(name.to_str(), Some("chunks" | "generations" | "journal")))
 }
 
 /// Extract Pi / oh-my-pi session identifiers from `.jsonl` files under
@@ -1105,5 +1173,126 @@ mod tests {
             "OpenCode cache must stay bounded at 10,000 entries, got {}",
             guard.len()
         );
+    }
+
+    /// Build a sandboxed Vibe home with one legacy and one unified session.
+    /// Returns `(vibe_home, legacy_session_dir, unified_session_dir)`.
+    fn setup_vibe_home(temp: &TempDir) -> (PathBuf, PathBuf, PathBuf) {
+        let vibe_home = temp.path().join(".vibe");
+        let legacy_dir = vibe_home.join("logs/session/session_legacy");
+        let unified_dir =
+            vibe_home.join("logs/session/unified/7abdeb96-ca90-7e2a-1257-a26093d8f6e9");
+        for dir in [&legacy_dir, &unified_dir] {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(
+                dir.join("meta.json"),
+                r#"{ "environment": { "working_directory": "/tmp/vibe-watch-demo" } }"#,
+            )
+            .unwrap();
+        }
+        std::fs::create_dir_all(unified_dir.join("chunks")).unwrap();
+        std::fs::create_dir_all(unified_dir.join("generations/0000000000000001")).unwrap();
+        std::fs::create_dir_all(unified_dir.join("journal")).unwrap();
+        (vibe_home, legacy_dir, unified_dir)
+    }
+
+    /// A legacy `messages.jsonl` path maps to its session.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_legacy_transcript() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, legacy_dir, _unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        let messages = legacy_dir.join("messages.jsonl");
+        std::fs::write(&messages, "{}\n").unwrap();
+        let result = extract_vibe_paths(&messages);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        let (project_path, session_path) = result.expect("legacy transcript maps to its session");
+        assert_eq!(project_path, "vibe:///tmp/vibe-watch-demo");
+        assert_eq!(
+            session_path,
+            legacy_dir.canonicalize().unwrap().to_string_lossy()
+        );
+    }
+
+    /// Unified-store files (chunks, manifests, journal) map to their session.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_unified_store() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, _legacy_dir, unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        let chunk = unified_dir.join("chunks/aaa.json");
+        std::fs::write(&chunk, "[]").unwrap();
+        let manifest = unified_dir.join("generations/0000000000000001/manifest.json");
+        std::fs::write(&manifest, "{}").unwrap();
+        let journal = unified_dir.join("journal/0000000000000001.jsonl");
+        std::fs::write(&journal, "{}\n").unwrap();
+        let current = unified_dir.join("CURRENT");
+        std::fs::write(&current, "{}").unwrap();
+        // A file outside the store subdirectories is not relevant.
+        let loops = unified_dir.join("scheduled-loops.json");
+        std::fs::write(&loops, "{}").unwrap();
+
+        let cases = [
+            extract_vibe_paths(&chunk),
+            extract_vibe_paths(&manifest),
+            extract_vibe_paths(&journal),
+            extract_vibe_paths(&current),
+        ];
+        let irrelevant = extract_vibe_paths(&loops);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        let expected_session = unified_dir
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for result in cases {
+            let (project_path, session_path) =
+                result.expect("unified store file maps to its session");
+            assert_eq!(project_path, "vibe:///tmp/vibe-watch-demo");
+            assert_eq!(session_path, expected_session);
+        }
+        assert!(irrelevant.is_none(), "unrelated session file is ignored");
+    }
+
+    /// Files outside the sessions tree are ignored.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_ignores_files_outside_sessions() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, _legacy_dir, _unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        // `logs/session/active/` holds lock files, not sessions.
+        let lock = vibe_home.join("logs/session/active/0b4a395e.lock.json");
+        std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+        std::fs::write(&lock, "{}").unwrap();
+        let result = extract_vibe_paths(&lock);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        assert!(result.is_none(), "active lock files are not sessions");
     }
 }
