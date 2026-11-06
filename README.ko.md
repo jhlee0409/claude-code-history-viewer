@@ -79,7 +79,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Claude Code** | `~/.claude/projects/` | 전체 대화 기록, 도구 사용, 사고 과정, 비용 |
 | **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, VS Code Copilot Chat 기록 (읽기 전용, WSL 인식) |
 | **Gemini CLI** | `~/.gemini/history/` | 도구 호출이 포함된 대화 기록 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 아래의 대화 상태와 `.token-monitor/rpc-cache/v1/` 아래의 토큰 모니터 데이터 |
+| **Antigravity** | `~/.gemini/antigravity/` | 워크스페이스별로 그룹화된 완전한 대화 기록 (프롬프트, 사고 과정, 도구 호출)을 `conversation_summaries.db`, `conversations/*.db`, `brain/`에서 추출하며, `.token-monitor/rpc-cache/v1/`의 토큰 모니터 데이터와도 연동 |
 | **Codex CLI** | `~/.codex/sessions/` | 에이전트 응답이 포함된 세션 롤아웃 |
 | **Cline** (Roo Code 포함, 구 Kilo Code) | `~/.cline/data/sessions/` (최신 Cline) 및 VS Code `globalStorage/<ext>/tasks/` (이전 버전) | Cline 계열 전반의 태스크 기반 기록 |
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | 2026년 5월부터 OpenCode 코어. 마이그레이션 전 Cline 계열 데이터는 Cline에 유지 |
@@ -110,7 +110,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 
 벤더 종속 없음. 클라우드 의존 없음. 로컬 대화 파일을 아름답게 렌더링합니다.
 
-Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 해석한 뒤 `brain/`에서 세션 상태를, `.token-monitor/rpc-cache/v1/`에서 사용량/캐시 아티팩트를 읽습니다. 이는 현재 런타임 레이아웃 및 `src-tauri/src/commands/antigravity.rs`의 루트 리졸버와 일치합니다.
+Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity` (및 `~/.gemini/antigravity-cli`)로 해석합니다. 데스크톱 세션은 `conversation_summaries.db`에서 워크스페이스 경로를 자동으로 파싱하여 폴더별로 그룹화됩니다. 대화 기록, 사고 과정 및 도구 호출은 `.system_generated/logs/` (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), `conversations/<session_id>.db`, `conversations_fts`에서 복원되며, 토큰 모니터 및 편집기 상태 저장소 폴백을 제공합니다.
 
 ## 목차
 
@@ -145,7 +145,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 프로바이더 | 설명 |
 |---------|-------|
-| **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+| **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 워크스페이스 폴더별 자동 그룹화, 전체 대화 기록 (프롬프트, 사고 과정, 도구 호출) 복원, 토큰 통계, 분석 대시보드, 글로벌 검색 및 실시간 파일 모니터링을 지원합니다. |
 
 ### v1.32.0 신규
 

@@ -79,7 +79,7 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **Claude Code** | `~/.claude/projects/` | 完整對話記錄、工具使用、思考過程、成本 |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI 與 Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop 和 VS Code Copilot Chat 歷史記錄（唯讀，支援 WSL） |
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具呼叫的對話記錄 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的對話狀態，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
+| **Antigravity** | `~/.gemini/antigravity/` | 依工作區資料夾分組的完整對話歷史（提示詞、思考過程、工具呼叫），讀取自 `conversation_summaries.db`、`conversations/*.db` 及 `brain/`，並相容 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理回應的工作階段記錄 |
 | **Cline**（含 Roo Code；舊版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（舊版） | Cline 家族的任務式對話記錄 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；遷移前的 Cline 家族資料仍歸 Cline |
@@ -110,7 +110,7 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 
 無供應商鎖定。無雲端依賴。本機對話檔案，精美呈現。
 
-Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/antigravity`，再從 `brain/` 讀取工作階段狀態、從 `.token-monitor/rpc-cache/v1/` 讀取 usage/快取產物；此行為與 `src-tauri/src/commands/antigravity.rs` 中目前的執行期佈局與根目錄解析器一致。
+Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/antigravity`（同時相容 `~/.gemini/antigravity-cli`）。桌面端工作階段會自動從 `conversation_summaries.db` 解析工作區路徑並按資料夾分組呈現；對話轉錄、思考過程與工具呼叫會從 `.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db` 和 `conversations_fts` 多源還原，並保留 Token 監控與編輯器狀態庫後備支援。
 
 ## 目錄
 
@@ -145,7 +145,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 提供者 | 說明 |
 |---------|-------|
-| **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+| **Antigravity** | 透過現有統一 provider 資料流接入。桌面端工作階段按工作區資料夾自動分組，支援完整對話還原（提示詞、思考過程、工具呼叫）、Token 統計、分析儀表板、全域搜尋以及即時工作階段檔案監控。 |
 
 ### v1.32.0 新增
 

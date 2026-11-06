@@ -79,7 +79,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Claude Code** | `~/.claude/projects/` | 完全な会話履歴、ツール使用、思考プロセス、コスト |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI & Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop、VS Code Copilot Chatの履歴（読み取り専用、WSL対応） |
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/`配下の会話状態と`.token-monitor/rpc-cache/v1/`配下のトークンモニターデータ |
+| **Antigravity** | `~/.gemini/antigravity/` | ワークスペース別にグループ化された完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）を `conversation_summaries.db`、`conversations/*.db`、`brain/` から読み取り、`.token-monitor/rpc-cache/v1/` のトークンデータにも対応 |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
 | **Cline**（Roo Code 含む、旧 Kilo Code） | `~/.cline/data/sessions/`（最新の Cline）および VS Code `globalStorage/<ext>/tasks/`（旧バージョン） | Clineファミリー全体のタスクベースの履歴 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
@@ -110,7 +110,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 
 ベンダーロックインなし。クラウド依存なし。ローカルの会話ファイルを美しくレンダリング。
 
-Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`として解決し、セッション状態を`brain/`から、usage/キャッシュ成果物を`.token-monitor/rpc-cache/v1/`から読み取ります。これは現在のランタイムレイアウトおよび`src-tauri/src/commands/antigravity.rs`のルートリゾルバと一致しています。
+Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`（および`~/.gemini/antigravity-cli`）として解決します。デスクトップセッションは`conversation_summaries.db`からワークスペースパスを自動解析してフォルダ別にグループ化されます。トランスクリプト、思考プロセス、ツール呼び出しは`.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db`、`conversations_fts`から復元され、トークンモニターやエディタ状態のフォールバックも備えています。
 
 ## 目次
 
@@ -145,7 +145,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | プロバイダー | メモ |
 |---------|-------|
-| **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+| **Antigravity** | 標準のプロバイダーパイプラインで統合。ワークスペースフォルダ別に自動グループ化され、完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）、トークン統計、分析、グローバル検索、リアルタイムファイル監視に対応します。 |
 
 ### v1.32.0の新機能
 

@@ -79,7 +79,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Claude Code** | `~/.claude/projects/` | 完整对话历史、工具使用、思维过程、成本 |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI 和 Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop 和 VS Code Copilot Chat 历史（只读，支持 WSL） |
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具调用的对话历史 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的对话状态，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 监控数据 |
+| **Antigravity** | `~/.gemini/antigravity/` | 按工作区文件夹分组的完整对话历史（提示词、思考过程、工具调用），读取自 `conversation_summaries.db`、`conversations/*.db` 及 `brain/`，并兼容 `.token-monitor/rpc-cache/v1/` 下的 Token 监控数据 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理响应的会话记录 |
 | **Cline**（含 Roo Code；旧版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（旧版） | Cline 系列基于任务的对话历史 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；迁移前的 Cline 系列数据仍归 Cline |
@@ -110,7 +110,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 
 无供应商锁定。无云依赖。本地对话文件，精美呈现。
 
-Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/antigravity`，然后从 `brain/` 读取会话状态，并从 `.token-monitor/rpc-cache/v1/` 读取用量/缓存数据；这与当前运行时布局以及 `src-tauri/src/commands/antigravity.rs` 中的根目录解析器一致。
+Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/antigravity`（同时兼容 `~/.gemini/antigravity-cli`）。桌面端会话会自动从 `conversation_summaries.db` 解析工作区路径并按文件夹分组展示；对话转录、思考过程与工具调用会从 `.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db` 和 `conversations_fts` 多源还原，并保留 Token 监控与编辑器状态库兜底。
 
 ## 目录
 
@@ -145,7 +145,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 提供商 | 说明 |
 |---------|-------|
-| **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+| **Antigravity** | 走现有统一 provider 数据流接入。桌面端会话按工作区文件夹自动分组，支持完整对话还原（提示词、思考过程、工具调用）、Token 统计、分析仪表板、全局搜索以及实时会话文件监控。 |
 
 ### v1.32.0 新增
 

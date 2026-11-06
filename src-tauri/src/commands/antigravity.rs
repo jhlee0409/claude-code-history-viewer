@@ -69,16 +69,9 @@ pub fn resolve_antigravity_root() -> Option<PathBuf> {
 /// now means "this is not a recognizable antigravity root".
 pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
     let candidate = PathBuf::from(path);
-    let default_root = get_antigravity_root();
-
-    if let Some(root) = &default_root {
-        if candidate.starts_with(root) {
-            return Some(root.clone());
-        }
-    }
 
     let mut current = if candidate.is_dir() {
-        candidate
+        candidate.clone()
     } else {
         candidate.parent()?.to_path_buf()
     };
@@ -89,12 +82,19 @@ pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
             .join("rpc-cache")
             .join("v1")
             .exists()
+            || current.join("conversation_summaries.db").is_file()
         {
             return Some(current);
         }
 
         if !current.pop() {
             break;
+        }
+    }
+
+    if let Some(root) = get_antigravity_root() {
+        if candidate.starts_with(&root) {
+            return Some(root);
         }
     }
 
@@ -260,18 +260,34 @@ fn resolve_model_alias(model: &str) -> String {
 }
 
 /// Checks whether a session ID contains only safe characters (alphanumeric, underscore, hyphen).
-fn is_valid_antigravity_session_id(session_id: &str) -> bool {
+pub(crate) fn is_valid_antigravity_session_id(session_id: &str) -> bool {
     !session_id.is_empty()
         && session_id
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
-/// Counts step records in a JSON value (records with `"recordType": "step"`).
+/// Counts step records in a JSON value (records with `"recordType": "step"`
+/// or Antigravity transcript step entries with `"step_index"`).
 fn count_step_rows(value: &Value) -> u32 {
     match value {
         Value::Object(record) => {
-            u32::from(record.get("recordType").and_then(Value::as_str) == Some("step"))
+            if record.get("recordType").and_then(Value::as_str) == Some("step") {
+                return 1;
+            }
+            if record.get("step_index").is_some() {
+                let is_turn = matches!(
+                    record.get("type").and_then(Value::as_str),
+                    Some("USER_INPUT" | "PLANNER_RESPONSE")
+                ) || matches!(
+                    record.get("source").and_then(Value::as_str),
+                    Some("USER_EXPLICIT" | "MODEL")
+                );
+                if is_turn {
+                    return 1;
+                }
+            }
+            0
         }
         _ => 0,
     }
@@ -322,6 +338,23 @@ fn collect_text_from_json(value: &Value, output: &mut String) {
 /// Parses a usage record and accumulates its token data into the aggregate.
 /// Returns `true` if the record was a usage record, `false` otherwise.
 fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bool {
+    if let Some(created_at) = record
+        .get("created_at")
+        .and_then(Value::as_str)
+        .or_else(|| record["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str())
+    {
+        if let Some(ms) = parse_rfc3339_to_ms(created_at) {
+            aggregate.first_seen_ms = Some(match aggregate.first_seen_ms {
+                Some(current) => current.min(ms),
+                None => ms,
+            });
+            aggregate.last_seen_ms = Some(match aggregate.last_seen_ms {
+                Some(current) => current.max(ms),
+                None => ms,
+            });
+        }
+    }
+
     if record["recordType"].as_str() != Some("usage") {
         return false;
     }
@@ -346,26 +379,15 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
     let model = resolve_model_alias(record["model"].as_str().unwrap_or("unknown"));
     *aggregate.model_totals.entry(model).or_insert(0) += normalized_total;
 
-    if let Some(created_at) = record["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str()
-    {
-        if let Some(ms) = parse_rfc3339_to_ms(created_at) {
-            aggregate.first_seen_ms = Some(match aggregate.first_seen_ms {
-                Some(current) => current.min(ms),
-                None => ms,
-            });
-            aggregate.last_seen_ms = Some(match aggregate.last_seen_ms {
-                Some(current) => current.max(ms),
-                None => ms,
-            });
-        }
-    }
-
     true
 }
 
 /// Recursively collects all file paths under `dir` into `files`, skipping
 /// system files (`.DS_Store`, `Thumbs.db`, backup files with `~` suffix) and symlinks.
+/// When `transcript_full.jsonl` is present in `dir`, skips `transcript.jsonl` to avoid
+/// double-counting the compact and full transcripts.
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let has_full_transcript = dir.join("transcript_full.jsonl").is_file();
     let entries =
         std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {}", dir.display(), e))?;
 
@@ -380,8 +402,14 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
         }
 
         let file_name = entry.file_name();
-        let file_name = file_name.to_string_lossy().to_lowercase();
-        if file_name == ".ds_store" || file_name == "thumbs.db" || file_name.ends_with('~') {
+        let file_name_lower = file_name.to_string_lossy().to_lowercase();
+        if file_name_lower == ".ds_store"
+            || file_name_lower == "thumbs.db"
+            || file_name_lower.ends_with('~')
+        {
+            continue;
+        }
+        if has_full_transcript && file_name_lower == "transcript.jsonl" {
             continue;
         }
 
@@ -395,6 +423,360 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
+/// Returns the legacy sibling `~/.gemini/antigravity-ide/brain/<session_id>` directory
+/// if `root` is `~/.gemini/antigravity` and that sibling directory exists as a real directory.
+pub(crate) fn legacy_ide_brain_session_dir(root: &Path, session_id: &str) -> Option<PathBuf> {
+    if root.file_name().and_then(|n| n.to_str()) != Some("antigravity") {
+        return None;
+    }
+    let parent = root.parent()?;
+    let legacy_root = parent.join("antigravity-ide");
+    let meta = std::fs::symlink_metadata(&legacy_root).ok()?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return None;
+    }
+    let brain_dir = legacy_root.join("brain");
+    let brain_meta = std::fs::symlink_metadata(&brain_dir).ok()?;
+    if brain_meta.file_type().is_symlink() || !brain_meta.is_dir() {
+        return None;
+    }
+    let session_dir = brain_dir.join(session_id);
+    let session_meta = std::fs::symlink_metadata(&session_dir).ok()?;
+    if session_meta.file_type().is_symlink() || !session_meta.is_dir() {
+        return None;
+    }
+    Some(session_dir)
+}
+
+/// Summary metadata loaded from `conversation_summaries.db` (`conversation_summaries` + `conversations_fts`).
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ConversationSummaryMeta {
+    pub title: Option<String>,
+    pub preview: Option<String>,
+    pub fts_title: Option<String>,
+    pub workspace: Option<String>,
+    pub step_count: u32,
+    pub fts_turn_count: u32,
+    pub fts_text_bytes: usize,
+    pub last_modified_ms: u64,
+}
+
+fn normalize_workspace_uri(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_scheme = trimmed.strip_prefix("file://").unwrap_or(trimmed);
+    let decoded = urlencoding::decode(without_scheme)
+        .map(std::borrow::Cow::into_owned)
+        .unwrap_or_else(|_| without_scheme.to_string());
+    let cleaned = if decoded.len() > 1 {
+        decoded.trim_end_matches('/').to_string()
+    } else {
+        decoded
+    };
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
+}
+
+fn parse_workspace_uris_json(raw: &str) -> Option<String> {
+    if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(raw) {
+        for item in items {
+            if let Some(s) = item.as_str() {
+                if let Some(ws) = normalize_workspace_uri(s) {
+                    return Some(ws);
+                }
+            }
+        }
+    }
+    normalize_workspace_uri(raw)
+}
+
+fn parse_fts_offset_count(raw: Option<rusqlite::types::ValueRef<'_>>, body_non_empty: bool) -> u32 {
+    let bytes = match raw {
+        Some(rusqlite::types::ValueRef::Text(b) | rusqlite::types::ValueRef::Blob(b)) => b,
+        _ => return u32::from(body_non_empty),
+    };
+    if let Ok(Value::Array(arr)) = serde_json::from_slice::<Value>(bytes) {
+        if !arr.is_empty() {
+            return arr.len() as u32;
+        }
+    }
+    u32::from(body_non_empty)
+}
+
+/// Loads session summary metadata from `<root>/conversation_summaries.db` (read-only).
+pub(crate) fn load_conversation_summaries_map(
+    root: &Path,
+) -> HashMap<String, ConversationSummaryMeta> {
+    let mut map: HashMap<String, ConversationSummaryMeta> = HashMap::new();
+    let db_path = root.join("conversation_summaries.db");
+    let Ok(meta) = std::fs::symlink_metadata(&db_path) else {
+        return map;
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return map;
+    }
+
+    let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+        | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+        | rusqlite::OpenFlags::SQLITE_OPEN_URI;
+    let Ok(conn) = rusqlite::Connection::open_with_flags(&db_path, flags) else {
+        return map;
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(2000));
+
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT conversation_id, title, preview, step_count, last_modified_time, last_user_input_time \
+         FROM conversation_summaries",
+    ) {
+        if let Ok(rows) = stmt.query([]) {
+            let mut rows = rows;
+            while let Ok(Some(row)) = rows.next() {
+                let Ok(conv_id) = row.get::<_, String>(0) else {
+                    continue;
+                };
+                if !is_valid_antigravity_session_id(&conv_id) {
+                    continue;
+                }
+                let title = row
+                    .get::<_, Option<String>>(1)
+                    .ok()
+                    .flatten()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
+                let preview = row
+                    .get::<_, Option<String>>(2)
+                    .ok()
+                    .flatten()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
+                let step_count = row
+                    .get::<_, Option<i64>>(3)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(0)
+                    .max(0) as u32;
+                let mod_ms = row
+                    .get::<_, Option<String>>(4)
+                    .ok()
+                    .flatten()
+                    .and_then(|s| parse_rfc3339_to_ms(&s))
+                    .unwrap_or(0);
+                let user_ms = row
+                    .get::<_, Option<String>>(5)
+                    .ok()
+                    .flatten()
+                    .and_then(|s| parse_rfc3339_to_ms(&s))
+                    .unwrap_or(0);
+
+                let entry = map.entry(conv_id).or_default();
+                if title.is_some() {
+                    entry.title = title;
+                }
+                if preview.is_some() {
+                    entry.preview = preview;
+                }
+                entry.step_count = entry.step_count.max(step_count);
+                entry.last_modified_ms = entry.last_modified_ms.max(mod_ms).max(user_ms);
+            }
+        }
+    }
+
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT conversation_id, CAST(chunk_index AS INTEGER), title, CAST(step_count AS INTEGER), \
+                last_modified_time, user_body, agent_body, user_step_byte_offsets, agent_step_byte_offsets \
+         FROM conversations_fts",
+    ) {
+        if let Ok(rows) = stmt.query([]) {
+            let mut rows = rows;
+            while let Ok(Some(row)) = rows.next() {
+                let Ok(conv_id) = row.get::<_, String>(0) else {
+                    continue;
+                };
+                if !is_valid_antigravity_session_id(&conv_id) {
+                    continue;
+                }
+                let chunk_idx = row.get::<_, Option<i64>>(1).ok().flatten().unwrap_or(0);
+                let entry = map.entry(conv_id).or_default();
+
+                if chunk_idx < 0 {
+                    let fts_title = row
+                        .get::<_, Option<String>>(2)
+                        .ok()
+                        .flatten()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty());
+                    if fts_title.is_some() {
+                        entry.fts_title = fts_title;
+                    }
+                    let step_count = row
+                        .get::<_, Option<i64>>(3)
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0)
+                        .max(0) as u32;
+                    entry.step_count = entry.step_count.max(step_count);
+
+                    if let Ok(raw_time) = row.get_ref(4) {
+                        let ts_ms = match raw_time {
+                            rusqlite::types::ValueRef::Integer(v) if v > 0 => {
+                                let u = v as u64;
+                                if u > 10_000_000_000_000 {
+                                    u / 1_000_000
+                                } else {
+                                    u
+                                }
+                            }
+                            rusqlite::types::ValueRef::Text(b) => std::str::from_utf8(b)
+                                .ok()
+                                .and_then(|s| {
+                                    s.trim()
+                                        .parse::<u64>()
+                                        .ok()
+                                        .map(|u| {
+                                            if u > 10_000_000_000_000 {
+                                                u / 1_000_000
+                                            } else {
+                                                u
+                                            }
+                                        })
+                                        .or_else(|| parse_rfc3339_to_ms(s.trim()))
+                                })
+                                .unwrap_or(0),
+                            _ => 0,
+                        };
+                        entry.last_modified_ms = entry.last_modified_ms.max(ts_ms);
+                    }
+                } else {
+                    let user_body = row
+                        .get::<_, Option<String>>(5)
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default();
+                    let agent_body = row
+                        .get::<_, Option<String>>(6)
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default();
+                    entry.fts_text_bytes += user_body.len() + agent_body.len();
+                    let u_turns =
+                        parse_fts_offset_count(row.get_ref(7).ok(), !user_body.trim().is_empty());
+                    let a_turns =
+                        parse_fts_offset_count(row.get_ref(8).ok(), !agent_body.trim().is_empty());
+                    entry.fts_turn_count = entry.fts_turn_count.saturating_add(u_turns + a_turns);
+                }
+            }
+        }
+    }
+
+    if let Ok(mut stmt) =
+        conn.prepare("SELECT conversation_id, workspace_uris FROM conversation_summaries")
+    {
+        if let Ok(mut rows) = stmt.query([]) {
+            while let Ok(Some(row)) = rows.next() {
+                let Ok(conv_id) = row.get::<_, String>(0) else {
+                    continue;
+                };
+                if !is_valid_antigravity_session_id(&conv_id) {
+                    continue;
+                }
+                if let Some(ws) = row
+                    .get::<_, Option<String>>(1)
+                    .ok()
+                    .flatten()
+                    .and_then(|raw| parse_workspace_uris_json(&raw))
+                {
+                    map.entry(conv_id).or_default().workspace = Some(ws);
+                }
+            }
+        }
+    }
+
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT conversation_id, workspace FROM conversations_fts WHERE CAST(chunk_index AS INTEGER) < 0",
+    ) {
+        if let Ok(mut rows) = stmt.query([]) {
+            while let Ok(Some(row)) = rows.next() {
+                let Ok(conv_id) = row.get::<_, String>(0) else {
+                    continue;
+                };
+                if !is_valid_antigravity_session_id(&conv_id) {
+                    continue;
+                }
+                let entry = map.entry(conv_id).or_default();
+                if entry.workspace.is_none() {
+                    entry.workspace = row
+                        .get::<_, Option<String>>(1)
+                        .ok()
+                        .flatten()
+                        .and_then(|raw| normalize_workspace_uri(&raw));
+                }
+            }
+        }
+    }
+
+    map
+}
+
+/// Parses `<root>/annotations/<session_id>.pbtxt` for `title:"..."` and `last_user_view_time`.
+pub(crate) fn read_annotation_pbtxt(root: &Path, session_id: &str) -> (Option<String>, u64) {
+    let pbtxt_path = root.join("annotations").join(format!("{session_id}.pbtxt"));
+    let Ok(meta) = std::fs::symlink_metadata(&pbtxt_path) else {
+        return (None, 0);
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return (None, 0);
+    }
+    let mtime_ms = file_mtime_ms(&pbtxt_path);
+    let Ok(content) = std::fs::read_to_string(&pbtxt_path) else {
+        return (None, mtime_ms);
+    };
+
+    let mut title = None;
+    if let Some(pos) = content.find("title:") {
+        let after = content[pos + "title:".len()..].trim_start();
+        if let Some(rest) = after.strip_prefix('"') {
+            let mut parsed = String::new();
+            let mut chars = rest.chars();
+            while let Some(ch) = chars.next() {
+                if ch == '\\' {
+                    if let Some(next_ch) = chars.next() {
+                        match next_ch {
+                            'n' => parsed.push('\n'),
+                            't' => parsed.push('\t'),
+                            'r' => parsed.push('\r'),
+                            other => parsed.push(other),
+                        }
+                    }
+                } else if ch == '"' {
+                    break;
+                } else {
+                    parsed.push(ch);
+                }
+            }
+            let trimmed = parsed.trim().to_string();
+            if !trimmed.is_empty() {
+                title = Some(trimmed);
+            }
+        }
+    }
+
+    let mut view_ms = mtime_ms;
+    if let Some(pos) = content.find("seconds:") {
+        let after = content[pos + "seconds:".len()..].trim_start();
+        let digits: String = after.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(sec) = digits.parse::<u64>() {
+            view_ms = view_ms.max(sec.saturating_mul(1000));
+        }
+    }
+
+    (title, view_ms)
+}
+
 /// Scans the `brain/` directory for session candidates, returning them sorted
 /// by last modification time (newest first).
 fn scan_brain_candidates(
@@ -403,6 +785,9 @@ fn scan_brain_candidates(
 ) -> Result<Vec<SessionCandidate>, String> {
     let brain_dir = root.join("brain");
     let conversations_dir = root.join("conversations");
+    let has_summaries_db = report
+        .metadata(&root.join("conversation_summaries.db"))
+        .is_some();
     if report.metadata(&brain_dir).is_none() {
         return Ok(vec![]);
     }
@@ -431,6 +816,21 @@ fn scan_brain_candidates(
         let mut file_paths = Vec::new();
         collect_files(&session_dir, &mut file_paths)?;
 
+        // Check legacy ~/.gemini/antigravity-ide/brain/<session_id> if no transcript files found here
+        let has_local_transcript = file_paths.iter().any(|p| {
+            p.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+                matches!(
+                    n,
+                    "transcript_full.jsonl" | "transcript.jsonl" | "overview.txt"
+                )
+            })
+        });
+        if !has_local_transcript {
+            if let Some(legacy_dir) = legacy_ide_brain_session_dir(root, &session_id) {
+                let _ = collect_files(&legacy_dir, &mut file_paths);
+            }
+        }
+
         let pb_path = conversations_dir.join(format!("{session_id}.pb"));
         // Defense-in-depth: reject symlinks even though the parent
         // directory was already symlink-guarded — a symlinked .pb
@@ -441,12 +841,20 @@ fn scan_brain_candidates(
             }
         }
 
+        let db_path = conversations_dir.join(format!("{session_id}.db"));
+        let has_conv_db = std::fs::symlink_metadata(&db_path)
+            .map(|m| !m.file_type().is_symlink() && m.file_type().is_file())
+            .unwrap_or(false);
+
         let mut last_modified_ms = 0;
         for file_path in &file_paths {
             last_modified_ms = last_modified_ms.max(file_mtime_ms(file_path));
         }
+        if has_conv_db {
+            last_modified_ms = last_modified_ms.max(file_mtime_ms(&db_path));
+        }
 
-        if file_paths.is_empty() {
+        if file_paths.is_empty() && !has_conv_db && !has_summaries_db {
             continue;
         }
 
@@ -464,7 +872,8 @@ fn scan_brain_candidates(
 }
 
 /// Resolves a human-readable label for a session by reading `task.md`,
-/// `implementation_plan.md`, or `walkthrough.md` and extracting the first `#` heading.
+/// `implementation_plan.md`, or `walkthrough.md` and extracting the first `#` heading,
+/// or falling back to the first `USER_INPUT` prompt in a transcript file.
 fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     for label_file in ["task.md", "implementation_plan.md", "walkthrough.md"] {
         let path = session_dir.join(label_file);
@@ -474,7 +883,49 @@ fn resolve_label(session_dir: &Path, fallback: &str) -> String {
         for line in content.lines() {
             let trimmed = line.trim();
             if let Some(rest) = trimmed.strip_prefix("# ") {
-                return rest.trim().trim_start_matches("Task:").trim().to_string();
+                let candidate = rest.trim().trim_start_matches("Task:").trim();
+                if !candidate.is_empty() {
+                    return candidate.to_string();
+                }
+            }
+        }
+    }
+
+    let logs_dir = session_dir.join(".system_generated").join("logs");
+    for log_name in ["transcript_full.jsonl", "transcript.jsonl", "overview.txt"] {
+        let path = logs_dir.join(log_name);
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if !trimmed.starts_with('{') {
+                continue;
+            }
+            let Ok(v) = serde_json::from_str::<Value>(trimmed) else {
+                continue;
+            };
+            let is_user = v.get("type").and_then(Value::as_str) == Some("USER_INPUT")
+                || v.get("source").and_then(Value::as_str) == Some("USER_EXPLICIT");
+            if !is_user {
+                continue;
+            }
+            if let Some(text) = v.get("content").and_then(Value::as_str) {
+                let cleaned = text
+                    .trim()
+                    .trim_start_matches("<USER_REQUEST>")
+                    .trim_end_matches("</USER_REQUEST>")
+                    .trim();
+                if let Some(first_line) = cleaned.lines().map(str::trim).find(|l| !l.is_empty()) {
+                    let truncated: String = first_line.chars().take(80).collect();
+                    return truncated;
+                }
             }
         }
     }
@@ -539,12 +990,86 @@ fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32,
             "md" | "txt" | "log" | "yaml" | "yml" => {
                 estimated_text.push('\n');
                 estimated_text.push_str(&content);
+                if ext == "txt" {
+                    for line in content.lines() {
+                        let trimmed = line.trim();
+                        if trimmed.starts_with('{') {
+                            if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+                                message_count += count_step_rows(&value);
+                                parse_usage_record(&value, &mut aggregate);
+                            }
+                        }
+                    }
+                }
             }
             _ => {}
         }
     }
 
     (aggregate, message_count, estimated_text)
+}
+
+/// Applies metadata from `conversation_summaries.db` and `annotations/<session_id>.pbtxt`
+/// onto a synthesized `PersistedSessionState`.
+fn enrich_session_with_metadata(
+    root: &Path,
+    session_id: &str,
+    persisted: &mut PersistedSessionState,
+    summary_meta: Option<&ConversationSummaryMeta>,
+) {
+    let (annotation_title, annotation_ms) = read_annotation_pbtxt(root, session_id);
+    let summary_title = summary_meta.and_then(|m| {
+        m.title
+            .clone()
+            .or_else(|| m.fts_title.clone())
+            .or_else(|| m.preview.clone())
+    });
+
+    // Prefer conversation_summaries.title -> annotations.pbtxt title -> fts_title/preview -> existing label
+    let best_title = summary_meta
+        .and_then(|m| m.title.clone())
+        .or(annotation_title)
+        .or(summary_title);
+
+    if let Some(title) = best_title {
+        if !title.is_empty() {
+            persisted.latest.label = title;
+        }
+    }
+
+    if let Some(meta) = summary_meta {
+        let current_msg_count = persisted.latest.message_count.unwrap_or(0);
+        let best_msg_count = current_msg_count
+            .max(meta.fts_turn_count)
+            .max(meta.step_count);
+        if best_msg_count > 0 {
+            persisted.latest.message_count = Some(best_msg_count);
+        }
+        if persisted.latest.evidence_count == 0 {
+            persisted.latest.evidence_count = if meta.step_count > 0 {
+                meta.step_count
+            } else {
+                meta.fts_turn_count
+            };
+        }
+        if persisted.latest.total_tokens == 0 && meta.fts_text_bytes > 0 {
+            let est_total = ((meta.fts_text_bytes as f64) / 4.0).round().max(1.0) as u64;
+            let est_input = ((est_total as f64) * ESTIMATED_PROMPT_RATIO).round() as u64;
+            persisted.latest.total_tokens = est_total;
+            persisted.latest.input_tokens = est_input;
+            persisted.latest.output_tokens = est_total.saturating_sub(est_input);
+        }
+        if meta.last_modified_ms > persisted.latest.last_modified_ms {
+            persisted.latest.last_modified_ms = meta.last_modified_ms;
+            persisted.lifecycle.last_seen_at =
+                persisted.lifecycle.last_seen_at.max(meta.last_modified_ms);
+        }
+    }
+
+    if annotation_ms > persisted.latest.last_modified_ms {
+        persisted.latest.last_modified_ms = annotation_ms;
+        persisted.lifecycle.last_seen_at = persisted.lifecycle.last_seen_at.max(annotation_ms);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -580,7 +1105,11 @@ fn build_session_state(
             "estimated".to_string()
         },
         source: source.to_string(),
-        evidence_count: aggregate.record_count,
+        evidence_count: if aggregate.record_count > 0 {
+            aggregate.record_count
+        } else {
+            message_count
+        },
         message_count: Some(if message_count > 0 {
             message_count
         } else {
@@ -625,7 +1154,8 @@ fn build_session_state(
 }
 
 /// Builds the full `AntigravityState` by scanning the antigravity root directory:
-/// first from `brain/` candidates, then from the RPC cache directory.
+/// first from `brain/` candidates, then from the RPC cache directory, and finally
+/// from `conversation_summaries.db` and `conversations/*.db`.
 /// Sessions from the `brain/` directory and the rpc cache. A path that is
 /// there but cannot be looked at is recorded in `report` (it passes for an
 /// absent one otherwise).
@@ -634,6 +1164,7 @@ fn build_state_from_token_monitor_sources(
     report: &ScanReport,
 ) -> Result<AntigravityState, String> {
     let rpc_root = get_antigravity_rpc_cache_root(root);
+    let summaries_map = load_conversation_summaries_map(root);
     let mut sessions = HashMap::new();
     let mut seen_ids = HashSet::new();
     let exists = |path: &Path| report.metadata(path).is_some();
@@ -672,23 +1203,12 @@ fn build_state_from_token_monitor_sources(
             )
         };
 
-        // Synthesize a session from whichever source is available.
-        // Previously the no-rpc-artifact branch skipped the candidate
-        // entirely, relying on the rpc-cache scan below to pick it up
-        // later — but that scan only walks the rpc-cache directory, so
-        // brain/-only sessions never reached the synthesized state.
-        //
-        // The storage_dir becomes the session's user-facing file_path
-        // (used by "Reveal in Finder" etc.). Point it at the actual
-        // data location: rpc_dir when token files come from rpc-cache,
-        // session_dir for filesystem-only sessions whose rpc_dir does
-        // not exist on disk.
         let storage_dir = if has_rpc_artifact {
             rpc_dir.clone()
         } else {
             candidate.session_dir.clone()
         };
-        let persisted = build_session_state(
+        let mut persisted = build_session_state(
             &candidate.session_id,
             &candidate.session_dir,
             &storage_dir,
@@ -698,6 +1218,23 @@ fn build_state_from_token_monitor_sources(
             source,
             SessionLifecycleStatus::Active,
         );
+        enrich_session_with_metadata(
+            root,
+            &candidate.session_id,
+            &mut persisted,
+            summaries_map.get(&candidate.session_id),
+        );
+        // Reject completely empty brain directories that have no files, no rpc artifact, and no summary/db metadata
+        if !has_rpc_artifact
+            && candidate.file_paths.is_empty()
+            && !summaries_map.contains_key(&candidate.session_id)
+            && !root
+                .join("conversations")
+                .join(format!("{}.db", candidate.session_id))
+                .is_file()
+        {
+            continue;
+        }
         seen_ids.insert(candidate.session_id.clone());
         sessions.insert(candidate.session_id, persisted);
     }
@@ -714,9 +1251,6 @@ fn build_state_from_token_monitor_sources(
                 continue;
             }
             let session_id = entry.file_name().to_string_lossy().to_string();
-            // Same allowlist applied to brain/ candidates: a directory
-            // dropped into rpc-cache must look like a session id before
-            // we trust it as a path component or HashMap key.
             if !is_valid_antigravity_session_id(&session_id) {
                 continue;
             }
@@ -748,7 +1282,7 @@ fn build_state_from_token_monitor_sources(
             .max()
             .unwrap_or_else(|| file_mtime_ms(&session_dir));
 
-            let persisted = build_session_state(
+            let mut persisted = build_session_state(
                 &session_id,
                 &session_dir,
                 &session_dir,
@@ -758,8 +1292,95 @@ fn build_state_from_token_monitor_sources(
                 "rpc-artifact",
                 SessionLifecycleStatus::Archived,
             );
+            enrich_session_with_metadata(
+                root,
+                &session_id,
+                &mut persisted,
+                summaries_map.get(&session_id),
+            );
+            seen_ids.insert(session_id.clone());
             sessions.insert(session_id, persisted);
         }
+    }
+
+    // Discover sessions present in `conversation_summaries.db` or `conversations/*.db`
+    // that do not have a `brain/<session_id>` directory on disk.
+    let mut extra_ids: Vec<String> = summaries_map
+        .keys()
+        .filter(|id| !seen_ids.contains(*id))
+        .cloned()
+        .collect();
+
+    let conversations_dir = root.join("conversations");
+    if let Ok(entries) = std::fs::read_dir(&conversations_dir) {
+        for entry in entries.flatten() {
+            let Ok(ft) = entry.file_type() else {
+                continue;
+            };
+            if ft.is_symlink() || !ft.is_file() {
+                continue;
+            }
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("db") {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            if is_valid_antigravity_session_id(stem)
+                && !seen_ids.contains(stem)
+                && !extra_ids.iter().any(|x| x == stem)
+            {
+                extra_ids.push(stem.to_string());
+            }
+        }
+    }
+
+    for session_id in extra_ids {
+        let brain_session_dir = root.join("brain").join(&session_id);
+        let mut token_files = Vec::new();
+        if let Some(legacy_dir) = legacy_ide_brain_session_dir(root, &session_id) {
+            let _ = collect_files(&legacy_dir, &mut token_files);
+        }
+        let db_path = conversations_dir.join(format!("{session_id}.db"));
+        let has_db = std::fs::symlink_metadata(&db_path)
+            .map(|m| !m.file_type().is_symlink() && m.file_type().is_file())
+            .unwrap_or(false);
+        let mut last_modified = token_files
+            .iter()
+            .map(|p| file_mtime_ms(p))
+            .max()
+            .unwrap_or(0);
+        if has_db {
+            last_modified = last_modified.max(file_mtime_ms(&db_path));
+        }
+
+        let storage_dir = if root.join("brain").is_dir() || !has_db {
+            brain_session_dir.clone()
+        } else {
+            db_path.clone()
+        };
+        let label_dir = legacy_ide_brain_session_dir(root, &session_id)
+            .unwrap_or_else(|| brain_session_dir.clone());
+
+        let mut persisted = build_session_state(
+            &session_id,
+            &label_dir,
+            &storage_dir,
+            &session_id,
+            &token_files,
+            last_modified,
+            "filesystem",
+            SessionLifecycleStatus::Active,
+        );
+        enrich_session_with_metadata(
+            root,
+            &session_id,
+            &mut persisted,
+            summaries_map.get(&session_id),
+        );
+        seen_ids.insert(session_id.clone());
+        sessions.insert(session_id, persisted);
     }
 
     Ok(AntigravityState {

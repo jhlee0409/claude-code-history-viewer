@@ -79,7 +79,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
 | **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, and VS Code Copilot Chat history (read-only, WSL-aware) |
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
-| **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
+| **Antigravity** | `~/.gemini/antigravity/` | Workspace-grouped sessions with full conversation history (prompts, thinking, tool calls) from `conversation_summaries.db`, `conversations/*.db`, and `brain/`, plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
 | **Cline** (incl. Roo Code; legacy Kilo Code) | `~/.cline/data/sessions/` (current Cline) and VS Code `globalStorage/<ext>/tasks/` (older versions) | Task-based history across the Cline family |
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
@@ -110,7 +110,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 
 No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
 
-Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` and then reads session state from `brain/` plus usage/cache artifacts from `.token-monitor/rpc-cache/v1/`; this matches the current runtime layout and root resolver in `src-tauri/src/commands/antigravity.rs`.
+Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` (alongside `~/.gemini/antigravity-cli`). Desktop sessions are automatically grouped by workspace directory from `conversation_summaries.db`. Transcripts, thinking processes, and tool calls are parsed from `.system_generated/logs/` (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), `conversations/<session_id>.db`, and `conversations_fts`, with token monitor and editor state store fallbacks.
 
 ## Table of Contents
 
@@ -145,7 +145,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Provider | Notes |
 |---------|-------|
-| **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+| **Antigravity** | Loaded through the standard provider pipeline. Sessions are automatically grouped by workspace folder and parsed from `conversation_summaries.db`, `conversations/*.db`, and `brain/` transcripts (prompts, thinking, tool calls, token stats, analytics, and global search) with real-time file monitoring. |
 
 ### New in v1.32.0
 

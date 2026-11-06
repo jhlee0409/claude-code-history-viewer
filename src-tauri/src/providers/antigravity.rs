@@ -20,7 +20,9 @@ use std::path::{Path, PathBuf};
 /// detected root (e.g. external state directories that have no rpc-cache yet).
 fn marker_rooted_path(path: &str) -> Option<PathBuf> {
     if let Some(root) = antigravity_root_from_path(path) {
-        if get_antigravity_rpc_cache_root(&root).exists() {
+        if get_antigravity_rpc_cache_root(&root).exists()
+            || root.join("conversation_summaries.db").is_file()
+        {
             return Some(root);
         }
     }
@@ -44,6 +46,7 @@ pub fn detect() -> Option<ProviderInfo> {
         || rpc_cache_root.exists()
         || root.join("brain").exists()
         || root.join("conversations").exists()
+        || root.join("conversation_summaries.db").exists()
         || root.join("monitor-state.json").exists();
     // The antigravity-cli store (`~/.gemini/antigravity-cli`) is surfaced
     // through this same provider; a CLI-only install still counts.
@@ -188,7 +191,42 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
     }
 }
 
-/// Return a single "Antigravity" project representing all rpc-cache sessions.
+/// Scheme prefix for workspace-grouped Antigravity IDE desktop projects.
+pub(crate) const DESKTOP_SCHEME: &str = "antigravity://";
+
+fn desktop_project_name_for_workspace(workspace: &str) -> String {
+    Path::new(workspace)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(workspace)
+        .to_string()
+}
+
+fn resolve_desktop_session_workspace(
+    session_id: &str,
+    summaries: &std::collections::HashMap<
+        String,
+        crate::commands::antigravity::ConversationSummaryMeta,
+    >,
+    trajectories: &std::collections::HashMap<
+        String,
+        super::antigravity_state_sync::TrajectorySummary,
+    >,
+) -> Option<String> {
+    summaries
+        .get(session_id)
+        .and_then(|m| m.workspace.clone())
+        .or_else(|| {
+            trajectories
+                .get(session_id)
+                .and_then(|t| t.workspace.clone())
+        })
+}
+
+/// Group Antigravity IDE desktop sessions by workspace folder (`antigravity://<workspace>`),
+/// falling back to a single `"Antigravity"` project for sessions without a recorded workspace.
 fn scan_desktop_projects(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let Some(root) = resolve_antigravity_root() else {
         return Ok(vec![]);
@@ -198,32 +236,60 @@ fn scan_desktop_projects(report: &ScanReport) -> Result<Vec<ClaudeProject>, Stri
         return Ok(vec![]);
     }
 
-    let path_str = root.to_string_lossy().to_string();
-    let session_count = state.sessions.len();
-    let message_count = state
-        .sessions
-        .values()
-        .map(|session| session.latest.message_count.unwrap_or(0) as usize)
-        .sum();
-    let max_time_ms = state
-        .sessions
-        .values()
-        .map(|session| session.latest.last_modified_ms)
-        .max()
-        .unwrap_or(0);
+    let summaries = crate::commands::antigravity::load_conversation_summaries_map(&root);
+    let trajectories = super::antigravity_state_sync::load();
 
-    Ok(vec![ClaudeProject {
-        name: "Antigravity".to_string(),
-        path: path_str.clone(),
-        actual_path: path_str,
-        session_count,
-        message_count,
-        last_modified: ms_to_rfc3339(max_time_ms),
-        git_info: None,
-        provider: Some("antigravity".to_string()),
-        storage_type: None,
-        custom_directory_label: None,
-    }])
+    #[derive(Default)]
+    struct GroupAcc {
+        session_count: usize,
+        message_count: usize,
+        max_time_ms: u64,
+    }
+
+    let mut by_workspace: std::collections::HashMap<Option<String>, GroupAcc> =
+        std::collections::HashMap::new();
+
+    for (session_id, session) in &state.sessions {
+        let ws = resolve_desktop_session_workspace(session_id, &summaries, &trajectories);
+        let acc = by_workspace.entry(ws).or_default();
+        acc.session_count += 1;
+        acc.message_count += session.latest.message_count.unwrap_or(0) as usize;
+        acc.max_time_ms = acc.max_time_ms.max(session.latest.last_modified_ms);
+    }
+
+    let root_str = root.to_string_lossy().to_string();
+    let mut projects: Vec<ClaudeProject> = by_workspace
+        .into_iter()
+        .map(|(ws_opt, acc)| match ws_opt {
+            Some(workspace) => ClaudeProject {
+                name: desktop_project_name_for_workspace(&workspace),
+                path: format!("{DESKTOP_SCHEME}{workspace}"),
+                actual_path: workspace,
+                session_count: acc.session_count,
+                message_count: acc.message_count,
+                last_modified: ms_to_rfc3339(acc.max_time_ms),
+                git_info: None,
+                provider: Some("antigravity".to_string()),
+                storage_type: None,
+                custom_directory_label: None,
+            },
+            None => ClaudeProject {
+                name: "Antigravity".to_string(),
+                path: root_str.clone(),
+                actual_path: root_str.clone(),
+                session_count: acc.session_count,
+                message_count: acc.message_count,
+                last_modified: ms_to_rfc3339(acc.max_time_ms),
+                git_info: None,
+                provider: Some("antigravity".to_string()),
+                storage_type: None,
+                custom_directory_label: None,
+            },
+        })
+        .collect();
+
+    projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    Ok(projects)
 }
 
 /// Clamps a `u64` value to `u32::MAX` and returns it as `u32`.
@@ -381,18 +447,47 @@ pub(crate) fn load_sessions_reporting(
     if let Some(workspace) = path.strip_prefix(super::antigravity_cli::SCHEME) {
         return super::antigravity_cli::load_sessions(workspace);
     }
-    let root = match marker_rooted_path(path) {
-        Some(root) => root,
-        None => return Ok(vec![]),
+    let (root, workspace_filter) = if let Some(workspace) = path.strip_prefix(DESKTOP_SCHEME) {
+        let Some(root) = resolve_antigravity_root() else {
+            return Ok(vec![]);
+        };
+        (root, Some(workspace.to_string()))
+    } else {
+        let Some(root) = marker_rooted_path(path) else {
+            return Ok(vec![]);
+        };
+        (root, None)
     };
     let state = load_antigravity_state_reporting(&root, report)?;
+    let summaries = crate::commands::antigravity::load_conversation_summaries_map(&root);
     // Titles, step counts and the latest agent message come from Antigravity's
     // own editor storage; the rpc-cache knows only token counters, which is why
     // sessions used to render as bare UUIDs (#564).
     let trajectories = super::antigravity_state_sync::load();
+    let has_any_ungrouped = state
+        .sessions
+        .keys()
+        .any(|id| resolve_desktop_session_workspace(id, &summaries, &trajectories).is_none());
     let mut sessions = Vec::new();
 
     for (session_id, session_state) in state.sessions {
+        let session_ws = resolve_desktop_session_workspace(&session_id, &summaries, &trajectories);
+        match &workspace_filter {
+            Some(target_ws) => {
+                if session_ws.as_deref() != Some(target_ws.as_str()) {
+                    continue;
+                }
+            }
+            None => {
+                if has_any_ungrouped && session_ws.is_some() {
+                    continue;
+                }
+            }
+        }
+        let project_name = session_ws
+            .as_deref()
+            .map(desktop_project_name_for_workspace)
+            .unwrap_or_else(|| "Antigravity".to_string());
         let session_dir = std::path::PathBuf::from(&session_state.latest.file_path);
         let usage_path = session_dir.join("usage.jsonl");
         let summary = summarize_usage_file(&usage_path);
@@ -417,6 +512,11 @@ pub(crate) fn load_sessions_reporting(
         let step_count = trajectory.map_or(step_count, |t| {
             usize::try_from(t.step_count).unwrap_or(step_count)
         });
+        let step_count = if step_count > 0 {
+            step_count
+        } else {
+            session_state.latest.evidence_count as usize
+        };
 
         let display_label = format!(
             "{} ({} calls · {} steps · in={} out={} total={})",
@@ -435,7 +535,7 @@ pub(crate) fn load_sessions_reporting(
             session_id: session_id.clone(),
             actual_session_id: session_id,
             file_path: session_dir.to_string_lossy().to_string(),
-            project_name: "Antigravity".to_string(),
+            project_name,
             message_count: session_state
                 .latest
                 .message_count
@@ -520,13 +620,835 @@ pub(crate) fn resolve_usage_jsonl_path_reporting(
     )
 }
 
+/// Extracts a clean session ID from a session path (stripping `.db` if the path points at a DB file).
+fn extract_session_id_from_session_path(session_path: &str) -> String {
+    let p = PathBuf::from(session_path);
+    if p.extension().and_then(|e| e.to_str()) == Some("db") {
+        p.file_stem()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default()
+    } else {
+        p.file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default()
+    }
+}
+
+/// Parses a single JSONL transcript line from `.system_generated/logs/{transcript_full.jsonl,transcript.jsonl,overview.txt}`.
+fn parse_desktop_transcript_line(line: &str, session_id: &str) -> Option<ClaudeMessage> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('{') {
+        return None;
+    }
+    let record: Value = serde_json::from_str(trimmed).ok()?;
+
+    let is_user = record.get("type").and_then(Value::as_str) == Some("USER_INPUT")
+        || record.get("source").and_then(Value::as_str) == Some("USER_EXPLICIT");
+    let is_model = record.get("type").and_then(Value::as_str) == Some("PLANNER_RESPONSE")
+        || record.get("source").and_then(Value::as_str) == Some("MODEL");
+
+    if !is_user && !is_model {
+        return None;
+    }
+
+    let step_index = record
+        .get("step_index")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let timestamp = record
+        .get("created_at")
+        .and_then(Value::as_str)
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+
+    let content_str = record
+        .get("content")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    if is_user {
+        let text = content_str?;
+        return Some(crate::utils::build_provider_message(
+            "antigravity",
+            format!("{session_id}-step-{step_index}"),
+            session_id,
+            timestamp,
+            "user",
+            Some("user"),
+            Some(Value::String(text.to_string())),
+            None,
+        ));
+    }
+
+    // Assistant (MODEL / PLANNER_RESPONSE)
+    let thinking_str = record
+        .get("thinking")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let tool_calls = record
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .filter(|arr| !arr.is_empty());
+
+    if content_str.is_none() && thinking_str.is_none() && tool_calls.is_none() {
+        return None;
+    }
+
+    let content_val = if thinking_str.is_some() || tool_calls.is_some() {
+        let mut blocks = Vec::new();
+        if let Some(thinking) = thinking_str {
+            blocks.push(json!({
+                "type": "thinking",
+                "thinking": thinking,
+            }));
+        }
+        if let Some(text) = content_str {
+            blocks.push(json!({
+                "type": "text",
+                "text": text,
+            }));
+        }
+        if let Some(calls) = tool_calls {
+            for (idx, call) in calls.iter().enumerate() {
+                let name = call
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("tool")
+                    .to_string();
+                let id = call
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .unwrap_or_else(|| format!("{session_id}-step-{step_index}-tool-{idx}"));
+                let input = call.get("args").cloned().unwrap_or_else(|| json!({}));
+                blocks.push(json!({
+                    "type": "tool_use",
+                    "id": id,
+                    "name": name,
+                    "input": input,
+                }));
+            }
+        }
+        Value::Array(blocks)
+    } else {
+        Value::String(content_str.unwrap_or_default().to_string())
+    };
+
+    Some(crate::utils::build_provider_message(
+        "antigravity",
+        format!("{session_id}-step-{step_index}"),
+        session_id,
+        timestamp,
+        "assistant",
+        Some("assistant"),
+        Some(content_val),
+        None,
+    ))
+}
+
+/// Attempts to load messages from `<dir>/.system_generated/logs/{transcript_full.jsonl,transcript.jsonl,overview.txt}`.
+fn try_load_brain_transcript_messages(session_dir: &Path, session_id: &str) -> Vec<ClaudeMessage> {
+    let Ok(dir_meta) = std::fs::symlink_metadata(session_dir) else {
+        return vec![];
+    };
+    if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+        return vec![];
+    }
+    let sys_dir = session_dir.join(".system_generated");
+    if std::fs::symlink_metadata(&sys_dir)
+        .map(|m| m.file_type().is_symlink() || !m.is_dir())
+        .unwrap_or(true)
+    {
+        return vec![];
+    }
+    let logs_dir = sys_dir.join("logs");
+    if std::fs::symlink_metadata(&logs_dir)
+        .map(|m| m.file_type().is_symlink() || !m.is_dir())
+        .unwrap_or(true)
+    {
+        return vec![];
+    }
+
+    for candidate in ["transcript_full.jsonl", "transcript.jsonl", "overview.txt"] {
+        let path = logs_dir.join(candidate);
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let messages: Vec<ClaudeMessage> = content
+            .lines()
+            .filter_map(|line| parse_desktop_transcript_line(line, session_id))
+            .collect();
+        if !messages.is_empty() {
+            return messages;
+        }
+    }
+
+    vec![]
+}
+
+// Minimal Protobuf wire format reader for `<root>/conversations/<session_id>.db` `steps.step_payload`.
+fn pb_read_varint(buf: &[u8], mut pos: usize) -> Option<(u64, usize)> {
+    let mut result = 0u64;
+    let mut shift = 0u32;
+    while pos < buf.len() {
+        let byte = buf[pos];
+        pos += 1;
+        result |= u64::from(byte & 0x7F) << shift;
+        if byte & 0x80 == 0 {
+            return Some((result, pos));
+        }
+        shift += 7;
+        if shift >= 64 {
+            return None;
+        }
+    }
+    None
+}
+
+fn pb_skip_field(buf: &[u8], wire_type: u64, pos: usize) -> Option<usize> {
+    match wire_type {
+        0 => pb_read_varint(buf, pos).map(|(_, next)| next),
+        1 => pos.checked_add(8).filter(|&end| end <= buf.len()),
+        2 => {
+            let (len, next) = pb_read_varint(buf, pos)?;
+            let len_usize = usize::try_from(len).ok()?;
+            next.checked_add(len_usize).filter(|&end| end <= buf.len())
+        }
+        5 => pos.checked_add(4).filter(|&end| end <= buf.len()),
+        _ => None,
+    }
+}
+
+fn pb_extract_timestamp_and_usage(
+    meta_bytes: &[u8],
+) -> (Option<String>, Option<crate::models::TokenUsage>) {
+    let mut pos = 0usize;
+    let mut timestamp = None;
+    let mut usage = None;
+
+    while pos < meta_bytes.len() {
+        let Some((tag, next_pos)) = pb_read_varint(meta_bytes, pos) else {
+            break;
+        };
+        pos = next_pos;
+        let field_num = tag >> 3;
+        let wire_type = tag & 0x07;
+
+        if wire_type == 2 {
+            let Some((len, data_start)) = pb_read_varint(meta_bytes, pos) else {
+                break;
+            };
+            let Ok(len_usize) = usize::try_from(len) else {
+                break;
+            };
+            let Some(data_end) = data_start.checked_add(len_usize) else {
+                break;
+            };
+            if data_end > meta_bytes.len() {
+                break;
+            }
+            let sub = &meta_bytes[data_start..data_end];
+            pos = data_end;
+
+            if field_num == 1 {
+                // Timestamp { 1: seconds, 2: nanos }
+                let mut sp = 0usize;
+                let mut secs = 0i64;
+                while sp < sub.len() {
+                    let Some((stag, snext)) = pb_read_varint(sub, sp) else {
+                        break;
+                    };
+                    sp = snext;
+                    if (stag >> 3) == 1 && stag.trailing_zeros() >= 3 {
+                        if let Some((val, vn)) = pb_read_varint(sub, sp) {
+                            secs = i64::try_from(val).unwrap_or(i64::MAX);
+                            sp = vn;
+                        } else {
+                            break;
+                        }
+                    } else if let Some(skip) = pb_skip_field(sub, stag & 0x07, sp) {
+                        sp = skip;
+                    } else {
+                        break;
+                    }
+                }
+                if secs > 0 {
+                    if let Some(dt) = chrono::DateTime::from_timestamp(secs, 0) {
+                        timestamp = Some(dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+                    }
+                }
+            } else if field_num == 9 {
+                // Token usage { 2: input_tokens, 3: output_tokens, 5: cache_read_tokens, 9: reasoning_tokens }
+                let mut sp = 0usize;
+                let mut input_tokens = 0u32;
+                let mut output_tokens = 0u32;
+                let mut cache_read = 0u32;
+                let mut reasoning = 0u32;
+                while sp < sub.len() {
+                    let Some((stag, snext)) = pb_read_varint(sub, sp) else {
+                        break;
+                    };
+                    sp = snext;
+                    if stag.trailing_zeros() >= 3 {
+                        let Some((val, vn)) = pb_read_varint(sub, sp) else {
+                            break;
+                        };
+                        sp = vn;
+                        match stag >> 3 {
+                            2 => input_tokens = to_u32_saturating(val),
+                            3 => output_tokens = to_u32_saturating(val),
+                            5 => cache_read = to_u32_saturating(val),
+                            9 => reasoning = to_u32_saturating(val),
+                            _ => {}
+                        }
+                    } else if let Some(skip) = pb_skip_field(sub, stag & 0x07, sp) {
+                        sp = skip;
+                    } else {
+                        break;
+                    }
+                }
+                if input_tokens > 0 || output_tokens > 0 || cache_read > 0 || reasoning > 0 {
+                    usage = Some(crate::models::TokenUsage {
+                        input_tokens: Some(input_tokens),
+                        output_tokens: Some(output_tokens),
+                        cache_read_input_tokens: (cache_read > 0).then_some(cache_read),
+                        reasoning_tokens: (reasoning > 0).then_some(reasoning),
+                        ..Default::default()
+                    });
+                }
+            }
+        } else if let Some(skip) = pb_skip_field(meta_bytes, wire_type, pos) {
+            pos = skip;
+        } else {
+            break;
+        }
+    }
+
+    (timestamp, usage)
+}
+
+fn parse_conversation_db_step(
+    idx: i64,
+    step_type: i64,
+    payload: &[u8],
+    session_id: &str,
+) -> Option<ClaudeMessage> {
+    let mut pos = 0usize;
+    let mut timestamp = None;
+    let mut usage = None;
+    let mut user_texts: Vec<String> = Vec::new();
+    let mut assistant_text: Option<String> = None;
+    let mut thinking_text: Option<String> = None;
+    let mut tool_calls: Vec<(String, String, Value)> = Vec::new();
+
+    while pos < payload.len() {
+        let Some((tag, next_pos)) = pb_read_varint(payload, pos) else {
+            break;
+        };
+        pos = next_pos;
+        let field_num = tag >> 3;
+        let wire_type = tag & 0x07;
+
+        if wire_type == 2 {
+            let Some((len, data_start)) = pb_read_varint(payload, pos) else {
+                break;
+            };
+            let Ok(len_usize) = usize::try_from(len) else {
+                break;
+            };
+            let Some(data_end) = data_start.checked_add(len_usize) else {
+                break;
+            };
+            if data_end > payload.len() {
+                break;
+            }
+            let sub = &payload[data_start..data_end];
+            pos = data_end;
+
+            match field_num {
+                5 => {
+                    let (ts, u) = pb_extract_timestamp_and_usage(sub);
+                    if ts.is_some() {
+                        timestamp = ts;
+                    }
+                    if u.is_some() {
+                        usage = u;
+                    }
+                }
+                19 if step_type == 14 => {
+                    // USER_INPUT submessage: field 2 holds user prompt text
+                    let mut sp = 0usize;
+                    while sp < sub.len() {
+                        let Some((stag, snext)) = pb_read_varint(sub, sp) else {
+                            break;
+                        };
+                        sp = snext;
+                        if (stag >> 3) == 2 && (stag & 0x07) == 2 {
+                            let Some((slen, sstart)) = pb_read_varint(sub, sp) else {
+                                break;
+                            };
+                            let Ok(slen_usize) = usize::try_from(slen) else {
+                                break;
+                            };
+                            let Some(send) = sstart.checked_add(slen_usize) else {
+                                break;
+                            };
+                            if send > sub.len() {
+                                break;
+                            }
+                            if let Ok(s) = std::str::from_utf8(&sub[sstart..send]) {
+                                let trimmed = s.trim();
+                                if !trimmed.is_empty() {
+                                    user_texts.push(trimmed.to_string());
+                                }
+                            }
+                            sp = send;
+                        } else if let Some(skip) = pb_skip_field(sub, stag & 0x07, sp) {
+                            sp = skip;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                20 if step_type == 15 => {
+                    // PLANNER_RESPONSE submessage: 1 = response text, 3 = thinking, 7 = tool call
+                    let mut sp = 0usize;
+                    while sp < sub.len() {
+                        let Some((stag, snext)) = pb_read_varint(sub, sp) else {
+                            break;
+                        };
+                        sp = snext;
+                        let sfield = stag >> 3;
+                        let swire = stag & 0x07;
+                        if swire == 2 {
+                            let Some((slen, sstart)) = pb_read_varint(sub, sp) else {
+                                break;
+                            };
+                            let Ok(slen_usize) = usize::try_from(slen) else {
+                                break;
+                            };
+                            let Some(send) = sstart.checked_add(slen_usize) else {
+                                break;
+                            };
+                            if send > sub.len() {
+                                break;
+                            }
+                            let sbytes = &sub[sstart..send];
+                            sp = send;
+
+                            match sfield {
+                                1 => {
+                                    if let Ok(s) = std::str::from_utf8(sbytes) {
+                                        let t = s.trim();
+                                        if !t.is_empty() {
+                                            assistant_text = Some(t.to_string());
+                                        }
+                                    }
+                                }
+                                3 => {
+                                    if let Ok(s) = std::str::from_utf8(sbytes) {
+                                        let t = s.trim();
+                                        if !t.is_empty() {
+                                            thinking_text = Some(t.to_string());
+                                        }
+                                    }
+                                }
+                                7 => {
+                                    // Tool call submsg: 1 = id, 2 = name, 3 = args_json
+                                    let mut tp = 0usize;
+                                    let mut call_id = String::new();
+                                    let mut call_name = String::new();
+                                    let mut call_args = json!({});
+                                    while tp < sbytes.len() {
+                                        let Some((ttag, tnext)) = pb_read_varint(sbytes, tp) else {
+                                            break;
+                                        };
+                                        tp = tnext;
+                                        if (ttag & 0x07) == 2 {
+                                            let Some((tlen, tstart)) = pb_read_varint(sbytes, tp)
+                                            else {
+                                                break;
+                                            };
+                                            let Ok(tlen_usize) = usize::try_from(tlen) else {
+                                                break;
+                                            };
+                                            let Some(tend) = tstart.checked_add(tlen_usize) else {
+                                                break;
+                                            };
+                                            if tend > sbytes.len() {
+                                                break;
+                                            }
+                                            if let Ok(ts) =
+                                                std::str::from_utf8(&sbytes[tstart..tend])
+                                            {
+                                                match ttag >> 3 {
+                                                    1 => call_id = ts.to_string(),
+                                                    2 => call_name = ts.to_string(),
+                                                    3 => {
+                                                        call_args = serde_json::from_str(ts)
+                                                            .unwrap_or_else(|_| json!({"raw": ts}));
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                            tp = tend;
+                                        } else if let Some(skip) =
+                                            pb_skip_field(sbytes, ttag & 0x07, tp)
+                                        {
+                                            tp = skip;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    if !call_name.is_empty() {
+                                        if call_id.is_empty() {
+                                            call_id = format!(
+                                                "{session_id}-step-{idx}-tool-{}",
+                                                tool_calls.len()
+                                            );
+                                        }
+                                        tool_calls.push((call_id, call_name, call_args));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        } else if let Some(skip) = pb_skip_field(sub, swire, sp) {
+                            sp = skip;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        } else if let Some(skip) = pb_skip_field(payload, wire_type, pos) {
+            pos = skip;
+        } else {
+            break;
+        }
+    }
+
+    let ts = timestamp.unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+    if step_type == 14 {
+        let joined = user_texts.join("\n\n");
+        if joined.trim().is_empty() {
+            return None;
+        }
+        return Some(crate::utils::build_provider_message(
+            "antigravity",
+            format!("{session_id}-db-step-{idx}"),
+            session_id,
+            ts,
+            "user",
+            Some("user"),
+            Some(Value::String(joined)),
+            None,
+        ));
+    }
+
+    if step_type == 15 {
+        if assistant_text.is_none() && thinking_text.is_none() && tool_calls.is_empty() {
+            return None;
+        }
+        let content_val = if thinking_text.is_some() || !tool_calls.is_empty() {
+            let mut blocks = Vec::new();
+            if let Some(thinking) = thinking_text {
+                blocks.push(json!({ "type": "thinking", "thinking": thinking }));
+            }
+            if let Some(text) = assistant_text {
+                blocks.push(json!({ "type": "text", "text": text }));
+            }
+            for (id, name, input) in tool_calls {
+                blocks.push(json!({
+                    "type": "tool_use",
+                    "id": id,
+                    "name": name,
+                    "input": input,
+                }));
+            }
+            Value::Array(blocks)
+        } else {
+            Value::String(assistant_text.unwrap_or_default())
+        };
+
+        let mut msg = crate::utils::build_provider_message(
+            "antigravity",
+            format!("{session_id}-db-step-{idx}"),
+            session_id,
+            ts,
+            "assistant",
+            Some("assistant"),
+            Some(content_val),
+            None,
+        );
+        msg.usage = usage;
+        return Some(msg);
+    }
+
+    None
+}
+
+/// Attempts to load messages from `<root>/conversations/<session_id>.db` (`steps` table).
+fn try_load_conversation_db_messages(root: &Path, session_id: &str) -> Vec<ClaudeMessage> {
+    if !crate::commands::antigravity::is_valid_antigravity_session_id(session_id) {
+        return vec![];
+    }
+    let db_path = root.join("conversations").join(format!("{session_id}.db"));
+    let Ok(meta) = std::fs::symlink_metadata(&db_path) else {
+        return vec![];
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return vec![];
+    }
+
+    let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+        | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+        | rusqlite::OpenFlags::SQLITE_OPEN_URI;
+    let Ok(conn) = rusqlite::Connection::open_with_flags(&db_path, flags) else {
+        return vec![];
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(2000));
+
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT idx, step_type, step_payload FROM steps WHERE step_type IN (14, 15) ORDER BY idx ASC",
+    ) else {
+        return vec![];
+    };
+
+    let mut messages = Vec::new();
+    if let Ok(mut rows) = stmt.query([]) {
+        while let Ok(Some(row)) = rows.next() {
+            let Ok(idx) = row.get::<_, i64>(0) else {
+                continue;
+            };
+            let Ok(step_type) = row.get::<_, i64>(1) else {
+                continue;
+            };
+            let Ok(payload) = row.get::<_, Vec<u8>>(2) else {
+                continue;
+            };
+            if let Some(msg) = parse_conversation_db_step(idx, step_type, &payload, session_id) {
+                messages.push(msg);
+            }
+        }
+    }
+
+    messages
+}
+
+fn clamp_utf8_boundary(s: &str, idx: usize) -> usize {
+    let mut pos = idx.min(s.len());
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
+fn parse_step_byte_offsets(raw: Option<rusqlite::types::ValueRef<'_>>) -> Vec<(u64, usize)> {
+    let bytes = match raw {
+        Some(rusqlite::types::ValueRef::Text(b) | rusqlite::types::ValueRef::Blob(b)) => b,
+        _ => return vec![],
+    };
+    let Ok(Value::Array(items)) = serde_json::from_slice::<Value>(bytes) else {
+        return vec![];
+    };
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        if let Value::Array(pair) = item {
+            if pair.len() >= 2 {
+                if let (Some(step), Some(off)) = (pair[0].as_u64(), pair[1].as_u64()) {
+                    if let Ok(off_usize) = usize::try_from(off) {
+                        out.push((step, off_usize));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+fn slice_fts_body(body: &str, offsets: &[(u64, usize)], fallback_step: u64) -> Vec<(u64, String)> {
+    if body.trim().is_empty() {
+        return vec![];
+    }
+    if offsets.is_empty() {
+        return vec![(fallback_step, body.trim().to_string())];
+    }
+    let mut slices = Vec::with_capacity(offsets.len());
+    for (i, &(step_idx, start_raw)) in offsets.iter().enumerate() {
+        let end_raw = offsets
+            .get(i + 1)
+            .map(|&(_, next_off)| next_off)
+            .unwrap_or(body.len());
+        let start = clamp_utf8_boundary(body, start_raw);
+        let end = clamp_utf8_boundary(body, end_raw.max(start));
+        let text = body[start..end].trim();
+        if !text.is_empty() {
+            slices.push((step_idx, text.to_string()));
+        }
+    }
+    if slices.is_empty() {
+        vec![(fallback_step, body.trim().to_string())]
+    } else {
+        slices
+    }
+}
+
+/// Attempts to reconstruct conversation messages from `<root>/conversation_summaries.db` (`conversations_fts`).
+fn try_load_summaries_fts_messages(root: &Path, session_id: &str) -> Vec<ClaudeMessage> {
+    if !crate::commands::antigravity::is_valid_antigravity_session_id(session_id) {
+        return vec![];
+    }
+    let db_path = root.join("conversation_summaries.db");
+    let Ok(meta) = std::fs::symlink_metadata(&db_path) else {
+        return vec![];
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return vec![];
+    }
+
+    let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+        | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+        | rusqlite::OpenFlags::SQLITE_OPEN_URI;
+    let Ok(conn) = rusqlite::Connection::open_with_flags(&db_path, flags) else {
+        return vec![];
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(2000));
+
+    let base_timestamp = conn
+        .query_row(
+            "SELECT last_modified_time FROM conversation_summaries WHERE conversation_id = ?1",
+            rusqlite::params![session_id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .ok()
+        .flatten()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT CAST(chunk_index AS INTEGER), user_body, agent_body, \
+                user_step_byte_offsets, agent_step_byte_offsets \
+         FROM conversations_fts \
+         WHERE conversation_id = ?1 AND CAST(chunk_index AS INTEGER) >= 0 \
+         ORDER BY CAST(chunk_index AS INTEGER) ASC",
+    ) else {
+        return vec![];
+    };
+
+    let mut turns: Vec<(i64, u64, u8, String)> = Vec::new();
+    if let Ok(mut rows) = stmt.query(rusqlite::params![session_id]) {
+        while let Ok(Some(row)) = rows.next() {
+            let chunk_idx = row.get::<_, Option<i64>>(0).ok().flatten().unwrap_or(0);
+            let user_body = row
+                .get::<_, Option<String>>(1)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let agent_body = row
+                .get::<_, Option<String>>(2)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let user_offsets = parse_step_byte_offsets(row.get_ref(3).ok());
+            let agent_offsets = parse_step_byte_offsets(row.get_ref(4).ok());
+
+            for (step_idx, text) in slice_fts_body(&user_body, &user_offsets, 0) {
+                turns.push((chunk_idx, step_idx, 0, text));
+            }
+            for (step_idx, text) in slice_fts_body(&agent_body, &agent_offsets, 1) {
+                turns.push((chunk_idx, step_idx, 1, text));
+            }
+        }
+    }
+
+    turns.sort_by_key(|(chunk_idx, step_idx, role_ord, _)| (*chunk_idx, *step_idx, *role_ord));
+
+    turns
+        .into_iter()
+        .enumerate()
+        .map(|(seq, (_, step_idx, role_ord, text))| {
+            let role = if role_ord == 0 { "user" } else { "assistant" };
+            crate::utils::build_provider_message(
+                "antigravity",
+                format!("{session_id}-fts-{seq}-step-{step_idx}"),
+                session_id,
+                base_timestamp.clone(),
+                role,
+                Some(role),
+                Some(Value::String(text)),
+                None,
+            )
+        })
+        .collect()
+}
+
+/// Multi-source fallback for Antigravity IDE desktop sessions when `usage.jsonl` is absent:
+/// 1. `<session_dir>/.system_generated/logs/{transcript_full.jsonl,transcript.jsonl,overview.txt}`
+///    (and legacy sibling `~/.gemini/antigravity-ide/brain/<session_id>/.system_generated/logs/`)
+/// 2. `<root>/conversations/<session_id>.db` (`steps` table Protobuf payload)
+/// 3. `<root>/conversation_summaries.db` (`conversations_fts` table with byte offsets)
+/// 4. Editor `state.vscdb` trajectory summaries (`state_sync_messages`)
+fn fallback_desktop_messages(session_path: &str, session_id: &str) -> Vec<ClaudeMessage> {
+    if let Some(root) = marker_rooted_path(session_path).or_else(resolve_antigravity_root) {
+        let supplied_dir = PathBuf::from(session_path);
+        if supplied_dir.starts_with(&root) {
+            let msgs = try_load_brain_transcript_messages(&supplied_dir, session_id);
+            if !msgs.is_empty() {
+                return msgs;
+            }
+        }
+
+        if crate::commands::antigravity::is_valid_antigravity_session_id(session_id) {
+            let brain_dir = root.join("brain").join(session_id);
+            if brain_dir != supplied_dir {
+                let msgs = try_load_brain_transcript_messages(&brain_dir, session_id);
+                if !msgs.is_empty() {
+                    return msgs;
+                }
+            }
+
+            if let Some(legacy_dir) =
+                crate::commands::antigravity::legacy_ide_brain_session_dir(&root, session_id)
+            {
+                let msgs = try_load_brain_transcript_messages(&legacy_dir, session_id);
+                if !msgs.is_empty() {
+                    return msgs;
+                }
+            }
+
+            let db_msgs = try_load_conversation_db_messages(&root, session_id);
+            if !db_msgs.is_empty() {
+                return db_msgs;
+            }
+
+            let fts_msgs = try_load_summaries_fts_messages(&root, session_id);
+            if !fts_msgs.is_empty() {
+                return fts_msgs;
+            }
+        }
+    }
+
+    state_sync_messages(session_id)
+}
+
 /// Recovers the conversation text Antigravity's editor storage still holds for
 /// a session: the last task boundary it recorded and the last message the agent
 /// sent the user, in that order (their step indices are adjacent, task first).
 ///
-/// This is all that survives: the transcripts under `conversations/` are
-/// encrypted, and the state sync store snapshots only the most recent steps —
-/// so a session shows its tail, not its full history (#564).
+/// This is all that survives when no local transcript or SQLite database exists:
+/// the `.pb` files under `conversations/` are encrypted, and the state sync store
+/// snapshots only the most recent steps (#564).
 fn state_sync_messages(session_id: &str) -> Vec<ClaudeMessage> {
     let summaries = super::antigravity_state_sync::load();
     let Some(summary) = summaries.get(session_id) else {
@@ -560,9 +1482,9 @@ fn state_sync_messages(session_id: &str) -> Vec<ClaudeMessage> {
 
 /// Map each usage record in a session's `usage.jsonl` to a pair of `ClaudeMessages`.
 ///
-/// When the rpc-cache holds no usage records — the common case for a
-/// brain-only desktop session — falls back to whatever the editor's state sync
-/// store still has for the session, so the conversation view is not blank.
+/// When the rpc-cache holds no usage records — the common case for an Antigravity
+/// IDE desktop session — falls back to `.system_generated/logs/` transcripts,
+/// `conversations/<id>.db`, `conversation_summaries.db`, and finally `state.vscdb`.
 ///
 /// Session paths under the antigravity-cli store (`<cli-root>/brain/<uuid>`)
 /// route to the transcript parser instead.
@@ -570,13 +1492,10 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     if super::antigravity_cli::owns_session_path(session_path) {
         return super::antigravity_cli::load_messages(session_path);
     }
-    let session_id = PathBuf::from(session_path)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let session_id = extract_session_id_from_session_path(session_path);
 
     let Some(usage_path) = resolve_usage_jsonl_path(session_path) else {
-        return Ok(state_sync_messages(&session_id));
+        return Ok(fallback_desktop_messages(session_path, &session_id));
     };
 
     let content = std::fs::read_to_string(&usage_path)
@@ -671,7 +1590,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     // A `usage.jsonl` that exists but holds no usage records leaves the same
     // blank view as a missing one, so it takes the same fallback.
     if messages.is_empty() {
-        return Ok(state_sync_messages(&session_id));
+        return Ok(fallback_desktop_messages(session_path, &session_id));
     }
 
     let tool_names = load_antigravity_tool_names(&session_id);
@@ -694,10 +1613,7 @@ fn fmt_tokens(n: u64) -> String {
 }
 
 /// Search across antigravity sessions for matching query.
-/// Matches against session ID prefix or model name.
-/// Note: usage.jsonl does not contain natural conversation content,
-///
-/// so this searches session metadata rather than message content.
+/// Matches against session ID, title/label, model name, and conversation content.
 pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, String> {
     let root = match resolve_antigravity_root() {
         Some(root) => root,
@@ -707,6 +1623,7 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
 
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
+    let mut matched_sessions = std::collections::HashSet::new();
 
     for session in state.sessions.values() {
         let session_matches = session
@@ -739,6 +1656,7 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
             format!("Session: {short_id} (matched model)")
         };
 
+        matched_sessions.insert(session_id.clone());
         results.push(ClaudeMessage {
             uuid: format!("ag-search-{}-{}", session_id, 0),
             session_id: session_id.clone(),
@@ -746,9 +1664,44 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
             message_type: "assistant".to_string(),
             content: Some(json!([{ "type": "text", "text": content_text }])),
             provider: Some("antigravity".to_string()),
+
             role: Some("assistant".to_string()),
             ..Default::default()
         });
+    }
+
+    // Search desktop session message contents (transcripts, conversations/*.db, conversation_summaries.db)
+    if !query_lower.is_empty() && results.len() < max_results {
+        for session in state.sessions.values() {
+            if results.len() >= max_results {
+                break;
+            }
+            let session_id = &session.latest.session_id;
+            let msgs = fallback_desktop_messages(&session.latest.file_path, session_id);
+            for mut msg in msgs {
+                let text_matches = match &msg.content {
+                    Some(Value::String(s)) => s.to_lowercase().contains(&query_lower),
+                    Some(Value::Array(arr)) => arr.iter().any(|block| {
+                        block
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .is_some_and(|t| t.to_lowercase().contains(&query_lower))
+                            || block
+                                .get("thinking")
+                                .and_then(Value::as_str)
+                                .is_some_and(|t| t.to_lowercase().contains(&query_lower))
+                    }),
+                    _ => false,
+                };
+                if text_matches {
+                    msg.project_name = Some("Antigravity".to_string());
+                    results.push(msg);
+                    if results.len() >= max_results {
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -1375,5 +2328,161 @@ mod tests {
         std::fs::create_dir_all(&brain_dir).unwrap();
 
         assert!(resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).is_none());
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_messages_extracts_desktop_brain_transcript_with_thinking_and_tools() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let ag_root = sandbox.path().join(".gemini").join("antigravity");
+        let session_dir = ag_root.join("brain").join("sess-ide-transcript");
+        let logs_dir = session_dir.join(".system_generated").join("logs");
+        std::fs::create_dir_all(&logs_dir).unwrap();
+
+        let transcript = concat!(
+            r#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-10-30T11:39:11Z","content":"请帮我检查代码"}"#,
+            "\n",
+            r#"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-30T11:39:15Z","thinking":"Let me inspect the provider.","content":"我已经检查了代码。","tool_calls":[{"id":"call-1","name":"read_file","args":{"Path":"/tmp/a.rs"}}]}"#,
+            "\n"
+        );
+        std::fs::write(logs_dir.join("transcript_full.jsonl"), transcript).unwrap();
+
+        let messages = load_messages(&session_dir.to_string_lossy()).unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].message_type, "user");
+        assert_eq!(
+            messages[0].content,
+            Some(Value::String("请帮我检查代码".to_string()))
+        );
+        assert_eq!(messages[1].message_type, "assistant");
+        let blocks = messages[1].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(blocks.len(), 3);
+        assert_eq!(blocks[0]["type"], "thinking");
+        assert_eq!(blocks[1]["type"], "text");
+        assert_eq!(blocks[1]["text"], "我已经检查了代码。");
+        assert_eq!(blocks[2]["type"], "tool_use");
+        assert_eq!(blocks[2]["name"], "read_file");
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_messages_and_sessions_from_conversation_summaries_db_and_annotations() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let ag_root = sandbox.path().join(".gemini").join("antigravity");
+        let brain_dir = ag_root.join("brain");
+        let annotations_dir = ag_root.join("annotations");
+        std::fs::create_dir_all(&brain_dir).unwrap();
+        std::fs::create_dir_all(&annotations_dir).unwrap();
+
+        // Create conversation_summaries.db with conversation_summaries + conversations_fts
+        let db_path = ag_root.join("conversation_summaries.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversation_summaries (
+                conversation_id TEXT PRIMARY KEY,
+                title TEXT,
+                preview TEXT,
+                step_count INTEGER,
+                last_modified_time TEXT,
+                last_user_input_time TEXT,
+                workspace_uris TEXT
+            );
+            CREATE TABLE conversations_fts (
+                conversation_id TEXT,
+                chunk_index TEXT,
+                title TEXT,
+                step_count TEXT,
+                last_modified_time TEXT,
+                user_body TEXT,
+                agent_body TEXT,
+                user_step_byte_offsets BLOB,
+                agent_step_byte_offsets BLOB,
+                workspace TEXT
+            );",
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO conversation_summaries VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                "sess-fts-only",
+                "",
+                "Batch Submission API Design",
+                12i64,
+                "2026-11-04T15:08:50Z",
+                "2026-11-04T15:08:00Z",
+                "[\"file:///workspace/demo-proj\"]"
+            ],
+        )
+        .unwrap();
+
+        let user_body = "First prompt\nSecond prompt";
+        let agent_body = "First answer\nSecond answer";
+        conn.execute(
+            "INSERT INTO conversations_fts VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                "sess-fts-only",
+                "0",
+                "",
+                "12",
+                "1793804930000000000",
+                user_body,
+                agent_body,
+                b"[[0,0],[2,13]]".to_vec(),
+                b"[[1,0],[3,13]]".to_vec(),
+                "/workspace/demo-proj",
+            ],
+        )
+        .unwrap();
+
+        std::fs::write(
+            annotations_dir.join("sess-fts-only.pbtxt"),
+            "title:\"Annotated Session Title\" last_user_view_time:{seconds:1793804930 nanos:0}",
+        )
+        .unwrap();
+
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "demo-proj");
+        assert_eq!(projects[0].path, "antigravity:///workspace/demo-proj");
+        assert_eq!(projects[0].actual_path, "/workspace/demo-proj");
+
+        let sessions = load_sessions("antigravity:///workspace/demo-proj", false).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session_id, "sess-fts-only");
+        assert_eq!(sessions[0].project_name, "demo-proj");
+        assert!(sessions[0]
+            .summary
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Annotated Session Title"));
+        assert!(sessions[0].message_count >= 4);
+
+        let msgs = load_messages(&sessions[0].file_path).unwrap();
+        assert_eq!(msgs.len(), 4);
+        assert_eq!(msgs[0].message_type, "user");
+        assert_eq!(
+            msgs[0].content,
+            Some(Value::String("First prompt".to_string()))
+        );
+        assert_eq!(msgs[1].message_type, "assistant");
+        assert_eq!(
+            msgs[1].content,
+            Some(Value::String("First answer".to_string()))
+        );
+        assert_eq!(msgs[2].message_type, "user");
+        assert_eq!(
+            msgs[2].content,
+            Some(Value::String("Second prompt".to_string()))
+        );
+        assert_eq!(msgs[3].message_type, "assistant");
+        assert_eq!(
+            msgs[3].content,
+            Some(Value::String("Second answer".to_string()))
+        );
+
+        let search_hits = search("Second answer", 10).unwrap();
+        assert!(!search_hits.is_empty());
+        assert_eq!(search_hits[0].session_id, "sess-fts-only");
     }
 }
