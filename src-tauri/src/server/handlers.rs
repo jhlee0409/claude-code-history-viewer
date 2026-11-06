@@ -746,6 +746,15 @@ handler_json!(
 );
 
 handler_json!(
+    load_session_api_view,
+    SessionPathParam,
+    |p: SessionPathParam| async move {
+        require_history_path(&p.session_path)?;
+        commands::session::load_session_api_view(p.session_path).await
+    }
+);
+
+handler_json!(
     load_session_messages_paginated,
     PaginatedParams,
     |p: PaginatedParams| async move {

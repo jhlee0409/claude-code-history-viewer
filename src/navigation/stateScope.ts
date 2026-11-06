@@ -177,6 +177,7 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   inspectorWidth: "app",
   navigatorViewMode: "app",
   isMinimapOpen: "app",
+  isApiViewOpen: "app",
   // The Edits screen's preferences.
   recentEditsScope: "app",
   recentEditsGroupingProject: "app",

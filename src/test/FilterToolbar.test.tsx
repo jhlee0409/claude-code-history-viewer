@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterToolbar } from "@/components/MessageViewer/components/FilterToolbar";
 
-const { toggleContentTypeMock, useAppStoreMock } = vi.hoisted(() => {
+const { toggleContentTypeMock, useAppStoreMock, storeState } = vi.hoisted(() => {
   const toggleContentType = vi.fn();
   const state = {
     messageFilter: {
@@ -19,11 +19,14 @@ const { toggleContentTypeMock, useAppStoreMock } = vi.hoisted(() => {
     toggleContentType,
     resetMessageFilter: vi.fn(),
     isMessageFilterActive: () => false,
+    isApiViewOpen: false,
+    toggleApiView: vi.fn(),
   };
 
   return {
     toggleContentTypeMock: toggleContentType,
     useAppStoreMock: () => state,
+    storeState: state,
   };
 });
 
@@ -55,5 +58,22 @@ describe("FilterToolbar", () => {
     });
     fireEvent.click(toggle);
     expect(toggleContentTypeMock).toHaveBeenCalledWith("parallelTasks");
+  });
+
+  it("leaves the filters inert, with the reason, while the API view is open", () => {
+    storeState.isApiViewOpen = true;
+    toggleContentTypeMock.mockClear();
+    try {
+      render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks />);
+      const text = screen.getByRole("button", { name: "filter.content.text" });
+      expect(text).toHaveAttribute("aria-disabled", "true");
+      expect(text).toHaveAttribute("title", "messageViewer.apiView.filtersDisabled");
+      expect(text).not.toBeDisabled();
+      fireEvent.click(text);
+      expect(toggleContentTypeMock).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "messageViewer.apiView.toggle" })).not.toHaveAttribute("aria-disabled");
+    } finally {
+      storeState.isApiViewOpen = false;
+    }
   });
 });

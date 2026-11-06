@@ -7,6 +7,7 @@
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
 
+mod api_view;
 mod chain;
 mod delete;
 mod edits;
@@ -20,6 +21,7 @@ mod search;
 mod swap_after_check_tests;
 
 // Re-export all commands
+pub use api_view::load_session_api_view;
 pub use chain::{resolve_session_chain, superseded_chain_paths};
 pub use delete::*;
 pub use edits::*;
