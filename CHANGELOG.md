@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Antigravity IDE: Full workspace folder grouping**: Desktop Antigravity sessions (`~/.gemini/antigravity`) are now automatically grouped by their associated workspace folder (`conversation_summaries.workspace_uris` / `conversations_fts.workspace`), matching the workspace project browsing experience of other providers.
+- **Antigravity IDE: Multi-source conversation extraction**: Full conversation turns (user prompts, assistant responses, thinking blocks, and tool calls) are now fully recovered across SQLite databases (`conversations/<session_id>.db`, `conversation_summaries.db`), JSONL transcripts (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), and annotations (`annotations/<session_id>.pbtxt`).
+- **Antigravity IDE: Full-text message search & live file watching**: Global search now indexes desktop Antigravity message contents, and the file watcher automatically detects updates under Antigravity `brain/` and `conversations/` directories.
+
 ### Security
 - **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
 

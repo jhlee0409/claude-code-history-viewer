@@ -284,8 +284,11 @@ fn file_signature(path: &Path) -> Option<FileSignature> {
 fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
     let ext = path.extension()?.to_str()?;
     match ext {
-        // Claude + Codex rollout logs
+        // Claude + Codex + Antigravity rollout/transcript logs
         "jsonl" => {
+            if let Some(paths) = extract_antigravity_paths(path) {
+                return Some(paths);
+            }
             if let Some(paths) = extract_vibe_paths(path) {
                 return Some(paths);
             }
@@ -311,11 +314,72 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             .or_else(|| extract_kimi_paths(path))
             .or_else(|| extract_kimi_code_paths(path))
             .or_else(|| extract_opencode_paths(path)),
-        // OpenCode-core SQLite database change (opencode.db / kilo.db) — emit a
-        // broad refresh for every project in that store
-        "db" | "db-wal" => extract_opencode_db_event(path),
+        // OpenCode-core SQLite database change (opencode.db / kilo.db) or Antigravity conversation DB
+        "db" | "db-wal" => {
+            extract_antigravity_paths(path).or_else(|| extract_opencode_db_event(path))
+        }
+        // Antigravity overview.txt / task.md in brain/<session_id>
+        "txt" | "md" => extract_antigravity_paths(path),
         _ => None,
     }
+}
+
+/// Extract Antigravity project/session paths from files under
+/// `~/.gemini/antigravity/{brain,conversations}` or `~/.gemini/antigravity-cli/brain`.
+fn extract_antigravity_paths(path: &Path) -> Option<(String, String)> {
+    let components: Vec<_> = path.components().collect();
+    let gemini_idx = components.iter().position(|c| c.as_os_str() == ".gemini")?;
+    let store_name = components.get(gemini_idx + 1)?.as_os_str().to_str()?;
+    if !matches!(store_name, "antigravity" | "antigravity-cli") {
+        return None;
+    }
+
+    let ag_root = components_to_path(&components[..=gemini_idx + 1]);
+    let sub = components.get(gemini_idx + 2)?.as_os_str().to_str()?;
+
+    if store_name == "antigravity" {
+        if sub == "brain" {
+            let session_id = components
+                .get(gemini_idx + 3)?
+                .as_os_str()
+                .to_string_lossy()
+                .to_string();
+            if crate::commands::antigravity::is_valid_antigravity_session_id(&session_id) {
+                let session_dir = ag_root.join("brain").join(&session_id);
+                return Some((
+                    ag_root.to_string_lossy().to_string(),
+                    session_dir.to_string_lossy().to_string(),
+                ));
+            }
+        } else if sub == "conversations" && components.len() == gemini_idx + 4 {
+            let filename = components[gemini_idx + 3].as_os_str().to_string_lossy();
+            let session_id = filename
+                .strip_suffix(".db-wal")
+                .or_else(|| filename.strip_suffix(".db"))?;
+            if crate::commands::antigravity::is_valid_antigravity_session_id(session_id) {
+                let session_dir = ag_root.join("brain").join(session_id);
+                return Some((
+                    ag_root.to_string_lossy().to_string(),
+                    session_dir.to_string_lossy().to_string(),
+                ));
+            }
+        }
+    } else if store_name == "antigravity-cli" && sub == "brain" {
+        let session_id = components
+            .get(gemini_idx + 3)?
+            .as_os_str()
+            .to_string_lossy()
+            .to_string();
+        if crate::commands::antigravity::is_valid_antigravity_session_id(&session_id) {
+            let session_dir = ag_root.join("brain").join(&session_id);
+            return Some((
+                format!("antigravity-cli://{}", ag_root.to_string_lossy()),
+                session_dir.to_string_lossy().to_string(),
+            ));
+        }
+    }
+
+    None
 }
 
 fn handle_file_event(app_handle: &AppHandle, event: &DebouncedEvent) {
@@ -1104,6 +1168,34 @@ mod tests {
             guard.len() <= 10_000,
             "OpenCode cache must stay bounded at 10,000 entries, got {}",
             guard.len()
+        );
+    }
+
+    #[test]
+    fn test_extract_antigravity_paths() {
+        let transcript = PathBuf::from(
+            "/Users/test/.gemini/antigravity/brain/sess-123/.system_generated/logs/transcript_full.jsonl",
+        );
+        let (proj, sess) = extract_provider_paths(&transcript).unwrap();
+        assert_eq!(proj, "/Users/test/.gemini/antigravity");
+        assert_eq!(sess, "/Users/test/.gemini/antigravity/brain/sess-123");
+
+        let db = PathBuf::from("/Users/test/.gemini/antigravity/conversations/sess-456.db-wal");
+        let (proj_db, sess_db) = extract_provider_paths(&db).unwrap();
+        assert_eq!(proj_db, "/Users/test/.gemini/antigravity");
+        assert_eq!(sess_db, "/Users/test/.gemini/antigravity/brain/sess-456");
+
+        let cli = PathBuf::from(
+            "/Users/test/.gemini/antigravity-cli/brain/cli-789/.system_generated/logs/transcript_full.jsonl",
+        );
+        let (proj_cli, sess_cli) = extract_provider_paths(&cli).unwrap();
+        assert_eq!(
+            proj_cli,
+            "antigravity-cli:///Users/test/.gemini/antigravity-cli"
+        );
+        assert_eq!(
+            sess_cli,
+            "/Users/test/.gemini/antigravity-cli/brain/cli-789"
         );
     }
 }

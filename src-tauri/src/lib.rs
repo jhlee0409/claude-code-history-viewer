@@ -1205,6 +1205,28 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(ag_root) = commands::antigravity::resolve_antigravity_root() {
+        for sub in ["brain", "conversations"] {
+            let sub_dir = ag_root.join(sub);
+            if std::fs::symlink_metadata(&sub_dir)
+                .map(|m| !m.file_type().is_symlink() && m.is_dir())
+                .unwrap_or(false)
+            {
+                paths.push(sub_dir);
+            }
+        }
+    }
+
+    if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
+        let cli_brain = ag_cli_root.join("brain");
+        if std::fs::symlink_metadata(&cli_brain)
+            .map(|m| !m.file_type().is_symlink() && m.is_dir())
+            .unwrap_or(false)
+        {
+            paths.push(cli_brain);
+        }
+    }
+
     let mut seen = HashSet::new();
     paths
         .into_iter()
