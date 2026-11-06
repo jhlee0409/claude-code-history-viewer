@@ -13,7 +13,7 @@ function fixture(quantize = false, enabled = true) {
   document.body.append(scroller);
   Object.defineProperties(scroller, {
     offsetWidth: { value: 1000 }, offsetHeight: { value: 671 },
-    clientHeight: { value: 671 }, scrollHeight: { get: () => current?.totalSize ?? 100000 },
+    clientHeight: { value: 671 }, scrollHeight: { configurable: true, get: () => current?.totalSize ?? 100000 },
   });
   const heightOf = (node: HTMLElement) => node.getAttribute("aria-hidden") === "true" ? 0 : 40 + Number(node.dataset.index) % 3 * 13;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
@@ -44,26 +44,42 @@ function fixture(quantize = false, enabled = true) {
     uuid: `wheel-${i}`, type: "assistant", timestamp: "2026-06-30T00:00:00Z",
     content: [{ type: "tool_use", id: `tool-${i}`, name: "Read", input: { file_path: "a".repeat(3000) } }],
   })) as ClaudeMessage[];
+  let source: HTMLElement | null = scroller;
+  let duringCommit: (() => void) | undefined;
+  let renderError: Error | undefined;
   const options = {
     messages, agentTaskGroups: new Map(), agentTaskMemberUuids: new Set<string>(),
     agentProgressGroups: new Map(), agentProgressMemberUuids: new Set<string>(),
     taskOperationGroups: new Map(), taskOperationMemberUuids: new Set<string>(),
-    getScrollElement: () => scroller,
+    getScrollElement: () => source,
     wheelTransactionPrototype: enabled,
   };
   let current: ReturnType<typeof useMessageVirtualization>;
   function Harness() {
     current = useMessageVirtualization(options);
-    return <>{current.virtualRows.map(row => <div key={row.key} ref={current.virtualizer.measureElement} data-index={row.index} aria-hidden={row.index % 7 === 0 ? "true" : undefined} style={{ transform: `translateY(${row.start}px)` }} />)}</>;
+    if (renderError && current.virtualizer.isScrolling) throw renderError;
+    return <>{current.virtualRows.map(row => <div key={row.key} ref={node => {
+      current.virtualizer.measureElement(node);
+      if (node && current.virtualizer.isScrolling && duringCommit) {
+        const action = duringCommit;
+        duringCommit = undefined;
+        action();
+      }
+    }} data-index={row.index} aria-hidden={row.index % 7 === 0 ? "true" : undefined} style={{ transform: `translateY(${row.start}px)` }} />)}</>;
   }
-  render(<Harness />, { container: scroller });
+  const view = render(<Harness />, { container: scroller });
   releases.length = 0;
-  const wheel = (init: WheelEventInit = {}, target: HTMLElement = scroller) => {
+  const wheel = (init: WheelEventInit = {}, target: HTMLElement = scroller, native = false) => {
     const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 3795.779541015625, ...init });
-    act(() => { target.dispatchEvent(event); });
+    if (native) target.dispatchEvent(event);
+    else act(() => { target.dispatchEvent(event); });
     return event;
   };
-  return { scroller, wheel, releases, covered, errors, current: () => current! };
+  return { scroller, wheel, releases, covered, errors, view, current: () => current!,
+    setSource: (element: HTMLElement | null) => { source = element; },
+    duringCommit: (action: () => void) => { duringCommit = action; },
+    throwDuringRender: (error: Error) => { renderError = error; },
+  };
 }
 
 it("commits actual destination coverage before releasing an owned wheel beyond old overscan", () => {
@@ -200,6 +216,109 @@ it("fails closed if committed actual boxes cannot acknowledge destination covera
   expect(f.releases).toEqual([]);
   expect(f.scroller.scrollTop).toBe(0);
   expect(f.errors).not.toHaveBeenCalled();
+});
+
+it("probe B: observer teardown during the flush commit never restores through a disposed observer", () => {
+  const f = fixture();
+  const uncaught: unknown[] = [];
+  const handle = (event: ErrorEvent) => { uncaught.push(event.error); event.preventDefault(); };
+  window.addEventListener("error", handle);
+  try {
+    const original = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!;
+    f.duringCommit(() => {
+      f.setSource(null);
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        const box = original.call(this);
+        return this === f.scroller ? box : { ...box, top: box.top + 10000, bottom: box.bottom + 10000 };
+      });
+    });
+    const event = f.wheel();
+    expect(uncaught).toEqual([]);
+    expect(event.defaultPrevented).toBe(true);
+    expect(f.current().virtualizer.scrollElement).toBeNull();
+    expect(f.scroller.scrollTop).toBe(0);
+    expect(f.releases).toEqual([]);
+    expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/could not scroll/i);
+  } finally { window.removeEventListener("error", handle); }
+});
+
+it("probe A: actual renderer failure leaves a visible fallback and no throwing wheel listener on an unmounted owner", () => {
+  const f = fixture();
+  f.errors.mockImplementation(() => {});
+  const boom = new Error("probe-row-boom");
+  f.throwDuringRender(boom);
+  const uncaught: unknown[] = [];
+  const handle = (event: ErrorEvent) => { uncaught.push(event.error); event.preventDefault(); };
+  window.addEventListener("error", handle);
+  try {
+    expect(() => f.wheel({}, f.scroller, true)).not.toThrow();
+    // React propagates its original render exception once; the wheel listener
+    // must not add a second teardown/restore exception.
+    expect(uncaught).toEqual([boom]);
+    expect(f.scroller.scrollTop).toBe(0);
+    expect(f.releases).toEqual([]);
+    expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/could not scroll/i);
+    expect(f.errors.mock.calls.some(args => args.includes(boom))).toBe(true);
+    // The failed tree cannot reconcile native scrolls; detached logical state
+    // is not reused or written into a replacement owner.
+    expect(f.current().virtualizer.scrollElement).toBeNull();
+    expect(f.wheel({ ctrlKey: true }).defaultPrevented).toBe(false);
+  } finally { window.removeEventListener("error", handle); }
+});
+
+it("M7: chains a subpixel logical maximum even when physical scrollTop rounded down", () => {
+  const f = fixture(true);
+  f.wheel({ deltaY: 0.25 });
+  expect(f.scroller.scrollTop).toBe(0);
+  expect(f.current().virtualizer.scrollOffset).toBe(0.25);
+  Object.defineProperty(f.scroller, "scrollHeight", { value: 671.25 });
+  f.releases.length = 0;
+  expect(f.wheel({ deltaY: 1 }).defaultPrevented).toBe(false);
+  expect(f.releases).toEqual([]);
+  expect(f.current().virtualizer.scrollOffset).toBe(0.25);
+});
+
+it("does not release into a replacement viewport or roll back its newly installed observer", () => {
+  const f = fixture();
+  const replacement = document.createElement("div");
+  document.body.append(replacement);
+  replacement.scrollTop = 321;
+  Object.defineProperties(replacement, {
+    offsetWidth: { value: 1000 }, offsetHeight: { value: 671 },
+    clientHeight: { value: 671 }, scrollHeight: { value: 100000 },
+  });
+  replacement.scrollTo = vi.fn();
+  f.duringCommit(() => f.setSource(replacement));
+  expect(f.wheel().defaultPrevented).toBe(true);
+  expect(f.current().virtualizer.scrollElement).toBe(replacement);
+  expect(f.scroller.scrollTop).toBe(0);
+  expect(f.releases).toEqual([]);
+  expect(replacement.scrollTop).toBe(321);
+  expect(replacement.scrollTo).not.toHaveBeenCalled();
+  // The successor observer remains live after the old transaction exits.
+  act(() => { replacement.scrollTop = 700; replacement.dispatchEvent(new Event("scroll")); });
+  expect(f.current().virtualizer.scrollOffset).toBe(700);
+});
+
+it("M8: removes every wheel listener across commits and unmount", () => {
+  const listeners = new Set<EventListenerOrEventListenerObject>();
+  const add = HTMLElement.prototype.addEventListener;
+  const remove = HTMLElement.prototype.removeEventListener;
+  vi.spyOn(HTMLElement.prototype, "addEventListener").mockImplementation(function (this: HTMLElement, type, listener, options) {
+    if (type === "wheel" && typeof options === "object" && options.passive === false) listeners.add(listener);
+    return add.call(this, type, listener, options);
+  });
+  vi.spyOn(HTMLElement.prototype, "removeEventListener").mockImplementation(function (this: HTMLElement, type, listener, options) {
+    if (type === "wheel") listeners.delete(listener);
+    return remove.call(this, type, listener, options);
+  });
+  const f = fixture();
+  expect(listeners.size).toBe(1);
+  f.wheel();
+  f.wheel({ deltaY: -100 });
+  expect(listeners.size).toBe(1);
+  f.view.unmount();
+  expect(listeners.size).toBe(0);
 });
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });

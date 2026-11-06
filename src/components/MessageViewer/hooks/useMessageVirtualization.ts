@@ -160,7 +160,7 @@ export const useMessageVirtualization = ({
   );
 
   // Initialize virtualizer
-  const wheelTransaction = useTranscriptWheelTransaction();
+  const wheelTransaction = useTranscriptWheelTransaction(messages);
   const virtualizer = useVirtualizer({
     count: flattenedMessages.length,
     getScrollElement,

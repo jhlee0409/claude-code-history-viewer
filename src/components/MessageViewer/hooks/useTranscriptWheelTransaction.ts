@@ -3,21 +3,46 @@ import { flushSync } from "react-dom";
 import { elementScroll, observeElementOffset, type Virtualizer } from "@tanstack/react-virtual";
 
 type TranscriptVirtualizer = Virtualizer<HTMLElement, Element>;
+type OffsetObserver = {
+  instance: TranscriptVirtualizer;
+  element: HTMLElement | null;
+  generation: number;
+  deliver: (offset: number, scrolling: boolean) => void;
+};
 // PROTOTYPE ENABLE: isolated branch only; not a product preference or rollout.
 export const ENABLE_WHEEL_TRANSACTION_PROTOTYPE = true;
+
+// Outside the React owner: a failed render may already have removed that tree.
+// Never replay consumed input into a replacement transcript or an old viewport.
+function showFailure(document: Document) {
+  if (document.querySelector("[data-transcript-wheel-failure]")) return;
+  const alert = document.createElement("div");
+  alert.dataset.transcriptWheelFailure = "";
+  alert.setAttribute("role", "alert");
+  alert.textContent = "Transcript could not scroll. Try again or reopen this conversation.";
+  alert.style.cssText = "position:fixed;bottom:16px;left:16px;right:16px;z-index:2147483647;padding:16px;background:#331111;color:white;border:1px solid #ff9999";
+  document.body.append(alert);
+}
 
 /** Own logical offset delivery while deferring the physical offset. Core remains
  * the only anchor policy: its resizeItem corrections change the logical target,
  * and its normal range/measurement pipeline commits before the single release.
  * Nothing here acknowledges compositor/raster readiness. */
-export function useTranscriptWheelTransaction() {
+export function useTranscriptWheelTransaction(owner?: unknown) {
+  const selection = useRef(owner);
+  selection.current = owner;
   const active = useRef(false);
   const lastRelease = useRef<{ element: HTMLElement; physical: number; logical: number } | null>(null);
-  const deliverOffset = useRef<((offset: number, scrolling: boolean) => void) | null>(null);
+  const deliverOffset = useRef<OffsetObserver | null>(null);
+  const generation = useRef(0);
   const observeOffset = useCallback<typeof observeElementOffset<HTMLElement>>((instance, callback) => {
-    deliverOffset.current = callback;
+    const observer = { instance, element: instance.scrollElement, generation: ++generation.current, deliver: callback };
+    deliverOffset.current = observer;
     const cleanup = observeElementOffset(instance, callback);
-    return () => { deliverOffset.current = null; cleanup?.(); };
+    return () => {
+      if (deliverOffset.current === observer) deliverOffset.current = null;
+      cleanup?.();
+    };
   }, []);
   const scrollToFn = useCallback<typeof elementScroll<HTMLElement>>((offset, options, instance) => {
     // Core eagerly folds adjustments into scrollOffset even when this physical
@@ -25,19 +50,20 @@ export function useTranscriptWheelTransaction() {
     if (!active.current) elementScroll(offset, options, instance);
   }, []);
 
-  return { observeOffset, scrollToFn, active, deliverOffset, lastRelease };
+  return { observeOffset, scrollToFn, active, deliverOffset, lastRelease, selection };
 }
 
 export function useTranscriptWheelBoundary(enabled: boolean, instance: TranscriptVirtualizer,
-  { active, deliverOffset, lastRelease }: ReturnType<typeof useTranscriptWheelTransaction>) {
+  { active, deliverOffset, lastRelease, selection }: ReturnType<typeof useTranscriptWheelTransaction>) {
     // Like core's _willUpdate, resolve after every commit: OverlayScrollbars can
     // replace its viewport without changing getScrollElement's function identity.
     useLayoutEffect(() => {
       const scroller = enabled ? instance.scrollElement : null;
       if (!scroller) return;
       const wheel = (event: WheelEvent) => {
+        const observer = deliverOffset.current;
         if (!event.cancelable || event.defaultPrevented || event.ctrlKey || event.shiftKey ||
-            event.deltaX !== 0 || !Number.isFinite(event.deltaY) || event.deltaY === 0 || !deliverOffset.current) return;
+            event.deltaX !== 0 || !Number.isFinite(event.deltaY) || event.deltaY === 0 || !observer) return;
         const style = getComputedStyle(scroller);
         const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2 || 16;
         const delta = event.deltaY * (event.deltaMode === 1 ? lineHeight : event.deltaMode === 2 ? scroller.clientHeight : 1);
@@ -57,19 +83,57 @@ export function useTranscriptWheelBoundary(enabled: boolean, instance: Transcrip
         const base = previous?.element === scroller && previous.physical === before ? previous.logical : before;
         const target = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, base + delta));
         if (target === base) return; // Preserve ancestor edge chaining.
+        const priorLogical = instance.scrollOffset ?? before;
+        const owner = selection.current;
+        const count = instance.options.count;
+        const margin = instance.options.scrollMargin;
+        const owns = () => deliverOffset.current === observer && observer.instance === instance &&
+          observer.element === scroller && instance.scrollElement === scroller && scroller.isConnected &&
+          instance.options.getScrollElement() === scroller && selection.current === owner &&
+          instance.options.count === count && instance.options.scrollMargin === margin;
+        if (!owns()) return;
         event.preventDefault();
         active.current = true;
         const normalOnChange = instance.options.onChange;
+        const quietOnChange = (v: TranscriptVirtualizer) => normalOnChange(v, false);
         // The first observer delivery enters from a DOM event, not a layout
         // effect. Subsequent renders read active to disable adapter flushSync.
-        instance.setOptions({ ...instance.options, onChange: v => normalOnChange(v, false) });
+        instance.setOptions({ ...instance.options, onChange: quietOnChange });
+        const rollback = () => {
+          if (!owns()) return false;
+          const onChange = instance.options.onChange;
+          const quiet = (v: TranscriptVirtualizer) => onChange(v, false);
+          instance.setOptions({ ...instance.options, onChange: quiet });
+          try {
+            flushSync(() => {
+              // Clear any intended-write echo before restoring the exact
+              // logical fraction, not the quantized physical scrollTop.
+              observer.deliver(before, false);
+              observer.deliver(priorLogical, false);
+            });
+          } finally {
+            if (instance.options.onChange === quiet) instance.setOptions({ ...instance.options, onChange });
+          }
+          return owns();
+        };
+        // React 19 can report an uncaught render error via window.error rather
+        // than throw from flushSync. Observe, but do not suppress that report.
+        let renderFailure: unknown;
+        const recordFailure = (error: ErrorEvent) => { renderFailure = error.error; };
+        const window = scroller.ownerDocument.defaultView;
+        window?.addEventListener("error", recordFailure);
         try {
           flushSync(() => {
             // Consume core's outstanding physical-write read-back first. A new
             // subpixel user delta must not be mistaken for its 1.5px echo.
-            deliverOffset.current!(before, true);
-            deliverOffset.current!(target, true);
+            observer.deliver(before, true);
+            observer.deliver(target, true);
           });
+          if (!owns()) {
+            showFailure(scroller.ownerDocument);
+            if (renderFailure) console.error("Wheel transaction render failed", renderFailure);
+            return;
+          }
           const destination = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, instance.scrollOffset ?? target));
           const viewportTop = scroller.getBoundingClientRect().top + scroller.clientTop;
           let coveredUntil = Math.max(destination, instance.options.scrollMargin);
@@ -83,16 +147,26 @@ export function useTranscriptWheelBoundary(enabled: boolean, instance: Transcrip
             if (box.top > coveredUntil + 0.01) break;
             coveredUntil = box.bottom;
           }
-          if (coveredUntil < neededUntil) {
-            // Fail closed: no uncovered physical release, restore real offset.
-            flushSync(() => deliverOffset.current!(before, false));
+          if (coveredUntil < neededUntil || renderFailure) {
+            rollback();
+            showFailure(scroller.ownerDocument);
             return;
           }
           elementScroll(destination, { behavior: "instant" }, instance);
           lastRelease.current = { element: scroller, physical: scroller.scrollTop, logical: destination };
+          scroller.ownerDocument.querySelector("[data-transcript-wheel-failure]")?.remove();
+        } catch (error) {
+          let restored = false;
+          try { restored = rollback(); }
+          catch (rollbackError) { console.error("Wheel transaction rollback failed", rollbackError); }
+          showFailure(scroller.ownerDocument);
+          if (restored) throw error; // Original exception, only after recovery.
+          console.error("Wheel transaction failed after owner disposal", error);
         } finally {
+          window?.removeEventListener("error", recordFailure);
           active.current = false;
-          instance.setOptions({ ...instance.options, onChange: normalOnChange });
+          // Adapter renders may have installed a new callback (or selection).
+          if (instance.options.onChange === quietOnChange) instance.setOptions({ ...instance.options, onChange: normalOnChange });
         }
       };
       scroller.addEventListener("wheel", wheel, { passive: false });
