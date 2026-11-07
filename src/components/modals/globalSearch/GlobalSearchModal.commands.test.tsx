@@ -18,6 +18,7 @@ const { mockApi, storeState, i18nMock } = vi.hoisted(() => {
     const state = {
         claudePath: "/home/user/.claude",
         projects: [] as unknown[],
+        selectedProject: null as unknown,
         navigate: vi.fn(),
         sessions: [] as unknown[],
         getSessionDisplayName: vi.fn(),
@@ -95,6 +96,8 @@ const option = (name: string) => screen.getByRole("option", { name: new RegExp(n
 /** Fresh mocks, actions and a conversation place with Back enabled. */
 function setUpPalette() {
     vi.clearAllMocks();
+    storeState.selectedProject = null;
+    storeState.projects = [];
     i18nMock.unstable = false;
     mockApi.mockResolvedValue([]);
     actions = {
@@ -209,6 +212,10 @@ describe("⌘K palette: Commands group", () => {
     it("still opens a message result with Enter", async () => {
         const session = { session_id: "s1", actual_session_id: "s1", file_path: "/p/s1.jsonl" };
         storeState.sessions = [session];
+        const project = { name: "p", path: "/p", actual_path: "/work/p", provider: "claude",
+            session_count: 1, message_count: 1, last_modified: "" };
+        storeState.projects = [project];
+        storeState.selectedProject = project;
         mockApi.mockResolvedValue([
             {
                 uuid: "m1",

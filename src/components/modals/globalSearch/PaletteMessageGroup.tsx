@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, ContentItem } from "@/types";
 import { getProviderLabel } from "@/utils/providers";
-import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
+import { getProjectDisplayName } from "@/utils/pathUtils";
+import { projectForSearchResult, projectIdentityKey } from "@/utils/projectIdentity";
 import { MESSAGE_PREVIEW_LIMIT, MORE_MESSAGES_VALUE, RETRY_MESSAGES_VALUE } from "@/commands/paletteSources";
 import { messageItemValue } from "./paletteMessageValues";
 import { FailedLoad, PALETTE_GROUP_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
@@ -29,7 +30,8 @@ import { Num } from "@/lib/format/Num";
 // Conversation titles per project, shared across palette opens. Keyed by
 // path + last_modified so a rescan that touched the project refetches.
 const sessionTitleCache = new Map<string, Record<string, string>>();
-const titleCacheKey = (project: ClaudeProject) => `${project.path}@${project.last_modified}`;
+const titleCacheKey = (project: ClaudeProject) => JSON.stringify([projectIdentityKey(project), project.last_modified]);
+const sessionTitleKey = (project: ClaudeProject, sessionId: string) => JSON.stringify([projectIdentityKey(project), sessionId]);
 const TITLE_FETCH_CONCURRENCY = 3;
 
 /**
@@ -89,6 +91,7 @@ interface ResultGroup {
   label: string;
   provider?: string;
   pathUnavailable: boolean;
+  path?: string;
   project?: ClaudeProject;
   items: Array<{ result: ClaudeMessage; index: number }>;
 }
@@ -131,13 +134,10 @@ export function PaletteMessageGroup({
     shown.forEach((result, index) => {
       const projectName = result.projectName || t("globalSearch.unknownProject");
       const provider = result.provider ?? "claude";
-      // The backend labels results with the store directory name; the
-      // project list may carry a decoded display name instead.
-      const project = projects.find(
-        (p) =>
-          (p.provider ?? "claude") === provider && (p.name === projectName || getPathLeaf(p.path) === projectName),
-      );
-      const key = `${provider}::${projectName}`;
+      const project = projectForSearchResult(result, projects);
+      const path = result.projectPath ?? project?.path;
+      // Keep unresolvable legacy groups separate from path-qualified groups.
+      const key = JSON.stringify([provider, path == null ? "name" : "path", path ?? projectName]);
       if (!out.has(key)) {
         const displayName = project ? getProjectDisplayName(project) : projectName;
         out.set(key, {
@@ -145,6 +145,7 @@ export function PaletteMessageGroup({
           provider: result.provider,
           pathUnavailable: project?.path_status === "unavailable",
           project,
+          path,
           items: [],
         });
       }
@@ -173,7 +174,7 @@ export function PaletteMessageGroup({
       if (!project) continue;
       const hit = sessionTitleCache.get(titleCacheKey(project));
       if (hit) Object.assign(cached, hit);
-      else if (!pending.some((p) => p.path === project.path)) pending.push(project);
+      else if (!pending.some((p) => projectIdentityKey(p) === projectIdentityKey(project))) pending.push(project);
     }
     mergeTitles(cached);
     if (pending.length === 0) return;
@@ -190,8 +191,8 @@ export function PaletteMessageGroup({
       for (const s of sessions) {
         const title = s.summary?.trim();
         if (!title) continue;
-        titles[s.session_id] = title;
-        if (s.actual_session_id) titles[s.actual_session_id] = title;
+        titles[sessionTitleKey(project, s.session_id)] = title;
+        if (s.actual_session_id) titles[sessionTitleKey(project, s.actual_session_id)] = title;
       }
       sessionTitleCache.set(titleCacheKey(project), titles);
       return titles;
@@ -216,9 +217,9 @@ export function PaletteMessageGroup({
     };
   }, [groups, mergeTitles]);
 
-  const sessionName = (result: ClaudeMessage): string | undefined => {
+  const sessionName = (result: ClaudeMessage, project?: ClaudeProject): string | undefined => {
     if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
-    const name = getSessionDisplayName(result.sessionId) ?? sessionTitles[result.sessionId];
+    const name = getSessionDisplayName(result.sessionId) ?? (project ? sessionTitles[sessionTitleKey(project, result.sessionId)] : undefined);
     if (name) return name;
     // No custom/known name: a short, stable handle, so results from
     // different conversations are still distinguishable (#420).
@@ -313,10 +314,13 @@ export function PaletteMessageGroup({
                 {t("project.pathUnavailable", "Location unavailable")}
               </Badge>
             )}
-            <span className="truncate">{group.label}</span>
+            <span className="min-w-0">
+              <span className="block truncate">{group.label}</span>
+              {group.path && <span className="block truncate text-caption font-normal" title={group.path}>{group.path}</span>}
+            </span>
           </div>
           {group.items.map(({ result, index }) => {
-            const name = sessionName(result);
+            const name = sessionName(result, group.project);
             return (
               <CommandPrimitive.Item
                 key={`${index}:${result.uuid}`}

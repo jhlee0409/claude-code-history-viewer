@@ -223,7 +223,7 @@ describe("⌘K palette: Tab scopes to the highlighted project", () => {
         }
         pressTab();
         await waitFor(() => expect(searches()).toHaveLength(2));
-        expect(searches()[1]?.[1]).toMatchObject({ filters: { projects: ["beta-login"] } });
+        expect(searches()[1]?.[1]).toMatchObject({ filters: { projectPaths: [BETA.path] } });
         // Sessions: the pinned project's sessions, not the open project's.
         await waitFor(() =>
             expect(within(group("globalSearch.group.sessions")!).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -244,7 +244,7 @@ describe("⌘K palette: Tab scopes to the highlighted project", () => {
         expect(screen.getByRole("button", { name: "globalSearch.scope.project" })).toHaveAttribute("aria-pressed", "true");
         expect(input().value).toBe("beta");
         expect(document.activeElement).toBe(input());
-        await waitFor(() => expect(searches().at(-1)?.[1]).toMatchObject({ filters: { projects: ["alpha"] } }));
+        await waitFor(() => expect(searches().at(-1)?.[1]).toMatchObject({ filters: { projectPaths: [ALPHA.path] } }));
     });
 
     it("Backspace in the empty field clears the pill; with text it only edits the text", () => {
@@ -358,7 +358,7 @@ describe("⌘K palette: a scoped search is owned by its project", () => {
         await sleep(300);
         expect(screen.queryByText(/stale/)).toBeNull();
         expect(searches()).toHaveLength(2);
-        expect(searches()[1]?.[1]).toMatchObject({ filters: { projects: ["beta-login"] } });
+        expect(searches()[1]?.[1]).toMatchObject({ filters: { projectPaths: [BETA.path] } });
         await act(async () => after.resolve([hit("new", "beta in its project", "beta-login")]));
         await waitFor(() => expect(screen.getByRole("option", { name: /beta in its project/ })).toBeInTheDocument());
     });

@@ -127,16 +127,6 @@ fn build_matcher(query: &str) -> AhoCorasick {
         .expect("single-pattern AhoCorasick build should never fail")
 }
 
-/// Extract project name from file path
-/// Path format: ~/.claude/projects/[project-name]/[session-file].jsonl
-fn extract_project_name(file_path: &PathBuf) -> Option<String> {
-    file_path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .map(std::string::ToString::to_string)
-}
-
 /// Search for messages matching the query in a single file
 ///
 /// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
@@ -144,8 +134,23 @@ fn extract_project_name(file_path: &PathBuf) -> Option<String> {
 /// `root` is the canonical `projects/` folder the file was found under: the
 /// file is read inside it only (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn search_in_file(file_path: &PathBuf, root: &Path, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
-    let project_name = extract_project_name(file_path);
+fn search_in_file(
+    file_path: &PathBuf,
+    root: &Path,
+    projects_path: &Path,
+    matcher: &AhoCorasick,
+) -> Vec<ClaudeMessage> {
+    let project_dir = file_path
+        .strip_prefix(projects_path)
+        .ok()
+        .and_then(|relative| relative.parent())
+        .and_then(|parent| parent.components().next())
+        .map(|name| projects_path.join(name.as_os_str()));
+    let project_name = project_dir
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .map(|name| name.to_string_lossy().to_string());
+    let project_path = project_dir.map(|path| path.to_string_lossy().to_string());
 
     let Ok((file, _)) = session_files::open_session_file(file_path, root) else {
         return Vec::new();
@@ -229,6 +234,7 @@ fn search_in_file(file_path: &PathBuf, root: &Path, matcher: &AhoCorasick) -> Ve
             message_type: log_entry.message_type,
             content: Some(message_content.content.clone()),
             project_name: project_name.clone(),
+            project_path: project_path.clone(),
             tool_use: log_entry.tool_use,
             // Search retains legacy null-as-absent semantics; the load API preserves raw null.
             tool_use_result: log_entry.tool_use_result.filter(|value| !value.is_null()),
@@ -365,6 +371,22 @@ fn matches_filters(message: &ClaudeMessage, filters: &serde_json::Value) -> bool
 
     if let Some(message_type) = obj.get("messageType").and_then(serde_json::Value::as_str) {
         if message_type != "all" && message.message_type != message_type {
+            return false;
+        }
+    }
+
+    // Path filters are exact; legacy name filters below retain their old semantics.
+    if let Some(paths) = obj
+        .get("projectPaths")
+        .and_then(serde_json::Value::as_array)
+    {
+        let selected: Vec<&str> = paths.iter().filter_map(serde_json::Value::as_str).collect();
+        if !selected.is_empty()
+            && !message
+                .project_path
+                .as_deref()
+                .is_some_and(|path| selected.contains(&path))
+        {
             return false;
         }
     }
@@ -543,7 +565,12 @@ fn search_messages_blocking(
             note_scan(&file_paths[idx]);
             (
                 idx,
-                Arc::new(search_in_file(&file_paths[idx], &root, &matcher)),
+                Arc::new(search_in_file(
+                    &file_paths[idx],
+                    &root,
+                    &projects_path,
+                    &matcher,
+                )),
             )
         })
         .collect();
@@ -666,6 +693,104 @@ mod tests {
         format!(
             r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_1","content":"{visible}"}}]}},"toolUseResult":{{"stdout":"{result_stdout}","stderr":"","interrupted":false}}}}"#
         )
+    }
+
+    #[tokio::test]
+    async fn test_search_project_paths_survive_cache_and_custom_roots() {
+        let first = TempDir::new().unwrap();
+        let second = TempDir::new().unwrap();
+        for (root, id) in [(first.path(), "first"), (second.path(), "second")] {
+            let dir = root.join("projects/same-project");
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("session.jsonl"),
+                create_sample_user_message(id, id, "shared needle"),
+            )
+            .unwrap();
+        }
+        let selected_path = first
+            .path()
+            .join("projects/same-project")
+            .to_string_lossy()
+            .to_string();
+        for _ in 0..2 {
+            for (root, expected) in [(first.path(), 1), (second.path(), 0)] {
+                let results = search_messages(
+                    root.to_string_lossy().to_string(),
+                    "needle".into(),
+                    serde_json::json!({"projectPaths": [selected_path]}),
+                    Some(1),
+                )
+                .await
+                .unwrap();
+                assert_eq!(results.len(), expected);
+                if let Some(hit) = results.first() {
+                    let value = serde_json::to_value(hit).unwrap();
+                    assert_eq!(value["projectPath"], selected_path);
+                    assert_eq!(value["projectName"], "same-project");
+                }
+            }
+        }
+        for root in [first.path(), second.path()] {
+            assert_eq!(
+                test_scan_count(&root.join("projects/same-project/session.jsonl")),
+                1
+            );
+            let legacy = search_messages(
+                root.to_string_lossy().to_string(),
+                "needle".into(),
+                serde_json::json!({"projects": ["same-project"]}),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(legacy.len(), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_search_nested_session_keeps_project_path() {
+        let temp = TempDir::new().unwrap();
+        let project = temp.path().join("projects/app");
+        let nested = project.join("session/subagents");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(
+            nested.join("agent-a.jsonl"),
+            create_sample_user_message("nested", "agent-a", "nested needle"),
+        )
+        .unwrap();
+        let hits = search_messages(
+            temp.path().to_string_lossy().to_string(),
+            "needle".into(),
+            serde_json::json!({"projectPaths": [project.to_string_lossy()]}),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].project_name.as_deref(), Some("app"));
+        assert_eq!(hits[0].project_path.as_deref(), project.to_str());
+    }
+
+    #[test]
+    fn test_path_filter_does_not_guess_missing_legacy_identity() {
+        let legacy: ClaudeMessage = serde_json::from_value(serde_json::json!({
+            "uuid": "old", "sessionId": "s", "timestamp": "", "type": "user",
+            "projectName": "app", "content": "needle"
+        }))
+        .unwrap();
+        assert!(legacy.project_path.is_none());
+        assert!(apply_search_filters(
+            vec![legacy.clone()],
+            &serde_json::json!({
+                "projectPaths": ["codex:///work/app"]
+            })
+        )
+        .is_empty());
+        assert_eq!(
+            apply_search_filters(vec![legacy], &serde_json::json!({"projects": ["app"]})).len(),
+            1
+        );
     }
 
     #[tokio::test]

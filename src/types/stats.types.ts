@@ -151,6 +151,9 @@ export interface ProjectStatsSummary {
 
 export interface ProjectRanking {
   project_name: string;
+  /** Absent when reading a summary produced by an older backend. */
+  project_path?: string;
+  provider_id?: string;
   sessions: number;
   messages: number;
   tokens: number;

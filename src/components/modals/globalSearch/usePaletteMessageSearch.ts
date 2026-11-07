@@ -81,8 +81,13 @@ export function buildMessageSearchRequest(
 
   const scoped = input.scope === "project" ? input.project : null;
   const filters: Record<string, unknown> = {};
-  // The backend matches a project by its folder name (the path's last segment).
-  if (scoped) filters.projects = [getPathLeaf(scoped.path) || scoped.path];
+  if (scoped) {
+    const provider = scoped.provider ?? "claude";
+    // These search adapters emit the same opaque path as the project list.
+    // Other adapters still return name-only results; retain their legacy filter.
+    if (provider === "claude" || provider === "codex") filters.projectPaths = [scoped.path];
+    else filters.projects = [getPathLeaf(scoped.path) || scoped.path];
+  }
   if (input.messageType !== "all") filters.messageType = input.messageType;
 
   const activeProviders = scoped

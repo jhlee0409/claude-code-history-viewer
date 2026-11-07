@@ -423,7 +423,7 @@ describe("⌘K palette: scope chip", () => {
         fireEvent.click(chip("globalSearch.scope.project"));
         expect(chip("globalSearch.scope.project")).toHaveAttribute("aria-pressed", "true");
         await waitFor(() => expect(searches()).toHaveLength(2));
-        expect(searches()[1]?.[1]).toMatchObject({ filters: { projects: ["alpha"] } });
+        expect(searches()[1]?.[1]).toMatchObject({ filters: { projectPaths: [ALPHA.path] } });
     });
 
     it("scopes the Sessions group: library sessions of other projects only under 'All projects'", () => {

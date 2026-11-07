@@ -162,6 +162,10 @@ pub struct ModelContextStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectRanking {
     pub project_name: String,
+    #[serde(default)]
+    pub project_path: String,
+    #[serde(default)]
+    pub provider_id: String,
     pub sessions: u32,
     pub messages: u32,
     pub tokens: u64,
@@ -203,6 +207,17 @@ pub struct GlobalStatsSummary {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_legacy_project_ranking_without_identity_deserializes() {
+        let ranking: ProjectRanking = serde_json::from_value(json!({
+            "project_name": "app", "sessions": 1, "messages": 2, "tokens": 3
+        }))
+        .unwrap();
+        assert_eq!(ranking.project_name, "app");
+        assert!(ranking.project_path.is_empty());
+        assert!(ranking.provider_id.is_empty());
+    }
 
     #[test]
     fn test_session_token_stats_serialization() {
