@@ -277,7 +277,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="flex flex-wrap gap-3">
               {metrics.map((metric, i) => (
                 <Tooltip key={metric.label}>
                   <TooltipTrigger asChild>
@@ -285,7 +285,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       type="button"
                       aria-label={`${metric.label}: ${fmt.count(metric.value)}`}
                       className={cn(
-                        "relative w-full appearance-none p-4 rounded-xl text-center text-inherit",
+                        "relative min-w-min flex-1 basis-[calc((100%_-_0.75rem)/2)] lg:grow-0 lg:basis-[calc((100%_-_3rem)/5)] appearance-none px-3 py-4 rounded-xl text-center text-inherit",
                         "bg-card/80 backdrop-blur-sm",
                         "border border-border/50",
                         "transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -297,9 +297,9 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-b"
                         style={{ background: metric.color }}
                       />
-                      {/* One unit: where the tile is narrower than the value (a
-                          phone at the largest font size) it runs into the
-                          padding, as in every language, instead of wrapping. */}
+                      {/* Keep the number whole. The tile's intrinsic minimum
+                          moves it onto another row when enlarged text needs
+                          more room than the preferred column width. */}
                       <div
                         className="font-mono text-2xl font-bold tracking-tight whitespace-nowrap"
                         style={{ color: i === 0 ? "var(--foreground)" : metric.color }}
