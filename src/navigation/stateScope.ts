@@ -161,6 +161,7 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   isCapturing: "app",
 
   // --- preferences (persisted or remembered app-wide) ------------------------
+  viewerMode: "app",
   excludeSidechain: "app",
   showSystemMessages: "app",
   fontScale: "app",

@@ -52,6 +52,8 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/detect_claude_config_dir",
     "/detect_providers",
     "/export_session",
+    "/export_reading_document",
+    "/prepare_reading_document",
     "/get_all_mcp_servers",
     "/get_all_settings",
     "/get_archive_base_path",
@@ -338,6 +340,11 @@ pub fn build_router(
         .route("/get_archive_disk_usage", post(h::get_archive_disk_usage))
         .route("/get_expiring_sessions", post(h::get_expiring_sessions))
         .route("/export_session", post(h::export_session))
+        .route(
+            "/prepare_reading_document",
+            post(h::prepare_reading_document),
+        )
+        .route("/export_reading_document", post(h::export_reading_document))
         // Auth middleware — checks Bearer header or ?token= query param
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -349,6 +356,9 @@ pub fn build_router(
         ));
 
     let api = Router::new()
+        // Unguessable, expiring capabilities authorize only a prepared document.
+        // iframe navigations cannot attach the application's bearer header.
+        .route("/reading_documents/{id}", get(h::reading_document))
         .route("/auth/login", post(auth_login_handler))
         .route("/auth/logout", post(auth_logout_handler))
         .merge(protected_api);
@@ -2051,6 +2061,54 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn reading_document_is_capability_scoped_under_base_path() {
+        let app = build_router(
+            test_state(Some("secret-token")),
+            "127.0.0.1",
+            3727,
+            None,
+            "/viewer",
+        );
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/viewer/api/reading_documents/unknown?capability=wrong")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store"
+        );
+    }
+
+    #[tokio::test]
+    async fn reading_preparation_requires_authentication() {
+        let app = build_router(
+            test_state(Some("secret-token")),
+            "127.0.0.1",
+            3727,
+            None,
+            "/",
+        );
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/prepare_reading_document")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"sessionPath":"/outside.jsonl"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

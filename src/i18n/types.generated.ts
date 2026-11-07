@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-01T04:18:54.294Z
- * 총 키 개수: 2347
+ * 생성 시간: 2026-11-02T09:04:17.771Z
+ * 총 키 개수: 2370
  * Namespace 수: 13
  */
 
@@ -1554,7 +1554,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (124개)
+ * message namespace의 번역 키 (147개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1681,7 +1681,30 @@ export type MessageKeys =
   | 'navigator.toggle'
   | 'navigator.userOnly'
   | 'navigator.viewMode.outline'
-  | 'navigator.viewMode.toggle';
+  | 'navigator.viewMode.toggle'
+  | 'reading.all'
+  | 'reading.columns'
+  | 'reading.export'
+  | 'reading.exportFailed'
+  | 'reading.exported'
+  | 'reading.frameFailed'
+  | 'reading.frameTitle'
+  | 'reading.interleaved'
+  | 'reading.loadFailed'
+  | 'reading.loading'
+  | 'reading.main'
+  | 'reading.mode'
+  | 'reading.prompts'
+  | 'reading.reading'
+  | 'reading.refresh'
+  | 'reading.retry'
+  | 'reading.runtimeHelp'
+  | 'reading.savePreferenceFailed'
+  | 'reading.search'
+  | 'reading.standard'
+  | 'reading.steps'
+  | 'reading.targetMissing'
+  | 'reading.unsupported';
 
 /**
  * renderers namespace의 번역 키 (442개)
@@ -3660,6 +3683,29 @@ export type TranslationKey =
   | 'queueOperationRenderer.operations.popAll'
   | 'queueOperationRenderer.operations.remove'
   | 'queueOperationRenderer.title'
+  | 'reading.all'
+  | 'reading.columns'
+  | 'reading.export'
+  | 'reading.exportFailed'
+  | 'reading.exported'
+  | 'reading.frameFailed'
+  | 'reading.frameTitle'
+  | 'reading.interleaved'
+  | 'reading.loadFailed'
+  | 'reading.loading'
+  | 'reading.main'
+  | 'reading.mode'
+  | 'reading.prompts'
+  | 'reading.reading'
+  | 'reading.refresh'
+  | 'reading.retry'
+  | 'reading.runtimeHelp'
+  | 'reading.savePreferenceFailed'
+  | 'reading.search'
+  | 'reading.standard'
+  | 'reading.steps'
+  | 'reading.targetMissing'
+  | 'reading.unsupported'
   | 'recentEdits.cancel'
   | 'recentEdits.confirmRestore'
   | 'recentEdits.confirmRestoreMessage'
@@ -4871,6 +4917,7 @@ export type TranslationPrefix =
   | 'progressRenderer'
   | 'project'
   | 'queueOperationRenderer'
+  | 'reading'
   | 'recentEdits'
   | 'redactedThinkingRenderer'
   | 'rendererLabels'

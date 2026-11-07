@@ -273,7 +273,7 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
 /// Collect the Claude configuration directories the user has registered, plus
 /// `CLAUDE_CONFIG_DIR`. These are the same sources `scan_all_projects` reads, so
 /// any directory whose sessions the app displays is represented here.
-pub(super) fn configured_claude_dirs() -> Vec<String> {
+pub(crate) fn configured_claude_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
 
     if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {

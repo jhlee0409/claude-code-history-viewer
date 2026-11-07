@@ -5,6 +5,8 @@
  */
 
 import { storageAdapter } from "@/services/storage";
+import i18n from "@/i18n";
+import { ownPlace } from "@/navigation/ownership";
 import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
@@ -19,7 +21,10 @@ import type { FullAppStore } from "./types";
 // State Interface
 // ============================================================================
 
+export type ViewerMode = "standard" | "reading";
+
 export interface SettingsSliceState {
+  viewerMode: ViewerMode;
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   fontScale: number;
@@ -31,6 +36,8 @@ export interface SettingsSliceState {
 }
 
 export interface SettingsSliceActions {
+  setViewerMode: (mode: ViewerMode) => Promise<void>;
+  loadViewerMode: () => Promise<void>;
   setExcludeSidechain: (exclude: boolean) => void;
   setShowSystemMessages: (show: boolean) => void;
   setFontScale: (scale: number) => Promise<void>;
@@ -64,6 +71,7 @@ const normalizeFontScale = (value: unknown): number => {
 };
 
 const initialSettingsState: SettingsSliceState = {
+  viewerMode: "standard",
   excludeSidechain: true,
   showSystemMessages: false,
   fontScale: DEFAULT_FONT_SCALE,
@@ -82,169 +90,208 @@ export const createSettingsSlice: StateCreator<
   [],
   [],
   SettingsSlice
-> = (set, get) => ({
-  ...initialSettingsState,
+> = (set, get) => {
+  let viewerModeSave = Promise.resolve();
+  let viewerModeRevision = 0;
+  return {
+    ...initialSettingsState,
 
-  setExcludeSidechain: (exclude: boolean) => {
-    set({ excludeSidechain: exclude });
-    // Refresh current project and session when filter changes.
-    // `reloadProjectSessions`, not `selectProject`: the latter nulls
-    // `selectedSession`, which turns the `selectSession` below into a fresh
-    // load instead of an in-place reload — wiping the subagent stack,
-    // pagination and search index.
-    const { selectedProject, selectedSession } = get();
-    if (selectedProject) {
-      get().reloadProjectSessions(selectedProject);
-    }
-    if (selectedSession) {
-      void get().reloadCurrent("filter");
-    }
-  },
-
-  setShowSystemMessages: (show: boolean) => {
-    set({ showSystemMessages: show });
-    // Refresh current session when filter changes
-    const { selectedSession } = get();
-    if (selectedSession) {
-      void get().reloadCurrent("filter");
-    }
-  },
-
-  setFontScale: async (scale: number) => {
-    const normalizedScale = normalizeFontScale(scale);
-    set({ fontScale: normalizedScale });
-
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
+    setViewerMode: (mode: ViewerMode) => {
+      const ownsFeedback = ownPlace(get);
+      viewerModeRevision += 1;
+      set({ viewerMode: mode });
+      viewerModeSave = viewerModeSave.then(async () => {
+        try {
+          const store = await storageAdapter.load("settings.json", {
+            autoSave: false,
+            defaults: {},
+          });
+          await store.set("viewerMode", mode);
+          await store.save();
+        } catch (error) {
+          console.error("Failed to save viewer mode:", error);
+          if (ownsFeedback()) toast.error(i18n.t("reading.savePreferenceFailed"));
+        }
       });
-      await store.set("fontScale", normalizedScale);
-      await store.save();
-    } catch (error) {
-      // Intentionally non-blocking: font scale is already applied in-memory for current session.
-      console.warn("Failed to save font scale:", error);
-    }
-  },
+      return viewerModeSave;
+    },
 
-  setHighContrast: async (enabled: boolean) => {
-    set({ highContrast: enabled });
+    loadViewerMode: async () => {
+      const ownsFeedback = ownPlace(get);
+      const revision = viewerModeRevision;
+      try {
+        const store = await storageAdapter.load("settings.json", { autoSave: false, defaults: {} });
+        const mode = await store.get<unknown>("viewerMode");
+        if (revision === viewerModeRevision && (mode === "standard" || mode === "reading")) {
+          set({ viewerMode: mode });
+        }
+      } catch (error) {
+        console.warn("Failed to load viewing mode:", error);
+        if (ownsFeedback()) toast.error(i18n.t("settingsManager.error"));
+      }
+    },
 
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("highContrast", enabled);
-      await store.save();
-    } catch (error) {
-      // Intentionally non-blocking: contrast mode is already applied in-memory for current session.
-      console.warn("Failed to save high contrast setting:", error);
-    }
-  },
+    setExcludeSidechain: (exclude: boolean) => {
+      set({ excludeSidechain: exclude });
+      // Refresh current project and session when filter changes.
+      // `reloadProjectSessions`, not `selectProject`: the latter nulls
+      // `selectedSession`, which turns the `selectSession` below into a fresh
+      // load instead of an in-place reload — wiping the subagent stack,
+      // pagination and search index.
+      const { selectedProject, selectedSession } = get();
+      if (selectedProject) {
+        get().reloadProjectSessions(selectedProject);
+      }
+      if (selectedSession) {
+        void get().reloadCurrent("filter");
+      }
+    },
 
-  loadUpdateSettings: async () => {
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      const savedSettings = await store.get<UpdateSettings>("updateSettings");
-      if (savedSettings) {
-        set({
-          updateSettings: { ...DEFAULT_UPDATE_SETTINGS, ...savedSettings },
+    setShowSystemMessages: (show: boolean) => {
+      set({ showSystemMessages: show });
+      // Refresh current session when filter changes
+      const { selectedSession } = get();
+      if (selectedSession) {
+        void get().reloadCurrent("filter");
+      }
+    },
+
+    setFontScale: async (scale: number) => {
+      const normalizedScale = normalizeFontScale(scale);
+      set({ fontScale: normalizedScale });
+
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
         });
+        await store.set("fontScale", normalizedScale);
+        await store.save();
+      } catch (error) {
+        // Intentionally non-blocking: font scale is already applied in-memory for current session.
+        console.warn("Failed to save font scale:", error);
       }
+    },
 
-      // Load session sort order
-      const savedSortOrder = await store.get<SessionSortOrder>("sessionSortOrder");
-      if (savedSortOrder) {
-        set({ sessionSortOrder: savedSortOrder });
+    setHighContrast: async (enabled: boolean) => {
+      set({ highContrast: enabled });
+
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
+        });
+        await store.set("highContrast", enabled);
+        await store.save();
+      } catch (error) {
+        // Intentionally non-blocking: contrast mode is already applied in-memory for current session.
+        console.warn("Failed to save high contrast setting:", error);
       }
+    },
 
-      // Load session source (entrypoint) filter
-      const savedEntrypointFilter = await store.get<SessionEntrypointFilter>(
-        "sessionEntrypointFilter"
-      );
-      if (savedEntrypointFilter) {
-        set({ sessionEntrypointFilter: savedEntrypointFilter });
+    loadUpdateSettings: async () => {
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
+        });
+        const savedSettings = await store.get<UpdateSettings>("updateSettings");
+        if (savedSettings) {
+          set({
+            updateSettings: { ...DEFAULT_UPDATE_SETTINGS, ...savedSettings },
+          });
+        }
+
+        // Load session sort order
+        const savedSortOrder = await store.get<SessionSortOrder>("sessionSortOrder");
+        if (savedSortOrder) {
+          set({ sessionSortOrder: savedSortOrder });
+        }
+
+        // Load session source (entrypoint) filter
+        const savedEntrypointFilter = await store.get<SessionEntrypointFilter>(
+          "sessionEntrypointFilter"
+        );
+        if (savedEntrypointFilter) {
+          set({ sessionEntrypointFilter: savedEntrypointFilter });
+        }
+
+        const savedFontScale = await store.get<number>("fontScale");
+        const savedHighContrast = await store.get<boolean>("highContrast");
+        set({
+          fontScale: normalizeFontScale(savedFontScale),
+          highContrast: typeof savedHighContrast === "boolean" ? savedHighContrast : null,
+        });
+      } catch (error) {
+        console.warn("Failed to load persisted settings:", error);
       }
+    },
 
-      const savedFontScale = await store.get<number>("fontScale");
-      const savedHighContrast = await store.get<boolean>("highContrast");
-      set({
-        fontScale: normalizeFontScale(savedFontScale),
-        highContrast: typeof savedHighContrast === "boolean" ? savedHighContrast : null,
-      });
-    } catch (error) {
-      console.warn("Failed to load persisted settings:", error);
-    }
-  },
+    setUpdateSetting: async <K extends keyof UpdateSettings>(
+      key: K,
+      value: UpdateSettings[K]
+    ) => {
+      const { updateSettings } = get();
+      const newSettings = { ...updateSettings, [key]: value };
+      set({ updateSettings: newSettings });
 
-  setUpdateSetting: async <K extends keyof UpdateSettings>(
-    key: K,
-    value: UpdateSettings[K]
-  ) => {
-    const { updateSettings } = get();
-    const newSettings = { ...updateSettings, [key]: value };
-    set({ updateSettings: newSettings });
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
+        });
+        await store.set("updateSettings", newSettings);
+        await store.save();
+      } catch (error) {
+        console.warn("Failed to save update settings:", error);
+      }
+    },
 
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("updateSettings", newSettings);
-      await store.save();
-    } catch (error) {
-      console.warn("Failed to save update settings:", error);
-    }
-  },
+    skipVersion: async (version: string) => {
+      const { updateSettings, setUpdateSetting } = get();
+      if (!updateSettings.skippedVersions.includes(version)) {
+        await setUpdateSetting("skippedVersions", [
+          ...updateSettings.skippedVersions,
+          version,
+        ]);
+      }
+    },
 
-  skipVersion: async (version: string) => {
-    const { updateSettings, setUpdateSetting } = get();
-    if (!updateSettings.skippedVersions.includes(version)) {
-      await setUpdateSetting("skippedVersions", [
-        ...updateSettings.skippedVersions,
-        version,
-      ]);
-    }
-  },
+    postponeUpdate: async () => {
+      const { setUpdateSetting } = get();
+      await setUpdateSetting("lastPostponedAt", Date.now());
+    },
 
-  postponeUpdate: async () => {
-    const { setUpdateSetting } = get();
-    await setUpdateSetting("lastPostponedAt", Date.now());
-  },
+    setSessionSortOrder: async (order: SessionSortOrder) => {
+      set({ sessionSortOrder: order });
 
-  setSessionSortOrder: async (order: SessionSortOrder) => {
-    set({ sessionSortOrder: order });
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
+        });
+        await store.set("sessionSortOrder", order);
+        await store.save();
+      } catch (error) {
+        console.error("Failed to save session sort order:", error);
+        toast.error("Failed to save session sort order");
+      }
+    },
 
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("sessionSortOrder", order);
-      await store.save();
-    } catch (error) {
-      console.error("Failed to save session sort order:", error);
-      toast.error("Failed to save session sort order");
-    }
-  },
+    setSessionEntrypointFilter: async (filter: SessionEntrypointFilter) => {
+      set({ sessionEntrypointFilter: filter });
 
-  setSessionEntrypointFilter: async (filter: SessionEntrypointFilter) => {
-    set({ sessionEntrypointFilter: filter });
-
-    try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("sessionEntrypointFilter", filter);
-      await store.save();
-    } catch (error) {
-      console.error("Failed to save session source filter:", error);
-      toast.error("Failed to save session source filter");
-    }
-  },
-});
+      try {
+        const store = await storageAdapter.load("settings.json", {
+          autoSave: false,
+          defaults: {},
+        });
+        await store.set("sessionEntrypointFilter", filter);
+        await store.save();
+      } catch (error) {
+        console.error("Failed to save session source filter:", error);
+        toast.error("Failed to save session source filter");
+      }
+    },
+  };
+};

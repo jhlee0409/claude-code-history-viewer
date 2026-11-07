@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
 import { Inspector } from "@/components/Inspector";
+import { supportsReadingView } from "@/utils/providers";
 import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailability";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
@@ -139,6 +140,7 @@ export interface AppLayoutProps {
  */
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
+  const viewerMode = useAppStore((s) => s.viewerMode);
   const {
     projects,
     sessions,
@@ -284,7 +286,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // mounts its children, so a saved open Tokens/Info tab would run its
   // loaders on a phone for a panel nobody can see. The saved preference
   // itself stays, so the inspector returns on a wider screen.
-  const showInspector =
+  const isReadingView = screen === "conversation" && viewerMode === "reading" &&
+    supportsReadingView(selectedSession?.provider ?? selectedProject?.provider ?? "claude");
+  const showInspector = !isReadingView &&
     isInspectorAvailable({ isMobile, view: screen, hasSession: selectedSession != null }) && isInspectorOpen;
   const projectTreeProps = {
     projects,
@@ -459,7 +463,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             />
           )}
 
-          {isMobile && selectedSession && computed.isMessagesView && (
+          {isMobile && selectedSession && computed.isMessagesView && !isReadingView && (
             <MobileNavigatorSheet messages={messages} />
           )}
         </>

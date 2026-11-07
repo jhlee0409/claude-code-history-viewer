@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://github.com https://*.githubusercontent.com; font-src 'self' data:; frame-ancestors 'none'",
+      "csp": "default-src 'self'; frame-src 'self' reading: http://reading.localhost https://reading.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://github.com https://*.githubusercontent.com; font-src 'self' data:; frame-ancestors 'none'",
       "capabilities": [
         "default"
       ]
