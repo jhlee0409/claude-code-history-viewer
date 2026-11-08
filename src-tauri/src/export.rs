@@ -371,6 +371,11 @@ fn is_exportable(msg: &Value) -> bool {
             | "progress"
             | "queue-operation"
             | "file-history-snapshot"
+            // Claude Code's request records (#735): not conversation, and a blob
+            // repeats a message. The session loader drops them for the frontend.
+            | "api-request"
+            | "api-request-blob"
+            | "api-request-shape"
     )
 }
 
@@ -1010,6 +1015,31 @@ mod tests {
         ));
         assert!(is_exportable(&json!({ "type": "user" })));
         assert!(is_exportable(&json!({ "type": "assistant" })));
+    }
+
+    /// Claude Code's request records (2.1.302 and later) are not conversation. A blob
+    /// repeats a message, and the renderer labels any non-user line "Assistant", so
+    /// exporting them duplicated every turn and showed the user's prompt as the
+    /// assistant's (#735).
+    #[test]
+    fn api_request_records_are_not_exported() {
+        let messages = vec![
+            json!({ "type": "user", "timestamp": "2026-01-01T10:00:00Z", "message": { "role": "user", "content": "Rename the helper" } }),
+            json!({ "type": "api-request-shape", "sessionId": "s", "shapeHash": "h0", "timestamp": "2026-01-01T10:00:01Z", "shape": { "system": [] } }),
+            json!({ "type": "api-request-blob", "sessionId": "s", "hash": "h1", "message": { "role": "user", "content": "Rename the helper" } }),
+            json!({ "type": "api-request-blob", "sessionId": "s", "hash": "h2", "message": { "role": "assistant", "content": [{ "type": "text", "text": "Renamed it." }] } }),
+            json!({ "type": "api-request", "sessionId": "s", "id": "r1", "timestamp": "2026-01-01T10:00:01Z", "keep": 0, "tail": ["h1", "h2"] }),
+            json!({ "type": "assistant", "timestamp": "2026-01-01T10:00:05Z", "message": { "role": "assistant", "content": [{ "type": "text", "text": "Renamed it." }] } }),
+        ];
+        let exported: Vec<&str> = messages
+            .iter()
+            .filter(|m| is_exportable(m))
+            .filter_map(|m| m.get("type").and_then(Value::as_str))
+            .collect();
+        assert_eq!(exported, vec!["user", "assistant"]);
+
+        let html = render_session_html(&messages, "Session");
+        assert_eq!(html.matches("<div class=\"message\">").count(), 2);
     }
 
     #[test]
