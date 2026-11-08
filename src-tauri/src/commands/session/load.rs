@@ -64,7 +64,9 @@ struct SessionMetadataCache {
 // stale caches must be invalidated to recompute project_name.
 // Bumped 11 -> 12: Claude Code `ai-title` records now set the session title
 // (and are no longer counted as messages); stale caches must be invalidated.
-const CACHE_VERSION: u32 = 12;
+// Bumped 12 -> 13: Claude Code `api-request*` records are no longer counted as
+// messages, so a cached count could keep a subagent transcript listed (#735).
+const CACHE_VERSION: u32 = 13;
 const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
 const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
@@ -711,7 +713,7 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 10] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
@@ -722,6 +724,17 @@ const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
     "agent-name",
     // Claude Code's auto-generated session title; used as the session name, not a message.
     "ai-title",
+    // Claude Code's record of each API request it sent (2.1.302 and later): the
+    // request, its content-addressed message blobs, and its prompt shape. A blob's
+    // `message` repeats a conversation message, and none of these records carries
+    // `isSidechain`, so counting them listed every subagent transcript as a
+    // session of its own (#735). Real-record counts, keys only: the 60 newest
+    // local transcripts on 2026-11-07 (Claude Code 2.1.317 to 2.1.319) held
+    // 1,541 `api-request`, 1,749 `api-request-blob` and 89 `api-request-shape`
+    // records, and no record of the three types had an `isSidechain` key.
+    "api-request",
+    "api-request-blob",
+    "api-request-shape",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -2734,6 +2747,163 @@ mod tests {
             .unwrap();
         let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
         assert_eq!(types, vec!["user", "assistant"]);
+    }
+
+    /// Claude Code (2.1.302 and later) request bookkeeping: one `api-request-shape`,
+    /// two `api-request-blob` and one `api-request` record. The key sets match real
+    /// transcripts. None of the records carries `isSidechain`, not even in a subagent
+    /// transcript, and a blob's `message` has the shape of a conversation message.
+    fn create_sample_api_request_records(session_id: &str, agent_id: Option<&str>) -> String {
+        let agent = agent_id.map_or(String::new(), |id| format!(r#","agentId":"{id}""#));
+        [
+            format!(
+                r#"{{"type":"api-request-shape","sessionId":"{session_id}"{agent},"shapeHash":"s1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","shape":{{"system":[]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h1","message":{{"role":"user","content":"Hello"}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h2","message":{{"role":"assistant","content":[{{"type":"text","text":"Hi!"}}]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request","sessionId":"{session_id}"{agent},"id":"req-1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","querySource":"repl_main_thread","shapeHash":"s1","params":{{}},"keep":0,"tail":["h1","h2"],"cacheControl":{{}},"requestDigest":"d1"}}"#
+            ),
+        ]
+        .join("\n")
+    }
+
+    /// A subagent transcript as Claude Code writes it: every conversation line is a
+    /// sidechain line, and the request records interleave with them.
+    fn create_sample_subagent_transcript(session_id: &str, agent_id: &str) -> String {
+        format!(
+            r#"{{"uuid":"sub-1","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:02:00Z","type":"user","isSidechain":true,"message":{{"role":"user","content":"Subtask"}}}}
+{records}
+{{"uuid":"sub-2","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:03:00Z","type":"assistant","isSidechain":true,"message":{{"role":"assistant","content":[{{"type":"text","text":"Done"}}],"id":"msg_sub","model":"claude-opus-4-20250514","usage":{{"input_tokens":10,"output_tokens":5}}}}}}
+"#,
+            records = create_sample_api_request_records(session_id, Some(agent_id)),
+        )
+    }
+
+    fn create_sample_session_with_api_requests(session_id: &str) -> String {
+        format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", session_id, "Hello"),
+            create_sample_api_request_records(session_id, None),
+            create_sample_assistant_message("uuid-2", session_id, "Hi!"),
+        )
+    }
+
+    /// A project folder holding one session and one of its subagent transcripts at
+    /// `<session>/subagents/agent-<id>.jsonl`, the layout Claude Code writes.
+    fn create_project_with_subagent_transcript() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(
+            temp_dir.path().join("session-1.jsonl"),
+            create_sample_session_with_api_requests("session-1"),
+        )
+        .unwrap();
+        let subagents = temp_dir.path().join("session-1").join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-a1.jsonl"),
+            create_sample_subagent_transcript("session-1", "a1"),
+        )
+        .unwrap();
+        temp_dir
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_viewer_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(
+            &temp_dir,
+            "test.jsonl",
+            &create_sample_session_with_api_requests("session-1"),
+        );
+        let file_path = file_path.to_string_lossy().to_string();
+
+        let messages = load_session_messages(file_path.clone()).await.unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(types, vec!["user", "assistant"]);
+
+        let page = load_session_messages_paginated(file_path, 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_counted() {
+        let content = create_sample_session_with_api_requests("session-1");
+        let session = load_single_session(&content).await;
+        assert_eq!(session.message_count, 2);
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let count = get_session_message_count(file_path.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    /// #735: with the sidechain filter on, a subagent transcript must not be listed
+    /// as a session of its own just because its request records lack `isSidechain`.
+    #[tokio::test]
+    async fn test_sidechain_filter_hides_subagent_transcript_with_api_request_records() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+
+        // The fixture is reachable: without the filter both files are listed.
+        let all = load_project_sessions(project_path.clone(), None)
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 2);
+
+        let filtered = load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+        assert_eq!(filtered[0].message_count, 2);
+
+        let page = load_project_sessions_page(project_path, Some(true), Some(0), Some(10))
+            .await
+            .unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.sessions.len(), 1);
+    }
+
+    /// A metadata cache written before request records were excluded holds their
+    /// counts. It must be reparsed rather than trusted, or every subagent transcript
+    /// it lists stays listed until the file changes.
+    #[tokio::test]
+    async fn test_cache_from_before_api_request_exclusion_is_reparsed() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+
+        // Rewrite the cache as the previous version left it: version 12, and the
+        // subagent transcript's count including its four request records.
+        let cache_path = temp_dir.path().join(".session_cache.json");
+        let mut cache: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cache_path).unwrap()).unwrap();
+        cache["version"] = serde_json::json!(12);
+        let entries = cache["entries"].as_object_mut().unwrap();
+        let (_, subagent_entry) = entries
+            .iter_mut()
+            .find(|(path, _)| path.contains("agent-a1.jsonl"))
+            .expect("the subagent transcript is cached");
+        let count = subagent_entry["session"]["message_count"].as_u64().unwrap();
+        subagent_entry["session"]["message_count"] = serde_json::json!(count + 4);
+        std::fs::write(&cache_path, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let filtered = load_project_sessions(project_path, Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
     }
 
     #[tokio::test]
