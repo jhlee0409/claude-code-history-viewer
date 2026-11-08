@@ -2286,7 +2286,10 @@ fn read_subagent_tool_use_id(meta_path: &Path, root: &Path) -> Option<String> {
 /// Metadata extraction from a subagent JSONL file, read inside `root`.
 ///
 /// Scans all lines to count messages, extract first/last timestamps, and find
-/// the first user message content as a summary. The size is the opened
+/// the first user message content as a summary. Only lines the viewer shows
+/// count (`is_viewer_visible_line`, sidechain lines included, since every
+/// conversation line of a subagent transcript is one), so the "N messages"
+/// label matches what opening the transcript loads. The size is the opened
 /// file's own; a file that cannot be opened lists as empty.
 fn extract_subagent_metadata(
     path: &PathBuf,
@@ -2296,7 +2299,7 @@ fn extract_subagent_metadata(
         return (0, 0, None, None, None);
     };
     let reader = std::io::BufReader::new(file);
-    let mut line_count: usize = 0;
+    let mut message_count: usize = 0;
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
@@ -2305,7 +2308,6 @@ fn extract_subagent_metadata(
         if line.trim().is_empty() {
             continue;
         }
-        line_count += 1;
 
         // Parse only the fields we need with a minimal struct
         #[derive(serde::Deserialize)]
@@ -2313,6 +2315,11 @@ fn extract_subagent_metadata(
             timestamp: Option<String>,
             #[serde(rename = "type")]
             msg_type: Option<String>,
+            subtype: Option<String>,
+            #[serde(rename = "isSidechain")]
+            is_sidechain: Option<bool>,
+            #[serde(rename = "isMeta")]
+            is_meta: Option<bool>,
             message: Option<MinimalMessage>,
         }
         #[derive(serde::Deserialize)]
@@ -2322,6 +2329,20 @@ fn extract_subagent_metadata(
         }
 
         if let Ok(entry) = serde_json::from_str::<MinimalEntry>(&line) {
+            let visible = entry.msg_type.as_deref().is_some_and(|msg_type| {
+                is_viewer_visible_line(
+                    msg_type,
+                    entry.subtype.as_deref(),
+                    entry.is_sidechain,
+                    entry.is_meta,
+                    false,
+                )
+            });
+            if !visible {
+                continue;
+            }
+            message_count += 1;
+
             if let Some(ref ts) = entry.timestamp {
                 if first_time.is_none() {
                     first_time = Some(ts.clone());
@@ -2350,7 +2371,13 @@ fn extract_subagent_metadata(
         }
     }
 
-    (metadata.len(), line_count, first_time, last_time, summary)
+    (
+        metadata.len(),
+        message_count,
+        first_time,
+        last_time,
+        summary,
+    )
 }
 
 /// Shared viewer-visibility rules for a classified JSONL line.
@@ -2904,6 +2931,28 @@ mod tests {
             .unwrap();
         assert_eq!(filtered.len(), 1);
         assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+    }
+
+    /// The subagent list labels each transcript "N messages", and the Inspector
+    /// shows the same count after opening it. It must match what the viewer then
+    /// loads, so request records are not counted here either.
+    #[tokio::test]
+    async fn test_subagent_message_count_matches_viewer() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(subagents.len(), 1);
+
+        // Every line of a subagent transcript is a sidechain line, so the viewer
+        // opens it with the sidechain filter off.
+        let page = load_session_messages_paginated(subagents[0].file_path.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+        assert_eq!(subagents[0].message_count, page.total_count);
     }
 
     #[tokio::test]
