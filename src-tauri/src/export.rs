@@ -750,6 +750,16 @@ fn session_title(messages: &[Value], path: &Path) -> String {
         })
 }
 
+/// How many messages the written file holds, for the "Exported N message(s)" line.
+/// HTML renders only the exportable messages; JSON writes every raw record.
+fn exported_message_count(messages: &[Value], format: &str) -> usize {
+    if format == "json" {
+        messages.len()
+    } else {
+        messages.iter().filter(|m| is_exportable(m)).count()
+    }
+}
+
 /// Handle the `--export` CLI flag. Returns the process exit code.
 pub fn run_export(args: &[String]) -> i32 {
     let Some(value) = extract_flag_value(args, "--export") else {
@@ -810,7 +820,10 @@ pub fn run_export(args: &[String]) -> i32 {
                 eprintln!("Failed to write {out}: {e}");
                 return 1;
             }
-            eprintln!("Exported {} message(s) to {out}", messages.len());
+            eprintln!(
+                "Exported {} message(s) to {out}",
+                exported_message_count(&messages, &format)
+            );
         }
         None => println!("{rendered}"),
     }
@@ -1040,6 +1053,20 @@ mod tests {
 
         let html = render_session_html(&messages, "Session");
         assert_eq!(html.matches("<div class=\"message\">").count(), 2);
+    }
+
+    /// The "Exported N message(s)" line counts what the file holds: the rendered
+    /// messages for HTML, and every raw record for JSON, which keeps them all.
+    #[test]
+    fn exported_count_matches_what_the_format_writes() {
+        let messages = vec![
+            json!({ "type": "user", "message": { "role": "user", "content": "Rename the helper" } }),
+            json!({ "type": "api-request-blob", "hash": "h1", "message": { "role": "user", "content": "Rename the helper" } }),
+            json!({ "type": "api-request", "id": "r1", "tail": ["h1"] }),
+            json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text", "text": "Renamed it." }] } }),
+        ];
+        assert_eq!(exported_message_count(&messages, "html"), 2);
+        assert_eq!(exported_message_count(&messages, "json"), 4);
     }
 
     #[test]
