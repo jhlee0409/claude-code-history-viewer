@@ -96,6 +96,10 @@ checksums; session paths and exported content never enter this repository.
   feature, not a Rust-only missing content branch.
 - Frontend content-type toggles and `includeSidechain` options have no CLI flags.
   Headless export retains its documented default sidechain exclusion. Rust also
-  excludes raw `ai-title` metadata (not a frontend message content type).
+  excludes raw `ai-title` metadata (not a frontend message content type) and
+  Claude Code's `api-request`, `api-request-blob` and `api-request-shape`
+  records (#735). The session loader drops all four before the frontend sees a
+  message, so the TS exporter never receives them; the headless exporter reads
+  raw lines and has to drop them itself.
 - Existing Rust Unicode-scalar truncation vs JS UTF-16 truncation and object-member
   display order can differ; the safe Rust truncation behavior is unchanged.
