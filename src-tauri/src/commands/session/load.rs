@@ -185,6 +185,10 @@ struct LineClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    // Presence only (no allocation): the parser drops a line with neither.
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
 }
 
 /// Minimal struct for extracting session metadata without full message parsing
@@ -2337,15 +2341,11 @@ fn extract_subagent_metadata(
                     entry.subtype.as_deref(),
                     entry.is_sidechain,
                     entry.is_meta,
+                    entry.session_id.is_some() || entry.timestamp.is_some(),
                     false,
                 )
             });
             if !visible {
-                continue;
-            }
-            // The parser drops lines with neither field (e.g. `fork-context-ref`),
-            // as the session scan does, so they never load.
-            if entry.session_id.is_none() && entry.timestamp.is_none() {
                 continue;
             }
             message_count += 1;
@@ -2389,13 +2389,22 @@ fn extract_subagent_metadata(
 
 /// Shared viewer-visibility rules for a classified JSONL line.
 /// Must stay in sync with the filtering in `load_session_messages`.
+///
+/// `has_session_or_timestamp`: whether the line carries `sessionId` or
+/// `timestamp`. The parser drops a line with neither (a forked agent's
+/// `fork-context-ref`, for one), so counting it would leave a total that no
+/// page can reach, and `has_more` would stay true (#768).
 fn is_viewer_visible_line(
     message_type: &str,
     subtype: Option<&str>,
     is_sidechain: Option<bool>,
     is_meta: Option<bool>,
+    has_session_or_timestamp: bool,
     exclude_sidechain: bool,
 ) -> bool {
+    if !has_session_or_timestamp {
+        return false;
+    }
     if message_type == "summary" {
         return false;
     }
@@ -2431,6 +2440,7 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude_sidechain,
         );
     }
@@ -2450,6 +2460,9 @@ struct LineUuidClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
     uuid: Option<String>,
 }
 
@@ -2498,6 +2511,7 @@ pub fn get_session_message_offset(
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude,
         ) {
             continue;
@@ -2987,6 +3001,37 @@ mod tests {
             .unwrap();
         assert_eq!(loaded.len(), 2);
         assert_eq!(subagents[0].message_count, loaded.len());
+
+        // The paginated loader and the count API must agree. A total that counts
+        // the dropped line left `has_more` true forever: each "load earlier" page
+        // read only that line, parsed nothing, and kept the same offset.
+        let agent = agent_path.to_string_lossy().to_string();
+        let page = load_session_messages_paginated(agent.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.messages.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert!(!page.has_more);
+        assert_eq!(get_session_message_count(agent, None).await.unwrap(), 2);
+    }
+
+    /// The fast classifier checks only that `sessionId` or `timestamp` is present.
+    /// A JSON `null` must read as absent, as it does for the parser's
+    /// `Option<String>`, or such a line would be counted but never load.
+    #[test]
+    fn test_classify_line_fast_requires_session_id_or_timestamp() {
+        let fast = |line: &str| classify_line_fast(line.as_bytes(), false);
+        assert!(fast(r#"{"type":"user","sessionId":"s"}"#));
+        assert!(fast(
+            r#"{"type":"user","timestamp":"2025-06-26T10:00:00Z"}"#
+        ));
+        assert!(!fast(r#"{"type":"user"}"#));
+        assert!(!fast(
+            r#"{"type":"user","sessionId":null,"timestamp":null}"#
+        ));
+        assert!(!fast(
+            r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"s","parentLastUuid":"u","contextLength":2}"#
+        ));
     }
 
     #[tokio::test]
