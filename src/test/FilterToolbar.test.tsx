@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterToolbar } from "@/components/MessageViewer/components/FilterToolbar";
 
-const { toggleContentTypeMock, useAppStoreMock } = vi.hoisted(() => {
+const { toggleContentTypeMock, togglePromptsAndFinalRepliesMock, useAppStoreMock } = vi.hoisted(() => {
   const toggleContentType = vi.fn();
+  const togglePromptsAndFinalReplies = vi.fn();
   const state = {
     messageFilter: {
       roles: { user: true, assistant: true },
@@ -17,12 +18,14 @@ const { toggleContentTypeMock, useAppStoreMock } = vi.hoisted(() => {
     },
     toggleRole: vi.fn(),
     toggleContentType,
+    togglePromptsAndFinalReplies,
     resetMessageFilter: vi.fn(),
     isMessageFilterActive: () => false,
   };
 
   return {
     toggleContentTypeMock: toggleContentType,
+    togglePromptsAndFinalRepliesMock: togglePromptsAndFinalReplies,
     useAppStoreMock: () => state,
   };
 });
@@ -55,5 +58,13 @@ describe("FilterToolbar", () => {
     });
     fireEvent.click(toggle);
     expect(toggleContentTypeMock).toHaveBeenCalledWith("parallelTasks");
+  });
+
+  it("toggles the prompts-and-final-replies view and explains it in the tooltip", () => {
+    render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks={false} />);
+    const toggle = screen.getByRole("button", { name: "filter.promptsAndFinalReplies" });
+    expect(toggle).toHaveAttribute("title", "filter.promptsAndFinalRepliesHint");
+    fireEvent.click(toggle);
+    expect(togglePromptsAndFinalRepliesMock).toHaveBeenCalledTimes(1);
   });
 });

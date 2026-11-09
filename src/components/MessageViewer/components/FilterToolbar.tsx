@@ -1,4 +1,4 @@
-import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessagesSquare, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
@@ -8,10 +8,12 @@ interface FilterToggleProps {
   active: boolean;
   onClick: () => void;
   label: string;
+  /** Tooltip text when the label alone does not explain the toggle. */
+  description?: string;
   icon: React.ReactNode;
 }
 
-function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
+function FilterToggle({ active, onClick, label, description, icon }: FilterToggleProps) {
   return (
     <ChipToggle
       pressed={active}
@@ -23,7 +25,7 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
           : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
       )}
       aria-label={label}
-      title={label}
+      title={description ?? label}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
@@ -43,6 +45,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
     messageFilter,
     toggleRole,
     toggleContentType,
+    togglePromptsAndFinalReplies,
     resetMessageFilter,
     isMessageFilterActive,
   } = useAppStore();
@@ -82,6 +85,14 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           onClick={() => toggleRole("assistant")}
           label={t("filter.role.assistant")}
           icon={<Bot className="w-3.5 h-3.5" />}
+        />
+        {/* Narrows both roles: typed prompts plus each one's final reply */}
+        <FilterToggle
+          active={messageFilter.promptsAndFinalReplies === true}
+          onClick={togglePromptsAndFinalReplies}
+          label={t("filter.promptsAndFinalReplies")}
+          description={t("filter.promptsAndFinalRepliesHint")}
+          icon={<MessagesSquare className="w-3.5 h-3.5" />}
         />
       </div>
 

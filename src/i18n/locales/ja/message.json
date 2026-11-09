@@ -125,6 +125,8 @@
   "filter.content.toolCalls": "ツール呼び出し",
   "filter.content.commands": "コマンド",
   "filter.content.parallelTasks": "並列タスク",
+  "filter.promptsAndFinalReplies": "プロンプトと最終応答",
+  "filter.promptsAndFinalRepliesHint": "自分のプロンプトと、次のプロンプト直前の最後の応答のみ表示",
   "filter.reset": "フィルターをリセット",
   "filter.active": "フィルター有効",
   "filter.showing": "{{filtered}} / {{total}}",

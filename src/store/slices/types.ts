@@ -452,6 +452,7 @@ export interface AppStoreActions {
   toggleShowParallelTasksInNavigator: () => void;
   toggleRole: (role: keyof import('./filterSlice').MessageFilterRoles) => void;
   toggleContentType: (contentType: keyof import('./filterSlice').MessageFilterContentTypes) => void;
+  togglePromptsAndFinalReplies: () => void;
   resetMessageFilter: () => void;
   isMessageFilterActive: () => boolean;
 
