@@ -1063,10 +1063,13 @@ mod tests {
             json!({ "type": "user", "message": { "role": "user", "content": "Rename the helper" } }),
             json!({ "type": "api-request-blob", "hash": "h1", "message": { "role": "user", "content": "Rename the helper" } }),
             json!({ "type": "api-request", "id": "r1", "tail": ["h1"] }),
+            json!({ "type": "api-request-shape", "shapeHash": "s1" }),
+            json!({ "type": "system", "content": "Hook ran" }),
+            json!({ "type": "user", "isSidechain": true, "message": { "role": "user", "content": "Subtask" } }),
             json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text", "text": "Renamed it." }] } }),
         ];
         assert_eq!(exported_message_count(&messages, "html"), 2);
-        assert_eq!(exported_message_count(&messages, "json"), 4);
+        assert_eq!(exported_message_count(&messages, "json"), 7);
     }
 
     #[test]

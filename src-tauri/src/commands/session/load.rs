@@ -2313,6 +2313,8 @@ fn extract_subagent_metadata(
         #[derive(serde::Deserialize)]
         struct MinimalEntry {
             timestamp: Option<String>,
+            #[serde(rename = "sessionId")]
+            session_id: Option<String>,
             #[serde(rename = "type")]
             msg_type: Option<String>,
             subtype: Option<String>,
@@ -2339,6 +2341,11 @@ fn extract_subagent_metadata(
                 )
             });
             if !visible {
+                continue;
+            }
+            // The parser drops lines with neither field (e.g. `fork-context-ref`),
+            // as the session scan does, so they never load.
+            if entry.session_id.is_none() && entry.timestamp.is_none() {
                 continue;
             }
             message_count += 1;
@@ -2953,6 +2960,33 @@ mod tests {
             .unwrap();
         assert_eq!(page.total_count, 2);
         assert_eq!(subagents[0].message_count, page.total_count);
+    }
+
+    /// A forked agent's transcript opens with a `fork-context-ref` record, which has
+    /// neither `sessionId` nor `timestamp`. The parser drops such lines, so the
+    /// subagent count must not include them.
+    #[tokio::test]
+    async fn test_subagent_message_count_skips_lines_the_parser_drops() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+        let agent_path = temp_dir
+            .path()
+            .join("session-1")
+            .join("subagents")
+            .join("agent-a1.jsonl");
+        // Key set copied from real forked-agent transcripts; values are invented.
+        let fork_ref = r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"session-1","parentLastUuid":"uuid-2","contextLength":2}"#;
+        let transcript = std::fs::read_to_string(&agent_path).unwrap();
+        std::fs::write(&agent_path, format!("{fork_ref}\n{transcript}")).unwrap();
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        let loaded = load_session_messages(agent_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(subagents[0].message_count, loaded.len());
     }
 
     #[tokio::test]
