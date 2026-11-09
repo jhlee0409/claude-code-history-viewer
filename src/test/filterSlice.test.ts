@@ -67,6 +67,20 @@ describe("filterSlice message-filter persistence", () => {
     }));
 
     expect(makeStore().getState().messageFilter.contentTypes.parallelTasks).toBe(true);
+    expect(makeStore().getState().messageFilter.promptsAndFinalReplies).toBe(false);
+  });
+
+  it("persists the prompts-and-final-replies toggle as an active filter", () => {
+    const store = makeStore();
+    store.getState().togglePromptsAndFinalReplies();
+    expect(store.getState().messageFilter.promptsAndFinalReplies).toBe(true);
+    expect(store.getState().isMessageFilterActive()).toBe(true);
+    expect(readSaved().promptsAndFinalReplies).toBe(true);
+    expect(makeStore().getState().messageFilter.promptsAndFinalReplies).toBe(true);
+
+    store.getState().resetMessageFilter();
+    expect(store.getState().messageFilter.promptsAndFinalReplies).toBe(false);
+    expect(store.getState().isMessageFilterActive()).toBe(false);
   });
 
   it("resetMessageFilter restores defaults and persists them", () => {
@@ -89,6 +103,7 @@ describe("filterSlice message-filter persistence", () => {
         commands: true,
         parallelTasks: true,
       },
+      promptsAndFinalReplies: false,
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: { user: "nope" } }));
     expect(makeStore().getState().messageFilter.roles.user).toBe(true);

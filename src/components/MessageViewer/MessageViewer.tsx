@@ -199,8 +199,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Apply role + content type filters
   const displayMessages = useMemo(
-    () => applyMessageDisplayFilter(messages, messageFilter),
-    [messages, messageFilter],
+    () => applyMessageDisplayFilter(messages, messageFilter, { inSubagent: isInSubagent }),
+    [messages, messageFilter, isInSubagent],
   );
 
   // Message pagination state + actions (store holds a chat-style window)
@@ -224,8 +224,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const resolveExportMessages = useCallback(async () => {
     if (!useAppStore.getState().pagination.hasMore) return displayMessages;
     const fullMessages = await fetchFullSessionMessages();
-    return applyMessageDisplayFilter(fullMessages, messageFilter);
-  }, [displayMessages, fetchFullSessionMessages, messageFilter]);
+    return applyMessageDisplayFilter(fullMessages, messageFilter, { inSubagent: isInSubagent });
+  }, [displayMessages, fetchFullSessionMessages, messageFilter, isInSubagent]);
 
   // Export hook — uses role-filtered displayMessages
   const { isExporting, exportConversation } = useExport(
