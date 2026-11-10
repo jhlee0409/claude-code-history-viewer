@@ -55,6 +55,7 @@ import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
 import { scrollBehavior } from "@/utils/motion";
+import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 /** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
@@ -659,6 +660,16 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // True while a prepend restore is converging — suppresses the near-top
   // autoload so restore-induced scroll events cannot cascade page loads.
   const anchorRestoringRef = useRef(false);
+  useFilterReadingPosition({
+    sessionPath,
+    messages: displayMessages,
+    messageFilter,
+    getScrollElement,
+    getScrollIndex,
+    virtualizer,
+    explicitTarget: targetMessageUuid ?? currentMatchUuid ?? anchorHere?.anchor?.messageUuid ?? null,
+    restoringRef: anchorRestoringRef,
+  });
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
   // The setting of the explicit target (`targetRequest`) already looked up:

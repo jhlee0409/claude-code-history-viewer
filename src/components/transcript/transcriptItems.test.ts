@@ -55,7 +55,8 @@ describe("transcript items and D-R2 folding", () => {
   });
   it("handles empty content and legacy call envelopes without dropping their source", () => {
     const empty = build([assistant("empty", [])]);
-    expect(empty.turns[0]?.blocks).toMatchObject([{ id: "empty#0", kind: "fallback", value: [] }]);
+    expect(empty.turns).toEqual([]);
+    expect(empty.blocks.has("empty#0")).toBe(false);
     const legacy = { ...assistant("legacy"), content: undefined, toolUse: { name: "Read", id: "t", input: { file_path: "/x" } } };
     const model = build([legacy]);
     expect(model.turns[0]?.blocks[0]).toMatchObject({ kind: "toolRow", outcome: { lifecycle: "no-result" }, foldable: false });
@@ -74,10 +75,11 @@ describe("transcript items and D-R2 folding", () => {
     if (first?.type !== "message" || second?.type !== "message") throw new Error("fixture");
     first.isGroupLeader = true; first.agentTaskGroup = [];
     second.isGroupMember = true;
+    second.groupLeaderUuid = "r1";
     const model = buildTranscriptItems(rows, member(["r1", 1], ["r2", 1]));
-    expect(model.turns[0]?.blocks.map(b => b.kind)).toEqual(["checklist", "checklist"]);
+    expect(model.turns[0]?.blocks.map(b => b.kind)).toEqual(["checklist"]);
     expect(model.runByBlockId.size).toBe(0);
-    expect(model.turns[0]?.blocks[1]?.source.isGroupMember).toBe(true);
+    expect(model.blocks.get("r2#0")?.id).toBe("r1#0");
   });
   it("does not replace authoritative start UUIDs from the index with a loaded row", () => {
     const model = buildTranscriptItems(flattened([user("alias")]), member(["alias", 1]), { turnStartUuids: new Map([[1, "canonical"]]) });

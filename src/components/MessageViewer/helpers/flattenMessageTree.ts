@@ -18,6 +18,7 @@ import type {
 } from "../types";
 
 interface GroupContext {
+  groupLeaderByUuid: ReadonlyMap<string, string>;
   agentTaskGroups: Map<string, AgentTaskGroupResult>;
   agentTaskMemberUuids: Set<string>;
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
@@ -159,7 +160,14 @@ export function flattenMessageTree({
   const rootMessages = childrenMap.get(null) ?? [];
 
   // Build group context
+  const groupLeaderByUuid = new Map<string, string>();
+  for (const family of [agentTaskGroups, agentProgressGroups, taskOperationGroups]) {
+    for (const [leader, group] of family) for (const uuid of group.messageUuids) {
+      if (uuid !== leader && !groupLeaderByUuid.has(uuid)) groupLeaderByUuid.set(uuid, leader);
+    }
+  }
   const groups: GroupContext = {
+    groupLeaderByUuid,
     agentTaskGroups,
     agentTaskMemberUuids,
     agentProgressGroups,
@@ -446,6 +454,7 @@ function createFlattenedMessage(
 
   return {
     type: "message",
+    ...(groups.groupLeaderByUuid.has(message.uuid) ? { groupLeaderUuid: groups.groupLeaderByUuid.get(message.uuid) } : {}),
     message,
     depth,
     originalIndex,
