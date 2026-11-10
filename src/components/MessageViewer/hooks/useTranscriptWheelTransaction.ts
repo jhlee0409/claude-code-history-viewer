@@ -147,11 +147,34 @@ export function useTranscriptWheelBoundary(enabled: boolean, instance: Transcrip
           const destination = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, instance.scrollOffset ?? target));
           const viewportTop = scroller.getBoundingClientRect().top + scroller.clientTop;
           let coveredUntil = Math.max(destination, instance.options.scrollMargin);
-          const neededUntil = Math.min(destination + scroller.clientHeight, instance.options.scrollMargin + instance.getTotalSize());
+          const total = instance.getTotalSize();
+          let neededUntil = Math.min(destination + scroller.clientHeight, margin + total);
           const boxes = [...instance.elementsCache.values()].filter(node => node.isConnected).map(node => {
             const rect = node.getBoundingClientRect();
-            return { top: rect.top - viewportTop + before, bottom: rect.bottom - viewportTop + before };
+            return { node, height: rect.height, top: rect.top - viewportTop + before, bottom: rect.bottom - viewportTop + before };
           }).sort((a, b) => a.top - b.top);
+          // scrollMargin/clientHeight/scrollHeight may be integer layout reads,
+          // while the containing block and measured row boxes are fractional.
+          // Only a mounted, measured final data row can certify the real end;
+          // never infer it from the last overscan box or an estimated tail.
+          const last = instance.getVirtualItems().at(-1);
+          const terminal = last && boxes.find(box => instance.elementsCache.get(last.key) === box.node);
+          const parent = terminal?.node.parentElement;
+          if (last && last.index === count - 1 && terminal && parent &&
+              instance.indexFromElement(terminal.node) === last.index && instance.options.getItemKey(last.index) === last.key &&
+              (instance.itemSizeCache.get(last.key) === last.size ||
+                (last.size === 0 && terminal.height === 0 && terminal.node.getAttribute("aria-hidden") === "true")) &&
+              Math.abs(terminal.height - last.size) <= 0.01 &&
+              Math.abs(last.end - (margin + total)) <= 0.01 &&
+              getComputedStyle(terminal.node).position === "absolute" && getComputedStyle(parent).position === "relative") {
+            // Absolute top:0 rows originate at the parent's padding edge (inside
+            // its fractional border), not the rounded virtual scrollMargin.
+            const origin = parent.getBoundingClientRect().top + (parseFloat(getComputedStyle(parent).borderTopWidth) || 0) - viewportTop + before;
+            const end = origin + total;
+            if (Math.abs(terminal.top - (origin + last.start - margin)) <= 0.01 && Math.abs(terminal.bottom - end) <= 0.01) {
+              neededUntil = Math.min(neededUntil, end);
+            }
+          }
           for (const box of boxes) {
             if (box.bottom <= coveredUntil) continue;
             if (box.top > coveredUntil + 0.01) break;

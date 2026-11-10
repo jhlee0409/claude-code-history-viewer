@@ -372,4 +372,137 @@ it("M8: removes every wheel listener across commits and unmount", () => {
   expect(listeners.size).toBe(0);
 });
 
+// The captured WebKit input41 state, through the real message hook and core.
+function terminalFixture({ end = 83463.59375, origin = 55.25, border = 0, padding = 0, hiddenTail = false } = {}) {
+  vi.spyOn(console, "debug").mockImplementation(() => {});
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  const notifications = vi.spyOn(toast, "error");
+  const scroller = document.createElement("div");
+  const host = document.createElement("div");
+  host.style.position = "relative";
+  host.style.borderTop = `${border}px solid`;
+  host.style.paddingTop = `${padding}px`;
+  document.body.append(scroller);
+  scroller.append(host);
+  Object.defineProperties(scroller, {
+    offsetWidth: { value: 1180 }, offsetHeight: { value: 671 },
+    clientHeight: { value: 671 }, clientTop: { value: 1 },
+    scrollHeight: { value: Math.round(end) },
+  });
+  const total = end - origin;
+  const rowHeight = (total - 127.75) / (hiddenTail ? 854 : 855);
+  const rect = (top: number, height: number) => ({ x: 260, y: top, top, bottom: top + height, left: 260, right: 1440, width: 1180, height, toJSON() {} });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const viewportTop = 201.25;
+    if (this === scroller) return rect(viewportTop - 1, 672.75);
+    if (this === host) return rect(viewportTop + origin - border - scroller.scrollTop, total + padding + border);
+    const index = Number(this.dataset.index);
+    const height = hiddenTail && index === 855 ? 0 : index === (hiddenTail ? 854 : 855) ? 127.75 : rowHeight;
+    const translate = Number(this.style.transform.match(/translateY\(([-\d.]+)px\)/)?.[1] ?? 0);
+    return rect(viewportTop + origin + translate - scroller.scrollTop, height);
+  });
+  const messages = Array.from({ length: 855 }, (_, i) => ({ uuid: `terminal-${i}`, type: "assistant", timestamp: "2026-06-30T00:00:00Z", content: [{ type: "tool_use", id: `terminal-tool-${i}`, name: "Read", input: { file_path: "a".repeat(3000) } }] })) as ClaudeMessage[];
+  let current: ReturnType<typeof useMessageVirtualization>;
+  function Harness() {
+    current = useMessageVirtualization({ messages, agentTaskGroups: new Map(), agentTaskMemberUuids: new Set(), agentProgressGroups: new Map(), agentProgressMemberUuids: new Set(), taskOperationGroups: new Map(), taskOperationMemberUuids: new Set(), getScrollElement: () => scroller, scrollMargin: 56 });
+    return <>{current.virtualRows.map(row => <div key={row.key} data-index={row.index} ref={current.virtualizer.measureElement} aria-hidden={hiddenTail && row.index === 855 ? "true" : undefined} style={{ position: "absolute", top: 0, transform: `translateY(${row.start - 56}px)` }} />)}</>;
+  }
+  const view = render(<Harness />, { container: host });
+  // Seed the exact already-measured state at the failing real input, not an estimate.
+  act(() => { for (let i = 0; i < 856; i++) current.virtualizer.resizeItem(i, hiddenTail && i === 855 ? 0 : i === (hiddenTail ? 854 : 855) ? 127.75 : rowHeight); });
+  act(() => { scroller.scrollTop = 82723; scroller.dispatchEvent(new Event("scroll")); });
+  const releases: number[] = [];
+  scroller.scrollTo = vi.fn((options?: ScrollToOptions | number) => { if (typeof options === "object") { releases.push(options.top!); scroller.scrollTop = Math.round(options.top!); } });
+  const wheel = () => { const event = new WheelEvent("wheel", { deltaY: 1403.271186440678, bubbles: true, cancelable: true }); act(() => { scroller.dispatchEvent(event); }); return event; };
+  return { scroller, host, current: () => current!, releases, notifications, wheel, view };
+}
+
+it("accepts input41's measured contiguous fractional terminal extent without a false error", () => {
+  const f = terminalFixture();
+  expect(f.current().virtualRows.at(-1)?.index).toBe(855);
+  expect(f.current().virtualizer.getTotalSize()).toBeCloseTo(83408.34375, 7);
+  const tail = f.current().virtualizer.elementsCache.get(f.current().virtualRows.at(-1)!.key)!;
+  const viewportTop = f.scroller.getBoundingClientRect().top + f.scroller.clientTop;
+  expect(tail.getBoundingClientRect().bottom - viewportTop + 82723).toBeCloseTo(83463.59375, 7);
+  expect(f.current().virtualizer.scrollOffset).toBe(82723);
+  expect(f.wheel().defaultPrevented).toBe(true);
+  expect(f.releases).toEqual([82793]);
+  expect(f.scroller.scrollTop).toBe(82793);
+  expect(f.current().virtualizer.scrollOffset).toBe(82793);
+  expect(f.notifications).not.toHaveBeenCalled();
+});
+
+it.each([
+  { end: 83463.09375, origin: 55.25, dpr: 1 },
+  { end: 83464.09375, origin: 55.25, dpr: 2 },
+  { end: 83463.59375, origin: 61.125, border: 0.75, padding: 7.5, dpr: 3 },
+  { end: 83463.59375, origin: 55.25, hiddenTail: true, dpr: 2 },
+])("certifies fractional end from measured terminal provenance %j", config => {
+  vi.stubGlobal("devicePixelRatio", config.dpr);
+  const f = terminalFixture(config);
+  expect(f.wheel().defaultPrevented).toBe(true);
+  expect(f.releases).toEqual([Math.round(config.end) - 671]);
+  expect(f.notifications).not.toHaveBeenCalled();
+});
+
+it.each([0.25, 1])("rejects a genuine %s px interior hole even with a certified final row", gap => {
+  const f = terminalFixture();
+  const original = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!;
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+    const box = original.call(this);
+    return this.dataset.index === "852" ? { ...box, top: box.top + gap, bottom: box.bottom + gap } : box;
+  });
+  f.wheel();
+  expect(f.releases).toEqual([]);
+  expect(f.scroller.scrollTop).toBe(82723);
+  expect(f.current().virtualizer.scrollOffset).toBe(82723);
+  expect(f.notifications).toHaveBeenCalledTimes(1);
+});
+
+it.each(["unmeasured", "unmounted", "wrong-index", "wrong-key", "truncated", "stale-position"])("rejects %s terminal evidence instead of clipping to its last mounted box", defect => {
+  const f = terminalFixture();
+  const v = f.current().virtualizer;
+  const last = v.getVirtualItems().at(-1)!;
+  const node = v.elementsCache.get(last.key)!;
+  if (defect === "unmeasured") {
+    const get = v.itemSizeCache.get.bind(v.itemSizeCache);
+    vi.spyOn(v.itemSizeCache, "get").mockImplementation(key => key === last.key ? undefined : get(key));
+  }
+  if (defect === "unmounted") v.elementsCache.delete(last.key);
+  if (defect === "wrong-index") node.setAttribute("data-index", "854");
+  if (defect === "wrong-key") { v.elementsCache.delete(last.key); v.elementsCache.set("stale-key", node); }
+  if (defect === "truncated" || defect === "stale-position") {
+    const original = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!;
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+      const box = original.call(this);
+      return this !== node ? box : defect === "truncated"
+        ? { ...box, bottom: box.bottom - 0.25, height: box.height - 0.25 }
+        : { ...box, top: box.top - 0.25, bottom: box.bottom - 0.25 };
+    });
+  }
+  f.wheel();
+
+  expect(f.releases).toEqual([]);
+  expect(f.scroller.scrollTop).toBe(82723);
+  expect(f.current().virtualizer.scrollOffset).toBe(82723);
+  expect(f.notifications).toHaveBeenCalledTimes(1);
+});
+
+it("recovers after a rejected fractional tail without retaining the failure episode", () => {
+  const f = terminalFixture();
+  const original = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!;
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+    const box = original.call(this);
+    return this.dataset.index === "855" ? { ...box, bottom: box.bottom - 1, height: box.height - 1 } : box;
+  });
+  f.wheel();
+  expect(f.releases).toEqual([]);
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(original);
+  f.wheel();
+  expect(f.releases).toEqual([82793]);
+  expect(f.notifications).toHaveBeenCalledTimes(1);
+  expect(f.current().virtualizer.scrollOffset).toBe(82793);
+});
+
 afterEach(() => { cleanup(); toast.dismiss(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
