@@ -1,10 +1,26 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { ThemeProvider } from "@/contexts/theme";
 import { ClaudeMessageNode } from "@/components/MessageViewer/components/ClaudeMessageNode";
 import { records } from "./transcript.renderParity.fixtures";
 import "@/i18n";
 
+vi.mock("@/lib/format/useFormat", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/format/useFormat")>();
+  return {
+    ...actual,
+    useFormat() {
+      const format = actual.useFormat();
+      return {
+        ...format,
+        // Keep the real formatter and timestamp markup; pin only this
+        // characterization fixture's zone, independent of the test host.
+        time: (...args: Parameters<typeof format.time>) =>
+          format.time(args[0], { ...args[1], timeZone: "Asia/Seoul" }),
+      };
+    },
+  };
+});
 
 function canonical(container: HTMLElement) {
   // React-generated IDs are the only volatile DOM data. Preserve all data keys.
