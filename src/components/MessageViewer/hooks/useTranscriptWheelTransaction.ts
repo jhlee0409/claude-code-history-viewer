@@ -144,13 +144,17 @@ export function useTranscriptWheelBoundary(instance: TranscriptVirtualizer,
             return;
           }
           const destination = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, instance.scrollOffset ?? target));
+          // A shrinking committed sizer can clamp native scrollTop even while
+          // our writer is withheld. DOM boxes belong to that current physical
+          // origin, not the offset captured before the synchronous commit.
+          const physicalOrigin = scroller.scrollTop;
           const viewportTop = scroller.getBoundingClientRect().top + scroller.clientTop;
           let coveredUntil = Math.max(destination, instance.options.scrollMargin);
           const total = instance.getTotalSize();
           let neededUntil = Math.min(destination + scroller.clientHeight, margin + total);
-          const boxes = [...instance.elementsCache.values()].filter(node => node.isConnected).map(node => {
+          const boxes = [...instance.elementsCache.values()].filter(node => node.isConnected && scroller.contains(node)).map(node => {
             const rect = node.getBoundingClientRect();
-            return { node, height: rect.height, top: rect.top - viewportTop + before, bottom: rect.bottom - viewportTop + before };
+            return { node, height: rect.height, top: rect.top - viewportTop + physicalOrigin, bottom: rect.bottom - viewportTop + physicalOrigin };
           }).sort((a, b) => a.top - b.top);
           // scrollMargin/clientHeight/scrollHeight may be integer layout reads,
           // while the containing block and measured row boxes are fractional.
@@ -168,7 +172,7 @@ export function useTranscriptWheelBoundary(instance: TranscriptVirtualizer,
               getComputedStyle(terminal.node).position === "absolute" && getComputedStyle(parent).position === "relative") {
             // Absolute top:0 rows originate at the parent's padding edge (inside
             // its fractional border), not the rounded virtual scrollMargin.
-            const origin = parent.getBoundingClientRect().top + (parseFloat(getComputedStyle(parent).borderTopWidth) || 0) - viewportTop + before;
+            const origin = parent.getBoundingClientRect().top + (parseFloat(getComputedStyle(parent).borderTopWidth) || 0) - viewportTop + physicalOrigin;
             const end = origin + total;
             if (Math.abs(terminal.top - (origin + last.start - margin)) <= 0.01 && Math.abs(terminal.bottom - end) <= 0.01) {
               neededUntil = Math.min(neededUntil, end);
