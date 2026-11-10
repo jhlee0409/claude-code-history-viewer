@@ -11,8 +11,7 @@ type OffsetObserver = {
   generation: number;
   deliver: (offset: number, scrolling: boolean) => void;
 };
-// PROTOTYPE ENABLE: isolated branch only; not a product preference or rollout.
-export const ENABLE_WHEEL_TRANSACTION_PROTOTYPE = true;
+
 
 /** Own logical offset delivery while deferring the physical offset. Core remains
  * the only anchor policy: its resizeItem corrections change the logical target,
@@ -62,12 +61,12 @@ export function useTranscriptWheelTransaction(owner?: unknown) {
   return { observeOffset, scrollToFn, active, deliverOffset, lastRelease, selection, reportFailure, clearFailure };
 }
 
-export function useTranscriptWheelBoundary(enabled: boolean, instance: TranscriptVirtualizer,
+export function useTranscriptWheelBoundary(instance: TranscriptVirtualizer,
   { active, deliverOffset, lastRelease, selection, reportFailure, clearFailure }: ReturnType<typeof useTranscriptWheelTransaction>) {
     // Like core's _willUpdate, resolve after every commit: OverlayScrollbars can
     // replace its viewport without changing getScrollElement's function identity.
     useLayoutEffect(() => {
-      const scroller = enabled ? instance.scrollElement : null;
+      const scroller = instance.scrollElement;
       if (!scroller) return;
       const wheel = (event: WheelEvent) => {
         const observer = deliverOffset.current;

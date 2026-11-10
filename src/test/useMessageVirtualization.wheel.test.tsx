@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-function fixture(quantize = false, enabled = true, boundary = false) {
+function fixture(quantize = false, boundary = false) {
   const notifications = vi.spyOn(toast, "error");
   const errors = vi.spyOn(console, "error");
   vi.spyOn(console, "debug").mockImplementation(() => {});
@@ -57,7 +57,7 @@ function fixture(quantize = false, enabled = true, boundary = false) {
     agentProgressGroups: new Map(), agentProgressMemberUuids: new Set<string>(),
     taskOperationGroups: new Map(), taskOperationMemberUuids: new Set<string>(),
     getScrollElement: () => source,
-    wheelTransactionPrototype: enabled,
+
   };
   let current: ReturnType<typeof useMessageVirtualization>;
   let replaceMessages: (append: boolean) => void;
@@ -139,9 +139,8 @@ it.each([[1, 0.5, 10], [2, 0.25, 167.75], [0, 0.125, 0.125]])("normalizes deltaM
   expect(f.releases[f.releases.length - 1].offset).toBeCloseTo(expected, 8);
 });
 
-it("keeps keyboard, direct scrolling, message jumps and disabled wheel on their original paths", () => {
-  const f = fixture(false, false);
-  expect(f.wheel().defaultPrevented).toBe(false);
+it("keeps keyboard, direct scrolling and message jumps on their original paths", () => {
+  const f = fixture();
   const key = new KeyboardEvent("keydown", { key: "PageDown", bubbles: true, cancelable: true });
   act(() => { f.scroller.dispatchEvent(key); });
   expect(key.defaultPrevented).toBe(false);
@@ -303,7 +302,7 @@ it("does not turn another viewer's normal streaming cancellation into a global f
 });
 
 it("leaves actual render-crash feedback to the existing localized ErrorBoundary exactly once", () => {
-  const f = fixture(false, true, true);
+  const f = fixture(false, true);
   f.errors.mockImplementation(() => {});
   const boom = new Error("boundary-original-row-boom");
   f.throwDuringRender(boom);

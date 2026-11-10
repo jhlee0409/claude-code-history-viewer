@@ -24,7 +24,7 @@ function fixture() {
     observeElementOffset: transaction.observeOffset, scrollToFn: transaction.scrollToFn, onChange,
   });
   instance._willUpdate();
-  const boundary = renderHook(() => useTranscriptWheelBoundary(true, instance, transaction));
+  const boundary = renderHook(() => useTranscriptWheelBoundary(instance, transaction));
   // Physical rounds down; logical retains the actual prior fraction.
   instance.scrollToOffset(0.25);
   scroller.dispatchEvent(new Event("scroll"));

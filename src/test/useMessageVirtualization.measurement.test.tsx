@@ -6,6 +6,7 @@ import type { ClaudeMessage } from "@/types";
 // A browser delivers ResizeObserver after layout, before paint. The transcript
 // must consume those measurements before paint, not defer them to the next rAF.
 it.each([
+  ["initial", false], ["initial", true],
   ["layout", false], ["ResizeObserver", false], ["layout", true],
 ] as const)("covers the entire viewport at the %s boundary (mixed/zero heights=%s)", (boundary, mixed) => {
   const errors = vi.spyOn(console, "error");
@@ -57,6 +58,21 @@ it.each([
     return <>{current.virtualRows.map(row => <div key={row.key} ref={current.virtualizer.measureElement} data-index={row.index} aria-hidden={mixed && row.index % 7 === 0 ? "true" : undefined} style={{ transform: `translateY(${row.start}px)` }} />)}</>;
   }
   const view = render(<Harness />, { container: scroller });
+  if (boundary === "initial") {
+    // First committed range must be usable without a scroll, RO delivery, or rAF.
+    const boxes = [...scroller.querySelectorAll("[data-index]")]
+      .map(node => node.getBoundingClientRect()).filter(box => box.height > 0)
+      .sort((a, b) => a.top - b.top);
+    expect(boxes.length).toBeGreaterThan(0);
+    let end = 0;
+    for (const box of boxes) {
+      expect(box.top, `initial viewport gap after ${end}`).toBeLessThanOrEqual(end);
+      end = Math.max(end, box.bottom);
+    }
+    expect(end).toBeGreaterThanOrEqual(671);
+    expect(errors).not.toHaveBeenCalled();
+    return;
+  }
   reads.clear();
   act(() => {
     scroller.scrollTop = 20000;
