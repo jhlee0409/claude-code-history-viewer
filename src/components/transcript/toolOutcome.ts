@@ -254,13 +254,17 @@ export function normalizeResult(
   }
   if (core && own) {
     // OpenCode 2.x user-run commands (`!cmd`) are their own `shell` rows with
-    // the Shell.Info status enum, not a tool state. `exited` carries the exit
-    // code; `timeout` and `killed` mean the command was stopped.
+    // the Shell.Info status enum. The agent's tool is also named `shell`, so
+    // the status tells them apart: tool states are only streaming, running,
+    // completed or error. `exited` carries the exit code; `timeout` and
+    // `killed` mean the command was stopped.
     // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/shell.ts#L25
-    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/session-message.ts#L120-L133
+    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/session-message.ts#L120-L166
     if (options.provider === "opencode" && options.rawToolName === "shell" && options.bareCodeIsExitCode) {
-      const exit = recordedInteger(own.exit);
-      if (exit !== undefined) out.exitCode = exit;
+      if (own.status === "exited") {
+        const exit = recordedInteger(own.exit);
+        if (exit !== undefined) out.exitCode = exit;
+      }
       if (own.status === "timeout" || own.status === "killed") out.interrupted = true;
     }
     // For non-process tools a normal return is completed; throws become error.

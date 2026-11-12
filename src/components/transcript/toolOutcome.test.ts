@@ -662,4 +662,13 @@ describe("OpenCode 2.x user shell rows", () => {
     const agent = { ...use, rawToolName: undefined };
     expect(toolOutcome(agent, [row({ status: "exited", exit: 0 })], "process", "opencode").verdict).toBe("unknown");
   });
+  // The 2.x agent tool is also raw `shell`; a top-level `exit` on its
+  // completed state is arbitrary data, and metadata.exit stays the exit code.
+  it("does not read a top-level exit on the agent's raw `shell` tool", () => {
+    const outcome = toolOutcome(use, [row({ status: "completed", exit: 3, metadata: { exit: 0 } })], "process", "opencode");
+    expect(outcome.verdict).toBe("succeeded");
+    expect(outcome.exitCode).toBe(0);
+    const bare = toolOutcome(use, [row({ status: "completed", exit: 3 })], "process", "opencode");
+    expect(bare.exitCode).toBeUndefined();
+  });
 });
