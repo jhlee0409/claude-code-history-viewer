@@ -2,10 +2,11 @@ use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::is_safe_storage_id;
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -77,6 +78,9 @@ struct DbProjectRecord {
     time_created: u64,
     time_updated: u64,
     session_count: usize,
+    /// `OpenCode` 2.x stops bumping `project.time_updated` on activity, so the
+    /// newest session is what tells a recently used project apart.
+    last_session_update: Option<u64>,
 }
 
 fn is_safe_global_directory_hash(hash: &str) -> bool {
@@ -541,20 +545,27 @@ pub fn load_child_sessions_from_db(
     let Some(conn) = open_db(base_path, db_file) else {
         return Vec::new();
     };
-    let Ok(mut stmt) = conn.prepare(
+    let Some(schema) = StoreSchema::read(&conn).ok() else {
+        return Vec::new();
+    };
+    let Some(sessions) = schema.sessions_sql() else {
+        return Vec::new();
+    };
+    let message_count = schema.message_count_sql();
+    let Ok(mut stmt) = conn.prepare(&format!(
         "SELECT s.id, s.title, s.time_created, s.time_updated,
-                (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
-         FROM session s
+                {message_count} AS message_count
+         FROM ({sessions}) s
          WHERE s.parent_id = ?1 AND s.project_id = ?2
-         ORDER BY s.time_created DESC",
-    ) else {
+         ORDER BY s.time_created DESC"
+    )) else {
         return Vec::new();
     };
 
     let Ok(rows) = stmt.query_map(rusqlite::params![session_id, project_id], |row| {
         Ok(ChildSession {
             id: row.get(0)?,
-            title: row.get(1)?,
+            title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
             created_at: epoch_ms_to_rfc3339(row.get::<_, u64>(2)?),
             updated_at: epoch_ms_to_rfc3339(row.get::<_, u64>(3)?),
             message_count: row.get(4)?,
@@ -846,7 +857,10 @@ fn build_db_session_map(
     db_file: &str,
 ) -> Option<std::collections::HashMap<String, HashSet<String>>> {
     let conn = open_db(base_path, db_file)?;
-    let mut stmt = conn.prepare("SELECT project_id, id FROM session").ok()?;
+    let sessions = StoreSchema::read(&conn).ok()?.sessions_sql()?;
+    let mut stmt = conn
+        .prepare(&format!("SELECT project_id, id FROM ({sessions})"))
+        .ok()?;
     let rows = stmt
         .query_map([], |row| {
             let project_id: String = row.get(0)?;
@@ -925,6 +939,96 @@ fn open_db_reporting(base_path: &str, db_file: &str, report: &ScanReport) -> Opt
     Some(conn)
 }
 
+/// Which session stores an `OpenCode`-core database carries.
+///
+/// `OpenCode` 1.x wrote `session` / `message` / `part`. 2.x writes
+/// `session_v2` / `session_message` (assistant content inline, or split into
+/// `session_part` rows), migrating 1.x sessions on first start but leaving the
+/// old tables in place. A database can hold either set or both, and a session
+/// id can be in both, in which case the 2.x copy is the one that keeps growing.
+#[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_excessive_bools)] // one flag per table, not a state machine
+struct StoreSchema {
+    v1_sessions: bool,
+    v1_messages: bool,
+    v1_parts: bool,
+    v2_sessions: bool,
+    v2_parts: bool,
+    blobs: bool,
+}
+
+const SESSION_COLUMNS: &str =
+    "id, project_id, parent_id, title, directory, time_created, time_updated";
+
+/// `session_message` types that become transcript messages. The rest
+/// (`system` instruction notices, `idle`, `model-switched`,
+/// `location-switched`) are harness bookkeeping.
+const V2_TRANSCRIPT_TYPES: &str = "'user', 'assistant', 'synthetic', 'compaction'";
+
+impl StoreSchema {
+    fn read(conn: &Connection) -> rusqlite::Result<Self> {
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")?;
+        let names: HashSet<String> = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let has = |name: &str| names.contains(name);
+        // The 2.x tables are still changing upstream. Probe the columns read
+        // here so a reshaped table falls back to the 1.x store instead of
+        // failing every query that unions the two.
+        let probes = |sql: &str| conn.prepare(sql).is_ok();
+        let v2_sessions = has("session_v2")
+            && has("session_message")
+            && probes(&format!("SELECT {SESSION_COLUMNS} FROM session_v2 LIMIT 0"))
+            && probes(
+                "SELECT id, session_id, type, seq, time_created, data FROM session_message LIMIT 0",
+            );
+        let v2_parts = v2_sessions
+            && has("session_part")
+            && probes(
+                "SELECT message_id, session_id, ordinal, type, call_id, data FROM session_part LIMIT 0",
+            );
+        Ok(Self {
+            v1_sessions: has("session"),
+            v1_messages: has("message"),
+            v1_parts: has("part"),
+            v2_sessions,
+            v2_parts,
+            blobs: has("blob"),
+        })
+    }
+
+    /// One row per session, with a `store` column (1 or 2) saying which
+    /// tables it came from. A session in both stores is listed once, from 2.x.
+    fn sessions_sql(self) -> Option<String> {
+        let v2 = format!("SELECT {SESSION_COLUMNS}, 2 AS store FROM session_v2");
+        let v1 = format!("SELECT {SESSION_COLUMNS}, 1 AS store FROM session");
+        match (self.v2_sessions, self.v1_sessions) {
+            (true, true) => Some(format!(
+                "{v2} UNION ALL {v1} WHERE NOT EXISTS \
+                 (SELECT 1 FROM session_v2 v WHERE v.id = session.id)"
+            )),
+            (true, false) => Some(v2),
+            (false, true) => Some(v1),
+            (false, false) => None,
+        }
+    }
+
+    /// Message count for a row `s` of [`Self::sessions_sql`].
+    fn message_count_sql(self) -> String {
+        let v2 = format!(
+            "(SELECT COUNT(*) FROM session_message m
+              WHERE m.session_id = s.id AND m.type IN ({V2_TRANSCRIPT_TYPES}))"
+        );
+        let v1 = "(SELECT COUNT(*) FROM message m WHERE m.session_id = s.id)".to_string();
+        match (self.v2_sessions, self.v1_messages) {
+            (true, true) => format!("CASE s.store WHEN 2 THEN {v2} ELSE {v1} END"),
+            (true, false) => v2,
+            (false, true) => v1,
+            (false, false) => "0".to_string(),
+        }
+    }
+}
+
 fn scan_projects_from_db(
     base_path: &str,
     db_file: &str,
@@ -932,13 +1036,20 @@ fn scan_projects_from_db(
 ) -> Option<Vec<ClaudeProject>> {
     let conn = open_db_reporting(base_path, db_file, report)?;
     let db_path = Path::new(base_path).join(db_file);
+    let schema = report.db(&db_path, StoreSchema::read(&conn))?;
+    let sessions = schema.sessions_sql()?;
     let mut stmt = report.db(
         &db_path,
-        conn.prepare(
+        conn.prepare(&format!(
             "SELECT p.id, p.worktree, p.name, p.time_created, p.time_updated,
-                    (SELECT COUNT(*) FROM session s WHERE s.project_id = p.id) AS session_count
-             FROM project p",
-        ),
+                    COALESCE(c.session_count, 0), c.last_updated
+             FROM project p
+             LEFT JOIN (
+                 SELECT project_id, COUNT(*) AS session_count, MAX(time_updated) AS last_updated
+                 FROM ({sessions})
+                 GROUP BY project_id
+             ) c ON c.project_id = p.id"
+        )),
     )?;
 
     let rows: Vec<DbProjectRecord> = report
@@ -952,6 +1063,7 @@ fn scan_projects_from_db(
                     time_created: row.get(3)?,
                     time_updated: row.get(4)?,
                     session_count: row.get(5)?,
+                    last_session_update: row.get(6)?,
                 })
             }),
         )?
@@ -962,7 +1074,7 @@ fn scan_projects_from_db(
     let mut projects = Vec::new();
     for project in rows {
         if should_split_global_project(&project) {
-            let directory_projects = scan_global_directory_projects(&conn, &project);
+            let directory_projects = scan_global_directory_projects(&conn, &sessions, &project);
             if !directory_projects.is_empty() {
                 projects.extend(directory_projects);
                 continue;
@@ -971,7 +1083,12 @@ fn scan_projects_from_db(
 
         let project_name =
             opencode_project_display_name(project.name.as_deref(), &project.worktree);
-        let last_modified = epoch_ms_to_rfc3339(project.time_updated.max(project.time_created));
+        let last_modified = epoch_ms_to_rfc3339(
+            project
+                .time_updated
+                .max(project.time_created)
+                .max(project.last_session_update.unwrap_or(0)),
+        );
 
         projects.push(ClaudeProject {
             name: project_name,
@@ -996,17 +1113,18 @@ fn scan_projects_from_db(
 
 fn scan_global_directory_projects(
     conn: &Connection,
+    sessions: &str,
     project: &DbProjectRecord,
 ) -> Vec<ClaudeProject> {
-    let mut stmt = match conn.prepare(
+    let mut stmt = match conn.prepare(&format!(
         "SELECT s.directory AS directory,
                 COUNT(*) AS session_count,
                 MIN(s.time_created) AS first_created,
                 MAX(s.time_updated) AS last_updated
-         FROM session s
+         FROM ({sessions}) s
          WHERE s.project_id = ?1
-         GROUP BY s.directory",
-    ) {
+         GROUP BY s.directory"
+    )) {
         Ok(stmt) => stmt,
         Err(_) => return Vec::new(),
     };
@@ -1061,19 +1179,22 @@ fn load_sessions_from_db(
 ) -> Option<Vec<ClaudeSession>> {
     let conn = open_db_reporting(base_path, db_file, report)?;
     let db_path = Path::new(base_path).join(db_file);
+    let schema = report.db(&db_path, StoreSchema::read(&conn))?;
+    let sessions = schema.sessions_sql()?;
+    let message_count = schema.message_count_sql();
     let mut stmt = report.db(
         &db_path,
-        conn.prepare(
+        conn.prepare(&format!(
             "SELECT s.id, s.title, s.time_created, s.time_updated, s.directory,
-                    (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
-             FROM session s
-             WHERE s.project_id = ?1",
-        ),
+                    {message_count} AS message_count
+             FROM ({sessions}) s
+             WHERE s.project_id = ?1"
+        )),
     )?;
 
     let rows = stmt.query_map([project_ref.storage_id()], |row| {
         let session_id: String = row.get(0)?;
-        let title: String = row.get(1)?;
+        let title: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
         let time_created: u64 = row.get(2)?;
         let time_updated: u64 = row.get(3)?;
         let directory: String = row.get(4)?;
@@ -1132,6 +1253,454 @@ fn load_messages_from_db(
 }
 
 fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<ClaudeMessage>> {
+    let schema = StoreSchema::read(conn).ok()?;
+    if schema.v2_sessions && is_v2_session(conn, session_id)? {
+        // A migrated session still has its 1.x copy; better that than an
+        // empty transcript if the 2.x rows can't be read.
+        return load_v2_messages(conn, schema, session_id)
+            .or_else(|| load_v1_messages_with_conn(conn, session_id));
+    }
+    load_v1_messages_with_conn(conn, session_id)
+}
+
+/// `None` when the lookup itself failed (busy, I/O), so a 2.x session is
+/// never quietly read from a stale 1.x copy.
+fn is_v2_session(conn: &Connection, session_id: &str) -> Option<bool> {
+    use rusqlite::OptionalExtension;
+    conn.query_row(
+        "SELECT 1 FROM session_v2 WHERE id = ?1",
+        [session_id],
+        |_| Ok(()),
+    )
+    .optional()
+    .ok()
+    .map(|row| row.is_some())
+}
+
+/// Messages of an `OpenCode` 2.x session, in `seq` order.
+fn load_v2_messages(
+    conn: &Connection,
+    schema: StoreSchema,
+    session_id: &str,
+) -> Option<Vec<ClaudeMessage>> {
+    let mut parts_by_message: HashMap<String, Vec<Value>> = HashMap::new();
+    if schema.v2_parts {
+        let mut stmt = conn
+            .prepare(
+                "SELECT message_id, type, call_id, data FROM session_part
+                 WHERE session_id = ?1
+                 ORDER BY message_id, ordinal",
+            )
+            .ok()?;
+        let rows = stmt
+            .query_map([session_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .ok()?;
+        for (message_id, part_type, call_id, data) in rows.flatten() {
+            let Ok(Value::Object(mut fields)) = serde_json::from_str::<Value>(&data) else {
+                continue;
+            };
+            // `OpenCode` keeps the part's type (and a tool's call id) in
+            // columns and may leave them out of `data`.
+            fields.insert("type".to_string(), Value::String(part_type));
+            if let Some(call_id) = call_id {
+                fields.entry("id").or_insert_with(|| Value::String(call_id));
+            }
+            parts_by_message
+                .entry(message_id)
+                .or_default()
+                .push(Value::Object(fields));
+        }
+    }
+
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT id, type, time_created, data FROM session_message
+             WHERE session_id = ?1 AND type IN ({V2_TRANSCRIPT_TYPES})
+             ORDER BY seq"
+        ))
+        .ok()?;
+    let rows = stmt
+        .query_map([session_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, u64>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })
+        .ok()?;
+
+    let media = Media {
+        conn: schema.blobs.then_some(conn),
+    };
+    let mut messages = Vec::new();
+    for (message_id, message_type, time_created, data) in rows.flatten() {
+        let Ok(Value::Object(mut fields)) = serde_json::from_str::<Value>(&data) else {
+            continue;
+        };
+        if let Some(parts) = parts_by_message.remove(&message_id) {
+            // Same order `OpenCode` reads them back in: split parts, then any
+            // content still inline on the row.
+            let inline = fields
+                .get("content")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            fields.insert(
+                "content".to_string(),
+                Value::Array(parts.into_iter().chain(inline).collect()),
+            );
+        }
+        let data = Value::Object(fields);
+        if let Some(message) = convert_v2_message(
+            &message_id,
+            &message_type,
+            time_created,
+            &data,
+            session_id,
+            &media,
+        ) {
+            messages.push(message);
+        }
+    }
+
+    if messages.is_empty() {
+        None
+    } else {
+        Some(messages)
+    }
+}
+
+/// Resolves the media a 2.x row points at: inline `data:` URIs, and `media:`
+/// refs into the `blob` table (`OpenCode` moves large attachments there).
+struct Media<'a> {
+    conn: Option<&'a Connection>,
+}
+
+impl Media<'_> {
+    /// Base64 bytes behind `uri`, or `None` when it is neither form or the
+    /// blob is gone.
+    fn base64(&self, uri: &str) -> Option<String> {
+        if let Some(rest) = uri.strip_prefix("data:") {
+            return rest
+                .split_once(";base64,")
+                .map(|(_, data)| data.to_string());
+        }
+        let hash = uri.strip_prefix("media:")?;
+        if hash.is_empty() || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        let bytes: Vec<u8> = self
+            .conn?
+            .query_row("SELECT data FROM blob WHERE hash = ?1", [hash], |row| {
+                row.get(0)
+            })
+            .ok()?;
+        Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+    }
+}
+
+fn str_field<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    value.get(key).and_then(Value::as_str)
+}
+
+/// An attached file as a content block: the image itself when the bytes are
+/// there, otherwise a `[File] ...` line. Tool output files carry only `uri`
+/// and `mime`, so those stand in for a missing name.
+fn v2_file_block(file: &Value, media: &Media) -> Option<Value> {
+    let mime = str_field(file, "mime").unwrap_or("");
+    let uri = str_field(file, "uri").unwrap_or("");
+    let name = str_field(file, "name")
+        .or_else(|| str_field(file, "filename"))
+        .unwrap_or("");
+    if mime.starts_with("image/") {
+        let data = str_field(file, "data")
+            .map(|d| {
+                d.split_once(";base64,")
+                    .map_or(d, |(_, rest)| rest)
+                    .to_string()
+            })
+            .or_else(|| media.base64(uri));
+        if let Some(data) = data {
+            return Some(serde_json::json!({
+                "type": "image",
+                "source": { "type": "base64", "media_type": mime, "data": data }
+            }));
+        }
+        if uri.starts_with("http://") || uri.starts_with("https://") {
+            return Some(serde_json::json!({
+                "type": "image",
+                "source": { "type": "url", "url": uri }
+            }));
+        }
+    }
+    let label = if !name.is_empty() {
+        name.to_string()
+    } else if !uri.is_empty() && !uri.starts_with("data:") && !uri.starts_with("media:") {
+        uri.to_string()
+    } else if !mime.is_empty() {
+        format!("({mime})")
+    } else {
+        return None;
+    };
+    Some(serde_json::json!({ "type": "text", "text": format!("[File] {label}") }))
+}
+
+fn v2_error_text(error: &Value) -> Option<String> {
+    let text = match error {
+        Value::String(s) => s.clone(),
+        Value::Null => return None,
+        other => str_field(other, "message")
+            .map(str::to_string)
+            .unwrap_or_else(|| other.to_string()),
+    };
+    (!text.is_empty()).then_some(text)
+}
+
+/// What a finished 2.x tool call returned. Text-only output collapses to one
+/// string, matching the 1.x `state.output` the renderers already handle.
+fn v2_tool_output(state: &Value, media: &Media) -> Value {
+    let Some(items) = state.get("content").and_then(Value::as_array) else {
+        return state
+            .get("output")
+            .cloned()
+            .unwrap_or_else(|| Value::String(String::new()));
+    };
+    let mut blocks = Vec::new();
+    let mut texts = Vec::new();
+    let mut text_only = true;
+    for item in items {
+        match str_field(item, "type") {
+            Some("text") => {
+                let text = str_field(item, "text").unwrap_or("");
+                texts.push(text.to_string());
+                blocks.push(serde_json::json!({ "type": "text", "text": text }));
+            }
+            Some("file") => {
+                if let Some(block) = v2_file_block(item, media) {
+                    text_only &= block["type"] == "text";
+                    if let Some(text) = block["text"].as_str() {
+                        texts.push(text.to_string());
+                    }
+                    blocks.push(block);
+                }
+            }
+            _ => {}
+        }
+    }
+    if text_only {
+        Value::String(texts.join("\n"))
+    } else {
+        Value::Array(blocks)
+    }
+}
+
+/// 2.x assistant content (`reasoning`, `text`, `tool`) as content blocks.
+fn v2_assistant_blocks(
+    content: &[Value],
+    message_id: &str,
+    session_id: &str,
+    media: &Media,
+) -> Vec<Value> {
+    let mut blocks = Vec::new();
+    for (part_index, part) in content.iter().enumerate() {
+        match str_field(part, "type").unwrap_or("") {
+            "text" => {
+                let text = str_field(part, "text").unwrap_or("");
+                if !text.is_empty() {
+                    blocks.push(serde_json::json!({ "type": "text", "text": text }));
+                }
+            }
+            "reasoning" => {
+                let text = str_field(part, "text").unwrap_or("");
+                if !text.is_empty() {
+                    blocks.push(serde_json::json!({ "type": "thinking", "thinking": text }));
+                }
+            }
+            "tool" => {
+                let raw_name = str_field(part, "name").unwrap_or("unknown");
+                let tool_name = normalize_opencode_tool_name(raw_name);
+                let tool_id = str_field(part, "id").unwrap_or("").to_string();
+                let state = part.get("state").cloned().unwrap_or(Value::Null);
+                let mut input = state
+                    .get("input")
+                    .cloned()
+                    .unwrap_or_else(|| Value::Object(serde_json::Map::default()));
+                if raw_name == "subagent" {
+                    if let Value::Object(fields) = &mut input {
+                        move_input_key(fields, "agent", "subagent_type");
+                    }
+                }
+                blocks.push(serde_json::json!({
+                    "type": "tool_use",
+                    "id": tool_id,
+                    "name": tool_name,
+                    "rawToolName": part.get("name"),
+                    "input": normalize_opencode_tool_input(tool_name, input)
+                }));
+
+                let (result, is_error) = match str_field(&state, "status").unwrap_or("") {
+                    "completed" => (v2_tool_output(&state, media), false),
+                    status @ ("error" | "cancelled") => {
+                        let text = state
+                            .get("error")
+                            .and_then(v2_error_text)
+                            .unwrap_or_else(|| format!("Tool execution failed: {status}"));
+                        (Value::String(text), true)
+                    }
+                    _ => continue,
+                };
+                let mut tool_result = serde_json::json!({
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": result
+                });
+                if is_error {
+                    tool_result["is_error"] = Value::Bool(true);
+                }
+                super::result_evidence::attach(
+                    &mut tool_result,
+                    &state,
+                    message_id,
+                    session_id,
+                    blocks.len(),
+                );
+                tool_result["toolUseResultSource"]["partIndex"] = Value::from(part_index);
+                blocks.push(tool_result);
+            }
+            _ => {}
+        }
+    }
+    blocks
+}
+
+/// The per-step summary card 1.x drew from `step-finish` parts. A 2.x
+/// assistant row is one step, so it carries the same numbers itself.
+fn v2_step_block(data: &Value) -> Option<Value> {
+    let reason = str_field(data, "finish")?;
+    let usage = data
+        .get("tokens")
+        .map(parse_opencode_token_usage)
+        .unwrap_or_default();
+    let snapshot: String = data
+        .get("snapshot")
+        .and_then(|s| str_field(s, "end"))
+        .unwrap_or("")
+        .chars()
+        .take(8)
+        .collect();
+    Some(serde_json::json!({
+        "type": "opencode_step",
+        "reason": reason,
+        "snapshot": snapshot,
+        "cost": data.get("cost").and_then(Value::as_f64).unwrap_or(0.0),
+        "tokens": {
+            "input": usage.input_tokens.unwrap_or(0),
+            "output": usage.output_tokens.unwrap_or(0),
+            "reasoning": usage.reasoning_tokens.unwrap_or(0),
+            "cache_read": usage.cache_read_input_tokens.unwrap_or(0),
+            "cache_write": usage.cache_creation_input_tokens.unwrap_or(0)
+        }
+    }))
+}
+
+fn convert_v2_message(
+    message_id: &str,
+    message_type: &str,
+    time_created: u64,
+    data: &Value,
+    session_id: &str,
+    media: &Media,
+) -> Option<ClaudeMessage> {
+    let created = data
+        .get("time")
+        .and_then(|t| t.get("created"))
+        .and_then(Value::as_u64)
+        .unwrap_or(time_created);
+    let mut message = ClaudeMessage {
+        uuid: message_id.to_string(),
+        session_id: session_id.to_string(),
+        timestamp: epoch_ms_to_rfc3339(created),
+        provider: Some("opencode".to_string()),
+        ..Default::default()
+    };
+
+    let mut blocks: Vec<Value> = Vec::new();
+    match message_type {
+        "user" => {
+            message.message_type = "user".to_string();
+            message.role = Some("user".to_string());
+            if let Some(text) = str_field(data, "text").filter(|t| !t.is_empty()) {
+                blocks.push(serde_json::json!({ "type": "text", "text": text }));
+            }
+            for file in data
+                .get("files")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                blocks.extend(v2_file_block(file, media));
+            }
+        }
+        "assistant" => {
+            message.message_type = "assistant".to_string();
+            message.role = Some("assistant".to_string());
+            message.model = data
+                .get("model")
+                .and_then(|m| str_field(m, "id"))
+                .map(str::to_string);
+            message.usage = data.get("tokens").map(parse_opencode_token_usage);
+            message.cost_usd = data.get("cost").and_then(Value::as_f64);
+            if let Some(content) = data.get("content").and_then(Value::as_array) {
+                blocks = v2_assistant_blocks(content, message_id, session_id, media);
+            }
+            if let Some(error) = data.get("error").and_then(v2_error_text) {
+                blocks.push(
+                    serde_json::json!({ "type": "text", "text": format!("[Error] {error}") }),
+                );
+            }
+            blocks.extend(v2_step_block(data));
+        }
+        // Harness-inserted text (background shell output, subagent results,
+        // goal notices): shown, but not as something the user typed.
+        "synthetic" => {
+            message.message_type = "system".to_string();
+            message.role = Some("system".to_string());
+            let text = str_field(data, "text").unwrap_or("");
+            if text.is_empty() {
+                return None;
+            }
+            message.content = Some(Value::String(text.to_string()));
+            return Some(message);
+        }
+        "compaction" => {
+            message.message_type = "system".to_string();
+            message.role = Some("system".to_string());
+            message.subtype = Some("compact_boundary".to_string());
+            message.level = Some("info".to_string());
+            message.compact_metadata = Some(serde_json::json!({
+                "trigger": str_field(data, "reason").unwrap_or("auto")
+            }));
+            message.content = Some(Value::String(
+                str_field(data, "summary").unwrap_or("").to_string(),
+            ));
+            return Some(message);
+        }
+        _ => return None,
+    }
+
+    message.content = (!blocks.is_empty()).then_some(Value::Array(blocks));
+    Some(message)
+}
+
+fn load_v1_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<ClaudeMessage>> {
     let mut msg_stmt = conn
         .prepare(
             "SELECT id, data FROM message
@@ -1245,14 +1814,43 @@ fn search_from_db(
     limit: usize,
 ) -> Option<(Vec<ClaudeMessage>, HashSet<String>)> {
     let conn = open_db(base_path, db_file)?;
+    let schema = StoreSchema::read(&conn).ok()?;
 
     let escaped = escape_like_pattern(query_lower);
     let search_pattern = format!("%{escaped}%");
+    let mut queries: Vec<String> = Vec::new();
+    if schema.v2_sessions {
+        queries.push(format!(
+            "SELECT session_id FROM session_message
+             WHERE type IN ({V2_TRANSCRIPT_TYPES}) AND LOWER(data) LIKE ?1 ESCAPE '\\'"
+        ));
+        if schema.v2_parts {
+            queries.push(
+                "SELECT session_id FROM session_part WHERE LOWER(data) LIKE ?1 ESCAPE '\\'"
+                    .to_string(),
+            );
+        }
+    }
+    if schema.v1_parts {
+        // A 1.x session that was migrated is read from its 2.x copy, which
+        // the queries above already cover.
+        let migrated = if schema.v2_sessions {
+            " AND NOT EXISTS (SELECT 1 FROM session_v2 v WHERE v.id = part.session_id)"
+        } else {
+            ""
+        };
+        queries.push(format!(
+            "SELECT session_id FROM part WHERE LOWER(data) LIKE ?1 ESCAPE '\\'{migrated}"
+        ));
+    }
+    if queries.is_empty() {
+        return None;
+    }
     let mut stmt = conn
-        .prepare(
-            "SELECT DISTINCT p.session_id FROM part p
-             WHERE LOWER(p.data) LIKE ?1 ESCAPE '\\'",
-        )
+        .prepare(&format!(
+            "SELECT DISTINCT session_id FROM ({})",
+            queries.join(" UNION ALL ")
+        ))
         .ok()?;
 
     let session_ids: Vec<String> = stmt
@@ -1260,6 +1858,7 @@ fn search_from_db(
         .ok()?
         .filter_map(std::result::Result::ok)
         .collect();
+    drop(stmt);
 
     if session_ids.is_empty() {
         return None;
@@ -1678,14 +2277,14 @@ fn process_parts(
 fn normalize_opencode_tool_name(name: &str) -> &str {
     match name {
         "read" => "Read",
-        "bash" => "Bash",
+        "bash" | "shell" => "Bash",
         "glob" => "Glob",
         "grep" => "Grep",
         "write" => "Write",
         "edit" => "Edit",
         "todowrite" => "TodoWrite",
         "webfetch" => "WebFetch",
-        "task" | "call_omo_agent" => "Task",
+        "task" | "subagent" | "call_omo_agent" => "Task",
         "websearch_web_search_exa"
         | "websearch_exa_web_search_exa"
         | "web_search"
@@ -1710,6 +2309,11 @@ fn normalize_opencode_tool_input(tool_name: &str, input: Value) -> Value {
     };
 
     move_input_key(&mut input_obj, "filePath", "file_path");
+    // 2.x file tools may name the file `path`; for Grep/Glob `path` is the
+    // directory searched, so only the single-file tools get it renamed.
+    if matches!(tool_name, "Read" | "Write" | "Edit") {
+        move_input_key(&mut input_obj, "path", "file_path");
+    }
     move_input_key(&mut input_obj, "oldString", "old_string");
     move_input_key(&mut input_obj, "newString", "new_string");
     move_input_key(&mut input_obj, "replaceAll", "replace_all");
@@ -2389,6 +2993,656 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_empty");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_empty");
+    }
+}
+
+/// `OpenCode` 2.x stores (`session_v2` / `session_message` / `session_part`),
+/// alone and side by side with the 1.x tables a migrated database keeps.
+/// Row shapes follow what `OpenCode` 2.2 writes.
+#[cfg(test)]
+mod v2_tests {
+    use super::*;
+    use serde_json::json;
+
+    const V2_TABLES: &str = "
+        CREATE TABLE project (
+            id TEXT PRIMARY KEY, worktree TEXT NOT NULL, name TEXT,
+            time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL,
+            sandboxes TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE TABLE session_v2 (
+            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, workspace_id TEXT, parent_id TEXT,
+            fork_session_id TEXT, slug TEXT NOT NULL DEFAULT '', directory TEXT NOT NULL DEFAULT '',
+            title TEXT, version TEXT NOT NULL DEFAULT '2.2.7',
+            time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL
+        );
+        CREATE TABLE session_message (
+            id TEXT PRIMARY KEY, session_id TEXT NOT NULL, type TEXT NOT NULL, seq INTEGER NOT NULL,
+            time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL
+        );
+        CREATE TABLE session_part (
+            message_id TEXT NOT NULL, session_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+            type TEXT NOT NULL, call_id TEXT, time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL, data TEXT NOT NULL,
+            PRIMARY KEY (message_id, ordinal)
+        );
+        CREATE TABLE blob (
+            hash TEXT PRIMARY KEY, mime TEXT NOT NULL, bytes INTEGER NOT NULL,
+            data BLOB NOT NULL, time_created INTEGER NOT NULL
+        );";
+
+    const V1_TABLES: &str = "
+        CREATE TABLE session (
+            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL,
+            slug TEXT NOT NULL DEFAULT '', directory TEXT NOT NULL DEFAULT '',
+            version TEXT NOT NULL DEFAULT '1.0', time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL, parent_id TEXT
+        );
+        CREATE TABLE message (
+            id TEXT PRIMARY KEY, session_id TEXT NOT NULL, time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL, data TEXT NOT NULL
+        );
+        CREATE TABLE part (
+            id TEXT PRIMARY KEY, message_id TEXT NOT NULL, session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL
+        );";
+
+    struct Store {
+        _dir: tempfile::TempDir,
+        base: String,
+        conn: Connection,
+    }
+
+    fn store(with_v1: bool) -> Store {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = Connection::open(dir.path().join(OPENCODE_DB_FILE)).unwrap();
+        conn.execute_batch(V2_TABLES).unwrap();
+        if with_v1 {
+            conn.execute_batch(V1_TABLES).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO project (id, worktree, name, time_created, time_updated)
+             VALUES ('proj1', '/work/app', NULL, 1000, 2000)",
+            [],
+        )
+        .unwrap();
+        Store {
+            base: dir.path().to_string_lossy().to_string(),
+            _dir: dir,
+            conn,
+        }
+    }
+
+    impl Store {
+        fn v2_session(&self, id: &str, title: Option<&str>, parent: Option<&str>, updated: i64) {
+            self.conn
+                .execute(
+                    "INSERT INTO session_v2 (id, project_id, parent_id, directory, title, time_created, time_updated)
+                     VALUES (?1, 'proj1', ?2, '/work/app', ?3, 1000, ?4)",
+                    rusqlite::params![id, parent, title, updated],
+                )
+                .unwrap();
+        }
+
+        fn v2_message(&self, session: &str, id: &str, seq: i64, kind: &str, data: Value) {
+            self.conn
+                .execute(
+                    "INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)",
+                    rusqlite::params![id, session, kind, seq, 1_000 + seq, data.to_string()],
+                )
+                .unwrap();
+        }
+
+        fn v1_session(&self, id: &str, title: &str) {
+            self.conn
+                .execute(
+                    "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+                     VALUES (?1, 'proj1', ?2, '/work/app', 1000, 1500)",
+                    rusqlite::params![id, title],
+                )
+                .unwrap();
+        }
+
+        fn v1_message(&self, session: &str, id: &str, role: &str, text: &str) {
+            self.conn
+                .execute(
+                    "INSERT INTO message (id, session_id, time_created, time_updated, data)
+                     VALUES (?1, ?2, 1100, 1100, ?3)",
+                    rusqlite::params![
+                        id,
+                        session,
+                        json!({ "role": role, "time": { "created": 1100 } }).to_string()
+                    ],
+                )
+                .unwrap();
+            self.conn
+                .execute(
+                    "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+                     VALUES (?1, ?2, ?3, 1100, 1100, ?4)",
+                    rusqlite::params![
+                        format!("prt_{id}"),
+                        id,
+                        session,
+                        json!({ "type": "text", "text": text }).to_string()
+                    ],
+                )
+                .unwrap();
+        }
+
+        fn messages(&self, session: &str) -> Vec<ClaudeMessage> {
+            load_messages_at(
+                &self.base,
+                OPENCODE_DB_FILE,
+                &format!("opencode://proj1/{session}"),
+            )
+            .unwrap()
+        }
+
+        fn sessions(&self) -> Vec<ClaudeSession> {
+            load_sessions_at(&self.base, OPENCODE_DB_FILE, "opencode://proj1", false).unwrap()
+        }
+    }
+
+    fn blocks(message: &ClaudeMessage) -> &Vec<Value> {
+        message.content.as_ref().unwrap().as_array().unwrap()
+    }
+
+    /// One turn the way 2.2 records it: user prompt with an image, an
+    /// assistant step that thinks, talks and runs `shell`, a failed `edit`,
+    /// plus the bookkeeping rows a viewer should not show.
+    fn seed_turn(store: &Store, session: &str) {
+        store.v2_message(session, "msg_sys", 0, "system", json!({
+            "metadata": { "notice": "instructions" }, "time": { "created": 1000 }, "text": "tool catalog"
+        }));
+        store.v2_message(session, "msg_u1", 1, "user", json!({
+            "time": { "created": 1001 }, "text": "fix the build",
+            "files": [{ "data": "iVBORw0K", "mime": "image/png", "name": "shot.png", "source": { "type": "inline" } }],
+            "agents": []
+        }));
+        store.v2_message(session, "msg_a1", 2, "assistant", json!({
+            "time": { "created": 1002, "completed": 1003 },
+            "agent": "build",
+            "model": { "id": "claude-opus", "providerID": "anthropic" },
+            "content": [
+                { "type": "reasoning", "text": "look at the logs" },
+                { "type": "text", "text": "Running the build." },
+                { "type": "tool", "id": "call_1", "name": "shell", "state": {
+                    "status": "completed",
+                    "input": { "command": "make", "workdir": "/work/app" },
+                    "content": [{ "type": "text", "text": "ok" }],
+                    "metadata": { "exit": 0 }
+                }},
+                { "type": "tool", "id": "call_2", "name": "edit", "state": {
+                    "status": "error",
+                    "input": { "path": "/work/app/main.rs", "oldString": "a", "newString": "b" },
+                    "error": { "type": "tool.execution", "message": "Could not find oldString" }
+                }},
+                { "type": "tool", "id": "call_3", "name": "grep", "state": {
+                    "status": "running", "input": { "pattern": "x", "path": "/work/app/src" }
+                }}
+            ],
+            "tokens": { "input": 10, "output": 20, "reasoning": 3, "cache": { "read": 40, "write": 5 } },
+            "cost": 0.25,
+            "finish": "tool-calls"
+        }));
+        store.v2_message(
+            session,
+            "msg_idle",
+            3,
+            "idle",
+            json!({ "time": { "created": 1004 }, "outcome": "succeeded" }),
+        );
+        store.v2_message(session, "msg_syn", 4, "synthetic", json!({
+            "metadata": { "source": "shell" }, "time": { "created": 1005 }, "text": "<shell>done</shell>"
+        }));
+        store.v2_message(session, "msg_cmp", 5, "compaction", json!({
+            "time": { "created": 1006 }, "status": "completed", "reason": "auto", "summary": "## Objective\nfix the build"
+        }));
+    }
+
+    #[test]
+    fn v2_only_store_lists_projects_and_sessions() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("Fix the build"), None, 9000);
+        store.v2_session("ses_untitled", None, None, 5000);
+        seed_turn(&store, "ses_new");
+
+        let projects = scan_projects_from_store(&store.base, OPENCODE_DB_FILE).unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, "opencode://proj1");
+        assert_eq!(projects[0].name, "app");
+        assert_eq!(projects[0].session_count, 2);
+        // The project row was last touched at 2000; the newest session at 9000.
+        assert_eq!(projects[0].last_modified, epoch_ms_to_rfc3339(9000));
+
+        let sessions = store.sessions();
+        assert_eq!(sessions.len(), 2, "a NULL title must not drop the session");
+        let new = sessions
+            .iter()
+            .find(|s| s.actual_session_id == "ses_new")
+            .unwrap();
+        assert_eq!(new.summary.as_deref(), Some("Fix the build"));
+        assert_eq!(new.file_path, "opencode://proj1/ses_new");
+        // user, assistant, synthetic, compaction; not system or idle.
+        assert_eq!(new.message_count, 4);
+        let untitled = sessions
+            .iter()
+            .find(|s| s.actual_session_id == "ses_untitled")
+            .unwrap();
+        assert_eq!(untitled.summary, None);
+    }
+
+    #[test]
+    fn v2_messages_convert_to_transcript_blocks() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        seed_turn(&store, "ses_new");
+
+        let messages = store.messages("ses_new");
+        let ids: Vec<&str> = messages.iter().map(|m| m.uuid.as_str()).collect();
+        assert_eq!(ids, ["msg_u1", "msg_a1", "msg_syn", "msg_cmp"]);
+
+        let user = &messages[0];
+        assert_eq!(user.message_type, "user");
+        assert_eq!(
+            blocks(user)[0],
+            json!({ "type": "text", "text": "fix the build" })
+        );
+        assert_eq!(blocks(user)[1]["type"], "image");
+        assert_eq!(blocks(user)[1]["source"]["data"], "iVBORw0K");
+
+        let assistant = &messages[1];
+        assert_eq!(assistant.message_type, "assistant");
+        assert_eq!(assistant.model.as_deref(), Some("claude-opus"));
+        assert_eq!(assistant.cost_usd, Some(0.25));
+        let usage = assistant.usage.as_ref().unwrap();
+        assert_eq!(usage.input_tokens, Some(10));
+        assert_eq!(usage.output_tokens, Some(20));
+        assert_eq!(usage.cache_read_input_tokens, Some(40));
+        assert_eq!(usage.cache_creation_input_tokens, Some(5));
+
+        let b = blocks(assistant);
+        let kinds: Vec<&str> = b.iter().map(|x| x["type"].as_str().unwrap()).collect();
+        assert_eq!(
+            kinds,
+            [
+                "thinking",
+                "text",
+                "tool_use",
+                "tool_result",
+                "tool_use",
+                "tool_result",
+                "tool_use",
+                "opencode_step"
+            ]
+        );
+        assert_eq!(b[2]["name"], "Bash");
+        assert_eq!(b[2]["rawToolName"], "shell");
+        assert_eq!(b[2]["input"]["command"], "make");
+        assert_eq!(b[3]["tool_use_id"], "call_1");
+        assert_eq!(b[3]["content"], "ok");
+        assert_eq!(b[3]["toolUseResult"]["metadata"]["exit"], 0);
+        assert!(b[3].get("is_error").is_none());
+
+        assert_eq!(b[4]["name"], "Edit");
+        assert_eq!(b[4]["input"]["file_path"], "/work/app/main.rs");
+        assert_eq!(b[4]["input"]["old_string"], "a");
+        assert_eq!(b[5]["content"], "Could not find oldString");
+        assert_eq!(b[5]["is_error"], true);
+
+        // Still running: a call with no result yet, and Grep keeps its
+        // directory `path`.
+        assert_eq!(b[6]["name"], "Grep");
+        assert_eq!(b[6]["input"]["path"], "/work/app/src");
+        assert!(b[6]["input"].get("file_path").is_none());
+
+        assert_eq!(b[7]["reason"], "tool-calls");
+        assert_eq!(b[7]["tokens"]["output"], 20);
+
+        let synthetic = &messages[2];
+        assert_eq!(synthetic.message_type, "system");
+        assert_eq!(synthetic.content, Some(json!("<shell>done</shell>")));
+
+        let compaction = &messages[3];
+        assert_eq!(compaction.message_type, "system");
+        assert_eq!(compaction.subtype.as_deref(), Some("compact_boundary"));
+        assert_eq!(
+            compaction.content,
+            Some(json!("## Objective\nfix the build"))
+        );
+    }
+
+    #[test]
+    fn mixed_store_reads_migrated_sessions_from_v2_and_the_rest_from_v1() {
+        let store = store(true);
+        // Migrated: in both stores, the 2.x copy has the later turn.
+        store.v1_session("ses_both", "old title");
+        store.v1_message("ses_both", "msg_1", "user", "first prompt");
+        store.v2_session("ses_both", Some("new title"), None, 8000);
+        store.v2_message(
+            "ses_both",
+            "msg_1",
+            0,
+            "user",
+            json!({ "text": "first prompt", "time": { "created": 1100 } }),
+        );
+        store.v2_message(
+            "ses_both",
+            "msg_2",
+            1,
+            "user",
+            json!({ "text": "second prompt", "time": { "created": 1200 } }),
+        );
+        // Never migrated: only in 1.x.
+        store.v1_session("ses_old", "legacy");
+        store.v1_message("ses_old", "msg_o1", "user", "legacy prompt");
+        // Created by 2.x.
+        store.v2_session("ses_new", Some("fresh"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_n1",
+            0,
+            "user",
+            json!({ "text": "fresh prompt", "time": { "created": 1300 } }),
+        );
+
+        let projects = scan_projects_from_store(&store.base, OPENCODE_DB_FILE).unwrap();
+        assert_eq!(
+            projects[0].session_count, 3,
+            "a migrated session counts once"
+        );
+
+        let sessions = store.sessions();
+        let mut ids: Vec<&str> = sessions
+            .iter()
+            .map(|s| s.actual_session_id.as_str())
+            .collect();
+        ids.sort_unstable();
+        assert_eq!(ids, ["ses_both", "ses_new", "ses_old"]);
+        let both = sessions
+            .iter()
+            .find(|s| s.actual_session_id == "ses_both")
+            .unwrap();
+        assert_eq!(both.summary.as_deref(), Some("new title"));
+        assert_eq!(both.message_count, 2);
+        let old = sessions
+            .iter()
+            .find(|s| s.actual_session_id == "ses_old")
+            .unwrap();
+        assert_eq!(old.message_count, 1);
+
+        let both = store.messages("ses_both");
+        assert_eq!(both.len(), 2);
+        assert_eq!(blocks(&both[1])[0]["text"], "second prompt");
+
+        let old = store.messages("ses_old");
+        assert_eq!(old.len(), 1);
+        assert_eq!(blocks(&old[0])[0]["text"], "legacy prompt");
+
+        let map = build_db_session_map(&store.base, OPENCODE_DB_FILE).unwrap();
+        assert_eq!(map["proj1"].len(), 3);
+    }
+
+    #[test]
+    fn mixed_store_search_covers_both_stores_without_double_reading() {
+        let store = store(true);
+        // Only the stale 1.x copy matches; the session reads from 2.x, which
+        // doesn't, so it must not turn up.
+        store.v1_session("ses_both", "t");
+        store.v1_message("ses_both", "msg_1", "user", "needle in the old copy");
+        store.v2_session("ses_both", Some("t"), None, 8000);
+        store.v2_message(
+            "ses_both",
+            "msg_1",
+            0,
+            "user",
+            json!({ "text": "edited prompt" }),
+        );
+        store.v1_session("ses_old", "t");
+        store.v1_message("ses_old", "msg_o1", "user", "legacy needle");
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_n1",
+            0,
+            "user",
+            json!({ "text": "fresh NEEDLE" }),
+        );
+        store.v2_message(
+            "ses_new",
+            "msg_n2",
+            1,
+            "system",
+            json!({ "text": "needle in a notice" }),
+        );
+
+        let (results, sessions) =
+            search_from_db(&store.base, OPENCODE_DB_FILE, "needle", 50).unwrap();
+        let mut hit: Vec<&str> = results.iter().map(|m| m.uuid.as_str()).collect();
+        hit.sort_unstable();
+        assert_eq!(hit, ["msg_n1", "msg_o1"]);
+        assert!(!sessions.contains("ses_both"));
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[test]
+    fn search_finds_text_that_only_lives_in_session_part_rows() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_a",
+            0,
+            "assistant",
+            json!({ "finish": "stop" }),
+        );
+        store.conn.execute(
+            "INSERT INTO session_part (message_id, session_id, ordinal, type, time_created, time_updated, data)
+             VALUES ('msg_a', 'ses_new', 0, 'text', 1, 1, '{\"text\":\"split needle\"}')",
+            [],
+        ).unwrap();
+
+        let (results, _) = search_from_db(&store.base, OPENCODE_DB_FILE, "needle", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].uuid, "msg_a");
+    }
+
+    /// The 2.x tables are still moving upstream. If one is reshaped, the
+    /// 1.x sessions must keep showing rather than every query failing.
+    #[test]
+    fn reshaped_v2_table_falls_back_to_v1() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = Connection::open(dir.path().join(OPENCODE_DB_FILE)).unwrap();
+        conn.execute_batch(V1_TABLES).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT NOT NULL, name TEXT,
+                 time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL);
+             CREATE TABLE session_v2 (id TEXT PRIMARY KEY, project TEXT);
+             CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, seq INTEGER,
+                 time_created INTEGER, data TEXT);
+             INSERT INTO project VALUES ('proj1', '/work/app', NULL, 1000, 2000);
+             INSERT INTO session (id, project_id, title, time_created, time_updated)
+                 VALUES ('ses_old', 'proj1', 'legacy', 1000, 1500);",
+        )
+        .unwrap();
+        drop(conn);
+        let base = dir.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_store(&base, OPENCODE_DB_FILE).unwrap();
+        assert_eq!(projects[0].session_count, 1);
+        let sessions =
+            load_sessions_at(&base, OPENCODE_DB_FILE, "opencode://proj1", false).unwrap();
+        assert_eq!(sessions[0].actual_session_id, "ses_old");
+    }
+
+    #[test]
+    fn rows_that_are_not_objects_are_skipped_not_fatal() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_bad",
+            0,
+            "assistant",
+            json!(["not", "an", "object"]),
+        );
+        store.v2_message(
+            "ses_new",
+            "msg_ok",
+            1,
+            "user",
+            json!({ "text": "still here" }),
+        );
+        store.conn.execute(
+            "INSERT INTO session_part (message_id, session_id, ordinal, type, time_created, time_updated, data)
+             VALUES ('msg_bad', 'ses_new', 0, 'text', 1, 1, '{\"text\":\"x\"}')",
+            [],
+        ).unwrap();
+
+        let messages = store.messages("ses_new");
+        let ids: Vec<&str> = messages.iter().map(|m| m.uuid.as_str()).collect();
+        assert_eq!(ids, ["msg_ok"]);
+    }
+
+    #[test]
+    fn tool_output_files_without_a_name_are_kept() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message("ses_new", "msg_a", 0, "assistant", json!({
+            "content": [{ "type": "tool", "id": "call_r", "name": "read", "state": {
+                "status": "completed",
+                "input": { "filePath": "/work/app/shot.png" },
+                "content": [
+                    { "type": "text", "text": "Image read successfully" },
+                    { "type": "file", "uri": "data:image/png;base64,AQID", "mime": "image/png" },
+                    { "type": "file", "uri": "file:///work/app/report.pdf", "mime": "application/pdf" }
+                ]
+            }}]
+        }));
+
+        let messages = store.messages("ses_new");
+        let output = blocks(&messages[0])[1]["content"]
+            .as_array()
+            .unwrap()
+            .clone();
+        assert_eq!(
+            output[0],
+            json!({ "type": "text", "text": "Image read successfully" })
+        );
+        assert_eq!(output[1]["source"]["data"], "AQID");
+        assert_eq!(
+            output[2],
+            json!({ "type": "text", "text": "[File] file:///work/app/report.pdf" })
+        );
+    }
+
+    #[test]
+    fn split_session_parts_come_before_inline_content() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_a",
+            0,
+            "assistant",
+            json!({
+                "content": [{ "type": "text", "text": "inline tail" }], "finish": "stop"
+            }),
+        );
+        for (ordinal, part_type, data) in [
+            (1, "text", json!({ "text": "second" })),
+            (
+                0,
+                "reasoning",
+                json!({ "type": "reasoning", "text": "first" }),
+            ),
+        ] {
+            store.conn.execute(
+                "INSERT INTO session_part (message_id, session_id, ordinal, type, time_created, time_updated, data)
+                 VALUES ('msg_a', 'ses_new', ?1, ?2, 1, 1, ?3)",
+                rusqlite::params![ordinal, part_type, data.to_string()],
+            ).unwrap();
+        }
+
+        let messages = store.messages("ses_new");
+        let b = blocks(&messages[0]);
+        assert_eq!(b[0], json!({ "type": "thinking", "thinking": "first" }));
+        assert_eq!(b[1], json!({ "type": "text", "text": "second" }));
+        assert_eq!(b[2], json!({ "type": "text", "text": "inline tail" }));
+        assert_eq!(b[3]["type"], "opencode_step");
+    }
+
+    #[test]
+    fn media_refs_resolve_through_the_blob_table() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        let hash = "ab".repeat(32);
+        store.conn.execute(
+            "INSERT INTO blob (hash, mime, bytes, data, time_created) VALUES (?1, 'image/png', 3, ?2, 1)",
+            rusqlite::params![hash, vec![1_u8, 2, 3]],
+        ).unwrap();
+        store.v2_message("ses_new", "msg_u", 0, "user", json!({
+            "text": "look",
+            "files": [
+                { "uri": format!("media:{hash}"), "mime": "image/png", "name": "kept.png" },
+                { "uri": format!("media:{}", "cd".repeat(32)), "mime": "image/png", "name": "gone.png" }
+            ]
+        }));
+
+        let messages = store.messages("ses_new");
+        let b = blocks(&messages[0]);
+        assert_eq!(b[1]["source"]["data"], "AQID");
+        assert_eq!(b[2], json!({ "type": "text", "text": "[File] gone.png" }));
+    }
+
+    #[test]
+    fn v2_child_sessions_come_from_session_v2() {
+        let store = store(true);
+        store.v2_session("ses_parent", Some("parent"), None, 9000);
+        store.v2_session(
+            "ses_child",
+            Some("explore the repo"),
+            Some("ses_parent"),
+            9100,
+        );
+        store.v2_message("ses_child", "msg_c", 0, "user", json!({ "text": "go" }));
+        store.v2_session("ses_child_untitled", None, Some("ses_parent"), 9200);
+
+        let children =
+            load_child_sessions_from_db(&store.base, OPENCODE_DB_FILE, "proj1", "ses_parent");
+        let ids: Vec<&str> = children.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids.len(), 2);
+        let child = children.iter().find(|c| c.id == "ses_child").unwrap();
+        assert_eq!(child.title, "explore the repo");
+        assert_eq!(child.message_count, 1);
+    }
+
+    #[test]
+    fn subagent_tool_reads_as_task() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_a",
+            0,
+            "assistant",
+            json!({
+                "content": [{ "type": "tool", "id": "call_s", "name": "subagent", "state": {
+                    "status": "completed",
+                    "input": { "agent": "explore", "description": "find it", "prompt": "look" },
+                    "content": [{ "type": "text", "text": "found" }],
+                    "metadata": { "sessionID": "ses_child" }
+                }}]
+            }),
+        );
+
+        let messages = store.messages("ses_new");
+        let b = blocks(&messages[0]);
+        assert_eq!(b[0]["name"], "Task");
+        assert_eq!(b[0]["input"]["subagent_type"], "explore");
+        assert_eq!(b[1]["content"], "found");
+        assert_eq!(b[1]["toolUseResult"]["metadata"]["sessionID"], "ses_child");
     }
 }
 
