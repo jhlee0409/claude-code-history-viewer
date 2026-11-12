@@ -25,7 +25,9 @@ describe('TR1c source metadata preservation',()=>{
   const done={type:'tool_result',tool_use_id:'c',content:'line 1\nline 2',toolUseResult:{status:'completed',input:{command:'ls'},content:[{type:'text',text:'line 1'},{type:'text',text:'line 2'}],metadata:{exit:0}}};
   expect(recordedResultFields(done,'opencode')).toEqual({status:'completed',input:{command:'ls'},metadata:{exit:0}});
   const failed={type:'tool_result',tool_use_id:'c',content:'Could not find oldString',is_error:true,toolUseResult:{status:'error',input:{},error:{type:'tool.execution',message:'Could not find oldString'}}};
-  expect(recordedResultFields(failed,'opencode')).toEqual({status:'error',input:{}});
+  expect(recordedResultFields(failed,'opencode')).toEqual({status:'error',input:{},error:{type:'tool.execution'}});
+  const bare={...failed,toolUseResult:{status:'error',input:{},error:{message:'Could not find oldString'}}};
+  expect(recordedResultFields(bare,'opencode')).toEqual({status:'error',input:{}});
   const withImage={type:'tool_result',tool_use_id:'c',content:'Image read',toolUseResult:{status:'completed',content:[{type:'text',text:'Image read'},{type:'file',uri:'data:image/png;base64,AA',mime:'image/png'}]}};
   expect(recordedResultFields(withImage,'opencode')).toHaveProperty('content');
  });

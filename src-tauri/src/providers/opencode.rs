@@ -954,6 +954,9 @@ struct StoreSchema {
     v1_parts: bool,
     v2_sessions: bool,
     v2_parts: bool,
+    /// `session_part` is there but not in a shape this reader knows, so 2.x
+    /// assistant content may be missing.
+    v2_parts_unreadable: bool,
     blobs: bool,
 }
 
@@ -963,7 +966,7 @@ const SESSION_COLUMNS: &str =
 /// `session_message` types that become transcript messages. The rest
 /// (`system` instruction notices, `idle`, `model-switched`,
 /// `location-switched`) are harness bookkeeping.
-const V2_TRANSCRIPT_TYPES: &str = "'user', 'assistant', 'synthetic', 'compaction'";
+const V2_TRANSCRIPT_TYPES: &str = "'user', 'assistant', 'shell', 'synthetic', 'compaction'";
 
 impl StoreSchema {
     fn read(conn: &Connection) -> rusqlite::Result<Self> {
@@ -982,8 +985,8 @@ impl StoreSchema {
             && probes(
                 "SELECT id, session_id, type, seq, time_created, data FROM session_message LIMIT 0",
             );
-        let v2_parts = v2_sessions
-            && has("session_part")
+        let parts_table = v2_sessions && has("session_part");
+        let v2_parts = parts_table
             && probes(
                 "SELECT message_id, session_id, ordinal, type, call_id, data FROM session_part LIMIT 0",
             );
@@ -993,6 +996,7 @@ impl StoreSchema {
             v1_parts: has("part"),
             v2_sessions,
             v2_parts,
+            v2_parts_unreadable: parts_table && !v2_parts,
             blobs: has("blob"),
         })
     }
@@ -1256,7 +1260,13 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
     let schema = StoreSchema::read(conn).ok()?;
     if schema.v2_sessions && is_v2_session(conn, session_id)? {
         // A migrated session still has its 1.x copy; better that than an
-        // empty transcript if the 2.x rows can't be read.
+        // empty transcript if the 2.x rows can't be read. With an unreadable
+        // `session_part` the 2.x copy may be missing its replies, so the 1.x
+        // copy goes first.
+        if schema.v2_parts_unreadable {
+            return load_v1_messages_with_conn(conn, session_id)
+                .or_else(|| load_v2_messages(conn, schema, session_id));
+        }
         return load_v2_messages(conn, schema, session_id)
             .or_else(|| load_v1_messages_with_conn(conn, session_id));
     }
@@ -1283,6 +1293,10 @@ fn load_v2_messages(
     schema: StoreSchema,
     session_id: &str,
 ) -> Option<Vec<ClaudeMessage>> {
+    // `OpenCode` moves inline content into `session_part` as it goes. One
+    // read transaction keeps both queries on the same snapshot, so a move
+    // between them can't drop a reply. Dropping it ends the read.
+    let _snapshot = conn.unchecked_transaction().ok();
     let mut parts_by_message: HashMap<String, Vec<Value>> = HashMap::new();
     if schema.v2_parts {
         let mut stmt = conn
@@ -1680,17 +1694,76 @@ fn convert_v2_message(
             message.content = Some(Value::String(text.to_string()));
             return Some(message);
         }
+        // A command the user ran themselves (`!cmd`). Its completion notice
+        // only reaches `session_message` once another prompt is sent, so this
+        // row can be the only record of the command and its output.
+        "shell" => {
+            message.message_type = "user".to_string();
+            message.role = Some("user".to_string());
+            let call_id = str_field(data, "shellID").unwrap_or(message_id).to_string();
+            blocks.push(serde_json::json!({
+                "type": "tool_use",
+                "id": call_id,
+                "name": "Bash",
+                "rawToolName": "shell",
+                "input": { "command": str_field(data, "command").unwrap_or("") }
+            }));
+            let status = str_field(data, "status").unwrap_or("");
+            if status != "running" {
+                let output = data
+                    .get("output")
+                    .and_then(|o| str_field(o, "output"))
+                    .unwrap_or("");
+                let mut result = serde_json::json!({
+                    "type": "tool_result",
+                    "tool_use_id": call_id,
+                    "content": output,
+                    "toolUseResult": { "status": status }
+                });
+                if let Some(exit) = data.get("exit").filter(|e| e.is_number()) {
+                    result["toolUseResult"]["exit"] = exit.clone();
+                }
+                blocks.push(result);
+            }
+        }
+        // The usage is the compaction request's own, so it counts toward the
+        // session's totals like any other model call.
         "compaction" => {
             message.message_type = "system".to_string();
             message.role = Some("system".to_string());
-            message.subtype = Some("compact_boundary".to_string());
-            message.level = Some("info".to_string());
-            message.compact_metadata = Some(serde_json::json!({
-                "trigger": str_field(data, "reason").unwrap_or("auto")
-            }));
-            message.content = Some(Value::String(
-                str_field(data, "summary").unwrap_or("").to_string(),
-            ));
+            message.model = data
+                .get("model")
+                .and_then(|m| str_field(m, "id"))
+                .map(str::to_string);
+            message.usage = data.get("tokens").map(parse_opencode_token_usage);
+            message.cost_usd = data.get("cost").and_then(Value::as_f64);
+            let trigger = str_field(data, "reason").unwrap_or("auto");
+            match str_field(data, "status").unwrap_or("completed") {
+                "failed" => {
+                    message.level = Some("error".to_string());
+                    let error = data
+                        .get("error")
+                        .and_then(v2_error_text)
+                        .unwrap_or_else(|| "unknown error".to_string());
+                    message.content = Some(Value::String(format!(
+                        "Context compaction ({trigger}) failed: {error}"
+                    )));
+                }
+                "running" => {
+                    message.level = Some("info".to_string());
+                    message.content = Some(Value::String(format!(
+                        "Context compaction ({trigger}) in progress"
+                    )));
+                }
+                _ => {
+                    message.subtype = Some("compact_boundary".to_string());
+                    message.level = Some("info".to_string());
+                    message.compact_metadata = Some(serde_json::json!({ "trigger": trigger }));
+                    message.content = Some(Value::String(
+                        str_field(data, "summary").unwrap_or("").to_string(),
+                    ));
+                }
+            }
             return Some(message);
         }
         _ => return None,
@@ -1832,16 +1905,10 @@ fn search_from_db(
         }
     }
     if schema.v1_parts {
-        // A 1.x session that was migrated is read from its 2.x copy, which
-        // the queries above already cover.
-        let migrated = if schema.v2_sessions {
-            " AND NOT EXISTS (SELECT 1 FROM session_v2 v WHERE v.id = part.session_id)"
-        } else {
-            ""
-        };
-        queries.push(format!(
-            "SELECT session_id FROM part WHERE LOWER(data) LIKE ?1 ESCAPE '\\'{migrated}"
-        ));
+        // Migrated sessions stay candidates too: the loader below decides
+        // which copy is shown, and only what it shows is matched.
+        queries
+            .push("SELECT session_id FROM part WHERE LOWER(data) LIKE ?1 ESCAPE '\\'".to_string());
     }
     if queries.is_empty() {
         return None;
@@ -3422,8 +3489,138 @@ mod v2_tests {
         let mut hit: Vec<&str> = results.iter().map(|m| m.uuid.as_str()).collect();
         hit.sort_unstable();
         assert_eq!(hit, ["msg_n1", "msg_o1"]);
-        assert!(!sessions.contains("ses_both"));
-        assert_eq!(sessions.len(), 2);
+        assert!(sessions.contains("ses_new") && sessions.contains("ses_old"));
+    }
+
+    /// When the 2.x rows can't be read the 1.x copy is what opens, so
+    /// search has to find it too.
+    #[test]
+    fn search_finds_the_v1_copy_shown_when_v2_rows_are_unreadable() {
+        let store = store(true);
+        store.v1_session("ses_both", "t");
+        store.v1_message("ses_both", "msg_1", "user", "legacy needle");
+        store.v2_session("ses_both", Some("t"), None, 8000);
+        store.v2_message("ses_both", "msg_1", 0, "user", json!([]));
+
+        assert_eq!(
+            blocks(&store.messages("ses_both")[0])[0]["text"],
+            "legacy needle"
+        );
+        let (results, _) = search_from_db(&store.base, OPENCODE_DB_FILE, "needle", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].uuid, "msg_1");
+    }
+
+    #[test]
+    fn unreadable_session_part_prefers_the_v1_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = Connection::open(dir.path().join(OPENCODE_DB_FILE)).unwrap();
+        // A `session_part` without the `call_id` column this reader probes for.
+        let reshaped = V2_TABLES.replace("call_id TEXT, ", "");
+        assert_ne!(reshaped, V2_TABLES);
+        conn.execute_batch(&reshaped).unwrap();
+        conn.execute_batch(V1_TABLES).unwrap();
+        let store = Store {
+            base: dir.path().to_string_lossy().to_string(),
+            _dir: dir,
+            conn,
+        };
+        assert!(StoreSchema::read(&store.conn).unwrap().v2_parts_unreadable);
+        store.v1_session("ses_both", "t");
+        store.v1_message("ses_both", "msg_1", "user", "prompt");
+        store.v1_message("ses_both", "msg_2", "assistant", "the full reply");
+        store.v2_session("ses_both", Some("t"), None, 8000);
+        store.v2_message("ses_both", "msg_1", 0, "user", json!({ "text": "prompt" }));
+        store.v2_message(
+            "ses_both",
+            "msg_2",
+            1,
+            "assistant",
+            json!({ "content": [], "finish": "stop" }),
+        );
+
+        let messages = store.messages("ses_both");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(blocks(&messages[1])[0]["text"], "the full reply");
+    }
+
+    #[test]
+    fn user_shell_commands_show_as_bash_calls() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_sh",
+            0,
+            "shell",
+            json!({
+                "shellID": "sh_1", "command": "ls -la", "status": "exited", "exit": 0,
+                "output": { "output": "a\nb\n", "cursor": 4, "size": 4, "truncated": false },
+                "time": { "created": 1000, "completed": 1001 }
+            }),
+        );
+        store.v2_message("ses_new", "msg_run", 1, "shell", json!({
+            "shellID": "sh_2", "command": "sleep 60", "status": "running", "time": { "created": 1002 }
+        }));
+
+        assert_eq!(store.sessions()[0].message_count, 2);
+        let messages = store.messages("ses_new");
+        let done = blocks(&messages[0]);
+        assert_eq!(done[0]["name"], "Bash");
+        assert_eq!(done[0]["input"]["command"], "ls -la");
+        assert_eq!(done[1]["tool_use_id"], "sh_1");
+        assert_eq!(done[1]["content"], "a\nb\n");
+        assert_eq!(done[1]["toolUseResult"]["exit"], 0);
+        assert_eq!(
+            blocks(&messages[1]).len(),
+            1,
+            "a running command has no result yet"
+        );
+    }
+
+    #[test]
+    fn compactions_keep_their_usage_and_failures_keep_the_error() {
+        let store = store(false);
+        store.v2_session("ses_new", Some("t"), None, 9000);
+        store.v2_message(
+            "ses_new",
+            "msg_ok",
+            0,
+            "compaction",
+            json!({
+                "status": "completed", "reason": "auto", "summary": "kept",
+                "model": { "id": "glm" }, "tokens": { "input": 500, "output": 80 }, "cost": 0.03
+            }),
+        );
+        store.v2_message(
+            "ses_new",
+            "msg_fail",
+            1,
+            "compaction",
+            json!({
+                "status": "failed", "reason": "manual",
+                "error": { "type": "provider", "message": "context too large" },
+                "tokens": { "input": 400, "output": 0 }
+            }),
+        );
+
+        let messages = store.messages("ses_new");
+        let ok = &messages[0];
+        assert_eq!(ok.subtype.as_deref(), Some("compact_boundary"));
+        assert_eq!(ok.model.as_deref(), Some("glm"));
+        assert_eq!(ok.usage.as_ref().unwrap().input_tokens, Some(500));
+        assert_eq!(ok.cost_usd, Some(0.03));
+
+        let failed = &messages[1];
+        assert_eq!(failed.subtype, None);
+        assert_eq!(failed.level.as_deref(), Some("error"));
+        assert_eq!(
+            failed.content,
+            Some(json!(
+                "Context compaction (manual) failed: context too large"
+            ))
+        );
+        assert_eq!(failed.usage.as_ref().unwrap().input_tokens, Some(400));
     }
 
     #[test]

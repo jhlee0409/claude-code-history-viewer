@@ -675,7 +675,6 @@ export function recordedResultFields(result: ToolResultLike, provider?: string):
   // OpenCode 2.x keeps the output as `content: [{type:"text"}, ...]` and the
   // error as `{type, message}`; the backend shows the text, so these echo it.
   const coreV2Echo = (key: string, v: unknown): boolean => {
-    if (key === "error" && isPlainObject(v)) return JSON.stringify(v.message) === shown;
     if (key !== "content" || !Array.isArray(v)) return false;
     if (JSON.stringify(v) === shown) return true;
     const texts = v.map(item => isPlainObject(item) && item.type === "text" && typeof item.text === "string" ? item.text : undefined);
@@ -684,6 +683,12 @@ export function recordedResultFields(result: ToolResultLike, provider?: string):
   const remaining = (value: Record<string, unknown>, nested = false): Record<string, unknown> => Object.fromEntries(Object.entries(value).flatMap(([key, v]) => {
     const executionLevel = codex || (provider === "openhands" && nested);
     if (!nested && core && coreV2Echo(key, v)) return [];
+    // Only the shown `message` is an echo; the error's other fields (its
+    // `type`, for one) are still recorded data.
+    if (!nested && core && key === "error" && isPlainObject(v) && JSON.stringify(v.message) === shown) {
+      const rest = Object.fromEntries(Object.entries(v).filter(([field]) => field !== "message"));
+      return Object.keys(rest).length > 0 ? [[key, rest]] : [];
+    }
     if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === shown && v !== null) return [];
     if (!nested && key === "error_code" && v === n.errorCode) return [];
     if (executionLevel && EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof v === "number" && v === n.exitCode && !n.exitCodeConflict) return [];
