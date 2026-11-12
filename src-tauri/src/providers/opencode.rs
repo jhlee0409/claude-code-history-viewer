@@ -1723,6 +1723,15 @@ fn convert_v2_message(
                 if let Some(exit) = data.get("exit").filter(|e| e.is_number()) {
                     result["toolUseResult"]["exit"] = exit.clone();
                 }
+                // The stored output is a page of the command's capture; keep
+                // the flag so a cut-off output isn't read as the whole thing.
+                if let Some(truncated) = data
+                    .get("output")
+                    .and_then(|o| o.get("truncated"))
+                    .filter(|t| t.is_boolean())
+                {
+                    result["toolUseResult"]["truncated"] = truncated.clone();
+                }
                 blocks.push(result);
             }
         }
@@ -3555,7 +3564,7 @@ mod v2_tests {
             "shell",
             json!({
                 "shellID": "sh_1", "command": "ls -la", "status": "exited", "exit": 0,
-                "output": { "output": "a\nb\n", "cursor": 4, "size": 4, "truncated": false },
+                "output": { "output": "a\nb\n", "cursor": 4, "size": 9000, "truncated": true },
                 "time": { "created": 1000, "completed": 1001 }
             }),
         );
@@ -3571,6 +3580,8 @@ mod v2_tests {
         assert_eq!(done[1]["tool_use_id"], "sh_1");
         assert_eq!(done[1]["content"], "a\nb\n");
         assert_eq!(done[1]["toolUseResult"]["exit"], 0);
+        assert_eq!(done[1]["toolUseResult"]["status"], "exited");
+        assert_eq!(done[1]["toolUseResult"]["truncated"], true);
         assert_eq!(
             blocks(&messages[1]).len(),
             1,

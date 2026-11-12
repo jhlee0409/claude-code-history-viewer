@@ -253,6 +253,16 @@ export function normalizeResult(
     if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
   }
   if (core && own) {
+    // OpenCode 2.x user-run commands (`!cmd`) are their own `shell` rows with
+    // the Shell.Info status enum, not a tool state. `exited` carries the exit
+    // code; `timeout` and `killed` mean the command was stopped.
+    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/shell.ts#L25
+    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/session-message.ts#L120-L133
+    if (options.provider === "opencode" && options.rawToolName === "shell" && options.bareCodeIsExitCode) {
+      const exit = recordedInteger(own.exit);
+      if (exit !== undefined) out.exitCode = exit;
+      if (own.status === "timeout" || own.status === "killed") out.interrupted = true;
+    }
     // For non-process tools a normal return is completed; throws become error.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
     // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310

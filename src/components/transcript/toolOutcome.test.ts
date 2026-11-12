@@ -640,3 +640,26 @@ describe("writeConfirmationPath: Claude's Write confirmation sentence (renderer 
     expect(writeConfirmationPath(r)).toBeNull();
   });
 });
+
+// OpenCode 2.x user-run commands: Shell.Info status enum, exit on the row.
+// https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/shell.ts#L25
+describe("OpenCode 2.x user shell rows", () => {
+  const use: ToolUseLike = { type: "tool_use", id: "sh_1", name: "Bash", rawToolName: "shell", input: { command: "ls" } };
+  const row = (toolUseResult: Record<string, unknown>) =>
+    result("out", { tool_use_id: "sh_1", ...own(toolUseResult) });
+  it.each([
+    [{ status: "exited", exit: 0 }, "completed", "succeeded", 0],
+    [{ status: "exited", exit: 2 }, "completed", "failed", 2],
+    [{ status: "timeout" }, "interrupted", "unknown", undefined],
+    [{ status: "killed" }, "interrupted", "unknown", undefined],
+  ])("%j", (state, lifecycle, verdict, exitCode) => {
+    const outcome = toolOutcome(use, [row(state)], "process", "opencode");
+    expect(outcome.lifecycle).toBe(lifecycle);
+    expect(outcome.verdict).toBe(verdict);
+    expect(outcome.exitCode).toBe(exitCode);
+  });
+  it("leaves the agent's shell tool to its own state rules", () => {
+    const agent = { ...use, rawToolName: undefined };
+    expect(toolOutcome(agent, [row({ status: "exited", exit: 0 })], "process", "opencode").verdict).toBe("unknown");
+  });
+});
