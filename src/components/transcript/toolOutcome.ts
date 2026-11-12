@@ -671,9 +671,20 @@ export function recordedResultFields(result: ToolResultLike, provider?: string):
   const pi = provider === "pi" || provider === "ompi";
   const core = provider === "opencode" || provider === "kilo";
   const execution = codex || provider === "openhands";
+  const shown = JSON.stringify(result.content);
+  // OpenCode 2.x keeps the output as `content: [{type:"text"}, ...]` and the
+  // error as `{type, message}`; the backend shows the text, so these echo it.
+  const coreV2Echo = (key: string, v: unknown): boolean => {
+    if (key === "error" && isPlainObject(v)) return JSON.stringify(v.message) === shown;
+    if (key !== "content" || !Array.isArray(v)) return false;
+    if (JSON.stringify(v) === shown) return true;
+    const texts = v.map(item => isPlainObject(item) && item.type === "text" && typeof item.text === "string" ? item.text : undefined);
+    return texts.every(text => text !== undefined) && JSON.stringify(texts.join("\n")) === shown;
+  };
   const remaining = (value: Record<string, unknown>, nested = false): Record<string, unknown> => Object.fromEntries(Object.entries(value).flatMap(([key, v]) => {
     const executionLevel = codex || (provider === "openhands" && nested);
-    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === JSON.stringify(result.content) && v !== null) return [];
+    if (!nested && core && coreV2Echo(key, v)) return [];
+    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === shown && v !== null) return [];
     if (!nested && key === "error_code" && v === n.errorCode) return [];
     if (executionLevel && EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof v === "number" && v === n.exitCode && !n.exitCodeConflict) return [];
     if (executionLevel && key === "interrupted" && v === true && n.interrupted === true) return [];

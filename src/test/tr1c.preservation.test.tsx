@@ -21,6 +21,14 @@ describe('TR1c source metadata preservation',()=>{
   expect(retained).not.toHaveProperty('output');
   expect(retained.metadata).toEqual({unknown:'evidence-only-needle',null:null,false:false,zero:0,empty:''});
  });
+ it('OpenCode 2.x content/error echoes are not repeated; metadata survives',()=>{
+  const done={type:'tool_result',tool_use_id:'c',content:'line 1\nline 2',toolUseResult:{status:'completed',input:{command:'ls'},content:[{type:'text',text:'line 1'},{type:'text',text:'line 2'}],metadata:{exit:0}}};
+  expect(recordedResultFields(done,'opencode')).toEqual({status:'completed',input:{command:'ls'},metadata:{exit:0}});
+  const failed={type:'tool_result',tool_use_id:'c',content:'Could not find oldString',is_error:true,toolUseResult:{status:'error',input:{},error:{type:'tool.execution',message:'Could not find oldString'}}};
+  expect(recordedResultFields(failed,'opencode')).toEqual({status:'error',input:{}});
+  const withImage={type:'tool_result',tool_use_id:'c',content:'Image read',toolUseResult:{status:'completed',content:[{type:'text',text:'Image read'},{type:'file',uri:'data:image/png;base64,AA',mime:'image/png'}]}};
+  expect(recordedResultFields(withImage,'opencode')).toHaveProperty('content');
+ });
  it('Codex unrelated/null/false/zero/empty fields keep their raw values, not the output echo',()=>{
   const r=results('codex')[0]!;
   expect(recordedResultFields(r,'codex')).toEqual({future:{array:[],empty:'',false:false,null:null,zero:0},metadata:{interrupted:false}});
