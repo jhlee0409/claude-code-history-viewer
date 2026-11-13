@@ -376,6 +376,8 @@
   "globalSearch.scope.label": "搜索范围",
   "globalSearch.scope.project": "当前项目",
   "globalSearch.scope.all": "所有项目",
+  "globalSearch.scope.sidebar": "侧边栏筛选",
+  "globalSearch.scope.sidebarHint": "仅限侧边栏筛选“{{query}}”显示的内容",
   "globalSearch.scope.projectUnavailable": "打开项目后可只在其中搜索",
   "globalSearch.scope.pinned": "在“{{project}}”中搜索",
   "globalSearch.scope.pinnedAria": "在“{{project}}”中搜索，取消范围",

@@ -96,6 +96,10 @@ import {
   type SessionSelectionSlice,
   createSessionSelectionSlice,
 } from "./slices/sessionSelectionSlice";
+import {
+  type SidebarFilterSlice,
+  createSidebarFilterSlice,
+} from "./slices/sidebarFilterSlice";
 
 // Re-export types for backward compatibility
 export type {
@@ -129,7 +133,8 @@ export type AppStore = ProjectSlice &
   SessionPickerSlice &
   ServerSlice &
   SessionSelectionSlice &
-  DocumentSlice;
+  DocumentSlice &
+  SidebarFilterSlice;
 
 // ============================================================================
 // Store Creation
@@ -162,6 +167,7 @@ export const useAppStore = create<AppStore>()((...args) => {
     ...createServerSlice(...args),
     ...createSessionSelectionSlice(...args),
     ...createDocumentSlice(...args),
+    ...createSidebarFilterSlice(...args),
   };
 });
 

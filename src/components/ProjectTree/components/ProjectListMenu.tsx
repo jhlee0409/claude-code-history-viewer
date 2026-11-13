@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { GroupingMode } from "@/types/metadata.types";
 import type { ProviderId } from "@/types";
+import type { SidebarFilterScope } from "@/utils/sidebarFilter";
 import { ProviderDot } from "./ProviderDot";
 
 export type ProjectSort = "recent" | "name";
@@ -37,7 +38,15 @@ interface ProjectListMenuProps {
   onResetProviders: () => void;
   onDiscoverProviders: () => void;
   isDiscovering: boolean;
+  /** What the filter box matches: project names, session names, or both. */
+  filterScope: SidebarFilterScope;
+  onFilterScopeChange: (scope: SidebarFilterScope) => void;
 }
+
+const FILTER_TARGETS: ReadonlyArray<{ key: keyof SidebarFilterScope; label: string }> = [
+  { key: "matchProjects", label: "project.filter.target.projects" },
+  { key: "matchSessions", label: "project.filter.target.sessions" },
+];
 
 const GROUPINGS: ReadonlyArray<{ mode: GroupingMode; icon: typeof List; key: string }> = [
   { mode: "none", icon: List, key: "project.groupingNone" },
@@ -48,7 +57,8 @@ const GROUPINGS: ReadonlyArray<{ mode: GroupingMode; icon: typeof List; key: str
 
 /**
  * The project list's view options in one menu beside the filter (plan T7):
- * sort (recent activity first by default), grouping and the provider filter.
+ * sort (recent activity first by default), grouping, what the filter box
+ * matches and the provider filter.
  * They used to be a row of icon toggles and a provider panel above the list,
  * which pushed the projects down and truncated the header.
  */
@@ -63,6 +73,8 @@ export function ProjectListMenu({
   onResetProviders,
   onDiscoverProviders,
   isDiscovering,
+  filterScope,
+  onFilterScopeChange,
 }: ProjectListMenuProps) {
   const { t } = useTranslation();
   const filtered = !isAllProvidersSelected;
@@ -110,6 +122,27 @@ export function ProjectListMenu({
             </DropdownMenuRadioGroup>
           </>
         )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>{t("project.filter.matchLabel")}</DropdownMenuLabel>
+        {FILTER_TARGETS.map(({ key, label: labelKey }) => {
+          const checked = filterScope[key];
+          // The last checked target stays on: with neither, nothing could match.
+          const isLastOn = checked && Object.values(filterScope).filter(Boolean).length === 1;
+          return (
+            <DropdownMenuCheckboxItem
+              key={key}
+              checked={checked}
+              disabled={isLastOn}
+              onSelect={(e) => {
+                e.preventDefault();
+                onFilterScopeChange({ ...filterScope, [key]: !checked });
+              }}
+            >
+              {t(labelKey)}
+            </DropdownMenuCheckboxItem>
+          );
+        })}
 
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t("project.providers")}</DropdownMenuLabel>

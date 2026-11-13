@@ -3,6 +3,7 @@ import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useSt
 import {
   CircleQuestionMark,
   Folder,
+  LoaderCircle,
   PanelLeftClose,
   PanelLeft,
   Search,
@@ -26,6 +27,12 @@ import type { ProjectTreeProps, SessionSelectHandler } from "./types";
 import type { ProviderId, ClaudeProject } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
+import { useSessionNameIndex } from "@/hooks/useSessionNameIndex";
+import {
+  collectScopedSessionIds,
+  computeSidebarMatches,
+  normalizeSidebarQuery,
+} from "@/utils/sidebarFilter";
 import { placeNameKey } from "@/navigation/placeNames";
 import {
   buildTreeItemAnnouncement,
@@ -131,7 +138,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     closeContextMenu,
   } = useProjectTreeState(groupingMode);
 
-  const [searchTerm, setSearchTerm] = useState("");
+  // The filter lives in the store so an expanded project can narrow its
+  // sessions to the ones that matched.
+  const searchTerm = useAppStore((state) => state.sidebarFilterQuery);
+  const setSearchTerm = useAppStore((state) => state.setSidebarFilterQuery);
+  const filterScope = useAppStore((state) => state.sidebarFilterScope);
+  const setFilterScope = useAppStore((state) => state.setSidebarFilterScope);
+  const setSidebarFilterResult = useAppStore((state) => state.setSidebarFilterResult);
+  const customSessionNames = useAppStore((state) => state.userMetadata.sessions);
   const [projectSort, setProjectSort] = useState<ProjectSort>(loadProjectSort);
   const searchInputId = React.useId();
 
@@ -298,19 +312,72 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   // interruptible low-priority render (no per-keystroke jank).
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const normalizedSearchTerm = useMemo(
-    () => deferredSearchTerm.trim().toLowerCase(),
+    () => normalizeSidebarQuery(deferredSearchTerm),
     [deferredSearchTerm]
   );
 
-  const matchesSearch = useCallback(
-    (project: (typeof projects)[number]) => {
-      if (!normalizedSearchTerm) return true;
-      const name = (project.name ?? "").toLowerCase();
-      const path = (project.actual_path ?? project.path ?? "").toLowerCase();
-      return name.includes(normalizedSearchTerm) || path.includes(normalizedSearchTerm);
-    },
-    [normalizedSearchTerm]
+  const providerFilteredProjects = useMemo(
+    () => projects.filter(matchesProviderFilter),
+    [projects, matchesProviderFilter]
   );
+
+  // Session names live in each project's session list, so matching them means
+  // loading those lists. Only done while a query is typed with session
+  // matching on.
+  const sessionNameIndex = useSessionNameIndex(
+    providerFilteredProjects,
+    filterScope.matchSessions && normalizedSearchTerm.length > 0
+  );
+
+  const sidebarMatches = useMemo(
+    () =>
+      computeSidebarMatches(
+        providerFilteredProjects,
+        normalizedSearchTerm,
+        filterScope,
+        sessionNameIndex.sessionsByProject,
+        customSessionNames
+      ),
+    [providerFilteredProjects, normalizedSearchTerm, filterScope, sessionNameIndex.sessionsByProject, customSessionNames]
+  );
+
+  useEffect(() => {
+    setSidebarFilterResult(
+      normalizedSearchTerm
+        ? {
+            projectPaths: [...sidebarMatches.projectPaths],
+            sessionMatchesByProject: Object.fromEntries(sidebarMatches.sessionMatchesByProject),
+            sessionIds: filterScope.matchSessions
+              ? collectScopedSessionIds(sidebarMatches, sessionNameIndex.sessionsByProject)
+              : null,
+          }
+        : null
+    );
+  }, [
+    filterScope.matchSessions,
+    normalizedSearchTerm,
+    sessionNameIndex.sessionsByProject,
+    setSidebarFilterResult,
+    sidebarMatches,
+  ]);
+
+  useEffect(() => () => setSidebarFilterResult(null), [setSidebarFilterResult]);
+
+  const matchesSearch = useCallback(
+    (project: (typeof projects)[number]) => sidebarMatches.projectPaths.has(project.path),
+    [sidebarMatches]
+  );
+
+  // "Filter projects" keeps meaning the default (project and session names);
+  // narrowing it to one of them says so.
+  const searchPlaceholder = filterScope.matchProjects && filterScope.matchSessions
+    ? t("project.filterPlaceholder")
+    : filterScope.matchProjects
+      ? t("project.filter.placeholder.projects")
+      : t("project.filter.placeholder.sessions");
+  const searchHint = filterScope.matchProjects && filterScope.matchSessions
+    ? t("project.filter.hint.both")
+    : searchPlaceholder;
 
   const filteredProjects = useMemo(
     () => projects.filter((p) => matchesProviderFilter(p) && matchesSearch(p)),
@@ -806,14 +873,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   aria-hidden="true"
                 />
                 <label htmlFor={searchInputId} className="sr-only">
-                  {t("project.filterPlaceholder")}
+                  {searchPlaceholder}
                 </label>
                 <input
                   id={searchInputId}
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={t("project.filterPlaceholder")}
+                  placeholder={searchPlaceholder}
+                  title={searchHint}
                   className="w-full h-7 pl-7 pr-7 text-list bg-muted/40 border border-transparent rounded-md placeholder:text-muted-foreground focus:outline-none focus:border-accent/40 focus:bg-muted/60 transition-colors"
                 />
                 {searchTerm && (
@@ -838,8 +906,24 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 onResetProviders={() => void applyProviderSelection(selectableProviderIds)}
                 onDiscoverProviders={handleDiscoverProviders}
                 isDiscovering={isDetectingProviders || isLoadingProjects}
+                filterScope={filterScope}
+                onFilterScopeChange={setFilterScope}
               />
             </div>
+            {sessionNameIndex.isIndexing && (
+              <p
+                role="status"
+                className="flex items-center gap-2 px-2 pb-1 text-caption text-muted-foreground"
+              >
+                <LoaderCircle className="w-3.5 h-3.5 shrink-0 animate-spin" aria-hidden="true" />
+                <span className="truncate">
+                  {t("project.filter.indexing", {
+                    loaded: sessionNameIndex.loadedCount,
+                    total: sessionNameIndex.totalCount,
+                  })}
+                </span>
+              </p>
+            )}
 
             {initialProjectsPending ? (
               <LoadingRows label={t("common.loadingProjects")} compact />
@@ -855,7 +939,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 <p className="text-body text-muted-foreground [&:lang(ko)]:break-keep">
                   {projects.length === 0
                     ? t(hasSearchedOtherProviders ? "session.noProjects.title" : "session.noProjects.claudeTitle")
-                    : t("project.notFound")}
+                    : sessionNameIndex.isIndexing
+                      ? t("project.filter.searchingSessions")
+                      : t("project.notFound")}
                 </p>
               </div>
             ) : (

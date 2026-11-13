@@ -376,6 +376,8 @@
   "globalSearch.scope.label": "搜尋範圍",
   "globalSearch.scope.project": "目前專案",
   "globalSearch.scope.all": "所有專案",
+  "globalSearch.scope.sidebar": "側邊欄篩選",
+  "globalSearch.scope.sidebarHint": "僅限側邊欄篩選「{{query}}」顯示的內容",
   "globalSearch.scope.projectUnavailable": "開啟專案後可只在其中搜尋",
   "globalSearch.scope.pinned": "在「{{project}}」中搜尋",
   "globalSearch.scope.pinnedAria": "在「{{project}}」中搜尋，取消範圍",
