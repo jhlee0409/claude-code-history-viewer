@@ -107,11 +107,9 @@
       "mdast-util-gfm-autolink-literal": "2.0.0"
     },
     "ignoredBuiltDependencies": [
-      "@tailwindcss/oxide",
-      "esbuild"
+      "@tailwindcss/oxide"
     ]
   },
-  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "eslint"
