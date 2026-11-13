@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-01T04:18:54.294Z
- * 총 키 개수: 2347
+ * 생성 시간: 2026-11-13T06:27:23.601Z
+ * 총 키 개수: 2367
  * Namespace 수: 13
  */
 
@@ -569,7 +569,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (292개)
+ * session namespace의 번역 키 (312개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -777,6 +777,21 @@ export type SessionKeys =
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
+  | 'session.move.confirm'
+  | 'session.move.description'
+  | 'session.move.error'
+  | 'session.move.errorActive'
+  | 'session.move.errorExists'
+  | 'session.move.errorRecent'
+  | 'session.move.leftover'
+  | 'session.move.menuItem'
+  | 'session.move.metadataError'
+  | 'session.move.noProjects'
+  | 'session.move.resumeNote'
+  | 'session.move.searchLabel'
+  | 'session.move.searchPlaceholder'
+  | 'session.move.success'
+  | 'session.move.title'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.descriptionCodex'
@@ -797,6 +812,10 @@ export type SessionKeys =
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.tooltip'
+  | 'session.nativeRename.tooltipCodex'
+  | 'session.nativeRename.tooltipForgeCode'
+  | 'session.nativeRename.tooltipOpenCode'
   | 'session.nativeRename.warning'
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
@@ -814,6 +833,7 @@ export type SessionKeys =
   | 'session.renameHint'
   | 'session.renameMenuItem'
   | 'session.renamePlaceholder'
+  | 'session.renameTooltip'
   | 'session.resetError'
   | 'session.resetName'
   | 'session.resumeUnavailableLocation'
@@ -3895,6 +3915,21 @@ export type TranslationKey =
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
+  | 'session.move.confirm'
+  | 'session.move.description'
+  | 'session.move.error'
+  | 'session.move.errorActive'
+  | 'session.move.errorExists'
+  | 'session.move.errorRecent'
+  | 'session.move.leftover'
+  | 'session.move.menuItem'
+  | 'session.move.metadataError'
+  | 'session.move.noProjects'
+  | 'session.move.resumeNote'
+  | 'session.move.searchLabel'
+  | 'session.move.searchPlaceholder'
+  | 'session.move.success'
+  | 'session.move.title'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.descriptionCodex'
@@ -3915,6 +3950,10 @@ export type TranslationKey =
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.tooltip'
+  | 'session.nativeRename.tooltipCodex'
+  | 'session.nativeRename.tooltipForgeCode'
+  | 'session.nativeRename.tooltipOpenCode'
   | 'session.nativeRename.warning'
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
@@ -3932,6 +3971,7 @@ export type TranslationKey =
   | 'session.renameHint'
   | 'session.renameMenuItem'
   | 'session.renamePlaceholder'
+  | 'session.renameTooltip'
   | 'session.resetError'
   | 'session.resetName'
   | 'session.resumeUnavailableLocation'
