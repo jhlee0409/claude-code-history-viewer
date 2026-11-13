@@ -35,6 +35,9 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
     if file_path.starts_with("forgecode://") || file_path.starts_with("forgecode-db://") {
         return crate::providers::forgecode::delete_conversation(&file_path);
     }
+    if file_path.starts_with("cursor://") {
+        return crate::providers::cursor::delete_session(&file_path);
+    }
 
     let path = Path::new(&file_path);
 

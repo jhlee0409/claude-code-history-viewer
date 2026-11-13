@@ -885,9 +885,12 @@ handler_json!(
     delete_session,
     DeleteSessionParams,
     |p: DeleteSessionParams| async move {
-        // ForgeCode uses opaque URI scheme handled inside the command;
-        // file-path callers are constrained to the provider session roots.
-        if !p.file_path.starts_with("forgecode://") && !p.file_path.starts_with("forgecode-db://") {
+        // ForgeCode and Cursor use opaque URI schemes handled inside the
+        // command; file-path callers are constrained to the provider roots.
+        if !p.file_path.starts_with("forgecode://")
+            && !p.file_path.starts_with("forgecode-db://")
+            && !p.file_path.starts_with("cursor://")
+        {
             require_history_path(&p.file_path)?;
         }
         commands::session::delete_session(p.file_path).await

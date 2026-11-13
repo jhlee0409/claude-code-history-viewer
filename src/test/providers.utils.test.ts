@@ -105,6 +105,10 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
   });
 
+  it("allows deleting Cursor conversations stored in its SQLite database", () => {
+    expect(supportsSessionDeletion("cursor")).toBe(true);
+  });
+
   it("returns the kimi resume subcommand for kimi sessions", () => {
     expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi")).toBe(
       "common.provider.kimi:Kimi"

@@ -60,11 +60,12 @@ describe("GroupedProjectList", () => {
   function renderList(options: {
     groupingMode: "none" | "directory" | "worktree";
     project: ClaudeProject;
-    handleProjectClick: ReturnType<typeof vi.fn>;
+    handleProjectClick?: ReturnType<typeof vi.fn>;
     projects?: ClaudeProject[];
     directoryGroups?: DirectoryGroup[];
     worktreeGroups?: WorktreeGroup[];
     expandedProjects?: Set<string>;
+    onClearUnavailableSessions?: (projects: ClaudeProject[]) => void;
   }) {
     render(
       <GroupedProjectList
@@ -79,10 +80,11 @@ describe("GroupedProjectList", () => {
         expandedProjects={options.expandedProjects ?? new Set<string>()}
         setExpandedProjects={vi.fn()}
         isProjectExpanded={() => false}
-        handleProjectClick={options.handleProjectClick}
+        handleProjectClick={options.handleProjectClick ?? vi.fn()}
         handleContextMenu={vi.fn()}
         onSessionSelect={vi.fn()}
         formatTimeAgo={(date) => date}
+        onClearUnavailableSessions={options.onClearUnavailableSessions}
       />
     );
   }
@@ -183,5 +185,39 @@ describe("GroupedProjectList", () => {
     });
 
     expect(screen.getByTestId(`project-item-${project.path}`)).toBeInTheDocument();
+  });
+
+  it("offers a clear action for the unavailable locations group", () => {
+    const project = {
+      ...createProject("/work/deleted-worktree", "deleted-worktree"),
+      path_status: "unavailable" as const,
+      session_count: 3,
+    };
+    const onClearUnavailableSessions = vi.fn();
+
+    renderList({
+      groupingMode: "none",
+      project,
+      onClearUnavailableSessions,
+    });
+
+    fireEvent.click(screen.getByTestId("clear-unavailable-sessions"));
+
+    expect(onClearUnavailableSessions).toHaveBeenCalledTimes(1);
+    expect(onClearUnavailableSessions).toHaveBeenCalledWith([project]);
+  });
+
+  it("hides the clear action when cleanup is not provided", () => {
+    const project = {
+      ...createProject("/work/deleted-worktree", "deleted-worktree"),
+      path_status: "unavailable" as const,
+    };
+
+    renderList({
+      groupingMode: "none",
+      project,
+    });
+
+    expect(screen.queryByTestId("clear-unavailable-sessions")).not.toBeInTheDocument();
   });
 });

@@ -51,10 +51,21 @@ export function useSessionEditing(session: ClaudeSession) {
           "session.deleteConfirmForgeCode",
           "This will permanently delete the ForgeCode conversation from the Forge database."
         )
+      : providerId === "cursor"
+        ? t(
+            "session.deleteConfirmCursor",
+            "This will permanently delete the Cursor conversation and its messages from Cursor's local storage."
+          )
       : t(
           "session.deleteConfirm",
           "This will move the session file and associated data (subagents, tool results) to your system Trash."
         );
+  const deleteDialogTargetLabel =
+    providerId === "forgecode"
+      ? t("session.deleteTargetForgeCode", "ForgeCode conversation")
+      : providerId === "cursor"
+        ? t("session.deleteTargetCursor", "Cursor conversation")
+        : t("session.deleteTarget", "Session file");
 
   // Sync localSummary when session.summary prop changes
   useEffect(() => {
@@ -407,6 +418,7 @@ export function useSessionEditing(session: ClaudeSession) {
     isServerReadOnly,
     deleteDialogTitle,
     deleteDialogDescription,
+    deleteDialogTargetLabel,
     inputRef,
     ignoreBlurRef,
 

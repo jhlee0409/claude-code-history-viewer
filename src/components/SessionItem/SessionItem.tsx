@@ -228,6 +228,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         onOpenChange={editing.setIsDeleteDialogOpen}
         title={editing.deleteDialogTitle}
         description={editing.deleteDialogDescription}
+        targetLabel={editing.deleteDialogTargetLabel}
         filePath={session.file_path}
         isDeleting={editing.isDeletingSession}
         onConfirm={editing.handleConfirmDeleteSession}

@@ -1,7 +1,8 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { AlertCircle, FolderTree, GitBranch, Timer } from "lucide-react";
+import { AlertCircle, FolderTree, GitBranch, Timer, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 import type { WorktreeGroup, DirectoryGroup } from "../../../utils/worktreeUtils";
 import type { GroupingStrategy } from "../types";
@@ -34,6 +35,8 @@ interface GroupedProjectListProps {
   onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
   inlineSessions?: boolean;
+  /** Clear every session under the "unavailable locations" bucket. */
+  onClearUnavailableSessions?: (projects: ClaudeProject[]) => void;
 }
 
 export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
@@ -60,6 +63,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onLoadMoreSessions = () => {},
   formatTimeAgo,
   inlineSessions = true,
+  onClearUnavailableSessions,
 }) => {
   const { t } = useTranslation();
 
@@ -147,6 +151,26 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     const groupKey = `group:${kind}-projects`;
     const isGroupExpanded = expandedProjects.has(groupKey);
     const isTemporary = kind === "temporary";
+    const clearAction =
+      kind === "unavailable" && onClearUnavailableSessions ? (
+        <button
+          type="button"
+          data-testid="clear-unavailable-sessions"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClearUnavailableSessions(bucketProjects);
+          }}
+          aria-label={t("project.unavailableCleanup.action", "Clear sessions")}
+          title={t("project.unavailableCleanup.action", "Clear sessions")}
+          className={cn(
+            "rounded p-1 text-muted-foreground transition-colors",
+            "hover:bg-destructive/10 hover:text-destructive",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60"
+          )}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      ) : undefined;
 
     return (
       <div className="space-y-0.5" role="none" data-testid={`${kind}-projects-group`}>
@@ -165,6 +189,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           ariaLevel={1}
           onToggle={() => toggleGroup(groupKey, bucketProjects)}
           variant={kind}
+          trailingAction={clearAction}
         />
         {isGroupExpanded && (
           <div

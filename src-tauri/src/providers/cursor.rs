@@ -1,7 +1,7 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -603,6 +603,155 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     attach_composer_token_usage(&composer, &mut messages);
 
     Ok(messages)
+}
+
+/// Delete one Cursor composer and every bubble that belongs to it.
+///
+/// Cursor keeps conversations in `globalStorage/state.vscdb`: the composer row
+/// is `composerData:<id>` and its messages are `bubbleId:<id>:<bubbleId>`. Both
+/// live in `cursorDiskKV`, so deleting them is a database operation rather than
+/// a filesystem trash operation. Workspace `ItemTable` indexes are updated on a
+/// best-effort basis so a deleted composer cannot reappear through the legacy
+/// workspace fallback scan.
+pub fn delete_session(session_path: &str) -> Result<(), String> {
+    let composer_id = session_path
+        .strip_prefix("cursor://")
+        .unwrap_or(session_path);
+    if !crate::utils::is_safe_storage_id(composer_id) {
+        return Err(format!("Invalid Cursor session path: {session_path}"));
+    }
+
+    let base = get_base_path().ok_or("Cursor not found")?;
+    let db_path = base.join("globalStorage").join("state.vscdb");
+    if !db_path.is_file() {
+        return Err("Cursor database not found".to_string());
+    }
+
+    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
+        .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
+
+    let composer_key = format!("composerData:{composer_id}");
+    let composer_json: Option<String> = conn
+        .query_row(
+            "SELECT value FROM cursorDiskKV WHERE key = ?1",
+            [&composer_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Query failed: {e}"))?;
+
+    let workspace_id = composer_json
+        .as_deref()
+        .and_then(|raw| parse_cursor_json(raw).ok())
+        .and_then(|composer| {
+            composer
+                .get("workspaceIdentifier")
+                .and_then(|wi| wi.get("id"))
+                .and_then(Value::as_str)
+                .map(std::string::ToString::to_string)
+        });
+
+    let deleted = conn
+        .execute("DELETE FROM cursorDiskKV WHERE key = ?1", [&composer_key])
+        .map_err(|e| format!("Failed to delete Cursor conversation: {e}"))?;
+    if deleted == 0 {
+        return Err(format!("Cursor conversation not found: {session_path}"));
+    }
+
+    // The composer id is a validated storage id, but `LIKE` still treats `%`
+    // and `_` as wildcards. Escape them so one id can never match another's
+    // bubbles.
+    let pattern = format!("bubbleId:{}:%", escape_like(composer_id));
+    conn.execute(
+        "DELETE FROM cursorDiskKV WHERE key LIKE ?1 ESCAPE '\\'",
+        [pattern],
+    )
+    .map_err(|e| format!("Failed to delete Cursor messages: {e}"))?;
+
+    drop(conn);
+
+    if let Some(workspace_id) = workspace_id.as_deref() {
+        if let Err(error) = remove_composer_from_workspace(&base, workspace_id, composer_id) {
+            log::warn!("Cursor workspace index cleanup failed for {composer_id}: {error}");
+        }
+    }
+
+    Ok(())
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+fn remove_composer_from_workspace(
+    base: &Path,
+    workspace_id: &str,
+    composer_id: &str,
+) -> Result<(), String> {
+    if !crate::utils::is_safe_storage_id(workspace_id) {
+        return Ok(());
+    }
+
+    let db_path = base
+        .join("workspaceStorage")
+        .join(workspace_id)
+        .join("state.vscdb");
+    if !db_path.is_file() {
+        return Ok(());
+    }
+
+    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
+        .map_err(|e| format!("Failed to open Cursor workspace DB: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
+
+    let data: Option<String> = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Query failed: {e}"))?;
+    let Some(data) = data else {
+        return Ok(());
+    };
+
+    let mut json = parse_cursor_json(&data)?;
+    let Some(object) = json.as_object_mut() else {
+        return Ok(());
+    };
+
+    let mut changed = false;
+    if let Some(list) = object.get_mut("allComposers").and_then(Value::as_array_mut) {
+        let before = list.len();
+        list.retain(|composer| {
+            composer.get("composerId").and_then(Value::as_str) != Some(composer_id)
+        });
+        changed |= list.len() != before;
+    }
+    if let Some(list) = object
+        .get_mut("selectedComposerIds")
+        .and_then(Value::as_array_mut)
+    {
+        let before = list.len();
+        list.retain(|id| id.as_str() != Some(composer_id));
+        changed |= list.len() != before;
+    }
+
+    if changed {
+        conn.execute(
+            "UPDATE ItemTable SET value = ?1 WHERE key = 'composer.composerData'",
+            [json.to_string()],
+        )
+        .map_err(|e| format!("Failed to update Cursor workspace index: {e}"))?;
+    }
+    Ok(())
 }
 
 fn attach_composer_token_usage(composer: &Value, messages: &mut [ClaudeMessage]) {
@@ -1488,6 +1637,106 @@ mod tests {
                     .and_then(|u| u.input_tokens)
                     .is_some_and(|tokens| tokens == 9001)
         }));
+    }
+
+    #[test]
+    #[serial]
+    fn delete_session_removes_composer_bubbles_and_workspace_index() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path().join("User");
+        let ws_hash = "hash-delete";
+        let ws_dir = user_dir.join("workspaceStorage").join(ws_hash);
+        fs::create_dir_all(&ws_dir).unwrap();
+        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+
+        let ws_conn = Connection::open(ws_dir.join("state.vscdb")).unwrap();
+        ws_conn
+            .execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        ws_conn
+            .execute(
+                "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+                [json!({
+                    "allComposers": [
+                        { "composerId": "comp-delete" },
+                        { "composerId": "comp-keep" }
+                    ],
+                    "selectedComposerIds": ["comp-delete", "comp-keep"]
+                })
+                .to_string()],
+            )
+            .unwrap();
+
+        let global_conn =
+            Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        global_conn
+            .execute(
+                "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        for (key, value) in [
+            (
+                "composerData:comp-delete",
+                json!({
+                    "composerId": "comp-delete",
+                    "workspaceIdentifier": { "id": ws_hash }
+                })
+                .to_string(),
+            ),
+            (
+                "bubbleId:comp-delete:b1",
+                json!({ "bubbleId": "b1", "text": "delete me" }).to_string(),
+            ),
+            (
+                "composerData:comp-keep",
+                json!({ "composerId": "comp-keep" }).to_string(),
+            ),
+            (
+                "bubbleId:comp-keep:b1",
+                json!({ "bubbleId": "b1", "text": "keep me" }).to_string(),
+            ),
+        ] {
+            global_conn
+                .execute(
+                    "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                    rusqlite::params![key, value],
+                )
+                .unwrap();
+        }
+        drop(global_conn);
+
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
+        delete_session("cursor://comp-delete").unwrap();
+
+        let global_conn =
+            Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        let mut stmt = global_conn
+            .prepare("SELECT key FROM cursorDiskKV ORDER BY key")
+            .unwrap();
+        let keys: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect();
+        assert_eq!(keys, ["bubbleId:comp-keep:b1", "composerData:comp-keep"]);
+
+        let index: String = ws_conn
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let index: Value = parse_cursor_json(&index).unwrap();
+        assert_eq!(
+            index["allComposers"],
+            json!([{ "composerId": "comp-keep" }])
+        );
+        assert_eq!(index["selectedComposerIds"], json!(["comp-keep"]));
     }
 
     /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`

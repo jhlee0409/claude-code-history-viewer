@@ -2222,6 +2222,13 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
 
     let path = PathBuf::from(&session_path);
     if !path.is_absolute() {
+        // Providers that keep conversations in a database mint opaque ids
+        // (`cursor://…`, `zed://…`, `forgecode-db://…`) instead of files. They
+        // have no on-disk subagent folder to scan, so no subagents is the
+        // correct answer rather than a path error shown on every selection.
+        if session_path.contains("://") {
+            return Ok(Vec::new());
+        }
         return Err("session_path must be an absolute path".to_string());
     }
     // Regular files only, never through a symlinked folder
@@ -4619,5 +4626,16 @@ mod tests {
         assert_eq!(session_lines(BufReader::new(Unreadable)).count(), 0);
         let mixed: &[u8] = b"one\n\xff\ntwo\n";
         assert_eq!(session_lines(mixed).collect::<Vec<_>>(), ["one", "two"]);
+    }
+
+    #[tokio::test]
+    async fn provider_uri_sessions_have_no_subagents_to_load() {
+        // Virtual ids name database rows, not files. There is no subagent
+        // folder to scan, and reporting a path error on every selection made
+        // these conversations look broken.
+        let subagents = get_session_subagents("cursor://composer-123".to_string())
+            .await
+            .unwrap();
+        assert!(subagents.is_empty());
     }
 }

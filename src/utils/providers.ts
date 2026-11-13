@@ -139,7 +139,9 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // Cursor conversations are rows in its local SQLite store. The delete
+    // command resolves the `cursor://` id and removes the composer + bubbles.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   "cursor-agent": {

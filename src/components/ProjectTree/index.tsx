@@ -27,9 +27,11 @@ import { formatTimeAgo as formatTimeAgoUtil } from "../../utils/time";
 import { isProjectTemporary } from "../../utils/pathUtils";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
+import { useUnavailableSessionsCleanup } from "./hooks/useUnavailableSessionsCleanup";
+import { ClearUnavailableSessionsDialog } from "./components/ClearUnavailableSessionsDialog";
 import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
-import type { ProviderId, ClaudeSession } from "../../types";
+import type { ProviderId, ClaudeSession, ClaudeProject } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import {
   buildTreeItemAnnouncement,
@@ -101,6 +103,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const clearProjectSelection = useAppStore(
     (state) => state.clearProjectSelection
   );
+  const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
 
   const {
     expandedProjects,
@@ -111,12 +114,43 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     handleContextMenu,
     closeContextMenu,
   } = useProjectTreeState(groupingMode);
+  const { isClearing, clearUnavailableSessions } =
+    useUnavailableSessionsCleanup();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [areProviderFiltersOpen, setAreProviderFiltersOpen] = useState(
     loadProviderFiltersOpenState
   );
+  const [pendingUnavailableCleanup, setPendingUnavailableCleanup] = useState<
+    ClaudeProject[] | null
+  >(null);
   const searchInputId = React.useId();
+
+  const pendingCleanupSessionCount = useMemo(
+    () =>
+      (pendingUnavailableCleanup ?? []).reduce(
+        (total, project) => total + (project.session_count ?? 0),
+        0
+      ),
+    [pendingUnavailableCleanup]
+  );
+
+  const handleRequestUnavailableCleanup = useCallback(
+    (cleanupProjects: ClaudeProject[]) => {
+      if (isServerReadOnly || isClearing || cleanupProjects.length === 0) {
+        return;
+      }
+      setPendingUnavailableCleanup(cleanupProjects);
+    },
+    [isClearing, isServerReadOnly]
+  );
+
+  const handleConfirmUnavailableCleanup = useCallback(async () => {
+    if (!pendingUnavailableCleanup) return;
+    const targets = pendingUnavailableCleanup;
+    await clearUnavailableSessions(targets);
+    setPendingUnavailableCleanup(null);
+  }, [clearUnavailableSessions, pendingUnavailableCleanup]);
 
   useEffect(() => {
     try {
@@ -1149,6 +1183,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 onLoadMoreSessions={onLoadMoreSessions}
                 formatTimeAgo={formatTimeAgo}
                 inlineSessions={inlineSessions}
+                onClearUnavailableSessions={
+                  isServerReadOnly ? undefined : handleRequestUnavailableCleanup
+                }
               />
             </div>
           )}
@@ -1191,6 +1228,22 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           onSelectProject={handleProjectClick}
         />
       )}
+
+      <ClearUnavailableSessionsDialog
+        open={pendingUnavailableCleanup != null}
+        onOpenChange={(open) => {
+          if (!open && !isClearing) {
+            setPendingUnavailableCleanup(null);
+          }
+        }}
+        projectNames={(pendingUnavailableCleanup ?? []).map(
+          (project) => project.name
+        )}
+        projectCount={pendingUnavailableCleanup?.length ?? 0}
+        sessionCount={pendingCleanupSessionCount}
+        isClearing={isClearing}
+        onConfirm={handleConfirmUnavailableCleanup}
+      />
     </aside>
   );
 };

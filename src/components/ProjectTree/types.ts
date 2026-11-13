@@ -100,4 +100,6 @@ export interface GroupHeaderProps {
   ariaLevel?: number;
   onToggle: () => void;
   variant: "directory" | "worktree" | "unavailable" | "temporary";
+  /** Optional control rendered beside the group row (e.g. clear sessions). */
+  trailingAction?: React.ReactNode;
 }

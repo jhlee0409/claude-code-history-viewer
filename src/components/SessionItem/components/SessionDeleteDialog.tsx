@@ -16,6 +16,8 @@ interface SessionDeleteDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
+  /** What the path below names: a JSONL file, a Cursor conversation, etc. */
+  targetLabel?: string;
   filePath: string;
   isDeleting: boolean;
   onConfirm: () => void | Promise<void>;
@@ -26,6 +28,7 @@ export const SessionDeleteDialog: React.FC<SessionDeleteDialogProps> = ({
   onOpenChange,
   title,
   description,
+  targetLabel,
   filePath,
   isDeleting,
   onConfirm,
@@ -54,7 +57,7 @@ export const SessionDeleteDialog: React.FC<SessionDeleteDialogProps> = ({
 
         <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
           <p className="text-xs font-medium text-destructive">
-            {t("session.deleteTarget", "Session file")}
+            {targetLabel ?? t("session.deleteTarget", "Session file")}
           </p>
           <p className="mt-1 break-all text-xs text-muted-foreground">
             {filePath}
