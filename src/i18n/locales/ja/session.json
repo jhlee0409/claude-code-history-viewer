@@ -290,5 +290,17 @@
   "project.sessions.showAll": "すべて表示 · {{count}}件",
   "project.sessions.showFewer": "表示を減らす",
   "project.sessions.empty": "セッションがありません",
-  "project.sessions.loadError": "セッションを読み込めませんでした"
+  "project.sessions.loadError": "セッションを読み込めませんでした",
+  "project.sessions.filterMatches_one": "フィルターに一致するセッション {{count}}件",
+  "project.sessions.filterMatches_other": "フィルターに一致するセッション {{count}}件",
+  "project.filter.hint.both": "プロジェクト名またはセッション名で絞り込む",
+  "project.filter.placeholder.projects": "プロジェクト名で絞り込む",
+  "project.filter.placeholder.sessions": "セッション名で絞り込む",
+  "project.filter.matchLabel": "絞り込み対象",
+  "project.filter.target.projects": "プロジェクト名",
+  "project.filter.target.sessions": "セッション名",
+  "project.filter.indexing": "セッションを確認中 {{loaded}}/{{total}}",
+  "project.filter.searchingSessions": "セッション名を検索中…",
+  "project.filter.indexError_one": "{{count}}件のプロジェクトのセッションを読み込めませんでした。プロジェクト名でのみ一致します。",
+  "project.filter.indexError_other": "{{count}}件のプロジェクトのセッションを読み込めませんでした。プロジェクト名でのみ一致します。"
 }

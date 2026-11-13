@@ -202,7 +202,7 @@ describe("loading truth in main area and project explorer", () => {
     expect(screen.getByText(i18n.t("messageViewer.noMessages"))).toBeInTheDocument();
   });
 
-  it.each([false, true].flatMap((phone) => ["provider", "search"].map((filter) => ({ phone, filter }))))("explorer ($phone, $filter): partial scans cannot establish a filtered zero", ({ phone, filter }) => {
+  it.each([false, true].flatMap((phone) => ["provider", "search"].map((filter) => ({ phone, filter }))))("explorer ($phone, $filter): partial scans cannot establish a filtered zero", async ({ phone, filter }) => {
     const codex: ClaudeProject = { ...project, name: "codex-result", path: "codex://result", actual_path: "/work/codex-result", provider: "codex" };
     useAppStore.setState({ projects: [project], projectsScanned: false, isLoadingProjects: true,
       activeProviders: filter === "provider" ? ["codex"] : ["claude", "codex"],
@@ -217,7 +217,8 @@ describe("loading truth in main area and project explorer", () => {
     expect(within(region).queryByText("0")).not.toBeInTheDocument();
     expect(region.querySelector('.animate-shimmer')).toBeInTheDocument();
     act(() => useAppStore.setState({ isLoadingProjects: false, projectsScanned: true }));
-    expect(within(region).getByText(i18n.t("project.notFound"))).toBeInTheDocument();
+    // The search also matches session names: "not found" waits for that scan.
+    expect(await within(region).findByText(i18n.t("project.notFound"))).toBeInTheDocument();
     expect(within(region).getByText("0")).toBeInTheDocument();
     act(() => useAppStore.setState({ projects: [project, codex], isLoadingProjects: true }));
     expect(within(region).getByRole("treeitem", { name: /codex-result/ })).toBeInTheDocument();
