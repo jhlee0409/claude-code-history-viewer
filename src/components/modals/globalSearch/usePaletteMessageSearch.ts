@@ -18,7 +18,7 @@
  * The view waits ("composing") until composition end makes the composed
  * text the key.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject } from "@/types";
@@ -29,6 +29,7 @@ import {
 import { getPathLeaf } from "@/utils/pathUtils";
 import { isMessageSearchable, MIN_MESSAGE_QUERY, type PaletteScope } from "@/commands/paletteSources";
 import type { ProviderId } from "@/types";
+import { isResultInScope, type SidebarSearchScope } from "./searchScope";
 
 export type MessageTypeFilter = "all" | "user" | "assistant";
 
@@ -50,6 +51,11 @@ export interface MessageSearchInput {
   messageType: MessageTypeFilter;
   /** The open project (scope "project" searches it). */
   project: ClaudeProject | null;
+  /**
+   * Scope "all" narrowed to what the sidebar filter shows (the palette's
+   * "Sidebar filter" chip), or null for everything.
+   */
+  restrict?: SidebarSearchScope | null;
   /** The palette is open; false cancels everything. */
   enabled: boolean;
 }
@@ -69,7 +75,7 @@ export interface MessageSearchRequest {
 
 /** The request for `input`, or null when there is nothing to search. */
 export function buildMessageSearchRequest(
-  input: Pick<MessageSearchInput, "query" | "scope" | "messageType" | "project">,
+  input: Pick<MessageSearchInput, "query" | "scope" | "messageType" | "project" | "restrict">,
   config: MessageSearchConfig,
 ): MessageSearchRequest | null {
   const query = input.query.trim();
@@ -80,14 +86,22 @@ export function buildMessageSearchRequest(
   if (query.length < MIN_MESSAGE_QUERY || (!config.claudePath && !hasAlternativeSource)) return null;
 
   const scoped = input.scope === "project" ? input.project : null;
+  const restrict = scoped ? null : (input.restrict ?? null);
   const filters: Record<string, unknown> = {};
   // The backend matches a project by its folder name (the path's last segment).
   if (scoped) filters.projects = [getPathLeaf(scoped.path) || scoped.path];
+  if (restrict) {
+    filters.projects = restrict.projectDirs;
+    if (restrict.sessionIds) filters.sessionIds = restrict.sessionIds;
+  }
   if (input.messageType !== "all") filters.messageType = input.messageType;
 
   const activeProviders = scoped
     ? [scoped.provider ?? "claude"]
-    : [...config.activeProviders];
+    : restrict
+      ? config.activeProviders.filter((id) => restrict.projects.some((p) => (p.provider ?? "claude") === id))
+      : [...config.activeProviders];
+  if (restrict && activeProviders.length === 0) return null;
   const useAllProviders = hasNonDefaultProvider(activeProviders as ProviderId[]) || hasCustomPaths || config.wslEnabled;
   const claudePath = config.claudePath || undefined;
   if (!useAllProviders) {
@@ -132,7 +146,7 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
   /** Ask again for the current query (after a failure). */
   retry: () => void;
 } {
-  const { claudePath, activeProviders, userMetadata } = useAppStore();
+  const { claudePath, activeProviders, userMetadata, projects } = useAppStore();
   const settings = userMetadata?.settings;
   // One string per distinct request: equal settings in new objects (a
   // metadata save) neither re-send the search nor drop its answer.
@@ -188,12 +202,22 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
+  // The backend narrows Claude and Codex; every result is checked here too,
+  // per project (see `searchScope`).
+  const restrict = input.scope === "all" ? (input.restrict ?? null) : null;
+  const results = useMemo(() => {
+    if (!settled || "failed" in settled) return [];
+    return restrict
+      ? settled.results.filter((result) => isResultInScope(result, restrict, projects ?? []))
+      : settled.results;
+  }, [settled, restrict, projects]);
+
   let view: MessageSearchView;
   if (unsearchable) view = { status: "unsearchable" };
   else if (!searchable) view = { status: "idle" };
   else if (!requestKey) view = { status: "composing" };
   else if (settled?.key !== requestKey) view = { status: "loading" };
   else if ("failed" in settled) view = { status: "error", query: settled.query };
-  else view = { status: "done", query: settled.query, results: settled.results };
+  else view = { status: "done", query: settled.query, results };
   return { view, retry };
 }

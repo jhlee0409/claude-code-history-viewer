@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import {
+  collectScopedSessionIds,
   computeSidebarMatches,
   normalizeSidebarQuery,
   sessionMatchesQuery,
@@ -61,5 +62,23 @@ describe("sidebarFilter", () => {
   it("matches the app-only custom session name", () => {
     expect(sessionMatchesQuery(session("s9", "Untitled"), "deploy", { s9: { customName: "Deploy script" } })).toBe(true);
     expect(sessionMatchesQuery(session("s9", "Untitled"), "deploy", {})).toBe(false);
+  });
+
+  describe("collectScopedSessionIds", () => {
+    it("takes every session of a project matched by name and only the matching ones otherwise", () => {
+      const matches = computeSidebarMatches([web, api], "api", BOTH, sessions, {});
+      expect(new Set(collectScopedSessionIds(matches, sessions))).toEqual(new Set(["s2", "s3"]));
+    });
+
+    it("includes actual_session_id, which messages carry", () => {
+      const withActual = new Map([[web.path, [{ ...session("s1", "login"), actual_session_id: "real-1" }]]]);
+      const matches = computeSidebarMatches([web], "login", SESSIONS_ONLY, withActual, {});
+      expect(collectScopedSessionIds(matches, withActual)).toEqual(["s1", "real-1"]);
+    });
+
+    it("gives up (null) while a name-matched project's sessions are not loaded", () => {
+      const matches = computeSidebarMatches([web, api], "api", BOTH, new Map(), {});
+      expect(collectScopedSessionIds(matches, new Map())).toBeNull();
+    });
   });
 });

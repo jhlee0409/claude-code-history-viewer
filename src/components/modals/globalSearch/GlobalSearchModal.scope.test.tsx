@@ -67,6 +67,8 @@ const { mockApi, storeState } = vi.hoisted(() => {
         navigationEpoch: 0,
         beginNavigation: () => ++state.navigationEpoch,
         excludeSidechain: false,
+        sidebarFilterQuery: "",
+        sidebarFilterResult: null as unknown,
     };
     return { mockApi: vi.fn(), storeState: state };
 });
@@ -186,6 +188,8 @@ beforeEach(() => {
     storeState.recentSessions = [];
     storeState.activeProviders = ["claude"];
     storeState.excludeSidechain = false;
+    storeState.sidebarFilterQuery = "";
+    storeState.sidebarFilterResult = null;
 });
 
 /** Type `query` so BETA's row is the highlighted one, then Tab. */
@@ -558,5 +562,64 @@ describe("⌘K palette: phones scope with a row button", () => {
         fireEvent.change(input(), { target: { value: "beta" } });
         fireEvent.click(screen.getByRole("option", { name: /beta/ }));
         await waitFor(() => expect(openers.openProject).toHaveBeenCalledWith(BETA));
+    });
+});
+
+describe("⌘K palette: the sidebar filter's scope", () => {
+    /** The sidebar filter "login": alpha by its name, beta only for its "Login flow rewrite" session. */
+    const filterSidebar = (sessionIds: string[] | null) => {
+        storeState.sidebarFilterQuery = "login";
+        storeState.sidebarFilterResult = {
+            projectPaths: [ALPHA.path, BETA.path],
+            sessionMatchesByProject: { [BETA.path]: [BETA_SESSIONS[0]] },
+            sessionIds,
+        };
+    };
+    const sidebarButton = () => screen.queryByRole("button", { name: "globalSearch.scope.sidebar" });
+
+    it("is not offered while the sidebar is not filtered", () => {
+        render(<Harness />);
+        expect(sidebarButton()).toBeNull();
+    });
+
+    it("starts there: messages of the shown projects and sessions only, until 'All projects'", async () => {
+        filterSidebar(["s1", "s2", "b1"]);
+        render(<Harness />);
+        expect(sidebarButton()).toHaveAttribute("aria-pressed", "true");
+
+        fireEvent.change(input(), { target: { value: "deploy" } });
+        await waitFor(() => expect(searches()).toHaveLength(1));
+        expect(searches()[0]?.[1]).toMatchObject({
+            filters: { projects: ["alpha", "beta-login"], sessionIds: ["s1", "s2", "b1"] },
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: "globalSearch.scope.all" }));
+        await waitFor(() => expect(searches()).toHaveLength(2));
+        expect(searches()[1]?.[1]).toMatchObject({ filters: {} });
+    });
+
+    it("keeps a project shown for some sessions to those sessions, even without a session id list", async () => {
+        filterSidebar(null);
+        searchAnswer = () =>
+            Promise.resolve([
+                { ...hit("m1", "deploy alpha"), sessionId: "s2" },
+                { ...hit("m2", "deploy kept", "beta-login"), sessionId: "b1" },
+                { ...hit("m3", "deploy dropped", "beta-login"), sessionId: "b2" },
+                { ...hit("m4", "deploy elsewhere", "gamma"), sessionId: "g1" },
+            ]);
+        render(<Harness />);
+        fireEvent.change(input(), { target: { value: "deploy" } });
+        await waitFor(() => expect(searches()).toHaveLength(1));
+        expect((searches()[0]?.[1] as { filters: Record<string, unknown> }).filters.sessionIds).toBeUndefined();
+
+        const messages = await waitFor(() => {
+            const rows = within(group("globalSearch.group.messages")!).getAllByRole("option");
+            expect(rows.length).toBeGreaterThan(0);
+            return rows.map((row) => row.textContent ?? "");
+        });
+        expect(messages.some((text) => text.includes("deploy alpha"))).toBe(true);
+        expect(messages.some((text) => text.includes("deploy kept"))).toBe(true);
+        expect(messages.some((text) => text.includes("deploy dropped"))).toBe(false);
+        expect(messages.some((text) => text.includes("deploy elsewhere"))).toBe(false);
     });
 });

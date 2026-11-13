@@ -380,6 +380,8 @@
   "globalSearch.scope.label": "Search in",
   "globalSearch.scope.project": "This project",
   "globalSearch.scope.all": "All projects",
+  "globalSearch.scope.sidebar": "Sidebar filter",
+  "globalSearch.scope.sidebarHint": "Only what the sidebar filter “{{query}}” shows",
   "globalSearch.scope.projectUnavailable": "Open a project to search only in it",
   "globalSearch.scope.pinned": "Search in “{{project}}”",
   "globalSearch.scope.pinnedAria": "Search in “{{project}}”, remove scope",

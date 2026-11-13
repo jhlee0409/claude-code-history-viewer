@@ -28,7 +28,11 @@ import type { ProviderId, ClaudeProject } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { useSessionNameIndex } from "@/hooks/useSessionNameIndex";
-import { computeSidebarMatches, normalizeSidebarQuery } from "@/utils/sidebarFilter";
+import {
+  collectScopedSessionIds,
+  computeSidebarMatches,
+  normalizeSidebarQuery,
+} from "@/utils/sidebarFilter";
 import { placeNameKey } from "@/navigation/placeNames";
 import {
   buildTreeItemAnnouncement,
@@ -343,10 +347,19 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         ? {
             projectPaths: [...sidebarMatches.projectPaths],
             sessionMatchesByProject: Object.fromEntries(sidebarMatches.sessionMatchesByProject),
+            sessionIds: filterScope.matchSessions
+              ? collectScopedSessionIds(sidebarMatches, sessionNameIndex.sessionsByProject)
+              : null,
           }
         : null
     );
-  }, [normalizedSearchTerm, setSidebarFilterResult, sidebarMatches]);
+  }, [
+    filterScope.matchSessions,
+    normalizedSearchTerm,
+    sessionNameIndex.sessionsByProject,
+    setSidebarFilterResult,
+    sidebarMatches,
+  ]);
 
   useEffect(() => () => setSidebarFilterResult(null), [setSidebarFilterResult]);
 
