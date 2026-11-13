@@ -109,6 +109,45 @@ describe("providers utils", () => {
     expect(supportsSessionDeletion("cursor")).toBe(true);
   });
 
+  it("allows deleting filesystem-backed provider sessions", () => {
+    for (const provider of [
+      "antigravity",
+      "cline",
+      "codebuddy",
+      "continue",
+      "copilot",
+      "cursor-agent",
+      "gemini",
+      "grok",
+      "kimi",
+      "openinterpreter",
+      "pi",
+      "qwen",
+      "vibe",
+    ] as const) {
+      expect(supportsSessionDeletion(provider)).toBe(true);
+    }
+  });
+
+  it("keeps shared-history and URI/DB providers undeletable until they have a delete path", () => {
+    for (const provider of [
+      "aider",
+      "amazonq",
+      "crush",
+      "goose",
+      "kilo",
+      "kiro",
+      "llm",
+      "opencode",
+      "openhands",
+      "trae",
+      "zed",
+      "zcode",
+    ] as const) {
+      expect(supportsSessionDeletion(provider)).toBe(false);
+    }
+  });
+
   it("returns the kimi resume subcommand for kimi sessions", () => {
     expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi")).toBe(
       "common.provider.kimi:Kimi"

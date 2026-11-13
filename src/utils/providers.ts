@@ -62,6 +62,8 @@ export interface ProviderSessionCapability {
 }
 
 const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapability> = {
+  // Aider shares one history file across many sessions — per-session delete
+  // would wipe every conversation in that project.
   aider: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -69,6 +71,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  // Virtual URI / DB-backed providers stay false until they grow a dedicated
+  // delete path (same pattern as cursor:// and forgecode://).
   amazonq: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -80,7 +84,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: true,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // Session dirs under the Antigravity store (desktop + CLI).
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   claude: {
@@ -94,14 +99,15 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // VS Code tasks (`ui_messages.json`) and SDK sessions (`*.messages.json`).
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   codebuddy: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   codex: {
@@ -115,7 +121,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   copilot: {
@@ -125,7 +131,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     // The provider-level capability is the optimistic union; per-session
     // gating is done by `supportsResumeCommandForSession` below.
     supportsResumeCommand: true,
-    supportsSessionDeletion: false,
+    // CLI: `session-state/<id>/events.jsonl`; VS Code: `chatSessions/<id>.jsonl`.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   crush: {
@@ -148,7 +155,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // `agent-transcripts/<uuid>/<uuid>.jsonl` — delete trashes the uuid folder.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   forgecode: {
@@ -162,7 +170,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   goose: {
@@ -176,7 +184,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   kilo: {
@@ -190,7 +198,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: true,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   kiro: {
@@ -232,14 +240,14 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   pi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   pearai: {
@@ -253,7 +261,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   zcode: {
@@ -274,7 +282,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: true,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   zed: {
