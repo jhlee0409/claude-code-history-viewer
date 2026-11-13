@@ -197,6 +197,10 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   searchFilters: "app",
   sessionPickerCandidates: "app",
   sessionPickerHintValue: "app",
+  // The sidebar's project filter: one sidebar for every tab.
+  sidebarFilterQuery: "app",
+  sidebarFilterScope: "app",
+  sidebarFilterResult: "app",
 };
 
 /** The fields of `scope`. */
