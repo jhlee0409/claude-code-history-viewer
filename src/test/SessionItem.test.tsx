@@ -3,9 +3,13 @@
  * Tests for session display, rename functionality, and user interactions
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { SessionItem } from "../components/SessionItem";
-import type { ClaudeSession } from "../types";
+import type { ClaudeProject, ClaudeSession } from "../types";
+import { api } from "@/services/api";
+import { toast } from "sonner";
+import { useAppStore } from "@/store/useAppStore";
+import { findSession } from "@/navigation/openSessionRef";
 
 // Mock react-i18next
 vi.mock("react-i18next", async () => {
@@ -69,6 +73,18 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
     </button>
   ),
   DropdownMenuSeparator: () => <hr data-testid="dropdown-separator" />,
+}));
+
+vi.mock("@/services/api", () => ({
+  api: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+
+vi.mock("@/navigation/openSessionRef", () => ({
+  findSession: vi.fn(),
 }));
 
 // Mock NativeRenameDialog
@@ -538,6 +554,193 @@ describe("SessionItem", () => {
 
       expect(screen.getByText("Rename in Codex CLI")).toBeInTheDocument();
       expect(screen.getByText("Delete Session")).toBeInTheDocument();
+    });
+  });
+
+  describe("Right-click menu", () => {
+    const openContextMenu = (session: ClaudeSession) => {
+      const { container } = render(
+        <SessionItem
+          session={session}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+      fireEvent.contextMenu(container.firstChild as HTMLElement);
+      return within(screen.getByRole("menu"));
+    };
+
+    const claudeSession = (overrides: Partial<ClaudeSession> = {}) =>
+      createMockSession({
+        provider: "claude",
+        session_id: "/home/u/.claude/projects/-a/abc.jsonl",
+        file_path: "/home/u/.claude/projects/-a/abc.jsonl",
+        actual_session_id: "abc",
+        ...overrides,
+      });
+
+    const target: ClaudeProject = {
+      name: "-b",
+      path: "/home/u/.claude/projects/-b",
+      actual_path: "/b",
+      session_count: 1,
+      message_count: 1,
+      last_modified: "2024-01-01T00:00:00Z",
+      provider: "claude",
+    };
+
+    /** Opens the move dialog and confirms the move to `target`. */
+    const moveToTarget = async (session: ClaudeSession) => {
+      const menu = openContextMenu(session);
+      fireEvent.click(menu.getByRole("menuitem", { name: "Move to project\u2026" }));
+      const dialog = await screen.findByRole("dialog");
+      const options = within(dialog).getAllByRole("radio");
+      fireEvent.click(options[0]!);
+      fireEvent.click(within(dialog).getByRole("button", { name: "session.move.confirm" }));
+      return options;
+    };
+
+    const pristine = useAppStore.getState();
+    beforeEach(() => {
+      useAppStore.setState(pristine, true);
+    });
+
+    it("explains Rename and Rename in Claude Code with tooltips on focus", async () => {
+      const menu = openContextMenu(createMockSession({ provider: "claude" }));
+
+      const rename = menu.getByRole("menuitem", { name: "Rename" });
+      fireEvent.focus(rename);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "session.renameTooltip"
+      );
+      fireEvent.blur(rename);
+
+      fireEvent.focus(
+        menu.getByRole("menuitem", { name: "Rename in Claude Code" })
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("tooltip")).toHaveTextContent(
+          "session.nativeRename.tooltip"
+        )
+      );
+    });
+
+    it("offers Move to project for Claude Code sessions", () => {
+      const menu = openContextMenu(claudeSession());
+      expect(
+        menu.getByRole("menuitem", { name: "Move to project\u2026" })
+      ).toBeInTheDocument();
+    });
+
+    it("hides Move to project for other providers", () => {
+      const menu = openContextMenu(
+        createMockSession({
+          provider: "codex",
+          file_path: "/home/u/.codex/sessions/rollout-1.jsonl",
+        })
+      );
+      expect(
+        menu.queryByRole("menuitem", { name: "Move to project\u2026" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides Move to project in read-only mode", () => {
+      useAppStore.setState({ isServerReadOnly: true });
+      const menu = openContextMenu(claudeSession());
+      expect(
+        menu.queryByRole("menuitem", { name: "Move to project\u2026" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("refuses to move an active session with a clear message", async () => {
+      const otherRoot = { ...target, path: "/elsewhere/projects/-c" };
+      useAppStore.setState({ projects: [target, otherRoot] });
+      vi.mocked(api).mockRejectedValueOnce(
+        "SESSION_ACTIVE: session is open in a running Claude Code process (pid 1)"
+      );
+
+      // Only projects from the same Claude projects folder are offered.
+      const options = await moveToTarget(claudeSession());
+      expect(options).toHaveLength(1);
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("session.move.errorActive")
+      );
+      expect(api).toHaveBeenCalledWith("move_session_to_project", {
+        sessionPath: "/home/u/.claude/projects/-a/abc.jsonl",
+        targetProjectPath: "/home/u/.claude/projects/-b",
+      });
+    });
+
+    it("carries the app's records over and follows the open session", async () => {
+      const session = claudeSession();
+      const newPath = "/home/u/.claude/projects/-b/abc.jsonl";
+      const moved = { ...session, session_id: newPath, file_path: newPath };
+      const moveSessionMetadata = vi.fn().mockResolvedValue(undefined);
+      const relocateRecentSession = vi.fn();
+      const scanProjects = vi.fn().mockResolvedValue(undefined);
+      const navigate = vi.fn().mockResolvedValue(true);
+      useAppStore.setState({
+        projects: [target],
+        sessions: [session],
+        selectedSession: session,
+        moveSessionMetadata,
+        relocateRecentSession,
+        scanProjects,
+        navigate,
+      });
+      vi.mocked(api).mockResolvedValueOnce({
+        new_file_path: newPath,
+        target_project_path: target.path,
+        leftover_folder: null,
+      });
+      vi.mocked(findSession).mockResolvedValueOnce({ project: target, session: moved });
+
+      await moveToTarget(session);
+
+      const ref = {
+        provider: "claude",
+        filePath: newPath,
+        sessionId: newPath,
+        actualSessionId: "abc",
+        projectPath: target.path,
+      };
+      await waitFor(() => expect(scanProjects).toHaveBeenCalled());
+      expect(moveSessionMetadata).toHaveBeenCalledWith(session.session_id, newPath, ref);
+      expect(relocateRecentSession).toHaveBeenCalledWith(session.file_path, ref);
+      expect(useAppStore.getState().sessions).toEqual([]);
+      expect(navigate).toHaveBeenCalledWith(
+        { project: target, session: moved },
+        expect.objectContaining({ record: false, history: "replace" })
+      );
+      expect(toast.success).toHaveBeenCalled();
+    });
+
+    it("reports metadata that could not be carried over separately", async () => {
+      const session = claudeSession();
+      useAppStore.setState({
+        projects: [target],
+        sessions: [session],
+        moveSessionMetadata: vi.fn().mockRejectedValue(new Error("disk full")),
+        relocateRecentSession: vi.fn(),
+        scanProjects: vi.fn().mockResolvedValue(undefined),
+      });
+      vi.mocked(api).mockResolvedValueOnce({
+        new_file_path: "/home/u/.claude/projects/-b/abc.jsonl",
+        target_project_path: target.path,
+        leftover_folder: null,
+      });
+
+      await moveToTarget(session);
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("session.move.metadataError", {
+          description: "disk full",
+        })
+      );
+      expect(toast.success).toHaveBeenCalled();
+      expect(useAppStore.getState().sessions).toEqual([]);
     });
   });
 

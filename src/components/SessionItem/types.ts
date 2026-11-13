@@ -53,6 +53,7 @@ export interface SessionNameEditorProps {
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
   supportsRevealInFinder: boolean;
+  supportsSessionMove: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   ignoreBlurRef: React.RefObject<boolean>;
   onEditValueChange: (value: string) => void;
@@ -67,6 +68,7 @@ export interface SessionNameEditorProps {
   onCopyResumeCommand: (e: React.MouseEvent) => void;
   onCopyFilePath: (e: React.MouseEvent) => void;
   onRevealInFinder: (e: React.MouseEvent) => void;
+  onMoveSession: (e: React.MouseEvent) => void;
   onDeleteSession: (e: React.MouseEvent) => void;
   onContextMenuOpenChange: (open: boolean) => void;
 }

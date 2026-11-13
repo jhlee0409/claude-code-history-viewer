@@ -6,6 +6,7 @@ import {
   SquareTerminal,
   Copy,
   FileText,
+  FolderInput,
   FolderOpen,
   Play,
   Star,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
 
 interface SessionContextMenuProps {
@@ -29,6 +31,7 @@ interface SessionContextMenuProps {
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
   supportsRevealInFinder: boolean;
+  supportsSessionMove: boolean;
   providerId: string;
   onClose: () => void;
   onRenameClick: (e: React.MouseEvent) => void;
@@ -38,11 +41,28 @@ interface SessionContextMenuProps {
   onCopyResumeCommand: (e: React.MouseEvent) => void;
   onCopyFilePath: (e: React.MouseEvent) => void;
   onRevealInFinder: (e: React.MouseEvent) => void;
+  onMoveSession: (e: React.MouseEvent) => void;
   onDeleteSession: (e: React.MouseEvent) => void;
   /** Starred (the sidebar's favourites). Omitted: no favourite item. */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }
+
+/**
+ * Explains a menu item on hover and keyboard focus. Radix links the
+ * (focusable) menu button to the tooltip with `aria-describedby`.
+ */
+const MenuItemHint: React.FC<{ hint: string; children: React.ReactElement }> = ({
+  hint,
+  children,
+}) => (
+  <Tooltip>
+    <TooltipTrigger asChild>{children}</TooltipTrigger>
+    <TooltipContent side="right" className="max-w-xs">
+      {hint}
+    </TooltipContent>
+  </Tooltip>
+);
 
 export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   position,
@@ -52,6 +72,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsSessionMove,
   providerId,
   onClose,
   onRenameClick,
@@ -61,6 +82,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   onCopyResumeCommand,
   onCopyFilePath,
   onRevealInFinder,
+  onMoveSession,
   onDeleteSession,
   isFavorite = false,
   onToggleFavorite,
@@ -158,6 +180,23 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
     "transition-colors cursor-pointer"
   );
 
+  const nativeRenameLabel =
+    providerId === "opencode"
+      ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
+      : providerId === "codex"
+        ? t("session.nativeRename.menuItemCodex", "Rename in Codex CLI")
+        : providerId === "forgecode"
+          ? t("session.nativeRename.menuItemForgeCode", "Rename in ForgeCode")
+          : t("session.nativeRename.menuItem", "Rename in Claude Code");
+  const nativeRenameHint =
+    providerId === "opencode"
+      ? t("session.nativeRename.tooltipOpenCode")
+      : providerId === "codex"
+        ? t("session.nativeRename.tooltipCodex")
+        : providerId === "forgecode"
+          ? t("session.nativeRename.tooltipForgeCode")
+          : t("session.nativeRename.tooltip");
+
   const handleAction = (handler: ((e: React.MouseEvent) => void) | (() => void)) => {
     return (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -203,10 +242,12 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           </>
         )}
         {!readOnly && (
-          <button type="button" role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
-            <Pencil className="w-3.5 h-3.5" />
-            <span>{t("session.renameMenuItem", "Rename")}</span>
-          </button>
+          <MenuItemHint hint={t("session.renameTooltip")}>
+            <button type="button" role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
+              <Pencil className="w-3.5 h-3.5" />
+              <span>{t("session.renameMenuItem", "Rename")}</span>
+            </button>
+          </MenuItemHint>
         )}
 
         {!readOnly && hasCustomName && (
@@ -219,18 +260,12 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         {!readOnly && supportsNativeRename && (
           <>
             <div className="my-1 border-t border-border/50" />
-            <button type="button" role="menuitem" onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
-              <SquareTerminal className="w-3.5 h-3.5" />
-              <span>
-                {providerId === "opencode"
-                  ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
-                  : providerId === "codex"
-                    ? t("session.nativeRename.menuItemCodex", "Rename in Codex CLI")
-                  : providerId === "forgecode"
-                    ? t("session.nativeRename.menuItemForgeCode", "Rename in ForgeCode")
-                    : t("session.nativeRename.menuItem", "Rename in Claude Code")}
-              </span>
-            </button>
+            <MenuItemHint hint={nativeRenameHint}>
+              <button type="button" role="menuitem" onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
+                <SquareTerminal className="w-3.5 h-3.5" />
+                <span>{nativeRenameLabel}</span>
+              </button>
+            </MenuItemHint>
           </>
         )}
 
@@ -257,6 +292,13 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           <button type="button" role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>
             <FolderOpen className="w-3.5 h-3.5" />
             <span>{t("session.showJsonlFile", "Show JSONL File")}</span>
+          </button>
+        )}
+
+        {supportsSessionMove && (
+          <button type="button" role="menuitem" onClick={handleAction(onMoveSession)} className={menuItemClass}>
+            <FolderInput className="w-3.5 h-3.5" />
+            <span>{t("session.move.menuItem", "Move to project…")}</span>
           </button>
         )}
 

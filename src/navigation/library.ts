@@ -60,6 +60,18 @@ export function pushRecent(
   return [entry, ...list.filter((e) => e.ref.filePath !== entry.ref.filePath)].slice(0, limit);
 }
 
+/**
+ * The list after a session file moved to `ref` (another project): entries
+ * for `fromPath` point at the new location, keeping their title and time.
+ */
+export function relocateRecent(
+  list: readonly RecentEntry[],
+  fromPath: string,
+  ref: SessionRef,
+): RecentEntry[] {
+  return list.map((e) => (e.ref.filePath === fromPath ? { ...e, ref } : e));
+}
+
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
 /** Epoch ms a `Date` can hold (|t| <= 8.64e15); anything else throws in `toISOString`. */
