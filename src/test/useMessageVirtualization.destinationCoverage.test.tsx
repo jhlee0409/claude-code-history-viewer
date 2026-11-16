@@ -21,7 +21,15 @@ function fixture(clamp = true) {
     unobserve(node: Element) { this.record.nodes.delete(node); }
     disconnect() { this.record.nodes.clear(); }
   });
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  let nextFrame = 0;
+  const frames = new Map<number, FrameRequestCallback>();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.set(++nextFrame, callback); return nextFrame; });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(id => { frames.delete(id); });
+  const frame = () => act(() => {
+    const ready = [...frames.values()];
+    frames.clear();
+    ready.forEach(callback => callback(performance.now()));
+  });
   const scroller = document.createElement("div"), host = document.createElement("div");
   host.style.position = "relative";
   scroller.append(host); document.body.append(scroller);
@@ -107,7 +115,8 @@ function fixture(clamp = true) {
     for (const row of capture.initial.rows) current.virtualizer.resizeItem(row.index, row.height);
   });
   act(() => { scroller.scrollTop = capture.initial.scrollTop; scroller.dispatchEvent(new Event("scroll")); });
-  // This effective DOM delta reconstructs BOTH captured commits exactly. It is
+  // This effective DOM delta reconstructs the first captured commit exactly and
+  // the second after removing the capture's stale-start drift. It is
   // inferred from the recorded offsets and real core corrections, not a claim
   // that the public Playwright -536.6 request equals event.deltaY. The native
   // witness sent -536.6 twice; literal DOM -536.6 is tested independently below.
@@ -115,7 +124,9 @@ function fixture(clamp = true) {
     const before = scroller.scrollTop;
     const event = new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true });
     inWheel = true;
-    try { act(() => { scroller.dispatchEvent(event); }); } finally { inWheel = false; if (moved) { moved.parent.append(moved.node); moved = undefined; } }
+    // Keep the independent current-physical-origin oracle active through the
+    // scheduled transaction, not only the now nonblocking event dispatch.
+    try { act(() => { scroller.dispatchEvent(event); }); frame(); } finally { inWheel = false; if (moved) { moved.parent.append(moved.node); moved = undefined; } }
     return { before, event, check: checks.at(-1) };
   };
   return { scroller, host, current: () => current!, wheel, releases, checks, coverage, errors, notifications, observers, heightOverrides, view, setDefect: (value: typeof defect) => { defect = value; } };
@@ -132,7 +143,16 @@ it("releases both captured backward wheels when current physical DOM boxes cover
   expect(f.releases).toHaveLength(1);
   const second = f.wheel();
   expect(second.check?.physical).toBe(capture.commits[1]!.physical);
-  expect(second.check?.destination).toBeCloseTo(capture.commits[1]!.destination, 7);
+  // The captured commit-2 destination came from pre-fix code whose batch
+  // resize read stale starts: its own DOM boxes moved by less than the wheel.
+  // Predict the consistent-frame destination from captured geometry instead.
+  const [c0, c1] = capture.commits as [typeof capture.commits[0], typeof capture.commits[0]];
+  const framePos = (c: typeof c0, index: number) => c.boxes.find(b => b.index === index)!.top - c.viewportTop + c.physical - c.destination;
+  const initialPos = capture.initial.rows.find(r => r.index === 106)!.top - c0.viewportTop;
+  const wheelShift = framePos(c0, 106) - initialPos;
+  const capturedDrift = wheelShift - (framePos(c1, 104) - framePos(c0, 104));
+  expect(capturedDrift, "captured commit 2 under-compensated above-fold resizes").toBeGreaterThan(1);
+  expect(second.check?.destination).toBeCloseTo(c1.destination - capturedDrift, 7);
   expect(second.check?.covered, "independent second destination coverage before rollback/release").toBe(true);
   console.info("captured two-wheel coverage", { first, second, releases: f.releases, notifications: f.notifications.mock.calls.length });
   expect(f.releases, "a covered second destination must not falsely roll back").toHaveLength(2);

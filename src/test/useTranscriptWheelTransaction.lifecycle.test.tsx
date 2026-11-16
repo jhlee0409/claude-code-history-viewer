@@ -7,8 +7,23 @@ import { useTranscriptWheelBoundary, useTranscriptWheelTransaction } from "@/com
 
 // Real installed core + observer; no React adapter rerender that could mask a
 // missing finally restore by installing a fresh onChange during render.
+let nextFrame = 0;
+const frames = new Map<number, FrameRequestCallback>();
 function fixture() {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.set(++nextFrame, callback); return nextFrame; });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(id => { frames.delete(id); });
+  const frame = () => act(() => {
+    const ready = [...frames.values()];
+    frames.clear();
+    for (const callback of ready) {
+      try { callback(performance.now()); }
+      catch (error) {
+        if (window.dispatchEvent(new ErrorEvent("error", { error, cancelable: true }))) throw error;
+      }
+    }
+  });
   const scroller = document.createElement("div");
   document.body.append(scroller);
   Object.defineProperties(scroller, { clientHeight: { value: 100 }, scrollHeight: { value: 10000 } });
@@ -30,13 +45,27 @@ function fixture() {
   scroller.dispatchEvent(new Event("scroll"));
   expect(instance.scrollOffset).toBe(0.25);
   vi.mocked(scroller.scrollTo).mockClear();
-  const wheel = () => {
+  const dispatch = () => {
     const event = new WheelEvent("wheel", { deltaY: 1000, cancelable: true });
     act(() => scroller.dispatchEvent(event));
     return event;
   };
-  return { scroller, instance, transaction, onChange, boundary, wheel, hook };
+  const wheel = () => { const event = dispatch(); frame(); return event; };
+  return { scroller, instance, transaction, onChange, boundary, wheel, dispatch, frame, frames, hook };
 }
+
+it("cancels a scheduled callback when the transaction owner unmounts before its boundary", () => {
+  const f = fixture();
+  expect(f.dispatch().defaultPrevented).toBe(true);
+  const [wheelId, stale] = [...f.frames.entries()].at(-1)!;
+  f.hook.unmount();
+  f.onChange.mockClear();
+  act(() => stale(performance.now()));
+  expect(f.onChange).not.toHaveBeenCalled();
+  expect(f.instance.scrollOffset).toBe(0.25);
+  expect(f.scroller.scrollTo).not.toHaveBeenCalled();
+  expect(f.frames.has(wheelId)).toBe(false);
+});
 
 it("M9: restores normal onChange semantics after a failed coverage commit without adapter help", () => {
   const f = fixture();
@@ -131,7 +160,7 @@ it.each(["en", "ko", "ja", "zh-CN", "zh-TW"])("uses the existing localized notif
   f.hook.unmount();
   expect(dismiss).toHaveBeenCalledWith(id);
   expect(toast.getToasts().some(item => item.id === id)).toBe(false);
-  await waitFor(() => expect(host.queryByText(i18n.t("error.unexpectedError"))).toBeNull());
+  await waitFor(() => { f.frame(); expect(host.queryByText(i18n.t("error.unexpectedError"))).toBeNull(); });
 });
 
 it("keeps failure notifications viewer-scoped across other viewers' success and disposal", () => {
@@ -159,4 +188,4 @@ it("keeps failure notifications viewer-scoped across other viewers' success and 
   expect(dismiss).toHaveBeenCalledWith(secondId);
 });
 
-afterEach(() => { cleanup(); toast.dismiss(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { cleanup(); toast.dismiss(); frames.clear(); nextFrame = 0; vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });

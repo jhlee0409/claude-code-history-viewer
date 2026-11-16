@@ -43,7 +43,8 @@ interface UseMessageVirtualizationOptions {
   isInSubagent?: boolean;
   /** Height before the virtual list inside the same scroll viewport. */
   scrollMargin?: number;
-
+  /** Called once after a whole owned wheel batch physically released. */
+  onWheelRelease?: () => void;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -73,7 +74,7 @@ export const useMessageVirtualization = ({
   isCaptureMode = false,
   isInSubagent = false,
   scrollMargin = 0,
-
+  onWheelRelease,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -159,7 +160,15 @@ export const useMessageVirtualization = ({
   );
 
   // Initialize virtualizer
-  const wheelTransaction = useTranscriptWheelTransaction(messages);
+  // A lease token avoids retaining an old message list in a scheduled callback.
+  // Filter/group changes can replace the projection without changing its count.
+  const wheelHiddenIds = isCaptureMode ? hiddenMessageIds : null;
+  const wheelOwner = useMemo(() => ({}), [
+    messages, wheelHiddenIds, isCaptureMode, isInSubagent,
+    agentTaskGroups, agentTaskMemberUuids, agentProgressGroups,
+    agentProgressMemberUuids, taskOperationGroups, taskOperationMemberUuids,
+  ]);
+  const wheelTransaction = useTranscriptWheelTransaction(wheelOwner, onWheelRelease);
   const virtualizer = useVirtualizer({
     count: flattenedMessages.length,
     getScrollElement,
@@ -169,7 +178,8 @@ export const useMessageVirtualization = ({
     scrollMargin,
     observeElementOffset: wheelTransaction.observeOffset,
     scrollToFn: wheelTransaction.scrollToFn,
-    useFlushSync: !wheelTransaction.active.current,
+    // Owned transactions quiet their own notifications; native input must stay synchronous.
+    useFlushSync: true,
     // Consume layout measurements before paint. Deferring RO to another rAF
     // leaves newly mounted rows at estimated positions during wheel scrolling.
     useAnimationFrameWithResizeObserver: false,
@@ -181,6 +191,24 @@ export const useMessageVirtualization = ({
       const height = element.getBoundingClientRect().height;
       return height > 0 ? height : MIN_ROW_HEIGHT;
     },
+  });
+
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  // Copy render values now: ref/RO delivery during commit can change core caches.
+  const committedRows = virtualRows.map(({ key, index, start, size, end }) => ({ key, index, start, size, end }));
+  useLayoutEffect(() => {
+    wheelTransaction.committed.current = {
+      instance: virtualizer,
+      element: virtualizer.scrollElement,
+      owner: wheelOwner,
+      count: flattenedMessages.length,
+      margin: scrollMargin,
+      totalSize,
+      rectWidth: virtualizer.scrollRect?.width,
+      rectHeight: virtualizer.scrollRect?.height,
+      rows: committedRows,
+    };
   });
 
   const mountedRowKeys = useRef(new WeakMap<Element, VirtualItem["key"]>());
@@ -209,7 +237,12 @@ export const useMessageVirtualization = ({
     const onChange = virtualizer.options.onChange;
     virtualizer.setOptions({ ...virtualizer.options, onChange: instance => onChange(instance, false) });
     try {
-      for (const { index, height } of measurements) virtualizer.resizeItem(index, height);
+      for (const { index, height } of measurements) {
+        virtualizer.resizeItem(index, height);
+        // Async notifications leave starts stale while core advances scrollOffset.
+        // Recompute before the next resize so its anchor decision uses the same frame.
+        virtualizer.getTotalSize();
+      }
     } finally {
       virtualizer.setOptions({ ...virtualizer.options, onChange });
     }
@@ -261,8 +294,8 @@ export const useMessageVirtualization = ({
     virtualizer,
     flattenedMessages,
     uuidToIndexMap,
-    virtualRows: virtualizer.getVirtualItems(),
-    totalSize: virtualizer.getTotalSize(),
+    virtualRows,
+    totalSize,
     scrollToMessage,
     getScrollIndex,
     rowTranslateOffset: scrollMargin,
