@@ -325,7 +325,7 @@ fn is_session_dir(dir: &Path) -> bool {
 /// `checkpoint.chunks` that make up the model-facing history, so the manifest
 /// is the source of truth for both membership and ordering. When no manifest
 /// is readable (crashed or in-progress session), fall back to every chunk
-/// ordered by modification time.
+/// ordered by modification time, then by file name.
 fn load_history_entries(session_dir: &Path) -> Vec<Value> {
     let chunks_dir = session_dir.join(CHUNKS_DIR);
     if is_symlink(&chunks_dir) {
@@ -353,10 +353,17 @@ fn load_history_entries(session_dir: &Path) -> Vec<Value> {
             chunk_files.push(path);
         }
     }
-    chunk_files.sort_by_key(|path| {
-        fs::metadata(path)
+    // Chunks written within one filesystem timestamp tick share an mtime (common
+    // on Linux), and `read_dir` order is filesystem-dependent, so break ties on
+    // the file name to keep the fallback order deterministic.
+    chunk_files.sort_by_cached_key(|path| {
+        let modified = fs::metadata(path)
             .and_then(|meta| meta.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        (
+            modified,
+            path.file_name().map(std::ffi::OsStr::to_os_string),
+        )
     });
     for path in chunk_files {
         entries.extend(read_chunk_file(&path));
@@ -1474,6 +1481,52 @@ mod tests {
                 .join(MANIFEST_FILE),
         )
         .expect("remove manifest");
+        // Order must follow mtime, not the file name or `read_dir` order: the
+        // first chunk is renamed to sort after the second and given the older
+        // mtime explicitly (back-to-back writes can share an mtime on Linux).
+        let chunks_dir = session_dir.join(CHUNKS_DIR);
+        let first = chunks_dir.join("zzz.json");
+        fs::rename(chunks_dir.join("aaa.json"), &first).expect("rename chunk a");
+        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        let set_mtime = |path: &Path, time: std::time::SystemTime| {
+            fs::File::options()
+                .write(true)
+                .open(path)
+                .and_then(|file| file.set_modified(time))
+                .expect("set chunk mtime");
+        };
+        set_mtime(&first, older);
+        set_mtime(
+            &chunks_dir.join("bbb.json"),
+            older + std::time::Duration::from_secs(10),
+        );
+
+        let messages = load_messages_from_base_path(base, session_dir.to_str().unwrap())
+            .expect("load messages");
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0].message_type, "user");
+        assert_eq!(messages[3].message_type, "tool");
+    }
+
+    #[test]
+    /// Without a manifest, chunks sharing an mtime are read in file-name order,
+    /// independent of the filesystem's `read_dir` order.
+    fn load_messages_unified_fallback_breaks_mtime_ties_by_name() {
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_unified_fixture(temp.path());
+        let session_dir = PathBuf::from(&session_dir);
+        let base = temp.path().to_str().unwrap();
+
+        fs::remove_file(session_dir.join(CURRENT_FILE)).expect("remove CURRENT");
+        fs::remove_dir_all(session_dir.join(GENERATIONS_DIR)).expect("remove generations");
+        let same = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        for name in ["aaa.json", "bbb.json"] {
+            fs::File::options()
+                .write(true)
+                .open(session_dir.join(CHUNKS_DIR).join(name))
+                .and_then(|file| file.set_modified(same))
+                .expect("set chunk mtime");
+        }
 
         let messages = load_messages_from_base_path(base, session_dir.to_str().unwrap())
             .expect("load messages");
