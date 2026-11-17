@@ -57,6 +57,7 @@ describe("ProjectSessions with the sidebar filter", () => {
       sidebarFilterResult: {
         projectPaths: [project.path],
         sessionMatchesByProject: { [project.path]: [login] },
+        sessionIds: null,
       },
     });
     render(<ProjectSessions {...baseProps} isOpen={false} sessions={[]} showAll={false} />);
@@ -72,6 +73,7 @@ describe("ProjectSessions with the sidebar filter", () => {
       sidebarFilterResult: {
         projectPaths: [project.path],
         sessionMatchesByProject: { [project.path]: [login, apiClient] },
+        sessionIds: null,
       },
     });
     render(
@@ -86,7 +88,7 @@ describe("ProjectSessions with the sidebar filter", () => {
 
   it("lists every session of a project matched by its own name", () => {
     useAppStore.setState({
-      sidebarFilterResult: { projectPaths: [project.path], sessionMatchesByProject: {} },
+      sidebarFilterResult: { projectPaths: [project.path], sessionMatchesByProject: {}, sessionIds: null },
     });
     render(<ProjectSessions {...baseProps} isOpen sessions={[login, apiClient, tests]} showAll={false} />);
 

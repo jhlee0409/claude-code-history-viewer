@@ -60,6 +60,13 @@ export interface SidebarFilterResult {
    * are in.
    */
   sessionMatchesByProject: Record<string, ClaudeSession[]>;
+  /**
+   * Every session id in view, for scoping message search. Null when session
+   * names are not matched (projects are the only restriction) or when a
+   * project matched by name has no loaded session list (not loaded yet, or
+   * unreadable).
+   */
+  sessionIds: string[] | null;
 }
 
 export interface SidebarFilterSliceActions {

@@ -12,7 +12,10 @@
  *   own waiting / loading / error / empty state and never holds up the
  *   others; a live region reports its outcome to screen readers.
  * - The scope chip ("This project" / "All projects") scopes Sessions and
- *   Messages; Projects always lists every project.
+ *   Messages; Projects always lists every project. While the sidebar filter
+ *   shows some projects, the chip also offers "Sidebar filter" and starts
+ *   there: Sessions and Messages then cover only what the sidebar shows
+ *   (`searchScope`).
  * - Scoped with Tab to a project that is not open, Sessions reads its list
  *   (`useScopedProjectSessions`). If that fails the group says so - its
  *   rows are then only the sessions the app already knew of - with a "Try
@@ -80,6 +83,7 @@ import { PaletteProjectGroup, PaletteSessionGroup } from "./PalettePlaceGroups";
 import { PaletteMessageGroup } from "./PaletteMessageGroup";
 import { messageGroupValues } from "./paletteMessageValues";
 import { useScopedProjectSessions } from "./useScopedProjectSessions";
+import { buildSidebarSearchScope, isSessionRefInScope } from "./searchScope";
 import {
     MAX_MESSAGE_RESULTS,
     usePaletteMessageSearch,
@@ -114,6 +118,12 @@ const isPlainTab = (e: React.KeyboardEvent) =>
 /** An IME owns the key (composition, or the key that ends one). */
 const isImeKey = (e: React.KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
+/** One button of the scope chip. */
+const SCOPE_ITEM_CLASS = "segmented-item px-2 py-0.5 text-list whitespace-nowrap";
+
+/** The chip's scopes: `PaletteScope`, or what the sidebar filter shows. */
+type ChipScope = PaletteScope | "sidebar";
+
 /** Marks where the project name sits in the pill's translated text. */
 const NAME_SLOT = "\u0001";
 
@@ -129,7 +139,9 @@ export const GlobalSearchModal = ({
     const [query, setQuery] = useState("");
     const [composing, setComposing] = useState(false);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
-    const [scope, setScope] = useState<PaletteScope>("all");
+    // Null until the chip is used: the default is the sidebar filter's scope
+    // while it shows some projects, else everything.
+    const [scope, setScope] = useState<ChipScope | null>(null);
     // A project scoped with Tab (or the phone's row button); over `scope`
     // until cleared, which brings `scope` back as it was.
     const [pinned, setPinned] = useState<ClaudeProject | null>(null);
@@ -153,13 +165,26 @@ export const GlobalSearchModal = ({
         getSessionDisplayName,
         isProjectHidden,
         excludeSidechain,
+        sidebarFilterResult,
+        sidebarFilterQuery,
     } = useAppStore();
-    // Scope "project" needs an open project; without one the chip is "all".
-    const effectiveScope: PaletteScope = selectedProject ? scope : "all";
+    const sidebarScope = useMemo(
+        () => buildSidebarSearchScope(projects ?? [], sidebarFilterResult ?? null),
+        [projects, sidebarFilterResult],
+    );
+    // Scope "project" needs an open project and "sidebar" a filtered
+    // sidebar; without them the chip is "all".
+    const chipScope: ChipScope = scope ?? (sidebarScope ? "sidebar" : "all");
+    const effectiveScope: ChipScope =
+        (chipScope === "project" && !selectedProject) || (chipScope === "sidebar" && !sidebarScope)
+            ? "all"
+            : chipScope;
     // The project Sessions and Messages search, if any: the pinned one, else
     // the open one under "This project".
     const scopedProject = pinned ?? (effectiveScope === "project" ? (selectedProject ?? null) : null);
     const searchScope: PaletteScope = scopedProject ? "project" : "all";
+    // What the sidebar shows, when that is the scope (a pinned project wins).
+    const restrict = !scopedProject && effectiveScope === "sidebar" ? sidebarScope : null;
 
     const { view: messageView, retry: retryMessages } = usePaletteMessageSearch({
         query,
@@ -167,6 +192,7 @@ export const GlobalSearchModal = ({
         scope: searchScope,
         messageType: messageTypeFilter,
         project: scopedProject,
+        restrict,
         enabled: isOpen,
     });
     const {
@@ -184,7 +210,7 @@ export const GlobalSearchModal = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [query, projects, isProjectHidden, userMetadata],
     );
-    const candidates = useMemo(
+    const allCandidates = useMemo(
         () =>
             sessionCandidates({
                 scope: searchScope,
@@ -197,8 +223,31 @@ export const GlobalSearchModal = ({
             }),
         [searchScope, pinned, pinnedSessions, sessions, selectedProject, recentSessions, userMetadata, projects, getSessionDisplayName],
     );
+    const candidates = useMemo(
+        () =>
+            restrict
+                ? allCandidates.filter(({ target }) =>
+                      isSessionRefInScope(
+                          target.kind === "ref"
+                              ? target.ref
+                              : {
+                                    provider: target.project.provider ?? "claude",
+                                    filePath: target.session.file_path,
+                                    sessionId: target.session.session_id,
+                                    actualSessionId: target.session.actual_session_id,
+                                    projectPath: target.project.path,
+                                },
+                          restrict,
+                      ),
+                  )
+                : allCandidates,
+        [allCandidates, restrict],
+    );
     const sessionHits = useMemo(() => matchSessions(query, candidates), [query, candidates]);
-    const notSearched = useMemo(() => unsearchableProviders(projects ?? []), [projects]);
+    const notSearched = useMemo(
+        () => unsearchableProviders(restrict ? restrict.projects : (projects ?? [])),
+        [projects, restrict],
+    );
 
     // ---- the highlighted item ------------------------------------------------
     const shownValues = (hits: readonly unknown[], group: ExpandableGroup, value: (i: number) => string, more: string) => {
@@ -240,7 +289,13 @@ export const GlobalSearchModal = ({
         setPinned(null);
         setScopeNotice(
             t("globalSearch.live.scopeCleared", {
-                scope: t(effectiveScope === "project" ? "globalSearch.scope.project" : "globalSearch.scope.all"),
+                scope: t(
+                    effectiveScope === "project"
+                        ? "globalSearch.scope.project"
+                        : effectiveScope === "sidebar"
+                          ? "globalSearch.scope.sidebar"
+                          : "globalSearch.scope.all",
+                ),
             }),
         );
         inputRef.current?.focus();
@@ -344,7 +399,7 @@ export const GlobalSearchModal = ({
         }
         setQuery("");
         setComposing(false);
-        setScope("all");
+        setScope(null);
         setPinned(null);
         setScopeNotice("");
         setMessageTypeFilter("all");
@@ -490,7 +545,7 @@ export const GlobalSearchModal = ({
                     <div className="segmented" role="group" aria-label={t("globalSearch.scope.label")}>
                         <button
                             type="button"
-                            className="segmented-item px-2 py-0.5 text-list whitespace-nowrap"
+                            className={SCOPE_ITEM_CLASS}
                             aria-pressed={effectiveScope === "project"}
                             disabled={!selectedProject}
                             title={selectedProject ? scopeProjectLabel : t("globalSearch.scope.projectUnavailable")}
@@ -498,9 +553,20 @@ export const GlobalSearchModal = ({
                         >
                             {t("globalSearch.scope.project")}
                         </button>
+                        {sidebarScope && (
+                            <button
+                                type="button"
+                                className={SCOPE_ITEM_CLASS}
+                                aria-pressed={effectiveScope === "sidebar"}
+                                title={t("globalSearch.scope.sidebarHint", { query: (sidebarFilterQuery ?? "").trim() })}
+                                onClick={() => setScope("sidebar")}
+                            >
+                                {t("globalSearch.scope.sidebar")}
+                            </button>
+                        )}
                         <button
                             type="button"
-                            className="segmented-item px-2 py-0.5 text-list whitespace-nowrap"
+                            className={SCOPE_ITEM_CLASS}
                             aria-pressed={effectiveScope === "all"}
                             onClick={() => setScope("all")}
                         >
