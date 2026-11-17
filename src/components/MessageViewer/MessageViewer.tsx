@@ -23,6 +23,7 @@ import { CurrentDateBar } from "./components/CurrentDateBar";
 import { SessionMinimap, MINIMAP_WIDTH_PX } from "./components/SessionMinimap";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
+import { ApiRequestsView } from "../ApiRequestsView/ApiRequestsView";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
 import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
@@ -55,6 +56,7 @@ import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
 import { scrollBehavior } from "@/utils/motion";
+import { supportsApiRequestView } from "@/utils/providers";
 import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
@@ -216,6 +218,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const pendingAnchor = useAppStore((s) => s.pendingAnchor) ?? null;
   // The tab on screen: switching tabs starts the find field empty.
   const activeDocumentId = useAppStore((s) => s.activeDocumentId);
+  const isApiViewOpen = useAppStore((s) => s.isApiViewOpen);
+  const apiViewAvailable = supportsApiRequestView(selectedSession?.provider);
   const sessionPath = selectedSession?.file_path ?? null;
   const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
   const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
@@ -1001,6 +1005,20 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // Capture Mode / md breakpoint), so no gutter is reserved for an unmounted strip.
   const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
 
+  if (isApiViewOpen && apiViewAvailable && sessionPath && !isCaptureMode) {
+    return (
+      <div className="relative flex-1 h-full flex flex-col min-h-0">
+        <FilterToolbar
+          totalCount={messages.length}
+          filteredCount={displayMessages.length}
+          hasParallelTasks={hasParallelTasks}
+          apiViewAvailable
+        />
+        <ApiRequestsView sessionPath={sessionPath} reloadKey={messages} />
+      </div>
+    );
+  }
+
   return (
     <CodexFileChangeProvider messages={messages}>
     <div className="relative flex-1 h-full flex flex-col">
@@ -1216,6 +1234,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           totalCount={messages.length}
           filteredCount={displayMessages.length}
           hasParallelTasks={hasParallelTasks}
+          apiViewAvailable={apiViewAvailable}
         />
       )}
 
