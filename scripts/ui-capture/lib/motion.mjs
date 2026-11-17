@@ -70,14 +70,17 @@ const READ = `(() => {
 })()`;
 
 /**
- * Detect distributed monotone motion, not merely consecutive scroll events.
+ * Detect a gradual onset of monotone motion, not just consecutive events.
  * Four moving frames are the minimum witness: an instant landing plus up to
  * three measurement corrections must not by itself imply an animation.
- * Within a witness no step may exceed half its travel (a majority-position
- * jump is a landing, not small distributed increments). Inspect suffixes too
- * so a genuine glide following a landing is still caught.
- * These are shape-based heuristics, not an engine-independent animation
- * duration guarantee; short glides remain covered by the smooth-request guard.
+ * Only the FIRST step must be at most half the witness's travel, and a later
+ * step must be larger: smooth easing has a gradual, accelerating onset, unlike
+ * an instant landing or equal/decaying measurement corrections. Later steps
+ * may dominate when a busy runner merges paint frames.
+ * Inspect suffixes too so a genuine glide following a landing is still caught.
+ * This is a shape heuristic, not proof of a browser animation: dropping the
+ * onset or leaving fewer than four moving frames can hide a glide. Explicit
+ * smooth requests remain independently forbidden by the reduced-motion test.
  */
 export function hasScrollGlide(trace) {
   const targets = new Map();
@@ -95,7 +98,7 @@ export function hasScrollGlide(trace) {
       deltas.push(delta);
       for (let start = 0; start <= deltas.length - 4; start += 1) {
         const steps = deltas.slice(start).map(Math.abs);
-        if (Math.max(...steps) <= steps.reduce((sum, step) => sum + step, 0) / 2) return true;
+        if (steps[0] <= steps.reduce((sum, step) => sum + step, 0) / 2 && steps.some((step) => step > steps[0])) return true;
       }
     }
   }
