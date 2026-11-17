@@ -86,3 +86,30 @@ describe("applyMessageDisplayFilter: prompts and final replies", () => {
     expect(applyMessageDisplayFilter(messages, { roles: both, contentTypes })).toEqual(messages);
   });
 });
+
+describe("applyMessageDisplayFilter: the user's answers to AskUserQuestion", () => {
+  const answered = { questions: [{ question: "Which channel?", options: [] }], answers: { "Which channel?": "Typed: email me" } };
+  const ask = (uuid: string, result: Record<string, unknown> | null = { content: "answered", toolUseResult: answered }) =>
+    tool(uuid, "AskUserQuestion", result);
+  const filter = (roles: MessageFilter["roles"], overrides: Partial<MessageFilter["contentTypes"]> = {}): MessageFilter => ({
+    roles,
+    contentTypes: { ...contentTypes, ...overrides },
+  });
+  // The answer reaches the assistant row its call is on (merged), or stays a
+  // user record when the call is on a page that has not loaded.
+  const unmerged = { ...user("a2", [{ type: "tool_result", tool_use_id: "q2", content: "answered" }] as ContentItem[]), toolUseResult: answered };
+  const messages = [user("p1"), text("r1"), ask("a1"), ask("unanswered", null), tool("read1"), unmerged, text("r2")];
+
+  it("keeps answers, not the questions alone, under the user role", () => {
+    expect(uuids(applyMessageDisplayFilter(messages, filter({ user: true, assistant: false })))).toEqual(["p1", "a1", "a2"]);
+  });
+
+  it("does not let a content-type filter hide an answer from the user role", () => {
+    expect(uuids(applyMessageDisplayFilter(messages, filter(both, { toolCalls: false })))).toEqual(["p1", "r1", "a1", "a2", "r2"]);
+  });
+
+  it("keeps the merged question and answer under the assistant role, which asked it", () => {
+    expect(uuids(applyMessageDisplayFilter(messages, filter({ user: false, assistant: true }))))
+      .toEqual(["r1", "a1", "unanswered", "read1", "r2"]);
+  });
+});

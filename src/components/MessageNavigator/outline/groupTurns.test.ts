@@ -115,6 +115,33 @@ describe("groupTurns", () => {
     expect(groups[0].uuids).toEqual(["p1", "r1"]);
   });
 
+  it("keeps the user's answer to AskUserQuestion its own child inside the turn, not a header or activity", () => {
+    const groups = groupTurns(rows([
+      makeMessage({ uuid: "p1", content: "Plan the release" }),
+      makeMessage({ uuid: "r1", type: "assistant", role: "assistant", content: [{ type: "text", text: "Two questions first." }] }),
+      makeMessage({
+        uuid: "a1",
+        type: "assistant",
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "toolu_q", name: "AskUserQuestion", input: {} },
+          {
+            type: "tool_result",
+            tool_use_id: "toolu_q",
+            content: "answered",
+            toolUseResult: { questions: [{ question: "Ship?" }], answers: { "Ship?": "Friday" } },
+          },
+        ],
+      }),
+      makeMessage({ uuid: "r2", type: "assistant", role: "assistant", content: [{ type: "text", text: "Shipping Friday." }] }),
+    ]));
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].turnNumber).toBe(1);
+    expect(groups[0].children.map((c) => c.key)).toEqual(["p1::activity", "a1"]);
+    expect(groups[0].children[1]).toMatchObject({ type: "message", entry: { kind: "answer", preview: "Friday" } });
+  });
+
   it("counts replies, tool calls (including a reply row's own tool_use blocks), agent updates", () => {
     const groups = groupTurns(rows([
       makeMessage({ uuid: "p1", content: "Scrub for pii" }),
