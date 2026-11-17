@@ -16,6 +16,12 @@ export type MessageKind =
   | "agent-update"
   /** Text the client injected into the user turn, not typed by the user. */
   | "context"
+  /**
+   * The user's answer to a question the assistant asked through a user-input
+   * tool (Claude Code's `AskUserQuestion`). The answer is the user's input,
+   * but it answers a question instead of starting a turn.
+   */
+  | "answer"
   /** Assistant text. */
   | "reply"
   /** A tool call or tool result that carries no text. */
@@ -255,6 +261,100 @@ function hasToolUse(message: ClaudeMessage): boolean {
 }
 
 /**
+ * Tools that stop the agent to ask the user, so their result is the user's
+ * input. Only names the renderers already model (toolKind "question"); a name
+ * is never guessed from a substring.
+ */
+const USER_INPUT_TOOL_NAMES: Readonly<Record<string, true>> = { AskUserQuestion: true };
+
+type ContentBlock = Record<string, unknown>;
+
+function isContentBlock(value: unknown): value is ContentBlock {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function contentBlocks(message: ClaudeMessage): ContentBlock[] {
+  return Array.isArray(message.content) ? (message.content as unknown[]).filter(isContentBlock) : [];
+}
+
+/**
+ * The answers in an AskUserQuestion result payload,
+ * `{ questions: [...], answers: { [question]: answer } }`: a picked option's
+ * label, or the text the user typed instead. Null when the payload has
+ * another shape.
+ */
+function recordedAnswers(raw: unknown): string[] | null {
+  if (!isContentBlock(raw) || !Array.isArray(raw.questions) || !isContentBlock(raw.answers)) return null;
+  return Object.values(raw.answers).filter(
+    (answer): answer is string => typeof answer === "string" && answer.trim() !== "",
+  );
+}
+
+function toolResultText(block: ContentBlock | undefined): string | null {
+  const content = block?.content;
+  if (typeof content === "string") return content.trim() || null;
+  if (!Array.isArray(content)) return null;
+  const text = (content as unknown[])
+    .map((item) => (isContentBlock(item) && item.type === "text" ? item.text : undefined))
+    .filter((item): item is string => typeof item === "string")
+    .join("\n")
+    .trim();
+  return text || null;
+}
+
+/** The recorded answers, else the result's own text. */
+function answerInfo(raw: unknown, result: ContentBlock | undefined): MessageKindInfo {
+  const answers = recordedAnswers(raw);
+  const text = answers && answers.length > 0 ? answers.join(" · ") : toolResultText(result);
+  return { kind: "answer", text };
+}
+
+/**
+ * The answer an assistant row carries: a user-input tool call whose result
+ * the backend merged into it (merge_tool_execution_messages). An unanswered
+ * call, or one whose result is an error (declined, interrupted), is the
+ * question alone and stays a tool row.
+ */
+function assistantAnswer(message: ClaudeMessage): MessageKindInfo | null {
+  const blocks = contentBlocks(message);
+  const questionIds = new Set<unknown>();
+  for (const block of blocks) {
+    if (block.type === "tool_use" && typeof block.name === "string" && Object.hasOwn(USER_INPUT_TOOL_NAMES, block.name)) {
+      questionIds.add(block.id);
+    }
+  }
+  if (questionIds.size === 0) return null;
+  const result = blocks.find(
+    (block) => block.type === "tool_result" && questionIds.has(block.tool_use_id) && block.is_error !== true,
+  );
+  return result ? answerInfo(result.toolUseResult, result) : null;
+}
+
+/**
+ * The answer a user row carries: a result record whose call is on a page
+ * that has not loaded, so it was not merged. The call's name is not on the
+ * record, so the payload's shape identifies it. A record whose result block
+ * was merged away keeps `toolUseResult` too; the block is required so the
+ * answer is never counted twice.
+ */
+function unmergedAnswer(message: ClaudeMessage): MessageKindInfo | null {
+  const raw = "toolUseResult" in message ? message.toolUseResult : undefined;
+  if (!recordedAnswers(raw)) return null;
+  const result = contentBlocks(message).find((block) => block.type === "tool_result");
+  if (!result || result.is_error === true) return null;
+  return answerInfo(raw, result);
+}
+
+/**
+ * True when the row carries the user's answer to a user-input tool: the
+ * "answer" kind `classifyMessage` returns, without classifying the row's text.
+ */
+export function isUserAnswer(message: ClaudeMessage): boolean {
+  if (message.type === "assistant") return assistantAnswer(message) !== null;
+  return message.type === "user" && unmergedAnswer(message) !== null;
+}
+
+/**
  * How many `tool_use` blocks a message carries. `content` is counted first:
  * when the raw record has no top-level `toolUse`, the backend (load.rs) fills
  * it from the FIRST content block only, so a set `toolUse` does not mean one
@@ -297,7 +397,8 @@ function classifyUserMessage(message: ClaudeMessage): MessageKindInfo {
   // `toolUseResult` rather than a tool_result block: the backend moves the
   // block into its call, and a fork's task directive sits beside an unmerged
   // block without the field.
-  if (hasToolUseResult(message)) return { kind: "tool", text: null };
+  // An AskUserQuestion result whose call is not loaded is still the user's answer.
+  if (hasToolUseResult(message)) return unmergedAnswer(message) ?? { kind: "tool", text: null };
   // Keep automated Codex wake input out of the existing human-prompt filters.
   // Its separate automated turn kind belongs to the pure model, not this UI kind.
   if (isCodexHeartbeat(message)) return { kind: "context", text: getTextBlocks(message)[0] ?? null };
@@ -333,6 +434,10 @@ export function classifyMessage(message: ClaudeMessage): MessageKindInfo {
     case "user":
       return classifyUserMessage(message);
     case "assistant": {
+      // The user's answer outranks assistant text on the same row, as typed
+      // text outranks injected text on a user row: it is the user's input.
+      const answer = assistantAnswer(message);
+      if (answer) return answer;
       const text = getTextBlocks(message).find((block) => block.trim().length > 0) ?? null;
       if (text) return { kind: "reply", text };
       return { kind: hasToolUse(message) ? "tool" : "reply", text: null };

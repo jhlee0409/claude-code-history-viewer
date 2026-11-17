@@ -27,6 +27,7 @@ export function useCommandContext(): () => CommandContext {
   const { goBack, goForward, switchToSettings, switchToArchive, openView } = useAnalyticsNavigation();
   const screens = { openView };
   const toggleMinimap = useAppStore((s) => s.toggleMinimap);
+  const toggleInlineTokenUsage = useAppStore((s) => s.toggleInlineTokenUsage);
 
   const actions: CommandActions = {
     openPalette: () => openModal("globalSearch"),
@@ -40,6 +41,7 @@ export function useCommandContext(): () => CommandContext {
     // when it closes the panel that held focus (`inspectorFocus.ts`).
     toggleInspector,
     toggleMinimap,
+    toggleInlineTokenUsage,
     openSettingsManager: switchToSettings,
     openArchive: switchToArchive,
     openFeedback: () => openModal("feedback"),

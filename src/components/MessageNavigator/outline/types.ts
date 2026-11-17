@@ -39,7 +39,7 @@ export interface OutlineTaskChild {
  * Every `reply`, `tool`, `context`, `system`, and non-turn-start `command`
  * row in an open turn, collapsed into one row (Design, "Activity summary
  * row"). `agent-update` rows still become task rows, and `summary`-kind
- * rows (compaction recaps) still stay their own `OutlineMessageChild`.
+ * rows (compaction recaps) and `answer`-kind rows stay their own `OutlineMessageChild`.
  */
 export interface OutlineActivityChild {
   type: "activity";

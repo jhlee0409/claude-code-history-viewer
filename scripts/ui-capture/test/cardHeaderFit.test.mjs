@@ -149,7 +149,12 @@ afterAll(async () => {
   await app?.stop();
 });
 
-/** Find the case's row by its anchor text, mark its wrapper and centre it; `false` if absent. */
+/**
+ * Find the case's row by its anchor text, mark its wrapper and bring it into
+ * view the way the transcript does (`rowScrollAlign`): centred when it fits
+ * the scroll viewport, from its start when it is taller (an opened row on a
+ * phone, #779). `false` if absent.
+ */
 const markRow = (page, anchor) =>
   page.evaluate((text) => {
     const row = [...document.querySelectorAll("[data-message-uuid] [data-tool-row]")].find((el) => (el.textContent ?? "").includes(text));
@@ -157,7 +162,9 @@ const markRow = (page, anchor) =>
     if (!wrapper) return false;
     document.querySelectorAll("[data-fit-row]").forEach((el) => el.removeAttribute("data-fit-row"));
     wrapper.setAttribute("data-fit-row", "");
-    wrapper.scrollIntoView({ block: "center" });
+    const viewport = wrapper.closest("[data-overlayscrollbars-viewport]");
+    const taller = !!viewport && wrapper.getBoundingClientRect().height > viewport.clientHeight;
+    wrapper.scrollIntoView({ block: taller ? "start" : "center" });
     return true;
   }, anchor);
 
@@ -214,8 +221,14 @@ const rowGeometry = (page) =>
     let copy = null;
     if (copyButton) {
       const r = copyButton.getBoundingClientRect();
-      const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
-      copy = { text: copyButton.textContent, rect: rect(r), hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
+      // The hit test needs the control on screen. The tail of a row taller
+      // than the viewport is not, after its start was aligned: scroll on to
+      // it as a reader does. Nearest puts it at the viewport's lower edge,
+      // beside the mobile controls lane, where a covered control would show.
+      copyButton.scrollIntoView({ block: "nearest" });
+      const shown = copyButton.getBoundingClientRect();
+      const hit = document.elementFromPoint((shown.left + shown.right) / 2, (shown.top + shown.bottom) / 2);
+      copy = { text: copyButton.textContent, rect: rect(r), shown: rect(shown), hitIsButton: !!hit && (hit === copyButton || copyButton.contains(hit)), hit: hit ? `${hit.tagName}.${hit.getAttribute("class") ?? ""}` : null };
     }
     return { viewport: innerWidth, box, head: (row.innerText ?? "").replace(/\s+/g, " "), verb, pieces, glyphs, target, status, open: !!detail, copy };
   });

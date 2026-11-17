@@ -533,4 +533,45 @@ describe("MessageNavigator accessibility", () => {
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.queryByText("Tool loaded.")).not.toBeInTheDocument();
   });
+
+  it("keeps the user's AskUserQuestion answer under the user-only filter as an answer row", () => {
+    storeState.userOnlyFilter = true;
+    const answered = {
+      questions: [{ question: "Which channel?", options: [{ label: "GitHub issue" }] }],
+      answers: { "Which channel?": "Email me instead" },
+    };
+
+    render(
+      <MessageNavigator
+        messages={[
+          { uuid: "prompt", type: "user", content: "Set up alerts", timestamp: "2026-02-27T10:00:00Z" } as never,
+          {
+            uuid: "unanswered",
+            type: "assistant",
+            content: [{ type: "tool_use", id: "toolu_0", name: "AskUserQuestion", input: { questions: [] } }],
+            timestamp: "2026-02-27T10:01:00Z",
+          } as never,
+          {
+            uuid: "answer",
+            type: "assistant",
+            content: [
+              { type: "tool_use", id: "toolu_1", name: "AskUserQuestion", input: { questions: [] } },
+              { type: "tool_result", tool_use_id: "toolu_1", content: "answered", toolUseResult: answered },
+            ],
+            timestamp: "2026-02-27T10:02:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[1]).toHaveTextContent("Email me instead");
+    expect(screen.getByTitle("navigator.kind.answer")).toBeInTheDocument();
+  });
 });

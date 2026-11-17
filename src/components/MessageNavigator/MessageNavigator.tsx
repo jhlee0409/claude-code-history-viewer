@@ -115,9 +115,10 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const entries = useMemo(() => {
     let filtered = allEntries;
     if (userOnlyFilter) {
-      // Rows the user typed: prompts and slash commands, not agent updates
-      // or injected context that Claude Code also stores as user messages.
-      filtered = filtered.filter((e) => e.kind === "prompt" || e.kind === "command");
+      // Rows the user wrote: prompts, slash commands, and answers to the
+      // agent's questions, not agent updates or injected context that
+      // Claude Code also stores as user messages.
+      filtered = filtered.filter((e) => e.kind === "prompt" || e.kind === "command" || e.kind === "answer");
     }
     const lower = filterText.trim().toLowerCase();
     if (lower) {

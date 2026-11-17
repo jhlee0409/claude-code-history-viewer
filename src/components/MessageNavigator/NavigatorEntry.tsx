@@ -102,7 +102,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
         <span className="text-caption font-medium text-muted-foreground">
           #{entry.turnIndex}
         </span>
-        {entry.hasToolUse && entry.kind !== "tool" && (
+        {entry.hasToolUse && entry.kind !== "tool" && entry.kind !== "answer" && (
           <Wrench className="w-3.5 h-3.5 text-muted-foreground/60" aria-hidden="true" />
         )}
         <span className="ml-auto text-caption text-muted-foreground/60">

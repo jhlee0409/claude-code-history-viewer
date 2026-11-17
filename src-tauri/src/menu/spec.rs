@@ -454,6 +454,7 @@ mod tests {
             vec![
                 "view.toggleInspector",
                 "view.toggleMinimap",
+                "view.toggleInlineTokens",
                 "-",
                 "view.zoomIn",
                 "view.zoomOut",

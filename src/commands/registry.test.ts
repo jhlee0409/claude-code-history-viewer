@@ -50,6 +50,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     focusFind: vi.fn(),
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
+    toggleInlineTokenUsage: vi.fn(),
     openSettingsManager: vi.fn(),
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
@@ -224,6 +225,14 @@ describe("command registry", () => {
     const ctx = makeContext({ place: { view: "conversation", session } });
     expect(runCommand("view.toggleInspector", ctx)).toBe(true);
     expect(ctx.actions.toggleInspector).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggles inline message token usage app-wide, at any place (#570)", () => {
+    for (const place of [{ view: "conversation" as const }, { view: "analytics" as const }]) {
+      const ctx = makeContext({ place });
+      expect(runCommand("view.toggleInlineTokens", ctx)).toBe(true);
+      expect(ctx.actions.toggleInlineTokenUsage).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("disables the archive for another provider's project, like the gear menu", () => {

@@ -23,6 +23,7 @@ export const COMMAND_IDS = [
   "edit.find",
   "view.toggleInspector",
   "view.toggleMinimap",
+  "view.toggleInlineTokens",
   "view.zoomIn",
   "view.zoomOut",
   "view.actualSize",

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T15:07:54.984Z
- * 총 키 개수: 2432
+ * 생성 시간: 2026-11-17T17:45:57.403Z
+ * 총 키 개수: 2441
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (308개)
+ * common namespace의 번역 키 (311개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -87,6 +87,7 @@ export type CommonKeys =
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
+  | 'common.command.toggleInlineTokens'
   | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
   | 'common.command.zoomIn'
@@ -171,6 +172,7 @@ export type CommonKeys =
   | 'common.menu.help'
   | 'common.menu.hide'
   | 'common.menu.hideOthers'
+  | 'common.menu.inlineTokens'
   | 'common.menu.inspector'
   | 'common.menu.listenFailed'
   | 'common.menu.maximize'
@@ -281,6 +283,7 @@ export type CommonKeys =
   | 'common.settings.tools'
   | 'common.settings.updateSettings'
   | 'common.settings.view.minimapShortcutHint'
+  | 'common.settings.view.showInlineTokens'
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
@@ -1595,7 +1598,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (166개)
+ * message namespace의 번역 키 (172개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1699,6 +1702,11 @@ export type MessageKeys =
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
   | 'messageViewer.hasErrors'
+  | 'messageViewer.inlineTokens.cacheRead'
+  | 'messageViewer.inlineTokens.cacheWrite'
+  | 'messageViewer.inlineTokens.input'
+  | 'messageViewer.inlineTokens.label'
+  | 'messageViewer.inlineTokens.output'
   | 'messageViewer.loadMoreMessages'
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
@@ -1737,6 +1745,7 @@ export type MessageKeys =
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.kind.agentUpdate'
+  | 'navigator.kind.answer'
   | 'navigator.kind.command'
   | 'navigator.kind.context'
   | 'navigator.kind.prompt'
@@ -3049,6 +3058,7 @@ export type TranslationKey =
   | 'common.command.openSettingsManager'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
+  | 'common.command.toggleInlineTokens'
   | 'common.command.toggleInspector'
   | 'common.command.toggleMinimap'
   | 'common.command.zoomIn'
@@ -3133,6 +3143,7 @@ export type TranslationKey =
   | 'common.menu.help'
   | 'common.menu.hide'
   | 'common.menu.hideOthers'
+  | 'common.menu.inlineTokens'
   | 'common.menu.inspector'
   | 'common.menu.listenFailed'
   | 'common.menu.maximize'
@@ -3243,6 +3254,7 @@ export type TranslationKey =
   | 'common.settings.tools'
   | 'common.settings.updateSettings'
   | 'common.settings.view.minimapShortcutHint'
+  | 'common.settings.view.showInlineTokens'
   | 'common.settings.view.showMinimap'
   | 'common.settings.view.title'
   | 'common.show'
@@ -3638,6 +3650,11 @@ export type TranslationKey =
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
   | 'messageViewer.hasErrors'
+  | 'messageViewer.inlineTokens.cacheRead'
+  | 'messageViewer.inlineTokens.cacheWrite'
+  | 'messageViewer.inlineTokens.input'
+  | 'messageViewer.inlineTokens.label'
+  | 'messageViewer.inlineTokens.output'
   | 'messageViewer.loadMoreMessages'
   | 'messageViewer.loadingMessages'
   | 'messageViewer.loadingPreviousMessages'
@@ -3676,6 +3693,7 @@ export type TranslationKey =
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.kind.agentUpdate'
+  | 'navigator.kind.answer'
   | 'navigator.kind.command'
   | 'navigator.kind.context'
   | 'navigator.kind.prompt'

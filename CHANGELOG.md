@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Hermes Agent provider** (desktop and WebUI). Browse Hermes Agent (Nous Research) CLI, desktop and gateway sessions from `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows), including every `profiles/<name>/` store, with tool calls, reasoning, and the session token usage and cost Hermes records. The store is opened read-only. A session's totals and cost are attached to its last assistant message, so date-filtered statistics count them on that message's day. — 32 assistants in total (#430, #665)
+- **Inline token usage on messages** (desktop and WebUI). An optional view setting, off by default, shows each assistant message's input and output tokens (and cache read/write when the message used the cache) right in its header, beside the model, so a session can be scanned for its costly turns without opening each ⓘ tooltip. Turn it on from the gear menu's View section, the desktop View menu, or the ⌘K palette ("Show or Hide Message Token Usage"); the desktop app keeps the choice in `settings.json` across restarts. A counter the history did not record shows "—" (Not recorded), never 0. (#570)
 
 ### Security
 - **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
@@ -18,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
 - **Cline sessions open again** (desktop and WebUI). A Cline session, from the VS Code extension or the current session store, opens in the viewer and counts in the session, project and global statistics; it used to fail with `Invalid Cline path`. (#707)
 - **Recent edits and subagents of other providers no longer error in the WebUI.** A project or session of oh-my-pi, Pi or another file-based provider without recorded edits or subagents is answered with none instead of HTTP 500 `Path is outside the configured history directories`, and its files are never read as Claude history. (#643)
+- **The current search match is visible in a tool row's head.** The current match is now underlined in its text colour, so it stands out from the current message's highlight (which has the same colour as the match) in the light, dark and high-contrast themes, for example in a NotebookEdit path or a collapsed row's target. (#736)
+- **Session Details KPI captions are no longer cut off on phones with larger text.** "Tokens/Message" can wrap after its slash, and a tile whose caption or value needs more room moves onto its own row instead of running past the card's edge. (#719)
 
 ## [1.32.2] - 2026-10-20
 
