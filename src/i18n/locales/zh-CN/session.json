@@ -290,5 +290,17 @@
   "project.sessions.showAll": "全部显示 · {{count}} 个",
   "project.sessions.showFewer": "收起",
   "project.sessions.empty": "没有会话",
-  "project.sessions.loadError": "无法加载会话"
+  "project.sessions.loadError": "无法加载会话",
+  "project.sessions.filterMatches_one": "{{count}} 个会话与筛选条件匹配",
+  "project.sessions.filterMatches_other": "{{count}} 个会话与筛选条件匹配",
+  "project.filter.hint.both": "按项目名称或会话名称筛选",
+  "project.filter.placeholder.projects": "按项目名称筛选",
+  "project.filter.placeholder.sessions": "按会话名称筛选",
+  "project.filter.matchLabel": "筛选范围",
+  "project.filter.target.projects": "项目名称",
+  "project.filter.target.sessions": "会话名称",
+  "project.filter.indexing": "正在扫描会话 {{loaded}}/{{total}}",
+  "project.filter.searchingSessions": "正在搜索会话名称…",
+  "project.filter.indexError_one": "无法读取 {{count}} 个项目的会话。它们只能按项目名称匹配。",
+  "project.filter.indexError_other": "无法读取 {{count}} 个项目的会话。它们只能按项目名称匹配。"
 }

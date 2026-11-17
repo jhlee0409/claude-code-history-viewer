@@ -78,6 +78,7 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import { HighlightedText } from "../common/HighlightedText";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
 import { OutcomeStatus } from "./OutcomeStatus";
+import { useResultSearch } from "./resultProvider";
 import { toolKindLabel } from "./toolKind";
 
 export interface ToolRowProps {
@@ -114,6 +115,8 @@ export interface TextHighlight {
 
 /** `text` with the search hits marked, or as is when there is no query. */
 export function Marked({ text, highlight }: { text: string; highlight?: TextHighlight }) {
+  const inherited = useResultSearch();
+  highlight = highlight ?? (inherited.searchQuery ? { ...inherited, searchQuery: inherited.searchQuery } : undefined);
   if (!highlight || highlight.searchQuery.trim() === "") return <>{text}</>;
   return (
     <HighlightedText
@@ -239,8 +242,8 @@ export function WhenTargetCut({ children }: { children: ReactNode }) {
 function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): string[] {
   const failed = outcome.lifecycle === "completed" && outcome.verdict === "failed";
   // What the header label already says (OutcomeStatus).
-  const headerSaysErrorCode = failed && outcome.errorCode !== undefined;
-  const headerSaysExitCode = failed && !headerSaysErrorCode && outcome.exitCode !== undefined;
+  const headerSaysErrorCode = failed && !outcome.declined && outcome.errorCode !== undefined;
+  const headerSaysExitCode = failed && !outcome.declined && !headerSaysErrorCode && outcome.exitCode !== undefined;
   const facts: string[] = [];
   if (outcome.exitCode !== undefined && !headerSaysExitCode) facts.push(t("toolOutcome.exitCode", { code: outcome.exitCode }));
   if (outcome.errorCode !== undefined && !headerSaysErrorCode) facts.push(t("toolOutcome.errorCode", { code: outcome.errorCode }));
@@ -276,7 +279,9 @@ function CopyToolId({ toolId }: { toolId: string }) {
   );
 }
 
-export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, expandKey, revealFor, detailMeta, children }: ToolRowProps) {
+export function ToolRow({ icon, verb, target, meta, outcome, family, toolId, expandKey, revealFor: ownReveal, detailMeta, children }: ToolRowProps) {
+  const inherited = useResultSearch();
+  const revealFor = ownReveal ?? inherited.revealFor;
   const { t } = useTranslation();
   const ambient = useContext(RendererDefaultsContext);
   const [open, toggle, setOpen] = useToggle(expandKey, ambient.defaultExpanded);

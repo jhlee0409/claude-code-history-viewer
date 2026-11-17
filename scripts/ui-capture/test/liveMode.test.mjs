@@ -63,6 +63,7 @@ describe.skipIf(!req.enabled)("--live interaction mode (real WebKit)", () => {
     try {
       const motion = await measureMotion(session.page, () => smoothScroll(session.page));
       expect(motion.scrollFrames).toBeGreaterThan(1);
+      expect(motion.scrollTrace.some((point) => point.top > 0)).toBe(true);
     } finally {
       await session.close();
     }

@@ -148,20 +148,20 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
     const menu = openMenu(container);
-    expect(within(menu).getAllByRole("menuitemradio").map((el) => el.textContent)).toEqual(["Unified", "Side by side", "Advanced compare"]);
+    expect(within(menu).getAllByRole("menuitemradio").map((el) => el.textContent)).toEqual(["Unified", "Side by side", "Word changes", "Advanced compare"]);
     expect(within(menu).getByRole("menuitemradio", { name: "Unified" }).getAttribute("aria-checked")).toBe("true");
     expect(within(menu).getAllByRole("menuitem").map((el) => el.textContent)).toEqual(["Copy Changed Result", "Open in Recent edits"]);
     fireEvent.keyDown(menu, { key: "Escape" });
   });
 
-  it("Advanced compare swaps the diff for the existing AdvancedTextDiff; Unified brings the DiffView back", () => {
+  it("Advanced compare uses shared comparison modes; Unified brings the default DiffView back", () => {
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Advanced compare" }));
-    expect(container.querySelector("[data-diff-view]")).toBeNull();
-    expect(screen.getByText(/Comparison Method/)).toBeTruthy();
+    expect(container.querySelector("[data-diff-view]")).not.toBeNull();
+    expect(screen.getByRole("radiogroup", { name: /Comparison Method/ })).toBeTruthy();
     // Still nothing between the meta line and the chosen view.
-    expect(meta(container).nextElementSibling?.textContent).toContain("Comparison Method");
+    expect(meta(container).nextElementSibling?.querySelector("[role=radio]")).not.toBeNull();
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Unified" }));
     expect(meta(container).nextElementSibling?.hasAttribute("data-diff-view")).toBe(true);
   });
@@ -170,7 +170,7 @@ describe("the `…` menu: comparison mode (old implementations, unchanged), copy
     const { container } = editCard({ file_path: FILE, old_string: OLD, new_string: NEW });
     openRow(container);
     fireEvent.click(within(openMenu(container)).getByRole("menuitemradio", { name: "Side by side" }));
-    expect(container.querySelector("[data-diff-view]")).toBeNull();
+    expect(container.querySelector("[data-diff-view]")).not.toBeNull();
     const view = meta(container).nextElementSibling as HTMLElement;
     expect(view.textContent).toContain("Before");
     expect(view.textContent).toContain("After");

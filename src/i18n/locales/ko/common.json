@@ -154,7 +154,6 @@
   "common.time.sessionTime": "세션 시간",
   "common.time.start": "시작:",
   "common.time.startTime": "시작 시간",
-  "common.toolId": "도구 ID",
   "common.undo": "실행취소",
   "common.unknown": "알 수 없음",
   "common.update.available": "버전 {{version}} 업데이트",

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
@@ -10,6 +11,7 @@ import type { Props } from "./shared";
 import { str } from "./shared";
 
 export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Glob";
   const toolId = (toolUse.id as string) || "";
@@ -18,7 +20,7 @@ export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) 
   const pattern = str(input, "pattern") ?? str(input, "path") ?? "";
   const path = str(input, "pattern") ? str(input, "path") : null;
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
   return (

@@ -64,7 +64,7 @@ describe("FileEditItem diff views", () => {
   });
 
   it("switches to advanced analysis from the diff's … menu without crashing", () => {
-    // Regression: AdvancedTextDiff uses useCaptureExpandState, which throws
+    // Regression: DiffView uses useCaptureExpandState, which throws
     // unless the diff view is wrapped in an ExpandKeyProvider. The old
     // "Advanced analysis" button moved into the menu (TR2a).
     render(<FileEditItem edit={edit} isDarkMode={false} />);
@@ -77,7 +77,7 @@ describe("FileEditItem diff views", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "diffView.modeAdvanced" }));
 
     expect(
-      screen.getByText("advancedTextDiff.comparisonMethod")
+      screen.getByRole("radiogroup", { name: "advancedTextDiff.comparisonMethod" })
     ).toBeInTheDocument();
   });
 });

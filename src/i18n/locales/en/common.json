@@ -154,7 +154,6 @@
   "common.time.sessionTime": "Session Time",
   "common.time.start": "Start:",
   "common.time.startTime": "Start Time",
-  "common.toolId": "Tool ID",
   "common.undo": "Undo",
   "common.unknown": "Unknown",
   "common.update.available": "Version {{version}} Update Available",

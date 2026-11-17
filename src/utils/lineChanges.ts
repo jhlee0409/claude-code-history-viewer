@@ -2,8 +2,8 @@ import { diffLines, type Change } from "diff";
 
 /**
  * How an old → new text replacement is counted wherever the app shows its
- * size: the Edit row's "+a −d", the DiffView's lines and counts, and the
- * line view of AdvancedTextDiff read the same diff and the same counts, so
+ * size: the Edit row's "+a −d" and DiffView's line-comparison modes
+ * read the same diff and the same counts, so
  * they never disagree (renderer audit TC4). A missing newline at the end of
  * one side is not a changed line.
  */

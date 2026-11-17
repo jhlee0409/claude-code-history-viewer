@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { ThemeContext, type Theme } from "@/contexts/theme/context";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { DiffComparisonBody } from "./DiffViewComparison";
 
 const WHITE = /^(?:#fff(?:fff)?|white|rgb\(255,\s*255,\s*255\))$/i;
@@ -24,12 +25,12 @@ const showSideBySide = (isDarkMode: boolean) =>
         initializeTheme: async () => {},
       }}
     >
-      <DiffComparisonBody
+      <ExpandKeyProvider value="theme-diff"><DiffComparisonBody
         mode="sideBySide"
         sections={[{ oldText: "const a = 1;\nconst b = 2;\n", newText: "const a = 1;\nconst b = 3;\n" }]}
         filePath="src/a.ts"
         expandKey="side-by-side-dark"
-      />
+      /></ExpandKeyProvider>
     </ThemeContext.Provider>,
   );
 
@@ -51,6 +52,7 @@ describe("side by side in the … menu follows the app theme", () => {
 
   it("light theme: the side-by-side table keeps its light background", () => {
     const { container } = showSideBySide(false);
-    expect(tableBackground(container)).toMatch(WHITE);
+    expect(container.querySelector("[data-diff-view]")?.className).toContain("bg-surface-well");
+    expect(tableBackground(container)).not.toMatch(WHITE);
   });
 });

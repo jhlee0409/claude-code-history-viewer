@@ -2,13 +2,12 @@
  * The diff's comparison modes and its `…` menu (plan §4.3 "펼친 Edit",
  * feature table "고급 비교", TR2a).
  *
- * Unified (DiffView) is the default. The two older viewers — the advanced
- * compare (AdvancedTextDiff, its six methods) and the side-by-side
- * react-diff-viewer — moved behind the menu unchanged; feature parity on
- * the new line model is TR2b. The same menu holds the copies and, where the
- * diff is not already on the Edits screen, "Open in Recent edits".
+ * Unified is the default; split, word emphasis and six advanced methods all
+ * use DiffView's line model and rendering. The menu also holds exact recorded
+ * copy payloads and, outside the Edits screen, "Open in Recent edits".
  */
 import { useState } from "react";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,16 +22,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { copyTextToClipboard } from "@/utils/clipboard";
-import { AdvancedTextDiff } from "../AdvancedTextDiff";
-import { SideBySideDiff } from "../EnhancedDiffViewer";
-import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
+import { Button } from "@/components/ui/button";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { COMPARE_METHODS, type CompareMethod } from "./advancedCompare";
+
+import type { TextHighlight } from "./ToolRow";
 import { DiffView, type DiffSection } from "./DiffView";
+import { comparedLines } from "./DiffViewModel";
+import { searchRanges } from "../common/searchMarks";
+import { useResultSearch } from "./resultProvider";
 
-export type ComparisonMode = "unified" | "sideBySide" | "advanced";
+export type ComparisonMode = "unified" | "sideBySide" | "words" | "advanced";
 
-const MODES: ReadonlyArray<{ mode: ComparisonMode; key: "diffView.modeUnified" | "diffView.modeSideBySide" | "diffView.modeAdvanced" }> = [
+const MODES: ReadonlyArray<{ mode: ComparisonMode; key: "diffView.modeUnified" | "diffView.modeSideBySide" | "diffView.modeWords" | "diffView.modeAdvanced" }> = [
   { mode: "unified", key: "diffView.modeUnified" },
   { mode: "sideBySide", key: "diffView.modeSideBySide" },
+  { mode: "words", key: "diffView.modeWords" },
   { mode: "advanced", key: "diffView.modeAdvanced" },
 ];
 
@@ -68,14 +73,14 @@ export function DiffActionsMenu({ mode, onModeChange, copies = [], openIn }: Dif
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button variant="ghost" size="icon-sm"
           type="button"
           aria-label={label}
           title={label}
           className="inline-flex size-6 shrink-0 items-center justify-center rounded-row text-fg-3 hover:bg-surface-hover hover:text-fg"
         >
           <Ellipsis className="w-4 h-4" aria-hidden="true" />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuLabel>{t("diffView.comparison")}</DropdownMenuLabel>
@@ -107,32 +112,38 @@ export interface DiffComparisonBodyProps {
   context?: number;
   /** Accessible name of the unified diff. */
   label?: string;
+  highlight?: TextHighlight;
 }
 
 /** The diff in the chosen mode. One element, so whatever precedes it stays directly above it. */
-export function DiffComparisonBody({ mode, sections, filePath = "", expandKey, context, label }: DiffComparisonBodyProps) {
+export function DiffComparisonBody({ mode, sections, filePath, expandKey, context, label, highlight }: DiffComparisonBodyProps) {
   const { t } = useTranslation();
-  const prefix = useExpandKeyPrefix();
-  if (mode === "unified") return <DiffView sections={sections} expandKey={expandKey} context={context} label={label} />;
-  if (mode === "sideBySide") {
-    return (
-      <div data-diff-mode="sideBySide" className="space-y-2">
-        {sections.map((section, index) => (
-          <SideBySideDiff key={index} oldText={section.oldText} newText={section.newText} filePath={filePath} />
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div data-diff-mode="advanced" className="space-y-2">
-      {sections.map((section, index) => (
-        // Each section keeps its own expand state under the call's key.
-        <ExpandKeyProvider key={index} value={`${prefix}:${expandKey}:advanced-${index}`}>
-          <AdvancedTextDiff oldText={section.oldText} newText={section.newText} title={t("diffViewer.advancedTextAnalysis")} />
-        </ExpandKeyProvider>
-      ))}
-    </div>
-  );
+  const [method, setMethod] = useState<CompareMethod>("lines");
+  const inherited = useResultSearch();
+  const query = (highlight ? { ...inherited, ...highlight } : inherited).searchQuery;
+  let searchOffset = 0;
+  const view = <DiffView filePath={filePath} highlight={highlight} sections={sections} expandKey={`${expandKey}:${mode}`} context={context} label={label} split={mode === "sideBySide"} method={mode === "words" || mode === "sideBySide" ? "words" : mode === "advanced" ? method : undefined} />;
+  if (mode !== "advanced") return view;
+  return <div data-diff-mode="advanced" className="space-y-2">
+    <Segmented size="toolbar" className="flex-wrap" aria-label={t("advancedTextDiff.comparisonMethod")} value={method} onValueChange={value => COMPARE_METHODS.includes(value as CompareMethod) && setMethod(value as CompareMethod)}>
+      {COMPARE_METHODS.map(value => <SegmentedItem key={value} value={value}>{t(`advancedTextDiff.modes.${value}`)}</SegmentedItem>)}
+    </Segmented>
+    {sections.map((section, index) => {
+      const offset = searchOffset;
+      searchOffset += query ? comparedLines(section.oldText, section.newText, section.oldStart, section.newStart, method, section.lines).reduce((total, line) => total + searchRanges(line.text, query).length, 0) : 0;
+      return <DiffView key={index} sections={[section]} expandKey={`${expandKey}:advanced-${index}`} context={context} label={label} method={method} highlight={highlight} searchOffset={offset} />;
+    })}
+  </div>;
+}
+
+/** Added/removed filters keep the existing extracted groups, but share all drawing,
+ * markers, cap, colours and disclosure semantics with the main diff. */
+export function DiffFiltered({ groups, kind, expandKey }: { groups: { startLine: number; lines: string[] }[]; kind: "added" | "removed"; expandKey: string }) {
+  const { t } = useTranslation();
+  if (!groups.length) return <p className="p-3 text-caption text-fg-3">{t("recentEdits.noLinesToShow")}</p>;
+  const added = kind === "added";
+  const sections: DiffSection[] = groups.map(group => ({ oldText: added ? "" : group.lines.join("\n"), newText: added ? group.lines.join("\n") : "", oldStart: group.startLine, newStart: group.startLine, lines: group.lines.map((text, index) => ({ text, kind: added ? "add" : "del", oldNo: added ? null : group.startLine + index, newNo: added ? group.startLine + index : null })) }));
+  return <ExpandKeyProvider value={expandKey}><DiffView sections={sections} expandKey="filtered" /></ExpandKeyProvider>;
 }
 
 export interface DiffWithMenuProps {
@@ -140,6 +151,10 @@ export interface DiffWithMenuProps {
   newText: string;
   filePath?: string;
   expandKey: string;
+  sections?: DiffSection[];
+  highlight?: TextHighlight;
+  /** Explicit recorded copy actions (e.g. an apply_patch input, not a whole file). */
+  copies?: CopyAction[];
 }
 
 /**
@@ -147,15 +162,17 @@ export interface DiffWithMenuProps {
  * diff view): comparison mode and "Copy After Code", as its old toolbar had.
  * The screen's own layout is ED1; this only swaps the viewer.
  */
-export function DiffWithMenu({ oldText, newText, filePath = "", expandKey }: DiffWithMenuProps) {
+export function DiffWithMenu({ oldText, newText, filePath = "", expandKey, sections, highlight, copies }: DiffWithMenuProps) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<ComparisonMode>("unified");
+  // An explicit empty patch has no comparison or after-copy action.
+  if (sections?.length === 0) return null;
   return (
     <div data-diff-with-menu="">
       <div className="flex min-h-row-list items-center justify-end">
-        <DiffActionsMenu mode={mode} onModeChange={setMode} copies={[{ label: t("diffViewer.copyAfterCode"), text: newText }]} />
+        <DiffActionsMenu mode={mode} onModeChange={setMode} copies={copies ?? [{ label: t("diffViewer.copyAfterCode"), text: newText }]} />
       </div>
-      <DiffComparisonBody mode={mode} sections={[{ oldText, newText }]} filePath={filePath} expandKey={expandKey} />
+      <DiffComparisonBody mode={mode} sections={sections ?? [{ oldText, newText }]} filePath={filePath} expandKey={expandKey} highlight={highlight} />
     </div>
   );
 }

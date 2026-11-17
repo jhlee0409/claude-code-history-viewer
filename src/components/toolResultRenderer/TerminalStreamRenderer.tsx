@@ -1,106 +1,39 @@
-"use client";
-
 import { SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
-import { layout } from "@/components/renderers";
-import { cn } from "@/lib/utils";
-import { HighlightedText } from "../common/HighlightedText";
-import { AnsiText } from "@/components/common/AnsiText";
-import { stripAnsiCodes } from "@/utils/ansiToHtml";
+import { RecordedResult } from "../transcript/RecordedResult";
+import { OutputBlock } from "../transcript/OutputBlock";
+import { legacyExecutionView } from "../transcript/toolOutcome";
+import { ToolResultOutputs } from "../transcript/ToolResultOutputs";
+import { useResultProvider } from "../transcript/resultProvider";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
 
 type Props = {
-  command: string;
-  stream: string;
-  output: string;
-  timestamp: string;
-  exitCode: number;
-  searchQuery?: string;
-  isCurrentMatch?: boolean;
-  currentMatchIndex?: number;
+  record: Record<string, unknown>;
+  searchQuery?: string; isCurrentMatch?: boolean; currentMatchIndex?: number;
 };
 
-export const TerminalStreamRenderer = ({
-  command,
-  stream,
-  output,
-  timestamp,
-  exitCode,
-  searchQuery,
-  isCurrentMatch = false,
-  currentMatchIndex = 0,
-}: Props) => {
+export const TerminalStreamRenderer = ({ record, searchQuery, isCurrentMatch, currentMatchIndex }: Props) => {
   const { t } = useTranslation();
   const fmt = useFormat();
-
+  const provider = useResultProvider();
+  const { command, stream, output, timestamp, content } = record;
+  const { outcome, stdout, stderr, remainder } = legacyExecutionView(record, provider);
+  const shownString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+  const rest = Object.fromEntries(Object.entries(remainder).filter(([key, value]) => {
+    if (key === "type" && value === "terminal_stream") return false;
+    if (["command", "stream", "output"].includes(key) && shownString(value)) return false;
+    if (key === "content" && value !== null && value !== undefined) return false;
+    // Formatted time is not a faithful rendering of the original timestamp.
+    return true;
+  }));
+  const highlight = { isCurrentMatch, currentMatchIndex };
   return (
-    <Renderer className="bg-tool-terminal/10 border-tool-terminal/30">
-      <Renderer.Header
-        title={t('terminalStreamRenderer.title')}
-        icon={<SquareTerminal className={cn(layout.iconSize, "text-tool-terminal")} />}
-        titleClassName="text-foreground"
-        rightContent={
-          <div className={cn("flex items-center", layout.iconSpacing)}>
-            {command && (
-              <code className={`${layout.monoText} bg-tool-terminal/20 px-2 py-1 rounded text-tool-terminal max-w-[280px] overflow-x-auto inline-block whitespace-nowrap`}>
-                {String(command)}
-              </code>
-            )}
-            {timestamp && (
-              <span className={`${layout.smallText} text-muted-foreground`}>
-                <Num>{fmt.time(String(timestamp))}</Num>
-              </span>
-            )}
-          </div>
-        }
-      />
-      <Renderer.Content>
-        <div className="relative">
-          {/* 스트림 타입 표시 */}
-          <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-            <span
-              className={cn(
-                layout.smallText,
-                "px-2 py-1 rounded",
-                stream === "stderr"
-                  ? "bg-destructive/20 text-destructive"
-                  : "bg-tool-terminal/20 text-tool-terminal"
-              )}
-            >
-              {String(stream)}
-            </span>
-            {exitCode !== undefined && (
-              <span
-                className={cn(
-                  layout.smallText,
-                  "px-2 py-1 rounded",
-                  Number(exitCode) === 0
-                    ? "bg-success/20 text-success"
-                    : "bg-destructive/20 text-destructive"
-                )}
-              >
-                {t('terminalStreamRenderer.exitCode')}: {String(exitCode)}
-              </span>
-            )}
-          </div>
-
-          {/* 출력 내용 */}
-          <pre className={cn(layout.monoText, "text-foreground whitespace-pre-wrap bg-muted p-2 rounded overflow-auto max-h-80")}>
-            {searchQuery ? (
-              <HighlightedText
-                text={stripAnsiCodes(String(output))}
-                searchQuery={searchQuery}
-                isCurrentMatch={isCurrentMatch}
-                currentMatchIndex={currentMatchIndex}
-              />
-            ) : (
-              <AnsiText text={String(output)} />
-            )}
-          </pre>
-        </div>
-      </Renderer.Content>
-    </Renderer>
+    <RecordedResult title={t("terminalStreamRenderer.title")} icon={<SquareTerminal className="w-4 h-4" />} record={record} family="process" expandKey="terminal-stream-result" searchQuery={searchQuery} meta={<>{!!command && <code className="break-words">{String(command)}</code>}{!!timestamp && <Num>{fmt.time(String(timestamp))}</Num>}{!!stream && <span>{String(stream)}</span>}</>}>
+      <OutputBlock text={stream === "stderr" ? "" : typeof output === "string" ? output : ""} errorText={stream === "stderr" && typeof output === "string" ? output : undefined} source="command" failed={outcome.verdict === "failed"} expandKey="terminal-stream-output" searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />
+      {(stdout !== "" || stderr !== "") && <OutputBlock text={stdout} errorText={stderr} source="command" failed={outcome.verdict === "failed"} expandKey="terminal-stream-extra" searchQuery={searchQuery} highlight={highlight} />}
+      {content != null && <ToolResultOutputs results={[{ content }]} family="process" expandKey="terminal-content" searchQuery={searchQuery} highlight={highlight} outcomeShown={false} />}
+      {Object.keys(rest).length > 0 && <OutputBlock json text={JSON.stringify(rest, null, 2)} source="file" expandKey="terminal-recorded" searchQuery={searchQuery} highlight={highlight} />}
+    </RecordedResult>
   );
 };

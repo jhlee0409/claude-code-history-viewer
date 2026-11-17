@@ -1,0 +1,3884 @@
+[
+  {
+    "responses": [
+      [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            },
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "printf same"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "duplicate",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "parallel",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            },
+            {
+              "id": "empty",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "empty",
+              "type": "tool_result"
+            },
+            {
+              "id": "pending",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "null",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing-output",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "missing-output",
+              "type": "tool_result"
+            }
+          ],
+          "costUSD": 0.1,
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "opencode",
+          "role": "assistant",
+          "sessionId": "ses_001",
+          "timestamp": "2025-10-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "service_tier": null
+          },
+          "uuid": "msg_001"
+        }
+      ],
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 3,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 6,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 9,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 99,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      }
+    ],
+    "searches": [
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "same"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "Error"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence"
+      }
+    ],
+    "sessions": [
+      {
+        "actual_session_id": "ses_001",
+        "file_path": "opencode://proj1/ses_001",
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "has_errors": false,
+        "has_tool_use": false,
+        "is_renamed": false,
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "last_modified": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "project_name": "",
+        "provider": "opencode",
+        "session_id": "opencode://ses_001",
+        "storage_type": "json",
+        "summary": "fixture"
+      }
+    ],
+    "stats": {
+      "Ok": {
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "model_distribution": [
+          {
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+            "context_breakdown": [
+              {
+                "cache_creation_tokens": 0,
+                "cache_creation_tokens_1h": 0,
+                "cache_creation_tokens_5m": 0,
+                "cache_read_tokens": 0,
+                "input_tokens": 10,
+                "min_context_tokens": 0,
+                "output_tokens": 5,
+                "reasoning_tokens": 0,
+                "token_count": 15
+              }
+            ],
+            "cost_usd": 0.1,
+            "input_tokens": 10,
+            "message_count": 1,
+            "model_name": "unknown",
+            "output_tokens": 5,
+            "provider_id": "opencode",
+            "reasoning_tokens": 0,
+            "token_count": 15
+          }
+        ],
+        "most_used_tools": [
+          {
+            "avg_execution_time": null,
+            "success_rate": 100.0,
+            "tool_name": "Bash",
+            "usage_count": 8
+          }
+        ],
+        "project_name": "proj1",
+        "session_id": "ses_001",
+        "token_usage_recording": "unknown",
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_input_tokens": 10,
+        "total_output_tokens": 5,
+        "total_reasoning_tokens": 0,
+        "total_tokens": 15
+      }
+    }
+  },
+  {
+    "responses": [
+      [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            },
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "printf same"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "duplicate",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "parallel",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            },
+            {
+              "id": "empty",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "empty",
+              "type": "tool_result"
+            },
+            {
+              "id": "pending",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "null",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing-output",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "missing-output",
+              "type": "tool_result"
+            }
+          ],
+          "costUSD": 0.1,
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "opencode",
+          "role": "assistant",
+          "sessionId": "ses_001",
+          "timestamp": "2025-10-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "service_tier": null
+          },
+          "uuid": "msg_001"
+        }
+      ],
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 3,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 6,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 9,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 99,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      }
+    ],
+    "searches": [
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "same"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "opencode",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "Error"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence"
+      }
+    ],
+    "sessions": [
+      {
+        "actual_session_id": "ses_001",
+        "file_path": "opencode://proj1/ses_001",
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "has_errors": false,
+        "has_tool_use": false,
+        "is_renamed": false,
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "last_modified": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "project_name": "",
+        "provider": "opencode",
+        "session_id": "opencode://ses_001",
+        "storage_type": "sqlite",
+        "summary": "fixture"
+      }
+    ],
+    "stats": {
+      "Ok": {
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "model_distribution": [
+          {
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+            "context_breakdown": [
+              {
+                "cache_creation_tokens": 0,
+                "cache_creation_tokens_1h": 0,
+                "cache_creation_tokens_5m": 0,
+                "cache_read_tokens": 0,
+                "input_tokens": 10,
+                "min_context_tokens": 0,
+                "output_tokens": 5,
+                "reasoning_tokens": 0,
+                "token_count": 15
+              }
+            ],
+            "cost_usd": 0.1,
+            "input_tokens": 10,
+            "message_count": 1,
+            "model_name": "unknown",
+            "output_tokens": 5,
+            "provider_id": "opencode",
+            "reasoning_tokens": 0,
+            "token_count": 15
+          }
+        ],
+        "most_used_tools": [
+          {
+            "avg_execution_time": null,
+            "success_rate": 100.0,
+            "tool_name": "Bash",
+            "usage_count": 8
+          }
+        ],
+        "project_name": "fixture",
+        "session_id": "ses_001",
+        "token_usage_recording": "unknown",
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_input_tokens": 10,
+        "total_output_tokens": 5,
+        "total_reasoning_tokens": 0,
+        "total_tokens": 15
+      }
+    }
+  },
+  {
+    "responses": [
+      [
+        {
+          "content": [
+            {
+              "text": "fixture",
+              "type": "text"
+            },
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "printf same"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "duplicate",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            },
+            {
+              "id": "parallel",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "same",
+              "is_error": true,
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            },
+            {
+              "id": "empty",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "empty",
+              "type": "tool_result"
+            },
+            {
+              "id": "pending",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "null",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "id": "missing-output",
+              "input": {},
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "",
+              "tool_use_id": "missing-output",
+              "type": "tool_result"
+            }
+          ],
+          "costUSD": 0.1,
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "kilo",
+          "role": "assistant",
+          "sessionId": "ses_001",
+          "timestamp": "2025-10-01T00:00:00+00:00",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation_input_tokens": null,
+            "cache_read_input_tokens": null,
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "service_tier": null
+          },
+          "uuid": "msg_001"
+        }
+      ],
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 1,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 3,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 6,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 9,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [],
+        "next_offset": 99,
+        "total_count": 1
+      },
+      {
+        "has_more": false,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "next_offset": 1,
+        "total_count": 1
+      }
+    ],
+    "searches": [
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "same"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "same"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence-only-needle"
+      },
+      {
+        "filters": {},
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "fixture",
+                "type": "text"
+              },
+              {
+                "id": "duplicate",
+                "input": {
+                  "command": "printf same"
+                },
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "  same\n\u001b[31mError: stdout only\u001b[0m\n",
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "duplicate",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "duplicate",
+                "type": "tool_result"
+              },
+              {
+                "id": "parallel",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "same",
+                "is_error": true,
+                "tool_use_id": "parallel",
+                "type": "tool_result"
+              },
+              {
+                "id": "empty",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "empty",
+                "type": "tool_result"
+              },
+              {
+                "id": "pending",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "null",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "id": "missing-output",
+                "input": {},
+                "name": "Bash",
+                "type": "tool_use"
+              },
+              {
+                "content": "",
+                "tool_use_id": "missing-output",
+                "type": "tool_result"
+              }
+            ],
+            "costUSD": 0.1,
+            "isSidechain": null,
+            "parentUuid": null,
+            "provider": "kilo",
+            "role": "assistant",
+            "sessionId": "ses_001",
+            "timestamp": "2025-10-01T00:00:00+00:00",
+            "toolUse": null,
+            "toolUseResult": null,
+            "type": "assistant",
+            "usage": {
+              "cache_creation_input_tokens": null,
+              "cache_read_input_tokens": null,
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "service_tier": null
+            },
+            "uuid": "msg_001"
+          }
+        ],
+        "query": "Error"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "Error"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "cancelled"
+      },
+      {
+        "filters": {},
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasToolCalls": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": true
+        },
+        "messages": [],
+        "query": "evidence"
+      },
+      {
+        "filters": {
+          "hasErrors": false
+        },
+        "messages": [],
+        "query": "evidence"
+      }
+    ],
+    "sessions": [
+      {
+        "actual_session_id": "ses_001",
+        "file_path": "kilo://proj1/ses_001",
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "has_errors": false,
+        "has_tool_use": false,
+        "is_renamed": false,
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "last_modified": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "project_name": "",
+        "provider": "kilo",
+        "session_id": "kilo://ses_001",
+        "storage_type": "sqlite",
+        "summary": "fixture"
+      }
+    ],
+    "stats": {
+      "Ok": {
+        "first_message_time": "2025-10-01T00:00:00+00:00",
+        "last_message_time": "2025-10-01T00:00:00+00:00",
+        "message_count": 1,
+        "model_distribution": [
+          {
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+            "context_breakdown": [
+              {
+                "cache_creation_tokens": 0,
+                "cache_creation_tokens_1h": 0,
+                "cache_creation_tokens_5m": 0,
+                "cache_read_tokens": 0,
+                "input_tokens": 10,
+                "min_context_tokens": 0,
+                "output_tokens": 5,
+                "reasoning_tokens": 0,
+                "token_count": 15
+              }
+            ],
+            "cost_usd": 0.1,
+            "input_tokens": 10,
+            "message_count": 1,
+            "model_name": "unknown",
+            "output_tokens": 5,
+            "provider_id": "kilo",
+            "reasoning_tokens": 0,
+            "token_count": 15
+          }
+        ],
+        "most_used_tools": [
+          {
+            "avg_execution_time": null,
+            "success_rate": 100.0,
+            "tool_name": "Bash",
+            "usage_count": 8
+          }
+        ],
+        "project_name": "fixture",
+        "session_id": "ses_001",
+        "token_usage_recording": "unknown",
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "total_input_tokens": 10,
+        "total_output_tokens": 5,
+        "total_reasoning_tokens": 0,
+        "total_tokens": 15
+      }
+    }
+  }
+]

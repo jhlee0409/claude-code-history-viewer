@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
@@ -10,6 +11,7 @@ import type { Props } from "./shared";
 import { num, strAny } from "./shared";
 
 export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Read";
   const toolId = (toolUse.id as string) || "";
@@ -18,7 +20,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
   const offset = num(input, "offset");
   const limit = num(input, "limit");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
   const rangeLabel = offset != null || limit != null

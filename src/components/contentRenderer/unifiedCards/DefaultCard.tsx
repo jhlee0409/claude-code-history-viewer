@@ -1,4 +1,8 @@
-import { memo } from "react";
+import { useCodexChanges } from "../../transcript/codexChangeContext";
+import { CodexChangeDiff } from "../../transcript/CodexFileChanges";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
 import { Marked, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
@@ -31,19 +35,24 @@ export const DefaultCard = memo(function DefaultCard({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "";
   const toolId = (toolUse.id as string) || "";
+  const changes = useCodexChanges();
+  const producerChanges = provider === "codex" ? changes.matched.get(toolId) : undefined;
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider, producerChanges);
   const expandKey = `unified-${toolId}`;
 
-  const inputHit = searchHits(searchQuery, JSON.stringify(input, null, 2));
+  const query = searchQuery.trim();
+  const inputHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolUse.input ?? {})), [query, toolUse.input]);
+  const resultHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolResults)), [query, toolResults]);
   const idHit = searchHits(searchQuery, toolId);
   const highlight: TextHighlight | undefined = inputHit || idHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
-  const routed = routedBody(name, { input, expandKey, pathCtx, t, searchQuery, highlight: inputHit ? highlight : undefined });
+  const routed = routedBody(name, { input, expandKey, pathCtx, t, searchQuery, preferProducerDiff: !!producerChanges?.length, highlight: inputHit ? highlight : undefined });
 
   return (
     <ToolRow
@@ -55,7 +64,7 @@ export const DefaultCard = memo(function DefaultCard({
       family={family}
       toolId={toolId}
       expandKey={expandKey}
-      revealFor={inputHit || idHit ? searchQuery : undefined}
+      revealFor={inputHit || idHit || resultHit ? searchQuery : undefined}
       detailMeta={
         idHit ? (
           <code data-mono="code" className="font-mono">
@@ -67,8 +76,9 @@ export const DefaultCard = memo(function DefaultCard({
       <DetailZone kind="input" meta={routed.inputMeta}>
         {routed.body}
       </DetailZone>
-      <DetailZone kind="result" show={hasShownResults(toolResults)}>
-        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} />
+      <DetailZone kind="result" show={hasShownResults(toolResults) || !!producerChanges?.length}>
+        {producerChanges && <CodexChangeDiff events={producerChanges} expandKey={`${expandKey}-producer`} />}
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />
       </DetailZone>
     </ToolRow>
   );

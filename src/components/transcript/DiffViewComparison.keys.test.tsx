@@ -71,10 +71,10 @@ describe("expansion state is per diff instance", () => {
         />
       </ExpandKeyProvider>,
     );
-    const expand = screen.getAllByRole("button", { name: i18n.t("advancedTextDiff.expand") });
+    const expand = screen.getAllByRole("button", { name: i18n.t("diffView.showMore", { count: 10 }) });
     expect(expand).toHaveLength(2);
     fireEvent.click(expand[0]);
-    expect(screen.getAllByRole("button", { name: i18n.t("advancedTextDiff.collapse") }), "only the first opened").toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: i18n.t("advancedTextDiff.expand") }), "the second stays closed").toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: i18n.t("diffView.showLess") }), "only the first opened").toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: i18n.t("diffView.showMore", { count: 10 }) }), "the second stays closed").toHaveLength(1);
   });
 });

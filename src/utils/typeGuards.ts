@@ -78,11 +78,11 @@ export function isTextContent(item: ContentItem): item is TextContent {
 }
 
 export function isToolUseContent(item: ContentItem): item is ToolUseContent {
-  return item.type === "tool_use";
+  return item != null && item.type === "tool_use";
 }
 
 export function isToolResultContent(item: ContentItem): item is ToolResultContent {
-  return item.type === "tool_result";
+  return item != null && item.type === "tool_result";
 }
 
 export function isThinkingContent(item: ContentItem): item is ThinkingContent {

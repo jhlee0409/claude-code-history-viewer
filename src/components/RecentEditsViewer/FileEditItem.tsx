@@ -29,7 +29,7 @@ import { layout } from "@/components/renderers";
 import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
-import { FilteredDiffLines } from "./FilteredDiffLines";
+import { DiffFiltered } from "../transcript/DiffViewComparison";
 import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import { useFileEditActions } from "./useFileEditActions";
 import type { FileEditItemProps, EditViewMode } from "./types";
@@ -443,9 +443,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       {isExpanded && (
         <div className="border-t border-border">
           {/* Full diff view: the unified DiffView (unchanged runs folded,
-              a line cap), the older viewers behind its … menu (TR2a).
+              a line cap), and shared comparison modes behind its … menu.
               ExpandKeyProvider is required by useCaptureExpandState inside
-              DiffView and AdvancedTextDiff, which otherwise throw outside
+              DiffView, which otherwise throws outside
               MessageViewer. */}
           {viewMode === "diff" && (
             <div className="p-3">
@@ -463,7 +463,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           {/* Added/removed-only view */}
           {(viewMode === "added" || viewMode === "removed") && (
             <div className="max-h-96 overflow-auto">
-              <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+              <DiffFiltered groups={filteredGroups} kind={viewMode} expandKey={`recent-edits-filter:${edit.session_id}:${edit.file_path}:${edit.timestamp}`} />
             </div>
           )}
 

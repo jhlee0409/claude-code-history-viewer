@@ -13,10 +13,21 @@ export function searchRanges(text: string, searchQuery: string): [number, number
   const query = searchQuery.trim().toLowerCase();
   if (!query) return [];
   const lower = text.toLowerCase();
+  // Lowercasing can expand a code point (İ → i + combining dot). Search in
+  // the same folded string, but slice the original UTF-16 coordinates.
+  const offsets: [number, number][] = [];
+  if (lower.length !== text.length) {
+    let start = 0;
+    for (const char of text) {
+      for (let i = 0; i < char.toLowerCase().length; i++) offsets.push([start, start + char.length]);
+      start += char.length;
+    }
+  }
   const ranges: [number, number][] = [];
   let at = lower.indexOf(query);
   while (at !== -1) {
-    ranges.push([at, at + query.length]);
+    const range: [number, number] = offsets.length ? [offsets[at]![0], offsets[at + query.length - 1]![1]] : [at, at + query.length];
+    if (!ranges.length || range[0] >= ranges[ranges.length - 1]![1]) ranges.push(range);
     at = lower.indexOf(query, at + query.length);
   }
   return ranges;

@@ -5,8 +5,7 @@
  * The meta line: the relative path (only where no row above already names
  * the file), the operation kind (Replace / Replace all / n edits), the
  * user-modified flag when the record says so, and the `…` menu: comparison
- * mode (Unified = DiffView; the older advanced compare and side-by-side
- * viewers, unchanged until TR2b), the copies (changed result, file after
+ * mode (unified, split, words and advanced all use DiffView), the copies (changed result, file after
  * change, original file — each when it can be told), Open in Recent edits.
  *
  * Kept from the props it took at 12e952c0 (TR2a base): `filePath`,
@@ -108,6 +107,7 @@ export const FileEditRenderer = ({ toolResult, searchQuery, edits, kind = "edit"
       {sections.length > 0 && (
         <DiffComparisonBody
           mode={mode}
+          highlight={searchQuery ? { searchQuery } : undefined}
           sections={sections}
           filePath={filePath}
           expandKey={expandKey ?? `file-edit:${filePath}`}
