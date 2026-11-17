@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T13:53:46.628Z
- * 총 키 개수: 2359
+ * 생성 시간: 2026-11-17T14:20:02.169Z
+ * 총 키 개수: 2362
  * Namespace 수: 13
  */
 
@@ -357,7 +357,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (206개)
+ * analytics namespace의 번역 키 (207개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -494,6 +494,7 @@ export type AnalyticsKeys =
   | 'analytics.subTab.label'
   | 'analytics.subTab.overview'
   | 'analytics.subTab.tokens'
+  | 'analytics.subagentShare'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -1564,7 +1565,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (124개)
+ * message namespace의 번역 키 (126개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1575,6 +1576,8 @@ export type MessageKeys =
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
   | 'filter.contentTypes'
+  | 'filter.promptsAndFinalReplies'
+  | 'filter.promptsAndFinalRepliesHint'
   | 'filter.reset'
   | 'filter.role.assistant'
   | 'filter.role.user'
@@ -2646,6 +2649,7 @@ export type TranslationKey =
   | 'analytics.subTab.label'
   | 'analytics.subTab.overview'
   | 'analytics.subTab.tokens'
+  | 'analytics.subagentShare'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -3382,6 +3386,8 @@ export type TranslationKey =
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
   | 'filter.contentTypes'
+  | 'filter.promptsAndFinalReplies'
+  | 'filter.promptsAndFinalRepliesHint'
   | 'filter.reset'
   | 'filter.role.assistant'
   | 'filter.role.user'
