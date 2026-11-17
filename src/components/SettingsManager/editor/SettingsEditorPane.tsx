@@ -79,7 +79,7 @@ type SaveResult = {
   message: string;
 } | null;
 
-export const SettingsEditorPane: React.FC = () => {
+export const SettingsEditorPane: React.FC<{ onDirtyChange?: (dirty: boolean) => void }> = ({ onDirtyChange }) => {
   const { t } = useTranslation();
   const {
     allSettings,
@@ -201,6 +201,13 @@ export const SettingsEditorPane: React.FC = () => {
 
   // Section refs for scrolling
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // A retired editor's save may settle after another scope/project mounts.
+  // Reset in setup too: StrictMode replays layout effects on the same instance.
+  const editorMountedRef = useRef(false);
+  React.useLayoutEffect(() => {
+    editorMountedRef.current = true;
+    return () => { editorMountedRef.current = false; };
+  }, []);
 
   // Clear save result after delay
   React.useEffect(() => {
@@ -255,7 +262,7 @@ export const SettingsEditorPane: React.FC = () => {
 
     try {
       await saveSettings(settingsToSave);
-      setPendingSettings(null);
+      if (editorMountedRef.current) setPendingSettings(null);
       if (editorMode === "json") {
         jsonHistory.reset(JSON.stringify(settingsToSave, null, 2));
         setJsonError(null);
@@ -283,6 +290,13 @@ export const SettingsEditorPane: React.FC = () => {
       setJsonError(null);
     }
   }, [editorMode, currentSettings, jsonHistory, setPendingSettings]);
+
+  // One predicate for the footer and the always-visible write-scope line.
+  // Publish before paint so raw/invalid JSON edits cannot flash as saved.
+  const editorHasUnsavedChanges = hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2));
+  React.useLayoutEffect(() => {
+    onDirtyChange?.(editorHasUnsavedChanges);
+  }, [onDirtyChange, editorHasUnsavedChanges]);
 
   // If no settings exist for this scope
   if (!hasSettings) {
@@ -435,7 +449,7 @@ export const SettingsEditorPane: React.FC = () => {
         <EditorFooter
           editorMode={editorMode}
           onModeChange={handleModeChange}
-          hasUnsavedChanges={hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2))}
+          hasUnsavedChanges={editorHasUnsavedChanges}
           onSave={handleSave}
           onReset={handleReset}
           readOnly={isReadOnly}

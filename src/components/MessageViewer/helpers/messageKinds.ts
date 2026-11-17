@@ -39,7 +39,13 @@ export interface MessageKindInfo {
 }
 
 const TASK_NOTIFICATION_BLOCK = /<task-notification>([\s\S]*?)<\/task-notification>/g;
+// Claude Code 2.1.285 bash-mode emits a separate generated user message:
+// ke({content:`<bash-stdout>${C}</bash-stdout><bash-stderr>…`}).
+// Binary evidence and scope: docs/contracts/transcript-items.md, producer grounding.
+// Local slash-command output keeps its existing prefix policy; bash-mode output
+// must consume the whole text block, never swallow typed text after a wrapper.
 const COMMAND_OUTPUT_PREFIXES = ["<local-command-stdout>", "<local-command-stderr>"];
+const BASH_OUTPUT_BLOCK = /<(bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
 
 /**
  * Wrapper tags that Claude Code and Codex inject into the user turn. This is
@@ -51,7 +57,20 @@ const INJECTED_WRAPPER_TAGS = [
   "system-reminder",
   "environment_context",
   "user_instructions",
+  // Codex 0.164.0 ContextualUserFragment markers (not typed input):
+  // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/recommended_plugins_instructions.rs#L31-L46
+  // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/turn_aborted.rs#L22-L37
+  "recommended_plugins",
+  "turn_aborted",
+  // Historical emitted wrapper, not merely current-reader compatibility:
+  // https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36
+  // https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601
+  "goal_context",
 ];
+// Internal context has a producer-validated source attribute, not a bare tag.
+// https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/core/src/context/internal_model_context.rs#L64-L136
+// user_goal emission: same revision, context/user_goal.rs#L63-L90.
+const INTERNAL_CONTEXT_BLOCK = /<codex_internal_context source="[a-z][a-z0-9_]*">[\s\S]*?<\/codex_internal_context>/g;
 const INJECTED_WRAPPER_BLOCK = new RegExp(
   `<(${INJECTED_WRAPPER_TAGS.join("|")})>[\\s\\S]*?<\\/\\1>`,
   "g",
@@ -118,6 +137,98 @@ function getTextBlocks(message: ClaudeMessage): string[] {
   return texts;
 }
 
+/** Client wake fallback: exact scheduler grammar, not proof of host provenance.
+ * Delivered source cardinality/types and host kinds are authoritative when present.
+ * Unmarked inputs use owner-approved viewer decision B: exact grammar plus
+ * embedded/record time within ±5s (local 34 envelopes: max 2.9s). This is NOT
+ * the Codex origin rule; see docs/contracts/codex-frontend-turns-diffs.md. Reader:
+ * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat.rs#L62-L110
+ * L69: one InputText; L78–82: UTF-8 byte/line budget; L87–101: exact fields.
+ * Instructions are opaque: split_once/strip_suffix do not reject inner tags.
+ * https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/history/src/heartbeat_tests.rs#L23-L28
+ */
+export function isCodexHeartbeat(message: ClaudeMessage): boolean {
+  if (message.type !== "user" || message.provider !== "codex") return false;
+  const evidence = message.codexEvidence;
+  if (evidence && Object.hasOwn(evidence, "contentItems")) {
+    const items = evidence.contentItems;
+    if (!Array.isArray(items) || items.length !== 1 || items[0]?.type !== "input_text") return false;
+  }
+  const kinds = evidence?.contentItemKinds;
+  const hostMarked = Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.heartbeat";
+  // Absent kinds and exactly the default user.text are the only legacy shapes.
+  if (!hostMarked && evidence && Object.hasOwn(evidence, "contentItemKinds")
+    && !(Array.isArray(kinds) && kinds.length === 1 && kinds[0] === "user.text")) return false;
+  const content = message.content;
+  const text = typeof content === "string" ? content
+    : Array.isArray(content) && content.length === 1 && content[0]?.type === "text"
+      && typeof content[0].text === "string" ? content[0].text : null;
+  if (text === null) return false;
+  // Rust str::lines excludes the final empty segment, but counts blank lines.
+  const lines = text === "" ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+  if (new TextEncoder().encode(text).length + lines * 6 + 64 > 3600) return false;
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  const prefix = "<heartbeat>\n  <automation_id>";
+  const timeSeparator = "</automation_id>\n  <current_time_iso>";
+  const instructionSeparator = "</current_time_iso>\n  <instructions>\n";
+  const suffix = "\n  </instructions>\n</heartbeat>";
+  if (!body.startsWith(prefix)) return false;
+  const timeIndex = body.indexOf(timeSeparator, prefix.length);
+  if (timeIndex === -1) return false;
+  const automationId = body.slice(prefix.length, timeIndex);
+  const timeStart = timeIndex + timeSeparator.length;
+  const instructionIndex = body.indexOf(instructionSeparator, timeStart);
+  if (instructionIndex === -1) return false;
+  const timestamp = body.slice(timeStart, instructionIndex);
+  const instructions = body.slice(instructionIndex + instructionSeparator.length);
+  return /^[A-Za-z0-9_-]{1,128}$/.test(automationId)
+    && /^[0-9TZ:.+-]{1,64}$/.test(timestamp)
+    && instructions.endsWith(suffix)
+    // Host-marked input retains the exact reader grammar (even its ASCII-only
+    // timestamp check); only the viewer fallback requires real, correlated time.
+    && (hostMarked || isCorrelatedInstant(timestamp, message.timestamp));
+}
+
+/**
+ * Strict ISO-8601 instant with an explicit zone. Rejects impossible calendar or
+ * clock values that `Date.parse` may silently normalize (e.g. 2026-02-30).
+ */
+function parseZonedInstant(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s, frac, zone, sign, zh, zm] = m;
+  const year = Number(y), month = Number(mo), day = Number(d);
+  const hour = Number(h), minute = Number(mi), second = Number(s);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
+  if (day < 1 || day > utcDaysInMonth(year, month)) return null;
+  let offsetMinutes = 0;
+  if (zone !== "Z") {
+    const oh = Number(zh), om = Number(zm);
+    if (oh > 23 || om > 59) return null;
+    offsetMinutes = (sign === "-" ? -1 : 1) * (oh * 60 + om);
+  }
+  const millis = frac === undefined ? 0 : Number(frac.slice(0, 3).padEnd(3, "0"));
+  // setUTCFullYear keeps years 0-99 literal (Date.UTC would remap them to 19xx).
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, millis);
+  return date.getTime() - offsetMinutes * 60_000;
+}
+
+function utcDaysInMonth(year: number, month: number): number {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, 0);
+  return date.getUTCDate();
+}
+
+/** Owner-approved viewer rule: both instants valid, zoned, and within ±5s. */
+function isCorrelatedInstant(embedded: string, recorded: unknown): boolean {
+  const a = parseZonedInstant(embedded);
+  const b = parseZonedInstant(recorded);
+  return a !== null && b !== null && Math.abs(a - b) <= 5_000;
+}
+
 /** True when the record carries the client's own tool-result payload. */
 function hasToolUseResult(message: ClaudeMessage): boolean {
   return "toolUseResult" in message && message.toolUseResult != null;
@@ -168,8 +279,9 @@ function classifyUserText(text: string): UserBlockKind {
   if (isTaskNotification(trimmed)) return "agent-update";
   if (trimmed.startsWith("<") && trimmed.includes("<command-name>")) return "command";
   if (COMMAND_OUTPUT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "command";
+  if (/^<bash-(stdout|stderr)>/.test(trimmed) && trimmed.replace(BASH_OUTPUT_BLOCK, "").trim() === "") return "command";
   if (INJECTED_TEXT_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return "context";
-  if (trimmed.startsWith("<") && trimmed.replace(INJECTED_WRAPPER_BLOCK, "").trim() === "") {
+  if (trimmed.startsWith("<") && trimmed.replace(INTERNAL_CONTEXT_BLOCK, "").replace(INJECTED_WRAPPER_BLOCK, "").trim() === "") {
     return "context";
   }
   return "prompt";
@@ -186,6 +298,9 @@ function classifyUserMessage(message: ClaudeMessage): MessageKindInfo {
   // block into its call, and a fork's task directive sits beside an unmerged
   // block without the field.
   if (hasToolUseResult(message)) return { kind: "tool", text: null };
+  // Keep automated Codex wake input out of the existing human-prompt filters.
+  // Its separate automated turn kind belongs to the pure model, not this UI kind.
+  if (isCodexHeartbeat(message)) return { kind: "context", text: getTextBlocks(message)[0] ?? null };
 
   const blocks = getTextBlocks(message)
     .filter((text) => text.trim().length > 0)

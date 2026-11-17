@@ -1,75 +1,57 @@
-import { memo } from "react";
-import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
-import { AnsiText } from "../../common/AnsiText";
+import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
+import { DetailZone } from "../../transcript/DetailZone";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
-import { str, num, truncate, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
+import { str, num } from "./shared";
+import { isNonEmptyString, isNumber, shownIf, unshown } from "./recordShape";
+import { OtherRecordedFields } from "./toolBodyParts";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
 
-export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) {
-  const { t } = useTranslation();
+const firstLine = (text: string) => text.trimStart().split("\n")[0] ?? "";
+
+export const BashCard = memo(function BashCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const fmt = useFormat();
+  const name = (toolUse.name as string) || "Bash";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const command = str(input, "command") ?? "";
   const description = str(input, "description");
   const timeout = num(input, "timeout");
-  const styles = getVariantStyles("terminal");
-
-
-  // Extract stdout/stderr separately for better display
-  const resultContent = toolResults[0]?.content;
-  const resultObj = typeof resultContent === "object" && resultContent != null
-    ? resultContent as Record<string, unknown> : null;
-  const stdout = resultObj ? str(resultObj, "stdout") : null;
-  const stderr = resultObj ? str(resultObj, "stderr") : null;
-  const hasStructuredResult = stdout != null || stderr != null;
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const expandKey = `unified-${toolId}`;
+  const rest = unshown(input, { command: shownIf(isNonEmptyString), description: shownIf(isNonEmptyString), timeout: shownIf(isNumber) });
+  const hasRest = Object.keys(rest).length > 0;
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const retainedHit = useMemo(() => query !== "" && resultSearchText(rest).toLowerCase().includes(query), [query, rest]);
 
   return (
-    <Renderer className={styles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title={t("tools.terminal")}
-        icon={<ToolIcon toolName="Bash" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
-            {timeout != null && (
-              <span className="text-muted-foreground"><Num>{fmt.duration(timeout)}</Num></span>
-            )}
-            <StatusBadge results={toolResults} />
-          </div>
-        }
-      />
-      <Renderer.Content>
-        {description && (
-          <div className={cn(layout.smallText, "text-muted-foreground mb-2")}>{description}</div>
-        )}
-        <pre className={cn(layout.monoText, "p-2 rounded overflow-x-auto whitespace-pre-wrap bg-muted text-foreground border border-border/60")}>
-          {command}
-        </pre>
-        {hasStructuredResult ? (
-          <div className="mt-2 space-y-1">
-            {stdout && (
-              <pre className={cn(layout.monoText, "p-2 rounded border whitespace-pre-wrap overflow-auto", layout.codeMaxHeight, "bg-secondary border-border text-foreground/80")}>
-                <AnsiText text={truncate(stdout)} />
-              </pre>
-            )}
-            {stderr && (
-              <pre className={cn(layout.monoText, "p-2 rounded border whitespace-pre-wrap overflow-auto", layout.codeMaxHeight, "bg-secondary border-border text-destructive")}>
-                <AnsiText text={truncate(stderr)} />
-              </pre>
-            )}
-          </div>
-        ) : (
-          <ResultBlock results={toolResults} />
-        )}
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="Bash" title={null} className="w-4 h-4" />}
+      verb={name}
+      target={command ? <CodeTarget text={firstLine(command)} full={command} /> : undefined}
+      meta={timeout != null ? <Num>{fmt.duration(timeout)}</Num> : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+      revealFor={retainedHit ? searchQuery : undefined}
+    >
+      <DetailZone kind="input" show={description || hasRest ? true : command ? "whenTargetCut" : false}>
+        {description && <p className="text-list text-fg-2">{description}</p>}
+        {command && <TargetWell text={command} />}
+        <OtherRecordedFields rest={rest} expandKey={expandKey} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} source="command" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
+    </ToolRow>
   );
 });

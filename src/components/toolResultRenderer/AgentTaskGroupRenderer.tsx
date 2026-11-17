@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /**
  * AgentTaskGroupRenderer - Renders grouped async agent tasks
  *
@@ -66,6 +68,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
 }: {
   task: AgentTask;
 }) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(`agent-task-${task.agentId}`, false);
   const [copied, setCopied] = useState(false);
@@ -83,13 +86,13 @@ const AgentTaskItem = memo(function AgentTaskItem({
 
   return (
     <div className="border-b border-border/50 last:border-b-0">
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           "hover:bg-muted/50 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -110,9 +113,9 @@ const AgentTaskItem = memo(function AgentTaskItem({
         <span className={cn(layout.smallText, "text-foreground/80 truncate flex-1")}>
           {task.description}
         </span>
-      </button>
+      </Button>
 
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className={cn("px-4 pb-2", layout.smallText)}>
           {task.prompt && (
             <div className="mb-2">
@@ -141,13 +144,13 @@ const AgentTaskItem = memo(function AgentTaskItem({
               )}>
                 {task.outputFile.split("/").pop()}
               </code>
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 onClick={handleCopyPath}
-                className={cn(
+                className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                   "p-1 rounded hover:bg-muted transition-colors",
                   "text-muted-foreground hover:text-foreground"
-                )}
+                ))}
                 title={t("agentTaskGroup.copyPath")}
                 aria-label={t("agentTaskGroup.copyPath")}
               >
@@ -156,11 +159,11 @@ const AgentTaskItem = memo(function AgentTaskItem({
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
-              </button>
+              </Button>
             </div>
           )}
         </div>
-      )}
+      )}</div>
     </div>
   );
 });
@@ -168,6 +171,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
 export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
   tasks,
 }: AgentTaskGroupRendererProps) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   // Use first task's agentId for unique group key
   const groupKey = tasks[0]?.agentId ? `agent-tasks-${tasks[0].agentId}` : "agent-tasks";
@@ -191,13 +195,13 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
 
     return (
       <div className={cn(layout.rounded, "border", styles.container)}>
-        <button
+        <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
           type="button"
           onClick={() => setIsExpanded(prev => !prev)}
-          className={cn(
+          className={cn("h-auto whitespace-normal justify-start font-normal", cn(
             "w-full flex items-center gap-2 px-3 py-2 text-left",
             "hover:bg-muted/30 transition-colors"
-          )}
+          ))}
         >
           <ChevronRight
             className={cn(
@@ -222,9 +226,9 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
               config.animate && "animate-spin"
             )}
           />
-        </button>
+        </Button>
 
-        {isExpanded && (
+        <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
           <div className={cn("px-3 pb-3", layout.smallText)}>
             {task.prompt && (
               <div className="mb-2">
@@ -256,7 +260,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
               </div>
             )}
           </div>
-        )}
+        )}</div>
       </div>
     );
   }
@@ -265,13 +269,13 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
   return (
     <div className={cn(layout.rounded, "border overflow-hidden", styles.container)}>
       {/* Group Header */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-3 py-2 text-left",
           "hover:bg-muted/30 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -310,10 +314,10 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
         {hasErrors && !isRunning && (
           <CircleAlert className="w-3.5 h-3.5 text-destructive ml-auto" />
         )}
-      </button>
+      </Button>
 
       {/* Task List */}
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className="border-t border-border/50">
           {tasks.map((task) => (
             <AgentTaskItem
@@ -322,7 +326,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
             />
           ))}
         </div>
-      )}
+      )}</div>
     </div>
   );
 });

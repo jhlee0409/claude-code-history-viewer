@@ -87,11 +87,22 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
 - Mobile adds `sidebar` (project drawer open).
 - Inner-UI (plan I0): `transcript-mixed-turn`, `x-transcript-edit-expanded`,
   `transcript-run-open`, `transcript-failure`, `transcript-unknown-outcome`,
-  `transcript-cjk`, `subagent`, `no-matches`, `unreadable-source`,
+  `transcript-failure-open`, `transcript-unknown-outcome-open` (TR0: the
+  failed / interrupted / no-result and E15 rows opened),
+  `transcript-webfetch-open`, `transcript-agent-open` (TR1a: the failed and
+  the successful WebFetch opened; the subagent's Task opened), `transcript-cjk`, `subagent`, `no-matches`, `unreadable-source`,
   `analytics-lowdata`, `edits-patch-only`, `settings-dirty`, `archive-error`
   at 1440×900 dark/light, 1180×760 dark and 390×844 dark, and `gear`
   (desktop). New steps: `expandToolRows`, `gearMenu`, `transcriptSearch`,
   `settingsToggle`.
+- TR2a (DiffView, D5): `transcript-edit-menu-open` (the opened Edit's `…`
+  menu), `transcript-edit-side-by-side` (Side by side chosen from it),
+  `recent-edits-diff` and `recent-edits-compact-diff` (the Edits screen's
+  full diff, comfortable and compact rows) at 1440×900 dark/light and
+  390×844 dark. Steps `diffMenu` (`mode` optional) and `editsDiff`
+  (`compact`). A `…-menu-open` screen ends with a modal menu, so the row and
+  chrome probes do not apply there. The transcript pair is new from TR2a
+  (no menu on an older base).
 - Font scale (T4 / D9): `transcript` and `analytics` at **90 %** and
   **110 %** (`<screen>-scale90`, `<screen>-scale110`), 1440×900 light. The
   first step sets the app's own font-size setting through the gear menu

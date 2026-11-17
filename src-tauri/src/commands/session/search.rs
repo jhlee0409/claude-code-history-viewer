@@ -230,7 +230,8 @@ fn search_in_file(file_path: &PathBuf, root: &Path, matcher: &AhoCorasick) -> Ve
             content: Some(message_content.content.clone()),
             project_name: project_name.clone(),
             tool_use: log_entry.tool_use,
-            tool_use_result: log_entry.tool_use_result,
+            // Search retains legacy null-as-absent semantics; the load API preserves raw null.
+            tool_use_result: log_entry.tool_use_result.filter(|value| !value.is_null()),
             is_sidechain: log_entry.is_sidechain,
             usage: message_content.usage.clone(),
             role: Some(message_content.role.clone()),

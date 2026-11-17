@@ -7,7 +7,8 @@
 // clock, the scenario's own steps). Focus arrives by keyboard (Alt+Tab walks
 // every control in WebKit), so `:focus-visible` matches as it would for a
 // user. For a selected item (the analytics sub-tabs' one tab stop) and an
-// unselected one (the Edits screen's scope / density buttons), in light,
+// initially unselected one (the Edits screen's scope radios, reached by
+// Tab to the checked entry then ArrowRight to select the target), in light,
 // dark and both high-contrast themes, it asserts a 2px solid outline outside
 // the item in the theme's accent, and that focusing moved nothing. Set
 // UI_FOCUS_SHOTS_DIR to also save a screenshot of each focused control.
@@ -26,6 +27,7 @@ import { loadTranslator } from "../lib/i18n.mjs";
 import { generateFixture } from "../fixtures/generate.mjs";
 import { STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
 import { browserRequirement } from "./requirements.mjs";
+import { focusScopeRadio, uncheckedScopeRadio } from "./segmentedKeyboard.mjs";
 
 /* global document, getComputedStyle -- functions passed to page.evaluate run in the page */
 
@@ -145,9 +147,10 @@ const CASES = [
     target: (page) => page.locator('[data-analytics-tab][aria-selected="true"]'),
   },
   {
-    name: "unselected item (Edits scope / density button)",
+    name: "initially unselected item (Edits scope radio, arrow-selected)",
     scenario: "recent-edits",
-    target: (page) => page.locator('#main-content .segmented-item[aria-pressed="false"]:not(:disabled)').first(),
+    target: uncheckedScopeRadio,
+    prepareFocus: (page, target) => focusScopeRadio(page, target, keyboardFocus),
   },
 ];
 
@@ -163,10 +166,22 @@ describe.skipIf(!ENABLED)("segmented controls show keyboard focus in WebKit", ()
               await page.evaluate((name) => document.documentElement.classList.add(name), cls);
               await settle(session, { label: `${label} on` });
             }
-            const target = c.target(page);
+            const target = await c.target(page);
             expect(await target.count(), "target control").toBeGreaterThan(0);
+            if (c.prepareFocus) {
+              expect(await c.prepareFocus(page, target), "arrow reaches the initially unchecked radio").toBe(true);
+              // Radio arrows also change scope and its explanatory content.
+              // Settle that selection first; the geometry contract below
+              // measures focus alone, not an intentional scope-content change.
+              await settle(session, { label: "radio selection ready" });
+            }
             await page.evaluate(() => document.activeElement?.blur?.());
             const before = await itemRects(page);
+            expect(before.length, "measured segmented controls").toBeGreaterThan(0);
+            for (const [, , width, height] of before) {
+              expect(width, "measured width").toBeGreaterThan(0);
+              expect(height, "measured height").toBeGreaterThan(0);
+            }
             expect(await keyboardFocus(page, target), `${theme} ${label}: focused`).toBe(true);
             const s = await focusStyle(target);
             const where = `${theme}${label ? ` ${label}` : ""}`;

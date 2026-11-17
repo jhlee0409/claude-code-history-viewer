@@ -1,17 +1,33 @@
-import { memo } from "react";
+import { useCodexChanges } from "../../transcript/codexChangeContext";
+import { CodexChangeDiff } from "../../transcript/CodexFileChanges";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../../transcript/resultSearchText";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
-import { getToolVariant } from "@/utils/toolIconUtils";
-import { getVariantStyles, layout } from "../../renderers";
+import { Marked, ToolRow, type TextHighlight } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { useToolPathContext } from "../../transcript/pathContext";
 import type { Props } from "./shared";
-import { truncate, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
-import { ToolIdBadge } from "./ToolIdBadge";
-import { HighlightedText } from "../../common/HighlightedText";
+import { searchHits } from "./shared";
+import { routedBody } from "./toolBodies";
 
+/**
+ * Default (TR1a): every tool no dedicated card owns — MCP tools, other
+ * providers' tools — as one ToolRow. Row: the recorded tool name (an MCP
+ * name stays whole, D-R5) · the input's summary field (relative when it is a
+ * path, D1) · the outcome from `toolOutcome` only. Opened: the Input zone,
+ * the body the D-R1 table routes the name to (`toolBodies.tsx`; honest JSON
+ * for any other name, capped with "Show all", its keys on the zone's label
+ * line), then the Result zone, the results as recorded.
+ *
+ * Search: a hit in the input or the tool id opens the row once per query
+ * (an effect keyed on the query). The input's hits are marked in the row
+ * target and in the JSON, so one the row's ellipsis hides is still seen; a
+ * tool-id hit shows the id, marked, in the detail's meta line.
+ */
 export const DefaultCard = memo(function DefaultCard({
   toolUse,
   toolResults,
@@ -19,71 +35,51 @@ export const DefaultCard = memo(function DefaultCard({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
-  const toolName = (toolUse.name as string) || "";
+  const pathCtx = useToolPathContext();
+  const name = (toolUse.name as string) || "";
   const toolId = (toolUse.id as string) || "";
+  const changes = useCodexChanges();
+  const producerChanges = provider === "codex" ? changes.matched.get(toolId) : undefined;
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const variant = getToolVariant(toolName);
-  const styles = getVariantStyles(variant);
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider, producerChanges);
+  const expandKey = `unified-${toolId}`;
 
-  const inputJson = truncate(JSON.stringify(input, null, 2));
-  // Reveal + highlight the input when the in-session search term is inside it,
-  // so a match in a collapsed tool card (e.g. AskUserQuestion) is actually
-  // visible instead of only flagging the message card (#429).
-  const inputMatchesSearch =
-    !!searchQuery && inputJson.toLowerCase().includes(searchQuery.toLowerCase());
+  const query = searchQuery.trim();
+  const inputHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolUse.input ?? {})), [query, toolUse.input]);
+  const resultHit = useMemo(() => query !== "" && searchHits(query, resultSearchText(toolResults)), [query, toolResults]);
+  const idHit = searchHits(searchQuery, toolId);
+  const highlight: TextHighlight | undefined = inputHit || idHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
+  const routed = routedBody(name, { input, expandKey, pathCtx, t, searchQuery, preferProducerDiff: !!producerChanges?.length, highlight: inputHit ? highlight : undefined });
 
   return (
-    <Renderer
-      className={styles.container}
-      hasError={toolResults.length > 0 && toolResults.some(isError)}
-      expandKey={`unified-${(toolUse.id as string) || ""}`}
-      autoExpand={inputMatchesSearch}
+    <ToolRow
+      icon={<ToolIcon toolName={name} title={null} className="w-4 h-4" />}
+      verb={name || t("common.unknown")}
+      target={routed.target}
+      meta={routed.meta}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+      revealFor={inputHit || idHit || resultHit ? searchQuery : undefined}
+      detailMeta={
+        idHit ? (
+          <code data-mono="code" className="font-mono">
+            <Marked text={toolId} highlight={highlight} />
+          </code>
+        ) : undefined
+      }
     >
-      <Renderer.Header
-        title={toolName || t("common.unknown")}
-        icon={<ToolIcon toolName={toolName} className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
-            <StatusBadge results={toolResults} />
-            <ToolIdBadge
-              toolId={toolId}
-              searchQuery={searchQuery}
-              isCurrentMatch={isCurrentMatch}
-              currentMatchIndex={currentMatchIndex}
-              badgeClassName={styles.badge}
-              badgeTextClassName={styles.badgeText}
-            />
-          </div>
-        }
-      />
-      <Renderer.Content>
-        <details className="mb-2" open>
-          <summary className={cn(layout.smallText, "cursor-pointer text-muted-foreground")}>
-            {t("common.input")} ({Object.keys(input).join(", ")})
-          </summary>
-          <pre className={cn(layout.monoText, "mt-2 p-2 bg-secondary text-foreground rounded overflow-x-auto whitespace-pre-wrap", layout.codeMaxHeight)}>
-            {inputMatchesSearch ? (
-              <HighlightedText
-                text={inputJson}
-                searchQuery={searchQuery}
-                isCurrentMatch={isCurrentMatch}
-                currentMatchIndex={currentMatchIndex}
-              />
-            ) : (
-              inputJson
-            )}
-          </pre>
-        </details>
-        <ResultBlock
-          results={toolResults}
-          searchQuery={searchQuery}
-          isCurrentMatch={isCurrentMatch}
-          currentMatchIndex={currentMatchIndex}
-        />
-      </Renderer.Content>
-    </Renderer>
+      <DetailZone kind="input" meta={routed.inputMeta}>
+        {routed.body}
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults) || !!producerChanges?.length}>
+        {producerChanges && <CodexChangeDiff events={producerChanges} expandKey={`${expandKey}-producer`} />}
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} searchQuery={searchQuery} highlight={{ isCurrentMatch, currentMatchIndex }} />
+      </DetailZone>
+    </ToolRow>
   );
 });

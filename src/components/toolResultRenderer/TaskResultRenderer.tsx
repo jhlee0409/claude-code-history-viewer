@@ -15,7 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
-import { Renderer } from "@/shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { TASK_STATUS_CONFIG } from "./taskStatusConfig";
 
 interface TaskData {
@@ -102,12 +102,9 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     const statusInfo = task.status ? TASK_STATUS_CONFIG[task.status] : null;
 
     return (
-      <Renderer className={styles.container} enableToggle={false}>
-        <Renderer.Header
-          title={t("toolResult.taskResult")}
-          icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-          rightContent={
+      <RecordedResult title={t("toolResult.taskResult")}
+        icon={<ListTodo className="w-4 h-4" />}
+        meta={
             <div className={cn("flex items-center gap-2", layout.smallText)}>
               {task.id && (
                 <span className={cn("px-1.5 py-0.5 font-mono", layout.rounded, styles.badge, styles.badgeText)}>
@@ -120,14 +117,11 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
                 </span>
               )}
             </div>
-          }
-        />
-        <Renderer.Content>
+          } record={toolResult} expandKey={"task-result"}>
           <div className={cn("p-2 border bg-card border-border", layout.rounded)}>
             <TaskRow task={task} />
           </div>
-        </Renderer.Content>
-      </Renderer>
+        </RecordedResult>
     );
   }
 
@@ -141,12 +135,9 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["completed"]!.icon;
 
     return (
-      <Renderer className={styles.container} enableToggle={false}>
-        <Renderer.Header
-          title={t("toolResult.taskUpdated")}
-          icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-          rightContent={
+      <RecordedResult title={t("toolResult.taskUpdated")}
+        icon={<ListTodo className="w-4 h-4" />}
+        meta={
             <div className={cn("flex items-center gap-2", layout.smallText)}>
               <span className={cn("px-1.5 py-0.5 font-mono", layout.rounded, styles.badge, styles.badgeText)}>
                 #{taskId}
@@ -157,9 +148,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
                 </span>
               )}
             </div>
-          }
-        />
-        <Renderer.Content>
+          } record={toolResult} expandKey={"task-result"}>
           <div className={cn("flex items-center gap-2 px-2 py-1.5 border bg-card border-border", layout.rounded)}>
             <StatusIcon className={cn(layout.iconSizeSmall, statusInfo?.color ?? "text-success")} />
             <span className={cn(layout.monoText, "text-muted-foreground")}>#{taskId}</span>
@@ -174,8 +163,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
               </span>
             )}
           </div>
-        </Renderer.Content>
-      </Renderer>
+        </RecordedResult>
     );
   }
 
@@ -185,12 +173,9 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     const completed = tasks.filter((t) => t.status === "completed").length;
 
     return (
-      <Renderer className={styles.container}>
-        <Renderer.Header
-          title={t("toolResult.taskList")}
-          icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-          rightContent={
+      <RecordedResult title={t("toolResult.taskList")}
+        icon={<ListTodo className="w-4 h-4" />}
+        meta={
             <div className={cn("flex items-center gap-2", layout.smallText)}>
               <span className={cn(
                 "px-1.5 py-0.5", layout.rounded,
@@ -199,32 +184,23 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
                 {completed}/{tasks.length}
               </span>
             </div>
-          }
-        />
-        <Renderer.Content>
+          } record={toolResult} expandKey={"task-result"}>
           <div className={cn("border bg-card border-border", layout.rounded, "divide-y divide-border/50")}>
             {tasks.map((task, i) => (
               <TaskRow key={task.id ?? i} task={task} />
             ))}
           </div>
-        </Renderer.Content>
-      </Renderer>
+        </RecordedResult>
     );
   }
 
   // Fallback: show message string if present
   if (typeof toolResult.message === "string") {
     return (
-      <Renderer className={styles.container} enableToggle={false}>
-        <Renderer.Header
-          title={t("toolResult.taskResult")}
-          icon={<ArrowRight className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-        />
-        <Renderer.Content>
+      <RecordedResult title={t("toolResult.taskResult")}
+        icon={<ArrowRight className={cn(layout.iconSize, styles.icon)} />} record={toolResult} expandKey={"task-result"}>
           <div className={cn(layout.bodyText, "text-foreground")}>{toolResult.message}</div>
-        </Renderer.Content>
-      </Renderer>
+        </RecordedResult>
     );
   }
 
