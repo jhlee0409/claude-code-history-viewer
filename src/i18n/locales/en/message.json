@@ -125,6 +125,8 @@
   "filter.content.toolCalls": "Tool Calls",
   "filter.content.commands": "Commands",
   "filter.content.parallelTasks": "Parallel Tasks",
+  "filter.promptsAndFinalReplies": "Prompts & final replies",
+  "filter.promptsAndFinalRepliesHint": "Show only your prompts and the last reply before your next prompt",
   "filter.reset": "Reset Filters",
   "filter.active": "Filters active",
   "filter.showing": "{{filtered}} / {{total}}",
