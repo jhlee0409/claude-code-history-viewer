@@ -1299,9 +1299,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           />
         )}
 
+        {/* Keep native centring away from the shortened mobile viewport's lower
+            clip edge, including the trailing actions of expanded tool details. */}
         <OverlayScrollbarsComponent
           ref={scrollContainerRef}
-          className="h-full"
+          className="h-full [&_[data-overlayscrollbars-viewport]]:scroll-pb-[var(--mobile-transcript-controls-height)] md:[&_[data-overlayscrollbars-viewport]]:scroll-pb-0"
           options={{
             scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
           }}
