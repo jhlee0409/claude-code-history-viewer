@@ -24,7 +24,7 @@ interface NavigatorEntryProps {
   ariaLevel?: number;
   ariaPosInSet?: number;
   ariaSetSize?: number;
-  /** The outline's virtualizer reads this via `measureElement`'s `indexFromElement`; list mode omits it (no dynamic remeasurement there). */
+  /** Both the list's and the outline's virtualizers read this via `measureElement`'s `indexFromElement` to measure the row. */
   dataIndex?: number;
 }
 

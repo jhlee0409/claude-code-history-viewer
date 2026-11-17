@@ -376,6 +376,8 @@
   "globalSearch.scope.label": "검색 범위",
   "globalSearch.scope.project": "이 프로젝트",
   "globalSearch.scope.all": "전체 프로젝트",
+  "globalSearch.scope.sidebar": "사이드바 필터",
+  "globalSearch.scope.sidebarHint": "사이드바 필터 «{{query}}»에 표시된 항목만",
   "globalSearch.scope.projectUnavailable": "프로젝트를 열면 그 안에서만 검색할 수 있습니다",
   "globalSearch.scope.pinned": "«{{project}}»에서 검색",
   "globalSearch.scope.pinnedAria": "«{{project}}»에서 검색, 범위 해제",
