@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /* eslint-disable react-refresh/only-export-components */
 /**
  * TaskNotificationRenderer - Mission Control style agent task dashboard
@@ -7,11 +9,11 @@
  */
 import { useMemo, memo, useCallback } from "react";
 import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
+  CircleCheck,
+  CircleX,
+  LoaderCircle,
   ChevronDown,
-  Terminal,
+  SquareTerminal,
   Zap,
   Clock,
   Hash,
@@ -35,14 +37,14 @@ type Props = {
 
 const STATUS_CONFIG = {
   completed: {
-    icon: CheckCircle2,
+    icon: CircleCheck,
     label: "DONE",
     dotClass: "bg-success",
     textClass: "text-success",
     pulseClass: "",
   },
   running: {
-    icon: Loader2,
+    icon: LoaderCircle,
     label: "ACTIVE",
     dotClass: "bg-info",
     textClass: "text-info",
@@ -50,7 +52,7 @@ const STATUS_CONFIG = {
     iconClass: "animate-spin",
   },
   failed: {
-    icon: XCircle,
+    icon: CircleX,
     label: "FAIL",
     dotClass: "bg-destructive",
     textClass: "text-destructive",
@@ -82,6 +84,7 @@ const TaskRow = memo(function TaskRow({
   notification: TaskNotification;
   index: number;
 }) {
+  const isExpandedContentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(
     `notification-${notification.taskId ?? index}`,
     false,
@@ -100,17 +103,17 @@ const TaskRow = memo(function TaskRow({
       isExpanded ? "bg-muted/30" : "hover:bg-muted/20"
     )}>
       {/* Task row - grid layout for alignment */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm" type="button"
         onClick={() => hasExpandableContent && onToggle()}
         disabled={!hasExpandableContent}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full grid grid-cols-[auto_1fr_auto_auto] items-center gap-3",
           "px-3 py-2 text-left",
           hasExpandableContent ? "cursor-pointer" : "cursor-default"
-        )}
+        ))}
       >
         {/* Index number */}
-        <span className="text-2xs font-mono text-muted-foreground/50 w-4 text-right">
+        <span className="text-caption font-mono text-muted-foreground/50 w-4 text-right">
           {String(index + 1).padStart(2, "0")}
         </span>
 
@@ -125,7 +128,7 @@ const TaskRow = memo(function TaskRow({
 
           {/* Task ID badge */}
           <code className={cn(
-            "text-2xs font-mono px-1.5 py-0.5 rounded",
+            "text-caption font-mono px-1.5 py-0.5 rounded",
             "bg-background/80 text-foreground/80",
             "border border-border/50"
           )}>
@@ -135,7 +138,7 @@ const TaskRow = memo(function TaskRow({
           {/* Summary text */}
           {notification.summary && (
             <span className={cn(
-              "text-2xs text-muted-foreground truncate",
+              "text-caption text-muted-foreground truncate",
               "opacity-70 group-hover:opacity-100 transition-opacity"
             )}>
               {notification.summary}
@@ -145,7 +148,7 @@ const TaskRow = memo(function TaskRow({
 
         {/* Status label */}
         <span className={cn(
-          "text-3xs font-mono font-medium tracking-wider",
+          "text-caption font-mono font-medium tracking-wider",
           config.textClass
         )}>
           {config.label}
@@ -155,22 +158,22 @@ const TaskRow = memo(function TaskRow({
         <div className="w-4 flex justify-center">
           {hasExpandableContent ? (
             <ChevronDown className={cn(
-              "w-3 h-3 text-muted-foreground/50",
+              "w-3.5 h-3.5 text-muted-foreground/50",
               "transition-transform duration-200",
               isExpanded && "rotate-180"
             )} />
           ) : (
             <Icon className={cn(
-              "w-3 h-3",
+              "w-3.5 h-3.5",
               config.textClass,
               "iconClass" in config ? config.iconClass : ""
             )} />
           )}
         </div>
-      </button>
+      </Button>
 
       {/* Expanded result content */}
-      {isExpanded && hasExpandableContent && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && hasExpandableContent && (
         <div className={cn(
           "px-3 pb-3 ml-7 mr-3",
           "animate-fade-in"
@@ -186,8 +189,8 @@ const TaskRow = memo(function TaskRow({
               "border-b border-border/30",
               "bg-muted/30"
             )}>
-              <Terminal className="w-3 h-3 text-muted-foreground" />
-              <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
+              <SquareTerminal className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                 Output
               </span>
             </div>
@@ -195,10 +198,10 @@ const TaskRow = memo(function TaskRow({
             {/* Result content */}
             <div className={cn(
               "p-2.5 max-h-48 overflow-y-auto overflow-x-auto",
-              "text-2xs"
+              "text-caption"
             )}>
               {notification.result ? (
-                <div className={cn(layout.prose, "text-2xs")}>
+                <div className={cn(layout.prose, "text-caption")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {notification.result}
                   </ReactMarkdown>
@@ -209,7 +212,7 @@ const TaskRow = memo(function TaskRow({
             </div>
           </div>
         </div>
-      )}
+      )}</div>
     </div>
   );
 });
@@ -221,6 +224,8 @@ const getPreviewLines = (text: string, lineCount: number = 3): string => {
 };
 
 export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({ text }: Props) {
+  const isGroupExpandedContentId = useId();
+  const isDetailsExpandedContentId = useId();
   const { t } = useTranslation();
 
   // Extract first task ID for unique group keys (stable across renders since text is immutable)
@@ -272,15 +277,15 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
         styles.container
       )}>
         {/* Header - Mission Control style */}
-        <button
+        <Button aria-expanded={isGroupExpanded} aria-controls={isGroupExpandedContentId} variant="ghost" size="sm" type="button"
           onClick={() => setIsGroupExpanded(prev => !prev)}
-          className={cn(
+          className={cn("h-auto whitespace-normal justify-start font-normal", cn(
             "w-full flex items-center justify-between",
             "px-3 py-2",
             "bg-gradient-to-r from-transparent via-muted/20 to-transparent",
             "hover:from-muted/10 hover:via-muted/30 hover:to-muted/10",
             "transition-all duration-200"
-          )}
+          ))}
         >
           {/* Left side: Icon + Title + Count */}
           <div className="flex items-center gap-2">
@@ -295,7 +300,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "bg-tool-task/10"
             )}>
               <Zap className="w-3.5 h-3.5 text-tool-task" />
-              <span className="text-xs font-medium text-tool-task">
+              <span className="text-list font-medium text-tool-task">
                 {t("taskNotification.agentTasks")}
               </span>
             </div>
@@ -305,8 +310,8 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "flex items-center gap-1 px-1.5 py-0.5 rounded",
               "bg-background/60 border border-border/50"
             )}>
-              <Hash className="w-2.5 h-2.5 text-muted-foreground" />
-              <span className="text-2xs font-mono font-medium text-foreground/80">
+              <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-caption font-mono font-medium text-foreground/80">
                 {notifications.length}
               </span>
             </div>
@@ -321,8 +326,8 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-success/10 border border-success/20"
                 )}>
-                  <CheckCircle2 className="w-2.5 h-2.5 text-success" />
-                  <span className="text-3xs font-mono text-success">
+                  <CircleCheck className="w-3.5 h-3.5 text-success" />
+                  <span className="text-caption font-mono text-success">
                     {statusCounts.completed}
                   </span>
                 </div>
@@ -333,8 +338,8 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-info/10 border border-info/20",
                   "animate-pulse-subtle"
                 )}>
-                  <Loader2 className="w-2.5 h-2.5 text-info animate-spin" />
-                  <span className="text-3xs font-mono text-info">
+                  <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin" />
+                  <span className="text-caption font-mono text-info">
                     {statusCounts.running}
                   </span>
                 </div>
@@ -344,8 +349,8 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded",
                   "bg-destructive/10 border border-destructive/20"
                 )}>
-                  <XCircle className="w-2.5 h-2.5 text-destructive" />
-                  <span className="text-3xs font-mono text-destructive">
+                  <CircleX className="w-3.5 h-3.5 text-destructive" />
+                  <span className="text-caption font-mono text-destructive">
                     {statusCounts.failed}
                   </span>
                 </div>
@@ -360,18 +365,18 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               hasRunning ? "bg-info/5 text-info" :
               "bg-muted/50 text-muted-foreground"
             )}>
-              <Clock className="w-3 h-3" />
-              <span className="text-3xs font-mono font-medium uppercase tracking-wider">
+              <Clock className="w-3.5 h-3.5" />
+              <span className="text-caption font-mono font-medium uppercase tracking-wider">
                 {allCompleted ? "Complete" :
                  hasFailed ? "Error" :
                  hasRunning ? "Running" : "Pending"}
               </span>
             </div>
           </div>
-        </button>
+        </Button>
 
         {/* Task list */}
-        {isGroupExpanded && (
+        <div id={isGroupExpandedContentId} hidden={!isGroupExpanded}>{isGroupExpanded && (
           <div className={cn(
             "border-t border-border/50",
             "divide-y divide-border/30"
@@ -384,7 +389,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               />
             ))}
           </div>
-        )}
+        )}</div>
 
         {/* Remaining text - inside card as collapsible content section */}
         {remainingText && (
@@ -393,38 +398,38 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
             "bg-gradient-to-b from-muted/20 to-transparent"
           )}>
             {/* Section header - clickable */}
-            <button
+            <Button aria-expanded={isDetailsExpanded} aria-controls={isDetailsExpandedContentId} variant="ghost" size="sm" type="button"
               onClick={() => setIsDetailsExpanded(prev => !prev)}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "w-full flex items-center justify-between gap-2 px-3 py-1.5",
                 "hover:bg-muted/20 transition-colors",
                 "text-left"
-              )}
+              ))}
             >
               <div className="flex items-center gap-2">
                 <ChevronDown className={cn(
-                  "w-3 h-3 text-muted-foreground",
+                  "w-3.5 h-3.5 text-muted-foreground",
                   "transition-transform duration-200",
                   !isDetailsExpanded && "-rotate-90"
                 )} />
-                <Terminal className="w-3 h-3 text-muted-foreground" />
-                <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
+                <SquareTerminal className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wide">
                   {t("taskNotification.details")}
                 </span>
               </div>
-              <span className="text-3xs text-muted-foreground/60">
+              <span className="text-caption text-muted-foreground/60">
                 {isDetailsExpanded ? "Collapse" : "Expand"}
               </span>
-            </button>
+            </Button>
 
             {/* Content - preview or full */}
             <div className={cn(
               "px-3 py-2.5",
               "border-t border-border/20"
             )}>
-              {isDetailsExpanded ? (
+              <div id={isDetailsExpandedContentId}>{isDetailsExpanded ? (
                 // Full content
-                <div className={cn(layout.prose, "text-2xs animate-fade-in")}>
+                <div className={cn(layout.prose, "text-caption animate-fade-in")}>
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {remainingText}
                   </ReactMarkdown>
@@ -437,18 +442,18 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                 >
                   <div className={cn(
                     layout.prose,
-                    "text-2xs",
+                    "text-caption",
                     "line-clamp-3 text-muted-foreground"
                   )}>
                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                       {getPreviewLines(remainingText, 3)}
                     </ReactMarkdown>
                   </div>
-                  <span className="text-3xs text-info mt-1 inline-block">
+                  <span className="text-caption text-info mt-1 inline-block">
                     {t("taskNotification.showMore")}
                   </span>
                 </div>
-              )}
+              )}</div>
             </div>
           </div>
         )}

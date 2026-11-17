@@ -5,22 +5,28 @@
  */
 
 import pricingTable from "@/data/model-pricing.json";
+import { changePercent } from "@/lib/format/number";
+import type { GrowthTrend } from "../types";
 
 /**
- * Calculate growth rate between two values
+ * Classify the change from `previous` to `current`.
+ *
+ * `floor` is the smallest previous value a percentage is meaningful against:
+ * below it only the direction is reported, and a zero base is `new` (or
+ * `none` when both are zero).
  */
-export const calculateGrowthRate = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return Math.round(((current - previous) / previous) * 100);
-};
-
-/**
- * Format large numbers with precision (K, M suffixes)
- */
-export const formatNumber = (num: number): string => {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
+export const calculateGrowthTrend = (
+  current: number,
+  previous: number,
+  floor: number,
+): GrowthTrend => {
+  if (previous === 0) return current === 0 ? { kind: "none" } : { kind: "new" };
+  if (previous < floor) {
+    if (current > previous) return { kind: "up-small-base" };
+    if (current < previous) return { kind: "down-small-base" };
+    return { kind: "flat" };
+  }
+  return { kind: "pct", value: changePercent(previous, current) };
 };
 
 /**
@@ -100,6 +106,8 @@ const TOKEN_UNSUPPORTED_MODEL_PATTERNS = [
   /^gemini-2\.5-flash-(?:native-audio|image)(?:-|$)/,
   /^gemini-.*-(?:tts|native-audio|audio|live|image|image-generation|video-generation)(?:-|$)/,
   /^gemini-omni-flash(?:-|$)/,
+  // Image generation; image output tokens bill differently from text output.
+  /^gemini-nano-banana(?:-|$)/,
   /^gemini-(?:3\.5-live-translate|3\.1-flash-live)(?:-|$)/,
   /^gpt-(?:4o(?:-mini)?|4\.1(?:-mini)?)-(?:audio|realtime|tts|transcribe|search-preview)(?:-|$)/,
   /^gpt-(?:realtime|image)(?:-|$)/,
@@ -117,8 +125,10 @@ const SOURCE_COST_ONLY_PROVIDER_IDS = new Set([
   "opencode",
 ]);
 
+// A bracketed suffix is a client-side context marker (Claude Code reports
+// `claude-opus-5-5[1m]`), not part of the billed model id.
 const normalizeModelName = (modelName: string): string =>
-  modelName.trim().toLowerCase().replace(/^models\//, "");
+  modelName.trim().toLowerCase().replace(/^models\//, "").replace(/\[[^\]]*\]$/, "");
 
 const matchesModelKey = (normalizedModelName: string, key: string): boolean => {
   // Gate on the final provider/model path segment so `openai/gpt-4.1-*` and
@@ -259,21 +269,22 @@ export const calculateModelPrice = (
   return inputCost + outputCost + cacheWriteCost + cacheReadCost;
 };
 
-/**
- * Format a number as a currency string (USD)
- */
-export const formatCurrency = (value: number): string =>
-  `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-  })}`;
+type HeatLevel = "empty" | "low" | "medium" | "high";
+
+/** The heatmap step an activity intensity (0-1) falls in. */
+const getHeatLevel = (intensity: number): HeatLevel => {
+  if (intensity === 0) return "empty";
+  if (intensity <= 0.3) return "low";
+  if (intensity <= 0.6) return "medium";
+  return "high";
+};
 
 /**
  * Get heatmap color based on intensity
  */
-export const getHeatColor = (intensity: number): string => {
-  if (intensity === 0) return "var(--heatmap-empty)";
-  if (intensity <= 0.3) return "var(--heatmap-low)";
-  if (intensity <= 0.6) return "var(--heatmap-medium)";
-  return "var(--heatmap-high)";
-};
+export const getHeatColor = (intensity: number): string =>
+  `var(--heatmap-${getHeatLevel(intensity)})`;
+
+/** Text color readable on the cell `getHeatColor(intensity)` fills. */
+export const getHeatTextColor = (intensity: number): string =>
+  `var(--heatmap-${getHeatLevel(intensity)}-foreground)`;

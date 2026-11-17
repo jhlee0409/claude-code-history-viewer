@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-server.sh — One-line installer for cchv-server (Claude Code History Viewer)
+# install-server.sh — One-line installer for cchv-server (Omnilogue)
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
@@ -126,7 +126,7 @@ install() {
 # ---------------------------------------------------------------------------
 
 main() {
-    printf '\n\033[1m  Claude Code History Viewer — Server Installer\033[0m\n\n'
+    printf '\n\033[1m  Omnilogue — Server Installer\033[0m\n\n'
 
     need_cmd curl
     need_cmd tar

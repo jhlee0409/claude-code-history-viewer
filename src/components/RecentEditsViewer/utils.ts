@@ -1,3 +1,5 @@
+import { appFormat } from "@/lib/format/useFormat";
+
 /**
  * RecentEditsViewer Utility Functions
  */
@@ -64,16 +66,9 @@ export const getLanguageFromPath = (path: string): string => {
 };
 
 /**
- * Format a timestamp to locale string
+ * Full date and time with seconds, in the app language (tooltips, details).
  */
-export const formatTimestamp = (timestamp: string): string => {
-  try {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-  } catch {
-    return timestamp;
-  }
-};
+export const formatTimestamp = (timestamp: string): string => appFormat().dateTimeFull(timestamp);
 
 /**
  * Clock time (`14:22`) for the chronological, per-edit grouping.
@@ -86,10 +81,7 @@ export const formatClockTime = (timestamp: string): string => {
   try {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return appFormat().time(date);
   } catch {
     return "";
   }
@@ -115,10 +107,7 @@ export const getCompactRelativeTime = (
     // useful: show the date instead.
     const diffMs = Date.now() - date.getTime();
     if (diffMs < 0) {
-      return date.toLocaleDateString(undefined, {
-        month: "numeric",
-        day: "numeric",
-      });
+      return appFormat().date(date, "numeric");
     }
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
@@ -135,10 +124,7 @@ export const getCompactRelativeTime = (
       });
     if (diffDays < 7)
       return t("recentEdits.timeDaysShort", "{{count}}d", { count: diffDays });
-    return date.toLocaleDateString(undefined, {
-      month: "numeric",
-      day: "numeric",
-    });
+    return appFormat().date(date, "numeric");
   } catch {
     return "";
   }
@@ -163,7 +149,7 @@ export const getRelativeTime = (
     if (diffMins < 60) return t("common.time.minutesAgo", { count: diffMins });
     if (diffHours < 24) return t("common.time.hoursAgo", { count: diffHours });
     if (diffDays < 7) return t("common.time.daysAgo", { count: diffDays });
-    return date.toLocaleDateString();
+    return appFormat().date(date, "medium");
   } catch {
     return "";
   }

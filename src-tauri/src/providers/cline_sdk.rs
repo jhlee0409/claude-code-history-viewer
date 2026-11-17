@@ -24,6 +24,7 @@
 //! be parsed back out of it.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -59,8 +60,14 @@ fn env_dir(key: &str) -> Option<PathBuf> {
 /// The sessions root (`CLINE_SESSION_DATA_DIR`, else `<data dir>/sessions`),
 /// when it exists as a real directory.
 pub(super) fn sessions_dir() -> Option<PathBuf> {
+    sessions_dir_reporting(&ScanReport::default())
+}
+
+/// [`sessions_dir`], recording in `report` a directory on the way that may
+/// not be looked into.
+pub(super) fn sessions_dir_reporting(report: &ScanReport) -> Option<PathBuf> {
     let dir = env_dir("CLINE_SESSION_DATA_DIR").or_else(|| Some(data_dir()?.join("sessions")))?;
-    (dir.is_dir() && !is_symlink(&dir)).then_some(dir)
+    (report.is_dir(&dir) && !is_symlink(&dir)).then_some(dir)
 }
 
 /// Upstream session ids are `<epoch ms>_<nanoid>`; anything else is rejected
@@ -81,12 +88,14 @@ struct Manifest {
     ended_at: Option<String>,
 }
 
-fn read_manifest(session_dir: &Path, id: &str) -> Option<Manifest> {
+/// A session's manifest; one that is there but cannot be read is recorded
+/// in `report`, one that does not parse is not a session.
+fn read_manifest(session_dir: &Path, id: &str, report: &ScanReport) -> Option<Manifest> {
     let path = session_dir.join(format!("{id}.json"));
-    if !path.is_file() || is_symlink(&path) {
+    if !report.is_file(&path) || is_symlink(&path) {
         return None;
     }
-    let value: Value = serde_json::from_str(&fs::read_to_string(&path).ok()?).ok()?;
+    let value: Value = serde_json::from_str(&report.read_to_string(&path)?).ok()?;
     let text = |v: Option<&Value>| {
         v.and_then(Value::as_str)
             .map(str::trim)
@@ -104,20 +113,19 @@ fn read_manifest(session_dir: &Path, id: &str) -> Option<Manifest> {
     })
 }
 
-/// Every session in the store that has a readable manifest.
-fn read_manifests(root: &Path) -> Vec<Manifest> {
-    let Ok(entries) = fs::read_dir(root) else {
-        return Vec::new();
-    };
-    entries
-        .flatten()
+/// Every session in the store that has a readable manifest; what cannot be
+/// read is recorded in `report`.
+fn read_manifests(root: &Path, report: &ScanReport) -> Vec<Manifest> {
+    report
+        .read_dir(root)
+        .into_iter()
         .filter_map(|entry| {
             let id = entry.file_name().to_str()?.to_string();
             let dir = entry.path();
-            if !is_valid_session_id(&id) || is_symlink(&dir) || !dir.is_dir() {
+            if !is_valid_session_id(&id) || is_symlink(&dir) || !report.is_dir(&dir) {
                 return None;
             }
-            read_manifest(&dir, &id)
+            read_manifest(&dir, &id, report)
         })
         .collect()
 }
@@ -269,10 +277,11 @@ fn convert_transcript(
         .collect()
 }
 
-/// Projects in the store, grouped by each session's working directory.
-pub(super) fn scan_projects_in(root: &Path) -> Vec<ClaudeProject> {
+/// Projects in the store, grouped by each session's working directory; what
+/// could not be read is recorded in `report`.
+pub(super) fn scan_projects_in(root: &Path, report: &ScanReport) -> Vec<ClaudeProject> {
     let mut by_cwd: HashMap<String, Vec<Manifest>> = HashMap::new();
-    for manifest in read_manifests(root) {
+    for manifest in read_manifests(root, report) {
         by_cwd
             .entry(manifest.cwd.clone())
             .or_default()
@@ -308,9 +317,11 @@ pub(super) fn scan_projects_in(root: &Path) -> Vec<ClaudeProject> {
         .collect()
 }
 
-/// Sessions of one project (`cwd`), newest first.
-pub(super) fn load_sessions_in(root: &Path, cwd: &str) -> Vec<ClaudeSession> {
-    let mut sessions: Vec<ClaudeSession> = read_manifests(root)
+/// Sessions of one project (`cwd`), newest first. The manifests that could
+/// not be read are recorded in `report` (a transcript that cannot be read
+/// fails when its messages load).
+pub(super) fn load_sessions_in(root: &Path, cwd: &str, report: &ScanReport) -> Vec<ClaudeSession> {
+    let mut sessions: Vec<ClaudeSession> = read_manifests(root, report)
         .into_iter()
         .filter(|manifest| manifest.cwd == cwd)
         .map(|manifest| {
@@ -357,7 +368,7 @@ pub(super) fn load_sessions_in(root: &Path, cwd: &str) -> Vec<ClaudeSession> {
 /// Messages of one session.
 pub(super) fn load_messages_in(root: &Path, id: &str) -> Result<Vec<ClaudeMessage>, String> {
     let transcript = read_transcript(root, id)?;
-    let started_at = read_manifest(&root.join(id), id)
+    let started_at = read_manifest(&root.join(id), id, &ScanReport::default())
         .and_then(|manifest| manifest.started_at)
         .unwrap_or_default();
     Ok(convert_transcript(&transcript, id, &started_at))
@@ -370,7 +381,7 @@ pub(super) fn search_in(
     limit: usize,
     results: &mut Vec<ClaudeMessage>,
 ) {
-    for manifest in read_manifests(root) {
+    for manifest in read_manifests(root, &ScanReport::default()) {
         if results.len() >= limit {
             return;
         }
@@ -546,7 +557,7 @@ mod tests {
     #[test]
     fn scan_groups_sessions_by_cwd() {
         let tmp = store();
-        let projects = scan_projects_in(tmp.path());
+        let projects = scan_projects_in(tmp.path(), &ScanReport::default());
         assert_eq!(projects.len(), 1);
         let project = &projects[0];
         assert_eq!(project.name, "cline");
@@ -560,7 +571,7 @@ mod tests {
     #[test]
     fn sessions_use_the_manifest_title_and_times() {
         let tmp = store();
-        let sessions = load_sessions_in(tmp.path(), CWD);
+        let sessions = load_sessions_in(tmp.path(), CWD, &ScanReport::default());
         assert_eq!(sessions.len(), 1);
         let session = &sessions[0];
         assert_eq!(session.session_id, format!("{PREFIX}{ID}"));
@@ -574,7 +585,7 @@ mod tests {
             .summary
             .as_deref()
             .is_some_and(|s| s.starts_with("can you update")));
-        assert!(load_sessions_in(tmp.path(), "/elsewhere").is_empty());
+        assert!(load_sessions_in(tmp.path(), "/elsewhere", &ScanReport::default()).is_empty());
     }
 
     #[test]
@@ -679,7 +690,7 @@ mod tests {
         .unwrap();
         std::os::unix::fs::symlink(&target, tmp.path().join("2_other")).unwrap();
 
-        let projects = scan_projects_in(tmp.path());
+        let projects = scan_projects_in(tmp.path(), &ScanReport::default());
         assert_eq!(projects.len(), 1, "the symlinked session is not read");
     }
 

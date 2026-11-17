@@ -5,9 +5,98 @@
  */
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { useFormat } from "@/lib/format/useFormat";
 import { cn } from "@/lib/utils";
-import type { MetricCardProps } from "../types";
+import type { GrowthTrend, MetricCardProps } from "../types";
+import { Num } from "@/lib/format/Num";
+
+type TrendDirection = "up" | "down" | "flat";
+
+const DIRECTION_STYLE: Record<TrendDirection, { className: string; Icon: React.ElementType }> = {
+  up: { className: "bg-success/10 text-success", Icon: ArrowUpRight },
+  down: { className: "bg-destructive/10 text-destructive", Icon: ArrowDownRight },
+  flat: { className: "bg-muted text-muted-foreground", Icon: Minus },
+};
+
+const pctDirection = (value: number): TrendDirection =>
+  value > 0 ? "up" : value < 0 ? "down" : "flat";
+
+/** Above +100% a percentage is hard to read, so the chip shows a multiple instead. */
+const MULTIPLE_ABOVE_PCT = 100;
+
+/** "2.5" / "5" / "62": one decimal below 10×, whole numbers from 10× on. */
+const formatMultiple = (pct: number): string => {
+  const ratio = 1 + pct / 100;
+  return ratio < 10 ? String(Math.round(ratio * 10) / 10) : String(Math.round(ratio));
+};
+
+/**
+ * Day-over-day trend chip. Only `pct` shows a number; the other kinds share
+ * the same chip with an arrow and an explanation for hover and screen readers.
+ */
+const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
+  const { t } = useTranslation();
+  const fmt = useFormat();
+  if (!trend || trend.kind === "none") return null;
+
+  const chip = (direction: TrendDirection, content: React.ReactNode, description?: string) => {
+    const { className, Icon } = DIRECTION_STYLE[direction];
+    return (
+      <div
+        data-testid="metric-card-trend"
+        title={description}
+        className={cn(
+          "flex items-center gap-1 px-2 py-1 rounded-md text-caption font-semibold",
+          className
+        )}
+      >
+        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+        {content}
+        {description && <span className="sr-only">{description}</span>}
+      </div>
+    );
+  };
+
+  switch (trend.kind) {
+    case "pct": {
+      const direction = pctDirection(trend.value);
+      // The number alone does not say which way it moved; the arrow is visual only.
+      const description =
+        direction === "up"
+          ? t("analytics.trend.upDescription")
+          : direction === "down"
+            ? t("analytics.trend.downDescription")
+            : t("analytics.trend.flatDescription");
+      if (trend.value > MULTIPLE_ABOVE_PCT) {
+        const multiple = formatMultiple(trend.value);
+        // "62×" alone is ambiguous ("62 times more" vs "62 times as much",
+        // notably for 倍 in Chinese), so the explanation states the ratio.
+        return chip(
+          "up",
+          <span>{t("analytics.trend.times", { value: multiple })}</span>,
+          t("analytics.trend.timesDescription", { value: multiple })
+        );
+      }
+      // `trend.value` is the whole-percent change (`changePercent`); the arrow
+      // carries the sign, the chip its size in the app language.
+      return chip(direction, <span><Num>{fmt.percent(Math.abs(trend.value) / 100)}</Num></span>, description);
+    }
+    case "new":
+      return chip(
+        "up",
+        <span aria-hidden="true">{t("analytics.trend.new")}</span>,
+        t("analytics.trend.newDescription")
+      );
+    case "up-small-base":
+      return chip("up", null, t("analytics.trend.upSmallBase"));
+    case "down-small-base":
+      return chip("down", null, t("analytics.trend.downSmallBase"));
+    case "flat":
+      return chip("flat", null, t("analytics.trend.flatSmallBase"));
+  }
+};
 
 export const MetricCard: React.FC<MetricCardProps> = ({
   icon: Icon,
@@ -39,48 +128,27 @@ export const MetricCard: React.FC<MetricCardProps> = ({
               background: `color-mix(in oklch, ${colorVar} 15%, transparent)`,
             }}
           >
-            <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: colorVar }} />
+            <Icon className="w-4 h-4" style={{ color: colorVar }} />
           </div>
 
-          {/* Trend indicator */}
-          {trend !== undefined && (
-            <div
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-px10 font-semibold",
-                trend > 0
-                  ? "bg-success/10 text-success"
-                  : trend < 0
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-muted text-muted-foreground"
-              )}
-            >
-              {trend > 0 ? (
-                <ArrowUpRight className="w-3 h-3" />
-              ) : trend < 0 ? (
-                <ArrowDownRight className="w-3 h-3" />
-              ) : (
-                <Minus className="w-3 h-3" />
-              )}
-              <span>{Math.abs(trend)}%</span>
-            </div>
-          )}
+          <TrendChip trend={trend} />
         </div>
 
         {/* Value */}
-        <div className="font-mono text-[clamp(1.125rem,2vw,1.875rem)] leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
-          {value}
+        <div className="font-mono text-2xl leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
+          <Num>{String(value)}</Num>
         </div>
 
         {/* Label */}
-        <div className="text-px11 font-medium text-muted-foreground uppercase tracking-wider mb-auto">
+        <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mb-auto">
           {label}
         </div>
 
         {/* Sub value */}
         {subValue && (
           <div className="mt-3 pt-3 border-t border-border/30">
-            <div className="font-mono text-px11 text-muted-foreground/70">
-              {subValue}
+            <div className="font-mono text-caption text-muted-foreground/70">
+              <Num>{subValue}</Num>
             </div>
           </div>
         )}

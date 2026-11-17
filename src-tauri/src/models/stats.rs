@@ -1,7 +1,22 @@
 use serde::{Deserialize, Serialize};
 
+/// Accepted-row counter coverage for native Claude, not billing completeness.
+/// Other providers remain unknown until original-format fidelity is established.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenUsageRecording {
+    Absent,
+    Recorded,
+    Partial,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionTokenStats {
+    #[serde(default)]
+    pub token_usage_recording: TokenUsageRecording,
     pub session_id: String,
     pub project_name: String,
     pub total_input_tokens: u64,
@@ -18,6 +33,32 @@ pub struct SessionTokenStats {
     pub summary: Option<String>,
     pub most_used_tools: Vec<ToolUsageStats>,
     /// Per-model token/cost breakdown used by project and session billing UI.
+    #[serde(default)]
+    pub model_distribution: Vec<ModelStats>,
+    /// The part of this session's billing totals that came from the sessions
+    /// it spawned (subagents), when the provider stores them as separate child
+    /// sessions (issue #577). Only set in `billing_total` mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_stats: Option<SubagentTokenStats>,
+}
+
+/// Usage of the descendant sessions a session spawned, already included in
+/// that session's `billing_total` totals.
+///
+/// Providers that model a subagent run as its own session row (`OpenCode` and
+/// Kilo: `session.parent_id`) store that billed usage outside the parent
+/// session; this breaks the rolled-in share back out for the billing UI.
+/// `session_count` counts only the runs with usage inside the date filter.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SubagentTokenStats {
+    pub session_count: usize,
+    pub message_count: usize,
+    pub total_input_tokens: u64,
+    pub total_output_tokens: u64,
+    pub total_cache_creation_tokens: u64,
+    pub total_cache_read_tokens: u64,
+    pub total_reasoning_tokens: u64,
+    pub total_tokens: u64,
     #[serde(default)]
     pub model_distribution: Vec<ModelStats>,
 }
@@ -192,6 +233,7 @@ mod tests {
     #[test]
     fn test_session_token_stats_serialization() {
         let stats = SessionTokenStats {
+            token_usage_recording: TokenUsageRecording::Unknown,
             session_id: "session-123".to_string(),
             project_name: "my-project".to_string(),
             total_input_tokens: 1000,
@@ -206,6 +248,7 @@ mod tests {
             summary: Some("Test session summary".to_string()),
             most_used_tools: Vec::new(),
             model_distribution: Vec::new(),
+            subagent_stats: None,
         };
 
         let serialized = serde_json::to_string(&stats).unwrap();

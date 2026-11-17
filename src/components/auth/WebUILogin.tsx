@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Loader2, Lock, ShieldCheck, User } from "lucide-react";
+import { KeyRound, LoaderCircle, Lock, ShieldCheck, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,13 +58,13 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
       <section className="w-full max-w-[420px] rounded-lg border border-border bg-card p-6 shadow-lg">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold leading-tight">
+            <h1 className="text-title font-semibold leading-tight">
               {t("webui.login.title")}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-body text-muted-foreground">
               {t("common.appName")}
             </p>
           </div>
@@ -79,7 +79,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
             type="button"
             role="tab"
             aria-selected={mode === "account"}
-            className={`flex h-9 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors ${
+            className={`flex h-9 items-center justify-center gap-2 rounded px-3 text-body font-medium transition-colors ${
               mode === "account"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -96,7 +96,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
             type="button"
             role="tab"
             aria-selected={mode === "token"}
-            className={`flex h-9 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors ${
+            className={`flex h-9 items-center justify-center gap-2 rounded px-3 text-body font-medium transition-colors ${
               mode === "token"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -115,7 +115,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
           {mode === "account" ? (
             <>
               <label className="block space-y-2">
-                <span className="text-sm font-medium">
+                <span className="text-body font-medium">
                   {t("webui.login.username")}
                 </span>
                 <div className="relative">
@@ -133,7 +133,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
                 </div>
               </label>
               <label className="block space-y-2">
-                <span className="text-sm font-medium">
+                <span className="text-body font-medium">
                   {t("webui.login.password")}
                 </span>
                 <div className="relative">
@@ -154,7 +154,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
             </>
           ) : (
             <label className="block space-y-2">
-              <span className="text-sm font-medium">
+              <span className="text-body font-medium">
                 {t("webui.login.accessToken")}
               </span>
               <div className="relative">
@@ -176,7 +176,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
 
           {error ? (
             <div
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-body text-destructive"
               role="alert"
             >
               {error}
@@ -185,7 +185,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
 
           <Button className="w-full" type="submit" disabled={!canSubmit}>
             {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : null}
             {t("webui.login.submit")}
           </Button>

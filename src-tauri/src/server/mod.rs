@@ -29,7 +29,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
 
 use self::auth::{
@@ -48,6 +48,7 @@ use self::state::AppState;
 /// This list must stay in sync with the POST routes registered on `protected_api`
 /// in `build_router`; the `read_only_*` tests below pin the current classification.
 const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
+    "/ack_menu_events",
     "/detect_claude_config_dir",
     "/detect_providers",
     "/export_session",
@@ -78,6 +79,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_settings_by_scope",
     "/get_system_info",
     "/get_unified_preset",
+    "/get_usage_breakdown",
     "/is_project_hidden",
     "/list_archives",
     "/load_archive_session_messages",
@@ -94,12 +96,15 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_session_messages_paginated",
     "/load_unified_presets",
     "/load_user_metadata",
+    "/menu_journal",
     "/open_github_issues",
+    "/read_restore_target",
     "/read_text_file",
     "/scan_all_projects",
     "/scan_projects",
     "/search_all_providers",
     "/search_messages",
+    "/sync_menu_state",
     "/validate_claude_folder",
     "/validate_custom_claude_dir",
 ];
@@ -117,6 +122,7 @@ const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
     "/delete_preset",
     "/delete_session",
     "/delete_unified_preset",
+    "/move_session_to_project",
     "/rename_archive",
     "/rename_opencode_session_title",
     "/rename_session_native",
@@ -164,28 +170,22 @@ pub fn build_router(
     let base_path = normalize_base_path(base_path).expect("Invalid WebUI base path");
 
     // Restrict CORS when auth is enabled; permissive only for --no-auth.
-    let cors = if state.auth.is_enabled() {
+    let origin = if state.auth.is_enabled() {
         let origin = format!("http://{host}:{port}")
             .parse::<HeaderValue>()
             .unwrap_or_else(|_| HeaderValue::from_static("http://localhost:3727"));
-        CorsLayer::new()
-            .allow_origin(origin)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::exact(origin)
     } else {
-        CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::any()
     };
+    let cors = CorsLayer::new()
+        .allow_origin(origin)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static("x-csrf-token"),
+        ]);
 
     let protected_api = Router::new()
         // SSE endpoint for real-time file change events
@@ -223,7 +223,9 @@ pub fn build_router(
         .route("/search_messages", post(h::search_messages))
         .route("/get_recent_edits", post(h::get_recent_edits))
         .route("/restore_file", post(h::restore_file))
+        .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
+        .route("/move_session_to_project", post(h::move_session_to_project))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
         .route(
@@ -246,10 +248,15 @@ pub fn build_router(
             "/get_global_stats_summary",
             post(h::get_global_stats_summary),
         )
+        .route("/get_usage_breakdown", post(h::get_usage_breakdown))
         // Feedback commands
         .route("/send_feedback", post(h::send_feedback))
         .route("/get_system_info", post(h::get_system_info))
         .route("/open_github_issues", post(h::open_github_issues))
+        // Native menu bridge: no-ops in the WebUI (no native menu)
+        .route("/sync_menu_state", post(h::sync_menu_state))
+        .route("/menu_journal", post(h::menu_journal))
+        .route("/ack_menu_events", post(h::ack_menu_events))
         // Metadata commands
         .route(
             "/get_metadata_folder_path",
@@ -367,20 +374,14 @@ pub fn build_router(
             .expect("Failed to read dist/index.html — is --dist correct?");
         let index_html = inject_base_path(&index_html, &base_path);
         spa_index = SpaIndex::Html(Arc::new(index_html));
-        let index_for_root = spa_index.clone();
-        let index_for_fallback = spa_index.clone();
-        let spa_root = get(move || {
-            let index = index_for_root.clone();
+        let index_for_spa = spa_index.clone();
+        let spa = get(move || {
+            let index = index_for_spa.clone();
             async move { spa_index_response(index) }
         });
-        let spa_fallback = get(move || {
-            let index = index_for_fallback.clone();
-            async move { spa_index_response(index) }
-        });
-        let serve_dir = ServeDir::new(dist);
         app = app
-            .route("/", spa_root)
-            .fallback_service(serve_dir.fallback(spa_fallback));
+            .route("/", spa.clone())
+            .fallback_service(ServeDir::new(dist).fallback(spa));
     } else {
         // Embedded mode: serve from rust-embed compiled assets (production default)
         spa_index = SpaIndex::Embedded {
@@ -646,25 +647,17 @@ fn embedded_asset_handler(req: Request, base_path: String) -> Response {
     let path = req.uri().path().trim_start_matches('/');
 
     // Try the exact path first, then fall back to index.html for SPA routing.
-    let (data, mime) = if let Some(file) = EmbeddedAssets::get(path) {
-        let mime = mime_guess::from_path(path)
-            .first_or_octet_stream()
-            .to_string();
-        (Body::from(file.data.into_owned()), mime)
-    } else if let Some(index) = embedded_index_body(&base_path) {
-        (index, "text/html".to_string())
-    } else {
-        return (
-            StatusCode::NOT_FOUND,
-            "index.html not found in embedded assets",
-        )
-            .into_response();
+    let Some(file) = EmbeddedAssets::get(path) else {
+        return embedded_index_response(base_path);
     };
+    let mime = mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .to_string();
 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, mime)
-        .body(data)
+        .body(Body::from(file.data.into_owned()))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
@@ -861,6 +854,1015 @@ mod tests {
         assert!(
             !restore_gate_probe_path().exists(),
             "the refusal must happen before anything reaches the disk"
+        );
+    }
+
+    /// POST `body` to `/api/read_restore_target` on a fresh router.
+    async fn post_read_restore_target(body: serde_json::Value) -> (StatusCode, String) {
+        let app = build_router(state_with(false, None), "127.0.0.1", 3729, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/read_restore_target")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    async fn post_usage_breakdown(
+        state: Arc<AppState>,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = build_router(state, "127.0.0.1", 3731, None, "/")
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/get_usage_breakdown")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| serde_json::Value::String(String::from_utf8_lossy(&bytes).into()));
+        (status, value)
+    }
+
+    /// ADR 0002: the Axum route serves the same function as the Tauri
+    /// command, also in read-only mode, behind the same history-root guard as
+    /// the old stats routes.
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_matches_the_command_and_guards_history_roots() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p1");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = serde_json::json!({
+            "type": "assistant", "sessionId": "s1", "uuid": "u1",
+            "timestamp": "2026-10-15T12:00:00Z",
+            "message": {"id": "m1", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                        "content": [], "usage": {"input_tokens": 100, "output_tokens": 10}}
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{row}\n")).unwrap();
+        let request = |project_path: &std::path::Path| {
+            serde_json::json!({
+                "scope": {"kind": "project", "project_path": project_path.to_string_lossy(), "provider": "claude"},
+                "stats_mode": "billing_total",
+                "intervals": [{"key": "2026-10-15", "start_utc": 1_792_022_400_000_i64, "end_utc": 1_792_108_800_000_i64}],
+            })
+        };
+
+        let (status, body) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(&project) }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let direct = crate::commands::stats::usage_breakdown::get_usage_breakdown(
+            serde_json::from_value(request(&project)).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(body, serde_json::to_value(direct).unwrap());
+        assert_eq!(
+            body["intervals"][0]["models"][0]["stats"]["token_count"],
+            110
+        );
+
+        let outside = tempfile::tempdir().unwrap();
+        let (status, _) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(outside.path()) }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+    }
+
+    /// The review probe of `AN0b`, through the route: the root guard checks
+    /// the requested directory, so the scan itself must never follow a
+    /// symlink out of it — neither a session file nor a project directory.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_never_follows_a_symlink_out_of_the_history_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = |input: u64| {
+            let row = serde_json::json!({
+                "type": "assistant", "sessionId": "s", "uuid": "a",
+                "timestamp": "2026-10-16T12:00:00Z",
+                "message": {"id": "a", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                            "content": [], "usage": {"input_tokens": input, "output_tokens": 0}}
+            });
+            format!("{row}\n")
+        };
+        std::fs::write(project.join("s.jsonl"), row(100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("private.jsonl"), row(4_242)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("private.jsonl"),
+            project.join("escaped.jsonl"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+
+        let intervals = serde_json::json!([
+            {"key": "2026-10-16", "start_utc": 1_792_108_800_000_i64, "end_utc": 1_792_195_200_000_i64}
+        ]);
+        let scopes = [
+            serde_json::json!({"kind": "project", "project_path": project.to_string_lossy(), "provider": "claude"}),
+            serde_json::json!({"kind": "all", "providers": ["claude"],
+                               "claude_path": claude.to_string_lossy(), "custom_claude_paths": []}),
+        ];
+        for scope in scopes {
+            let (status, body) = post_usage_breakdown(
+                test_state_read_only(),
+                serde_json::json!({ "request": {
+                    "scope": scope, "stats_mode": "billing_total", "intervals": intervals
+                }}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            let tokens: u64 = body["intervals"][0]["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| m["stats"]["token_count"].as_u64().unwrap())
+                .sum();
+            assert_eq!(tokens, 100, "{scope}: only the history inside the root");
+            assert_eq!(
+                body["coverage"]["providers"][0]["status"], "partial",
+                "{scope}: a refused link is a source that was not read"
+            );
+        }
+    }
+
+    /// #640. The restore preview reads a project file the export allowlist
+    /// does not cover, authorised by the same recorded-edit history restore
+    /// uses.
+    #[tokio::test]
+    #[serial]
+    async fn test_read_restore_target_reads_a_recorded_project_file() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-work-app");
+        std::fs::create_dir_all(&project).unwrap();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let target = workspace.path().join("main.rs");
+        std::fs::write(&target, "fn main() {}\n").unwrap();
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": workspace.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": target.to_string_lossy(),
+                "content": "fn main() {}\n",
+            }
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{record}\n")).unwrap();
+
+        let (status, body) = post_read_restore_target(serde_json::json!({
+            "filePath": target.to_string_lossy(),
+            "projectPath": project.to_string_lossy(),
+        }))
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            serde_json::from_str::<Option<String>>(&body).unwrap(),
+            Some("fn main() {}\n".to_string())
+        );
+    }
+
+    /// The web server's write goes through the same content rule as the desktop
+    /// command: only a recorded whole-file version reaches the disk, so an
+    /// older frontend sending a row's patch text cannot overwrite the file.
+    #[tokio::test]
+    #[serial]
+    async fn test_restore_endpoint_writes_only_a_recorded_whole_file_version() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-work-app");
+        std::fs::create_dir_all(&project).unwrap();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let target = workspace.path().join("main.rs");
+        let recorded = "fn main() {}\n";
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": workspace.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": target.to_string_lossy(),
+                "content": recorded,
+            }
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{record}\n")).unwrap();
+        std::fs::write(&target, "edited since\n").unwrap();
+
+        let post = |content: &str| {
+            let body = serde_json::json!({
+                "filePath": target.to_string_lossy(),
+                "content": content,
+                "projectPath": project.to_string_lossy(),
+            });
+            build_router(state_with(false, None), "127.0.0.1", 3730, None, "/").oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/restore_file")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+        };
+
+        let refused = post("*** Begin Patch\n*** Update File: main.rs\n*** End Patch\n")
+            .await
+            .unwrap();
+        assert_ne!(refused.status(), StatusCode::OK);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "edited since\n");
+
+        let restored = post(recorded).await.unwrap();
+        assert_eq!(restored.status(), StatusCode::OK);
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), recorded);
+    }
+
+    /// The handler runs the same project guard `restore_file` does: a project
+    /// outside every history root is refused before any read.
+    #[tokio::test]
+    #[serial]
+    async fn test_read_restore_target_refuses_a_project_outside_history_roots() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let project = tempfile::tempdir().expect("project dir");
+        let probe = project.path().join("secret.txt");
+        std::fs::write(&probe, "do not leak").unwrap();
+        // The project does record an edit to the probe, so the command's own
+        // authorisation would admit it: only the handler's guard can refuse.
+        let record = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s1",
+            "timestamp": "2026-10-01T00:00:00Z",
+            "type": "user",
+            "cwd": project.path().to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": probe.to_string_lossy(),
+                "content": "do not leak",
+            }
+        });
+        std::fs::write(project.path().join("s1.jsonl"), format!("{record}\n")).unwrap();
+
+        let (status, body) = post_read_restore_target(serde_json::json!({
+            "filePath": probe.to_string_lossy(),
+            "projectPath": project.path().to_string_lossy(),
+        }))
+        .await;
+
+        assert_ne!(status, StatusCode::OK, "{body}");
+        assert!(!body.contains("do not leak"), "{body}");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn result_metadata_http_matches_native_for_claude_and_codex_windows() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_source_metadata, CLAUDE_FIXTURE, CODEX_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        for (provider, relative, fixture) in [
+            (
+                "claude",
+                ".claude/projects/contract/s.jsonl",
+                CLAUDE_FIXTURE,
+            ),
+            ("codex", ".codex/sessions/s.jsonl", CODEX_FIXTURE),
+        ] {
+            let path = home.path().join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, fixture).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (10, 3), (99, 2)] {
+                let direct = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_read_only("load_provider_messages_paginated", serde_json::json!({
+                    "provider": provider, "sessionPath": path.to_string_lossy(), "offset": offset, "limit": limit, "excludeSidechain": false,
+                })).await;
+                assert_eq!(status, StatusCode::OK, "{response}");
+                assert_eq!(
+                    response,
+                    serde_json::to_value(direct).unwrap(),
+                    "{provider} offset {offset} limit {limit}"
+                );
+                if provider == "claude" {
+                    assert_source_metadata(&response);
+                }
+            }
+        }
+        // The additive contract must not widen history-root authorization.
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("secret.jsonl");
+        std::fs::write(&path, CLAUDE_FIXTURE).unwrap();
+        let (status, response) = post_read_only(
+            "load_provider_messages_paginated",
+            serde_json::json!({
+                "provider":"claude", "sessionPath":path.to_string_lossy(), "offset":0, "limit":200,
+            }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+        assert!(!response.to_string().contains("unassignable"));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn codex_structured_metadata_loopback_http_matches_native() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_codex_structured_metadata, CODEX_STRUCTURED_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (provider, root) in [("codex", ".codex"), ("openinterpreter", ".openinterpreter")] {
+            let path = home
+                .path()
+                .join(root)
+                .join("sessions/rollout-structured.jsonl");
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (7, 2), (99, 2)] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_loopback_json(address, "load_provider_messages_paginated", serde_json::json!({
+                    "provider":provider, "sessionPath":path.to_string_lossy(), "offset":offset, "limit":limit, "excludeSidechain":false,
+                })).await;
+                assert_eq!(status, 200, "{response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                assert_codex_structured_metadata(&response);
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.to_string_lossy().into(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            assert_codex_structured_metadata(&serde_json::json!({"messages":response}));
+        }
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("rollout-secret.jsonl");
+        std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+        for provider in ["codex", "openinterpreter", "unknown-trbe"] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("result-function"));
+        }
+        eprintln!("TRbe loopback {address}: 2 providers, 14 paginated windows, 2 non-paginated responses, 3 refusal controls");
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn codex_preservation_loopback_http_matches_native() {
+        use crate::commands::codex_preservation_tests::{assert_evidence, FIXTURE};
+        let home = crate::test_utils::SandboxHome::new();
+        let path = home
+            .path()
+            .join(".codex")
+            .join("sessions")
+            .join("rollout-preservation.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, FIXTURE).unwrap();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (99, 2), (0, 0)] {
+            let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                "codex".into(),
+                path.to_string_lossy().into(),
+                Some(offset),
+                Some(limit),
+                Some(false),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy(),"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+            assert_eq!(status, 200);
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            if offset == 0 && limit == 200 {
+                assert_evidence(response["messages"].as_array().unwrap());
+            }
+        }
+        let native = crate::commands::multi_provider::load_provider_messages(
+            "codex".into(),
+            path.to_string_lossy().into(),
+        )
+        .await
+        .unwrap();
+        let (status, response) = post_loopback_json(
+            address,
+            "load_provider_messages",
+            serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy()}),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(response, serde_json::to_value(native).unwrap());
+        assert_evidence(response.as_array().unwrap());
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn family_evidence_loopback_http_matches_public_native() {
+        use crate::commands::provider_evidence_tests::{
+            assert_opencode, assert_openhands, assert_pi_bash, assert_pi_results, opencode_fixture,
+            openhands_fixture, pi_fixture,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut windows = 0;
+        for (provider, sqlite) in [
+            ("openhands", false),
+            ("opencode", false),
+            ("opencode", true),
+            ("kilo", true),
+            ("pi", false),
+            ("ompi", false),
+        ] {
+            let (path, _env) = match provider {
+                "openhands" => (openhands_fixture(home.path()), None),
+                "opencode" | "kilo" => {
+                    let (p, _, e) = opencode_fixture(home.path(), provider, sqlite);
+                    (p, Some(e))
+                }
+                _ => (pi_fixture(home.path(), provider).0, None),
+            };
+            for (offset, limit) in [
+                (0, 200),
+                (0, 1),
+                (1, 2),
+                (3, 3),
+                (6, 4),
+                (9, 2),
+                (99, 2),
+                (0, 0),
+            ] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.clone(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status,response)=post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":provider,"sessionPath":path,"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+                assert_eq!(status, 200, "{provider} {response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                match provider {
+                    "openhands" => assert_openhands(&response),
+                    "opencode" | "kilo" => assert_opencode(&response),
+                    _ => {
+                        assert_pi_results(&response);
+                        assert_pi_bash(&response);
+                    }
+                }
+                windows += 1;
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.clone(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+        }
+        let outside = home.path().join("private.jsonl");
+        std::fs::write(
+            &outside,
+            include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl"),
+        )
+        .unwrap();
+        for (provider, path) in [
+            ("openhands", "openhands://../private".into()),
+            ("opencode", "opencode://proj1/../private".into()),
+            ("kilo", "kilo://proj1/../private".into()),
+            ("pi", outside.to_string_lossy().into_owned()),
+            ("ompi", outside.to_string_lossy().into_owned()),
+            ("unknown-trbe", outside.to_string_lossy().into_owned()),
+        ] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("evidence-only-needle"));
+        }
+        assert_eq!(windows, 48);
+        eprintln!("TRbe family loopback {address}: 6 store cases / 48 windows / 6 non-paginated / 6 refusal controls");
+        server.abort();
+    }
+
+    async fn post_loopback_json(
+        address: std::net::SocketAddr,
+        route: &str,
+        body: serde_json::Value,
+    ) -> (u16, serde_json::Value) {
+        let route = route.to_string();
+        tokio::task::spawn_blocking(move || {
+            use std::io::{Read, Write};
+            let mut socket = std::net::TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            let body = body.to_string();
+            write!(socket, "POST /api/{route} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            let mut response = String::new();
+            socket.read_to_string(&mut response).unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            let status = headers.split_whitespace().nth(1).unwrap().parse().unwrap();
+            (status, serde_json::from_str(body).unwrap())
+        }).await.unwrap()
+    }
+    /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
+    /// shared `--serve` instance runs in. The body is `Null` when it is not
+    /// JSON.
+    async fn post_read_only(
+        route: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/{route}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, json)
+    }
+
+    /// One Claude JSONL row: a user prompt, or an assistant reply that used
+    /// `tokens` input tokens.
+    fn history_row(session: &str, uuid: &str, user_text: Option<&str>, tokens: u64) -> String {
+        let row = match user_text {
+            Some(text) => serde_json::json!({
+                "type": "user", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:00Z",
+                "message": {"role": "user", "content": text}
+            }),
+            None => serde_json::json!({
+                "type": "assistant", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:01Z",
+                "message": {"id": format!("msg-{uuid}"), "role": "assistant",
+                            "model": "claude-sonnet-4-5-20250929", "content": [],
+                            "usage": {"input_tokens": tokens, "output_tokens": 0}}
+            }),
+        };
+        format!("{row}\n")
+    }
+
+    /// The old stats routes (#691, backported): the history-root guard checks
+    /// the requested directory or file, so the scans behind it must never
+    /// follow a symlink out of the root: not a session file, not a project
+    /// directory, not a session's subagent folder.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_old_stats_routes_never_follow_a_symlink_out_of_the_history_root() {
+        use std::os::unix::fs::symlink;
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join("s1.jsonl"), history_row("s1", "a1", None, 100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let private = outside.path().join("private.jsonl");
+        std::fs::write(&private, history_row("private", "x1", None, 4_242)).unwrap();
+        let subagents = outside.path().join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-x.jsonl"),
+            history_row("s1", "x2", None, 4_242),
+        )
+        .unwrap();
+        symlink(&private, project.join("escaped.jsonl")).unwrap();
+        symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+        symlink(outside.path(), project.join("s1")).unwrap();
+
+        let project_path = project.to_string_lossy();
+        let session_path = project.join("s1.jsonl");
+        let routes = [
+            (
+                "get_project_stats_summary",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "get_project_token_stats",
+                serde_json::json!({ "projectPath": project_path, "limit": 100 }),
+            ),
+            (
+                "get_session_token_stats",
+                serde_json::json!({ "sessionPath": session_path.to_string_lossy() }),
+            ),
+            (
+                "get_global_stats_summary",
+                serde_json::json!({
+                    "claudePath": claude.to_string_lossy(), "activeProviders": ["claude"]
+                }),
+            ),
+        ];
+        let mut tokens_by_route = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            let tokens: u64 = match json.get("items") {
+                Some(items) => items
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["total_tokens"].as_u64().unwrap())
+                    .sum(),
+                None => json["total_tokens"].as_u64().unwrap(),
+            };
+            tokens_by_route.push((route, tokens));
+        }
+        // Only the history inside the root, on every route at once.
+        assert_eq!(
+            tokens_by_route,
+            [
+                ("get_project_stats_summary", 100),
+                ("get_project_token_stats", 100),
+                ("get_session_token_stats", 100),
+                ("get_global_stats_summary", 100),
+            ]
+        );
+    }
+
+    /// #693. The root guard lets an empty `claudePath` through as "use the
+    /// default", so every route behind it reads `~/.claude`, never a
+    /// `projects/` folder relative to the server's working directory. An
+    /// absent `claudePath` (global stats) means the same.
+    #[tokio::test]
+    #[serial]
+    async fn test_an_empty_claude_path_reads_the_default_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = history_row("s1", "u1", Some("needle-693 in the default root"), 0)
+            + &history_row("s1", "a1", None, 100);
+        std::fs::write(project.join("s1.jsonl"), session).unwrap();
+
+        let claude_only = serde_json::json!(["claude"]);
+        let routes = [
+            ("scan_projects", serde_json::json!({ "claudePath": "" })),
+            (
+                "scan_all_projects",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "search_messages",
+                serde_json::json!({ "claudePath": "", "query": "needle-693", "filters": {} }),
+            ),
+            (
+                "search_all_providers",
+                serde_json::json!({
+                    "claudePath": "", "query": "needle-693", "activeProviders": claude_only
+                }),
+            ),
+        ];
+        let mut results = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            results.push((route, json.as_array().map(Vec::len)));
+        }
+        for (label, body) in [
+            (
+                "get_global_stats_summary tokens, empty claudePath",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "get_global_stats_summary tokens, no claudePath",
+                serde_json::json!({ "activeProviders": claude_only }),
+            ),
+        ] {
+            let (status, json) = post_read_only("get_global_stats_summary", body).await;
+            assert_eq!(status, StatusCode::OK, "{label}: {json}");
+            results.push((label, json["total_tokens"].as_u64().map(|t| t as usize)));
+        }
+        // The default root's one project, its one match and its 100 tokens,
+        // on every route at once.
+        assert_eq!(
+            results,
+            [
+                ("scan_projects", Some(1)),
+                ("scan_all_projects", Some(1)),
+                ("search_messages", Some(1)),
+                ("search_all_providers", Some(1)),
+                (
+                    "get_global_stats_summary tokens, empty claudePath",
+                    Some(100)
+                ),
+                ("get_global_stats_summary tokens, no claudePath", Some(100)),
+            ]
+        );
+    }
+
+    /// The session routes stay inside the history root as the stats routes
+    /// do: the guard checks the requested project or session, so the readers
+    /// behind it must never follow a symlink below it, not a session file
+    /// and not a session's subagent folder.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_session_routes_never_follow_a_symlink_out_of_the_history_root() {
+        use std::os::unix::fs::symlink;
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = history_row("s1", "u1", Some("inside"), 0);
+        std::fs::write(project.join("s1.jsonl"), session).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let private = outside.path().join("private.jsonl");
+        std::fs::write(&private, history_row("private", "x1", Some("outside"), 0)).unwrap();
+        let subagents = outside.path().join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        let subagent = history_row("s1", "x2", Some("outside subagent"), 0);
+        std::fs::write(subagents.join("agent-x.jsonl"), subagent).unwrap();
+        symlink(&private, project.join("escaped.jsonl")).unwrap();
+        symlink(outside.path(), project.join("s1")).unwrap();
+
+        let project_path = project.to_string_lossy();
+        let session_path = project.join("s1.jsonl");
+        let routes = [
+            (
+                "load_project_sessions",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_provider_sessions",
+                serde_json::json!({ "provider": "claude", "projectPath": project_path }),
+            ),
+            (
+                "get_session_subagents",
+                serde_json::json!({ "sessionPath": session_path.to_string_lossy() }),
+            ),
+            (
+                "get_expiring_sessions",
+                serde_json::json!({ "projectPath": project_path, "thresholdDays": 100_000 }),
+            ),
+        ];
+        let name = |path: &serde_json::Value| {
+            std::path::Path::new(path.as_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        };
+        let mut shown = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            let mut items: Vec<String> = json
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| match route {
+                    "get_session_subagents" => item["summary"].to_string(),
+                    "get_expiring_sessions" => format!(
+                        "{}: {} subagents",
+                        name(&item["session"]["file_path"]),
+                        item["subagentCount"]
+                    ),
+                    _ => format!("{}: {}", name(&item["file_path"]), item["summary"]),
+                })
+                .collect();
+            items.sort();
+            shown.push((route, items));
+        }
+        // Only the history inside the root, on every route at once.
+        assert_eq!(
+            shown,
+            [
+                (
+                    "load_project_sessions",
+                    vec![r#"s1.jsonl: "inside""#.to_string()]
+                ),
+                (
+                    "load_provider_sessions",
+                    vec![r#"s1.jsonl: "inside""#.to_string()]
+                ),
+                ("get_session_subagents", vec![]),
+                (
+                    "get_expiring_sessions",
+                    vec!["s1.jsonl: 0 subagents".to_string()]
+                ),
+            ]
+        );
+    }
+
+    /// `post_read_only` on a thread of its own, so a route that never answers
+    /// fails the test instead of stalling it: `None` after 10 s, and the
+    /// thread is left behind.
+    #[cfg(unix)]
+    fn post_read_only_within_deadline(
+        route: &'static str,
+        body: serde_json::Value,
+    ) -> Option<(StatusCode, serde_json::Value)> {
+        let (sent, received) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            sent.send(runtime.block_on(post_read_only(route, body)))
+        });
+        received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .ok()
+    }
+
+    /// Inside a history root only directories and regular files are history.
+    /// The routes answer with a directory and a FIFO named like a session in
+    /// the project: the lists skip both, and a route given either as the
+    /// session refuses it instead of reading it forever (a directory) or
+    /// blocking on it (a FIFO). Every route that reads one Claude session by
+    /// its path is refused by the history-root guard before a reader runs, so
+    /// none of the single-session readers is reachable with a FIFO here.
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn test_session_routes_answer_with_entries_that_are_not_regular_files() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("q");
+        std::fs::create_dir_all(project.join("folder.jsonl")).unwrap();
+        let session = history_row("s9", "u9", Some("inside"), 0);
+        std::fs::write(project.join("s9.jsonl"), session).unwrap();
+        let fifo = project.join("fifo.jsonl");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap();
+        assert!(made.success());
+
+        let project_path = project.to_string_lossy().to_string();
+        let folder_path = project.join("folder.jsonl").to_string_lossy().to_string();
+        let fifo_path = fifo.to_string_lossy().to_string();
+        let routes = [
+            (
+                "load_project_sessions",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_project_sessions_page",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_provider_session_by_path",
+                serde_json::json!({
+                    "provider": "claude", "projectPath": project_path, "filePath": folder_path
+                }),
+            ),
+            (
+                "load_session_messages",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
+            (
+                "load_session_messages_paginated",
+                serde_json::json!({ "sessionPath": fifo_path, "offset": 0, "limit": 10 }),
+            ),
+            (
+                "get_session_message_count",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
+            (
+                "export_session",
+                serde_json::json!({ "sessionFilePath": fifo_path, "format": "json" }),
+            ),
+            (
+                "load_provider_messages",
+                serde_json::json!({ "provider": "claude", "sessionPath": fifo_path }),
+            ),
+            (
+                "load_provider_messages_paginated",
+                serde_json::json!({
+                    "provider": "claude", "sessionPath": fifo_path, "offset": 0, "limit": 10
+                }),
+            ),
+            (
+                "get_provider_message_offset",
+                serde_json::json!({
+                    "provider": "claude", "sessionPath": fifo_path, "messageUuid": "u9"
+                }),
+            ),
+            (
+                "get_session_token_stats",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
+            (
+                "get_recent_edits",
+                serde_json::json!({ "projectPath": project_path, "sessionFilePath": fifo_path }),
+            ),
+        ];
+        let answers: Vec<(&str, String)> = routes
+            .into_iter()
+            .map(|(route, body)| {
+                let answer = match post_read_only_within_deadline(route, body) {
+                    None => "stalled".to_string(),
+                    Some((StatusCode::OK, json)) => {
+                        let sessions = json.get("sessions").unwrap_or(&json);
+                        format!("{} sessions", sessions.as_array().unwrap().len())
+                    }
+                    Some((_, json)) => json["error"].as_str().unwrap_or_default().to_string(),
+                };
+                (route, answer)
+            })
+            .collect();
+        let refused = "Path is not a regular file or directory".to_string();
+        assert_eq!(
+            answers,
+            [
+                ("load_project_sessions", "1 sessions".to_string()),
+                ("load_project_sessions_page", "1 sessions".to_string()),
+                (
+                    "load_provider_session_by_path",
+                    "Session file is not a regular file".to_string()
+                ),
+                ("load_session_messages", refused.clone()),
+                ("load_session_messages_paginated", refused.clone()),
+                ("get_session_message_count", refused.clone()),
+                ("export_session", refused.clone()),
+                ("load_provider_messages", refused.clone()),
+                ("load_provider_messages_paginated", refused.clone()),
+                ("get_provider_message_offset", refused.clone()),
+                ("get_session_token_stats", refused.clone()),
+                ("get_recent_edits", refused),
+            ]
         );
     }
 
@@ -1378,6 +2380,49 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(allowed.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// The `WebUI` has no native menu: its menu routes are read-only-allowed
+    /// no-ops - `sync_menu_state` and `ack_menu_events` do nothing,
+    /// `menu_journal` is empty (desktop/WebUI command parity).
+    #[tokio::test]
+    async fn menu_routes_are_no_ops_in_the_webui() {
+        for (route, body, expected) in [
+            (
+                "sync_menu_state",
+                r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}},"frontTabId":"t1"}}"#,
+                serde_json::json!(null),
+            ),
+            (
+                "menu_journal",
+                "{}",
+                serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+            ),
+            (
+                "ack_menu_events",
+                r#"{"epoch":"webui","seq":3}"#,
+                serde_json::json!(null),
+            ),
+        ] {
+            let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri(format!("/api/{route}"))
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{route}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(value, expected, "{route}");
+        }
     }
 
     #[tokio::test]

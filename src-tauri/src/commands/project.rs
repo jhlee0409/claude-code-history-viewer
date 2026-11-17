@@ -1,3 +1,4 @@
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeProject, GitCommit};
 use crate::utils::{
     detect_git_worktree_info, estimate_message_count_from_size, extract_project_name,
@@ -184,7 +185,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
-    let projects_path = PathBuf::from(&claude_path).join("projects");
+    // Empty is the default root, never a path relative to the working
+    // directory (#693).
+    let Some(claude_base) = crate::providers::claude::base_path_or_default(&claude_path) else {
+        return vec![];
+    };
+    let projects_path = claude_base.join("projects");
 
     if !projects_path.exists() {
         return vec![];
@@ -219,7 +225,7 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
             .path()
             .canonicalize()
             .unwrap_or_else(|_| entry.path().to_path_buf());
-        if !seen_canonical.insert(canonical) {
+        if !seen_canonical.insert(canonical.clone()) {
             continue;
         }
 
@@ -232,24 +238,24 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
         let mut direct_cwd_candidate: Option<(SystemTime, String)> = None;
         let mut nested_cwd_candidate: Option<(SystemTime, String)> = None;
 
-        for jsonl_entry in WalkDir::new(entry.path())
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        {
+        // Regular files only, no symlink below the project followed
+        // (`session_files`): a linked session file would be counted and its
+        // `cwd` read from wherever it points, and a FIFO would block the scan.
+        // Each is stat'ed without following a link and read inside the
+        // project folder, resolved before the walk (#698).
+        for jsonl_path in session_files::regular_session_files(entry.path()) {
             // Only top-level jsonl are main sessions; sidechain/subagent jsonl
             // live in subdirectories (see utils::find_subagent_files). Counting
             // them here inflates the project tree's session count relative to
             // load_project_sessions, which filters them out via exclude_sidechain.
-            let is_direct_session = jsonl_entry
-                .path()
+            let is_direct_session = jsonl_path
                 .strip_prefix(entry.path())
                 .is_ok_and(|relative| relative.components().count() == 1);
             if is_direct_session {
                 session_count += 1;
             }
 
-            if let Ok(metadata) = jsonl_entry.metadata() {
+            if let Ok(metadata) = fs::symlink_metadata(&jsonl_path) {
                 let modified = metadata.modified().ok();
                 if let Some(modified) = modified {
                     if last_modified.is_none() || modified > last_modified.unwrap() {
@@ -274,7 +280,7 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
                     (Some(_), None) => false,
                 };
                 if should_check_cwd {
-                    if let Some(cwd) = extract_cwd_from_session_file(jsonl_entry.path()) {
+                    if let Some(cwd) = extract_cwd_from_session_file(&jsonl_path, &canonical) {
                         *cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
                     }
                 }
@@ -356,13 +362,15 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
     projects
 }
 
-fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
+/// The `cwd` of the first rows of a session file found under `root` (the
+/// canonical project folder), read inside it only.
+fn extract_cwd_from_session_file(file_path: &Path, root: &Path) -> Option<String> {
     #[derive(serde::Deserialize)]
     struct CwdEntry {
         cwd: Option<String>,
     }
 
-    let file = fs::File::open(file_path).ok()?;
+    let (file, _) = session_files::open_session_file(file_path, root).ok()?;
     let reader = BufReader::new(file);
     let mut checked_non_empty = 0;
 
@@ -725,7 +733,7 @@ mod tests {
 
         let file_path = temp_dir.path().join("session.jsonl");
         assert_eq!(
-            extract_cwd_from_session_file(&file_path),
+            extract_cwd_from_session_file(&file_path, &temp_dir.path().canonicalize().unwrap()),
             Some("/tmp/cchv-empty-line-test".to_string())
         );
     }

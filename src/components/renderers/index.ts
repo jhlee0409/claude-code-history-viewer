@@ -49,7 +49,6 @@ export {
   isFileSearchResult,
   parseFilePath,
   truncate,
-  formatLineCount,
   safeStringify,
   isPlainObject,
 } from "./utils";
@@ -58,7 +57,6 @@ export {
 export { useRendererStyles, useExpandableContent } from "./hooks";
 
 // Components
-export { RendererCard } from "./RendererCard";
 
 // Registry
 export {

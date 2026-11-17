@@ -116,3 +116,21 @@ Anthropic offers Claude through partner platforms with independent pricing:
 - **Claude Platform on AWS**: Same CCU billing as Bedrock; rates same as Claude API.
 
 This document covers Claude API (first-party) pricing only.
+
+## 2026-10-01 update (pricing watch #596)
+
+Targeted check against https://platform.claude.com/docs/en/about-claude/pricing, the models overview and https://platform.claude.com/docs/en/about-claude/model-deprecations — not a full re-audit of every entry.
+
+- **Added `claude-opus-5-5`**: `| Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok | $20 / MTok |` (input, 5m write, 1h write, cache hit, output). "Cache hits and refreshes on Claude Opus 5.5 are priced at 0.05x the base input price." Fast mode `| Claude Opus 5.5 | $8 / MTok | $40 / MTok |`; fast cache rates derived with the published multipliers (10 / 16 / 0.40). No long-context tier ("Claude 4.6 and later models … include the full 1M token context window at standard pricing"). Before this key existed, `claude-opus-5-5` matched `claude-opus-5` by prefix and was billed at $5/$25 with $0.50 cache reads.
+- **Added `claude-sonnet-5-5`**: `| Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok | $10 / MTok |` (same price as Sonnet 5; needed as an exact key for `replacedBy`).
+- **`claude-sonnet-4-5` retirement**: "On September 30, 2026, Anthropic notified developers using Claude Sonnet 4.5 of its upcoming retirement" — `| November 30, 2026 | claude-sonnet-4-5-20250929 | claude-sonnet-5-5 |`. Recorded `deprecatedAt: 2026-11-30`, `replacedBy: claude-sonnet-5-5`. Rates unchanged (3 / 15 / 0.30 / 3.75 / 6). LiteLLM's >200K tier is still not on the official page, and Sonnet 4.5's window is 200k.
+- **`claude-mythos-preview`**: `| claude-mythos-preview | Deprecated | June 9, 2026 | To be announced |` — 2026-06-09 is the deprecation date, not a shutdown, so no `deprecatedAt`.
+- **`claude-opus-4`**: still $15/$75.
+- Model ids with a bracketed client suffix (`claude-opus-5-5[1m]`) now drop the suffix before lookup.
+
+## 2026-10-10 update (pricing watch)
+
+Targeted check against https://platform.claude.com/docs/en/about-claude/pricing, https://platform.claude.com/docs/en/about-claude/models/overview and https://platform.claude.com/docs/en/release-notes/overview — not a full re-audit.
+
+- **`claude-sonnet-5-5` cache read 0.20 → 0.10.** Release notes, October 7, 2026: "We've lowered the price of prompt cache reads on Claude Sonnet 5.5 from $0.20 USD to $0.10 USD per million tokens: 0.05x the base input price instead of 0.1x. Cache writes and all other prices are unchanged." Pricing row: `| Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.10 / MTok² | $10 / MTok |`; footnote 2 now covers "Claude Opus 5.5 and Claude Sonnet 5.5". The 2026-10-01 value was correct when recorded. The table holds one rate per model, so sessions before 2026-10-07 are repriced at $0.10. `claude-sonnet-5` stays at $0.20 ("All other models use the standard 0.1x multiplier").
+- **Added `claude-haiku-5-5`** (launched 2026-10-07; API id and alias `claude-haiku-5-5`, Bedrock `anthropic.claude-haiku-5-5`, no dated snapshot). `| Claude Haiku 5.5 (for prompts up to 100,000 tokens) | $0.10 / MTok | $0.125 / MTok | $0.20 / MTok | $0.01 / MTok | $0.50 / MTok |` and `| Claude Haiku 5.5 (for prompts over 100,000 tokens) | $0.50 / MTok | $0.625 / MTok | $1 / MTok | $0.05 / MTok | $2.50 / MTok |`. "A request's prompt length counts all of its input tokens, including cache reads and cache writes" → `minContextTokens: 100001`, with a matching arm in `stats.rs::context_tier_min_tokens`. The pricing page now says "Claude 4.6 and later models (except Claude Haiku 5.5) … include the full 1M token context window at standard pricing". No fast mode. Before this key the id matched nothing and showed as unavailable.

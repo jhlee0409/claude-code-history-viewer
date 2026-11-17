@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 코딩 어시스턴트를 위한 통합 히스토리 뷰어.**
+
+*(이전 이름: Claude Code History Viewer)*
 
 **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, **Grok CLI**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
@@ -145,6 +147,29 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 | 프로바이더 | 설명 |
 |---------|-------|
 | **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+
+### v1.32.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **프롬프트 사이 이동** | **Alt+↑ / Alt+↓**(macOS는 ⌥↑ / ⌥↓)로 직접 입력한 이전·다음 프롬프트로 메시지 목록을 옮깁니다. 메시지 패널이 닫혀 있어도 동작합니다 |
+| **세션 미니맵** | 메시지 목록 옆에 세션 전체를 행 종류별 색으로 보여주는 띠를 켤 수 있습니다. 클릭하거나 끌어서 이동합니다. 설정 메뉴 → **세션 미니맵 표시** |
+| **복원 미리보기 수정** | 최근 편집의 복원 확인 창이 바뀔 내용을 보여주고(WebUI 포함), symlink 대상은 복원하지 않습니다 |
+
+### v1.31.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **세션 재개 사용자 인자** | 설정 → **세션 재개 인수**에서 CLI별 추가 플래그를 지정하면 **재개 명령어 복사**와 터미널에서 세션을 재개할 때 함께 적용됩니다. 실시간 미리보기를 제공하고 위험한 플래그는 강조됩니다 |
+| **Claude Opus 5.5 비용 정정** | Opus 5.5 세션이 Opus 5 요금으로 계산되던 문제를 고쳐 Opus 5.5 요금이 적용됩니다. GPT-6, Gemini 3.8 Flash, Grok 4.7 요금도 추가했습니다 |
+
+### v1.30.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **WebUI 보안 강화** | `--serve` 모드에서 세션·프로젝트 경로는 기록 폴더 안으로, 프로젝트 설정은 알려진 프로젝트로 제한됩니다 — WebUI를 쓰신다면 업그레이드하세요 ([보안 권고](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **Claude Code 자동 제목** | 세션 목록, 통계, 내보내기, 아카이브에 Claude Code가 생성한 제목이 표시됩니다(직접 바꾼 이름이 우선) |
+| **내 프롬프트와 에이전트 업데이트 구분** | Messages 패널이 직접 입력한 프롬프트, 에이전트 업데이트, 명령, 주입된 컨텍스트를 구분해 보여주고 "내 프롬프트만 표시" 필터를 제공합니다 |
 
 ### v1.29.0 신규
 
@@ -526,6 +551,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## 라이선스
 
 [MIT](LICENSE) — 개인 및 상업적 사용 모두 무료.
+
+Omnilogue는 독립 오픈소스 프로젝트이며, 세션 기록을 읽는 Anthropic, OpenAI, GitHub, Google 등 어떤 벤더와도 제휴·보증·후원 관계가 없습니다. Claude와 Claude Code는 Anthropic, PBC의 상표이며, 그 밖의 이름은 각 소유자의 상표입니다.
 
 ---
 

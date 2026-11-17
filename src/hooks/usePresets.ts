@@ -28,6 +28,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { usePendingLoad } from "./usePendingLoad";
 import { api } from "@/services/api";
 import type { PresetData, PresetInput } from "../types";
 import { settingsToJson, jsonToSettings } from "../types";
@@ -60,6 +61,7 @@ export interface UsePresetsResult {
 export const usePresets = (): UsePresetsResult => {
   const [presets, setPresets] = useState<PresetData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  usePendingLoad(isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const userSettings = useAppStore((state) => state.userMetadata.settings);

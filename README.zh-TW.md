@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 程式設計助手的統一歷史檢視器。**
+
+*（原名：Claude Code History Viewer）*
 
 瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
 
@@ -145,6 +147,29 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 | 提供者 | 說明 |
 |---------|-------|
 | **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+
+### v1.32.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **在提示之間跳轉** | **Alt+↑ / Alt+↓**（macOS 為 ⌥↑ / ⌥↓）將訊息列表移到你輸入的上一則或下一則提示，訊息面板關閉時同樣可用 |
+| **工作階段小地圖** | 可在訊息列表旁顯示依列類型著色的整段工作階段條帶，點擊或拖曳即可跳轉。設定選單 → **顯示會話小地圖** |
+| **修正還原預覽** | 最近編輯的還原確認會顯示將要變更的內容（WebUI 中同樣可用），並拒絕還原符號連結目標 |
+
+### v1.31.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **工作階段恢復自訂參數** | 在 設定 → **工作階段恢復參數** 中為每個 CLI 指定額外參數，會同時套用到 **複製恢復命令** 與在終端機中恢復工作階段，提供即時預覽，危險參數會醒目提示 |
+| **修正 Claude Opus 5.5 費用** | Opus 5.5 工作階段先前以 Opus 5 價格計算，現已改用 Opus 5.5 本身的價格；並新增 GPT-6、Gemini 3.8 Flash 與 Grok 4.7 的價格 |
+
+### v1.30.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **WebUI 安全強化** | `--serve` 模式下，工作階段與專案路徑僅限歷史記錄資料夾，專案設定僅限已知專案 — 若你使用 WebUI，請升級（[安全公告](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **Claude Code 自動標題** | 工作階段清單、統計、匯出與封存中顯示 Claude Code 產生的標題（你手動設定的名稱優先） |
+| **區分你的提示與代理更新** | Messages 面板會區分你輸入的提示、代理更新、指令與注入的情境，並提供「僅顯示我的提示」篩選 |
 
 ### v1.29.0 新增
 
@@ -526,6 +551,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## 授權條款
 
 [MIT](LICENSE) — 可自由用於個人和商業用途。
+
+Omnilogue 是獨立的開源專案，與其讀取工作階段紀錄的 Anthropic、OpenAI、GitHub、Google 等任何廠商均無關聯、認可或贊助關係。Claude 與 Claude Code 是 Anthropic, PBC 的商標，其他名稱為其各自擁有者的商標。
 
 ---
 

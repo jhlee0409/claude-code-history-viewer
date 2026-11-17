@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import type {
   ClaudeProject,
+  ClaudeSession,
   PaginatedTokenStats,
   ProjectStatsSummary,
   SessionTokenStats,
@@ -87,6 +88,8 @@ type TestStore = MessageSlice & {
   dateFilter: { start: Date | null; end: Date | null };
   setError: ReturnType<typeof vi.fn>;
   selectedProject: ClaudeProject | null;
+  /** Token stats are always the open session's (`ownWork` context). */
+  selectedSession: Pick<ClaudeSession, "file_path"> | null;
 };
 
 const createTestStore = () => {
@@ -95,6 +98,7 @@ const createTestStore = () => {
     dateFilter: { start: null, end: null },
     setError,
     selectedProject: null,
+    selectedSession: null,
     ...createMessageSlice(
       set as Parameters<typeof createMessageSlice>[0],
       get as Parameters<typeof createMessageSlice>[1]
@@ -163,6 +167,7 @@ describe("messageSlice token loading state", () => {
         last_modified: "2026-01-01T00:00:00.000Z",
         provider: "codex",
       },
+      selectedSession: { file_path: "/session-codex" },
     });
 
     const billingStats = buildSessionStats("session-codex");
@@ -239,5 +244,82 @@ describe("messageSlice token loading state", () => {
         end_date: expectedEnd.toISOString(),
       }
     );
+  });
+
+  describe("the session load's failure, owned by its session (inspector Tokens tab)", () => {
+    const openSession = (useStore: ReturnType<typeof createTestStore>, file_path: string) =>
+      useStore.setState({ selectedSession: { file_path } });
+
+    it("records a failure for the session it was asked for", async () => {
+      const useStore = createTestStore();
+      openSession(useStore, "/s1");
+      mockFetchSessionTokenStats.mockRejectedValue(new Error("boom"));
+
+      await useStore.getState().loadSessionTokenStats("/s1");
+
+      expect(useStore.getState().sessionTokenStatsError).toBe("boom");
+      expect(useStore.getState().sessionTokenStatsErrorOwner).toBe("/s1");
+      expect(useStore.getState().sessionTokenStatsOwner).toBeNull();
+    });
+
+    it("writes no failure once another session is open", async () => {
+      const useStore = createTestStore();
+      openSession(useStore, "/s1");
+      const deferred = createDeferred<SessionTokenStats>();
+      mockFetchSessionTokenStats.mockReturnValue(
+        deferred.promise.then(() => {
+          throw new Error("late boom");
+        }),
+      );
+
+      const pending = useStore.getState().loadSessionTokenStats("/s1");
+      openSession(useStore, "/s2");
+      deferred.resolve(buildSessionStats("x"));
+      await pending;
+
+      expect(useStore.getState().sessionTokenStatsError).toBeNull();
+      expect(useStore.getState().sessionTokenStatsErrorOwner).toBeNull();
+    });
+
+    it("clears the session's failure when it loads again, and on success", async () => {
+      const useStore = createTestStore();
+      openSession(useStore, "/s1");
+      mockFetchSessionTokenStats.mockRejectedValue(new Error("boom"));
+      await useStore.getState().loadSessionTokenStats("/s1");
+      expect(useStore.getState().sessionTokenStatsError).toBe("boom");
+
+      // A retry shows its loading state, not the old failure.
+      const deferred = createDeferred<SessionTokenStats>();
+      mockFetchSessionTokenStats.mockReturnValue(deferred.promise);
+      const retry = useStore.getState().loadSessionTokenStats("/s1");
+      expect(useStore.getState().sessionTokenStatsError).toBeNull();
+
+      deferred.resolve(buildSessionStats("s1"));
+      await retry;
+      expect(useStore.getState().sessionTokenStatsError).toBeNull();
+      expect(useStore.getState().sessionTokenStatsErrorOwner).toBeNull();
+      expect(useStore.getState().sessionTokenStatsOwner).toBe("/s1");
+    });
+
+    it("leaves another session's failure alone when a load starts", async () => {
+      const useStore = createTestStore();
+      useStore.setState({ sessionTokenStatsError: "old", sessionTokenStatsErrorOwner: "/s1" });
+      openSession(useStore, "/s2");
+      const deferred = createDeferred<SessionTokenStats>();
+      mockFetchSessionTokenStats.mockReturnValue(deferred.promise);
+
+      const pending = useStore.getState().loadSessionTokenStats("/s2");
+      expect(useStore.getState().sessionTokenStatsErrorOwner).toBe("/s1");
+      deferred.resolve(buildSessionStats("s2"));
+      await pending;
+    });
+
+    it("clearTokenStats drops the failure", async () => {
+      const useStore = createTestStore();
+      useStore.setState({ sessionTokenStatsError: "old", sessionTokenStatsErrorOwner: "/s1" });
+      useStore.getState().clearTokenStats();
+      expect(useStore.getState().sessionTokenStatsError).toBeNull();
+      expect(useStore.getState().sessionTokenStatsErrorOwner).toBeNull();
+    });
   });
 });

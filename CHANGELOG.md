@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
+
+### Fixed
+- **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+
+## [1.32.2] - 2026-10-20
+
+Patch release for Recent Edits; upgrade if you use Codex, OpenCode or Kilo.
+
+### Fixed
+- **Restore in Recent Edits only writes a recorded whole-file version** (desktop and WebUI). For an edit recorded as a patch or a partial change (Codex patches, OpenCode and Kilo edits, or an edit whose result could not be reconstructed), the Restore button is disabled and says why, and restoring such content is refused instead of writing it over the file. Recorded whole-file versions (Claude edits and writes, OpenCode and Kilo writes) restore as before. (#682, backported; #705)
+
+## [1.32.1] - 2026-10-20
+
+Patch release for the WebUI server mode (`--serve`); upgrade if you run the WebUI.
+
+### Security
+- **History readers stay inside the history folders** (desktop and WebUI). The session list, subagent list, project list, message search, recent edits, usage statistics, archives and the list of sessions about to expire no longer read a session or subagent file through a symbolic link inside a Claude history folder. A project folder under `projects/` that is itself a link is no longer counted in the global summary; that project's own statistics are unchanged. (#691, backported; #696)
+
+### Fixed
+- **A folder named like a session file no longer stalls loading.** History readers open regular files only: an entry in a history folder that is named like a session but is not a file is skipped by the lists and archives and refused when opened directly, instead of stalling the request. (#696)
+- **WebUI: an empty Claude folder means the default one.** Requests that leave the Claude folder empty (project list, search, global statistics) read `~/.claude` instead of a `projects` folder in the server's working directory. (#693)
+
+## [1.32.0] - 2026-10-11
+
+### Added
+- **Jump between prompts with Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS). Moves the message list to the previous or next prompt you typed (slash commands included), with or without the Messages panel open. Ignored in text fields and dialogs, and it also works with focus in the project tree. (#629, #630)
+- **Session minimap** (opt-in): a strip beside the message list that shows the whole loaded session as colored blocks by row kind, with a box for the visible part; click or drag to move. Turn it on in the settings menu → View → Show session minimap, or with ⌘/Ctrl+Shift+F. (#599, #634)
+
+### Fixed
+- **Restore preview in Recent Edits**: the confirmation now shows what restoring will change in the WebUI too (it read project files through a generic endpoint the WebUI refuses), and opening it no longer crashes when the file differs. (#640, #641, #642)
+- **Restore safety**: restore and its preview refuse a symlinked target or parent directory, the preview skips files over 5 MiB and non-regular files, and the restore's temporary file is always created fresh. (#641)
+- Restoring from Recent Edits uses the row's current project scope instead of a stale one. (#633)
+- **Pricing**: Claude Sonnet 5.5 cache reads are $0.10 per million tokens (lowered by Anthropic on 2026-10-07); Claude Haiku 5.5 is priced, including its higher rate for prompts over 100,000 tokens; Gemini Nano Banana image generation is no longer priced as text. Aggregate stats now apply the long-context rates of GPT-6 Sol / 6.1 Sol / 6 Luna / 6 Astra and Grok 4.7. (#639)
+
+### Internal
+- The weekly pricing watch lists feed values already verified as feed artifacts separately instead of re-flagging them. (#638)
+- Serena project config moved to the Serena 1.7 schema, with the Rust language server enabled. (#636)
+
+## [1.31.0] - 2026-10-04
+
+### Added
+- **Custom arguments for session resume, per CLI.** Settings → Session Resume lets you add extra flags for each assistant's resume command (for example `--dangerously-skip-permissions` for Claude Code). They apply to both "Copy resume command" and "Open in terminal", with a live preview and inline validation. Dangerous flags are highlighted, and resuming several sessions with one asks for confirmation. (#509, #595, #628)
+
+### Fixed
+- **Claude Opus 5.5 cost was overstated.** Opus 5.5 sessions were priced at Opus 5 rates; they now use Opus 5.5's own $4 / $20 (cache reads $0.20), including model ids with a `[1m]` suffix. (#625)
+- Pricing added for GPT-6 Sol, GPT-6.1 Sol, GPT-6 Luna, GPT-6 Astra, Gemini 3.8 Flash, Grok 4.7 and Claude Sonnet 5.5. Claude Sonnet 4.5 shows its announced retirement on 2026-11-30. (#625)
+- The Messages panel marks a row as failed when any of its task notifications failed, not only the first, and ToolSearch's "Tool loaded." note no longer shows as a typed prompt. (#626)
+- Windows: file-watch events use plain paths, so the open session refreshes when its file changes; settings and export paths on network shares (UNC) are matched correctly. (#604, #624)
+
+### Internal
+- Tests updated for Rust 1.99's `clippy::assert_is_empty` lint. (#627)
+
+## [1.30.0] - 2026-10-01
+
+### Security
+- **WebUI server mode (`--serve`) hardening** ([GHSA-j5r9-j75x-wprj](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)). Upgrade if you run the WebUI.
+  - Endpoints that take a session or project path only accept paths under the configured history roots (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`, custom Claude directories, the app archive folder); anything else gets one uniform error. Provider loaders (including Aider and the Cline family) confine path-bearing ids to their own discovery roots. (#617, #620)
+  - Project-scoped settings endpoints and the Board's git log only accept project directories recorded in Claude history. In the WebUI, non-Claude providers no longer get git log or project-scoped settings reads. (#618)
+  - Custom Claude directories are now server configuration: the WebUI can no longer add, change or remove them. Set them from the desktop app, `CLAUDE_CONFIG_DIR`, or the server's `user-data.json`. (#617)
+- **Project settings saves stay inside the project** (desktop and WebUI): a symlinked `.claude` directory or a pre-existing link at the temp-file path is no longer written through. (#618)
+
+### Added
+- **Messages panel row kinds:** typed prompts, agent updates, slash commands and injected context get their own icon, and a "Show my prompts only" filter; tool-result rows no longer show as "(user message)". The panel's text filter matches the visible row kind. (#600, #615)
+- **Claude Code auto-generated session titles** (`ai-title` records) are used for session names, with the priority custom rename › auto title › legacy summary › first message — in the session list, stats, CLI `--export`, and archives (existing archives update on first open). (#601, #611, #616, #622)
+
+### Fixed
+- Codex sessions from models that store reasoning in `content` instead of `summary` (e.g. DeepSeek) now show their reasoning. (#597, #610)
+- Task notifications with `killed`, `stopped` or `error` status render as failed instead of "DONE". (#615)
+- Refreshing (manual, file watcher, sidechain toggle) keeps the open session and its view in place, including subagent views and sessions beyond the first page of the list; a page loaded during a refresh no longer leaves gaps in the list. (#603, #609, #612, #614, #621)
+- Clicking a relative or `file:` link in a transcript no longer navigates the app window away; bare `data:`/`blob:` links are blocked unless they are downloads. (#602, #613)
+- Restoring a file from Recent Edits honors `replace_all` edits. (#606)
+- Renaming or resetting a session name ends the rewritten JSONL with a newline, so Claude Code's next append isn't glued to the last line. (#607)
+- Saving MCP servers refuses to overwrite a config file that fails to parse instead of replacing it with `{}`. (#605)
+- Concurrent metadata saves (session/project metadata, settings) no longer lose updates. (#623)
+- MCP project entries in `~/.claude.json` are keyed by the canonical project path. (#618)
+
 ## [1.29.0] - 2026-09-28
 
 ### Added

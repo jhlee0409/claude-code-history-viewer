@@ -1,6 +1,6 @@
-# Building Claude Code History Viewer on Linux
+# Building Omnilogue on Linux
 
-This guide explains how to build the Claude Code History Viewer application on Linux systems.
+This guide explains how to build the Omnilogue application (formerly Claude Code History Viewer) on Linux systems.
 
 ## Prerequisites
 
@@ -73,7 +73,7 @@ pnpm tauri:build:linux
 
 ## Build Output
 
-The build process will create three package formats:
+The build process will create three package formats. Package file names and the application menu entry still use the bundle's product name, `Claude Code History Viewer`:
 
 1. **DEB Package** (Debian/Ubuntu): `src-tauri/target/release/bundle/deb/Claude Code History Viewer_*.deb`
 2. **RPM Package** (Red Hat/Fedora): `src-tauri/target/release/bundle/rpm/Claude Code History Viewer-*.rpm`

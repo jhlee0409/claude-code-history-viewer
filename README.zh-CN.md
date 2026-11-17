@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 编程助手的统一历史查看器。**
+
+*（原名：Claude Code History Viewer）*
 
 浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
@@ -145,6 +147,29 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 | 提供商 | 说明 |
 |---------|-------|
 | **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+
+### v1.32.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **在提示之间跳转** | **Alt+↑ / Alt+↓**（macOS 为 ⌥↑ / ⌥↓）将消息列表移到你输入的上一条或下一条提示，消息面板关闭时同样可用 |
+| **会话小地图** | 可在消息列表旁显示按行类型着色的整段会话条带，点击或拖动即可跳转。设置菜单 → **显示会话小地图** |
+| **修复恢复预览** | 最近编辑的恢复确认会显示将要改变的内容（WebUI 中同样可用），并拒绝恢复符号链接目标 |
+
+### v1.31.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **会话恢复自定义参数** | 在 设置 → **会话恢复参数** 中为每个 CLI 指定额外参数，会同时应用于 **复制恢复命令** 和在终端中恢复会话，提供实时预览，危险参数会高亮提示 |
+| **修正 Claude Opus 5.5 费用** | Opus 5.5 会话此前按 Opus 5 价格计算，现已使用 Opus 5.5 自身的价格；并新增 GPT-6、Gemini 3.8 Flash 和 Grok 4.7 的价格 |
+
+### v1.30.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **WebUI 安全加固** | `--serve` 模式下，会话和项目路径仅限历史记录目录，项目设置仅限已知项目 — 如果你在使用 WebUI，请升级（[安全公告](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **Claude Code 自动标题** | 会话列表、统计、导出和归档中显示 Claude Code 生成的标题（你手动设置的名称优先） |
+| **区分你的提示与代理更新** | Messages 面板会区分你输入的提示、代理更新、命令和注入的上下文，并提供“仅显示我的提示”筛选 |
 
 ### v1.29.0 新增
 
@@ -526,6 +551,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## 许可证
 
 [MIT](LICENSE) — 免费用于个人和商业用途。
+
+Omnilogue 是独立的开源项目，与其读取会话日志的 Anthropic、OpenAI、GitHub、Google 等任何厂商均无关联、认可或赞助关系。Claude 和 Claude Code 是 Anthropic, PBC 的商标，其他名称为其各自所有者的商标。
 
 ---
 

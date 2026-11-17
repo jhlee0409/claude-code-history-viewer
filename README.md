@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **The unified history viewer for AI coding assistants.**
+
+*(formerly Claude Code History Viewer)*
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
@@ -145,6 +147,29 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | Provider | Notes |
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+
+### New in v1.32.0
+
+| Feature | Description |
+|---------|-------------|
+| **Jump between prompts** | **Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS) moves the message list to the previous or next prompt you typed, with or without the Messages panel open |
+| **Session minimap** | Optional strip beside the message list that shows the whole session by row kind; click or drag to move. Settings menu → **Show session minimap** |
+| **Restore preview fixed** | Recent Edits' restore confirmation shows what will change (now in the WebUI too) and refuses symlinked targets |
+
+### New in v1.31.0
+
+| Feature | Description |
+|---------|-------------|
+| **Custom resume arguments** | Settings → **Session Resume Arguments** adds extra flags per CLI, used by **Copy Resume Command** and when resuming sessions in a terminal, with a live preview; dangerous flags are highlighted |
+| **Correct Claude Opus 5.5 cost** | Opus 5.5 sessions are priced at Opus 5.5's own rates (they were billed at Opus 5's); pricing added for GPT-6, Gemini 3.8 Flash and Grok 4.7 |
+
+### New in v1.30.0
+
+| Feature | Description |
+|---------|-------------|
+| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **Claude Code auto titles** | Sessions show the title Claude Code generated, in the session list, stats, export and archives (your own rename still wins) |
+| **Prompts vs. agent updates** | The Messages panel marks your typed prompts, agent updates, commands and injected context, with a "Show my prompts only" filter |
 
 ### New in v1.29.0
 
@@ -526,6 +551,8 @@ See [Development Commands](CLAUDE.md#development-commands) for the full list of 
 ## License
 
 [MIT](LICENSE) — free for personal and commercial use.
+
+Omnilogue is an independent open-source project, not affiliated with, endorsed by, or sponsored by Anthropic, OpenAI, GitHub, Google, or any other vendor whose session logs it reads. Claude and Claude Code are trademarks of Anthropic, PBC; other names are trademarks of their respective owners.
 
 ---
 

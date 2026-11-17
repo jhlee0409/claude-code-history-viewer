@@ -362,12 +362,13 @@ fn convert_message(
             let tr_blocks: Vec<Value> = results
                 .iter()
                 .map(|(tool_use_id, res)| {
-                    let is_error = res.get("is_error").and_then(Value::as_bool).unwrap_or(false);
                     let content = res
                         .get("content")
                         .map(tool_result_content)
                         .unwrap_or_default();
-                    json!({ "type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error })
+                    let mut block = json!({ "type": "tool_result", "tool_use_id": tool_use_id, "content": content });
+                    super::result_evidence::copy_error_flag(&mut block, res, "is_error");
+                    block
                 })
                 .collect();
             if !tr_blocks.is_empty() {
@@ -760,5 +761,25 @@ mod tests {
         let compressed = zstd::encode_all(&json_bytes[..], 3).unwrap();
         let got = decode_thread_data("zstd", &compressed).unwrap();
         assert!(got.get("messages").is_some());
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let mut out = Vec::new();
+        convert_message(
+            &serde_json::json!({"Agent":{"tool_results":{"c":{"content":[]}}}}),
+            "s",
+            0,
+            "",
+            &mut out,
+        );
+        assert_ne!(
+            out.last().unwrap().content.as_ref().unwrap()[0]["is_error"],
+            serde_json::json!(false)
+        );
     }
 }

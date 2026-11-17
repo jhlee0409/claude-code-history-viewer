@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, TerminalSquare as SquareTerminal } from "lucide-react";
+import { TriangleAlert, LoaderCircle, SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -22,10 +22,19 @@ interface SessionMultiResumeDialogProps {
   names: string[];
   isResuming: boolean;
   onConfirm: () => void | Promise<void>;
+  /** Whether any session has dangerous flags (e.g. permission checks disabled) configured. */
+  hasDangerousFlags?: boolean;
+  /** Number of sessions that have dangerous flags configured. */
+  dangerousCount?: number;
 }
 
 const MAX_PREVIEW = 5;
 
+/**
+ * Confirmation dialog for resuming multiple agent sessions in batch.
+ * Summarizes the sessions to be resumed, skipped sessions, and warns
+ * if dangerous CLI flags are configured.
+ */
 export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> = ({
   open,
   onOpenChange,
@@ -34,6 +43,8 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
   names,
   isResuming,
   onConfirm,
+  hasDangerousFlags = false,
+  dangerousCount,
 }) => {
   const { t } = useTranslation();
   const previewNames = names.slice(0, MAX_PREVIEW);
@@ -57,7 +68,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
               defaultValue: "Resume {{count}} sessions",
             })}
           </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed">
+          <DialogDescription className="text-body leading-relaxed">
             {t("session.selection.resumeDescription", {
               defaultValue:
                 "This opens a terminal window for each session and runs its CLI resume command (e.g. copilot --resume=…).",
@@ -66,7 +77,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
         </DialogHeader>
 
         <div className="min-w-0 rounded-md border bg-muted/30 px-3 py-2">
-          <p className="text-xs font-medium text-foreground">
+          <p className="text-list font-medium text-foreground">
             {t("session.selection.resumeTargets", {
               count,
               defaultValue: "{{count}} sessions",
@@ -76,14 +87,14 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
             {previewNames.map((name, i) => (
               <li
                 key={`${name}-${i}`}
-                className="min-w-0 truncate text-xs text-muted-foreground"
+                className="min-w-0 truncate text-list text-muted-foreground"
               >
                 {name}
               </li>
             ))}
           </ul>
           {remaining > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-list text-muted-foreground">
               {t("session.selection.resumeMore", {
                 count: remaining,
                 defaultValue: "and {{count}} more",
@@ -93,13 +104,32 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
         </div>
 
         {skippedCount > 0 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-list text-muted-foreground">
             {t("session.selection.resumeSkipped", {
               count: skippedCount,
               defaultValue:
                 "{{count}} selected session(s) can't be resumed and will be skipped.",
             })}
           </p>
+        )}
+
+        {hasDangerousFlags && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+            <div className="flex items-start gap-2">
+              <TriangleAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="text-list leading-relaxed">
+                <p className="font-semibold">
+                  {t("session.selection.resumeDangerousTitle", "Permission checks disabled")}
+                </p>
+                <p className="mt-0.5 text-amber-700 dark:text-amber-300">
+                  {t("session.selection.resumeDangerousWarning", {
+                    count: dangerousCount ?? count,
+                    defaultValue: "This will start {{count}} agents with permission checks disabled. Continue?",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         <DialogFooter>
@@ -117,7 +147,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
             disabled={isResuming || count === 0}
           >
             {isResuming ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : (
               <SquareTerminal className="h-3.5 w-3.5" aria-hidden="true" />
             )}

@@ -11,6 +11,7 @@
     "core:app:allow-version",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
+    "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     "dialog:allow-save",
     "process:allow-restart",

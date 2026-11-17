@@ -11,6 +11,7 @@
  */
 
 import { matchGlobPattern } from "../utils/globUtils";
+import type { SessionRef } from "../navigation/place";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
@@ -27,6 +28,8 @@ export interface SessionMetadata {
   notes?: string;
   /** Whether the session has been renamed via Claude Code native rename (synced with CLI) */
   hasClaudeCodeName?: boolean;
+  /** Where the session lives, recorded when it is starred (plan T7). */
+  ref?: SessionRef;
 }
 
 /** Metadata for individual projects */
@@ -40,7 +43,7 @@ export interface ProjectMetadata {
 }
 
 /** Grouping mode for project tree display */
-export type GroupingMode = "none" | "worktree" | "directory";
+export type GroupingMode = "none" | "worktree" | "directory" | "time";
 
 /** Session sort order */
 export type SessionSortOrder = "newest" | "oldest";
@@ -59,8 +62,10 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
-  /** Project tree grouping mode: none, worktree, or directory */
+  /** Project tree grouping mode: none, worktree, directory, or time */
   groupingMode?: GroupingMode;
+  /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
+  resumeCliArgs?: Record<string, string>;
 }
 
 /** Root structure for all user metadata */
@@ -90,7 +95,8 @@ export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
     !metadata.notes &&
-    !metadata.hasClaudeCodeName
+    !metadata.hasClaudeCodeName &&
+    !metadata.ref
   );
 };
 

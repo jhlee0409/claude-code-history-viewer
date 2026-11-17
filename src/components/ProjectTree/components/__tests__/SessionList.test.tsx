@@ -170,7 +170,7 @@ describe("SessionList", () => {
 
   describe("Loading state", () => {
     it("should show skeleton loaders when loading", () => {
-      const { container } = render(<SessionList {...defaultProps} isLoading={true} />);
+      const { container } = render(<SessionList {...defaultProps} sessions={[]} isLoading={true} />);
 
       // Skeleton elements have the animate-shimmer class
       const skeletons = container.querySelectorAll(".animate-shimmer");
@@ -182,7 +182,7 @@ describe("SessionList", () => {
     it("should show no sessions message when sessions array is empty", () => {
       render(<SessionList {...defaultProps} sessions={[]} />);
 
-      expect(screen.getByText("components:session.notFound")).toBeInTheDocument();
+      expect(screen.getByText("project.sessions.empty")).toBeInTheDocument();
     });
   });
 

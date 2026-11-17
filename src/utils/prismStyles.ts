@@ -6,18 +6,45 @@
  */
 
 import type { CSSProperties } from "react";
+import { themes, type PrismTheme } from "prism-react-renderer";
+
+const SYNTAX_ROLES: Record<string, string> = {
+  prolog: "comment", comment: "comment",
+  builtin: "keyword", changed: "keyword", keyword: "keyword",
+  "interpolation-punctuation": "punct",
+  number: "number", inserted: "number", constant: "number",
+  "attr-name": "type", variable: "type", tag: "type", "class-name": "type",
+  deleted: "string", string: "string", "attr-value": "string",
+  "template-punctuation": "punct", char: "string",
+  selector: "function", function: "function", punctuation: "punct", operator: "punct",
+};
+
+/** Compatibility with existing callers, which pass only Prism's resolved
+ * style, not the token type. Translate the dependency's colour groups once;
+ * no dependency colour escapes to the DOM. Shared legacy groups retain one
+ * role (e.g. VS Light's function/keyword), not an invented type distinction.
+ * Unknown/custom theme colours fall back to the readable foreground. */
+function syntaxColors(theme: PrismTheme): Map<string, string> {
+  const colors = new Map<string, string>();
+  for (const { types, style } of theme.styles) {
+    const role = types.map((type) => SYNTAX_ROLES[type]).find(Boolean);
+    if (style.color && role && !colors.has(style.color)) colors.set(style.color, `var(--code-${role})`);
+  }
+  return colors;
+}
+const SYNTAX_COLORS = [syntaxColors(themes.vsLight), syntaxColors(themes.vsDark)];
 
 /**
  * Get styles for the <pre> element
  */
 export const getPreStyles = (
-  isDarkMode: boolean,
+  _isDarkMode: boolean,
   baseStyle: CSSProperties,
   overrides: CSSProperties = {}
 ): CSSProperties => ({
   ...baseStyle,
-  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-  color: isDarkMode ? '#d4d4d4' : '#000000',
+  backgroundColor: "var(--surface-well)",
+  color: "var(--fg)",
   margin: 0,
   ...overrides,
 });
@@ -43,7 +70,7 @@ export const getTokenStyles = (
   baseStyle: CSSProperties = {}
 ): CSSProperties => ({
   ...baseStyle,
-  color: baseStyle.color || (isDarkMode ? '#d4d4d4' : '#000000'),
+  color: SYNTAX_COLORS[Number(isDarkMode)]?.get(baseStyle.color ?? "") ?? "var(--fg)",
   backgroundColor: 'transparent',
   border: 'none',
   borderRadius: 0,

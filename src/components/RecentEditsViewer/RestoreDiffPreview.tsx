@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { TriangleAlert, LoaderCircle } from "lucide-react";
 import { api } from "@/services/api";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
 export interface RestoreDiffPreviewProps {
   filePath: string;
@@ -14,6 +15,12 @@ export interface RestoreDiffPreviewProps {
    * from "unreadable" when the read fails.
    */
   existsOnDisk?: boolean;
+  /**
+   * The project (and session) whose recorded edits authorise restoring this
+   * file. The read goes through the same gate as the write, so without it the
+   * file is not read at all (#640).
+   */
+  restoreScope?: { projectPath: string; sessionFilePath?: string };
 }
 
 type State =
@@ -37,17 +44,35 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
   filePath,
   restoreContent,
   existsOnDisk,
+  restoreScope,
 }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
+  // Read as strings so the effect tracks the scope's values: callers pass a
+  // fresh object every render.
+  const projectPath = restoreScope?.projectPath;
+  const sessionFilePath = restoreScope?.sessionFilePath;
 
   useEffect(() => {
     let cancelled = false;
 
     const read = async () => {
       try {
-        const current = await api<string>("read_text_file", { path: filePath });
+        // Not `read_text_file`: its WebUI allowlist refuses project files.
+        // Authorised like `restore_file`, so it needs the same scope.
+        if (!projectPath) {
+          throw new Error("Cannot read the restore target without the originating project");
+        }
+        const current = await api<string | null>("read_restore_target", {
+          filePath,
+          projectPath,
+          sessionFilePath,
+        });
         if (cancelled) return;
+        if (current == null) {
+          setState({ kind: "creating" });
+          return;
+        }
         setState(
           current === restoreContent
             ? { kind: "identical" }
@@ -73,12 +98,12 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [filePath, restoreContent, existsOnDisk]);
+  }, [filePath, restoreContent, existsOnDisk, projectPath, sessionFilePath]);
 
   if (state.kind === "loading") {
     return (
-      <div className="flex items-center gap-2 py-2 text-px11 text-muted-foreground">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+      <div className="flex items-center gap-2 py-2 text-caption text-muted-foreground">
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
         {t("recentEdits.restorePreviewLoading", "Reading the file on disk...")}
       </div>
     );
@@ -86,7 +111,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "identical") {
     return (
-      <p className="py-2 text-px11 text-muted-foreground">
+      <p className="py-2 text-caption text-muted-foreground">
         {t(
           "recentEdits.restorePreviewIdentical",
           "The file on disk already matches this version. Restoring changes nothing."
@@ -97,7 +122,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "creating") {
     return (
-      <p className="py-2 text-px11 text-muted-foreground">
+      <p className="py-2 text-caption text-muted-foreground">
         {t(
           "recentEdits.restorePreviewCreating",
           "This file is not on disk. Restoring will create it."
@@ -108,8 +133,8 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   if (state.kind === "unreadable") {
     return (
-      <div className="flex items-start gap-2 rounded bg-destructive/10 px-2 py-1.5 text-px11 text-destructive">
-        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+      <div className="flex items-start gap-2 rounded bg-destructive/10 px-2 py-1.5 text-caption text-destructive">
+        <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>
           {t(
             "recentEdits.restorePreviewUnreadable",
@@ -122,7 +147,7 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
 
   return (
     <div className="min-w-0">
-      <p className="pb-1 text-px11 font-medium text-muted-foreground">
+      <p className="pb-1 text-caption font-medium text-muted-foreground">
         {t("recentEdits.restorePreviewHeading", "What changes on disk")}
       </p>
       {/*
@@ -130,11 +155,16 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
         the diff reads in the direction the action moves the file.
       */}
       <div className="max-h-64 overflow-auto rounded border border-border">
-        <EnhancedDiffViewer
-          oldText={state.current}
-          newText={restoreContent}
-          filePath={filePath}
-        />
+        {/* The confirmation renders outside the expanded row's provider, and
+            DiffView needs its own expansion registry scope. */}
+        <ExpandKeyProvider value={`restore-preview:${filePath}`}>
+          <DiffWithMenu
+            expandKey="restore-preview-diff"
+            oldText={state.current}
+            newText={restoreContent}
+            filePath={filePath}
+          />
+        </ExpandKeyProvider>
       </div>
     </div>
   );

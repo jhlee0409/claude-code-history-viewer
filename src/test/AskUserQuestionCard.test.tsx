@@ -75,4 +75,22 @@ describe("AskUserQuestionCard (#429)", () => {
     expect(container.textContent).toContain("not a questions array");
     expect(container.textContent).toContain('"prompt"');
   });
+
+  // TR1a: the row's target is the first question; when its ellipsis hides
+  // the hit, the opened detail shows it highlighted.
+  it("a hit in a long question opens the row and is highlighted in the detail", () => {
+    const question = `${"Which of the storage backends we evaluated last quarter ".repeat(4)}handles needle-writes?`;
+    const { container } = renderContent("ask_long", { questions: [{ question, options: [{ label: "SQLite" }] }] }, { searchQuery: "needle-writes", isCurrentMatch: true, currentMatchIndex: 0 });
+    const detail = container.querySelector("[data-tool-detail]:not([hidden])");
+    expect(detail, "the opened detail").not.toBeNull();
+    expect([...(detail as Element).querySelectorAll("mark")].map((m) => m.textContent)).toContain("needle-writes");
+  });
+
+  it("the row says the recorded tool name and the first question", () => {
+    const { container } = renderContent("ask_head", validInput);
+    const row = container.querySelector("[data-tool-row]");
+    expect(row, "a ToolRow head").not.toBeNull();
+    expect(row?.querySelector("[data-tool-verb]")?.textContent).toBe("AskUserQuestion");
+    expect(row?.textContent).toContain("Which storage backend?");
+  });
 });

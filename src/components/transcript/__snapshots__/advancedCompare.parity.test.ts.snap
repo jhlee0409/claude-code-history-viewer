@@ -1,0 +1,568 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`old advanced compare six-method characterization > chars 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "one ",
+      },
+      {
+        "kind": "del",
+        "text": "r",
+      },
+      {
+        "kind": "add",
+        "text": "blu",
+      },
+      {
+        "kind": "context",
+        "text": "e",
+      },
+      {
+        "kind": "del",
+        "text": "d",
+      },
+      {
+        "kind": "context",
+        "text": " fox",
+      },
+      {
+        "kind": "del",
+        "text": ".",
+      },
+      {
+        "kind": "add",
+        "text": "!",
+      },
+      {
+        "kind": "context",
+        "text": "
+keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "  ",
+      },
+      {
+        "kind": "context",
+        "text": "a ",
+      },
+      {
+        "kind": "del",
+        "text": " ",
+      },
+      {
+        "kind": "context",
+        "text": "b
+",
+      },
+      {
+        "kind": "add",
+        "text": " ",
+      },
+      {
+        "kind": "context",
+        "text": "
+last",
+      },
+      {
+        "kind": "add",
+        "text": "
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "Hello ",
+      },
+      {
+        "kind": "del",
+        "text": "wo",
+      },
+      {
+        "kind": "add",
+        "text": "f",
+      },
+      {
+        "kind": "context",
+        "text": "r",
+      },
+      {
+        "kind": "del",
+        "text": "l",
+      },
+      {
+        "kind": "add",
+        "text": "ien",
+      },
+      {
+        "kind": "context",
+        "text": "d. Next sentence",
+      },
+      {
+        "kind": "del",
+        "text": "!",
+      },
+      {
+        "kind": "add",
+        "text": "?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;
+
+exports[`old advanced compare six-method characterization > lines 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "one red fox.
+",
+      },
+      {
+        "kind": "add",
+        "text": "one blue fox!
+",
+      },
+      {
+        "kind": "context",
+        "text": "keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "  a  b
+
+",
+      },
+      {
+        "kind": "add",
+        "text": "a b
+ 
+",
+      },
+      {
+        "kind": "context",
+        "text": "last
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "Hello world. Next sentence!",
+      },
+      {
+        "kind": "add",
+        "text": "Hello friend. Next sentence?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;
+
+exports[`old advanced compare six-method characterization > sentences 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "one red fox.",
+      },
+      {
+        "kind": "add",
+        "text": "one blue fox!",
+      },
+      {
+        "kind": "context",
+        "text": "
+keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "  a  b
+
+last",
+      },
+      {
+        "kind": "add",
+        "text": "a b
+ 
+last
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "Hello world.",
+      },
+      {
+        "kind": "add",
+        "text": "Hello friend.",
+      },
+      {
+        "kind": "context",
+        "text": " ",
+      },
+      {
+        "kind": "del",
+        "text": "Next sentence!",
+      },
+      {
+        "kind": "add",
+        "text": "Next sentence?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;
+
+exports[`old advanced compare six-method characterization > trimmedLines 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "one red fox.
+",
+      },
+      {
+        "kind": "add",
+        "text": "one blue fox!
+",
+      },
+      {
+        "kind": "context",
+        "text": "keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "  a  b
+",
+      },
+      {
+        "kind": "add",
+        "text": "a b
+",
+      },
+      {
+        "kind": "context",
+        "text": " 
+last
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "Hello world. Next sentence!",
+      },
+      {
+        "kind": "add",
+        "text": "Hello friend. Next sentence?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;
+
+exports[`old advanced compare six-method characterization > words 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "one ",
+      },
+      {
+        "kind": "del",
+        "text": "red",
+      },
+      {
+        "kind": "add",
+        "text": "blue",
+      },
+      {
+        "kind": "context",
+        "text": " fox",
+      },
+      {
+        "kind": "del",
+        "text": ".",
+      },
+      {
+        "kind": "add",
+        "text": "!",
+      },
+      {
+        "kind": "context",
+        "text": "
+keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "a b
+ 
+last
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "Hello ",
+      },
+      {
+        "kind": "del",
+        "text": "world",
+      },
+      {
+        "kind": "add",
+        "text": "friend",
+      },
+      {
+        "kind": "context",
+        "text": ". Next sentence",
+      },
+      {
+        "kind": "del",
+        "text": "!",
+      },
+      {
+        "kind": "add",
+        "text": "?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;
+
+exports[`old advanced compare six-method characterization > wordsWithSpace 1`] = `
+[
+  {
+    "name": "replacement",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "one ",
+      },
+      {
+        "kind": "del",
+        "text": "red",
+      },
+      {
+        "kind": "add",
+        "text": "blue",
+      },
+      {
+        "kind": "context",
+        "text": " fox",
+      },
+      {
+        "kind": "del",
+        "text": ".",
+      },
+      {
+        "kind": "add",
+        "text": "!",
+      },
+      {
+        "kind": "context",
+        "text": "
+keep
+",
+      },
+    ],
+  },
+  {
+    "name": "whitespace",
+    "parts": [
+      {
+        "kind": "del",
+        "text": "  ",
+      },
+      {
+        "kind": "context",
+        "text": "a",
+      },
+      {
+        "kind": "del",
+        "text": "  ",
+      },
+      {
+        "kind": "add",
+        "text": " ",
+      },
+      {
+        "kind": "context",
+        "text": "b
+",
+      },
+      {
+        "kind": "add",
+        "text": " ",
+      },
+      {
+        "kind": "context",
+        "text": "
+last",
+      },
+      {
+        "kind": "add",
+        "text": "
+",
+      },
+    ],
+  },
+  {
+    "name": "sentences",
+    "parts": [
+      {
+        "kind": "context",
+        "text": "Hello ",
+      },
+      {
+        "kind": "del",
+        "text": "world",
+      },
+      {
+        "kind": "add",
+        "text": "friend",
+      },
+      {
+        "kind": "context",
+        "text": ". Next sentence",
+      },
+      {
+        "kind": "del",
+        "text": "!",
+      },
+      {
+        "kind": "add",
+        "text": "?",
+      },
+    ],
+  },
+  {
+    "name": "empty",
+    "parts": [
+      {
+        "kind": "add",
+        "text": "new
+
+",
+      },
+    ],
+  },
+]
+`;

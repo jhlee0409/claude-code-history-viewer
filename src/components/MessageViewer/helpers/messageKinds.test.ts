@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
 import {
   classifyMessage,
+  countToolUseBlocks,
   getMessageKind,
   isTaskNotification,
   parseTaskNotification,
   parseTaskNotifications,
+  isTurnStart,
 } from "./messageKinds";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
@@ -47,6 +49,17 @@ describe("getMessageKind", () => {
       expect(getMessageKind(makeMessage({
         content: [{ type: "text", text: TASK_NOTIFICATION }],
       }))).toBe("agent-update");
+    });
+
+    it("keeps a notification with the client's injected preamble as an agent update", () => {
+      // Claude Code prepends this header to background-task events, so text
+      // around a notification does not mean the user typed it.
+      const text = [
+        "[SYSTEM NOTIFICATION - NOT USER INPUT]",
+        "This is an automated background-task event, NOT a message from the user.",
+        TASK_NOTIFICATION,
+      ].join("\n");
+      expect(getMessageKind(makeMessage({ content: [{ type: "text", text }] }))).toBe("agent-update");
     });
 
     it("treats a slash command and its local output as a command", () => {
@@ -117,6 +130,28 @@ describe("getMessageKind", () => {
       }))).toBe("tool");
     });
 
+    it("treats a tool-result record with client-appended text as a tool row", () => {
+      // ToolSearch appends "Tool loaded." to its result. The backend moves the
+      // tool_result block into its call, leaving the text and the record's
+      // toolUseResult behind.
+      const info = classifyMessage(makeMessage({
+        content: [{ type: "text", text: "Tool loaded." }],
+        toolUseResult: { matches: ["WebFetch"], query: "select:WebFetch" },
+      }));
+      expect(info).toEqual({ kind: "tool", text: null });
+    });
+
+    it("keeps a fork's directive beside an unmerged tool_result as a prompt", () => {
+      // A fork's task arrives with the parent's tool_result but no
+      // toolUseResult. It is the fork's prompt, like a regular subagent's task.
+      expect(getMessageKind(makeMessage({
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_parent", content: "Agent started" },
+          { type: "text", text: "<fork-boilerplate>\nYou are a worker fork.\n</fork-boilerplate>\n\nYour directive: audit the parser." },
+        ],
+      }))).toBe("prompt");
+    });
+
     it("treats an image-only message as a prompt", () => {
       expect(getMessageKind(makeMessage({
         content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } }],
@@ -146,6 +181,35 @@ describe("getMessageKind", () => {
       const summary = classifyMessage(makeMessage({ type: "summary", summary: "Session summary" }));
       expect(summary).toEqual({ kind: "summary", text: "Session summary" });
     });
+  });
+});
+
+describe("isTurnStart", () => {
+  const startsTurn = (overrides: Record<string, unknown>) =>
+    isTurnStart(classifyMessage(makeMessage(overrides)));
+
+  it("starts a turn at a typed prompt or a slash-command invocation", () => {
+    expect(startsTurn({ content: "Scrub for pii" })).toBe(true);
+    expect(startsTurn({
+      content: "<command-message>wrap</command-message>\n<command-name>/wrap</command-name>",
+    })).toBe(true);
+  });
+
+  it("does not start a turn at a local command's output", () => {
+    // The output follows its invocation; counting both would stop twice.
+    expect(startsTurn({
+      content: "<local-command-stdout>Total cost: $0.42</local-command-stdout>",
+    })).toBe(false);
+  });
+
+  it("does not start a turn at rows the user did not type", () => {
+    expect(startsTurn({ content: TASK_NOTIFICATION })).toBe(false);
+    expect(startsTurn({ content: "<system-reminder>Today is Friday.</system-reminder>" })).toBe(false);
+    expect(startsTurn({
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Done." }],
+    })).toBe(false);
   });
 });
 
@@ -188,5 +252,71 @@ describe("parseTaskNotification", () => {
       status: undefined,
       summary: undefined,
     });
+  });
+});
+
+describe("countToolUseBlocks", () => {
+  it("counts content blocks even when the backend backfilled toolUse from the first one", () => {
+    // load.rs sets `toolUse` from the FIRST tool_use block when the raw record
+    // has none, so `toolUse` being set says nothing about how many calls there are.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+        { type: "tool_use", id: "toolu_3", name: "Grep", input: {} },
+      ],
+    }))).toBe(3);
+  });
+
+  it("counts 1 for a toolUse set directly on a message without a content array", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: "",
+    }))).toBe(1);
+  });
+
+  it("counts every tool_use block in a tool-only assistant message", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("counts tool_use blocks on a reply row that also carries text", () => {
+    // A row of kind "reply" can still carry tool_use blocks (Verified
+    // constraints); the outline's tool-calls count depends on this.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "text", text: "Scrubbing first, then the LICENSE." },
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("returns 0 for a message with no tool_use blocks", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Done." }],
+    }))).toBe(0);
+    expect(countToolUseBlocks(makeMessage({ content: "Scrub for pii" }))).toBe(0);
+  });
+
+  it("returns 0 when content is not an array and toolUse is unset", () => {
+    expect(countToolUseBlocks(makeMessage({
+      content: { stdout: "ok" } as unknown as string,
+    }))).toBe(0);
   });
 });

@@ -6,7 +6,10 @@
 
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
-import { AppErrorType } from "../../types";
+import { ownWork } from "@/navigation/ownership";
+import { toast } from "sonner";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 
 // ============================================================================
 // State Interface
@@ -108,11 +111,15 @@ export const createWatcherSlice: StateCreator<
     }
   };
 
-  const reportRefreshError = (error: unknown) => {
-    get().setError({
-      type: AppErrorType.UNKNOWN,
-      message: `Failed to refresh session: ${String(error)}`,
-    });
+  /**
+   * A refresh's failure is feedback: only while it still owns the place, and
+   * as a notification - the place is one tab's, so never the app's error
+   * screen. (A session or project that is gone is the tab's own notice,
+   * raised by the loaders themselves.)
+   */
+  const reportRefreshError = (owns: () => boolean, error: unknown) => {
+    if (!owns()) return;
+    toast.error(i18n.t("error.refreshFailed", { detail: errorDetail(error) }));
   };
 
   const flushSessionRefresh = async (sessionPath: string) => {
@@ -123,10 +130,11 @@ export const createWatcherSlice: StateCreator<
     }
 
     queuedSessionRefreshes.delete(sessionPath);
+    const owner = ownWork(get, { context: { sessionPath } });
     try {
       await runSessionRefresh(queuedProjectPath, sessionPath);
     } catch (error) {
-      reportRefreshError(error);
+      reportRefreshError(owner.ownsFeedback, error);
     }
   };
 
@@ -163,10 +171,11 @@ export const createWatcherSlice: StateCreator<
 
     const quietTimer = setTimeout(() => {
       void (async () => {
+        const owner = ownWork(get, { context: { sessionPath } });
         try {
           await flushSessionRefresh(sessionPath);
         } catch (error) {
-          reportRefreshError(error);
+          reportRefreshError(owner.ownsFeedback, error);
         }
       })();
     }, delay);
@@ -190,11 +199,12 @@ export const createWatcherSlice: StateCreator<
     }
 
     sessionRefreshInFlight.add(sessionPath);
+    const owner = ownWork(get, { context: { sessionPath } });
 
     try {
-      await get().selectSession(selectedSession);
+      await get().reloadCurrent("watcher");
     } catch (error) {
-      reportRefreshError(error);
+      reportRefreshError(owner.ownsFeedback, error);
     } finally {
       lastSessionRefreshAt.set(sessionPath, Date.now());
       sessionRefreshInFlight.delete(sessionPath);
@@ -257,15 +267,15 @@ export const createWatcherSlice: StateCreator<
       })),
 
     triggerProjectRefresh: async (projectPath) => {
+      const owner = ownWork(get, { context: { projectPath } });
       try {
         const { selectedProject, reloadProjectSessions } = get();
 
-        // A session file changed, so any Recent Edits result cached for this
-        // project describes the state before that write. The reload below
-        // refreshes the session list but never touches analytics, so without
-        // this the cache — which only started actually hitting once its key
-        // was fixed — would serve pre-edit rows for as long as the project
-        // stays selected, with the header refresh button the only way out.
+        // A session file changed, so the Edits screen's rows for this project
+        // describe the state before that write. The reload below refreshes
+        // the session list but never touches them, so without this the next
+        // visit would serve pre-edit rows for as long as the project stays
+        // selected, with the header refresh button the only way out.
         get().invalidateRecentEdits(projectPath);
 
         // Reload the selected project's sessions, keeping the open session
@@ -277,10 +287,7 @@ export const createWatcherSlice: StateCreator<
           await reloadProjectSessions(selectedProject);
         }
       } catch (error) {
-        get().setError({
-          type: AppErrorType.UNKNOWN,
-          message: `Failed to refresh project: ${String(error)}`,
-        });
+        reportRefreshError(owner.ownsFeedback, error);
       } finally {
         // Always mark as updated regardless of success/failure
         get().markProjectUpdated(projectPath);

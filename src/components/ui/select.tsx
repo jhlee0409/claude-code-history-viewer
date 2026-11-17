@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { fieldControlClasses, useFieldControl } from "./field";
 
 const Select = SelectPrimitive.Root;
 
@@ -10,30 +11,43 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
+/**
+ * The select's button (a combobox; inner-UI plan F2a): the shared field
+ * control states, an --line-selected border while open, and a name - inside
+ * a Field it points at the Field's label (aria-labelledby); elsewhere it
+ * needs `aria-label`/`aria-labelledby` or a `<Label htmlFor>` for its `id`
+ * (src/test/a11yLabels.invariant.test.ts). A placeholder is not a name.
+ */
 const SelectTrigger = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md",
-      "border border-input bg-background px-3 py-2",
-      "text-sm",
-      "placeholder:text-muted-foreground",
-      "focus:outline-none",
-      "disabled:cursor-not-allowed disabled:opacity-50",
-      "[&>span]:line-clamp-1",
-      className
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & { controlSize?: "field" | "header" | "toolbar" }
+>(({ className, children, controlSize = "field", ...props }, ref) => {
+  const field = useFieldControl(props, { labelledBy: true });
+  return (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      data-control-size={controlSize}
+      className={cn(
+        "flex w-full items-center justify-between rounded-md",
+        controlSize === "field" ? "h-10" : controlSize === "header" ? "h-auto min-h-7 pointer-coarse:min-h-11" : "h-auto min-h-6.5 pointer-coarse:min-h-11",
+        "border bg-background px-3",
+        controlSize === "field" ? "py-2" : "py-0",
+        "text-body transition-colors",
+        fieldControlClasses,
+        "data-[state=open]:border-line-selected",
+        "[&>span]:line-clamp-1",
+        className
+      )}
+      {...props}
+      {...field}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = React.forwardRef<
@@ -115,7 +129,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("px-2 py-1.5 text-sm font-semibold", className)}
+    className={cn("px-2 py-1.5 text-body font-semibold", className)}
     {...props}
   />
 ));
@@ -129,7 +143,7 @@ const SelectItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex w-full cursor-default select-none items-center",
-      "rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none",
+      "rounded-sm py-1.5 pl-2 pr-8 text-body outline-none",
       "focus:bg-accent focus:text-accent-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className

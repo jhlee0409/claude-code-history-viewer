@@ -4,12 +4,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { useAppStore } from "@/store/useAppStore";
+import { useEffectiveHighContrast } from "@/hooks/useHighContrast";
 import { useTranslation } from "react-i18next";
 import { Contrast } from "lucide-react";
 
 export const AccessibilityMenuGroup = () => {
   const { t } = useTranslation();
-  const { highContrast, setHighContrast } = useAppStore();
+  const setHighContrast = useAppStore((s) => s.setHighContrast);
+  // Shows what is on now (the OS setting until the user chooses); a click stores the opposite as the choice.
+  const highContrast = useEffectiveHighContrast();
 
   return (
     <>

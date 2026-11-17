@@ -20,7 +20,7 @@ import {
   ChevronDown,
   ChevronRight,
   FolderPlus,
-  Trash2,
+  Trash,
   Pencil,
   Check,
   X,
@@ -179,7 +179,7 @@ export function CustomDirectoriesSection({
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-body font-medium hover:bg-muted/50 transition-colors">
         {isExpanded ? (
           <ChevronDown className="h-4 w-4 shrink-0" />
         ) : (
@@ -188,7 +188,7 @@ export function CustomDirectoriesSection({
         <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span>{t("settings.customDirectories")}</span>
         {customPaths.length > 0 && (
-          <span className="ml-auto text-xs text-muted-foreground">
+          <span className="ml-auto text-list text-muted-foreground">
             {customPaths.length}
           </span>
         )}
@@ -196,22 +196,22 @@ export function CustomDirectoriesSection({
 
       <CollapsibleContent>
         <div className="space-y-3 px-3 pb-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-list text-muted-foreground">
             {t("settings.customDirectories.description")}
           </p>
           {isServerManaged && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-list text-muted-foreground">
               {t("settings.customDirectories.serverManaged")}
             </p>
           )}
 
           {/* Default path */}
           {claudePath && (
-            <div className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-              <span className="truncate flex-1 font-mono text-xs">
+            <div className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-body">
+              <span className="truncate flex-1 font-mono text-list">
                 {claudePath}
               </span>
-              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-list text-primary">
                 {t("settings.customDirectories.default")}
               </span>
             </div>
@@ -221,10 +221,10 @@ export function CustomDirectoriesSection({
           {customPaths.map((cp) => (
             <div
               key={cp.path}
-              className="flex items-center gap-2 rounded-md border border-border/50 px-3 py-2 text-sm"
+              className="flex items-center gap-2 rounded-md border border-border/50 px-3 py-2 text-body"
             >
               <div className="flex-1 min-w-0">
-                <div className="truncate font-mono text-xs">{cp.path}</div>
+                <div className="truncate font-mono text-list">{cp.path}</div>
                 {editingPath === cp.path ? (
                   <div className="mt-1 flex items-center gap-1">
                     <Label htmlFor={editLabelInputId} className="sr-only">
@@ -237,7 +237,7 @@ export function CustomDirectoriesSection({
                       placeholder={t(
                         "settings.customDirectories.labelPlaceholder"
                       )}
-                      className="h-6 text-xs"
+                      className="h-6 text-list"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveEdit();
                         if (e.key === "Escape") handleCancelEdit();
@@ -250,7 +250,7 @@ export function CustomDirectoriesSection({
                       onClick={handleSaveEdit}
                       aria-label={t("common.save")}
                     >
-                      <Check className="h-3 w-3" />
+                      <Check className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -259,12 +259,12 @@ export function CustomDirectoriesSection({
                       onClick={handleCancelEdit}
                       aria-label={t("common.cancel")}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 ) : (
                   cp.label && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-list text-muted-foreground">
                       {cp.label}
                     </span>
                   )
@@ -279,7 +279,7 @@ export function CustomDirectoriesSection({
                     onClick={() => handleStartEdit(cp)}
                     aria-label={t("settings.customDirectories.label")}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -288,7 +288,7 @@ export function CustomDirectoriesSection({
                     onClick={() => handleRemove(cp.path)}
                     aria-label={t("settings.customDirectories.remove")}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
@@ -296,14 +296,14 @@ export function CustomDirectoriesSection({
           ))}
 
           {customPaths.length === 0 && !isAdding && (
-            <p className="text-xs text-muted-foreground italic">
+            <p className="text-list text-muted-foreground italic">
               {t("settings.customDirectories.empty")}
             </p>
           )}
 
           {/* Error display */}
           {addError && (
-            <p className="text-xs text-destructive">{addError}</p>
+            <p className="text-list text-destructive">{addError}</p>
           )}
 
           {/* Add form */}
@@ -315,7 +315,7 @@ export function CustomDirectoriesSection({
               )}
             >
               <div className="space-y-1">
-                <Label htmlFor={pathInputId} className="text-xs">
+                <Label htmlFor={pathInputId} className="text-list">
                   {t("settings.customDirectories.path")}
                 </Label>
                 <div className="flex gap-1">
@@ -329,7 +329,7 @@ export function CustomDirectoriesSection({
                     placeholder={t(
                       "settings.customDirectories.pathPlaceholder"
                     )}
-                    className="h-8 text-xs font-mono"
+                    className="h-8 text-list font-mono"
                   />
                   {isTauri() && (
                     <Button
@@ -346,7 +346,7 @@ export function CustomDirectoriesSection({
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor={labelInputId} className="text-xs">
+                <Label htmlFor={labelInputId} className="text-list">
                   {t("settings.customDirectories.label")}
                 </Label>
                 <Input
@@ -356,7 +356,7 @@ export function CustomDirectoriesSection({
                   placeholder={t(
                     "settings.customDirectories.labelPlaceholder"
                   )}
-                  className="h-8 text-xs"
+                  className="h-8 text-list"
                 />
               </div>
 
@@ -364,7 +364,7 @@ export function CustomDirectoriesSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-list"
                   onClick={() => {
                     setIsAdding(false);
                     setNewPath("");
@@ -376,7 +376,7 @@ export function CustomDirectoriesSection({
                 </Button>
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-list"
                   onClick={handleAdd}
                   disabled={!newPath.trim()}
                 >
@@ -388,7 +388,7 @@ export function CustomDirectoriesSection({
             <Button
               variant="outline"
               size="sm"
-              className="w-full h-8 text-xs"
+              className="w-full h-8 text-list"
               onClick={() => setIsAdding(true)}
             >
               <FolderPlus className="h-3.5 w-3.5 mr-1.5" />

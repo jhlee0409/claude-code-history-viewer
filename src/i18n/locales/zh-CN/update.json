@@ -32,7 +32,7 @@
   "updateIntroModal.benefits3": "离线时自动禁用",
   "updateIntroModal.benefits4": "可随时在设置中更改",
   "updateIntroModal.benefitsTitle": "优势：",
-  "updateIntroModal.description": "Claude Code History Viewer 会自动检查更新，以提供更好的用户体验。",
+  "updateIntroModal.description": "$t(common.appName) 会自动检查更新，以提供更好的用户体验。",
   "updateIntroModal.disableAutoCheck": "禁用自动检查",
   "updateIntroModal.howItWorks1": "应用启动时在后台检查更新",
   "updateIntroModal.howItWorks2": "发现新更新时显示通知弹窗",

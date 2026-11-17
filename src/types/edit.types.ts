@@ -30,7 +30,17 @@ export interface RecentFileEdit {
    * missing value means "unknown", not "deleted".
    */
   exists_on_disk?: boolean;
+  /**
+   * What `content_after_change` holds. Only `"full"` is a whole file, so only
+   * it may be restored: patch text, a fragment or unavailable content would
+   * replace the file with something that is not the file. Optional because
+   * older payloads predate it; absent is treated as not restorable.
+   */
+  content_kind?: EditContentKind;
 }
+
+/** What a recorded edit's `content_after_change` holds. */
+export type EditContentKind = "full" | "patch" | "fragment" | "unavailable";
 
 // ============================================================================
 // Recent Edits Result

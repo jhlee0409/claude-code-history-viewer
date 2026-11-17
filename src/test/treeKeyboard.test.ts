@@ -3,6 +3,7 @@ import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
   getNextTreeItemIndex,
+  getTreeNavigationKey,
 } from "@/components/ProjectTree/treeKeyboard";
 
 describe("getNextTreeItemIndex", () => {
@@ -56,5 +57,21 @@ describe("getNextTreeItemIndex", () => {
     );
 
     expect(result).toBe("Explorer");
+  });
+});
+
+describe("getTreeNavigationKey", () => {
+  it("returns the navigation key for plain arrows, Home and End", () => {
+    expect(getTreeNavigationKey({ key: "ArrowDown", altKey: false })).toBe("ArrowDown");
+    expect(getTreeNavigationKey({ key: "End", altKey: false })).toBe("End");
+  });
+
+  it("leaves Alt+Arrow to the message list's prompt jump", () => {
+    expect(getTreeNavigationKey({ key: "ArrowUp", altKey: true })).toBeNull();
+    expect(getTreeNavigationKey({ key: "ArrowDown", altKey: true })).toBeNull();
+  });
+
+  it("ignores other keys", () => {
+    expect(getTreeNavigationKey({ key: "ArrowLeft", altKey: false })).toBeNull();
   });
 });

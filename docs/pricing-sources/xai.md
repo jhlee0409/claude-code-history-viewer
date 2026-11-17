@@ -40,3 +40,8 @@ All rates USD per 1M tokens. xAI publishes no cache-write charge; cached prompt 
 - Aliases: `<model>` → latest stable, `<model>-latest` → latest version, `<model>-<date>` → pinned snapshot.
 - No Batch API discount is modelled; only grok-4.3 documents one (20%).
 - Imagine/voice models are per-image / per-second / per-character and are excluded from the token table.
+
+## 2026-10-01 update (pricing watch #596)
+
+- **Added `grok-4.7`** (https://docs.x.ai/developers/models/grok-4.7): "Input Tokens $2.00 … Cached tokens $0.50 … Output Tokens $6.00", with "different rates for requests which exceed the 200K context window" — long 4.00 / 1.00 / 12.00, threshold 200000. The OpenRouter feed's $1.6/$4.8 does not match the official page.
+- `grok-4.20-multi-agent-0309` re-confirmed (1.25 / 0.2 / 2.5, long 2.5 / 0.4 / 5).

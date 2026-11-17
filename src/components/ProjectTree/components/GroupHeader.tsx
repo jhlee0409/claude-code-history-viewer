@@ -31,6 +31,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       badge: "bg-success/15 text-success",
       expandIcon: "text-success",
     },
+    time: {
+      text: "text-violet-500",
+      bg: "bg-violet-500/20",
+      border: "border-l-violet-500/50",
+      badge: "bg-violet-500/15 text-violet-500",
+      expandIcon: "text-violet-500",
+    },
     unavailable: {
       text: "text-warning",
       bg: "bg-warning/20",
@@ -105,7 +112,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       {/* Label */}
       <span
         className={cn(
-          "text-sm truncate flex-1 transition-colors duration-300",
+          "text-body truncate flex-1 transition-colors duration-300",
           isExpanded ? `${colors.text} font-semibold` : "text-sidebar-foreground/80"
         )}
         title={label}
@@ -114,7 +121,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       </span>
 
       {/* Count Badge */}
-      <span className={cn("flex items-center gap-1 text-2xs font-mono px-1.5 py-0.5 rounded", colors.badge)}>
+      <span className={cn("flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded", colors.badge)}>
         {count}
       </span>
     </button>

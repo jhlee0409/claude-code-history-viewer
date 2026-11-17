@@ -18,6 +18,7 @@
 //! the real `cwd` carried on each record.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
@@ -45,8 +46,14 @@ fn runtime_base() -> Option<PathBuf> {
 }
 
 fn projects_dir() -> Option<PathBuf> {
+    projects_dir_reporting(&ScanReport::default())
+}
+
+/// [`projects_dir`], recording in `report` a Qwen home that may not be
+/// looked into.
+fn projects_dir_reporting(report: &ScanReport) -> Option<PathBuf> {
     let dir = runtime_base()?.join("projects");
-    if dir.is_dir() {
+    if report.is_dir(&dir) {
         Some(dir)
     } else {
         None
@@ -59,7 +66,7 @@ pub fn detect() -> Option<ProviderInfo> {
     Some(ProviderInfo {
         id: PROVIDER.to_string(),
         display_name: "Qwen Code".to_string(),
-        is_available: !session_files(&base).is_empty(),
+        is_available: !session_files(&base, &ScanReport::default()).is_empty(),
         base_path: base.to_string_lossy().to_string(),
     })
 }
@@ -69,26 +76,21 @@ pub fn get_base_path() -> Option<String> {
     projects_dir().map(|p| p.to_string_lossy().to_string())
 }
 
-/// All `<projects>/<dir>/chats/*.jsonl` session files.
-fn session_files(projects: &Path) -> Vec<PathBuf> {
+/// All `<projects>/<dir>/chats/*.jsonl` session files; what the listing
+/// cannot read is recorded in `report`.
+fn session_files(projects: &Path, report: &ScanReport) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for project in WalkDir::new(projects)
-        .min_depth(1)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
+    for project in report
+        .walk(WalkDir::new(projects).min_depth(1).max_depth(1))
         .filter(|e| !e.path_is_symlink())
         .filter(|e| e.file_type().is_dir())
     {
         let chats = project.path().join("chats");
-        if !chats.is_dir() {
+        if !report.is_dir(&chats) {
             continue;
         }
-        for entry in WalkDir::new(&chats)
-            .min_depth(1)
-            .max_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
+        for entry in report
+            .walk(WalkDir::new(&chats).min_depth(1).max_depth(1))
             .filter(|e| e.file_type().is_file())
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
             .filter(|e| !is_symlink(e.path()))
@@ -101,7 +103,14 @@ fn session_files(projects: &Path) -> Vec<PathBuf> {
 
 /// Scan Qwen projects (sessions grouped by the real `cwd`).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let Some(base) = projects_dir() else {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` the project and chat
+/// directories and session files it could not read.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    let Some(base) = projects_dir_reporting(report) else {
         return Ok(vec![]);
     };
     struct Agg {
@@ -111,8 +120,8 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     }
     let mut by_cwd: HashMap<String, Agg> = HashMap::new();
 
-    for file in session_files(&base) {
-        let Ok(data) = fs::read_to_string(&file) else {
+    for file in session_files(&base, report) {
+        let Some(data) = report.read_to_string(&file) else {
             continue;
         };
         let Some(meta) = session_meta(&data) else {
@@ -167,14 +176,24 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let Some(base) = projects_dir() else {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read: a
+/// session file that cannot be read may belong to the project.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let Some(base) = projects_dir_reporting(report) else {
         return Ok(vec![]);
     };
     let target_cwd = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
     let mut sessions = Vec::new();
 
-    for file in session_files(&base) {
-        let Ok(data) = fs::read_to_string(&file) else {
+    for file in session_files(&base, report) {
+        let Some(data) = report.read_to_string(&file) else {
             continue;
         };
         let Some(meta) = session_meta(&data) else {
@@ -236,7 +255,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     };
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
-    for file in session_files(&base) {
+    for file in session_files(&base, &ScanReport::default()) {
         let Ok(data) = fs::read_to_string(&file) else {
             continue;
         };

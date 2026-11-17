@@ -8,6 +8,11 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::utils::strip_windows_extended_prefix;
+
+mod metadata;
+pub use metadata::SettingsMetadata;
+
 /// All settings scopes in a single structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllSettings {
@@ -15,6 +20,9 @@ pub struct AllSettings {
     pub project: Option<String>,
     pub local: Option<String>,
     pub managed: Option<String>,
+    /// Optional only for deserializing older responses; current commands always populate it.
+    #[serde(default)]
+    pub metadata: Option<SettingsMetadata>,
 }
 
 /// MCP servers from both settings.json and .mcp.json
@@ -198,16 +206,7 @@ fn write_settings_file(path: &Path, content: &str) -> Result<(), String> {
     // a link to somewhere else, is removed rather than written through. The
     // rename then replaces a linked target instead of following it.
     let temp_path = path.with_extension("json.tmp");
-    let _ = fs::remove_file(&temp_path);
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp_path)
-        .map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(content.as_bytes())
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
-    file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
+    super::fs_utils::write_fresh_temp_file(&temp_path, content.as_bytes())?;
 
     super::fs_utils::atomic_rename(&temp_path, path)?;
 
@@ -250,7 +249,7 @@ fn write_project_settings_file(
 /// a trailing separator, symlinks resolved, as Claude Code records it.
 fn claude_json_project_key(project_path: &str) -> Result<String, String> {
     let validated = validate_project_path(project_path)?;
-    Ok(strip_windows_prefix(&validated)
+    Ok(strip_windows_extended_prefix(&validated)
         .to_string_lossy()
         .into_owned())
 }
@@ -341,30 +340,12 @@ pub async fn save_settings(
 #[tauri::command]
 pub async fn get_all_settings(project_path: Option<String>) -> Result<AllSettings, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let user = get_user_settings_path()
-            .ok()
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let project = project_path
-            .as_deref()
-            .and_then(|pp| get_settings_path("project", Some(pp)).ok())
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let local = project_path
-            .as_deref()
-            .and_then(|pp| get_settings_path("local", Some(pp)).ok())
-            .and_then(|p| read_settings_file(&p).ok());
-
-        let managed = get_managed_settings_path()
-            .ok()
-            .and_then(|p| read_settings_file(&p).ok());
-
-        Ok(AllSettings {
-            user,
-            project,
-            local,
-            managed,
-        })
+        Ok(metadata::collect_settings(
+            settings_home_dir(),
+            project_path.as_deref(),
+            cfg!(target_os = "macos"),
+            |scope| get_settings_path(scope, project_path.as_deref()),
+        ))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -734,7 +715,7 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     // Canonicalize home to resolve symlinks (e.g. macOS /var → /private/var)
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
-    let home = strip_windows_prefix(&home);
+    let home = strip_windows_extended_prefix(&home);
     let mut allowed_dirs = vec![home.join(".claude-history-viewer").join("exports")];
     for (api_dir, fallback_name) in [
         (known_folder(dirs::download_dir), "Downloads"),
@@ -742,8 +723,9 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
         (known_folder(dirs::desktop_dir), "Desktop"),
     ] {
         let resolved = api_dir.unwrap_or_else(|| home.join(fallback_name));
-        let resolved =
-            strip_windows_prefix(&resolved.canonicalize().unwrap_or_else(|_| resolved.clone()));
+        let resolved = strip_windows_extended_prefix(
+            &resolved.canonicalize().unwrap_or_else(|_| resolved.clone()),
+        );
         allowed_dirs.push(resolved);
     }
 
@@ -760,24 +742,12 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
 
     // Strip \\?\ prefix on Windows for consistent comparison
     // (canonicalize() returns \\?\C:\... but home_dir() returns C:\...)
-    let canonical = strip_windows_prefix(&canonical);
+    let canonical = strip_windows_extended_prefix(&canonical);
 
     if allowed_dirs.iter().any(|d| canonical.starts_with(d)) {
         Ok(())
     } else {
         Err("Path not in allowed directories".to_string())
-    }
-}
-
-/// Strip the `\\?\` extended-length path prefix that Windows `canonicalize()` adds.
-///
-/// On non-Windows platforms this is a no-op (the prefix never appears).
-fn strip_windows_prefix(path: &Path) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(stripped) = s.strip_prefix(r"\\?\") {
-        PathBuf::from(stripped)
-    } else {
-        path.to_path_buf()
     }
 }
 
@@ -1026,6 +996,30 @@ mod tests {
         let result = save_settings("managed".to_string(), "{}".to_string(), None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("read-only"));
+    }
+
+    #[tokio::test]
+    async fn settings_metadata_distinguishes_missing_from_empty_without_writes() {
+        let temp = setup_test_env();
+        let missing = serde_json::to_value(get_all_settings(None).await.unwrap()).unwrap();
+        assert_eq!(missing["user"], "{}");
+        assert_eq!(
+            missing["metadata"]["serverHome"],
+            temp.path().to_string_lossy().as_ref()
+        );
+        assert_eq!(missing["metadata"]["scopes"]["user"]["state"], "missing");
+        assert_eq!(
+            missing["metadata"]["scopes"]["project"]["state"],
+            "no_project"
+        );
+        assert!(!temp.path().join(".claude").exists());
+
+        fs::create_dir(temp.path().join(".claude")).unwrap();
+        fs::write(temp.path().join(".claude/settings.json"), "{}").unwrap();
+        let empty = serde_json::to_value(get_all_settings(None).await.unwrap()).unwrap();
+        assert_eq!(empty["user"], missing["user"]);
+        assert_eq!(empty["metadata"]["scopes"]["user"]["state"], "present");
+        assert_eq!(empty["metadata"]["scopes"]["managed"]["readOnly"], true);
     }
 
     #[tokio::test]
@@ -1307,30 +1301,6 @@ mod tests {
 
     #[cfg(feature = "webui-server")]
     #[test]
-    fn test_strip_windows_prefix_with_prefix() {
-        let path = Path::new(r"\\?\C:\Users\test");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from(r"C:\Users\test"));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
-    fn test_strip_windows_prefix_without_prefix() {
-        let path = Path::new("/normal/unix/path");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from("/normal/unix/path"));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
-    fn test_strip_windows_prefix_empty() {
-        let path = Path::new("");
-        let result = strip_windows_prefix(path);
-        assert_eq!(result, PathBuf::from(""));
-    }
-
-    #[cfg(feature = "webui-server")]
-    #[test]
     fn test_is_safe_path_downloads_accepted() {
         let temp = setup_test_env();
         let downloads = temp.path().join("Downloads");
@@ -1443,7 +1413,7 @@ mod tests {
         let temp = setup_test_env();
         let project = temp.path().join("repo");
         fs::create_dir_all(&project).unwrap();
-        let canonical = strip_windows_prefix(&project.canonicalize().unwrap())
+        let canonical = strip_windows_extended_prefix(&project.canonicalize().unwrap())
             .to_string_lossy()
             .to_string();
         let with_trailing_separator = format!("{canonical}{}", std::path::MAIN_SEPARATOR);

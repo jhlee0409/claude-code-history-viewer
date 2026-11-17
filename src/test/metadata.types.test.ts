@@ -107,6 +107,13 @@ describe("isSessionMetadataEmpty", () => {
     expect(isSessionMetadataEmpty(metadata)).toBe(false);
   });
 
+  it("should return false when only a favourite's ref is set (plan T7)", () => {
+    const metadata: SessionMetadata = {
+      ref: { provider: "claude", filePath: "/p/s.jsonl", sessionId: "s" },
+    };
+    expect(isSessionMetadataEmpty(metadata)).toBe(false);
+  });
+
   it("should return false when notes is set", () => {
     const metadata: SessionMetadata = {
       notes: "Some notes here",

@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
 import { SectionCard } from "./SectionCard";
-import { formatNumber, formatCurrency } from "../utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
+import type { SessionTokenStats } from "@/types";
+import { tokenRecordingNote } from "@/lib/format/missingValue";
+import { calculateGlobalCostSummary } from "../utils";
 
 interface BillingBreakdownCardProps {
   billingTokens: number;
@@ -11,6 +15,9 @@ interface BillingBreakdownCardProps {
   conversationCost?: number | null;
   showProviderLimitHelp?: boolean;
   className?: string;
+  /** Session-only coverage; project/global aggregates have no such contract. */
+  billingStats?: SessionTokenStats;
+  conversationStats?: SessionTokenStats | null;
 }
 
 export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
@@ -20,8 +27,16 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   conversationCost = null,
   showProviderLimitHelp = false,
   className,
+  billingStats,
+  conversationStats,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
+  const missing = t("common.missingValue.notRecorded");
+  const billingAbsent = billingStats?.token_usage_recording === "absent";
+  const conversationAbsent = conversationStats?.token_usage_recording === "absent";
+  const billingNote = billingStats && tokenRecordingNote(billingStats);
+  const conversationNote = conversationStats && tokenRecordingNote(conversationStats);
   const hasConversationTokenData = conversationTokens != null;
   const conversationTokenValue = conversationTokens ?? 0;
   const nonConversationTokenValue = Math.max(0, billingTokens - conversationTokenValue);
@@ -35,6 +50,20 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   const hasConversationCostData = conversationCost != null;
   const conversationCostValue = conversationCost ?? 0;
   const nonConversationCostValue = Math.max(0, safeBillingCost - conversationCostValue);
+  // Subagent runs a provider stores as separate sessions (OpenCode, Kilo) are
+  // part of the session's billing total, i.e. of "Non-conversation" (#577).
+  const subagentStats = billingStats?.subagent_stats;
+  const subagentCostSummary = useMemo(
+    () =>
+      subagentStats
+        ? calculateGlobalCostSummary(subagentStats.model_distribution ?? [], subagentStats.total_tokens)
+        : null,
+    [subagentStats]
+  );
+  const subagentAmount =
+    subagentCostSummary && subagentCostSummary.pricedModels > 0
+      ? fmt.cost(subagentCostSummary.totalEstimatedCost)
+      : fmt.tokens(subagentStats?.total_tokens ?? 0);
 
   return (
     <SectionCard
@@ -44,17 +73,17 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
       className={className}
     >
       <div className="space-y-3">
-        <p className="text-px12 text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {`${t("analytics.billingTotal", "Billing Total")} = ${t("analytics.conversationOnly", "Conversation Only")} + ${t("analytics.nonConversation", "Non-conversation")}`}
         </p>
-        <p className="text-px11 text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {t(
             "analytics.billingBreakdownHelp",
             "Conversation includes user/assistant turns. Non-conversation includes tool or system billed traffic."
           )}
         </p>
         {showProviderLimitHelp && (
-          <p className="text-px11 text-amber-700 dark:text-amber-300">
+          <p className="text-caption text-amber-700 dark:text-amber-300">
             {t(
               "analytics.billingBreakdownProviderLimitHelp",
               "For some providers, conversation-only and billing totals can match because sidechain metadata is unavailable."
@@ -75,60 +104,70 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-px11 text-muted-foreground">{t("analytics.billingTotal", "Billing Total")}</p>
-            <p className="font-mono text-px14 font-semibold text-foreground">
-              {formatNumber(billingTokens)}
+            <p className="text-caption text-muted-foreground">{t("analytics.billingTotal", "Billing Total")}</p>
+            <p className="font-mono text-body font-semibold text-foreground">
+              <Num>{billingAbsent ? missing : fmt.tokens(billingTokens)}</Num>
             </p>
             {hasCostData && (
-              <p className="font-mono text-px11 text-muted-foreground">
-                {formatCurrency(safeBillingCost)}
+              <p className="font-mono text-caption text-muted-foreground">
+                <Num>{fmt.cost(safeBillingCost)}</Num>
               </p>
             )}
-            <p className="text-px10 text-muted-foreground">
-              {t("analytics.oneHundredPercent", "100%")}
+            <p className="text-caption text-muted-foreground">
+              {billingAbsent ? missing : t("analytics.oneHundredPercent", "100%")}
             </p>
+            {billingNote && !billingAbsent && <p className="text-caption text-muted-foreground">{t(billingNote)}</p>}
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-px11 text-muted-foreground">{t("analytics.conversationOnly", "Conversation Only")}</p>
-            <p className="font-mono text-px14 font-semibold text-foreground">
-              {hasConversationTokenData
-                ? formatNumber(conversationTokenValue)
-                : t("common.dash", "—")}
+            <p className="text-caption text-muted-foreground">{t("analytics.conversationOnly", "Conversation Only")}</p>
+            <p className="font-mono text-body font-semibold text-foreground">
+              <Num>{hasConversationTokenData
+                ? conversationAbsent ? missing : fmt.tokens(conversationTokenValue)
+                : t("common.dash", "—")}</Num>
             </p>
             {hasCostData && (
-              <p className="font-mono text-px11 text-muted-foreground">
-                {hasConversationCostData
-                  ? formatCurrency(conversationCostValue)
-                  : t("common.dash", "—")}
+              <p className="font-mono text-caption text-muted-foreground">
+                <Num>{hasConversationCostData
+                  ? fmt.cost(conversationCostValue)
+                  : t("common.dash", "—")}</Num>
               </p>
             )}
-            <p className="text-px10 text-muted-foreground">
-              {hasConversationTokenData
-                ? `${conversationTokenRatio.toFixed(1)}%`
-                : t("analytics.calculating", "Calculating")}
+            <p className="text-caption text-muted-foreground">
+              <Num>{hasConversationTokenData
+                ? conversationAbsent || billingAbsent ? missing : fmt.percent(conversationTokenRatio / 100)
+                : t("analytics.calculating", "Calculating")}</Num>
             </p>
+            {conversationNote && !conversationAbsent && <p className="text-caption text-muted-foreground">{t(conversationNote)}</p>}
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-px11 text-muted-foreground">{t("analytics.nonConversation", "Non-conversation")}</p>
-            <p className="font-mono text-px14 font-semibold text-foreground">
-              {hasConversationTokenData
-                ? formatNumber(nonConversationTokenValue)
-                : t("common.dash", "—")}
+            <p className="text-caption text-muted-foreground">{t("analytics.nonConversation", "Non-conversation")}</p>
+            <p className="font-mono text-body font-semibold text-foreground">
+              <Num>{hasConversationTokenData
+                ? billingAbsent || conversationAbsent ? missing : fmt.tokens(nonConversationTokenValue)
+                : t("common.dash", "—")}</Num>
             </p>
             {hasCostData && (
-              <p className="font-mono text-px11 text-muted-foreground">
-                {hasConversationCostData
-                  ? formatCurrency(nonConversationCostValue)
-                  : t("common.dash", "—")}
+              <p className="font-mono text-caption text-muted-foreground">
+                <Num>{hasConversationCostData
+                  ? fmt.cost(nonConversationCostValue)
+                  : t("common.dash", "—")}</Num>
               </p>
             )}
-            <p className="text-px10 text-muted-foreground">
-              {hasConversationTokenData
-                ? `${nonConversationTokenRatio.toFixed(1)}%`
-                : t("analytics.calculating", "Calculating")}
+            <p className="text-caption text-muted-foreground">
+              <Num>{hasConversationTokenData
+                ? billingAbsent || conversationAbsent ? missing : fmt.percent(nonConversationTokenRatio / 100)
+                : t("analytics.calculating", "Calculating")}</Num>
             </p>
           </div>
         </div>
+        {subagentStats && subagentStats.session_count > 0 && (
+          <p className="text-caption text-muted-foreground">
+            <Num>{t("analytics.subagentShare", {
+              amount: subagentAmount,
+              count: subagentStats.session_count,
+            })}</Num>
+          </p>
+        )}
       </div>
     </SectionCard>
   );
