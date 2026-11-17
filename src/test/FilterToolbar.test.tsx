@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterToolbar } from "@/components/MessageViewer/components/FilterToolbar";
 
-const { toggleContentTypeMock, useAppStoreMock, storeState } = vi.hoisted(() => {
+const { toggleContentTypeMock, togglePromptsAndFinalRepliesMock, useAppStoreMock, storeState } = vi.hoisted(() => {
   const toggleContentType = vi.fn();
+  const togglePromptsAndFinalReplies = vi.fn();
   const state = {
     messageFilter: {
       roles: { user: true, assistant: true },
@@ -17,6 +18,7 @@ const { toggleContentTypeMock, useAppStoreMock, storeState } = vi.hoisted(() => 
     },
     toggleRole: vi.fn(),
     toggleContentType,
+    togglePromptsAndFinalReplies,
     resetMessageFilter: vi.fn(),
     isMessageFilterActive: () => false,
     isApiViewOpen: false,
@@ -25,6 +27,7 @@ const { toggleContentTypeMock, useAppStoreMock, storeState } = vi.hoisted(() => 
 
   return {
     toggleContentTypeMock: toggleContentType,
+    togglePromptsAndFinalRepliesMock: togglePromptsAndFinalReplies,
     useAppStoreMock: () => state,
     storeState: state,
   };
@@ -63,6 +66,7 @@ describe("FilterToolbar", () => {
   it("leaves the filters inert, with the reason, while the API view is open", () => {
     storeState.isApiViewOpen = true;
     toggleContentTypeMock.mockClear();
+    togglePromptsAndFinalRepliesMock.mockClear();
     try {
       render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks apiViewAvailable />);
       const text = screen.getByRole("button", { name: "filter.content.text" });
@@ -71,6 +75,10 @@ describe("FilterToolbar", () => {
       expect(text).not.toBeDisabled();
       fireEvent.click(text);
       expect(toggleContentTypeMock).not.toHaveBeenCalled();
+      const prompts = screen.getByRole("button", { name: "filter.promptsAndFinalReplies" });
+      expect(prompts).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(prompts);
+      expect(togglePromptsAndFinalRepliesMock).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "messageViewer.apiView.toggle" })).not.toHaveAttribute("aria-disabled");
     } finally {
       storeState.isApiViewOpen = false;
@@ -90,5 +98,13 @@ describe("FilterToolbar", () => {
     } finally {
       storeState.isApiViewOpen = false;
     }
+  });
+
+  it("toggles the prompts-and-final-replies view and explains it in the tooltip", () => {
+    render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks={false} />);
+    const toggle = screen.getByRole("button", { name: "filter.promptsAndFinalReplies" });
+    expect(toggle).toHaveAttribute("title", "filter.promptsAndFinalRepliesHint");
+    fireEvent.click(toggle);
+    expect(togglePromptsAndFinalRepliesMock).toHaveBeenCalledTimes(1);
   });
 });

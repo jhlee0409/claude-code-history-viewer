@@ -1,4 +1,4 @@
-import { Funnel, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, SquareTerminal, Zap, Network } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessagesSquare, MessageSquareText, Brain, Wrench, SquareTerminal, Zap, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
@@ -8,12 +8,14 @@ interface FilterToggleProps {
   active: boolean;
   onClick: () => void;
   label: string;
+  /** Tooltip text when the label alone does not explain the toggle. */
+  description?: string;
   icon: React.ReactNode;
   /** Set when the toggle has no effect; the reason becomes the tooltip. */
   disabledReason?: string;
 }
 
-function FilterToggle({ active, onClick, label, icon, disabledReason }: FilterToggleProps) {
+function FilterToggle({ active, onClick, label, description, icon, disabledReason }: FilterToggleProps) {
   const disabled = disabledReason != null;
   return (
     <ChipToggle
@@ -29,7 +31,7 @@ function FilterToggle({ active, onClick, label, icon, disabledReason }: FilterTo
         !active && !disabled && "hover:text-foreground hover:bg-muted/50"
       )}
       aria-label={label}
-      title={disabledReason ?? label}
+      title={disabledReason ?? description ?? label}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
@@ -51,6 +53,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks, api
     messageFilter,
     toggleRole,
     toggleContentType,
+    togglePromptsAndFinalReplies,
     resetMessageFilter,
     isMessageFilterActive,
     isApiViewOpen,
@@ -96,6 +99,15 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks, api
           onClick={() => toggleRole("assistant")}
           label={t("filter.role.assistant")}
           icon={<Bot className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
+        />
+        {/* Narrows both roles: typed prompts plus each one's final reply */}
+        <FilterToggle
+          active={messageFilter.promptsAndFinalReplies === true}
+          onClick={togglePromptsAndFinalReplies}
+          label={t("filter.promptsAndFinalReplies")}
+          description={t("filter.promptsAndFinalRepliesHint")}
+          icon={<MessagesSquare className="w-3.5 h-3.5" />}
           disabledReason={filtersOff}
         />
       </div>

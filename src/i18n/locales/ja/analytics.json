@@ -26,6 +26,7 @@
   "analytics.count": "{{count}}回",
   "analytics.currentSession": "現在のセッション",
   "analytics.currentSessionTokens": "現在のセッショントークン：{{count}}個",
+  "analytics.subagentShare_other": "うちサブエージェント：{{amount}}（{{count}}回の実行）",
   "analytics.dailyActivity": "日別アクティビティ",
   "analytics.dailyAvgMessages": "日平均メッセージ",
   "analytics.dailyAvgTokens": "日平均トークン",

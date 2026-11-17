@@ -31,6 +31,29 @@ export interface SessionTokenStats {
   summary?: string;
   most_used_tools: ToolUsageStats[];
   model_distribution?: ModelStats[];
+  /** Share of the billing totals that came from spawned subagent sessions (#577). */
+  subagent_stats?: SubagentTokenStats;
+}
+
+/**
+ * Usage of the descendant sessions a session spawned, already included in
+ * that session's `billing_total` totals.
+ *
+ * Providers that model a subagent run as its own session row (OpenCode and
+ * Kilo: `session.parent_id`) store that billed usage outside the parent
+ * session; this breaks the rolled-in share back out for the billing UI.
+ * `session_count` counts only the runs with usage inside the date filter.
+ */
+export interface SubagentTokenStats {
+  session_count: number;
+  message_count: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_creation_tokens: number;
+  total_cache_read_tokens: number;
+  total_reasoning_tokens: number;
+  total_tokens: number;
+  model_distribution?: ModelStats[];
 }
 
 /**

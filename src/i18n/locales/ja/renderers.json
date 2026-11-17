@@ -376,6 +376,8 @@
   "globalSearch.scope.label": "検索範囲",
   "globalSearch.scope.project": "このプロジェクト",
   "globalSearch.scope.all": "すべてのプロジェクト",
+  "globalSearch.scope.sidebar": "サイドバーの絞り込み",
+  "globalSearch.scope.sidebarHint": "サイドバーの絞り込み「{{query}}」で表示中のものだけ",
   "globalSearch.scope.projectUnavailable": "プロジェクトを開くと、その中だけを検索できます",
   "globalSearch.scope.pinned": "「{{project}}」内を検索",
   "globalSearch.scope.pinnedAria": "「{{project}}」内を検索、範囲を解除",

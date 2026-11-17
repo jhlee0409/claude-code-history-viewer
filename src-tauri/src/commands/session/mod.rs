@@ -19,6 +19,7 @@ mod resume;
 mod search;
 #[cfg(all(test, unix))]
 mod swap_after_check_tests;
+mod timestamp_fill;
 
 // Re-export all commands
 pub use api_view::load_session_api_view;

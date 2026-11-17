@@ -26,6 +26,8 @@
   "analytics.count": "{{count}} times",
   "analytics.currentSession": "Current Session",
   "analytics.currentSessionTokens": "Current session tokens: {{count}}",
+  "analytics.subagentShare_one": "Of which subagents: {{amount}} ({{count}} run)",
+  "analytics.subagentShare_other": "Of which subagents: {{amount}} ({{count}} runs)",
   "analytics.dailyActivity": "Daily Activity",
   "analytics.dailyAvgMessages": "Daily Avg Messages",
   "analytics.dailyAvgTokens": "Daily Avg Tokens",

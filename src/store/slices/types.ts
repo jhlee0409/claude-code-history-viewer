@@ -272,6 +272,11 @@ export interface AppStoreState {
   isSessionSelectionMode: boolean;
   sessionSelectionIds: string[];
   sessionSelectionAnchor: string | null;
+
+  // Sidebar (project explorer) filter state
+  sidebarFilterQuery: string;
+  sidebarFilterScope: import('../../utils/sidebarFilter').SidebarFilterScope;
+  sidebarFilterResult: import('./sidebarFilterSlice').SidebarFilterResult | null;
 }
 
 export interface AppStoreActions {
@@ -455,6 +460,7 @@ export interface AppStoreActions {
   toggleShowParallelTasksInNavigator: () => void;
   toggleRole: (role: keyof import('./filterSlice').MessageFilterRoles) => void;
   toggleContentType: (contentType: keyof import('./filterSlice').MessageFilterContentTypes) => void;
+  togglePromptsAndFinalReplies: () => void;
   resetMessageFilter: () => void;
   isMessageFilterActive: () => boolean;
 
@@ -547,6 +553,11 @@ export interface AppStoreActions {
   ) => void;
   setSessionSelectionIds: (ids: string[]) => void;
   clearSessionSelection: () => void;
+
+  // Sidebar (project explorer) filter actions
+  setSidebarFilterQuery: (query: string) => void;
+  setSidebarFilterScope: (scope: import('../../utils/sidebarFilter').SidebarFilterScope) => void;
+  setSidebarFilterResult: (result: import('./sidebarFilterSlice').SidebarFilterResult | null) => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;
