@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Hermes Agent provider** (desktop and WebUI). Browse Hermes Agent (Nous Research) CLI, desktop and gateway sessions from `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows), including every `profiles/<name>/` store, with tool calls, reasoning, and the session token usage and cost Hermes records. The store is opened read-only. A session's totals and cost are attached to its last assistant message, so date-filtered statistics count them on that message's day. — 32 assistants in total (#430, #665)
+
 ### Security
 - **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
 

@@ -242,6 +242,18 @@ describe("provider pricing boundaries", () => {
         { providerId: "kilo" },
       ),
     ).toBeNull();
+    // Hermes Agent bills through OpenRouter, Nous Portal, subscriptions and
+    // other routes; only the cost it records itself is authoritative.
+    expect(
+      calculateModelPrice(
+        "anthropic/claude-sonnet-4.6",
+        oneMillionTokens,
+        oneMillionTokens,
+        0,
+        0,
+        { providerId: "hermes" },
+      ),
+    ).toBeNull();
   });
 
   it("applies GPT-5.6 and GPT-5.4 long-context pricing", () => {

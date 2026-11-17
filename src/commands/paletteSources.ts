@@ -254,6 +254,7 @@ export const MESSAGE_SEARCH_PROVIDERS: readonly ProviderId[] = [
   "gemini",
   "goose",
   "grok",
+  "hermes",
   "kilo",
   "kimi",
   "kiro",

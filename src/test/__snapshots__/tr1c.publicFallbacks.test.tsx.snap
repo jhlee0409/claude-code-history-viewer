@@ -140,6 +140,16 @@ exports[`TR1c added public provider result/fallback preservation > grok: preserv
 ]
 `;
 
+exports[`TR1c added public provider result/fallback preservation > hermes: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "list the files please",
+  "ThoughtsI should run lsterminallsInput(command)3 lines{
+  "command": "ls"
+}ResultJSON Output1 line{"output":"main.rs","exit_code":0}Result not verified · No exit code recordedCopy tool ID",
+  "There is one file: main.rs",
+]
+`;
+
 exports[`TR1c added public provider result/fallback preservation > kimi: preserves real result values/order and never guesses process exit 1`] = `
 [
   "Add a Kimi provider",

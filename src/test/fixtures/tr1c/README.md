@@ -10,6 +10,8 @@ limit 500). It is not a handwritten mock API payload.
   `f1a80556c9f4da2e5d2fd441a7ec72e3b68b37a6b29390b9bd500d1598b74ad3`.
 - Dataset SHA-256 (31-ID combined bundle):
   `d119baa5b622cd1ee38be8fc86e1bd49f8c2b2d86b1f82b195934b7287231c0b`.
+  The 32nd ID, `hermes`, was captured later from its own pinned server; see
+  [Hermes addition](#hermes-addition).
 - Isolated HOME under the owning worktree's ignored `scratch/tr1c/raw-home`.
   Absolute fixture paths in responses are retained, not user-history paths.
 
@@ -35,11 +37,11 @@ HTTP receipts preserve this run. Native/IPC execution was not repeated here.
 
 ## Added public-provider inventory
 
-All **31 current dispatcher IDs** have observed, nonempty message responses.
-Only **24 IDs / 78 blocks** are tool-result-positive. These are actual server
+All **32 current dispatcher IDs** have observed, nonempty message responses.
+Only **25 IDs / 79 blocks** are tool-result-positive. These are actual server
 responses over repository-authored parser fixtures, not live user histories or
 independent production captures. The original eight response objects above are
-unchanged; the added 23 contribute 76 messages and 18 tool-result blocks.
+unchanged; the added 24 contribute 79 messages and 19 tool-result blocks.
 
 `added-provider-inventory.json` records each added ID's message/call/result
 counts, source file:line and exact source-slice SHA-256, shared-family/storage
@@ -61,6 +63,7 @@ without source exit evidence remains unknown, not successful.
 | forgecode | Native conversation/context SQLite envelope; unmatched result ID kept |
 | gemini, qwen | Native JSONL headers and parser records |
 | grok, vibe | Native session directories and parser records |
+| hermes | Native `state.db` sessions/messages rows (OpenAI-style `tool_calls` + `role = 'tool'` result) |
 | kimi | Committed sessions/project-hash/session-1 files |
 | zcode, zed | Native SQLite parts/thread records; Zed uses test-supported JSON layout |
 
@@ -75,6 +78,33 @@ The seven no-result controls are **not certified tool-result support**:
 | llm | Native SQL prompt/answer text only |
 | pearai | Same Continue-family SESSION_A limitation, not independent evidence |
 | trae | Native ordinary chat fixture only; no helper tool-plan injected |
+
+### Hermes addition
+
+Captured after the 31-ID bundle, with the same recipe, for #665:
+
+- Backend source: commit `173d55dd` (`src-tauri` at that commit); debug
+  `cargo build --features webui-server` server SHA-256
+  `b55d62d8f72025d858132fb1063c74fcb4495b342fcdd185857d092a0d5b5242`.
+- Store: a fresh isolated HOME with `HERMES_HOME` unset, so the default root
+  `~/.hermes/state.db`. Seeded verbatim from `providers/hermes.rs` tests:
+  `MODERN_SCHEMA` (schema v30+ column subset), `insert_session` and
+  `seed_tool_session` rows (user prompt, assistant reasoning + `terminal`
+  `tool_calls`, `tool` result row, final answer). Not a live Hermes Agent
+  capture.
+- Session path `hermes://default::dir:/work/app#s-tools`, served with
+  `--serve --no-auth --no-watch --host 127.0.0.1`. Decoded HTTP bodies:
+  `load_provider_messages` SHA-256
+  `7c98630dfc8e9dae84db470489e1cd758c807cd5e1e4a3619f4bdfb98d379f76`,
+  `load_provider_messages_paginated` SHA-256
+  `2a578fcf7f15c915033c927580ab601e9868727dba3dce3db22d486fc283392b`.
+  They were added to `public-results.json` unmodified (the file keeps its
+  two-space JSON layout); the inventory row records the source slices.
+- The four stored rows come back as three messages: the public loader folds
+  the `tool` row's result into the assistant message that made the call.
+  Hermes stores no tool error flag, so `is_error` is the parser's `false`; the
+  `exit_code` stays inside the raw tool text and the process verdict is
+  `unknown`.
 
 ### CodeBuddy nondeterminism, not equality
 

@@ -17,9 +17,9 @@ const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(
 
 describe('TR1c current public provider dispatcher and source fixtures', () => {
   it('pins the added inventory, exact public values, explicit fallback reasons and pagination totals', () => {
-    expect(inventory).toHaveLength(23);
-    expect(new Set(inventory.map(row => row.id)).size).toBe(23);
-    expect(inventory.filter(row => row.toolResultPositive)).toHaveLength(16);
+    expect(inventory).toHaveLength(24);
+    expect(new Set(inventory.map(row => row.id)).size).toBe(24);
+    expect(inventory.filter(row => row.toolResultPositive)).toHaveLength(17);
     for (const row of inventory) {
       const sample = samples[row.id]!;
       expect(sample.load_provider_messages).toHaveLength(row.messageCount);
@@ -36,12 +36,12 @@ describe('TR1c current public provider dispatcher and source fixtures', () => {
     }
   });
   it('has observed public messages for every dispatcher ID, without claiming results for text-only controls', () => {
-    expect(ids).toHaveLength(31);
+    expect(ids).toHaveLength(32);
     expect(Object.keys(samples).sort()).toEqual(ids);
     expect(ids.filter(id => results(id).length === 0)).toEqual([
       'aider', 'antigravity', 'continue', 'cursor-agent', 'llm', 'pearai', 'trae',
     ]);
-    expect(ids.reduce((count, id) => count + results(id).length, 0)).toBe(78);
+    expect(ids.reduce((count, id) => count + results(id).length, 0)).toBe(79);
   });
   for (const provider of Object.keys(samples)) {
     it(`${provider}: nonempty real normalized results, full/paginated identity, adapter does not mutate`, () => {

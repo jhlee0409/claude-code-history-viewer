@@ -185,6 +185,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       gemini: 0,
       goose: 0,
       grok: 0,
+      hermes: 0,
       kilo: 0,
       kimi: 0,
       kiro: 0,

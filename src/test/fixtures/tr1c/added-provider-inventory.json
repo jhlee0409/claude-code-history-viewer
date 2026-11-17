@@ -960,5 +960,55 @@
     ],
     "fallback": "shared tool row / opaque JSON",
     "responseSha256": "8769d3fc40bd9bd764e385249b647ba3b10e8490b650acec686ae486e44fefa7"
+  },
+  {
+    "id": "hermes",
+    "messageCount": 3,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "terminal"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/hermes.rs",
+        "line": 1215,
+        "sha256": "ad0b7c237bbd16f6fe907a151a9ac10c8e2e7d3fbee524f781daca121a5864c2",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/hermes.rs",
+        "line": 1303,
+        "sha256": "d4fdee0ed104a88420c697ee98df538f829984597ccdd0b83cfb5ad1ef2c6294",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/hermes.rs",
+        "line": 1371,
+        "sha256": "21f98e07b915f3a79a6e3e4fce112af21f0df6bedb3e2d2cde58c67677319793",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/hermes.rs",
+        "line": 1391,
+        "sha256": "2cc5c65eb63c920b0431b54f09beb99eb5b000f9bd555251ce7d3f7217cabfc6",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/hermes.rs",
+        "line": 1402,
+        "sha256": "bb82a4a02cda4a8b60dffa26801f35a08dfa3774413f4d31628b0a5001f30166",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [
+      "Repository-authored state.db seed (providers/hermes.rs test schema and seed_tool_session), not a live Hermes Agent capture. Hermes stores no tool error flag, so is_error is the parser default false; exit_code stays inside the raw tool content."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "c0fd85d19094f11c5c7702ed2ebc1937a1c71fab6e2876944ecfc3a8b270134c"
   }
 ]

@@ -517,6 +517,7 @@
     {"rule":"provider copilot has no estimate","model":"claude-opus-4-5","provider":"copilot","contexts":[0],"cost":null},
     {"rule":"provider cursor has no estimate","model":"claude-opus-4-5","provider":"cursor","contexts":[0],"cost":null},
     {"rule":"provider cursor-agent has no estimate","model":"claude-opus-4-5","provider":"cursor-agent","contexts":[0],"cost":null},
+    {"rule":"provider hermes has no estimate","model":"claude-opus-4-5","provider":"hermes","contexts":[0],"cost":null},
     {"rule":"provider kilo has no estimate","model":"claude-opus-4-5","provider":"kilo","contexts":[0],"cost":null},
     {"rule":"provider opencode has no estimate","model":"claude-opus-4-5","provider":"opencode","contexts":[0],"cost":null},
     {"rule":"a provider id is trimmed and lower-cased","model":"claude-opus-4-5","provider":" Cursor ","contexts":[0],"cost":null},
