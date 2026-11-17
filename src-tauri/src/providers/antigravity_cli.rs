@@ -199,6 +199,18 @@ pub(crate) fn load_messages_from_root(
     ))
 }
 
+/// The project path (`antigravity-cli://<workspace>`) the project list puts
+/// conversation `conversation_id` under — the same `history.jsonl` lookup
+/// [`collect_sessions`] groups by, so the file watcher names the project the
+/// UI holds.
+pub(crate) fn project_path_for_conversation(root: &Path, conversation_id: &str) -> String {
+    let workspace = read_index(root)
+        .remove(conversation_id)
+        .and_then(|entry| entry.workspace)
+        .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string());
+    format!("{SCHEME}{workspace}")
+}
+
 pub(crate) fn search_from_root(root: &Path, query: &str, limit: usize) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
