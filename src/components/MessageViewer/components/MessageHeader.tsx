@@ -1,7 +1,8 @@
 /**
  * MessageHeader Component
  *
- * Displays message metadata (role, timestamp, model info, usage stats).
+ * Displays message metadata (role, timestamp, model info, usage stats) and,
+ * when the view setting is on, the message's token usage inline (#570).
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -17,12 +18,17 @@ import type { MessageHeaderProps } from "../types";
 import type { ClaudeAssistantMessage } from "../../../types";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
+import { useAppStore } from "@/store/useAppStore";
+import { InlineTokenUsage } from "./InlineTokenUsage";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const { t } = useTranslation();
   const fmt = useFormat();
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const showInlineTokens = useAppStore((s) => s.showInlineTokenUsage);
+  const inlineUsage =
+    showInlineTokens && message.type === "assistant" ? message.usage : undefined;
 
   const handleTooltipToggle = useCallback(() => {
     setIsTooltipOpen((prev) => !prev);
@@ -87,6 +93,13 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
           </span>
         )}
       </div>
+
+      {inlineUsage && (
+        // ml-auto takes the free space, so the usage sits right beside the model.
+        <div className={cn("ml-auto min-w-0", message.type === "assistant" && message.model && "mr-3")}>
+          <InlineTokenUsage usage={inlineUsage} />
+        </div>
+      )}
 
       {message.type === "assistant" && message.model && (
         <div ref={tooltipRef} className="relative group flex items-center gap-1.5">

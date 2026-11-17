@@ -156,6 +156,8 @@ export interface AppStoreState {
   updateSettings: UpdateSettings;
   sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
   sessionEntrypointFilter: import("../../types/metadata.types").SessionEntrypointFilter;
+  /** Show each assistant message's token usage inline in its header (#570). */
+  showInlineTokenUsage: boolean;
 
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
@@ -393,6 +395,8 @@ export interface AppStoreActions {
   setSessionEntrypointFilter: (
     filter: import("../../types/metadata.types").SessionEntrypointFilter
   ) => Promise<void>;
+  setShowInlineTokenUsage: (show: boolean) => Promise<void>;
+  toggleInlineTokenUsage: () => void;
 
   // Global stats actions
   loadGlobalStats: () => Promise<void>;

@@ -21,6 +21,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Coins,
   Map as MinimapGlyph,
   MessageSquare,
   Plus,
@@ -76,6 +77,7 @@ export interface CommandActions {
   focusFind: () => void;
   toggleInspector: () => void;
   toggleMinimap: () => void;
+  toggleInlineTokenUsage: () => void;
   openSettingsManager: () => unknown;
   openArchive: () => unknown;
   openFeedback: () => void;
@@ -199,6 +201,12 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     target: APP_TARGET,
     run: (ctx) => ctx.actions.toggleMinimap(),
     keys: { inDialogs: true },
+  },
+  "view.toggleInlineTokens": {
+    icon: Coins,
+    // A saved display preference, app-wide like the minimap.
+    target: APP_TARGET,
+    run: (ctx) => ctx.actions.toggleInlineTokenUsage(),
   },
   "view.zoomIn": zoomCommand(ZoomIn, "in"),
   "view.zoomOut": zoomCommand(ZoomOut, "out"),

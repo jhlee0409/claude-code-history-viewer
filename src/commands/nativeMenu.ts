@@ -68,6 +68,7 @@ export const MENU_COMMAND_IDS: ReadonlySet<CommandId> = new Set(MENU_ENTRIES.map
 export const MENU_CHECKS: Partial<Record<CommandId, (state: AppStore) => boolean>> = {
   "view.toggleInspector": (state) => state.isInspectorOpen,
   "view.toggleMinimap": (state) => state.isMinimapOpen,
+  "view.toggleInlineTokens": (state) => state.showInlineTokenUsage,
 };
 
 export function computeMenuState(
