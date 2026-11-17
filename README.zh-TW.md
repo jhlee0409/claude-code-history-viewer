@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 程式設計助手的統一歷史檢視器。**
+
+*（原名：Claude Code History Viewer）*
 
 瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
 
@@ -548,6 +550,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## 授權條款
 
 [MIT](LICENSE) — 可自由用於個人和商業用途。
+
+Omnilogue 是獨立的開源專案，與其讀取工作階段紀錄的 Anthropic、OpenAI、GitHub、Google 等任何廠商均無關聯、認可或贊助關係。Claude 與 Claude Code 是 Anthropic, PBC 的商標，其他名稱為其各自擁有者的商標。
 
 ---
 

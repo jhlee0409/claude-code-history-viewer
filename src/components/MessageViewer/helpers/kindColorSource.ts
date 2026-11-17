@@ -2,10 +2,11 @@ import type { MessageKind } from "./messageKinds";
 import { priorityForKind, type MinimapColorSource } from "./minimapLayout";
 
 /**
- * Kind -> CSS custom property. Values taken from the Messages panel's
- * current icon colors, `NavigatorEntry.tsx`'s `KIND_STYLES.iconClass` (not
- * imported here: another open PR moves that file). `prompt` and `command`
- * both resolve to `text-info`, `context`/`tool`/`system` to
+ * Kind -> CSS custom property. Values mirror the Messages panel's icon
+ * colors, `KIND_STYLES.iconClass` in `MessageNavigator/kindStyles.ts`. Those
+ * are Tailwind classes, and the canvas needs the custom property behind
+ * each, so they are mirrored here rather than imported. `prompt` and
+ * `command` both resolve to `text-info`, `context`/`tool`/`system` to
  * `text-muted-foreground`; `agent-update`, `reply`, and `summary` each keep
  * their own token (Design §5).
  */
@@ -35,6 +36,23 @@ function readCssVar(name: string): string {
 /** The color a failed `agent-update` row paints with, regardless of its base kind color. */
 export function minimapFailedColor(): string {
   return readCssVar(MINIMAP_FAILED_CSS_VAR);
+}
+
+/**
+ * Search-tick colors (spec, "PR 2" section): the same pairing as the list's
+ * own current-match mark. Plain ticks use the mark's text color, which stays
+ * legible on the strip in every theme; `--highlight` alone is a pale tint
+ * close to the strip's background in the light theme. The current tick is
+ * the current-match fill inside an outline of the text color.
+ */
+export const MINIMAP_TICK_CSS_VAR = "--highlight-foreground";
+export const MINIMAP_CURRENT_TICK_CSS_VAR = "--highlight-current";
+
+export function minimapTickColors(): { tick: string; current: string } {
+  return {
+    tick: readCssVar(MINIMAP_TICK_CSS_VAR),
+    current: readCssVar(MINIMAP_CURRENT_TICK_CSS_VAR),
+  };
 }
 
 /**

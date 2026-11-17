@@ -396,6 +396,35 @@ mod tests {
         assert_eq!(cached.sessions.len(), N, "cache lost updates");
     }
 
+    /// The desktop path (Tauri IPC → `update_session_metadata`) keeps a
+    /// favourite's `ref` on disk and in what it returns (plan T7, A2).
+    #[test]
+    fn session_update_keeps_the_favourite_ref() {
+        let (_guard, _temp) = setup_test_env();
+        let state = MetadataState::default();
+        // The shape the frontend sends over IPC.
+        let update: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "starred": true,
+            "ref": { "provider": "claude", "filePath": "/p/a/s1.jsonl", "sessionId": "s1" }
+        }))
+        .unwrap();
+
+        let returned = tauri::async_runtime::block_on(update_session_metadata_in(
+            &state,
+            "s1".to_string(),
+            update,
+        ))
+        .unwrap();
+        let returned_ref = returned.sessions["s1"].session_ref.clone().unwrap();
+        assert_eq!(returned_ref.file_path, "/p/a/s1.jsonl");
+
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(get_user_data_path().unwrap()).unwrap())
+                .unwrap();
+        assert_eq!(raw["sessions"]["s1"]["ref"]["filePath"], "/p/a/s1.jsonl");
+        assert_eq!(raw["sessions"]["s1"]["ref"]["provider"], "claude");
+    }
+
     #[test]
     fn test_validate_project_metadata_key_absolute_path() {
         assert!(validate_project_metadata_key(&crate::test_utils::abs("tmp/project")).is_ok());

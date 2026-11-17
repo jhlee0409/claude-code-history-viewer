@@ -9,6 +9,7 @@
  */
 
 import * as React from "react";
+import { usePendingLoad } from "@/hooks/usePendingLoad";
 import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -27,14 +28,17 @@ import type {
 } from "@/types";
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
+import { SettingsScopeLine } from "./SettingsScopeLine";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
 import { SessionResumeSection } from "./sections/SessionResumeSection";
+import { placeNameKey } from "@/navigation/placeNames";
 import {
   OPEN_SETTINGS_SECTION_EVENT,
   consumeRequestedSettingsSection,
 } from "./settingsNavigation";
+import { scrollBehavior } from "@/utils/motion";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -107,10 +111,18 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   const [allSettings, setAllSettings] = React.useState<AllSettingsResponse | null>(null);
   const [activeScope, setActiveScope] = React.useState<SettingsScope>("user");
   const [isLoading, setIsLoading] = React.useState(true);
+  usePendingLoad(isLoading);
   const [error, setError] = React.useState<string | null>(null);
 
   // Project path state - allows changing project within the component
   const [projectPath, setProjectPath] = React.useState<string | undefined>(initialProjectPath);
+  const [loadedProjectPath, setLoadedProjectPath] = React.useState<string | undefined>();
+  const selectedProjectRef = React.useRef(projectPath);
+  React.useLayoutEffect(() => {
+    selectedProjectRef.current = projectPath;
+  }, [projectPath]);
+  const settingsRequestRef = React.useRef(0);
+  const settingsLoading = isLoading || loadedProjectPath !== projectPath;
 
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
@@ -120,6 +132,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Pending changes state (shared across components for dirty tracking)
   const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
+  const [editorDirty, setEditorDirty] = React.useState(false);
 
   // Sync with initial prop if it changes
   React.useEffect(() => {
@@ -138,20 +151,32 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Load settings
   const loadSettings = React.useCallback(async () => {
+    // A save started under a previous project can finish after selection moves.
+    // Its refresh must not cancel the current selection's request generation.
+    if (selectedProjectRef.current !== projectPath) return;
+    const request = ++settingsRequestRef.current;
+    const ownsSelection = () => request === settingsRequestRef.current && selectedProjectRef.current === projectPath;
     try {
       setIsLoading(true);
       setError(null);
       const settingsResult = await api<AllSettingsResponse>("get_all_settings", { projectPath });
-      setAllSettings(settingsResult);
+      if (ownsSelection()) {
+        setAllSettings(settingsResult);
+        setLoadedProjectPath(projectPath);
+      }
     } catch (err) {
-      setError(String(err));
+      if (ownsSelection()) {
+        setError(String(err));
+        setLoadedProjectPath(projectPath);
+      }
     } finally {
-      setIsLoading(false);
+      if (ownsSelection()) setIsLoading(false);
     }
   }, [projectPath]);
 
   React.useEffect(() => {
     loadSettings();
+    return () => { settingsRequestRef.current += 1; };
   }, [loadSettings]);
 
   // Parse current settings
@@ -197,10 +222,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     return JSON.stringify(pendingSettings) !== JSON.stringify(currentSettings);
   }, [pendingSettings, currentSettings]);
 
-  // Reset pending settings when scope changes
+  // A pending snapshot belongs to this scope AND project, even if it was clean.
   React.useEffect(() => {
     setPendingSettings(null);
-  }, [activeScope]);
+  }, [activeScope, projectPath]);
 
   // Listen for open-settings-section events to expand and scroll to target card
   React.useEffect(() => {
@@ -210,7 +235,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         setTimeout(() => {
           document
             .getElementById("session-resume-settings")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
         }, 100);
       }
     };
@@ -294,7 +319,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   return (
     <SettingsManagerContext.Provider value={contextValue}>
-      <div className={`flex flex-col ${className || ""}`}>
+      {/* The page scrolls as a whole while sidebar and editor stack (narrow
+          container); side by side, the editor scrolls inside itself. Root is
+          the size container so the content below can switch on its width. */}
+      <div className={`@container flex flex-col overflow-y-auto ${className || ""}`}>
         {/* Archive Manager Link (mobile access point) */}
         <button
           type="button"
@@ -305,8 +333,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <Archive className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{t("archive.settings.link")}</p>
-            <p className="text-xs text-muted-foreground">{t("archive.settings.linkDescription")}</p>
+            <p className="text-body font-medium">{t(placeNameKey("archive"))}</p>
+            <p className="text-list text-muted-foreground">{t("archive.settings.linkDescription")}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
@@ -330,8 +358,17 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           </div>
         </div>
 
+        <SettingsScopeLine
+          allSettings={allSettings}
+          scope={activeScope}
+          dirty={hasUnsavedChanges || (activePanel === "editor" && editorDirty)}
+          readOnly={isReadOnly}
+          loading={settingsLoading}
+          error={!!error}
+        />
+
         {/* Content */}
-        {isLoading ? (
+        {settingsLoading ? (
           <LoadingState
             isLoading={isLoading}
             error={error}
@@ -344,7 +381,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             error={error}
           />
         ) : (
-          <div className="@container flex flex-col gap-4 flex-1 min-h-0">
+          <div className="flex flex-col gap-4 flex-none @2xl:flex-1 @2xl:min-h-0">
             {/* Custom Directories — app-level setting, independent of Claude Code scope */}
             <Card className="shrink-0">
               <CustomDirectoriesSection
@@ -376,12 +413,12 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             {/* Sidebar and editor stack until the *container* is wide enough
                 (≈672px), not the viewport — the pane sits beside the explorer
                 and sessions column, so viewport breakpoints lied here. */}
-            <div className="flex flex-col @2xl:flex-row gap-4 flex-1 min-h-0">
+            <div className="flex flex-col @2xl:flex-row gap-4 flex-none @2xl:flex-1 @2xl:min-h-0">
               {/* Left Sidebar */}
               <SettingsSidebar availableScopes={availableScopes} />
 
               {/* Main Content Area */}
-              {activePanel === "editor" ? <SettingsEditorPane /> : <SettingsDiagnosticsPanel />}
+              {activePanel === "editor" ? <SettingsEditorPane key={JSON.stringify([projectPath, activeScope])} onDirtyChange={setEditorDirty} /> : <SettingsDiagnosticsPanel />}
             </div>
           </div>
         )}

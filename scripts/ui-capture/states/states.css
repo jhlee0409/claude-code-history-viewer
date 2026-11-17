@@ -1,0 +1,5 @@
+/* The app's own stylesheet and fonts; Tailwind scans the real primitives. */
+@import "../../../src/assets/fonts/fonts.css";
+@import "../../../src/index.css";
+@source "../../../src/components/ui";
+@source "./";

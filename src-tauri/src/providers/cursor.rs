@@ -1,4 +1,5 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
@@ -22,9 +23,15 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Get Cursor user data path
 pub fn get_base_path() -> Option<PathBuf> {
+    base_path_reporting(&ScanReport::default())
+}
+
+/// [`get_base_path`], recording in `report` a candidate that may not be
+/// looked at.
+fn base_path_reporting(report: &ScanReport) -> Option<PathBuf> {
     if let Ok(env_val) = std::env::var("CURSOR_USER_DIR") {
         let path = PathBuf::from(env_val);
-        if path.is_dir() {
+        if report.is_dir(&path) {
             return Some(path.canonicalize().unwrap_or(path));
         }
     }
@@ -40,7 +47,7 @@ pub fn get_base_path() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     let base = home.join("AppData/Roaming/Cursor/User");
 
-    if base.is_dir() {
+    if report.is_dir(&base) {
         Some(base)
     } else {
         None
@@ -50,10 +57,16 @@ pub fn get_base_path() -> Option<PathBuf> {
 /// Scan Cursor projects from migrated global Composer data.
 /// Falls back to legacy workspace `allComposers` only when global storage is empty.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let base = get_base_path().ok_or("Cursor not found")?;
-    let mut projects = scan_projects_from_global(&base)?;
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` the databases, workspaces and
+/// rows it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    let base = base_path_reporting(report).ok_or("Cursor not found")?;
+    let mut projects = scan_projects_from_global(&base, report)?;
     if projects.is_empty() {
-        projects = scan_projects_in(&base.join("workspaceStorage"))?;
+        projects = scan_projects_in(&base.join("workspaceStorage"), report)?;
     }
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
@@ -76,7 +89,7 @@ pub fn display_name_for_project_path(project_path: &str) -> Option<String> {
         return Some("Cursor".to_string());
     }
     let workspace_json = PathBuf::from(ws_path).join("workspace.json");
-    read_workspace_folder(&workspace_json).and_then(|folder| {
+    read_workspace_folder(&workspace_json, &ScanReport::default()).and_then(|folder| {
         PathBuf::from(&folder)
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -84,14 +97,14 @@ pub fn display_name_for_project_path(project_path: &str) -> Option<String> {
     })
 }
 
-fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
-    if !ws_dir.is_dir() {
+fn scan_projects_in(ws_dir: &Path, report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    if !report.is_dir(ws_dir) {
         return Ok(Vec::new());
     }
 
     let ws_paths: Vec<PathBuf> = fs::read_dir(ws_dir)
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|entry| report.read(ws_dir, entry))
         .map(|entry| entry.path())
         .collect();
 
@@ -99,7 +112,7 @@ fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
     // locked), so with many workspaces the sequential loop dominated startup.
     // Bounded parallel map; a broken workspace still just yields None.
     let mut projects: Vec<ClaudeProject> =
-        crate::utils::par_map_bounded(ws_paths, |ws_path| scan_workspace(&ws_path))
+        crate::utils::par_map_bounded(ws_paths, |ws_path| scan_workspace(&ws_path, report))
             .into_iter()
             .flatten()
             .collect();
@@ -108,9 +121,12 @@ fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
     Ok(projects)
 }
 
-fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> {
+fn scan_projects_from_global(
+    base: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     let global_db = base.join("globalStorage/state.vscdb");
-    if !global_db.is_file() {
+    if !report.is_file(&global_db) {
         return Ok(Vec::new());
     }
 
@@ -130,10 +146,11 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
         .map_err(|e| format!("Query failed: {e}"))?;
 
     let ws_root = base.join("workspaceStorage");
+    let legacy = legacy_composer_workspaces(&ws_root, report);
     let mut by_workspace: std::collections::HashMap<String, GlobalWorkspaceAcc> =
         std::collections::HashMap::new();
 
-    for row in rows.flatten() {
+    for row in rows.filter_map(|row| report.db(&global_db, row)) {
         let (key, value) = row;
         let Some(composer_id) = key.strip_prefix("composerData:") else {
             continue;
@@ -148,8 +165,8 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
             continue;
         }
 
-        let (raw_workspace_id, folder_path) = workspace_identity_from_composer(&composer);
-        let workspace_id = normalize_workspace_bucket_id(&raw_workspace_id);
+        let (workspace_id, folder_path) =
+            resolve_composer_workspace(&composer, composer_id, &legacy);
         let entry =
             by_workspace
                 .entry(workspace_id.clone())
@@ -163,7 +180,6 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
         }
         entry.session_count += 1;
         entry.last_modified_ms = entry.last_modified_ms.max(composer_timestamp_ms(&composer));
-        let _ = composer_id;
     }
 
     let mut projects = Vec::with_capacity(by_workspace.len());
@@ -176,7 +192,7 @@ fn scan_projects_from_global(base: &Path) -> Result<Vec<ClaudeProject>, String> 
                 "Cursor".to_string(),
             )
         } else if ws_path.is_dir() {
-            let folder = read_workspace_folder(&ws_path.join("workspace.json"))
+            let folder = read_workspace_folder(&ws_path.join("workspace.json"), report)
                 .unwrap_or_else(|| acc.folder_path.clone());
             let name = PathBuf::from(&folder)
                 .file_name()
@@ -231,19 +247,19 @@ struct GlobalWorkspaceAcc {
 
 /// One workspace dir → one project, or `None` when the workspace has no
 /// (readable) composer data. All failure modes skip the workspace, never the
-/// whole scan.
-fn scan_workspace(ws_path: &Path) -> Option<ClaudeProject> {
-    if crate::utils::is_symlink(ws_path) || !ws_path.is_dir() {
+/// whole scan; what could not be read is recorded in `report`.
+fn scan_workspace(ws_path: &Path, report: &ScanReport) -> Option<ClaudeProject> {
+    if crate::utils::is_symlink(ws_path) || !report.is_dir(ws_path) {
         return None;
     }
 
     // Read workspace.json to get project folder
     let workspace_json = ws_path.join("workspace.json");
-    let project_folder = read_workspace_folder(&workspace_json)?;
+    let project_folder = read_workspace_folder(&workspace_json, report)?;
 
     // Read composer list from workspace state DB
     let ws_db_path = ws_path.join("state.vscdb");
-    let composers = read_workspace_composers(&ws_db_path).ok()?;
+    let composers = read_workspace_composers(&ws_db_path, report).ok()?;
 
     if composers.is_empty() {
         return None;
@@ -288,6 +304,15 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the workspace files and
+/// database rows it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let ws_path = project_path
         .strip_prefix("cursor://")
         .unwrap_or(project_path);
@@ -313,21 +338,25 @@ pub fn load_sessions(
                     .unwrap_or_default(),
             );
             let workspace_json = ws_path_buf.join("workspace.json");
-            let project_name = read_workspace_folder(&workspace_json)
+            let project_name = read_workspace_folder(&workspace_json, report)
                 .and_then(|folder| {
                     PathBuf::from(&folder)
                         .file_name()
                         .map(|n| n.to_string_lossy().to_string())
                 })
                 .unwrap_or_else(|| "Cursor".to_string());
-            let legacy = read_workspace_composers(&ws_path_buf.join("state.vscdb"))?;
+            let legacy = read_workspace_composers(&ws_path_buf.join("state.vscdb"), report)?;
             (workspace_id, project_name, legacy)
         };
 
-    let composers = if legacy_composers.is_empty() {
-        read_global_composers_for_workspace(&workspace_id)?
-    } else {
+    // The global composers are what `scan_projects` counted for this bucket;
+    // the workspace's own legacy list is only a fallback for pre-migration
+    // installs whose global storage holds nothing for it.
+    let global_composers = read_global_composers_for_workspace(&workspace_id, report)?;
+    let composers = if global_composers.is_empty() {
         legacy_composers
+    } else {
+        global_composers
     };
 
     let mut sessions: Vec<ClaudeSession> = composers
@@ -384,8 +413,13 @@ fn composer_to_session(composer: &Value, project_name: &str) -> Option<ClaudeSes
 
 /// Lightweight stats messages: composer headers + token signal (no bubble bodies).
 pub fn load_stats_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let (composer_id, composer) = load_composer_value(session_path)?;
-    Ok(stats_messages_from_composer(&composer_id, &composer))
+    let (conn, composer_id, composer) = load_composer_value(session_path)?;
+    let headers = conversation_headers(&conn, &composer_id, &composer);
+    Ok(stats_messages_from_composer(
+        &composer_id,
+        &composer,
+        &headers,
+    ))
 }
 
 /// One-pass global stats source: open the Cursor DB once and emit
@@ -413,6 +447,7 @@ pub fn collect_global_stats_sessions() -> Result<Vec<(String, Vec<ClaudeMessage>
         .map_err(|e| format!("Query failed: {e}"))?;
 
     let ws_root = base.join("workspaceStorage");
+    let legacy = legacy_composer_workspaces(&ws_root, &ScanReport::default());
     let mut sessions = Vec::new();
     for row in rows.flatten() {
         let (key, value) = row;
@@ -426,11 +461,12 @@ pub fn collect_global_stats_sessions() -> Result<Vec<(String, Vec<ClaudeMessage>
             continue;
         }
 
-        let (raw_workspace_id, folder_path) = workspace_identity_from_composer(&composer);
-        let workspace_id = normalize_workspace_bucket_id(&raw_workspace_id);
+        let (workspace_id, folder_path) =
+            resolve_composer_workspace(&composer, composer_id, &legacy);
         let project_name = resolve_project_display_name(&ws_root, &workspace_id, &folder_path);
         let project_display_name = format!("{project_name} [cursor]");
-        let messages = stats_messages_from_composer(composer_id, &composer);
+        let headers = conversation_headers(&conn, composer_id, &composer);
+        let messages = stats_messages_from_composer(composer_id, &composer, &headers);
         if !messages.is_empty() {
             sessions.push((project_display_name, messages));
         }
@@ -445,7 +481,9 @@ fn resolve_project_display_name(ws_root: &Path, workspace_id: &str, folder_path:
     }
     let ws_path = ws_root.join(workspace_id);
     if ws_path.is_dir() {
-        if let Some(folder) = read_workspace_folder(&ws_path.join("workspace.json")) {
+        if let Some(folder) =
+            read_workspace_folder(&ws_path.join("workspace.json"), &ScanReport::default())
+        {
             if let Some(name) = PathBuf::from(&folder)
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
@@ -462,13 +500,12 @@ fn resolve_project_display_name(ws_root: &Path, workspace_id: &str, folder_path:
         .unwrap_or_else(|| workspace_id.to_string())
 }
 
-fn stats_messages_from_composer(composer_id: &str, composer: &Value) -> Vec<ClaudeMessage> {
+fn stats_messages_from_composer(
+    composer_id: &str,
+    composer: &Value,
+    headers: &[Value],
+) -> Vec<ClaudeMessage> {
     let stamp = ms_to_iso(composer_timestamp_ms(composer));
-    let headers = composer
-        .get("fullConversationHeadersOnly")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
 
     let mut messages = Vec::with_capacity(headers.len().max(1));
     for (index, header) in headers.iter().enumerate() {
@@ -521,20 +558,12 @@ fn stats_messages_from_composer(composer_id: &str, composer: &Value) -> Vec<Clau
 
 /// Load messages from a Cursor composer
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let (composer_id, composer) = load_composer_value(session_path)?;
+    let (conn, composer_id, composer) = load_composer_value(session_path)?;
 
-    let base = get_base_path().ok_or("Cursor not found")?;
-    let global_db_path = base.join("globalStorage/state.vscdb");
-
-    let conn = Connection::open_with_flags(&global_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))
-        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
-
-    let headers = composer
-        .get("fullConversationHeadersOnly")
-        .and_then(Value::as_array)
-        .ok_or("No conversation headers found")?;
+    let headers = conversation_headers(&conn, &composer_id, &composer);
+    if headers.is_empty() && !composer_has_conversation(&composer) {
+        return Err("No conversation headers found".to_string());
+    }
 
     // Batch load all bubbles for this composer in a single query
     let prefix = format!("bubbleId:{composer_id}:");
@@ -560,7 +589,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
     let mut messages = Vec::with_capacity(headers.len());
 
-    for header in headers {
+    for header in &headers {
         let bubble_id = match header.get("bubbleId").and_then(Value::as_str) {
             Some(id) => id,
             None => continue,
@@ -605,29 +634,51 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     Ok(messages)
 }
 
-/// Delete one Cursor composer and every bubble that belongs to it.
+/// Delete one Cursor composer: its `composerData:<id>` row, every per-composer
+/// row keyed `<kind>:<id>:…` (bubbles, header chunks, checkpoints, …), and its
+/// entry in the owning workspace's `composer.composerData` index.
 ///
-/// Cursor keeps conversations in `globalStorage/state.vscdb`: the composer row
-/// is `composerData:<id>` and its messages are `bubbleId:<id>:<bubbleId>`. Both
-/// live in `cursorDiskKV`, so deleting them is a database operation rather than
-/// a filesystem trash operation. Workspace `ItemTable` indexes are updated on a
-/// best-effort basis so a deleted composer cannot reappear through the legacy
-/// workspace fallback scan.
+/// Cursor rewrites `state.vscdb` while it runs and would put the rows back (or
+/// race the index edit), so the delete is refused while Cursor is open. All
+/// writes happen in one transaction across the global and workspace databases,
+/// and deletes are serialized so two concurrent requests cannot interleave
+/// their index read-modify-write.
 pub fn delete_session(session_path: &str) -> Result<(), String> {
+    let base = get_base_path().ok_or("Cursor not found")?;
+    delete_session_in(&base, session_path, cursor_is_running)
+}
+
+static DELETE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn delete_session_in(
+    base: &Path,
+    session_path: &str,
+    is_running: impl Fn() -> Result<bool, String>,
+) -> Result<(), String> {
     let composer_id = session_path
         .strip_prefix("cursor://")
-        .unwrap_or(session_path);
+        .ok_or_else(|| format!("Invalid Cursor session path: {session_path}"))?;
     if !crate::utils::is_safe_storage_id(composer_id) {
         return Err(format!("Invalid Cursor session path: {session_path}"));
     }
 
-    let base = get_base_path().ok_or("Cursor not found")?;
+    let _guard = DELETE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    if is_running()? {
+        return Err(
+            "Cursor is running. Quit Cursor completely, then delete the conversation again."
+                .to_string(),
+        );
+    }
+
     let db_path = base.join("globalStorage").join("state.vscdb");
     if !db_path.is_file() {
         return Err("Cursor database not found".to_string());
     }
 
-    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
+    let mut conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
         .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
     conn.busy_timeout(std::time::Duration::from_secs(5))
         .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
@@ -641,44 +692,52 @@ pub fn delete_session(session_path: &str) -> Result<(), String> {
         )
         .optional()
         .map_err(|e| format!("Query failed: {e}"))?;
+    let composer_json =
+        composer_json.ok_or_else(|| format!("Cursor conversation not found: {session_path}"))?;
+    let composer = parse_cursor_json(&composer_json)?;
 
-    let workspace_id = composer_json
-        .as_deref()
-        .and_then(|raw| parse_cursor_json(raw).ok())
-        .and_then(|composer| {
-            composer
-                .get("workspaceIdentifier")
-                .and_then(|wi| wi.get("id"))
-                .and_then(Value::as_str)
-                .map(std::string::ToString::to_string)
-        });
-
-    let deleted = conn
-        .execute("DELETE FROM cursorDiskKV WHERE key = ?1", [&composer_key])
-        .map_err(|e| format!("Failed to delete Cursor conversation: {e}"))?;
-    if deleted == 0 {
-        return Err(format!("Cursor conversation not found: {session_path}"));
+    // The workspace whose index lists this composer: its own stamp, else the
+    // legacy listing that ties pre-stamp composers to a folder (the same
+    // resolution the project scan uses).
+    let ws_root = base.join("workspaceStorage");
+    let (workspace_id, _) = resolve_composer_workspace(
+        &composer,
+        composer_id,
+        &legacy_composer_workspaces(&ws_root, &ScanReport::default()),
+    );
+    let ws_db = (!is_orphan_workspace_id(&workspace_id)
+        && crate::utils::is_safe_storage_id(&workspace_id))
+    .then(|| ws_root.join(&workspace_id).join("state.vscdb"))
+    .filter(|path| path.is_file() && !crate::utils::is_symlink(path));
+    if let Some(ws_db) = &ws_db {
+        conn.execute(
+            "ATTACH DATABASE ?1 AS ws",
+            [ws_db.to_string_lossy().as_ref()],
+        )
+        .map_err(|e| format!("Failed to open Cursor workspace DB: {e}"))?;
     }
 
-    // The composer id is a validated storage id, but `LIKE` still treats `%`
-    // and `_` as wildcards. Escape them so one id can never match another's
-    // bubbles.
-    let pattern = format!("bubbleId:{}:%", escape_like(composer_id));
-    conn.execute(
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("Failed to lock Cursor DB: {e}"))?;
+
+    tx.execute("DELETE FROM cursorDiskKV WHERE key = ?1", [&composer_key])
+        .map_err(|e| format!("Failed to delete Cursor conversation: {e}"))?;
+    // `LIKE` treats `%` and `_` as wildcards; escape them so one id can never
+    // match another composer's rows.
+    let pattern = format!("%:{}:%", escape_like(composer_id));
+    tx.execute(
         "DELETE FROM cursorDiskKV WHERE key LIKE ?1 ESCAPE '\\'",
         [pattern],
     )
     .map_err(|e| format!("Failed to delete Cursor messages: {e}"))?;
 
-    drop(conn);
-
-    if let Some(workspace_id) = workspace_id.as_deref() {
-        if let Err(error) = remove_composer_from_workspace(&base, workspace_id, composer_id) {
-            log::warn!("Cursor workspace index cleanup failed for {composer_id}: {error}");
-        }
+    if ws_db.is_some() {
+        remove_composer_from_workspace_index(&tx, composer_id)?;
     }
 
-    Ok(())
+    tx.commit()
+        .map_err(|e| format!("Failed to commit Cursor delete: {e}"))
 }
 
 fn escape_like(value: &str) -> String {
@@ -688,43 +747,27 @@ fn escape_like(value: &str) -> String {
         .replace('_', "\\_")
 }
 
-fn remove_composer_from_workspace(
-    base: &Path,
-    workspace_id: &str,
+/// Drop `composer_id` from the attached workspace's `composer.composerData`
+/// (`allComposers` and `selectedComposerIds`) inside the caller's transaction.
+fn remove_composer_from_workspace_index(
+    tx: &rusqlite::Transaction<'_>,
     composer_id: &str,
 ) -> Result<(), String> {
-    if !crate::utils::is_safe_storage_id(workspace_id) {
-        return Ok(());
-    }
-
-    let db_path = base
-        .join("workspaceStorage")
-        .join(workspace_id)
-        .join("state.vscdb");
-    if !db_path.is_file() {
-        return Ok(());
-    }
-
-    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
-        .map_err(|e| format!("Failed to open Cursor workspace DB: {e}"))?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))
-        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
-
-    let data: Option<String> = conn
+    let data: Option<String> = tx
         .query_row(
-            "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
+            "SELECT value FROM ws.ItemTable WHERE key = 'composer.composerData'",
             [],
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| format!("Query failed: {e}"))?;
+        .map_err(|e| format!("Failed to read Cursor workspace index: {e}"))?;
     let Some(data) = data else {
         return Ok(());
     };
 
     let mut json = parse_cursor_json(&data)?;
     let Some(object) = json.as_object_mut() else {
-        return Ok(());
+        return Err("Cursor workspace index is not an object".to_string());
     };
 
     let mut changed = false;
@@ -745,13 +788,49 @@ fn remove_composer_from_workspace(
     }
 
     if changed {
-        conn.execute(
-            "UPDATE ItemTable SET value = ?1 WHERE key = 'composer.composerData'",
+        tx.execute(
+            "UPDATE ws.ItemTable SET value = ?1 WHERE key = 'composer.composerData'",
             [json.to_string()],
         )
         .map_err(|e| format!("Failed to update Cursor workspace index: {e}"))?;
     }
     Ok(())
+}
+
+/// Whether the Cursor desktop app is running. A check that cannot run is an
+/// error: guessing "not running" could let Cursor overwrite the delete.
+#[cfg(windows)]
+fn cursor_is_running() -> Result<bool, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let out = std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq Cursor.exe", "/NH", "/FO", "CSV"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Could not check whether Cursor is running: {e}"))?;
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .to_ascii_lowercase()
+        .contains("\"cursor.exe\""))
+}
+
+/// Whether the Cursor desktop app is running (`Cursor` on macOS, `cursor` on
+/// Linux). A check that cannot run is an error: guessing "not running" could
+/// let Cursor overwrite the delete.
+#[cfg(not(windows))]
+fn cursor_is_running() -> Result<bool, String> {
+    let status = std::process::Command::new("pgrep")
+        .args(["-x", "-i", "cursor"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| format!("Could not check whether Cursor is running: {e}"))?;
+    match status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(format!(
+            "Could not check whether Cursor is running (pgrep exited with {status})"
+        )),
+    }
 }
 
 fn attach_composer_token_usage(composer: &Value, messages: &mut [ClaudeMessage]) {
@@ -857,8 +936,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // Private helpers
 // ============================================================================
 
-fn read_workspace_folder(workspace_json_path: &Path) -> Option<String> {
-    let data = fs::read_to_string(workspace_json_path).ok()?;
+/// The folder a workspace is for; a `workspace.json` that is there but
+/// cannot be read is recorded in `report`.
+fn read_workspace_folder(workspace_json_path: &Path, report: &ScanReport) -> Option<String> {
+    let data = report.read_to_string(workspace_json_path)?;
     let json: Value = serde_json::from_str(&data).ok()?;
     let folder = json.get("folder").and_then(Value::as_str)?;
     // "file:///Users/jack/project" → "/Users/jack/project"
@@ -874,7 +955,9 @@ fn read_workspace_folder(workspace_json_path: &Path) -> Option<String> {
     })
 }
 
-fn load_composer_value(session_path: &str) -> Result<(String, Value), String> {
+/// The composer behind a `cursor://<id>` session path, with the open global
+/// DB connection so callers can read its bubbles and header chunks.
+fn load_composer_value(session_path: &str) -> Result<(Connection, String, Value), String> {
     let composer_id = session_path
         .strip_prefix("cursor://")
         .unwrap_or(session_path)
@@ -896,16 +979,25 @@ fn load_composer_value(session_path: &str) -> Result<(String, Value), String> {
         .map_err(|e| format!("Composer not found: {e}"))?;
 
     let composer = parse_cursor_json(&composer_data)?;
-    Ok((composer_id, composer))
+    Ok((conn, composer_id, composer))
 }
 
-fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
-    if !ws_db_path.is_file() {
+/// A workspace database's legacy composer list. A database that cannot be
+/// opened is an error; it and any later read failure are also recorded in
+/// `report` (composer data that does not parse is an error, not recorded).
+fn read_workspace_composers(ws_db_path: &Path, report: &ScanReport) -> Result<Vec<Value>, String> {
+    if !report.is_file(ws_db_path) {
         return Ok(Vec::new());
     }
 
-    let conn = Connection::open_with_flags(ws_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| format!("Failed to open workspace DB: {e}"))?;
+    let conn = match Connection::open_with_flags(ws_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY) {
+        Ok(conn) => conn,
+        Err(error) => {
+            let message = format!("Failed to open workspace DB: {error}");
+            report.db(ws_db_path, Err::<(), _>(error));
+            return Err(message);
+        }
+    };
     let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
     let data: Result<String, _> = conn.query_row(
@@ -914,9 +1006,8 @@ fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
         |row| row.get(0),
     );
 
-    let data = match data {
-        Ok(d) => d,
-        Err(_) => return Ok(Vec::new()),
+    let Some(data) = report.db(ws_db_path, data) else {
+        return Ok(Vec::new());
     };
 
     let json: Value = parse_cursor_json(&data)?;
@@ -930,10 +1021,13 @@ fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
     Ok(composers)
 }
 
-fn read_global_composers_for_workspace(workspace_id: &str) -> Result<Vec<Value>, String> {
-    let base = get_base_path().ok_or("Cursor not found")?;
+fn read_global_composers_for_workspace(
+    workspace_id: &str,
+    report: &ScanReport,
+) -> Result<Vec<Value>, String> {
+    let base = base_path_reporting(report).ok_or("Cursor not found")?;
     let global_db = base.join("globalStorage/state.vscdb");
-    if !global_db.is_file() {
+    if !report.is_file(&global_db) {
         return Ok(Vec::new());
     }
 
@@ -952,8 +1046,9 @@ fn read_global_composers_for_workspace(workspace_id: &str) -> Result<Vec<Value>,
         })
         .map_err(|e| format!("Query failed: {e}"))?;
 
+    let legacy = legacy_composer_workspaces(&base.join("workspaceStorage"), report);
     let mut composers = Vec::new();
-    for row in rows.flatten() {
+    for row in rows.filter_map(|row| report.db(&global_db, row)) {
         let (key, value) = row;
         let Some(composer_id) = key.strip_prefix("composerData:") else {
             continue;
@@ -964,8 +1059,7 @@ fn read_global_composers_for_workspace(workspace_id: &str) -> Result<Vec<Value>,
         if composer_is_archived(&composer) || !composer_has_conversation(&composer) {
             continue;
         }
-        let (raw_id, _) = workspace_identity_from_composer(&composer);
-        let id = normalize_workspace_bucket_id(&raw_id);
+        let (id, _) = resolve_composer_workspace(&composer, composer_id, &legacy);
         if id != normalize_workspace_bucket_id(workspace_id) {
             continue;
         }
@@ -994,7 +1088,8 @@ fn composer_has_conversation(composer: &Value) -> bool {
     let has_headers = composer
         .get("fullConversationHeadersOnly")
         .and_then(Value::as_array)
-        .is_some_and(|headers| !headers.is_empty());
+        .is_some_and(|headers| !headers.is_empty())
+        || header_log_chunk_count(composer) > 0;
     let has_tokens = composer
         .get("promptTokenBreakdown")
         .and_then(|v| v.get("totalUsedTokens"))
@@ -1002,6 +1097,105 @@ fn composer_has_conversation(composer: &Value) -> bool {
         .unwrap_or(0)
         > 0;
     has_headers || has_tokens
+}
+
+/// Number of `composerConvHeaders:<id>:NNNNNN` chunks a composer's header list
+/// is split into (Cursor 3.x), or 0 for composers that keep it inline.
+fn header_log_chunk_count(composer: &Value) -> u64 {
+    let Some(log) = composer.get("headerLog") else {
+        return 0;
+    };
+    let count = log.get("count").and_then(Value::as_u64).unwrap_or(0);
+    if count == 0 {
+        return 0;
+    }
+    log.get("chunkCount").and_then(Value::as_u64).unwrap_or(0)
+}
+
+/// A composer's ordered conversation headers (`{bubbleId, type}` entries):
+/// the inline `fullConversationHeadersOnly` list, or — when Cursor 3.x left
+/// that empty — the `composerConvHeaders:<id>:NNNNNN` chunks named by its
+/// `headerLog`, concatenated in chunk order. A missing or unreadable chunk is
+/// skipped so the rest of the conversation still loads.
+fn conversation_headers(conn: &Connection, composer_id: &str, composer: &Value) -> Vec<Value> {
+    if let Some(inline) = composer
+        .get("fullConversationHeadersOnly")
+        .and_then(Value::as_array)
+        .filter(|headers| !headers.is_empty())
+    {
+        return inline.clone();
+    }
+
+    let mut headers = Vec::new();
+    for index in 0..header_log_chunk_count(composer) {
+        let key = format!("composerConvHeaders:{composer_id}:{index:06}");
+        let chunk: Result<String, _> = conn.query_row(
+            "SELECT value FROM cursorDiskKV WHERE key = ?1",
+            [&key],
+            |row| row.get(0),
+        );
+        if let Some(Value::Array(entries)) = chunk.ok().and_then(|c| parse_cursor_json(&c).ok()) {
+            headers.extend(entries);
+        }
+    }
+    headers
+}
+
+/// Cursor workspace hash per composer id, from each workspace's legacy
+/// `composer.composerData.allComposers` list. Composers created before Cursor
+/// stamped `workspaceIdentifier` on the global record are tied to their folder
+/// only here. Unreadable workspaces are skipped (and recorded in `report`).
+fn legacy_composer_workspaces(
+    ws_root: &Path,
+    report: &ScanReport,
+) -> std::collections::HashMap<String, String> {
+    let mut ws_paths: Vec<PathBuf> = report
+        .read_dir(ws_root)
+        .into_iter()
+        .map(|entry| entry.path())
+        .filter(|path| !crate::utils::is_symlink(path) && path.is_dir())
+        .collect();
+    // Fixed order so a composer listed by several workspaces always resolves
+    // to the same one (`read_dir` order is platform-dependent).
+    ws_paths.sort();
+
+    let listings = crate::utils::par_map_bounded(ws_paths, |ws_path| {
+        let workspace_id = ws_path.file_name()?.to_string_lossy().to_string();
+        let composers = read_workspace_composers(&ws_path.join("state.vscdb"), report).ok()?;
+        let ids: Vec<String> = composers
+            .iter()
+            .filter_map(|c| c.get("composerId").and_then(Value::as_str))
+            .map(String::from)
+            .collect();
+        Some((workspace_id, ids))
+    });
+
+    let mut index = std::collections::HashMap::new();
+    for (workspace_id, ids) in listings.into_iter().flatten() {
+        for id in ids {
+            index.entry(id).or_insert_with(|| workspace_id.clone());
+        }
+    }
+    index
+}
+
+/// The workspace bucket and folder a global composer belongs to: its own
+/// `workspaceIdentifier`, else the workspace whose legacy listing names it,
+/// else the catch-all `unassigned` bucket.
+fn resolve_composer_workspace(
+    composer: &Value,
+    composer_id: &str,
+    legacy: &std::collections::HashMap<String, String>,
+) -> (String, String) {
+    let (raw_workspace_id, folder_path) = workspace_identity_from_composer(composer);
+    let workspace_id = normalize_workspace_bucket_id(&raw_workspace_id);
+    if !is_orphan_workspace_id(&workspace_id) {
+        return (workspace_id, folder_path);
+    }
+    match legacy.get(composer_id) {
+        Some(listed) => (listed.clone(), folder_path),
+        None => (workspace_id, folder_path),
+    }
 }
 
 fn workspace_identity_from_composer(composer: &Value) -> (String, String) {
@@ -1198,7 +1392,7 @@ fn convert_assistant_bubble(
         let status = tool_data
             .get("status")
             .and_then(Value::as_str)
-            .unwrap_or("completed");
+            .unwrap_or("");
         let raw_args = tool_data
             .get("rawArgs")
             .and_then(Value::as_str)
@@ -1221,7 +1415,8 @@ fn convert_assistant_bubble(
                 "type": "tool_result",
                 "tool_use_id": tool_call_id,
                 "content": text,
-                "is_error": status == "error" || status == "rejected"
+                "is_error": status == "error" || status == "rejected",
+                "is_error_source": "derived"
             }));
         }
     } else if !text.is_empty() {
@@ -1639,17 +1834,18 @@ mod tests {
         }));
     }
 
-    #[test]
-    #[serial]
-    fn delete_session_removes_composer_bubbles_and_workspace_index() {
+    /// Global DB with `comp-delete` (bubble + header chunk) and `comp-keep`,
+    /// and workspace `hash-delete` whose index lists both. `stamped` decides
+    /// whether `comp-delete` names its workspace or relies on that listing.
+    fn delete_fixture(stamped: bool) -> (tempfile::TempDir, PathBuf, PathBuf) {
         let temp = tempfile::TempDir::new().unwrap();
         let user_dir = temp.path().join("User");
         let ws_hash = "hash-delete";
         let ws_dir = user_dir.join("workspaceStorage").join(ws_hash);
         fs::create_dir_all(&ws_dir).unwrap();
-        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+        let ws_db = ws_dir.join("state.vscdb");
 
-        let ws_conn = Connection::open(ws_dir.join("state.vscdb")).unwrap();
+        let ws_conn = Connection::open(&ws_db).unwrap();
         ws_conn
             .execute(
                 "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
@@ -1670,73 +1866,320 @@ mod tests {
             )
             .unwrap();
 
-        let global_conn =
-            Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
-        global_conn
-            .execute(
-                "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
-                [],
-            )
-            .unwrap();
-        for (key, value) in [
-            (
-                "composerData:comp-delete",
-                json!({
-                    "composerId": "comp-delete",
-                    "workspaceIdentifier": { "id": ws_hash }
-                })
-                .to_string(),
-            ),
-            (
-                "bubbleId:comp-delete:b1",
-                json!({ "bubbleId": "b1", "text": "delete me" }).to_string(),
-            ),
-            (
-                "composerData:comp-keep",
-                json!({ "composerId": "comp-keep" }).to_string(),
-            ),
-            (
-                "bubbleId:comp-keep:b1",
-                json!({ "bubbleId": "b1", "text": "keep me" }).to_string(),
-            ),
-        ] {
-            global_conn
-                .execute(
-                    "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
-                    rusqlite::params![key, value],
-                )
-                .unwrap();
-        }
-        drop(global_conn);
+        let composer = if stamped {
+            json!({ "composerId": "comp-delete", "workspaceIdentifier": { "id": ws_hash } })
+        } else {
+            json!({ "composerId": "comp-delete" })
+        };
+        let global_conn = create_global_db(&user_dir);
+        put_kv(&global_conn, "composerData:comp-delete", &composer);
+        put_kv(
+            &global_conn,
+            "bubbleId:comp-delete:b1",
+            &json!({ "bubbleId": "b1", "text": "delete me" }),
+        );
+        put_kv(
+            &global_conn,
+            "composerConvHeaders:comp-delete:000000",
+            &json!([{ "bubbleId": "b1", "type": 1 }]),
+        );
+        put_kv(
+            &global_conn,
+            "composerData:comp-keep",
+            &json!({ "composerId": "comp-keep" }),
+        );
+        put_kv(
+            &global_conn,
+            "bubbleId:comp-keep:b1",
+            &json!({ "bubbleId": "b1", "text": "keep me" }),
+        );
+        (temp, user_dir, ws_db)
+    }
 
-        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
-        delete_session("cursor://comp-delete").unwrap();
-
-        let global_conn =
-            Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
-        let mut stmt = global_conn
+    fn global_keys(user_dir: &Path) -> Vec<String> {
+        let conn = Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        let mut stmt = conn
             .prepare("SELECT key FROM cursorDiskKV ORDER BY key")
             .unwrap();
-        let keys: Vec<String> = stmt
+        let keys = stmt
             .query_map([], |row| row.get(0))
             .unwrap()
             .flatten()
             .collect();
-        assert_eq!(keys, ["bubbleId:comp-keep:b1", "composerData:comp-keep"]);
+        keys
+    }
 
-        let index: String = ws_conn
+    fn workspace_index(ws_db: &Path) -> Value {
+        let conn = Connection::open(ws_db).unwrap();
+        let raw: String = conn
             .query_row(
                 "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        let index: Value = parse_cursor_json(&index).unwrap();
+        parse_cursor_json(&raw).unwrap()
+    }
+
+    #[test]
+    fn delete_session_removes_composer_rows_and_workspace_index() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap();
+
+        assert_eq!(
+            global_keys(&user_dir),
+            ["bubbleId:comp-keep:b1", "composerData:comp-keep"]
+        );
+        let index = workspace_index(&ws_db);
         assert_eq!(
             index["allComposers"],
             json!([{ "composerId": "comp-keep" }])
         );
         assert_eq!(index["selectedComposerIds"], json!(["comp-keep"]));
+    }
+
+    /// A composer from before Cursor stamped `workspaceIdentifier` is tied to
+    /// its workspace only by that workspace's listing, which must still be
+    /// cleaned or the scan would resurrect it.
+    #[test]
+    fn delete_session_cleans_legacy_listing_of_unstamped_composer() {
+        let (_temp, user_dir, ws_db) = delete_fixture(false);
+        delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap();
+
+        assert_eq!(
+            global_keys(&user_dir),
+            ["bubbleId:comp-keep:b1", "composerData:comp-keep"]
+        );
+        assert_eq!(
+            workspace_index(&ws_db)["allComposers"],
+            json!([{ "composerId": "comp-keep" }])
+        );
+    }
+
+    #[test]
+    fn delete_session_refuses_while_cursor_runs_or_cannot_be_checked() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        let before = global_keys(&user_dir);
+
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || Ok(true)).unwrap_err();
+        assert!(err.starts_with("Cursor is running"), "{err}");
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || {
+            Err("Could not check whether Cursor is running".to_string())
+        })
+        .unwrap_err();
+        assert!(err.starts_with("Could not check"), "{err}");
+
+        assert_eq!(global_keys(&user_dir), before);
+        assert_eq!(
+            workspace_index(&ws_db)["selectedComposerIds"],
+            json!(["comp-delete", "comp-keep"])
+        );
+    }
+
+    /// A workspace index that cannot be rewritten rolls the row deletes back:
+    /// the conversation is either fully gone or untouched.
+    #[test]
+    fn delete_session_is_atomic_across_global_and_workspace_dbs() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        Connection::open(&ws_db)
+            .unwrap()
+            .execute(
+                "UPDATE ItemTable SET value = '[]' WHERE key = 'composer.composerData'",
+                [],
+            )
+            .unwrap();
+        let before = global_keys(&user_dir);
+
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap_err();
+        assert_eq!(err, "Cursor workspace index is not an object");
+        assert_eq!(global_keys(&user_dir), before);
+    }
+
+    #[test]
+    fn delete_session_rejects_ids_that_are_not_cursor_uris() {
+        let (_temp, user_dir, _) = delete_fixture(true);
+        for bad in ["comp-delete", "cursor://../x", "cursor://a%b", "cursor://"] {
+            assert!(
+                delete_session_in(&user_dir, bad, || Ok(false)).is_err(),
+                "{bad}"
+            );
+        }
+        assert_eq!(global_keys(&user_dir).len(), 5);
+    }
+
+    fn create_global_db(user_dir: &Path) -> Connection {
+        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+        let conn = Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        conn.execute(
+            "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+            [],
+        )
+        .unwrap();
+        conn
+    }
+
+    fn put_kv(conn: &Connection, key: &str, value: &Value) {
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+            rusqlite::params![key, value.to_string()],
+        )
+        .unwrap();
+    }
+
+    fn put_bubble(conn: &Connection, composer_id: &str, bubble_id: &str, kind: u64, text: &str) {
+        put_kv(
+            conn,
+            &format!("bubbleId:{composer_id}:{bubble_id}"),
+            &json!({
+                "bubbleId": bubble_id,
+                "type": kind,
+                "text": text,
+                "createdAt": "2026-10-11T17:23:40Z"
+            }),
+        );
+    }
+
+    /// Workspace whose legacy `allComposers` lists `composer_ids` (the only
+    /// link from a pre-`workspaceIdentifier` composer to its folder).
+    fn write_workspace_listing(ws_path: &Path, folder: &str, composer_ids: &[&str]) {
+        fs::create_dir_all(ws_path).unwrap();
+        fs::write(
+            ws_path.join("workspace.json"),
+            format!(r#"{{"folder":"file://{folder}"}}"#),
+        )
+        .unwrap();
+        let conn = Connection::open(ws_path.join("state.vscdb")).unwrap();
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+            [],
+        )
+        .unwrap();
+        let all: Vec<Value> = composer_ids
+            .iter()
+            .map(|id| json!({ "composerId": id, "name": "listed" }))
+            .collect();
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+            [json!({ "allComposers": all }).to_string()],
+        )
+        .unwrap();
+    }
+
+    /// Cursor 3.x stores the header list in `composerConvHeaders:<id>:NNNNNN`
+    /// chunks (described by `headerLog`) and leaves
+    /// `fullConversationHeadersOnly` empty; the bubbles keep their usual keys.
+    #[test]
+    #[serial]
+    fn test_load_messages_from_chunked_conversation_headers() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path().join("User");
+        let global = create_global_db(&user_dir);
+        put_kv(
+            &global,
+            "composerData:comp-chunked",
+            &json!({
+                "composerId": "comp-chunked",
+                "name": "Chunked chat",
+                "createdAt": 1_790_000_000_000u64,
+                "fullConversationHeadersOnly": [],
+                "headerLog": { "chunkSize": 2, "chunkCount": 2, "count": 3 },
+                "workspaceIdentifier": {
+                    "id": "hash-chunked",
+                    "uri": { "fsPath": "/Users/test/chunked" }
+                }
+            }),
+        );
+        put_kv(
+            &global,
+            "composerConvHeaders:comp-chunked:000000",
+            &json!([{ "bubbleId": "b1", "type": 1 }, { "bubbleId": "b2", "type": 2 }]),
+        );
+        put_kv(
+            &global,
+            "composerConvHeaders:comp-chunked:000001",
+            &json!([{ "bubbleId": "b3", "type": 1 }]),
+        );
+        put_bubble(&global, "comp-chunked", "b1", 1, "first question");
+        put_bubble(&global, "comp-chunked", "b2", 2, "first answer");
+        put_bubble(&global, "comp-chunked", "b3", 1, "follow-up");
+
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
+        let projects = scan_projects().unwrap();
+        assert_eq!(
+            projects.len(),
+            1,
+            "a chunked composer counts as a conversation"
+        );
+
+        let messages = load_messages("cursor://comp-chunked").unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(
+            types,
+            vec!["user", "assistant", "user"],
+            "chunks are read in order"
+        );
+
+        let stats = load_stats_messages("cursor://comp-chunked").unwrap();
+        assert_eq!(stats.len(), 3);
+    }
+
+    /// Composers from before Cursor stamped `workspaceIdentifier` on the global
+    /// record are tied to their folder only by the workspace's `allComposers`;
+    /// they belong to that folder, not the catch-all "Cursor" project.
+    #[test]
+    #[serial]
+    fn test_unstamped_composers_resolve_workspace_from_legacy_listing() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path().join("User");
+        let ws_root = user_dir.join("workspaceStorage");
+        write_workspace_listing(
+            &ws_root.join("hash-old"),
+            "/Users/test/old-proj",
+            &["comp-old"],
+        );
+
+        let global = create_global_db(&user_dir);
+        for (id, name) in [("comp-old", "Old chat"), ("comp-orphan", "Orphan chat")] {
+            put_kv(
+                &global,
+                &format!("composerData:{id}"),
+                &json!({
+                    "composerId": id,
+                    "name": name,
+                    "createdAt": 1_750_000_000_000u64,
+                    "fullConversationHeadersOnly": [{ "bubbleId": "b1", "type": 1 }]
+                }),
+            );
+            put_bubble(&global, id, "b1", 1, "hello");
+        }
+
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
+        let mut projects = scan_projects().unwrap();
+        projects.sort_by(|a, b| a.name.cmp(&b.name));
+        let summary: Vec<(&str, usize)> = projects
+            .iter()
+            .map(|p| (p.name.as_str(), p.session_count))
+            .collect();
+        assert_eq!(summary, vec![("Cursor", 1), ("old-proj", 1)]);
+
+        let old = projects.iter().find(|p| p.name == "old-proj").unwrap();
+        assert_eq!(old.actual_path, "/Users/test/old-proj");
+        let old_sessions = load_sessions(&old.path, false).unwrap();
+        let names: Vec<_> = old_sessions.iter().map(|s| s.summary.clone()).collect();
+        assert_eq!(names, vec![Some("Old chat".to_string())]);
+
+        let orphan = projects.iter().find(|p| p.name == "Cursor").unwrap();
+        let orphan_sessions = load_sessions(&orphan.path, false).unwrap();
+        let names: Vec<_> = orphan_sessions.iter().map(|s| s.summary.clone()).collect();
+        assert_eq!(names, vec![Some("Orphan chat".to_string())]);
+
+        let mut stats_projects: Vec<String> = collect_global_stats_sessions()
+            .unwrap()
+            .into_iter()
+            .map(|(project, _)| project)
+            .collect();
+        stats_projects.sort();
+        assert_eq!(stats_projects, vec!["Cursor [cursor]", "old-proj [cursor]"]);
     }
 
     /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`
@@ -1799,12 +2242,29 @@ mod tests {
         .unwrap();
         fs::write(broken.join("state.vscdb"), b"this is not a sqlite database").unwrap();
 
-        let projects = scan_projects_in(&ws_dir).unwrap();
+        let projects = scan_projects_in(&ws_dir, &ScanReport::default()).unwrap();
         let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(
             names,
             vec!["new-proj", "old-proj"],
             "valid workspaces survive a corrupt sibling, newest first: {names:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let msg = convert_assistant_bubble(
+            &serde_json::json!({"toolFormerData":{"name":"read_file"}}),
+            "synthetic",
+            "m",
+            "s",
+            "",
+        )
+        .unwrap();
+        assert_eq!(msg.content.unwrap()[1]["is_error_source"], "derived");
     }
 }

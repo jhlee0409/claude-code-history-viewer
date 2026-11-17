@@ -640,6 +640,8 @@ fn refusal<T: std::fmt::Debug>(result: Result<T, String>) -> String {
 /// something writes to it. The desktop app is the only caller that can hand
 /// them such a path; over the `WebUI` the history-root guard refuses it first
 /// (`server::tests::test_session_routes_answer_with_entries_that_are_not_regular_files`).
+/// `get_session_token_stats` opened the session with a plain open, so a FIFO
+/// stalled it (#700).
 #[test]
 #[serial]
 fn the_message_readers_refuse_entries_that_are_not_regular_files() {
@@ -648,7 +650,7 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
     fs::create_dir_all(project.join("folder.jsonl")).unwrap();
     mkfifo(&project.join("fifo.jsonl"));
 
-    let readers: [(&'static str, ReadSession); 7] = [
+    let readers: [(&'static str, ReadSession); 8] = [
         ("load_session_messages", |path| {
             refusal(block_on(load_session_messages(path)))
         }),
@@ -673,6 +675,11 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
         ("get_recent_edits", |path| {
             let project = text(Path::new(&path).parent().unwrap());
             refusal(block_on(get_recent_edits(project, None, None, Some(path), None)).map(|_| ()))
+        }),
+        ("get_session_token_stats", |path| {
+            refusal(block_on(stats::get_session_token_stats(
+                path, None, None, None,
+            )))
         }),
     ];
     let mut read = Vec::new();

@@ -7,17 +7,19 @@
 import type { ClaudeMessage } from "@/types";
 import { extractBlocks, filterBlocksByContentType, isExportable, type ExtractedBlock, type ExportOptions } from "./contentExtractor";
 import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
+import { localDayKey, localTimeOfDay } from "@/lib/format/localDay";
+import { formatCount } from "@/lib/format/number";
 
+/** Exports are language-neutral: local `YYYY-MM-DD` and 24-hour `HH:MM:SS`. */
 function formatTimestamp(timestamp: string): { date: string; time: string } {
-  const d = new Date(timestamp);
-  if (Number.isNaN(d.getTime())) return { date: timestamp, time: timestamp };
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
   return {
-    date: `${y}-${m}-${day}`,
-    time: d.toLocaleTimeString("en-US", { hour12: false }),
+    date: localDayKey(timestamp) ?? timestamp,
+    time: localTimeOfDay(timestamp) ?? timestamp,
   };
+}
+
+function quoteBlock(text: string): string {
+  return text.split(/\r\n|\r|\n/).map((line) => `> ${line}`).join("\n");
 }
 
 function blockToMarkdown(block: ExtractedBlock): string {
@@ -25,9 +27,9 @@ function blockToMarkdown(block: ExtractedBlock): string {
     case "thinking":
       return `<details>\n<summary>Thinking</summary>\n\n${block.text}\n\n</details>`;
     case "tool":
-      return `> **Tool:** \`${block.text}\``;
+      return quoteBlock(`**Tool:** \`${block.text}\``);
     case "result":
-      return `> ${block.text}`;
+      return quoteBlock(block.text);
     case "code":
       return `\`\`\`\n${block.text}\n\`\`\``;
     case "media":
@@ -82,8 +84,8 @@ export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string,
     if (msg.type === "assistant" && "usage" in msg && msg.usage) {
       const u = msg.usage;
       const parts: string[] = [];
-      if (u.input_tokens != null) parts.push(`in: ${u.input_tokens.toLocaleString()}`);
-      if (u.output_tokens != null) parts.push(`out: ${u.output_tokens.toLocaleString()}`);
+      if (u.input_tokens != null) parts.push(`in: ${formatCount(u.input_tokens, "en")}`);
+      if (u.output_tokens != null) parts.push(`out: ${formatCount(u.output_tokens, "en")}`);
       if (parts.length > 0) {
         const cost = "costUSD" in msg && msg.costUSD != null
           ? ` · $${msg.costUSD.toFixed(4)}`

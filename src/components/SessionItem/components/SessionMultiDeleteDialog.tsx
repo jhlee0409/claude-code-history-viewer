@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { LoaderCircle, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -50,14 +50,14 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              <Trash className="h-4 w-4" aria-hidden="true" />
             </span>
             {t("session.selection.deleteTitle", {
               count,
               defaultValue: "Delete {{count}} sessions",
             })}
           </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed">
+          <DialogDescription className="text-body leading-relaxed">
             {t(
               "session.deleteConfirm",
               "This will delete the session file and all associated data (subagents, tool results). The file is moved to the trash when possible, otherwise it is permanently deleted."
@@ -66,7 +66,7 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
         </DialogHeader>
 
         <div className="min-w-0 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
-          <p className="text-xs font-medium text-destructive">
+          <p className="text-list font-medium text-destructive">
             {t("session.selection.deleteTargets", {
               count,
               defaultValue: "{{count}} sessions",
@@ -76,14 +76,14 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
             {previewNames.map((name, i) => (
               <li
                 key={`${name}-${i}`}
-                className="min-w-0 truncate text-xs text-muted-foreground"
+                className="min-w-0 truncate text-list text-muted-foreground"
               >
                 {name}
               </li>
             ))}
           </ul>
           {remaining > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-list text-muted-foreground">
               {t("session.selection.deleteMore", {
                 count: remaining,
                 defaultValue: "and {{count}} more",
@@ -93,7 +93,7 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
         </div>
 
         {skippedCount > 0 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-list text-muted-foreground">
             {t("session.selection.deleteSkipped", {
               count: skippedCount,
               defaultValue:
@@ -118,9 +118,9 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
             disabled={isDeleting || count === 0}
           >
             {isDeleting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : (
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <Trash className="h-3.5 w-3.5" aria-hidden="true" />
             )}
             {t("session.selection.deleteConfirmButton", {
               count,

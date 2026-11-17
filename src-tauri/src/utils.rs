@@ -273,6 +273,14 @@ pub fn search_result_priority(message: &ClaudeMessage, query_lower: &str) -> usi
 
 // ===== Git Worktree Detection =====
 
+/// Read `originalPath` from a session storage folder's `sessions-index.json`.
+fn index_original_path(session_storage_path: &str) -> Option<String> {
+    let index_path = Path::new(session_storage_path).join("sessions-index.json");
+    let content = std::fs::read_to_string(index_path).ok()?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+    parsed.get("originalPath")?.as_str().map(str::to_string)
+}
+
 /// Decode Claude session storage path to actual project path
 ///
 /// Claude stores sessions in ~/.claude/projects/ with the project path encoded:
@@ -283,14 +291,9 @@ pub fn search_result_priority(message: &ClaudeMessage, query_lower: &str) -> usi
 /// where the project name itself contains hyphens.
 pub fn decode_project_path(session_storage_path: &str) -> String {
     // 1. Try reading originalPath from sessions-index.json (most reliable)
-    let index_path = Path::new(session_storage_path).join("sessions-index.json");
-    if let Ok(content) = std::fs::read_to_string(&index_path) {
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
-                if !original.is_empty() && Path::new(original).is_absolute() {
-                    return original.to_string();
-                }
-            }
+    if let Some(original) = index_original_path(session_storage_path) {
+        if !original.is_empty() && Path::new(&original).is_absolute() {
+            return original;
         }
     }
 
@@ -310,14 +313,8 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
         // the point: on Windows the heuristic would otherwise fabricate
         // `/D--OneDrive/...` (#548).
         if encoded.starts_with('-') {
-            let parts: Vec<&str> = encoded.splitn(4, '-').collect();
-            if parts.len() >= 4 {
-                return format!("/{}/{}/{}", parts[1], parts[2], parts[3]);
-            } else if parts.len() == 3 {
-                return format!("/{}/{}", parts[1], parts[2]);
-            } else if parts.len() == 2 {
-                return format!("/{}", parts[1]);
-            }
+            let parts: Vec<&str> = encoded.splitn(4, '-').skip(1).collect();
+            return format!("/{}", parts.join("/"));
         }
     }
     session_storage_path.to_string()
@@ -338,22 +335,17 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
 pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String> {
     // 1. Prefer originalPath from sessions-index.json, but only if it still
     //    points at an existing directory.
-    let index_path = Path::new(session_storage_path).join("sessions-index.json");
-    if let Ok(content) = std::fs::read_to_string(&index_path) {
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
-                let original = original.trim();
-                let candidate = Path::new(original);
-                // Use symlink_metadata (not is_dir, which follows symlinks) so a
-                // symlinked directory is rejected here too, matching the
-                // symlink-blocking policy in decode_with_filesystem_check.
-                let is_real_dir = std::fs::symlink_metadata(candidate)
-                    .map(|m| m.file_type().is_dir())
-                    .unwrap_or(false);
-                if candidate.is_absolute() && is_real_dir {
-                    return Some(original.to_string());
-                }
-            }
+    if let Some(original) = index_original_path(session_storage_path) {
+        let original = original.trim();
+        let candidate = Path::new(original);
+        // Use symlink_metadata (not is_dir, which follows symlinks) so a
+        // symlinked directory is rejected here too, matching the
+        // symlink-blocking policy in decode_with_filesystem_check.
+        let is_real_dir = std::fs::symlink_metadata(candidate)
+            .map(|m| m.file_type().is_dir())
+            .unwrap_or(false);
+        if candidate.is_absolute() && is_real_dir {
+            return Some(original.to_string());
         }
     }
 
@@ -505,10 +497,24 @@ fn decode_recursive_inner(encoded: &str, base_path: &Path, depth: usize) -> Opti
 /// `/Users/jack/main/.git/worktrees/feature` → `/Users/jack/main/.git`
 fn extract_main_git_dir(gitdir: &str) -> Option<String> {
     const WORKTREES_MARKER: &str = "/.git/worktrees/";
-    if let Some(pos) = gitdir.find(WORKTREES_MARKER) {
-        return Some(format!("{}/.git", &gitdir[..pos]));
-    }
-    None
+    gitdir
+        .find(WORKTREES_MARKER)
+        .map(|pos| format!("{}/.git", &gitdir[..pos]))
+}
+
+/// Parse a linked worktree's `.git` file (`gitdir: <main>/.git/worktrees/<name>`).
+fn linked_worktree_info(git_file: &Path) -> Option<GitInfo> {
+    let content = fs::read_to_string(git_file).ok()?;
+    let gitdir = content.strip_prefix("gitdir: ")?.trim();
+    // /path/to/main/.git/worktrees/branch-name -> /path/to/main/.git
+    let main_git_dir = extract_main_git_dir(gitdir)?;
+    Some(GitInfo {
+        worktree_type: GitWorktreeType::Linked,
+        // /path/to/main/.git -> /path/to/main
+        main_project_path: Path::new(&main_git_dir)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string()),
+    })
 }
 
 /// Detect git worktree information for a project
@@ -525,13 +531,6 @@ pub fn detect_git_worktree_info(project_path: &str) -> Option<GitInfo> {
     let actual_path = decode_project_path(project_path);
     let git_path = Path::new(&actual_path).join(".git");
 
-    if !git_path.exists() {
-        return Some(GitInfo {
-            worktree_type: GitWorktreeType::NotGit,
-            main_project_path: None,
-        });
-    }
-
     if git_path.is_dir() {
         // Main repository
         return Some(GitInfo {
@@ -541,24 +540,8 @@ pub fn detect_git_worktree_info(project_path: &str) -> Option<GitInfo> {
     }
 
     if git_path.is_file() {
-        // Linked worktree - parse .git file content
-        // Content format: "gitdir: /path/to/main/.git/worktrees/branch-name"
-        if let Ok(content) = fs::read_to_string(&git_path) {
-            if let Some(gitdir) = content.strip_prefix("gitdir: ") {
-                let gitdir = gitdir.trim();
-                // /path/to/main/.git/worktrees/branch-name -> /path/to/main/.git
-                if let Some(main_git_dir) = extract_main_git_dir(gitdir) {
-                    // /path/to/main/.git -> /path/to/main
-                    let main_project_path = Path::new(&main_git_dir)
-                        .parent()
-                        .map(|p| p.to_string_lossy().to_string());
-
-                    return Some(GitInfo {
-                        worktree_type: GitWorktreeType::Linked,
-                        main_project_path,
-                    });
-                }
-            }
+        if let Some(info) = linked_worktree_info(&git_path) {
+            return Some(info);
         }
     }
 
@@ -657,6 +640,8 @@ pub fn build_provider_message(
 ) -> ClaudeMessage {
     ClaudeMessage {
         uuid,
+        source_execution: None,
+        codex_evidence: None,
         parent_uuid: None,
         session_id: session_id.to_string(),
         timestamp,

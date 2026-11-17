@@ -6,6 +6,7 @@
 
 import { matchGlobPattern } from "../../utils/globUtils";
 import type { ProviderId } from "./session";
+import type { SessionRef } from "../../navigation/place";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
@@ -26,6 +27,12 @@ export interface SessionMetadata {
   notes?: string;
   /** Whether the session has been renamed via Claude Code native rename (synced with CLI) */
   hasClaudeCodeName?: boolean;
+  /**
+   * Where the session lives, recorded when it is starred (plan T7), so a
+   * favourite opens without scanning every project. Stars saved before it
+   * existed have none until their project is opened.
+   */
+  ref?: SessionRef;
 }
 
 // ============================================================================
@@ -43,7 +50,7 @@ export interface ProjectMetadata {
 }
 
 /** Grouping mode for project tree display */
-export type GroupingMode = "none" | "worktree" | "directory";
+export type GroupingMode = "none" | "worktree" | "directory" | "time";
 
 // ============================================================================
 // User Settings
@@ -81,7 +88,7 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
-  /** Project tree grouping mode: none, worktree, or directory */
+  /** Project tree grouping mode: none, worktree, directory, or time */
   groupingMode?: GroupingMode;
   /** Additional Claude configuration directories to scan */
   customClaudePaths?: CustomClaudePath[];
@@ -89,6 +96,8 @@ export interface UserSettings {
   wsl?: WslSettings;
   /** Providers explicitly discovered by the user and allowed to scan on startup */
   discoveredProviderIds?: ProviderId[];
+  /** An explicit provider discovery completed (even one that found nothing) */
+  providersDiscovered?: boolean;
   /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
   resumeCliArgs?: Record<string, string>;
 }
@@ -128,7 +137,8 @@ export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
     !metadata.notes &&
-    !metadata.hasClaudeCodeName
+    !metadata.hasClaudeCodeName &&
+    !metadata.ref
   );
 };
 

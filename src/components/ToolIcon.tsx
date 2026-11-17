@@ -1,7 +1,7 @@
 import {
   Bot,
   Code,
-  Edit,
+  SquarePen,
   FileSearch,
   FileText,
   FolderSearch,
@@ -10,7 +10,7 @@ import {
   ListTodo,
   Plug,
   Search,
-  Terminal,
+  SquareTerminal,
   Wrench,
   FilePlus,
   GitCommitVertical,
@@ -24,7 +24,13 @@ type Props = {
   /** Whether to apply tool-specific color */
   colored?: boolean;
   /** Size variant */
-  size?: "sm" | "default" | "lg";
+  size?: "sm" | "default";
+  /**
+   * The native tooltip; the tool name by default. `null` drops it where the
+   * caller's wrapper names the icon itself (a ToolRow icon carries the
+   * translated tool kind), so an inner tooltip never overrides that one.
+   */
+  title?: string | null;
 };
 
 /** Tool variant to Tailwind color class mapping */
@@ -49,10 +55,9 @@ const VARIANT_COLORS: Record<RendererVariant, string> = {
 
 /** Size classes */
 const SIZE_CLASSES = {
-  sm: "w-3 h-3",
+  sm: "w-3.5 h-3.5",
   default: "w-4 h-4",
-  lg: "w-5 h-5",
-};
+} as const;
 
 import { getToolVariant } from "@/utils/toolIconUtils";
 
@@ -62,7 +67,7 @@ const getIcon = (name: string) => {
 
   // Terminal/Shell
   if (lower.includes("bash") || lower.includes("command") || lower.includes("shell") || lower.includes("kill")) {
-    return Terminal;
+    return SquareTerminal;
   }
 
   // File reading
@@ -72,7 +77,7 @@ const getIcon = (name: string) => {
 
   // File writing/editing
   if (lower.includes("edit") || lower.includes("write") || lower.includes("notebook")) {
-    return Edit;
+    return SquarePen;
   }
 
   // Code/LSP
@@ -130,14 +135,14 @@ const getIcon = (name: string) => {
   return Wrench;
 };
 
-export const ToolIcon = ({ toolName, className, colored = false, size = "default" }: Props) => {
+export const ToolIcon = ({ toolName, className, colored = false, size = "default", title = toolName }: Props) => {
   const Icon = getIcon(toolName);
   const variant = getToolVariant(toolName);
   const colorClass = colored ? VARIANT_COLORS[variant] : "";
   const sizeClass = SIZE_CLASSES[size];
 
   return (
-    <span title={toolName}>
+    <span title={title ?? undefined}>
       <Icon className={cn(sizeClass, colorClass, className)} />
     </span>
   );

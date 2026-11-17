@@ -132,7 +132,8 @@ export function ScreenshotPreviewModal({
   }, [width, height, resetZoom]);
 
   const [isDragging, setIsDragging] = useState(false);
-  const zoomPercent = Math.round(zoom * 100);
+  // format-guard: not-a-share — zoom level, may exceed 100%
+  const zoomLabel = t("captureMode.preview.zoomLevel", { percent: Math.round(zoom * 100) });
 
   return createPortal(
     <div
@@ -149,11 +150,11 @@ export function ScreenshotPreviewModal({
       <div className="flex items-center justify-between px-4 py-2.5 bg-popover/90 border-b border-border">
         {/* Left: dimensions */}
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-muted-foreground">
+          <span className="text-list font-mono text-muted-foreground">
             {t("captureMode.preview.dimensions", { width, height })}
           </span>
-          <span className="text-xs font-mono text-muted-foreground">
-            {t("captureMode.preview.zoomLevel", { percent: zoomPercent })}
+          <span className="text-list font-mono text-muted-foreground">
+            {zoomLabel}
           </span>
         </div>
 
@@ -203,7 +204,7 @@ export function ScreenshotPreviewModal({
             type="button"
             onClick={onSave}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded",
+              "flex items-center gap-1.5 px-3 py-1.5 text-list font-medium rounded",
               "bg-accent hover:bg-accent/90 text-accent-foreground",
               "border border-accent hover:border-accent/80",
               "transition-all duration-150",
@@ -222,7 +223,7 @@ export function ScreenshotPreviewModal({
             aria-label={t("captureMode.preview.cancel")}
             title={t("captureMode.preview.cancel")}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 # Server Mode Guide
 
-Run Claude Code History Viewer as a web server — access your conversation history from any browser, anywhere.
+Run Omnilogue (formerly Claude Code History Viewer) as a web server — access your conversation history from any browser, anywhere.
 
 **Languages**: [English](server-guide.md) | [한국어](server-guide.ko.md)
 

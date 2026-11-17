@@ -20,6 +20,10 @@ const FONT_SCALE_OPTIONS = [
 const radioItemClass =
   "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
 
+/** A font size setting as the menu shows it (`110%`). */
+// format-guard: not-a-share — font size setting (90-130), may exceed 100%
+const scaleLabel = (scale: number) => `${scale}%`;
+
 export const FontMenuGroup = () => {
   const { t } = useTranslation();
   const { fontScale, setFontScale } = useAppStore();
@@ -29,7 +33,7 @@ export const FontMenuGroup = () => {
       <DropdownMenuSubTrigger>
         <Type className="mr-2 h-4 w-4 text-foreground" />
         <span>
-          {t("common.settings.font.title")} · {fontScale}%
+          {t("common.settings.font.title")} · {scaleLabel(fontScale)}
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
@@ -49,7 +53,7 @@ export const FontMenuGroup = () => {
               className={radioItemClass}
             >
               <span>
-                {t(labelKey)} ({value}%)
+                {t(labelKey)} ({scaleLabel(value)})
               </span>
             </DropdownMenuRadioItem>
           ))}

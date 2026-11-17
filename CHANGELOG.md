@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
+
+### Fixed
+- **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+
 ## [1.32.2] - 2026-10-20
 
 Patch release for Recent Edits; upgrade if you use Codex, OpenCode or Kilo.

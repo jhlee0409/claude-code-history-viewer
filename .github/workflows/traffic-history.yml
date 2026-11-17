@@ -1,0 +1,64 @@
+name: Traffic History
+
+# GitHub keeps repo traffic (views, clones, referrers, popular paths) for only
+# 14 days. This snapshots it daily, plus the star count, onto the orphan
+# `traffic-data` branch so star trends can be compared against traffic over
+# months (e.g. "fewer visitors" vs. "same visitors, fewer stars").
+#
+# Requires the TRAFFIC_TOKEN secret: a fine-grained PAT scoped to this repo
+# with "Administration: read" — the default GITHUB_TOKEN cannot read traffic.
+# The push itself uses GITHUB_TOKEN.
+
+on:
+  schedule:
+    - cron: "30 0 * * *" # daily 00:30 UTC = 09:30 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: traffic-history
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+          path: src
+
+      - name: Check out traffic-data branch
+        run: |
+          if git ls-remote --exit-code --heads "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" traffic-data >/dev/null; then
+            git clone --depth 1 --branch traffic-data "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" data
+          else
+            git init -b traffic-data data
+            git -C data remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record traffic
+        env:
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+        # Explicit bash adds pipefail, so a failed fetch isn't masked by tee.
+        shell: bash
+        run: node src/scripts/record-traffic.mjs data "${{ github.repository }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push
+        working-directory: data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "data: traffic snapshot $(date -u +%F)"
+          git push origin traffic-data

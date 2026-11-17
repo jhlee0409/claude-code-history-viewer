@@ -283,6 +283,7 @@ fn load_manifest() -> Result<ArchiveManifest, String> {
     if !path.exists() {
         return Ok(ArchiveManifest::default());
     }
+    // Not a history file: the archive manifest the app writes.
     let content =
         fs::read_to_string(&path).map_err(|e| format!("Failed to read archive manifest: {e}"))?;
     let manifest: ArchiveManifest = serde_json::from_str(&content)
@@ -333,6 +334,7 @@ fn update_per_archive_manifest(
     if !per_manifest_path.exists() {
         return Ok(());
     }
+    // Not a history file: the per-archive manifest the app writes.
     let content = fs::read_to_string(per_manifest_path).map_err(|e| {
         format!(
             "Failed to read per-archive manifest '{}': {e}",
@@ -358,9 +360,18 @@ fn update_per_archive_manifest(
     atomic_write_string(per_manifest_path, &updated)
 }
 
+/// Copy a history file found under `root` into the archive. The source is
+/// opened without following a link (`session_files::open_session_file`), and
+/// the copy is made only once it opened as a regular file inside `root`.
+fn copy_history_file(source: &Path, root: &Path, dest: &Path) -> Result<u64, String> {
+    let (mut from, _) = session_files::open_session_file(source, root)?;
+    let mut to = fs::File::create(dest).map_err(|e| e.to_string())?;
+    std::io::copy(&mut from, &mut to).map_err(|e| e.to_string())
+}
+
 /// Counts the number of non-sidechain messages in a JSONL file.
 fn count_messages(path: &Path) -> usize {
-    let file = match session_files::open_regular_file(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return 0,
     };
@@ -387,7 +398,7 @@ fn count_messages(path: &Path) -> usize {
 /// Returns `(first, last)` as ISO 8601 strings, or empty strings if unavailable.
 #[cfg(test)]
 fn extract_timestamps(path: &Path) -> (String, String) {
-    let file = match session_files::open_regular_file(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (String::new(), String::new()),
     };
@@ -415,7 +426,7 @@ fn extract_timestamps(path: &Path) -> (String, String) {
 /// Extracts the summary from a JSONL file (last `type: "summary"` entry).
 #[cfg(test)]
 fn extract_summary(path: &Path) -> Option<String> {
-    let file = session_files::open_regular_file(path).ok()?;
+    let file = session_files::open_history_file(path).ok()?;
     let reader = BufReader::new(file);
     let mut summary: Option<String> = None;
     for line in reader.lines().map_while(Result::ok) {
@@ -440,7 +451,7 @@ fn extract_summary(path: &Path) -> Option<String> {
 /// Extracts message count, timestamps, and summary in a single pass through the JSONL file.
 /// Returns `(message_count, first_timestamp, last_timestamp, summary)`.
 fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<String>) {
-    let file = match session_files::open_regular_file(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (0, String::new(), String::new(), None),
     };
@@ -524,7 +535,7 @@ fn dir_size(path: &Path) -> u64 {
 
 /// Converts a JSONL file to a pretty-printed JSON array string.
 fn jsonl_to_json_array(path: &Path) -> Result<String, String> {
-    let file = session_files::open_regular_file(path)
+    let file = session_files::open_history_file(path)
         .map_err(|e| format!("Failed to read session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut entries: Vec<serde_json::Value> = Vec::new();
@@ -734,7 +745,13 @@ pub async fn create_archive(
                         suffix += 1;
                     }
                 }
-                fs::copy(session_path, &dest).map_err(|e| {
+                // Copied through a no-follow open inside the session's own
+                // folder: an entry swapped for a symlink or a FIFO since the
+                // check above is refused, not followed (#698).
+                let session_root = session_files::own_folder(session_path).map_err(|e| {
+                    format!("Failed to resolve session folder '{session_path_str}': {e}")
+                })?;
+                copy_history_file(session_path, &session_root, &dest).map_err(|e| {
                     format!("Failed to copy session file '{session_path_str}': {e}")
                 })?;
 
@@ -798,12 +815,14 @@ pub async fn create_archive(
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("agent.jsonl");
                             let sa_dest = dest_subagent_dir.join(sa_name);
-                            fs::copy(subagent_file, &sa_dest).map_err(|e| {
-                                format!(
-                                    "Failed to copy subagent file '{}': {e}",
-                                    subagent_file.display()
-                                )
-                            })?;
+                            copy_history_file(subagent_file, &session_root, &sa_dest).map_err(
+                                |e| {
+                                    format!(
+                                        "Failed to copy subagent file '{}': {e}",
+                                        subagent_file.display()
+                                    )
+                                },
+                            )?;
                             let copied_meta = sa_dest.metadata().map_err(|e| {
                                 format!(
                                     "Failed to read copied subagent file '{}': {e}",
@@ -995,6 +1014,7 @@ pub async fn rename_archive(archive_id: String, new_name: String) -> Result<Stri
         let per_manifest_path = target_dir.join("manifest.json");
         let previous_per_manifest = if per_manifest_path.exists() {
             Some(
+                // Not a history file: the per-archive manifest the app writes.
                 fs::read_to_string(&per_manifest_path)
                     .map_err(|e| format!("Failed to read per-archive manifest: {e}"))?,
             )
@@ -1050,6 +1070,7 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
 
         // Try to load metadata from the per-archive manifest for richer information
         let per_manifest_path = archive_dir.join("manifest.json");
+        // Not a history file: the per-archive manifest the app writes.
         let mut per_manifest: Option<serde_json::Value> = fs::read_to_string(&per_manifest_path)
             .ok()
             .and_then(|c| serde_json::from_str(&c).ok());
@@ -1396,6 +1417,7 @@ pub async fn get_expiring_sessions(
             let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
             let settings_path = home.join(".claude").join("settings.json");
             if settings_path.exists() {
+                // Not a history file: Claude Code's settings.
                 fs::read_to_string(&settings_path)
                     .ok()
                     .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())

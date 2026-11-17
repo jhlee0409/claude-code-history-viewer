@@ -5,13 +5,14 @@ import {
   Check,
   RotateCcw,
   Link2,
-  Terminal,
+  SquareTerminal,
   Copy,
   FileText,
+  FolderInput,
   FolderOpen,
   Play,
-  Trash2,
-  MoreHorizontal,
+  Trash,
+  Ellipsis,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsSessionMove,
   inputRef,
   ignoreBlurRef,
   onEditValueChange,
@@ -58,6 +60,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   onCopyResumeCommand,
   onCopyFilePath,
   onRevealInFinder,
+  onMoveSession,
   onDeleteSession,
   onContextMenuOpenChange,
 }) => {
@@ -97,7 +100,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           }}
           placeholder={t("session.renamePlaceholder", "Enter session name...")}
           className={cn(
-            "flex-1 text-xs bg-background border border-accent/40 rounded px-2 py-1",
+            "flex-1 text-list bg-background border border-accent/40 rounded px-2 py-1",
             "focus:outline-none focus:ring-1 focus:ring-accent/60",
             "text-foreground placeholder:text-muted-foreground"
           )}
@@ -116,7 +119,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           title={t("common.save")}
           aria-label={t("common.save")}
         >
-          <Check className="w-3 h-3" />
+          <Check className="w-3.5 h-3.5" />
         </button>
         <button
           type="button"
@@ -131,7 +134,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           title={t("common.cancel")}
           aria-label={t("common.cancel")}
         >
-          <X className="w-3 h-3" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     );
@@ -141,7 +144,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
     <>
       <span
         className={cn(
-          "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
+          "text-list leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
           readOnly && "cursor-default",
           isSelected ? "text-accent font-medium" : "text-sidebar-foreground/70"
         )}
@@ -157,17 +160,17 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                 aria-label={cliSyncTitle}
               >
                 <Link2
-                  className="w-2.5 h-2.5 text-info"
+                  className="w-3.5 h-3.5 text-info"
                   aria-hidden="true"
                 />
-                <span className="text-px9 font-medium text-info uppercase tracking-wide">
+                <span className="text-caption font-medium text-info uppercase tracking-wide">
                   {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
               <p className="font-medium">{cliSyncTitle}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-list text-muted-foreground mt-1">
                 {cliSyncDescription}
               </p>
             </TooltipContent>
@@ -195,19 +198,19 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             title={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
             aria-label={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
           >
-            {readOnly ? <MoreHorizontal className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+            {readOnly ? <Ellipsis className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {!readOnly && (
             <DropdownMenuItem onClick={onRenameClick}>
-              <Pencil className="w-3 h-3 mr-2" />
+              <Pencil className="w-3.5 h-3.5 mr-2" />
               {t("session.renameMenuItem", "Rename")}
             </DropdownMenuItem>
           )}
           {!readOnly && hasCustomName && (
             <DropdownMenuItem onClick={onResetCustomName}>
-              <RotateCcw className="w-3 h-3 mr-2" />
+              <RotateCcw className="w-3.5 h-3.5 mr-2" />
               {t("session.resetName", "Reset name")}
             </DropdownMenuItem>
           )}
@@ -215,7 +218,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNativeRenameClick}>
-                <Terminal className="w-3 h-3 mr-2" />
+                <SquareTerminal className="w-3.5 h-3.5 mr-2" />
                 {providerId === "opencode"
                   ? t(
                       "session.nativeRename.menuItemOpenCode",
@@ -240,23 +243,29 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           )}
           {!readOnly && <DropdownMenuSeparator />}
           <DropdownMenuItem onClick={onCopySessionId}>
-            <Copy className="w-3 h-3 mr-2" />
+            <Copy className="w-3.5 h-3.5 mr-2" />
             {t("session.copySessionId", "Copy Session ID")}
           </DropdownMenuItem>
           {supportsResumeCommand && (
             <DropdownMenuItem onClick={onCopyResumeCommand}>
-              <Play className="w-3 h-3 mr-2" />
+              <Play className="w-3.5 h-3.5 mr-2" />
               {t("session.copyResumeCommand", "Copy Resume Command")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onCopyFilePath}>
-            <FileText className="w-3 h-3 mr-2" />
+            <FileText className="w-3.5 h-3.5 mr-2" />
             {t("session.copyFilePath", "Copy File Path")}
           </DropdownMenuItem>
           {supportsRevealInFinder && (
             <DropdownMenuItem onClick={onRevealInFinder}>
-              <FolderOpen className="w-3 h-3 mr-2" />
+              <FolderOpen className="w-3.5 h-3.5 mr-2" />
               {t("session.showJsonlFile", "Show JSONL File")}
+            </DropdownMenuItem>
+          )}
+          {supportsSessionMove && (
+            <DropdownMenuItem onClick={onMoveSession}>
+              <FolderInput className="w-3.5 h-3.5 mr-2" />
+              {t("session.move.menuItem", "Move to project…")}
             </DropdownMenuItem>
           )}
           {supportsSessionDeletion && (
@@ -266,7 +275,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                 onClick={onDeleteSession}
                 className="text-destructive focus:text-destructive"
               >
-                <Trash2 className="w-3 h-3 mr-2" />
+                <Trash className="w-3.5 h-3.5 mr-2" />
                 {t("session.deleteSession", "Delete Session")}
               </DropdownMenuItem>
             </>

@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AIコーディングアシスタントのための統合履歴ビューア。**
+
+*（旧称: Claude Code History Viewer）*
 
 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**、**Grok CLI**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
@@ -548,6 +550,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## ライセンス
 
 [MIT](LICENSE) — 個人・商用利用無料。
+
+Omnilogueは独立したオープンソースプロジェクトであり、セッションログを読み込むAnthropic、OpenAI、GitHub、Googleなどいずれのベンダーとも提携・承認・後援の関係はありません。ClaudeおよびClaude CodeはAnthropic, PBCの商標であり、その他の名称は各所有者の商標です。
 
 ---
 

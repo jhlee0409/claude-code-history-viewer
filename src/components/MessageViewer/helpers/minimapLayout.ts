@@ -66,7 +66,7 @@ export function alphaForKind(kind: MessageKind): number {
 /** Every bar starts this far from the strip's left edge, as in the prototype. */
 export const MINIMAP_BAR_PAD_PX = 5;
 
-/** Kept empty on the strip's right for PR 2's search ticks (prototype: a 5px ruler plus 2px). */
+/** Kept free of bars on the strip's right, where the search ticks paint (prototype: a 5px ruler plus 2px). */
 export const MINIMAP_TICK_GUTTER_PX = 7;
 
 /** The prototype never paints a bar narrower than this. */
@@ -198,14 +198,19 @@ export function minimapScale(totalSize: number, stripHeight: number): number {
   return stripHeight / totalSize;
 }
 
-/** The viewport box's position and height on the strip, per Design §6. */
+/**
+ * The viewport box's position and height on the strip, per Design §6.
+ * `mapTop` is where the session map starts: below the not-loaded band in
+ * PR 2, zero when there is no band.
+ */
 export function viewportBox(
   scrollTop: number,
   clientHeight: number,
   scale: number,
+  mapTop = 0,
 ): { top: number; height: number } {
   return {
-    top: scrollTop * scale,
+    top: mapTop + scrollTop * scale,
     height: Math.max(6, clientHeight * scale),
   };
 }
@@ -230,4 +235,165 @@ export function scrollTopForStripY(
 /** The inverse of `scrollTopForStripY`: the strip y-coordinate for a given scroll offset. */
 export function stripYForScrollTop(scrollTop: number, scale: number, clientHeight: number): number {
   return (scrollTop + clientHeight / 2) * scale;
+}
+
+// ─── PR 2: the not-loaded band, hover lookup, and search ticks ──────────────
+// See the "PR 2" section of `docs/specs/issue-599-session-minimap.md`.
+
+/** The band never shrinks below this while older pages exist (decision P2-1). */
+export const MINIMAP_BAND_MIN_PX = 24;
+
+/** The band never takes more than this share of the strip (decision P2-1). */
+export const MINIMAP_BAND_MAX_SHARE = 0.25;
+
+export interface MinimapBandArgs {
+  /** The strip's height in CSS pixels. */
+  stripHeight: number;
+  /** `pagination.hasMore`: older pages exist. */
+  hasMore: boolean;
+  /** Messages not loaded yet: `totalCount - currentOffset`. */
+  unloadedCount: number;
+  /** `pagination.totalCount`. */
+  totalCount: number;
+}
+
+/**
+ * The not-loaded band's height: the unloaded share of the strip, clamped to
+ * at least `MINIMAP_BAND_MIN_PX` and at most `MINIMAP_BAND_MAX_SHARE` of the
+ * strip. The cap wins on a strip too short for both, so the session map
+ * always keeps most of the strip.
+ */
+export function minimapBandHeight({ stripHeight, hasMore, unloadedCount, totalCount }: MinimapBandArgs): number {
+  if (!hasMore || stripHeight <= 0) return 0;
+  const share = totalCount > 0 ? Math.min(1, Math.max(0, unloadedCount / totalCount)) : 0;
+  const cap = stripHeight * MINIMAP_BAND_MAX_SHARE;
+  return Math.round(Math.min(cap, Math.max(MINIMAP_BAND_MIN_PX, stripHeight * share)));
+}
+
+export interface MinimapGeometry {
+  /** The not-loaded band's height; zero when every page is loaded. */
+  bandHeight: number;
+  /** Where the session map starts on the strip: right below the band. */
+  mapTop: number;
+  /** The session map's height: the strip less the band. */
+  mapHeight: number;
+  /** `mapHeight / contentHeight`: map pixels per pixel of scroll content. */
+  scale: number;
+}
+
+/**
+ * One layout for everything on the strip: the painter, the viewport box,
+ * click, drag, and hover all read it, so they cannot disagree about where
+ * the session map starts (the prototype's `geometry()`).
+ */
+export function minimapGeometry(args: MinimapBandArgs & { contentHeight: number }): MinimapGeometry {
+  const bandHeight = minimapBandHeight(args);
+  const mapHeight = Math.max(0, args.stripHeight - bandHeight);
+  return {
+    bandHeight,
+    mapTop: bandHeight,
+    mapHeight,
+    scale: minimapScale(args.contentHeight, mapHeight),
+  };
+}
+
+/**
+ * The index of the row under `offset` (in measurement coordinates), or -1
+ * above the first row or past the last one: the prototype's `rowAtOffset()`.
+ * A boundary belongs to the row that starts there. Zero-height rows
+ * (collapsed agent task group members) never win.
+ */
+export function rowIndexAtOffset(measurements: readonly MinimapMeasurement[], offset: number): number {
+  const first = measurements[0];
+  if (first == null || offset < first.start) return -1;
+
+  // The last row whose start is at or before `offset`.
+  let lo = 0;
+  let hi = measurements.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if ((measurements[mid]?.start ?? Infinity) <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+
+  // Zero-height rows share their start with the next real row, so the search
+  // above already skips them unless they trail the list.
+  for (let index = lo; index >= 0; index--) {
+    const row = measurements[index];
+    if (row == null || row.size <= 0) continue;
+    return offset < row.start + row.size ? index : -1;
+  }
+  return -1;
+}
+
+/** A search tick's width; ticks sit in the right gutter the bars leave free. */
+export const MINIMAP_TICK_WIDTH_PX = 5;
+
+/** A plain search tick's height. */
+export const MINIMAP_TICK_HEIGHT_PX = 2;
+
+/** The current match's tick is taller, as in the prototype's `goToMatch()`. */
+export const MINIMAP_CURRENT_TICK_HEIGHT_PX = 4;
+
+/** The gap between a tick and the strip's right edge. */
+const TICK_RIGHT_INSET_PX = 2;
+
+/** A tick's x on a strip of the given width, as the prototype draws it. */
+export function minimapTickX(stripWidth: number): number {
+  return stripWidth - TICK_RIGHT_INSET_PX - MINIMAP_TICK_WIDTH_PX;
+}
+
+export interface MinimapTick {
+  /** Top of the tick in map coordinates (add `mapTop` to paint it). */
+  y: number;
+  height: number;
+  current: boolean;
+}
+
+export interface MinimapTicksArgs {
+  /** Rows (indices into `measurements`) holding a match, one per matched message. */
+  rowIndices: readonly number[];
+  /** The current match's row, or -1. */
+  currentRowIndex: number;
+  measurements: readonly MinimapMeasurement[];
+  /** `MinimapGeometry.scale`. */
+  scale: number;
+  /** The same list offset `bucketMinimapRows` adds to every `start`. */
+  offset: number;
+  /** `MinimapGeometry.mapHeight`: ticks are clamped to stay inside it. */
+  mapHeight: number;
+}
+
+/**
+ * One tick per matched row at that row's start, merged when two land on the
+ * same pixel row, sorted top to bottom, with the current match last so it
+ * paints over its neighbors.
+ */
+export function minimapTicks(args: MinimapTicksArgs): MinimapTick[] {
+  const { rowIndices, currentRowIndex, measurements, scale, offset, mapHeight } = args;
+
+  const tickY = (index: number, height: number): number | null => {
+    const measurement = measurements[index];
+    if (measurement == null) return null;
+    const y = Math.floor((measurement.start + offset) * scale);
+    return Math.min(Math.max(0, mapHeight - height), Math.max(0, y));
+  };
+
+  const plainYs = new Set<number>();
+  for (const index of rowIndices) {
+    if (index === currentRowIndex) continue;
+    const y = tickY(index, MINIMAP_TICK_HEIGHT_PX);
+    if (y != null) plainYs.add(y);
+  }
+
+  const ticks: MinimapTick[] = [...plainYs]
+    .sort((a, b) => a - b)
+    .map((y) => ({ y, height: MINIMAP_TICK_HEIGHT_PX, current: false }));
+
+  if (currentRowIndex >= 0) {
+    const y = tickY(currentRowIndex, MINIMAP_CURRENT_TICK_HEIGHT_PX);
+    if (y != null) ticks.push({ y, height: MINIMAP_CURRENT_TICK_HEIGHT_PX, current: true });
+  }
+
+  return ticks;
 }

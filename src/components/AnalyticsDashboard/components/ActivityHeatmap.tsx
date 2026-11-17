@@ -11,7 +11,9 @@ import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import { cn } from "@/lib/utils";
 import type { DailyStats } from "../../../types";
-import { formatNumber, getHeatColor } from "../utils";
+import { getHeatColor, getHeatTextColor } from "../utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ActivityHeatmapProps {
   data: DailyStats[];
@@ -112,13 +114,6 @@ function buildMonthGrid(
   return weeks;
 }
 
-/** Format "YYYY-MM" into a localized month+year label */
-function formatMonthLabel(yearMonth: string): string {
-  const [year, month] = yearMonth.split("-").map(Number);
-  const date = new Date(year ?? 2000, (month ?? 1) - 1, 1);
-  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short" }).format(date);
-}
-
 const MonthBlock: React.FC<{
   yearMonth: string;
   weeks: CalendarDay[][];
@@ -126,12 +121,13 @@ const MonthBlock: React.FC<{
   weekdayLabels: string[];
 }> = React.memo(({ yearMonth, weeks, maxActivity, weekdayLabels }) => {
   const { t } = useTranslation();
-  const monthLabel = formatMonthLabel(yearMonth);
+  const fmt = useFormat();
+  const monthLabel = fmt.month(yearMonth);
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-px10 font-semibold text-foreground/80 mb-0.5">
-        {monthLabel}
+      <div className="text-caption font-semibold text-foreground/80 mb-0.5">
+        <Num>{monthLabel}</Num>
       </div>
 
       {/* Day-of-week headers */}
@@ -139,7 +135,7 @@ const MonthBlock: React.FC<{
         {weekdayLabels.map((label, i) => (
           <div
             key={i}
-            className="w-[14px] h-[14px] flex items-center justify-center text-px8 font-medium text-muted-foreground/50"
+            className="w-[14px] h-[14px] flex items-center justify-center text-caption font-medium text-muted-foreground"
           >
             {label}
           </div>
@@ -166,29 +162,33 @@ const MonthBlock: React.FC<{
                       "w-[14px] h-[14px] rounded-sm cursor-pointer",
                       "transition-transform duration-150",
                       "hover:scale-125 hover:z-10",
-                      intensity > 0 && "hover:ring-1 hover:ring-white/30"
+                      "hover:ring-1 hover:ring-foreground/30"
                     )}
                     style={{ backgroundColor: heatColor }}
                     aria-label={`${cell.date}: ${cell.messageCount} ${t("analytics.tooltip.messages")}`}
                   >
-                    {/* Show day number only on 1st for orientation */}
+                    {/* Show day number only on 1st for orientation, in the
+                        text color readable on this cell's intensity. */}
                     {cell.dayNum === 1 && (
-                      <span className="text-px6 text-foreground/40 leading-none flex items-center justify-center h-full">
+                      <span
+                        className="text-caption leading-none flex items-center justify-center h-full"
+                        style={{ color: getHeatTextColor(intensity) }}
+                      >
                         1
                       </span>
                     )}
                   </button>
                 </TooltipTrigger>
                 <ChartTooltip
-                  title={cell.date}
+                  title={cell.date ? fmt.dayKey(cell.date) : ""}
                   rows={[
                     {
                       label: t("analytics.tooltip.messages"),
-                      value: cell.messageCount,
+                      value: fmt.count(cell.messageCount),
                       color: intensity > 0.3 ? "var(--metric-green)" : undefined,
                     },
-                    { label: t("analytics.tooltip.sessions"), value: cell.sessionCount },
-                    { label: t("analytics.tooltip.tokens"), value: formatNumber(cell.totalTokens) },
+                    { label: t("analytics.tooltip.sessions"), value: fmt.count(cell.sessionCount) },
+                    { label: t("analytics.tooltip.tokens"), value: fmt.tokens(cell.totalTokens) },
                   ]}
                 />
               </Tooltip>
@@ -244,7 +244,7 @@ export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = React.me
       {/* Legend */}
       <div className="flex items-center justify-between pt-3 border-t border-border/30">
         <div className="flex items-center gap-2">
-          <span className="text-px9 font-medium text-muted-foreground">
+          <span className="text-caption font-medium text-muted-foreground">
             {t("analytics.legend.less")}
           </span>
           <div className="flex gap-0.5">
@@ -256,12 +256,12 @@ export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = React.me
               />
             ))}
           </div>
-          <span className="text-px9 font-medium text-muted-foreground">
+          <span className="text-caption font-medium text-muted-foreground">
             {t("analytics.legend.more")}
           </span>
         </div>
 
-        <span className="text-px9 font-mono text-muted-foreground">
+        <span className="text-caption font-mono text-muted-foreground">
           {t("analytics.calendarTotal", { count: totalMessages })}
         </span>
       </div>

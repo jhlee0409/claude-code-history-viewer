@@ -12,7 +12,9 @@ import {
   normalizeProviderIds,
   supportsConversationBreakdown,
   supportsNativeRename,
+  supportsRecentEdits,
   supportsSessionDeletion,
+  supportsSubagents,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -105,45 +107,12 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
   });
 
-  it("allows deleting Cursor conversations stored in its SQLite database", () => {
+  it("enables deletion only for providers whose delete removes the whole session", () => {
     expect(supportsSessionDeletion("cursor")).toBe(true);
-  });
-
-  it("allows deleting filesystem-backed provider sessions", () => {
-    for (const provider of [
-      "antigravity",
-      "cline",
-      "codebuddy",
-      "continue",
-      "copilot",
-      "cursor-agent",
-      "gemini",
-      "grok",
-      "kimi",
-      "openinterpreter",
-      "pi",
-      "qwen",
-      "vibe",
-    ] as const) {
-      expect(supportsSessionDeletion(provider)).toBe(true);
-    }
-  });
-
-  it("keeps shared-history and URI/DB providers undeletable until they have a delete path", () => {
-    for (const provider of [
-      "aider",
-      "amazonq",
-      "crush",
-      "goose",
-      "kilo",
-      "kiro",
-      "llm",
-      "opencode",
-      "openhands",
-      "trae",
-      "zed",
-      "zcode",
-    ] as const) {
+    expect(supportsSessionDeletion("cursor-agent")).toBe(true);
+    // Index files (Continue sessions.json, Cline taskHistory.json), shared
+    // history files, and monitor-state regeneration (Antigravity) keep these off.
+    for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
       expect(supportsSessionDeletion(provider)).toBe(false);
     }
   });
@@ -338,5 +307,31 @@ describe("providers utils", () => {
     expect(coverage.coveredTokens).toBe(0);
     expect(coverage.coveragePercent).toBe(0);
     expect(coverage.hasLimitedProviders).toBe(false);
+  });
+
+  // Mirrors `detect_project_provider` in src-tauri/src/commands/session/edits.rs (#643).
+  it("allows recent edits only for providers the backend reads", () => {
+    for (const id of ["claude", "codex", "forgecode", "kilo", "opencode"]) {
+      expect(supportsRecentEdits(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "qwen", "kimi", "zcode", "copilot"]) {
+      expect(supportsRecentEdits(id)).toBe(false);
+    }
+    // Claude projects come back from the backend with no provider stamped.
+    expect(supportsRecentEdits(undefined)).toBe(true);
+    // An unknown id is not silently treated as Claude.
+    expect(supportsRecentEdits("not-a-provider")).toBe(false);
+  });
+
+  // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
+  it("allows subagent lookups only for providers the backend reads", () => {
+    for (const id of ["claude", "opencode", "kilo"]) {
+      expect(supportsSubagents(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode", "zcode"]) {
+      expect(supportsSubagents(id)).toBe(false);
+    }
+    expect(supportsSubagents(undefined)).toBe(true);
+    expect(supportsSubagents("not-a-provider")).toBe(false);
   });
 });

@@ -104,11 +104,11 @@ struct BoundaryClassifier {
 #[allow(unsafe_code)]
 fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
     {
-        let file = session_files::open_regular_file(path).ok()?;
+        let file = session_files::open_history_file(path).ok()?;
         let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
         memchr::memmem::find(&map, b"compact_boundary")?;
     }
-    let file = session_files::open_regular_file(path).ok()?;
+    let file = session_files::open_history_file(path).ok()?;
     let reader = BufReader::new(file);
 
     let mut own_uuids: HashSet<String> = HashSet::new();
@@ -143,9 +143,12 @@ fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
 /// v4 strings, so an accidental match elsewhere in the file is not a realistic
 /// concern, and this avoids parsing every line of every candidate file.
 fn file_contains_uuid(path: &Path, target_uuid: &str) -> bool {
-    let Ok(content) = fs::read(path) else {
+    let mut content = Vec::new();
+    let read = session_files::open_history_file(path)
+        .and_then(|mut file| std::io::Read::read_to_end(&mut file, &mut content));
+    if read.is_err() {
         return false;
-    };
+    }
     let needle = format!("\"uuid\":\"{target_uuid}\"");
     memchr::memmem::find(&content, needle.as_bytes()).is_some()
 }
@@ -179,7 +182,7 @@ fn find_file_containing_uuid(
 /// UUID referenced by a continuation boundary. A true result means the newer
 /// file is a branch from the predecessor, not a replacement for it.
 fn has_main_conversation_after_uuid(path: &Path, target_uuid: &str) -> bool {
-    let Ok(file) = session_files::open_regular_file(path) else {
+    let Ok(file) = session_files::open_history_file(path) else {
         return false;
     };
     let reader = BufReader::new(file);

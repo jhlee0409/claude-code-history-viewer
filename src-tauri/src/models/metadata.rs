@@ -158,6 +158,29 @@ pub struct SessionMetadata {
     /// User notes about the session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+
+    /// Where the session lives, recorded when it is starred, so a favourite
+    /// opens without scanning every project. Optional: stars saved before it
+    /// existed have none until their project is opened (plan T7).
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub session_ref: Option<SessionRefMetadata>,
+}
+
+/// A session's location: it loads by `file_path` + `provider`; `session_id`
+/// is the metadata key (the frontend's `SessionRef`). `project_path` is the
+/// path of the project that lists it - for most providers a virtual path
+/// (`codex://{cwd}`) that does not contain the file - so the frontend opens
+/// that project directly. Refs saved before it have none.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRefMetadata {
+    pub provider: String,
+    pub file_path: String,
+    pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actual_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
 }
 
 impl SessionMetadata {
@@ -167,6 +190,7 @@ impl SessionMetadata {
             && self.starred.is_none()
             && self.tags.is_empty()
             && self.notes.is_none()
+            && self.session_ref.is_none()
     }
 }
 
@@ -249,6 +273,10 @@ pub struct UserSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub discovered_provider_ids: Vec<String>,
 
+    /// An explicit provider discovery completed, even one that found nothing
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub providers_discovered: Option<bool>,
+
     /// Custom CLI arguments per provider for session resumption
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub resume_cli_args: std::collections::HashMap<String, String>,
@@ -325,6 +353,89 @@ mod tests {
         assert!(!with_name.is_empty());
     }
 
+    /// A favourite records where its session lives (`ref`, plan T7), so the
+    /// sidebar can open it without scanning every project.
+    #[test]
+    fn test_session_ref_roundtrip_in_the_frontend_wire_format() {
+        let json = serde_json::json!({
+            "starred": true,
+            "ref": {
+                "provider": "codex",
+                "filePath": "/home/u/.codex/sessions/rollout-1.jsonl",
+                "sessionId": "s-1",
+                "actualSessionId": "a-1"
+            }
+        });
+        let session: SessionMetadata = serde_json::from_value(json.clone()).unwrap();
+        let session_ref = session.session_ref.clone().expect("ref is kept");
+        assert_eq!(session_ref.provider, "codex");
+        assert_eq!(
+            session_ref.file_path,
+            "/home/u/.codex/sessions/rollout-1.jsonl"
+        );
+        assert_eq!(session_ref.session_id, "s-1");
+        assert_eq!(session_ref.actual_session_id.as_deref(), Some("a-1"));
+        assert!(!session.is_empty());
+        assert_eq!(serde_json::to_value(&session).unwrap(), json);
+    }
+
+    /// A library ref names the project that lists the session (`projectPath`):
+    /// for most providers the project path is virtual (`codex://{cwd}`) and
+    /// does not contain the session file, so the file path alone cannot find
+    /// it. A ref without it (saved earlier) loads and gains no key.
+    #[test]
+    fn test_session_ref_keeps_the_project_path() {
+        let json = serde_json::json!({
+            "starred": true,
+            "ref": {
+                "provider": "codex",
+                "filePath": "/home/u/.codex/sessions/2026/10/15/rollout-1.jsonl",
+                "sessionId": "s-1",
+                "projectPath": "codex:///work/alpha"
+            }
+        });
+        let session: SessionMetadata = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(
+            session
+                .session_ref
+                .as_ref()
+                .and_then(|r| r.project_path.as_deref()),
+            Some("codex:///work/alpha")
+        );
+        assert_eq!(serde_json::to_value(&session).unwrap(), json);
+
+        let earlier: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "ref": { "provider": "claude", "filePath": "/p/s.jsonl", "sessionId": "s" }
+        }))
+        .unwrap();
+        assert!(earlier.session_ref.as_ref().unwrap().project_path.is_none());
+        assert!(serde_json::to_value(&earlier).unwrap()["ref"]
+            .get("projectPath")
+            .is_none());
+    }
+
+    /// Stars recorded before `ref` existed still load, and gain no `ref` key.
+    #[test]
+    fn test_legacy_star_without_ref_loads_and_serializes_without_ref() {
+        let session: SessionMetadata =
+            serde_json::from_value(serde_json::json!({ "starred": true })).unwrap();
+        assert!(session.session_ref.is_none());
+        let out = serde_json::to_value(&session).unwrap();
+        assert_eq!(out, serde_json::json!({ "starred": true }));
+
+        let ref_only: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "ref": { "provider": "claude", "filePath": "/p/s.jsonl", "sessionId": "s" }
+        }))
+        .unwrap();
+        assert!(
+            !ref_only.is_empty(),
+            "a ref alone is metadata worth keeping"
+        );
+        assert!(serde_json::to_value(&ref_only).unwrap()["ref"]
+            .get("actualSessionId")
+            .is_none());
+    }
+
     #[test]
     fn test_serialization_roundtrip() {
         let mut metadata = UserMetadata::new();
@@ -379,5 +490,30 @@ mod tests {
             deserialized.settings.discovered_provider_ids,
             vec!["codex", "gemini"]
         );
+    }
+
+    #[test]
+    fn test_providers_discovered_survives_a_zero_result_discovery() {
+        // A discovery that found nothing saves no provider IDs (the empty Vec
+        // is skipped), so completion is its own field.
+        let mut metadata = UserMetadata::new();
+        metadata.settings.providers_discovered = Some(true);
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(json.contains("\"providersDiscovered\":true"));
+        assert!(!json.contains("discoveredProviderIds"));
+
+        let deserialized: UserMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.settings.providers_discovered, Some(true));
+    }
+
+    #[test]
+    fn test_providers_discovered_absent_by_default() {
+        let json = r#"{"sessions":{},"projects":{},"settings":{}}"#;
+        let metadata: UserMetadata = serde_json::from_str(json).unwrap();
+        assert!(metadata.settings.providers_discovered.is_none());
+        assert!(!serde_json::to_string(&metadata)
+            .unwrap()
+            .contains("providersDiscovered"));
     }
 }

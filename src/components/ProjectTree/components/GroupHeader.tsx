@@ -14,7 +14,6 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   ariaLevel = 1,
   onToggle,
   variant,
-  trailingAction,
 }) => {
   const { t } = useTranslation();
   const variantColors = {
@@ -31,6 +30,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       border: "border-l-success/50",
       badge: "bg-success/15 text-success",
       expandIcon: "text-success",
+    },
+    time: {
+      text: "text-violet-500",
+      bg: "bg-violet-500/20",
+      border: "border-l-violet-500/50",
+      badge: "bg-violet-500/15 text-violet-500",
+      expandIcon: "text-violet-500",
     },
     unavailable: {
       text: "text-warning",
@@ -51,84 +57,73 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const colors = variantColors[variant];
 
   return (
-    <div
+    <button
+      type="button"
+      role="treeitem"
+      data-tree-node="group"
+      data-tree-key={groupKey}
+      data-tree-expandable="true"
+      aria-level={ariaLevel}
+      onClick={onToggle}
+      tabIndex={-1}
+      aria-expanded={isExpanded}
+      aria-label={t("project.a11y.groupToggleLabel", {
+        action: isExpanded
+          ? t("project.a11y.collapseGroup", "Collapse")
+          : t("project.a11y.expandGroup", "Expand"),
+        label,
+        count,
+        defaultValue: `${isExpanded ? "Collapse" : "Expand"} ${label} group (${count} projects)`,
+      })}
       className={cn(
-        "w-full px-4 py-2 flex items-center gap-1",
-        "transition-all duration-300",
+        "w-full px-4 py-2 flex items-center gap-2.5",
+        "text-left transition-all duration-300",
         "hover:bg-accent/8",
         "border-l-2 border-transparent",
         isExpanded && "bg-accent/5",
         isExpanded && colors.border
       )}
     >
-      <button
-        type="button"
-        role="treeitem"
-        data-tree-node="group"
-        data-tree-key={groupKey}
-        data-tree-expandable="true"
-        aria-level={ariaLevel}
-        onClick={onToggle}
-        tabIndex={-1}
-        aria-expanded={isExpanded}
-        aria-label={t("project.a11y.groupToggleLabel", {
-          action: isExpanded
-            ? t("project.a11y.collapseGroup", "Collapse")
-            : t("project.a11y.expandGroup", "Expand"),
-          label,
-          count,
-          defaultValue: `${isExpanded ? "Collapse" : "Expand"} ${label} group (${count} projects)`,
-        })}
+      {/* Expand Icon */}
+      <span
         className={cn(
-          "flex-1 min-w-0 flex items-center gap-2.5 text-left",
-          "rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          "transition-all duration-300",
+          isExpanded ? colors.expandIcon : "text-muted-foreground"
         )}
       >
-        {/* Expand Icon */}
-        <span
-          className={cn(
-            "transition-all duration-300",
-            isExpanded ? colors.expandIcon : "text-muted-foreground"
-          )}
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
-          )}
-        </span>
+        {isExpanded ? (
+          <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5" />
+        )}
+      </span>
 
-        {/* Icon */}
-        <div
-          className={cn(
-            "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
-            isExpanded ? colors.bg : "bg-muted/50",
-            isExpanded ? colors.expandIcon : "text-muted-foreground"
-          )}
-        >
-          {icon}
-        </div>
+      {/* Icon */}
+      <div
+        className={cn(
+          "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
+          isExpanded ? colors.bg : "bg-muted/50",
+          isExpanded ? colors.expandIcon : "text-muted-foreground"
+        )}
+      >
+        {icon}
+      </div>
 
-        {/* Label */}
-        <span
-          className={cn(
-            "text-sm truncate flex-1 transition-colors duration-300",
-            isExpanded ? `${colors.text} font-semibold` : "text-sidebar-foreground/80"
-          )}
-          title={label}
-        >
-          {label}
-        </span>
+      {/* Label */}
+      <span
+        className={cn(
+          "text-body truncate flex-1 transition-colors duration-300",
+          isExpanded ? `${colors.text} font-semibold` : "text-sidebar-foreground/80"
+        )}
+        title={label}
+      >
+        {label}
+      </span>
 
-        {/* Count Badge */}
-        <span className={cn("flex items-center gap-1 text-2xs font-mono px-1.5 py-0.5 rounded", colors.badge)}>
-          {count}
-        </span>
-      </button>
-
-      {trailingAction && (
-        <div className="flex shrink-0 items-center">{trailingAction}</div>
-      )}
-    </div>
+      {/* Count Badge */}
+      <span className={cn("flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded", colors.badge)}>
+        {count}
+      </span>
+    </button>
   );
 };

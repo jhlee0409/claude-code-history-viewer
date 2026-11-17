@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { Segmented, SegmentedItem } from "./segmented";
 import type { MetricMode } from "../../types";
 
 interface MetricModeToggleProps {
@@ -27,30 +28,16 @@ export const MetricModeToggle: React.FC<MetricModeToggleProps> = ({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <span className="text-px11 text-muted-foreground whitespace-nowrap">
+      <span className="text-caption text-muted-foreground whitespace-nowrap">
         {t("analytics.metricModeLabel", "Metric")}
       </span>
-      <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg">
-        {MODES.map((mode) => {
-          const active = value === mode.id;
-          return (
-            <button
-              key={mode.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(mode.id)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-px11 font-medium transition-all duration-200",
-                active
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t(mode.labelKey, mode.fallback)}
-            </button>
-          );
-        })}
-      </div>
+      <Segmented value={value} onValueChange={(mode) => onChange(mode as MetricMode)} aria-label={t("analytics.metricModeLabel", "Metric")} size="toolbar">
+        {MODES.map((mode) => (
+          <SegmentedItem key={mode.id} value={mode.id}>
+            {t(mode.labelKey, mode.fallback)}
+          </SegmentedItem>
+        ))}
+      </Segmented>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 use super::cline_sdk;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{
     build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
@@ -44,20 +45,27 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Scan all Cline/Roo Code projects
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` the extension directories, task
+/// indexes and SDK sessions it could not read.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     // Each base path may fall back to opening its editor's global state.vscdb
     // (5s busy_timeout when the editor holds a lock), so the base paths are
     // scanned on a bounded pool instead of stacking those waits sequentially.
-    let mut projects: Vec<ClaudeProject> =
-        crate::utils::par_map_bounded(get_all_base_paths(), |(base_path, label)| {
-            scan_base_path(&base_path, &label)
-        })
-        .into_iter()
-        .flatten()
-        .collect();
+    let mut projects: Vec<ClaudeProject> = crate::utils::par_map_bounded(
+        get_all_base_paths_reporting(report),
+        |(base_path, label)| scan_base_path(&base_path, &label, report),
+    )
+    .into_iter()
+    .flatten()
+    .collect();
 
     // Current Cline releases write to the SDK session store instead (#582).
-    if let Some(root) = cline_sdk::sessions_dir() {
-        projects.extend(cline_sdk::scan_projects_in(&root));
+    if let Some(root) = cline_sdk::sessions_dir_reporting(report) {
+        projects.extend(cline_sdk::scan_projects_in(&root, report));
     }
 
     Ok(projects)
@@ -65,8 +73,8 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
 /// All projects found under one extension base path (empty when it has no
 /// readable task history).
-fn scan_base_path(base_path: &Path, label: &str) -> Vec<ClaudeProject> {
-    let task_history = load_task_history(base_path);
+fn scan_base_path(base_path: &Path, label: &str, report: &ScanReport) -> Vec<ClaudeProject> {
+    let task_history = load_task_history(base_path, report);
     if task_history.is_empty() {
         return Vec::new();
     }
@@ -121,14 +129,23 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the task index or SDK manifests
+/// it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     if let Some(cwd) = project_path.strip_prefix(cline_sdk::PREFIX) {
-        return Ok(cline_sdk::sessions_dir()
-            .map(|root| cline_sdk::load_sessions_in(&root, cwd))
+        return Ok(cline_sdk::sessions_dir_reporting(report)
+            .map(|root| cline_sdk::load_sessions_in(&root, cwd, report))
             .unwrap_or_default());
     }
     let (base_path, target_cwd) = parse_project_path(project_path)?;
     require_discovered_base(&base_path)?;
-    let task_history = load_task_history(&base_path);
+    let task_history = load_task_history(&base_path, report);
 
     let project_name = PathBuf::from(&target_cwd)
         .file_name()
@@ -226,7 +243,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let mut results = Vec::new();
 
     for (base_path, _) in get_all_base_paths() {
-        let task_history = load_task_history(&base_path);
+        let task_history = load_task_history(&base_path, &ScanReport::default());
 
         for item in &task_history {
             let id = match item.get("id").and_then(Value::as_str) {
@@ -294,8 +311,9 @@ fn editor_data_roots() -> Vec<PathBuf> {
     roots
 }
 
-/// Cline-family extension directories under one editor data root.
-fn collect_base_paths_under(root: &Path) -> Vec<(PathBuf, String)> {
+/// Cline-family extension directories under one editor data root; a
+/// directory on the way that may not be looked into is recorded in `report`.
+fn collect_base_paths_under(root: &Path, report: &ScanReport) -> Vec<(PathBuf, String)> {
     // VSCodium ships as `VSCodium` on Windows and most Linux packages, but as
     // `Codium` in some distro builds — both are checked.
     let editors: &[(&str, &str)] = &[
@@ -319,12 +337,12 @@ fn collect_base_paths_under(root: &Path) -> Vec<(PathBuf, String)> {
         {
             continue;
         }
-        if !global_storage.is_dir() {
+        if !report.is_dir(&global_storage) {
             continue;
         }
         for (ext_id, ext_name) in EXTENSIONS {
             let ext_path = global_storage.join(ext_id);
-            if ext_path.is_dir() && !is_symlink(&ext_path) {
+            if report.is_dir(&ext_path) && !is_symlink(&ext_path) {
                 paths.push((ext_path, format!("{ext_name} ({editor_label})")));
             }
         }
@@ -333,9 +351,14 @@ fn collect_base_paths_under(root: &Path) -> Vec<(PathBuf, String)> {
 }
 
 fn get_all_base_paths() -> Vec<(PathBuf, String)> {
+    get_all_base_paths_reporting(&ScanReport::default())
+}
+
+/// [`get_all_base_paths`], recording in `report` what it could not look at.
+fn get_all_base_paths_reporting(report: &ScanReport) -> Vec<(PathBuf, String)> {
     editor_data_roots()
         .iter()
-        .flat_map(|root| collect_base_paths_under(root))
+        .flat_map(|root| collect_base_paths_under(root, report))
         .collect()
 }
 
@@ -378,11 +401,14 @@ fn truncate_chars(text: &str, max_chars: usize, suffix: &str) -> String {
     }
 }
 
-fn load_task_history(base_path: &Path) -> Vec<Value> {
+/// The task index of an extension directory. An index that is there but
+/// cannot be read is recorded in `report`; one that does not parse is not
+/// an index.
+fn load_task_history(base_path: &Path, report: &ScanReport) -> Vec<Value> {
     // Cline format: state/taskHistory.json
     let cline_path = base_path.join("state/taskHistory.json");
-    if cline_path.is_file() {
-        if let Ok(data) = fs::read_to_string(&cline_path) {
+    if report.is_file(&cline_path) {
+        if let Some(data) = report.read_to_string(&cline_path) {
             if let Ok(items) = serde_json::from_str::<Vec<Value>>(&data) {
                 if !items.is_empty() {
                     return items;
@@ -393,8 +419,8 @@ fn load_task_history(base_path: &Path) -> Vec<Value> {
 
     // Roo Code format: tasks/_index.json (entries array)
     let roo_index = base_path.join("tasks/_index.json");
-    if roo_index.is_file() {
-        if let Ok(data) = fs::read_to_string(&roo_index) {
+    if report.is_file(&roo_index) {
+        if let Some(data) = report.read_to_string(&roo_index) {
             if let Ok(index) = serde_json::from_str::<Value>(&data) {
                 if let Some(entries) = index.get("entries").and_then(Value::as_array) {
                     if !entries.is_empty() {
@@ -408,7 +434,7 @@ fn load_task_history(base_path: &Path) -> Vec<Value> {
     // Kilo Code (and modern Cline/Roo before they flush to disk) keep the task
     // index only in VS Code globalState. Fall back to reading it from the global
     // state.vscdb that sits beside the extension dir.
-    load_task_history_from_global_state(base_path).unwrap_or_default()
+    load_task_history_from_global_state(base_path, report).unwrap_or_default()
 }
 
 /// Read the task-history index from VS Code's globalState. VS Code persists each
@@ -416,17 +442,27 @@ fn load_task_history(base_path: &Path) -> Vec<Value> {
 /// (the sibling of the per-extension dir), keyed by the extension id, whose value
 /// is a flat JSON object; the Cline/Roo/Kilo lineage stores its task list under
 /// `taskHistory`. This is the only place Kilo Code's history can be found.
-fn load_task_history_from_global_state(base_path: &Path) -> Option<Vec<Value>> {
+fn load_task_history_from_global_state(
+    base_path: &Path,
+    report: &ScanReport,
+) -> Option<Vec<Value>> {
     let ext_id = base_path.file_name()?.to_str()?;
     let db_path = base_path.parent()?.join("state.vscdb");
-    if !db_path.is_file() {
+    if !report.is_file(&db_path) {
         return None;
     }
 
-    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
-    conn.busy_timeout(std::time::Duration::from_secs(5)).ok()?;
-    let raw: String = conn
-        .query_row(
+    let conn = report.db(
+        &db_path,
+        Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY),
+    )?;
+    report.db(
+        &db_path,
+        conn.busy_timeout(std::time::Duration::from_secs(5)),
+    )?;
+    let raw: String = report.db(
+        &db_path,
+        conn.query_row(
             "SELECT value FROM ItemTable WHERE key = ?1",
             [ext_id],
             |row| {
@@ -436,8 +472,8 @@ fn load_task_history_from_global_state(base_path: &Path) -> Option<Vec<Value>> {
                         .map(|b| String::from_utf8_lossy(&b).into_owned())
                 })
             },
-        )
-        .ok()?;
+        ),
+    )?;
 
     let value: Value = serde_json::from_str(&raw).ok()?;
     let history = value.get("taskHistory")?.as_array()?;
@@ -806,7 +842,7 @@ mod tests {
         fs::create_dir_all(&roo).unwrap();
         fs::create_dir_all(root.join("Code/User/globalStorage/unrelated.extension")).unwrap();
 
-        let found = collect_base_paths_under(root);
+        let found = collect_base_paths_under(root, &ScanReport::default());
         let labels: Vec<&str> = found.iter().map(|(_, label)| label.as_str()).collect();
         assert_eq!(found.len(), 2, "only Cline-family extensions: {labels:?}");
         assert!(found.iter().any(|(path, _)| path == &cline));
@@ -827,14 +863,17 @@ mod tests {
         std::os::unix::fs::symlink(root.join("elsewhere"), root.join("Code")).unwrap();
 
         assert!(
-            collect_base_paths_under(root).is_empty(),
+            collect_base_paths_under(root, &ScanReport::default()).is_empty(),
             "a symlinked editor directory must not be traversed"
         );
 
         // The same tree reached without the symlink is still discovered.
         fs::rename(root.join("elsewhere"), root.join("Cursor")).unwrap();
         fs::remove_file(root.join("Code")).unwrap();
-        assert_eq!(collect_base_paths_under(root).len(), 1);
+        assert_eq!(
+            collect_base_paths_under(root, &ScanReport::default()).len(),
+            1
+        );
     }
 
     #[test]
@@ -1065,7 +1104,7 @@ mod tests {
         }
 
         // No disk index exists, so this exercises the globalState fallback.
-        let history = load_task_history(&ext_dir);
+        let history = load_task_history(&ext_dir, &ScanReport::default());
         assert_eq!(history.len(), 1);
         assert_eq!(task_cwd(&history[0]), Some("/Users/jack/proj"));
         assert_eq!(history[0]["task"], "Implement Kilo");
@@ -1077,7 +1116,10 @@ mod tests {
         let ext_dir = tmp.path().join("globalStorage").join("kilocode.kilo-code");
         fs::create_dir_all(&ext_dir).unwrap();
         // Neither a disk index nor a state.vscdb → empty, no panic.
-        assert_eq!(load_task_history(&ext_dir), Vec::<serde_json::Value>::new());
+        assert_eq!(
+            load_task_history(&ext_dir, &ScanReport::default()),
+            Vec::<serde_json::Value>::new()
+        );
     }
 
     #[test]

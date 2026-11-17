@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **The unified history viewer for AI coding assistants.**
+
+*(formerly Claude Code History Viewer)*
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
@@ -548,6 +550,8 @@ See [Development Commands](CLAUDE.md#development-commands) for the full list of 
 ## License
 
 [MIT](LICENSE) — free for personal and commercial use.
+
+Omnilogue is an independent open-source project, not affiliated with, endorsed by, or sponsored by Anthropic, OpenAI, GitHub, Google, or any other vendor whose session logs it reads. Claude and Claude Code are trademarks of Anthropic, PBC; other names are trademarks of their respective owners.
 
 ---
 

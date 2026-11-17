@@ -29,7 +29,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
 
 use self::auth::{
@@ -48,6 +48,7 @@ use self::state::AppState;
 /// This list must stay in sync with the POST routes registered on `protected_api`
 /// in `build_router`; the `read_only_*` tests below pin the current classification.
 const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
+    "/ack_menu_events",
     "/detect_claude_config_dir",
     "/detect_providers",
     "/export_session",
@@ -78,6 +79,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_settings_by_scope",
     "/get_system_info",
     "/get_unified_preset",
+    "/get_usage_breakdown",
     "/is_project_hidden",
     "/list_archives",
     "/load_archive_session_messages",
@@ -94,6 +96,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_session_messages_paginated",
     "/load_unified_presets",
     "/load_user_metadata",
+    "/menu_journal",
     "/open_github_issues",
     "/read_restore_target",
     "/read_text_file",
@@ -101,6 +104,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/scan_projects",
     "/search_all_providers",
     "/search_messages",
+    "/sync_menu_state",
     "/validate_claude_folder",
     "/validate_custom_claude_dir",
 ];
@@ -118,6 +122,7 @@ const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
     "/delete_preset",
     "/delete_session",
     "/delete_unified_preset",
+    "/move_session_to_project",
     "/rename_archive",
     "/rename_opencode_session_title",
     "/rename_session_native",
@@ -165,28 +170,22 @@ pub fn build_router(
     let base_path = normalize_base_path(base_path).expect("Invalid WebUI base path");
 
     // Restrict CORS when auth is enabled; permissive only for --no-auth.
-    let cors = if state.auth.is_enabled() {
+    let origin = if state.auth.is_enabled() {
         let origin = format!("http://{host}:{port}")
             .parse::<HeaderValue>()
             .unwrap_or_else(|_| HeaderValue::from_static("http://localhost:3727"));
-        CorsLayer::new()
-            .allow_origin(origin)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::exact(origin)
     } else {
-        CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::any()
     };
+    let cors = CorsLayer::new()
+        .allow_origin(origin)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static("x-csrf-token"),
+        ]);
 
     let protected_api = Router::new()
         // SSE endpoint for real-time file change events
@@ -226,6 +225,7 @@ pub fn build_router(
         .route("/restore_file", post(h::restore_file))
         .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
+        .route("/move_session_to_project", post(h::move_session_to_project))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
         .route(
@@ -248,10 +248,15 @@ pub fn build_router(
             "/get_global_stats_summary",
             post(h::get_global_stats_summary),
         )
+        .route("/get_usage_breakdown", post(h::get_usage_breakdown))
         // Feedback commands
         .route("/send_feedback", post(h::send_feedback))
         .route("/get_system_info", post(h::get_system_info))
         .route("/open_github_issues", post(h::open_github_issues))
+        // Native menu bridge: no-ops in the WebUI (no native menu)
+        .route("/sync_menu_state", post(h::sync_menu_state))
+        .route("/menu_journal", post(h::menu_journal))
+        .route("/ack_menu_events", post(h::ack_menu_events))
         // Metadata commands
         .route(
             "/get_metadata_folder_path",
@@ -369,20 +374,14 @@ pub fn build_router(
             .expect("Failed to read dist/index.html — is --dist correct?");
         let index_html = inject_base_path(&index_html, &base_path);
         spa_index = SpaIndex::Html(Arc::new(index_html));
-        let index_for_root = spa_index.clone();
-        let index_for_fallback = spa_index.clone();
-        let spa_root = get(move || {
-            let index = index_for_root.clone();
+        let index_for_spa = spa_index.clone();
+        let spa = get(move || {
+            let index = index_for_spa.clone();
             async move { spa_index_response(index) }
         });
-        let spa_fallback = get(move || {
-            let index = index_for_fallback.clone();
-            async move { spa_index_response(index) }
-        });
-        let serve_dir = ServeDir::new(dist);
         app = app
-            .route("/", spa_root)
-            .fallback_service(serve_dir.fallback(spa_fallback));
+            .route("/", spa.clone())
+            .fallback_service(ServeDir::new(dist).fallback(spa));
     } else {
         // Embedded mode: serve from rust-embed compiled assets (production default)
         spa_index = SpaIndex::Embedded {
@@ -648,25 +647,17 @@ fn embedded_asset_handler(req: Request, base_path: String) -> Response {
     let path = req.uri().path().trim_start_matches('/');
 
     // Try the exact path first, then fall back to index.html for SPA routing.
-    let (data, mime) = if let Some(file) = EmbeddedAssets::get(path) {
-        let mime = mime_guess::from_path(path)
-            .first_or_octet_stream()
-            .to_string();
-        (Body::from(file.data.into_owned()), mime)
-    } else if let Some(index) = embedded_index_body(&base_path) {
-        (index, "text/html".to_string())
-    } else {
-        return (
-            StatusCode::NOT_FOUND,
-            "index.html not found in embedded assets",
-        )
-            .into_response();
+    let Some(file) = EmbeddedAssets::get(path) else {
+        return embedded_index_response(base_path);
     };
+    let mime = mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .to_string();
 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, mime)
-        .body(data)
+        .body(Body::from(file.data.into_owned()))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
@@ -885,6 +876,139 @@ mod tests {
         (status, String::from_utf8_lossy(&bytes).to_string())
     }
 
+    async fn post_usage_breakdown(
+        state: Arc<AppState>,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = build_router(state, "127.0.0.1", 3731, None, "/")
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/get_usage_breakdown")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| serde_json::Value::String(String::from_utf8_lossy(&bytes).into()));
+        (status, value)
+    }
+
+    /// ADR 0002: the Axum route serves the same function as the Tauri
+    /// command, also in read-only mode, behind the same history-root guard as
+    /// the old stats routes.
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_matches_the_command_and_guards_history_roots() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p1");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = serde_json::json!({
+            "type": "assistant", "sessionId": "s1", "uuid": "u1",
+            "timestamp": "2026-10-15T12:00:00Z",
+            "message": {"id": "m1", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                        "content": [], "usage": {"input_tokens": 100, "output_tokens": 10}}
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{row}\n")).unwrap();
+        let request = |project_path: &std::path::Path| {
+            serde_json::json!({
+                "scope": {"kind": "project", "project_path": project_path.to_string_lossy(), "provider": "claude"},
+                "stats_mode": "billing_total",
+                "intervals": [{"key": "2026-10-15", "start_utc": 1_792_022_400_000_i64, "end_utc": 1_792_108_800_000_i64}],
+            })
+        };
+
+        let (status, body) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(&project) }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let direct = crate::commands::stats::usage_breakdown::get_usage_breakdown(
+            serde_json::from_value(request(&project)).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(body, serde_json::to_value(direct).unwrap());
+        assert_eq!(
+            body["intervals"][0]["models"][0]["stats"]["token_count"],
+            110
+        );
+
+        let outside = tempfile::tempdir().unwrap();
+        let (status, _) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(outside.path()) }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+    }
+
+    /// The review probe of `AN0b`, through the route: the root guard checks
+    /// the requested directory, so the scan itself must never follow a
+    /// symlink out of it — neither a session file nor a project directory.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_never_follows_a_symlink_out_of_the_history_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = |input: u64| {
+            let row = serde_json::json!({
+                "type": "assistant", "sessionId": "s", "uuid": "a",
+                "timestamp": "2026-10-16T12:00:00Z",
+                "message": {"id": "a", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                            "content": [], "usage": {"input_tokens": input, "output_tokens": 0}}
+            });
+            format!("{row}\n")
+        };
+        std::fs::write(project.join("s.jsonl"), row(100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("private.jsonl"), row(4_242)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("private.jsonl"),
+            project.join("escaped.jsonl"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+
+        let intervals = serde_json::json!([
+            {"key": "2026-10-16", "start_utc": 1_792_108_800_000_i64, "end_utc": 1_792_195_200_000_i64}
+        ]);
+        let scopes = [
+            serde_json::json!({"kind": "project", "project_path": project.to_string_lossy(), "provider": "claude"}),
+            serde_json::json!({"kind": "all", "providers": ["claude"],
+                               "claude_path": claude.to_string_lossy(), "custom_claude_paths": []}),
+        ];
+        for scope in scopes {
+            let (status, body) = post_usage_breakdown(
+                test_state_read_only(),
+                serde_json::json!({ "request": {
+                    "scope": scope, "stats_mode": "billing_total", "intervals": intervals
+                }}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            let tokens: u64 = body["intervals"][0]["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| m["stats"]["token_count"].as_u64().unwrap())
+                .sum();
+            assert_eq!(tokens, 100, "{scope}: only the history inside the root");
+            assert_eq!(
+                body["coverage"]["providers"][0]["status"], "partial",
+                "{scope}: a refused link is a source that was not read"
+            );
+        }
+    }
+
     /// #640. The restore preview reads a project file the export allowlist
     /// does not cover, authorised by the same recorded-edit history restore
     /// uses.
@@ -1021,6 +1145,305 @@ mod tests {
         assert!(!body.contains("do not leak"), "{body}");
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn result_metadata_http_matches_native_for_claude_and_codex_windows() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_source_metadata, CLAUDE_FIXTURE, CODEX_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        for (provider, relative, fixture) in [
+            (
+                "claude",
+                ".claude/projects/contract/s.jsonl",
+                CLAUDE_FIXTURE,
+            ),
+            ("codex", ".codex/sessions/s.jsonl", CODEX_FIXTURE),
+        ] {
+            let path = home.path().join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, fixture).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (10, 3), (99, 2)] {
+                let direct = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_read_only("load_provider_messages_paginated", serde_json::json!({
+                    "provider": provider, "sessionPath": path.to_string_lossy(), "offset": offset, "limit": limit, "excludeSidechain": false,
+                })).await;
+                assert_eq!(status, StatusCode::OK, "{response}");
+                assert_eq!(
+                    response,
+                    serde_json::to_value(direct).unwrap(),
+                    "{provider} offset {offset} limit {limit}"
+                );
+                if provider == "claude" {
+                    assert_source_metadata(&response);
+                }
+            }
+        }
+        // The additive contract must not widen history-root authorization.
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("secret.jsonl");
+        std::fs::write(&path, CLAUDE_FIXTURE).unwrap();
+        let (status, response) = post_read_only(
+            "load_provider_messages_paginated",
+            serde_json::json!({
+                "provider":"claude", "sessionPath":path.to_string_lossy(), "offset":0, "limit":200,
+            }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+        assert!(!response.to_string().contains("unassignable"));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn codex_structured_metadata_loopback_http_matches_native() {
+        use crate::commands::tool_result_metadata_tests::{
+            assert_codex_structured_metadata, CODEX_STRUCTURED_FIXTURE,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (provider, root) in [("codex", ".codex"), ("openinterpreter", ".openinterpreter")] {
+            let path = home
+                .path()
+                .join(root)
+                .join("sessions/rollout-structured.jsonl");
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+            for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (7, 2), (99, 2)] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.to_string_lossy().into(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status, response) = post_loopback_json(address, "load_provider_messages_paginated", serde_json::json!({
+                    "provider":provider, "sessionPath":path.to_string_lossy(), "offset":offset, "limit":limit, "excludeSidechain":false,
+                })).await;
+                assert_eq!(status, 200, "{response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                assert_codex_structured_metadata(&response);
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.to_string_lossy().into(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            assert_codex_structured_metadata(&serde_json::json!({"messages":response}));
+        }
+        let outside = tempfile::tempdir().unwrap();
+        let path = outside.path().join("rollout-secret.jsonl");
+        std::fs::write(&path, CODEX_STRUCTURED_FIXTURE).unwrap();
+        for provider in ["codex", "openinterpreter", "unknown-trbe"] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path.to_string_lossy()}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("result-function"));
+        }
+        eprintln!("TRbe loopback {address}: 2 providers, 14 paginated windows, 2 non-paginated responses, 3 refusal controls");
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn codex_preservation_loopback_http_matches_native() {
+        use crate::commands::codex_preservation_tests::{assert_evidence, FIXTURE};
+        let home = crate::test_utils::SandboxHome::new();
+        let path = home
+            .path()
+            .join(".codex")
+            .join("sessions")
+            .join("rollout-preservation.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, FIXTURE).unwrap();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        for (offset, limit) in [(0, 200), (0, 1), (1, 2), (3, 3), (6, 4), (99, 2), (0, 0)] {
+            let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                "codex".into(),
+                path.to_string_lossy().into(),
+                Some(offset),
+                Some(limit),
+                Some(false),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy(),"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+            assert_eq!(status, 200);
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+            if offset == 0 && limit == 200 {
+                assert_evidence(response["messages"].as_array().unwrap());
+            }
+        }
+        let native = crate::commands::multi_provider::load_provider_messages(
+            "codex".into(),
+            path.to_string_lossy().into(),
+        )
+        .await
+        .unwrap();
+        let (status, response) = post_loopback_json(
+            address,
+            "load_provider_messages",
+            serde_json::json!({"provider":"codex","sessionPath":path.to_string_lossy()}),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(response, serde_json::to_value(native).unwrap());
+        assert_evidence(response.as_array().unwrap());
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn family_evidence_loopback_http_matches_public_native() {
+        use crate::commands::provider_evidence_tests::{
+            assert_opencode, assert_openhands, assert_pi_bash, assert_pi_results, opencode_fixture,
+            openhands_fixture, pi_fixture,
+        };
+        let home = crate::test_utils::SandboxHome::new();
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut windows = 0;
+        for (provider, sqlite) in [
+            ("openhands", false),
+            ("opencode", false),
+            ("opencode", true),
+            ("kilo", true),
+            ("pi", false),
+            ("ompi", false),
+        ] {
+            let (path, _env) = match provider {
+                "openhands" => (openhands_fixture(home.path()), None),
+                "opencode" | "kilo" => {
+                    let (p, _, e) = opencode_fixture(home.path(), provider, sqlite);
+                    (p, Some(e))
+                }
+                _ => (pi_fixture(home.path(), provider).0, None),
+            };
+            for (offset, limit) in [
+                (0, 200),
+                (0, 1),
+                (1, 2),
+                (3, 3),
+                (6, 4),
+                (9, 2),
+                (99, 2),
+                (0, 0),
+            ] {
+                let native = crate::commands::multi_provider::load_provider_messages_paginated(
+                    provider.into(),
+                    path.clone(),
+                    Some(offset),
+                    Some(limit),
+                    Some(false),
+                )
+                .await
+                .unwrap();
+                let (status,response)=post_loopback_json(address,"load_provider_messages_paginated",serde_json::json!({"provider":provider,"sessionPath":path,"offset":offset,"limit":limit,"excludeSidechain":false})).await;
+                assert_eq!(status, 200, "{provider} {response}");
+                assert_eq!(response, serde_json::to_value(native).unwrap());
+                match provider {
+                    "openhands" => assert_openhands(&response),
+                    "opencode" | "kilo" => assert_opencode(&response),
+                    _ => {
+                        assert_pi_results(&response);
+                        assert_pi_bash(&response);
+                    }
+                }
+                windows += 1;
+            }
+            let native = crate::commands::multi_provider::load_provider_messages(
+                provider.into(),
+                path.clone(),
+            )
+            .await
+            .unwrap();
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_eq!(status, 200, "{response}");
+            assert_eq!(response, serde_json::to_value(native).unwrap());
+        }
+        let outside = home.path().join("private.jsonl");
+        std::fs::write(
+            &outside,
+            include_str!("../../tests/fixtures/tool-result-evidence-pi.jsonl"),
+        )
+        .unwrap();
+        for (provider, path) in [
+            ("openhands", "openhands://../private".into()),
+            ("opencode", "opencode://proj1/../private".into()),
+            ("kilo", "kilo://proj1/../private".into()),
+            ("pi", outside.to_string_lossy().into_owned()),
+            ("ompi", outside.to_string_lossy().into_owned()),
+            ("unknown-trbe", outside.to_string_lossy().into_owned()),
+        ] {
+            let (status, response) = post_loopback_json(
+                address,
+                "load_provider_messages_paginated",
+                serde_json::json!({"provider":provider,"sessionPath":path}),
+            )
+            .await;
+            assert_ne!(status, 200, "{provider}: {response}");
+            assert!(!response.to_string().contains("evidence-only-needle"));
+        }
+        assert_eq!(windows, 48);
+        eprintln!("TRbe family loopback {address}: 6 store cases / 48 windows / 6 non-paginated / 6 refusal controls");
+        server.abort();
+    }
+
+    async fn post_loopback_json(
+        address: std::net::SocketAddr,
+        route: &str,
+        body: serde_json::Value,
+    ) -> (u16, serde_json::Value) {
+        let route = route.to_string();
+        tokio::task::spawn_blocking(move || {
+            use std::io::{Read, Write};
+            let mut socket = std::net::TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            let body = body.to_string();
+            write!(socket, "POST /api/{route} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            let mut response = String::new();
+            socket.read_to_string(&mut response).unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            let status = headers.split_whitespace().nth(1).unwrap().parse().unwrap();
+            (status, serde_json::from_str(body).unwrap())
+        }).await.unwrap()
+    }
     /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
     /// shared `--serve` instance runs in. The body is `Null` when it is not
     /// JSON.
@@ -1957,6 +2380,49 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(allowed.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// The `WebUI` has no native menu: its menu routes are read-only-allowed
+    /// no-ops - `sync_menu_state` and `ack_menu_events` do nothing,
+    /// `menu_journal` is empty (desktop/WebUI command parity).
+    #[tokio::test]
+    async fn menu_routes_are_no_ops_in_the_webui() {
+        for (route, body, expected) in [
+            (
+                "sync_menu_state",
+                r#"{"state":{"language":"ko","items":{"go.back":{"enabled":true}},"frontTabId":"t1"}}"#,
+                serde_json::json!(null),
+            ),
+            (
+                "menu_journal",
+                "{}",
+                serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+            ),
+            (
+                "ack_menu_events",
+                r#"{"epoch":"webui","seq":3}"#,
+                serde_json::json!(null),
+            ),
+        ] {
+            let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri(format!("/api/{route}"))
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{route}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(value, expected, "{route}");
+        }
     }
 
     #[tokio::test]

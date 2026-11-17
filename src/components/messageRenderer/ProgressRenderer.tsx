@@ -9,20 +9,22 @@ import { memo } from "react";
 import {
   Activity,
   Server,
-  Terminal,
+  SquareTerminal,
   Webhook,
   Search,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
+  CircleCheck,
+  LoaderCircle,
+  CircleAlert,
   Bot,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProgressData, ProgressDataType } from "../../types";
 import { getVariantStyles, type RendererVariant, layout } from "../renderers";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ProgressRendererProps {
   data: ProgressData;
@@ -37,18 +39,18 @@ const PROGRESS_CONFIG: Record<
 > = {
   agent_progress: { icon: Bot, variant: "info" },
   mcp_progress: { icon: Server, variant: "mcp" },
-  bash_progress: { icon: Terminal, variant: "terminal" },
+  bash_progress: { icon: SquareTerminal, variant: "terminal" },
   hook_progress: { icon: Webhook, variant: "warning" },
   search_results_received: { icon: Search, variant: "web" },
   query_update: { icon: RefreshCw, variant: "info" },
   waiting_for_task: { icon: Clock, variant: "neutral" },
 };
 
-const STATUS_ICON: Record<string, typeof CheckCircle2> = {
-  completed: CheckCircle2,
-  started: Loader2,
-  running: Loader2,
-  error: AlertCircle,
+const STATUS_ICON: Record<string, typeof CircleCheck> = {
+  completed: CircleCheck,
+  started: LoaderCircle,
+  running: LoaderCircle,
+  error: CircleAlert,
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -68,6 +70,7 @@ export const ProgressRenderer = memo(function ProgressRenderer({
   toolUseID,
 }: ProgressRendererProps) {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   const config = PROGRESS_CONFIG[data.type] || PROGRESS_CONFIG.agent_progress;
   const styles = getVariantStyles(config.variant);
@@ -76,11 +79,7 @@ export const ProgressRenderer = memo(function ProgressRenderer({
   const statusColor = data.status ? STATUS_COLORS[data.status] || styles.icon : styles.icon;
   const statusIconAnimate = data.status ? STATUS_ICON_ANIMATE[data.status] || "" : "";
 
-  const formatDuration = (ms?: number) => {
-    if (!ms) return null;
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
-  };
+  const elapsed = (ms?: number) => (ms ? fmt.duration(ms) : null);
 
   const getProgressLabel = (type: ProgressDataType) => {
     const labels: Record<ProgressDataType, string> = {
@@ -124,7 +123,7 @@ export const ProgressRenderer = memo(function ProgressRenderer({
         </div>
         {data.elapsedTimeMs !== undefined && (
           <span className="text-muted-foreground font-mono">
-            {formatDuration(data.elapsedTimeMs)}
+            <Num>{elapsed(data.elapsedTimeMs)}</Num>
           </span>
         )}
       </div>

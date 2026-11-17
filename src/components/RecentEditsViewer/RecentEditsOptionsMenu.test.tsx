@@ -13,7 +13,7 @@ import { RecentEditsOptionsMenu } from "./RecentEditsOptionsMenu";
 // Radix opens the menu from a keyboard event as well as a pointer one, and the
 // keyboard path is the one that works reliably under jsdom.
 const open = () => {
-  fireEvent.keyDown(screen.getByRole("button", { name: "Panel options" }), {
+  fireEvent.keyDown(screen.getByRole("button", { name: "List options" }), {
     key: "Enter",
   });
 };
@@ -29,9 +29,9 @@ describe("RecentEditsOptionsMenu", () => {
   it("labels the icon-only trigger", () => {
     render(<RecentEditsOptionsMenu {...defaults} />);
 
-    const trigger = screen.getByRole("button", { name: "Panel options" });
-    expect(trigger.getAttribute("aria-label")).toBe("Panel options");
-    expect(trigger.getAttribute("title")).toBe("Panel options");
+    const trigger = screen.getByRole("button", { name: "List options" });
+    expect(trigger.getAttribute("aria-label")).toBe("List options");
+    expect(trigger.getAttribute("title")).toBe("List options");
   });
 
   it("reflects slice state on both radio groups", () => {
@@ -86,21 +86,17 @@ describe("RecentEditsOptionsMenu", () => {
     expect(onMissingOnlyChange).toHaveBeenCalledWith(true);
   });
 
-  it("does not offer undocking, which the header toggle owns", () => {
-    // Undocking moved to the Page/Sidebar toggle in the panel header. Two
-    // controls for one state, in two vocabularies and only one of them showing
-    // the current value, is worse than one.
+  it("offers no dock mode: the Edits screen is the only recent-edits surface (T9b)", () => {
     render(<RecentEditsOptionsMenu {...defaults} />);
     open();
 
     // Anchor first. Without it this test passes when the menu fails to open at
-    // all, proving "nothing rendered" rather than "the undock item is gone" -
-    // a negative assertion is only as good as the evidence that there was
-    // something to look in.
+    // all, proving "nothing rendered" rather than "the dock item is gone".
     expect(
       screen.getByRole("menuitemradio", { name: "Edit (chronological)" })
     ).toBeTruthy();
 
     expect(screen.queryByText("Undock to full page")).toBeNull();
+    expect(screen.queryByText("Dock beside transcript")).toBeNull();
   });
 });

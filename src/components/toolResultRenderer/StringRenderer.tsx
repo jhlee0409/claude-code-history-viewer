@@ -1,103 +1,75 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
-import { memo, useEffect } from "react";
-import { Folder, Check, FileText } from "lucide-react";
+import { memo, useContext, useEffect, useId } from "react";
+import { ChevronRight, Folder, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
-import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
-import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
-import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
-import { AnsiText } from "../common/AnsiText";
-import { hasAnsiCodes } from "@/utils/ansiToHtml";
+import { useToggle } from "@/hooks/useToggle";
+import { RendererDefaultsContext } from "@/shared/rendererDefaults";
+import { OutputBlock } from "../transcript/OutputBlock";
+import { isFileTreeText } from "../transcript/outputKind";
 
 type Props = {
   result: string;
   searchQuery?: string;
 };
 
+/**
+ * A plain string tool result. The text is shown as recorded in an
+ * OutputBlock (plan TR0, D6): whitespace and line breaks kept, never read as
+ * Markdown; ANSI colour and the file-tree / table detection stay. The line
+ * cap, "Show all n lines" and the search reveal live in OutputBlock.
+ *
+ * The header is a neutral disclosure (plan D3: a plain string result carries
+ * no verdict, so no check mark, no tool-colour fill or title) with
+ * `aria-expanded` + `aria-controls`. The result is one box, the OutputBlock's
+ * well — no bordered card around it — and the header always says "Tool
+ * Execution Result": what the text is (a file tree, a table) is the well's
+ * own label, said once (renderer audit TR9). The open state lives in the
+ * capture expand registry under the key the shared renderer header used.
+ */
 export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
-  // 파일 트리나 디렉토리 구조인지 확인
-  const isFileTree =
-    result.includes("/") &&
-    (result.includes("- ") || result.includes("├") || result.includes("└"));
-
-  // 접기/펼치기 상태 관리
-  const [isExpanded, setIsExpanded] = useCaptureExpandState("string-output", false);
-
-  // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기
+  const ambient = useContext(RendererDefaultsContext);
+  const [open, toggle, setOpen] = useToggle("renderer", ambient.defaultExpanded);
+  // A search hit inside the text opens the result once, as before TR0
+  // (CodeRabbit 4362895001); the user can still collapse it (review round 6), and a new matching query
+  // opens it again (review round 7).
+  // Same match rule as OutputBlock's reveal.
+  const query = searchQuery?.trim().toLowerCase() ?? "";
+  const searchHit = query !== "" && result.toLowerCase().includes(query);
   useEffect(() => {
-    if (searchQuery && result.toLowerCase().includes(searchQuery.toLowerCase())) {
-      setIsExpanded(true);
-    }
-  }, [searchQuery, result, setIsExpanded]);
-  const MAX_LINES = 15; // 최대 표시 줄 수
-  const resultLines = result.split("\n");
-  const shouldCollapse = resultLines.length > MAX_LINES;
-  const displayResult =
-    shouldCollapse && !isExpanded
-      ? resultLines.slice(0, MAX_LINES).join("\n")
-      : result;
+    if (searchHit) setOpen(true);
+  }, [searchHit, query, setOpen]);
+  const contentId = useId();
+  const Icon = isFileTreeText(result) ? Folder : FileText;
 
   return (
-    <Renderer className="bg-tool-file/10 border-tool-file/30">
-      <Renderer.Header
-        title={isFileTree ? t("toolResult.fileStructure") : t("toolResult.toolExecutionResult")}
-        icon={
-          isFileTree ? (
-            <Folder className={cn(layout.iconSize, "text-tool-file")} />
-          ) : (
-            <Check className={cn(layout.iconSize, "text-tool-file")} />
-          )
-        }
-        titleClassName="text-tool-file"
-        rightContent={
-          shouldCollapse && (
-            <button
-              onClick={() => setIsExpanded(prev => !prev)}
-              className={`${layout.smallText} px-2 py-1 rounded transition-colors bg-secondary text-foreground hover:bg-secondary/80`}
-            >
-              {isExpanded ? (
-                <>
-                  <span>{t("toolResult.collapse")} ▲</span>
-                </>
-              ) : (
-                <>
-                  <span>{t("toolResult.expand")} ({resultLines.length}{t("toolResult.lines")}) ▼</span>
-                </>
-              )}
-            </button>
-          )
-        }
-      />
-      <Renderer.Content>
-        <div className="bg-card border-border">
-          {isFileTree || hasAnsiCodes(displayResult) ? (
-            <div className={`text-foreground whitespace-pre-wrap overflow-x-auto ${layout.monoText}`}>
-              <AnsiText text={displayResult} />
-            </div>
-          ) : (
-            <div className={`p-3 ${layout.prose}`}>
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
-                {displayResult}
-              </ReactMarkdown>
-            </div>
-          )}
-          {shouldCollapse && !isExpanded && (
-            <div className="bg-card border-t border-border pt-2">
-              <button
-                onClick={() => setIsExpanded(true)}
-                className={cn(layout.smallText, "text-foreground hover:text-accent transition-colors")}
-              >
-                <FileText className={cn(layout.iconSizeSmall, "inline mr-1")} />
-                {resultLines.length - MAX_LINES}{t("toolResult.lines")} {t("toolResult.showMore")}
-              </button>
-            </div>
-          )}
-        </div>
-      </Renderer.Content>
-    </Renderer>
+    <div className="mt-1">
+      <Button variant="ghost" size="sm"
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={contentId}
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
+          "flex w-full items-center rounded-row text-left hover:bg-surface-hover",
+          layout.iconGap,
+          layout.headerPadding,
+          layout.headerHeight,
+        ))}
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={cn(layout.iconSize, "shrink-0 text-fg-3 transition-transform", open && "rotate-90")}
+        />
+        <Icon aria-hidden="true" className={cn(layout.iconSize, "shrink-0 text-fg-3")} />
+        <span className={cn(layout.titleText, "truncate text-fg-2")}>{t("toolResult.toolExecutionResult")}</span>
+      </Button>
+      <div id={contentId} hidden={!open} className={open ? layout.contentPadding : undefined}>
+        {open && <OutputBlock text={result} searchQuery={searchQuery} expandKey="string-output" />}
+      </div>
+    </div>
   );
 });

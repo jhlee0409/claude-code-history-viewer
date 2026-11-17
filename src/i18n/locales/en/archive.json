@@ -1,5 +1,4 @@
 {
-  "archive.title": "Archive Manager",
   "archive.description": "Manage and preserve your conversation history",
   "archive.tab.overview": "Overview",
   "archive.tab.browse": "Browse",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "Select project",
   "archive.create.mainSessions": "Main Sessions ({{count}})",
   "archive.create.subagentSessions": "Subagent Sessions ({{count}})",
-  "archive.settings.link": "Archive Manager",
   "archive.settings.linkDescription": "Manage and preserve your conversation history before cleanup"
 }

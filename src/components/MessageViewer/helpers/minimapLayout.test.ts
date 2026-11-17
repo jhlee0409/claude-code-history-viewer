@@ -2,11 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   alphaForKind,
   bucketMinimapRows,
+  minimapBandHeight,
   minimapBarRect,
+  minimapGeometry,
+  minimapTicks,
+  minimapTickX,
+  MINIMAP_BAND_MAX_SHARE,
+  MINIMAP_BAND_MIN_PX,
   MINIMAP_BAR_PAD_PX,
+  MINIMAP_CURRENT_TICK_HEIGHT_PX,
   MINIMAP_TICK_GUTTER_PX,
+  MINIMAP_TICK_HEIGHT_PX,
+  MINIMAP_TICK_WIDTH_PX,
   minimapScale,
   priorityForKind,
+  rowIndexAtOffset,
   scrollTopForStripY,
   stripYForScrollTop,
   viewportBox,
@@ -270,5 +280,186 @@ describe("scrollTopForStripY and stripYForScrollTop (inverse mapping)", () => {
 
   it("does not divide by zero when scale is zero", () => {
     expect(scrollTopForStripY(100, 0, 400, 10_000)).toBe(0);
+  });
+});
+
+describe("viewportBox with a band above the map (PR 2)", () => {
+  it("shifts the box down by the map's top", () => {
+    const box = viewportBox(200, 400, 0.1, 30);
+    expect(box.top).toBeCloseTo(50);
+    expect(box.height).toBeCloseTo(40);
+  });
+});
+
+describe("minimapBandHeight (PR 2, decision P2-1)", () => {
+  it("is zero when every page is loaded", () => {
+    expect(minimapBandHeight({ stripHeight: 400, hasMore: false, unloadedCount: 0, totalCount: 200 })).toBe(0);
+  });
+
+  it("is the unloaded share of the strip between the floor and the cap", () => {
+    // 100 of 500 unloaded on a 400px strip: 80px, inside [24, 100].
+    expect(minimapBandHeight({ stripHeight: 400, hasMore: true, unloadedCount: 100, totalCount: 500 })).toBe(80);
+  });
+
+  it("never drops below the 24px floor while older pages exist", () => {
+    expect(minimapBandHeight({ stripHeight: 400, hasMore: true, unloadedCount: 1, totalCount: 10_000 })).toBe(
+      MINIMAP_BAND_MIN_PX,
+    );
+  });
+
+  it("never takes more than a quarter of the strip", () => {
+    // 8,215 of 8,415 unloaded would be 98 percent of the strip.
+    expect(minimapBandHeight({ stripHeight: 400, hasMore: true, unloadedCount: 8215, totalCount: 8415 })).toBe(
+      400 * MINIMAP_BAND_MAX_SHARE,
+    );
+  });
+
+  it("lets the cap win over the floor on a very short strip", () => {
+    expect(minimapBandHeight({ stripHeight: 60, hasMore: true, unloadedCount: 900, totalCount: 1000 })).toBe(15);
+  });
+
+  it("falls back to the floor when the counts are unknown but older pages exist", () => {
+    expect(minimapBandHeight({ stripHeight: 400, hasMore: true, unloadedCount: 0, totalCount: 0 })).toBe(
+      MINIMAP_BAND_MIN_PX,
+    );
+  });
+});
+
+describe("minimapGeometry (PR 2)", () => {
+  it("matches PR 1's numbers when there is no band", () => {
+    const geometry = minimapGeometry({
+      stripHeight: 200,
+      contentHeight: 4000,
+      hasMore: false,
+      unloadedCount: 0,
+      totalCount: 200,
+    });
+    expect(geometry).toEqual({ bandHeight: 0, mapTop: 0, mapHeight: 200, scale: minimapScale(4000, 200) });
+  });
+
+  it("maps the scroll content onto the region below the band", () => {
+    const geometry = minimapGeometry({
+      stripHeight: 400,
+      contentHeight: 3200,
+      hasMore: true,
+      unloadedCount: 100,
+      totalCount: 500,
+    });
+    expect(geometry.bandHeight).toBe(80);
+    expect(geometry.mapTop).toBe(80);
+    expect(geometry.mapHeight).toBe(320);
+    expect(geometry.scale).toBeCloseTo(0.1);
+  });
+});
+
+describe("rowIndexAtOffset (PR 2 hover, the prototype's rowAtOffset)", () => {
+  const rows = [measurement(100, 50), measurement(150, 50), measurement(200, 50)];
+
+  it("finds the row whose span holds the offset", () => {
+    expect(rowIndexAtOffset(rows, 120)).toBe(0);
+    expect(rowIndexAtOffset(rows, 199)).toBe(1);
+    expect(rowIndexAtOffset(rows, 249)).toBe(2);
+  });
+
+  it("gives a shared boundary to the row that starts there", () => {
+    expect(rowIndexAtOffset(rows, 150)).toBe(1);
+  });
+
+  it("returns -1 above the first row (the list header) and past the last row (the footer)", () => {
+    expect(rowIndexAtOffset(rows, 99)).toBe(-1);
+    expect(rowIndexAtOffset(rows, 250)).toBe(-1);
+    expect(rowIndexAtOffset([], 0)).toBe(-1);
+  });
+
+  it("never returns a zero-height row (a collapsed agent task group member)", () => {
+    // Leader at 0-100, two members measured at 0 height, then the next real row.
+    const grouped = [measurement(0, 100), measurement(100, 0), measurement(100, 0), measurement(100, 40)];
+    expect(rowIndexAtOffset(grouped, 50)).toBe(0);
+    expect(rowIndexAtOffset(grouped, 100)).toBe(3);
+    // Members at the very end: the pointer past the leader is past the list.
+    const trailing = [measurement(0, 100), measurement(100, 0)];
+    expect(rowIndexAtOffset(trailing, 100)).toBe(-1);
+  });
+});
+
+describe("minimapTicks (PR 2 search ticks)", () => {
+  const measurements = [measurement(0, 100), measurement(100, 100), measurement(200, 100), measurement(300, 100)];
+
+  it("puts one tick at each matched row's start, in map coordinates", () => {
+    const ticks = minimapTicks({
+      rowIndices: [2, 0],
+      currentRowIndex: -1,
+      measurements,
+      scale: 0.5,
+      offset: 0,
+      mapHeight: 200,
+    });
+    expect(ticks).toEqual([
+      { y: 0, height: MINIMAP_TICK_HEIGHT_PX, current: false },
+      { y: 100, height: MINIMAP_TICK_HEIGHT_PX, current: false },
+    ]);
+  });
+
+  it("draws the current match last and taller, without a duplicate plain tick", () => {
+    const ticks = minimapTicks({
+      rowIndices: [1, 3],
+      currentRowIndex: 1,
+      measurements,
+      scale: 0.5,
+      offset: 0,
+      mapHeight: 200,
+    });
+    expect(ticks).toHaveLength(2);
+    expect(ticks[ticks.length - 1]).toEqual({ y: 50, height: MINIMAP_CURRENT_TICK_HEIGHT_PX, current: true });
+  });
+
+  it("merges ticks that land on the same pixel row", () => {
+    const dense = Array.from({ length: 1000 }, (_, i) => measurement(i, 1));
+    const ticks = minimapTicks({
+      rowIndices: [10, 11, 12],
+      currentRowIndex: -1,
+      measurements: dense,
+      scale: 0.01,
+      offset: 0,
+      mapHeight: 10,
+    });
+    expect(ticks).toHaveLength(1);
+  });
+
+  it("applies the list offset and keeps the tick inside the map at its bottom edge", () => {
+    const ticks = minimapTicks({
+      rowIndices: [3],
+      currentRowIndex: 3,
+      measurements,
+      scale: 0.5,
+      offset: 100,
+      mapHeight: 200,
+    });
+    // (300 + 100) * 0.5 = 200, clamped so the 4px tick still fits.
+    expect(ticks).toEqual([{ y: 196, height: MINIMAP_CURRENT_TICK_HEIGHT_PX, current: true }]);
+  });
+
+  it("skips a row index with no measurement", () => {
+    const ticks = minimapTicks({
+      rowIndices: [9],
+      currentRowIndex: 9,
+      measurements,
+      scale: 0.5,
+      offset: 0,
+      mapHeight: 200,
+    });
+    expect(ticks).toEqual([]);
+  });
+});
+
+describe("minimapTickX (PR 2)", () => {
+  it("places the tick in the right gutter, clear of every bar", () => {
+    const x = minimapTickX(64);
+    expect(x + MINIMAP_TICK_WIDTH_PX).toBeLessThanOrEqual(64);
+    expect(x).toBeGreaterThanOrEqual(64 - MINIMAP_TICK_GUTTER_PX);
+    for (const kind of ALL_KINDS) {
+      const bar = minimapBarRect(kind, 64);
+      expect(bar.x + bar.width).toBeLessThanOrEqual(x);
+    }
   });
 });

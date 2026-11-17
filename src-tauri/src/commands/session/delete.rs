@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use tauri::command;
 
 /// Removes a file or directory: tries the system trash first, falls back to permanent deletion.
@@ -22,6 +22,49 @@ fn remove_path(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Moves `path` to the system trash, with no permanent-delete fallback: for
+/// provider stores other than Claude's a failed trash is an error the user
+/// sees, never a silent irreversible delete.
+fn trash_only(path: &Path) -> Result<(), String> {
+    trash::delete(path).map_err(|e| format!("Could not move to the trash: {e}"))
+}
+
+/// True if `path` names something under `root` (lexically, or once both are
+/// resolved — `root` itself may sit behind a symlink).
+fn is_under(root: &Path, path: &Path) -> bool {
+    path.starts_with(root)
+        || matches!(
+            (root.canonicalize(), path.canonicalize()),
+            (Ok(root), Ok(path)) if path.starts_with(&root)
+        )
+}
+
+/// The normal components of `path` below `root`, after resolving both, or an
+/// error if `path` does not lie strictly inside `root`.
+fn components_inside(root: &Path, path: &Path) -> Result<(PathBuf, Vec<String>), String> {
+    let root = root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve session root: {e}"))?;
+    let resolved = path
+        .canonicalize()
+        .map_err(|_| format!("Session path not found: {}", path.display()))?;
+    let rel = resolved
+        .strip_prefix(&root)
+        .map_err(|_| "Session path is outside the provider's session root".to_string())?;
+    let parts = rel
+        .components()
+        .map(|c| match c {
+            Component::Normal(part) => part.to_str().map(str::to_string),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or("Invalid session path")?;
+    if parts.is_empty() {
+        return Err("Session path is outside the provider's session root".to_string());
+    }
+    Ok((root, parts))
+}
+
 fn is_safe_session_id(id: &str) -> bool {
     !id.is_empty()
         && id
@@ -29,137 +72,71 @@ fn is_safe_session_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-/// Fixed transcript filenames that live inside a per-session directory. Deleting
-/// only the file would leave the rest of the session behind, so the parent
-/// directory is the delete target instead.
-fn is_session_bundle_filename(name: &str) -> bool {
-    matches!(
-        name,
-        "events.jsonl" | "ui_messages.json" | "messages.jsonl" | "usage.jsonl"
-    )
-}
-
-/// `<sessionId>.messages.json` (Cline SDK) → `sessionId`.
-fn messages_json_session_id(file_name: &str) -> Option<&str> {
-    file_name
-        .strip_suffix(".messages.json")
-        .filter(|id| is_safe_session_id(id))
-}
-
-/// Stem for a flat `.json` / `.jsonl` transcript (`session-abc.jsonl` → `session-abc`).
-fn flat_transcript_session_id(path: &Path) -> Option<&str> {
-    let ext = path.extension().and_then(|e| e.to_str())?;
-    if !matches!(ext, "jsonl" | "json") {
-        return None;
-    }
-    let stem = path.file_stem().and_then(|s| s.to_str())?;
-    // `foo.messages.json` is handled as a session-bundle / parent-dir delete,
-    // not as a flat transcript whose stem still contains a dot.
-    if stem.contains('.') {
-        return None;
-    }
-    is_safe_session_id(stem).then_some(stem)
-}
-
-/// What to trash for a filesystem session artifact.
-enum DeletePlan {
-    /// Trash this path (a session directory, or a whole session bundle).
-    Target(PathBuf),
-    /// Trash the transcript file, then best-effort its Claude-style sibling dir.
-    FileAndSiblingDir(PathBuf),
-}
-
-fn unsupported_session_artifact() -> String {
-    "Only .jsonl/.json session files or session directories can be deleted".to_string()
-}
-
-fn resolve_filesystem_delete_plan(path: &Path) -> Result<DeletePlan, String> {
-    if !path.is_absolute() {
-        return Err("Session path must be absolute".to_string());
-    }
-
-    let file_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| "Invalid session filename".to_string())?;
-
-    // Never treat a session-index file as a deletable session.
-    if file_name == "sessions.json" {
-        return Err("Session index files cannot be deleted as sessions".to_string());
-    }
-
-    // Shape-check file-like paths before touching the filesystem so missing
-    // targets still report "unsupported" / "invalid id" rather than "not found".
-    let looks_like_file = path.extension().is_some();
-    if looks_like_file {
-        let is_bundle = is_session_bundle_filename(file_name);
-        let is_messages = messages_json_session_id(file_name).is_some();
-        let is_flat = flat_transcript_session_id(path).is_some();
-        if !is_bundle && !is_messages && !is_flat {
-            return Err(unsupported_session_artifact());
-        }
-    }
-
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|_| format!("Session path not found: {}", path.display()))?;
-
-    if metadata.file_type().is_symlink() {
-        return Err("Session path cannot be a symlink".to_string());
-    }
-
-    if metadata.is_dir() {
-        if !is_safe_session_id(file_name) {
-            return Err("Invalid session directory name".to_string());
-        }
-        return Ok(DeletePlan::Target(path.to_path_buf()));
-    }
-
-    if !metadata.is_file() {
-        return Err("Session target must be a regular file or directory".to_string());
-    }
-
-    let parent = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .ok_or_else(|| "Session file has no parent directory".to_string())?;
-    let parent_name = parent.file_name().and_then(|n| n.to_str());
-
-    if is_session_bundle_filename(file_name) {
-        match parent_name {
-            Some(name) if is_safe_session_id(name) => {
-                return Ok(DeletePlan::Target(parent.to_path_buf()));
-            }
-            _ => return Err("Invalid session directory name".to_string()),
-        }
-    }
-
-    if let Some(session_id) = messages_json_session_id(file_name) {
-        if parent_name == Some(session_id) {
-            return Ok(DeletePlan::Target(parent.to_path_buf()));
-        }
-        return Err("Cline transcript is not inside its session directory".to_string());
-    }
-
-    let session_id = flat_transcript_session_id(path).ok_or_else(unsupported_session_artifact)?;
-
-    // `<uuid>/<uuid>.jsonl` (Cursor Agent) — trash the whole session folder.
-    if parent_name == Some(session_id) {
-        return Ok(DeletePlan::Target(parent.to_path_buf()));
-    }
-
-    Ok(DeletePlan::FileAndSiblingDir(path.to_path_buf()))
-}
-
-/// Moves a session artifact to the system trash (permanent delete on trash failure).
+/// Cursor Agent CLI session: `<projects>/<project>/agent-transcripts/<id>/<id>.jsonl`
+/// plus the CLI's chat metadata at `<chats>/<workspace-hash>/<id>/`.
 ///
-/// Supports:
-/// - Claude/Codex-style `<id>.jsonl` (+ optional sibling `<id>/`)
-/// - Flat `.json` transcripts (Gemini legacy, Continue, …)
-/// - Session directories (Vibe, Antigravity, Kimi, …)
-/// - Session-bundle files whose parent directory is the session
-///   (`events.jsonl`, `ui_messages.json`, `<id>.messages.json`, …)
+/// The delete target is resolved here from the transcript path and must be the
+/// `<id>/` transcript folder strictly inside `projects_root`; the metadata
+/// folders must be strictly inside `chats_root`. Everything goes to the trash
+/// or the delete fails.
+fn delete_cursor_agent_session(
+    projects_root: &Path,
+    chats_root: Option<&Path>,
+    transcript: &Path,
+) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(transcript)
+        .map_err(|_| format!("Session file not found: {}", transcript.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Session target must be a regular .jsonl file".to_string());
+    }
+
+    let (root, parts) = components_inside(projects_root, transcript)?;
+    let [project, transcripts, id, file] = parts.as_slice() else {
+        return Err("Not a Cursor Agent transcript path".to_string());
+    };
+    if transcripts != "agent-transcripts"
+        || !is_safe_session_id(id)
+        || *file != format!("{id}.jsonl")
+        || !crate::utils::is_safe_storage_id(project)
+    {
+        return Err("Not a Cursor Agent transcript path".to_string());
+    }
+    let session_dir = root.join(project).join(transcripts).join(id);
+
+    let metadata_dirs: Vec<PathBuf> = match chats_root.map(Path::canonicalize) {
+        Some(Ok(chats)) => fs::read_dir(&chats)
+            .map_err(|e| format!("Failed to read Cursor Agent chats: {e}"))?
+            .filter_map(Result::ok)
+            .map(|workspace| workspace.path().join(id))
+            .filter(|dir| {
+                fs::symlink_metadata(dir).is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink())
+            })
+            .filter(|dir| !crate::utils::is_symlink(dir.parent().unwrap_or(dir)))
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    trash_only(&session_dir).map_err(|e| format!("Failed to delete session: {e}"))?;
+    for dir in metadata_dirs {
+        trash_only(&dir).map_err(|e| {
+            format!("The transcript was moved to the trash, but its Cursor Agent chat data was not: {e}")
+        })?;
+    }
+    Ok(())
+}
+
+/// Deletes one session.
 ///
-/// Virtual URI schemes are dispatched to provider-specific deleters.
+/// - `forgecode://…` / `cursor://…` ids are rows in that provider's database
+///   and are deleted there.
+/// - A path under the Cursor Agent CLI's `~/.cursor/projects` is resolved by
+///   [`delete_cursor_agent_session`].
+/// - Anything else is a Claude Code / Codex `<uuid>.jsonl`: the file and its
+///   `<dir>/<uuid>/` folder (subagents, tool-results) are moved to the trash.
+///   The target must be an absolute, plain `.jsonl` file (not a symlink) with
+///   a well-formed session ID. If the system trash is unavailable (e.g. a
+///   disabled Recycle Bin on Windows), it falls back to permanent deletion so
+///   the operation does not fail outright (#256).
 #[command]
 pub async fn delete_session(file_path: String) -> Result<(), String> {
     if file_path.starts_with("forgecode://") || file_path.starts_with("forgecode-db://") {
@@ -170,31 +147,68 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
     }
 
     let path = Path::new(&file_path);
-    let plan = resolve_filesystem_delete_plan(path)?;
 
-    // Codex title cleanup only applies to flat rollout files, not whole dirs.
-    if matches!(plan, DeletePlan::FileAndSiblingDir(_))
-        && crate::providers::codex::is_session_path(&file_path)
+    if let Some(root) = crate::providers::cursor_agent::get_base_path() {
+        let root = Path::new(&root);
+        if is_under(root, path) {
+            return delete_cursor_agent_session(
+                root,
+                crate::providers::cursor_agent::chats_root().as_deref(),
+                path,
+            );
+        }
+    }
+
+    if !path.is_absolute() {
+        return Err("Session path must be absolute".to_string());
+    }
+
+    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("Only .jsonl session files can be deleted".to_string());
+    }
+
+    let session_id = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "Invalid session filename".to_string())?;
+
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
     {
+        return Err("Invalid session ID format".to_string());
+    }
+
+    let metadata =
+        fs::symlink_metadata(path).map_err(|_| format!("Session file not found: {file_path}"))?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Session file cannot be a symlink".to_string());
+    }
+
+    if !metadata.file_type().is_file() {
+        return Err("Session target must be a regular .jsonl file".to_string());
+    }
+
+    // If this is a Codex rollout, clean up its native-rename row in
+    // `state_5.sqlite` before the transcript is trashed (the session id is read
+    // from the rollout). Best-effort — never block the delete on DB cleanup.
+    if crate::providers::codex::is_session_path(&file_path) {
         if let Err(e) = crate::providers::codex::delete_session_title(&file_path) {
             log::warn!("Codex thread-row cleanup failed for {file_path}: {e}");
         }
     }
 
-    match plan {
-        DeletePlan::Target(target) => {
-            remove_path(&target).map_err(|e| format!("Failed to delete session: {e}"))?;
-        }
-        DeletePlan::FileAndSiblingDir(file) => {
-            remove_path(&file).map_err(|e| format!("Failed to delete session file: {e}"))?;
+    // Delete the .jsonl first (authoritative artifact), then the associated folder.
+    // Tries the system trash first, falls back to permanent deletion on failure.
+    remove_path(path).map_err(|e| format!("Failed to delete session file: {e}"))?;
 
-            // Best-effort sibling folder (`<uuid>/` next to `<uuid>.jsonl`).
-            let associated_dir = file.with_extension("");
-            if let Ok(dir_meta) = fs::symlink_metadata(&associated_dir) {
-                if !dir_meta.file_type().is_symlink() && dir_meta.is_dir() {
-                    let _ = remove_path(&associated_dir);
-                }
-            }
+    // Best-effort removal of associated folder — don't fail if it can't be removed
+    // since the primary .jsonl file is already gone
+    let associated_dir = path.with_extension("");
+    if let Ok(dir_meta) = fs::symlink_metadata(&associated_dir) {
+        if !dir_meta.file_type().is_symlink() && dir_meta.is_dir() {
+            let _ = remove_path(&associated_dir);
         }
     }
 
@@ -218,14 +232,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reject_unsupported_extension() {
+    async fn reject_non_jsonl_extension() {
         let err = delete_session(crate::test_utils::abs("tmp/session.txt"))
             .await
             .unwrap_err();
-        assert_eq!(
-            err,
-            "Only .jsonl/.json session files or session directories can be deleted"
-        );
+        assert_eq!(err, "Only .jsonl session files can be deleted");
     }
 
     #[tokio::test]
@@ -233,10 +244,7 @@ mod tests {
         let err = delete_session(crate::test_utils::abs("tmp/a..b.jsonl"))
             .await
             .unwrap_err();
-        assert_eq!(
-            err,
-            "Only .jsonl/.json session files or session directories can be deleted"
-        );
+        assert_eq!(err, "Invalid session ID format");
     }
 
     #[tokio::test]
@@ -244,10 +252,7 @@ mod tests {
         let err = delete_session(crate::test_utils::abs("tmp/bad name.jsonl"))
             .await
             .unwrap_err();
-        assert_eq!(
-            err,
-            "Only .jsonl/.json session files or session directories can be deleted"
-        );
+        assert_eq!(err, "Invalid session ID format");
     }
 
     #[cfg(unix)]
@@ -263,13 +268,11 @@ mod tests {
         let err = delete_session(link_path.to_string_lossy().into())
             .await
             .unwrap_err();
-        assert_eq!(err, "Session path cannot be a symlink");
+        assert_eq!(err, "Session file cannot be a symlink");
     }
 
     #[tokio::test]
-    async fn reject_directory_named_like_jsonl_file() {
-        // A directory whose name ends in `.jsonl` is not a safe session id
-        // (contains a dot), so it must be rejected rather than trashed.
+    async fn reject_directory_target() {
         let dir = TempDir::new().unwrap();
         let subdir = dir.path().join("session.jsonl");
         fs::create_dir(&subdir).unwrap();
@@ -277,7 +280,7 @@ mod tests {
         let err = delete_session(subdir.to_string_lossy().into())
             .await
             .unwrap_err();
-        assert_eq!(err, "Invalid session directory name");
+        assert_eq!(err, "Session target must be a regular .jsonl file");
     }
 
     #[tokio::test]
@@ -309,93 +312,6 @@ mod tests {
         assert!(!assoc_dir.exists());
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn trash_flat_json_transcript() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let dir = TempDir::new().unwrap();
-        let file = dir.path().join("session-abc.json");
-        fs::write(&file, "{}").unwrap();
-
-        delete_session(file.to_string_lossy().into()).await.unwrap();
-        assert!(!file.exists());
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn trash_session_directory() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let dir = TempDir::new().unwrap();
-        let session_dir = dir.path().join("sess-dir-1");
-        fs::create_dir(&session_dir).unwrap();
-        fs::write(session_dir.join("messages.jsonl"), "{}\n").unwrap();
-
-        delete_session(session_dir.to_string_lossy().into())
-            .await
-            .unwrap();
-        assert!(!session_dir.exists());
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn trash_copilot_session_bundle_via_events_jsonl() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let dir = TempDir::new().unwrap();
-        let session_dir = dir.path().join("db7c8929-0512-4bef-ab71-812df5a3f37c");
-        fs::create_dir(&session_dir).unwrap();
-        let events = session_dir.join("events.jsonl");
-        fs::write(&events, "{}\n").unwrap();
-        fs::write(session_dir.join("workspace.yaml"), "name: x\n").unwrap();
-
-        delete_session(events.to_string_lossy().into())
-            .await
-            .unwrap();
-        assert!(!session_dir.exists());
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn trash_cline_sdk_session_via_messages_json() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let dir = TempDir::new().unwrap();
-        let session_id = "1789440631474_h3yr0";
-        let session_dir = dir.path().join(session_id);
-        fs::create_dir(&session_dir).unwrap();
-        let transcript = session_dir.join(format!("{session_id}.messages.json"));
-        fs::write(&transcript, r#"{"messages":[]}"#).unwrap();
-        fs::write(session_dir.join(format!("{session_id}.json")), "{}").unwrap();
-
-        delete_session(transcript.to_string_lossy().into())
-            .await
-            .unwrap();
-        assert!(!session_dir.exists());
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn trash_cursor_agent_transcript_directory() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let dir = TempDir::new().unwrap();
-        let session_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-        let session_dir = dir.path().join(session_id);
-        fs::create_dir(&session_dir).unwrap();
-        let transcript = session_dir.join(format!("{session_id}.jsonl"));
-        fs::write(&transcript, "{}\n").unwrap();
-
-        delete_session(transcript.to_string_lossy().into())
-            .await
-            .unwrap();
-        assert!(!session_dir.exists());
-    }
-
-    #[tokio::test]
-    async fn reject_sessions_index_file() {
-        let err = delete_session(crate::test_utils::abs("tmp/sessions.json"))
-            .await
-            .unwrap_err();
-        assert_eq!(err, "Session index files cannot be deleted as sessions");
-    }
-
     #[test]
     fn remove_path_deletes_file() {
         let dir = TempDir::new().unwrap();
@@ -415,5 +331,91 @@ mod tests {
 
         remove_path(&sub).unwrap();
         assert!(!sub.exists());
+    }
+
+    /// `~/.cursor/projects/<project>/agent-transcripts/<id>/<id>.jsonl` and
+    /// `~/.cursor/chats/<hash>/<id>/` in a sandbox home.
+    fn cursor_agent_session(home: &Path, id: &str) -> (PathBuf, PathBuf, PathBuf) {
+        let session_dir = home
+            .join(".cursor/projects/Users-me-proj/agent-transcripts")
+            .join(id);
+        fs::create_dir_all(&session_dir).unwrap();
+        let transcript = session_dir.join(format!("{id}.jsonl"));
+        fs::write(&transcript, "{}\n").unwrap();
+        let meta_dir = home.join(".cursor/chats/0123abcd").join(id);
+        fs::create_dir_all(&meta_dir).unwrap();
+        fs::write(meta_dir.join("meta.json"), r#"{"title":"t"}"#).unwrap();
+        (transcript, session_dir, meta_dir)
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn cursor_agent_delete_trashes_transcript_folder_and_chat_metadata() {
+        let home = crate::test_utils::SandboxHome::new();
+        let id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        let (transcript, session_dir, meta_dir) = cursor_agent_session(home.path(), id);
+        let (_, other_dir, other_meta) = cursor_agent_session(home.path(), "keep-me");
+
+        delete_session(transcript.to_string_lossy().into())
+            .await
+            .unwrap();
+        assert!(!session_dir.exists());
+        assert!(!meta_dir.exists());
+        assert!(other_dir.exists());
+        assert!(other_meta.exists());
+        assert!(session_dir.parent().unwrap().is_dir());
+    }
+
+    /// Only `<id>/<id>.jsonl` names a Cursor Agent session; any other path
+    /// under the root (the root, a project, a mismatched file) is refused
+    /// rather than resolved to a parent folder.
+    #[tokio::test]
+    #[serial]
+    async fn cursor_agent_delete_refuses_paths_that_are_not_a_transcript() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (transcript, session_dir, _) = cursor_agent_session(home.path(), "sess-1");
+        let stray = session_dir.join("other.jsonl");
+        fs::write(&stray, "{}\n").unwrap();
+        let root = home.path().join(".cursor/projects");
+
+        for bad in [
+            root.clone(),
+            root.join("Users-me-proj"),
+            session_dir.clone(),
+            stray.clone(),
+        ] {
+            assert!(
+                delete_session(bad.to_string_lossy().into()).await.is_err(),
+                "{}",
+                bad.display()
+            );
+        }
+        assert!(transcript.exists());
+        assert!(stray.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn cursor_agent_delete_refuses_a_transcript_reached_through_a_symlink() {
+        let home = crate::test_utils::SandboxHome::new();
+        let outside = TempDir::new().unwrap();
+        let id = "sess-2";
+        let real = outside.path().join("agent-transcripts").join(id);
+        fs::create_dir_all(&real).unwrap();
+        fs::write(real.join(format!("{id}.jsonl")), "{}\n").unwrap();
+        let projects = home.path().join(".cursor/projects");
+        fs::create_dir_all(&projects).unwrap();
+        symlink(outside.path(), projects.join("linked")).unwrap();
+
+        let via_link = projects
+            .join("linked/agent-transcripts")
+            .join(id)
+            .join(format!("{id}.jsonl"));
+        let err = delete_session(via_link.to_string_lossy().into())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "Session path is outside the provider's session root");
+        assert!(real.exists());
     }
 }

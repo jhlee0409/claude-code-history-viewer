@@ -1,35 +1,59 @@
 import { memo } from "react";
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
+import { useTranslation } from "react-i18next";
+
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
+import { CodeTarget, TargetWell, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, recordedWebSearchLinkCount, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
-import { isError } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
+import { str } from "./shared";
+import { isNonEmptyString, shownIf, unshown } from "./recordShape";
+import { OtherRecordedFields } from "./toolBodyParts";
 
-export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults }: Props) {
+/**
+ * WebSearch (TR1a): the query is the row's target; opened, the Input zone
+ * holds the whole query when the row cuts it, the Result zone the results
+ * as recorded. Outcome from
+ * `toolOutcome` only (an `error_code` alone reads "Failed · <code>").
+ */
+export const WebSearchCard = memo(function WebSearchCard({ toolUse, toolResults, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
+  const { t } = useTranslation();
+  const linkCount = recordedWebSearchLinkCount(toolResults);
+  const name = (toolUse.name as string) || "WebSearch";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const query = (typeof input.query === "string" ? input.query : "") as string;
-  const styles = getVariantStyles("web");
-
+  const query = str(input, "query") ?? "";
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const expandKey = `unified-${toolId}`;
+  const rest = unshown(input, { query: shownIf(isNonEmptyString) });
+  const hasRest = Object.keys(rest).length > 0;
 
   return (
-    <Renderer className={styles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title="WebSearch"
-        icon={<ToolIcon toolName="WebSearch" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={<StatusBadge results={toolResults} />}
-      />
-      <Renderer.Content>
-        <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>
-          <Search className={cn(layout.iconSizeSmall, "text-tool-web shrink-0")} />
-          <span className={cn(layout.bodyText, "text-tool-web font-medium")}>{query}</span>
-        </div>
-        <ResultBlock results={toolResults} />
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="WebSearch" title={null} className="w-4 h-4" />}
+      verb={name}
+      target={query ? <CodeTarget text={query} /> : undefined}
+      meta={linkCount != null ? t("webSearchRenderer.linkCount", { count: linkCount }) : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+    >
+      <DetailZone kind="input" show={hasRest ? true : query ? "whenTargetCut" : false}>
+        {query && (
+          <WhenTargetCut>
+            <TargetWell text={query} />
+          </WhenTargetCut>
+        )}
+        <OtherRecordedFields rest={rest} expandKey={expandKey} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
+    </ToolRow>
   );
 });

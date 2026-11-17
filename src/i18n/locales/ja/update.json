@@ -32,7 +32,7 @@
   "updateIntroModal.benefits3": "オフライン時は自動的に無効化",
   "updateIntroModal.benefits4": "設定からいつでも変更可能",
   "updateIntroModal.benefitsTitle": "メリット:",
-  "updateIntroModal.description": "Claude Code History Viewerは、より良いユーザー体験を提供するため、自動的にアップデートを確認します。",
+  "updateIntroModal.description": "$t(common.appName)は、より良いユーザー体験を提供するため、自動的にアップデートを確認します。",
   "updateIntroModal.disableAutoCheck": "自動確認を無効化",
   "updateIntroModal.howItWorks1": "アプリ起動時にバックグラウンドでアップデートを確認",
   "updateIntroModal.howItWorks2": "新しいアップデートが見つかった場合に通知モーダルを表示",

@@ -44,6 +44,8 @@ pub mod pi;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
 pub mod qwen;
+/// What a provider scan could not read; collected for usage coverage.
+pub mod scan_report;
 pub mod trae;
 pub mod vibe;
 pub mod vscode;
@@ -329,3 +331,4 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
 
     providers
 }
+mod result_evidence;

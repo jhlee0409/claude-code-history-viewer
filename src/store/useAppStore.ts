@@ -6,6 +6,8 @@
  */
 
 import { create } from "zustand";
+import { registerWebUITabSource } from "@/utils/webuiDeepLink";
+import { runUiStorageMigrations } from "@/navigation/storageMigration";
 import {
   type ProjectSlice,
   createProjectSlice,
@@ -59,13 +61,17 @@ import {
   createNavigatorSlice,
 } from "./slices/navigatorSlice";
 import {
+  type InspectorSlice,
+  createInspectorSlice,
+} from "./slices/inspectorSlice";
+import {
   type MinimapSlice,
   createMinimapSlice,
 } from "./slices/minimapSlice";
 import {
-  type RecentEditsPanelSlice,
-  createRecentEditsPanelSlice,
-} from "./slices/recentEditsPanelSlice";
+  type RecentEditsSlice,
+  createRecentEditsSlice,
+} from "./slices/recentEditsSlice";
 import {
   type ProviderSlice,
   createProviderSlice,
@@ -83,9 +89,17 @@ import {
   createServerSlice,
 } from "./slices/serverSlice";
 import {
+  type DocumentSlice,
+  createDocumentSlice,
+} from "./slices/documentSlice";
+import {
   type SessionSelectionSlice,
   createSessionSelectionSlice,
 } from "./slices/sessionSelectionSlice";
+import {
+  type SidebarFilterSlice,
+  createSidebarFilterSlice,
+} from "./slices/sidebarFilterSlice";
 
 // Re-export types for backward compatibility
 export type {
@@ -111,37 +125,51 @@ export type AppStore = ProjectSlice &
   NavigationSlice &
   WatcherSlice &
   NavigatorSlice &
+  InspectorSlice &
   MinimapSlice &
-  RecentEditsPanelSlice &
+  RecentEditsSlice &
   ProviderSlice &
   ArchiveSlice &
   SessionPickerSlice &
   ServerSlice &
-  SessionSelectionSlice;
+  SessionSelectionSlice &
+  DocumentSlice &
+  SidebarFilterSlice;
 
 // ============================================================================
 // Store Creation
 // ============================================================================
 
-export const useAppStore = create<AppStore>()((...args) => ({
-  ...createProjectSlice(...args),
-  ...createMessageSlice(...args),
-  ...createSearchSlice(...args),
-  ...createAnalyticsSlice(...args),
-  ...createSettingsSlice(...args),
-  ...createGlobalStatsSlice(...args),
-  ...createMetadataSlice(...args),
-  ...createCaptureModeSlice(...args),
-  ...createBoardSlice(...args),
-  ...createFilterSlice(...args),
-  ...createNavigationSlice(...args),
-  ...createWatcherSlice(...args),
-  ...createNavigatorSlice(...args),
-  ...createMinimapSlice(...args),
-  ...createRecentEditsPanelSlice(...args),
-  ...createProviderSlice(...args),
-  ...createArchiveSlice(...args),
-  ...createSessionPickerSlice(...args),
-  ...createServerSlice(...args),
-  ...createSessionSelectionSlice(...args),
-}));
+export const useAppStore = create<AppStore>()((...args) => {
+  // Stored UI state from older versions is brought up to date before any
+  // slice reads it (T9b: tabs.v1 → tabs.v2, the dock's keys removed).
+  runUiStorageMigrations();
+  return {
+    ...createProjectSlice(...args),
+    ...createMessageSlice(...args),
+    ...createSearchSlice(...args),
+    ...createAnalyticsSlice(...args),
+    ...createSettingsSlice(...args),
+    ...createGlobalStatsSlice(...args),
+    ...createMetadataSlice(...args),
+    ...createCaptureModeSlice(...args),
+    ...createBoardSlice(...args),
+    ...createFilterSlice(...args),
+    ...createNavigationSlice(...args),
+    ...createWatcherSlice(...args),
+    ...createNavigatorSlice(...args),
+    ...createInspectorSlice(...args),
+    ...createMinimapSlice(...args),
+    ...createRecentEditsSlice(...args),
+    ...createProviderSlice(...args),
+    ...createArchiveSlice(...args),
+    ...createSessionPickerSlice(...args),
+    ...createServerSlice(...args),
+    ...createSessionSelectionSlice(...args),
+    ...createDocumentSlice(...args),
+    ...createSidebarFilterSlice(...args),
+  };
+});
+
+// A WebUI URL that names a session also names the tab it is open in (F1).
+registerWebUITabSource(() => useAppStore.getState().activeDocumentId);

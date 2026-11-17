@@ -104,11 +104,12 @@ export function useSessionBatchActions() {
         // open session if it was among them.
         if (deleted.length > 0) {
           const deletedIds = new Set(deleted.map((r) => r.session.session_id));
-          const { sessions: current, setSessions, selectedSession, setSelectedSession } =
+          const { sessions: current, setSessions, selectedSession, navigate } =
             useAppStore.getState();
           setSessions(current.filter((s) => !deletedIds.has(s.session_id)));
           if (selectedSession && deletedIds.has(selectedSession.session_id)) {
-            setSelectedSession(null);
+            // The open place lost its session (see useSessionEditing).
+            await navigate({ session: null }, { record: false, history: "replace" });
           }
         }
 

@@ -1,5 +1,7 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
-import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
+import { SquareTerminal, CircleCheckBig, CircleAlert, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -9,6 +11,7 @@ import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { HighlightedText } from "../common/HighlightedText";
 import { AnsiText } from "../common/AnsiText";
 import { stripAnsiCodes } from "@/utils/ansiToHtml";
+import { parseCommandMessage } from "@/utils/commandMessage";
 
 type Props = {
   text: string;
@@ -18,22 +21,6 @@ type Props = {
   /** Color variant — "accent" (default, blue) for assistant context, "system" (amber) for system messages */
   variant?: "accent" | "system";
 };
-
-interface CommandGroup {
-  name?: string;
-  message?: string;
-  args?: string;
-}
-
-interface OutputTag {
-  type: "stdout" | "stderr" | "other";
-  name: string;
-  content: string;
-}
-
-interface CaveatBlock {
-  content: string;
-}
 
 const VARIANT_COLORS = {
   accent: {
@@ -59,6 +46,7 @@ export const CommandRenderer = ({
   currentMatchIndex = 0,
   variant = "accent",
 }: Props) => {
+  const isCommandExpandedContentId = useId();
   const { t } = useTranslation();
   const [isCommandExpanded, setIsCommandExpanded] = useCaptureExpandState("command", false);
   const colors = VARIANT_COLORS[variant];
@@ -70,107 +58,13 @@ export const CommandRenderer = ({
     }
   }, [searchQuery, text, setIsCommandExpanded]);
 
-  // Command 그룹 (name, message, args) 추출
-  const commandNameRegex = /<command-name>\s*(.*?)\s*<\/command-name>/gs;
-  const commandMessageRegex =
-    /<command-message>\s*(.*?)\s*<\/command-message>/gs;
-  const commandArgsRegex = /<command-args>\s*(.*?)\s*<\/command-args>/gs;
-
-  const nameMatch = text.match(commandNameRegex);
-  const messageMatch = text.match(commandMessageRegex);
-  const argsMatch = text.match(commandArgsRegex);
-
-  const extractedName = nameMatch?.[0]
-    ?.replace(/<\/?command-name>/g, "")
-    .trim();
-  const extractedMessage = messageMatch?.[0]
-    ?.replace(/<\/?command-message>/g, "")
-    .trim();
-  const extractedArgs = argsMatch?.[0]
-    ?.replace(/<\/?command-args>/g, "")
-    .trim();
-
-  // Hide message if it's just the command name without slash (e.g., name="/cost", message="cost")
-  const isRedundantMessage =
-    extractedName && extractedMessage &&
-    extractedName.replace(/^\//, "") === extractedMessage;
-
-  const commandGroup: CommandGroup = {
-    name: extractedName && extractedName.length > 0 ? extractedName : undefined,
-    message:
-      extractedMessage && extractedMessage.length > 0 && !isRedundantMessage
-        ? extractedMessage
-        : undefined,
-    args: extractedArgs && extractedArgs.length > 0 ? extractedArgs : undefined,
-  };
-
-  // 출력 태그들 (stdout, stderr 등) 추출 - 더 포괄적인 패턴 사용
-  const outputTags: OutputTag[] = [];
-
-  // stdout 계열: stdout, output이 포함된 모든 태그 (local-command-stdout 제외 - 별도 처리)
-  const stdoutRegex = /<(?!local-command-stdout)([^>]*(?:stdout|output)[^>]*)\s*>\s*(.*?)\s*<\/\1>/gs;
-  // stderr 계열: stderr, error가 포함된 모든 태그
-  const stderrRegex = /<([^>]*(?:stderr|error)[^>]*)\s*>\s*(.*?)\s*<\/\1>/gs;
-
-  let match;
-
-  // stdout 계열 태그들
-  while ((match = stdoutRegex.exec(text)) !== null) {
-    const [, tagName, content] = match;
-    if (content && content.trim()) {
-      outputTags.push({
-        type: "stdout",
-        name: tagName ?? "",
-        content: content.trim(),
-      });
-    }
-  }
-
-  // stderr 계열 태그들
-  while ((match = stderrRegex.exec(text)) !== null) {
-    const [, tagName, content] = match;
-    if (content && content.trim()) {
-      outputTags.push({
-        type: "stderr",
-        name: tagName ?? "",
-        content: content.trim(),
-      });
-    }
-  }
-
-  // Extract local-command-caveat tags
-  const caveatRegex = /<local-command-caveat>\s*(.*?)\s*<\/local-command-caveat>/gs;
-  const caveats: CaveatBlock[] = [];
-  let caveatMatch;
-  while ((caveatMatch = caveatRegex.exec(text)) !== null) {
-    const [, content] = caveatMatch;
-    if (content && content.trim()) {
-      caveats.push({ content: content.trim() });
-    }
-  }
-
-  // Extract local-command-stdout tags (user-visible command output, e.g., /cost)
-  const localStdoutRegex = /<local-command-stdout>\s*(.*?)\s*<\/local-command-stdout>/gs;
-  const localStdoutBlocks: string[] = [];
-  let localStdoutMatch;
-  while ((localStdoutMatch = localStdoutRegex.exec(text)) !== null) {
-    const [, content] = localStdoutMatch;
-    if (content && content.trim()) {
-      localStdoutBlocks.push(content.trim());
-    }
-  }
-
-  // Remove all tags
-  const withoutCommands = text
-    .replace(commandNameRegex, "")
-    .replace(commandMessageRegex, "")
-    .replace(commandArgsRegex, "")
-    .replace(stdoutRegex, "")
-    .replace(stderrRegex, "")
-    .replace(caveatRegex, "")
-    .replace(localStdoutRegex, "")
-    .replace(/^\s*\n/gm, "")
-    .trim();
+  const {
+    command: commandGroup,
+    outputs: outputTags,
+    caveats,
+    localStdout: localStdoutBlocks,
+    remainingText: withoutCommands,
+  } = parseCommandMessage(text);
 
   const hasCommandGroup =
     commandGroup.name || commandGroup.message || commandGroup.args;
@@ -190,18 +84,18 @@ export const CommandRenderer = ({
       {hasCommandGroup && (
         <div className={cn(layout.rounded, "border", colors.bg, colors.border)}>
           {hasExpandableContent ? (
-            <button
+            <Button aria-controls={isCommandExpandedContentId} variant="ghost" size="sm" type="button"
               onClick={() => setIsCommandExpanded(prev => !prev)}
               aria-expanded={isCommandExpanded}
               aria-label={`${isCommandExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${commandGroup.name || t("commandRenderer.commandExecution")}`}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "w-full flex items-center",
                 layout.iconGap,
                 layout.headerPadding,
                 layout.rounded,
                 "text-left transition-colors",
                 colors.hover
-              )}
+              ))}
             >
               <ChevronRight
                 className={cn(
@@ -211,29 +105,29 @@ export const CommandRenderer = ({
                   isCommandExpanded && "rotate-90"
                 )}
               />
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
-            </button>
+            </Button>
           ) : (
             <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
-              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <SquareTerminal className={cn(layout.iconSize, colors.text)} />
               <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
             </div>
           )}
 
-          {isCommandExpanded && hasExpandableContent && (
+          <div id={isCommandExpandedContentId} hidden={!isCommandExpanded}>{isCommandExpanded && hasExpandableContent && (
             <div className={layout.contentPadding}>
               {/* Command args if present */}
               {commandGroup.args && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-caption font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.arguments")}
                   </span>
-                  <code className={cn("px-1.5 py-0.5 text-px11", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
+                  <code className={cn("px-1.5 py-0.5 text-caption", layout.rounded, "font-mono whitespace-pre-wrap wrap-anywhere", colors.argBg)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.args}
@@ -251,10 +145,10 @@ export const CommandRenderer = ({
               {/* Command message/status if present */}
               {commandGroup.message && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-caption font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.status")}
                   </span>
-                  <span className={cn("text-px11 italic", colors.text)}>
+                  <span className={cn("text-caption italic", colors.text)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.message}
@@ -277,7 +171,7 @@ export const CommandRenderer = ({
                     "mt-1.5 px-2.5 py-2",
                     layout.rounded,
                     "bg-background/50 text-foreground/80",
-                    "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+                    "whitespace-pre-wrap font-mono text-list leading-relaxed"
                   )}
                 >
                   {searchQuery ? (
@@ -293,14 +187,14 @@ export const CommandRenderer = ({
                 </div>
               ))}
             </div>
-          )}
+          )}</div>
         </div>
       )}
 
       {/* Output Tags */}
       {outputTags.map((output, index) => {
         const isError = output.type === "stderr";
-        const Icon = isError ? AlertCircle : CheckCircle;
+        const Icon = isError ? CircleAlert : CircleCheckBig;
         const label = isError
           ? t("commandRenderer.errorOutput")
           : t("commandRenderer.executionResult");
@@ -348,8 +242,8 @@ export const CommandRenderer = ({
           )}
         >
           <div className={cn("flex items-center mb-1.5", layout.iconSpacing)}>
-            <Terminal className={cn(layout.iconSize, "text-muted-foreground")} />
-            <span className={cn("text-xs font-medium text-muted-foreground")}>
+            <SquareTerminal className={cn(layout.iconSize, "text-muted-foreground")} />
+            <span className={cn("text-list font-medium text-muted-foreground")}>
               {t("commandRenderer.commandOutput")}
             </span>
           </div>
@@ -358,7 +252,7 @@ export const CommandRenderer = ({
               "px-2.5 py-2",
               layout.rounded,
               "bg-card text-foreground/80",
-              "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+              "whitespace-pre-wrap font-mono text-list leading-relaxed"
             )}
           >
             {searchQuery ? (
@@ -379,7 +273,7 @@ export const CommandRenderer = ({
       {caveats.map((caveat, index) => (
         <CaveatRenderer
           key={index}
-          content={caveat.content}
+          content={caveat}
           searchQuery={searchQuery}
           isCurrentMatch={isCurrentMatch}
           currentMatchIndex={currentMatchIndex}
@@ -411,6 +305,7 @@ const CaveatRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: CaveatRendererProps) => {
+  const isExpandedContentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("caveat", false);
   const { t } = useTranslation();
 
@@ -423,17 +318,17 @@ const CaveatRenderer = ({
 
   return (
     <div className={cn(layout.rounded, "border bg-info/10 border-info/30")}>
-      <button
+      <Button aria-controls={isExpandedContentId} variant="ghost" size="sm" type="button"
         onClick={() => setIsExpanded(prev => !prev)}
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${t("commandRenderer.systemNote")}`}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center",
           layout.iconGap,
           layout.headerPadding,
           layout.rounded,
           "text-left hover:bg-info/20 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -446,9 +341,9 @@ const CaveatRenderer = ({
         <span className={cn(layout.titleText, "text-info")}>
           {t("commandRenderer.systemNote")}
         </span>
-      </button>
+      </Button>
 
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className={cn(layout.contentPadding, layout.smallText, "text-info")}>
           {searchQuery ? (
             <HighlightedText
@@ -461,7 +356,7 @@ const CaveatRenderer = ({
             content
           )}
         </div>
-      )}
+      )}</div>
     </div>
   );
 };

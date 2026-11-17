@@ -4,7 +4,10 @@ import {
   createWatcherSlice,
   type WatcherSlice,
 } from "../store/slices/watcherSlice";
-import { AppErrorType, type ClaudeSession } from "../types";
+import type { ClaudeSession } from "../types";
+
+const toastMock = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 const flushMicrotasks = async () => {
   await Promise.resolve();
@@ -28,7 +31,7 @@ type TestStore = WatcherSlice & {
   selectedSession: ClaudeSession | null;
   selectedProject: { path: string } | null;
   messages: unknown[];
-  selectSession: ReturnType<typeof vi.fn>;
+  reloadCurrent: ReturnType<typeof vi.fn>;
   selectProject: ReturnType<typeof vi.fn>;
   setError: ReturnType<typeof vi.fn>;
   invalidateRecentEdits: Mock;
@@ -40,7 +43,7 @@ const createTestStore = () =>
     selectedSession,
     selectedProject: null,
     messages: [],
-    selectSession: vi.fn().mockResolvedValue(undefined),
+    reloadCurrent: vi.fn().mockResolvedValue(undefined),
     selectProject: vi.fn().mockResolvedValue(undefined),
     invalidateRecentEdits: vi.fn(),
     reloadProjectSessions: vi.fn().mockResolvedValue(undefined),
@@ -71,12 +74,12 @@ describe("watcherSlice refresh coalescing", () => {
 
     await vi.advanceTimersByTimeAsync(1499);
     await flushMicrotasks();
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledTimes(1);
   });
 
   it("keeps deferring selected-session refresh until events go quiet", async () => {
@@ -96,12 +99,12 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(1499);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledTimes(1);
   });
 
   it("throttles project update markers for unrelated session events", async () => {
@@ -118,7 +121,7 @@ describe("watcherSlice refresh coalescing", () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(Object.keys(store.getState().lastUpdateTime)).toEqual(["/project"]);
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
   });
 
   it("defers active-session refresh while the user is reading away from the bottom", async () => {
@@ -133,19 +136,19 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
     expect(Object.keys(store.getState().lastUpdateTime)).toEqual(["/project"]);
 
     store.getState().setActiveSessionNearBottom(true);
 
     await vi.advanceTimersByTimeAsync(1499);
     await flushMicrotasks();
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledTimes(1);
   });
 
   it("cancels an already scheduled refresh when the user scrolls away from the bottom", async () => {
@@ -162,25 +165,26 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
 
     store.getState().setActiveSessionNearBottom(true);
 
     await vi.advanceTimersByTimeAsync(1499);
     await flushMicrotasks();
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledTimes(1);
   });
 
-  it("surfaces selected-session refresh failures from the timer callback", async () => {
+  it("surfaces selected-session refresh failures from the timer callback, never as the app error", async () => {
+    toastMock.error.mockClear();
     const store = createTestStore();
     store
       .getState()
-      .selectSession.mockRejectedValueOnce(new Error("load failed"));
+      .reloadCurrent.mockRejectedValueOnce(new Error("load failed"));
 
     void store
       .getState()
@@ -189,10 +193,9 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(1500);
     await flushMicrotasks();
 
-    expect(store.getState().setError).toHaveBeenCalledWith({
-      type: AppErrorType.UNKNOWN,
-      message: "Failed to refresh session: Error: load failed",
-    });
+    // The open session is one tab's: a notification, and the tabs stay.
+    expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining("load failed"));
+    expect(store.getState().setError).not.toHaveBeenCalled();
   });
 });
 
@@ -272,9 +275,9 @@ describe("watcherSlice wildcard events", () => {
     expect(store.getState().reloadProjectSessions).toHaveBeenCalledWith({
       path: "opencode://hash",
     });
-    expect(store.getState().selectSession).toHaveBeenCalledWith(
-      opencodeSession
-    );
+    // The watcher reloads the open place; the open session is the OpenCode one.
+    expect(store.getState().selectedSession).toBe(opencodeSession);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("watcher");
     expect(Object.keys(store.getState().lastUpdateTime)).toEqual([
       "opencode://hash",
     ]);
@@ -292,7 +295,7 @@ describe("watcherSlice wildcard events", () => {
     await vi.advanceTimersByTimeAsync(2000);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadCurrent).not.toHaveBeenCalled();
     expect(store.getState().reloadProjectSessions).not.toHaveBeenCalled();
   });
 });

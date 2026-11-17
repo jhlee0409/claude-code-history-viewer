@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database, Sparkles, Bot } from "lucide-react";
 import { LoadingState } from "@/components/ui/loading";
 import type { ProjectStatsSummary, ProviderId } from "../../../types";
-import { formatDuration, formatDurationCompact } from "../../../utils/time";
 import {
   MetricCard,
   SectionCard,
@@ -21,24 +20,34 @@ import {
 } from "../components";
 import {
   calculateGlobalCostSummary,
-  formatNumber,
   generateTrendData,
   extractProjectGrowth,
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
   conversationSummary: ProjectStatsSummary | null;
+  /** The summary is being (re)loaded. */
+  isLoading?: boolean;
+  /** Why the summary failed to load; shown once loading has finished. */
+  error?: string | null;
+  /** Reload the summary from the error state. */
+  onRetry?: () => void;
   providerId?: ProviderId;
 }
 
 export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   projectSummary,
   conversationSummary,
+  isLoading = false,
+  error = null,
+  onRetry,
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   // Generate full range daily data using utility function
   const dailyData = useMemo(
@@ -62,12 +71,18 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
     );
   }, [conversationSummary]);
 
-  // 데이터가 없으면 항상 로딩 상태 표시 (뷰 전환 직후 isLoading이 false일 수 있음)
+  // Without data, a finished load that failed shows its error; anything else
+  // still loading (right after a screen switch the flag may not be set yet).
   if (!projectSummary) {
+    const failed = !isLoading && error != null;
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <LoadingState
-          isLoading={true}
+          isLoading={!failed}
+          error={failed ? error : null}
+          errorTitle={t("common.hooks.projectSummaryLoadFailed")}
+          onRetry={onRetry}
+          retryLabel={t("common.retry")}
           loadingMessage={t("analytics.loading")}
           spinnerSize="lg"
           withSparkle={true}
@@ -87,14 +102,14 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
         <MetricCard
           icon={MessageCircle}
           label={t("analytics.totalMessages")}
-          value={formatNumber(projectSummary.total_messages)}
+          value={fmt.count(projectSummary.total_messages)}
           trend={messageGrowth}
           colorVariant="purple"
         />
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
-          value={formatNumber(projectSummary.total_tokens)}
+          value={fmt.tokens(projectSummary.total_tokens)}
           trend={tokenGrowth}
           subValue={t("analytics.sessionCount", "{{count}} sessions", {
             count: projectSummary.total_sessions,
@@ -104,9 +119,10 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
         <MetricCard
           icon={Clock}
           label={t("analytics.totalSessionTime")}
-          value={formatDurationCompact(projectSummary.total_session_duration)}
-          subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${formatDuration(
-            projectSummary.avg_session_duration
+          value={fmt.minutes(projectSummary.total_session_duration)}
+          subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${fmt.minutes(
+            projectSummary.avg_session_duration,
+            { style: "long" },
           )}`}
           colorVariant="green"
         />
@@ -140,7 +156,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
           {projectSummary.daily_stats.length > 0 ? (
             <ActivityHeatmapComponent data={projectSummary.daily_stats} />
           ) : (
-            <div className="text-center py-8 text-muted-foreground text-px12">
+            <div className="text-center py-8 text-muted-foreground text-caption">
               {t("analytics.No activity data available")}
             </div>
           )}

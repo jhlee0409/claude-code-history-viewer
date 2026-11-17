@@ -3,13 +3,13 @@
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  BarChart3,
+  ChartColumn,
   MessageSquare,
-  Sparkles,
   Layers,
   ChevronDown,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import type {
   SessionTokenStats,
   ProviderId,
@@ -25,6 +25,8 @@ import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBre
 import { calculateGlobalCostSummary } from "./AnalyticsDashboard/utils";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -73,8 +75,9 @@ interface TokenStatsViewerProps {
   projectConversationStatsSummary?: ProjectStatsSummary | null;
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
-  title?: string;
   isLoading?: boolean;
+  /** The screen's own load failed (shown when it has nothing else to show). */
+  error?: string | null;
   dateFilter?: { start: Date | null; end: Date | null };
   setDateFilter?: (filter: { start: Date | null; end: Date | null }) => void;
   onSessionClick?: (stats: SessionTokenStats) => void;
@@ -90,14 +93,15 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   projectConversationStatsSummary,
   pagination,
   onLoadMore,
-  title,
   isLoading = false,
+  error = null,
   dateFilter,
   setDateFilter,
   onSessionClick,
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const sessions = useAppStore((state) => state.sessions);
   const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
@@ -161,13 +165,6 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       onLoadMore();
     }
   }, [onLoadMore, hasMoreSessions, isLoadingMore]);
-
-  // Format large numbers
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toLocaleString();
-  };
 
   // Use static token colors for metrics display
   const tokenColors = TOKEN_COLORS;
@@ -246,7 +243,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       { label: t("analytics.outputTokens"), value: totalStats.total_output_tokens, color: tokenColors.output.base },
       { label: t("analytics.cacheCreation"), value: totalStats.total_cache_creation_tokens, color: tokenColors.cacheWrite.base },
       { label: t("analytics.reasoning", "Reasoning"), value: totalStats.total_reasoning_tokens, color: tokenColors.reasoning.base },
-      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)" },
+      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)", isCount: true },
     ];
 
     return (
@@ -267,28 +264,28 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 className="w-11 h-11 rounded-xl flex items-center justify-center"
                 style={{ background: "color-mix(in oklch, var(--metric-green) 15%, transparent)" }}
               >
-                <Layers className="w-5 h-5" style={{ color: "var(--metric-green)" }} />
+                <Layers className="w-4 h-4" style={{ color: "var(--metric-green)" }} />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-foreground">
+                <h3 className="text-body font-semibold text-foreground">
                   {t("analytics.projectStats", { count: totalCount })}
                 </h3>
-                <p className="text-px12 text-muted-foreground">
+                <p className="text-caption text-muted-foreground">
                   {t("analytics.projectOverallAnalysis")}
                 </p>
               </div>
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="flex flex-wrap gap-3">
               {metrics.map((metric, i) => (
                 <Tooltip key={metric.label}>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label={`${metric.label}: ${metric.value.toLocaleString()}`}
+                      aria-label={`${metric.label}: ${fmt.count(metric.value)}`}
                       className={cn(
-                        "relative w-full appearance-none p-4 rounded-xl text-center text-inherit",
+                        "relative min-w-min flex-1 basis-[calc((100%_-_0.75rem)/2)] lg:grow-0 lg:basis-[calc((100%_-_3rem)/5)] appearance-none px-3 py-4 rounded-xl text-center text-inherit",
                         "bg-card/80 backdrop-blur-sm",
                         "border border-border/50",
                         "transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -300,19 +297,22 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-b"
                         style={{ background: metric.color }}
                       />
+                      {/* Keep the number whole. The tile's intrinsic minimum
+                          moves it onto another row when enlarged text needs
+                          more room than the preferred column width. */}
                       <div
-                        className="font-mono text-2xl font-bold tracking-tight"
+                        className="font-mono text-2xl font-bold tracking-tight whitespace-nowrap"
                         style={{ color: i === 0 ? "var(--foreground)" : metric.color }}
                       >
-                        {formatNumber(metric.value)}
+                        <Num>{"isCount" in metric ? fmt.count(metric.value) : fmt.tokens(metric.value)}</Num>
                       </div>
-                      <div className="text-px12 font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                      <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="font-mono text-xs">
-                    {metric.value.toLocaleString()}
+                  <TooltipContent className="font-mono text-list">
+                    <Num>{fmt.count(metric.value)}</Num>
                   </TooltipContent>
                 </Tooltip>
               ))}
@@ -341,11 +341,11 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         {/* Individual Sessions */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <h4 className="flex items-center gap-2 text-body font-semibold text-foreground">
               <div className="w-1.5 h-5 rounded-full bg-accent" />
               {t("analytics.sessionStatsDetail")}
             </h4>
-            <span className="text-px11 text-muted-foreground font-mono">
+            <span className="text-caption text-muted-foreground font-mono">
               {projectStats.length} / {totalCount}
             </span>
           </div>
@@ -379,7 +379,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 disabled={isLoadingMore}
                 aria-label={t("analytics.showMoreSessions", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                 className={cn(
-                  "w-full py-4 rounded-xl text-px13 font-medium",
+                  "w-full py-4 rounded-xl text-list font-medium",
                   "bg-muted/30 hover:bg-muted/50",
                   "border border-border/50 hover:border-border",
                   "text-muted-foreground hover:text-foreground",
@@ -390,7 +390,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
                     {t("common.loading")}
                   </>
                 ) : (
@@ -413,19 +413,32 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   // ============================================
   // EMPTY STATE
   // ============================================
+  if (!sessionStats && !projectStats.length && (isLoading || error)) {
+    // Nothing of this place's yet: its load is running, or it failed.
+    return (
+      <LoadingState
+        isLoading={isLoading && !error}
+        error={error}
+        loadingMessage={t("analytics.loading")}
+        withSparkle
+        spinnerSize="lg"
+        minHeight="py-24"
+      />
+    );
+  }
   if (!sessionStats && !projectStats.length) {
     return (
       <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-border/50 bg-card/30">
         <div className="relative mb-4">
-          <BarChart3 className="w-14 h-14 text-muted-foreground/30" />
+          <Icon icon={ChartColumn} size={24} className="text-muted-foreground/30" />
           <div
             className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
           />
         </div>
-        <p className="text-sm font-medium text-foreground mb-1">
+        <p className="text-body font-medium text-foreground mb-1">
           {t("analytics.noTokenData")}
         </p>
-        <p className="text-px12 text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {t("analytics.selectSessionOrLoad")}
         </p>
       </div>
@@ -444,37 +457,25 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
       minHeight="py-24"
     >
       <div className="space-y-6">
-        {/* Header */}
-        {(title || (dateFilter && setDateFilter)) && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            {title && (
-              <div className="flex items-center gap-3 shrink-0">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: "color-mix(in oklch, var(--metric-purple) 15%, transparent)" }}
-                >
-                  <Sparkles className="w-4 h-4" style={{ color: "var(--metric-purple)" }} />
-                </div>
-                <h2 className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">
-                  {title}
-                </h2>
-              </div>
-            )}
-
-            {dateFilter && setDateFilter && (
-              <DatePickerHeader
-                dateFilter={dateFilter}
-                setDateFilter={setDateFilter}
-                className="bg-card/50"
-              />
-            )}
+        {/*
+          Date filter only. The view's title lives in the shell's content
+          header (AppLayout), so repeating it here showed it twice. Kept at the
+          trailing edge where it sat beside the old title.
+        */}
+        {dateFilter && setDateFilter && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
+            <DatePickerHeader
+              dateFilter={dateFilter}
+              setDateFilter={setDateFilter}
+              className="bg-card/50"
+            />
           </div>
         )}
 
         {/* Current Session */}
         {sessionStats && (
           <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
+            <h3 className="flex items-center gap-2 text-body font-medium text-foreground/80 mb-3">
               <MessageSquare className="w-4 h-4 text-accent" />
               {t("analytics.currentSession")}
             </h3>
@@ -486,6 +487,8 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             />
             <BillingBreakdownCard
               billingTokens={sessionStats.total_tokens}
+              billingStats={sessionStats}
+              conversationStats={sessionConversationStats}
               conversationTokens={
                 hasSessionConversationData
                   ? sessionConversationStats?.total_tokens ?? 0

@@ -1,0 +1,92 @@
+// C4 measurement state: the seed matches the declared state, the matrix
+// declares the collapsed / one-expanded pair, and drift fails a scenario.
+
+import { describe, expect, it } from "vitest";
+import { checkMeasurementState } from "../lib/probes.mjs";
+import { MEASUREMENT_STATE, STORAGE_SEED, expandScenarios } from "../scenarios.mjs";
+
+const measured = {
+  sidebarWidth: 260,
+  rootFontSize: 16,
+  inspectorOpenStored: "false",
+  sessionsLayout: "inline",
+  selectedProjects: 0,
+  expandedProjects: 0,
+};
+
+describe("measurement state", () => {
+  it("is sidebar 260px, scale 100%, inspector closed, one tab", () => {
+    expect(MEASUREMENT_STATE).toEqual({ sidebarWidthPx: 260, fontScalePercent: 100, inspectorOpen: false, tabs: 1 });
+    // The inspector's record (T9a) and, for base builds before it, the
+    // message navigator's flag - both closed.
+    expect(STORAGE_SEED).toEqual({
+      "sidebar-width": "260",
+      "inspector.v1": JSON.stringify({ open: false, tab: "outline", width: 280 }),
+      "navigator-open": "false",
+    });
+  });
+
+  it("declares the inspector scenarios (T9a): open on each tab, judged as open", () => {
+    const inspector = expandScenarios().filter((s) => s.screen.id.startsWith("inspector-"));
+    const ids = inspector.map((s) => s.id);
+    for (const tab of ["outline", "tokens", "info"]) {
+      for (const size of ["1440x900", "1180x760"]) {
+        for (const theme of ["dark", "light"]) expect(ids).toContain(`inspector-${tab}--${size}--${theme}`);
+      }
+    }
+    expect(ids).toContain("inspector-outline--390x844--dark");
+    for (const scenario of inspector) {
+      expect(scenario.screen.inspectorOpen).toBe(true);
+      const record = JSON.parse(scenario.screen.storage["inspector.v1"]);
+      expect(record.open).toBe(true);
+      expect(scenario.screen.id).toBe(`inspector-${record.tab}`);
+      expect(scenario.screen.storage["navigator-open"]).toBe("true");
+    }
+    // An open inspector is drift for every other scenario, and expected here.
+    const open = { ...measured, inspectorOpenStored: "true" };
+    expect(checkMeasurementState(open, MEASUREMENT_STATE, { mobile: false })).toHaveLength(1);
+    expect(checkMeasurementState(open, { ...MEASUREMENT_STATE, inspectorOpen: true }, { mobile: false })).toEqual([]);
+  });
+
+  it("declares the collapsed / one-expanded project-row pair at 1440x900", () => {
+    const ids = expandScenarios().map((s) => s.id);
+    expect(ids).toContain("projects-collapsed--1440x900--dark");
+    expect(ids).toContain("projects-expanded--1440x900--dark");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("accepts the expected state and rejects drift", () => {
+    expect(checkMeasurementState(measured, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, sidebarWidth: 256 }, MEASUREMENT_STATE, { mobile: false })).toEqual([
+      "sidebar 256px, expected 260px",
+    ]);
+    expect(checkMeasurementState({ ...measured, inspectorOpenStored: null }, MEASUREMENT_STATE, { mobile: false })).toHaveLength(1);
+    expect(checkMeasurementState({ ...measured, rootFontSize: 17.6 }, MEASUREMENT_STATE, { mobile: false })).toHaveLength(1);
+  });
+
+  it("counts the open tabs (T8): one by default, a tab scenario's own count, none on builds without tabs", () => {
+    expect(checkMeasurementState({ ...measured, tabs: 1 }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, tabs: 3 }, MEASUREMENT_STATE, { mobile: false })).toEqual([
+      "3 tabs open, expected 1",
+    ]);
+    expect(checkMeasurementState({ ...measured, tabs: 3 }, { ...MEASUREMENT_STATE, tabs: 3 }, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, tabs: null }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+    const tabScenarios = expandScenarios().filter((s) => s.screen.id.startsWith("tabs-"));
+    expect(tabScenarios.map((s) => s.id)).toContain("tabs-overflow--1180x760--dark");
+    expect(tabScenarios.map((s) => s.id)).toContain("tabs-mobile-sheet--390x844--light");
+    expect(tabScenarios.every((s) => typeof s.screen.tabs === "number")).toBe(true);
+  });
+
+  it("judges the font scale by --app-font-scale (the root font size never changes)", () => {
+    const at90 = { ...MEASUREMENT_STATE, fontScalePercent: 90 };
+    expect(checkMeasurementState({ ...measured, appFontScale: 0.9 }, at90, { mobile: false })).toEqual([]);
+    expect(checkMeasurementState({ ...measured, appFontScale: 1 }, at90, { mobile: false })).toEqual([
+      "--app-font-scale 1, expected 0.9 (scale 90%)",
+    ]);
+    expect(checkMeasurementState({ ...measured, appFontScale: 1 }, MEASUREMENT_STATE, { mobile: false })).toEqual([]);
+  });
+
+  it("does not judge the mobile drawer width", () => {
+    expect(checkMeasurementState({ ...measured, sidebarWidth: 311 }, MEASUREMENT_STATE, { mobile: true })).toEqual([]);
+  });
+});

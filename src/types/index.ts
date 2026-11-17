@@ -63,6 +63,7 @@ export type {
   ContentItem,
   ToolUseContent,
   ToolResultContent,
+  ToolUseResultSource,
   ClaudeToolUseResult,
   ServerToolUseContent,
   WebSearchToolResultContent,
@@ -182,9 +183,6 @@ export type {
 export {
   computePresetSummary,
   parsePresetContent,
-  formatPresetDate,
-  formatMCPPresetDate,
-  formatUnifiedPresetDate,
   settingsToJson,
   jsonToSettings,
   createPresetInput,
@@ -204,6 +202,7 @@ export type {
   StatsMode,
   MetricMode,
   SessionTokenStats,
+  SubagentTokenStats,
   PaginatedTokenStats,
   DailyStats,
   ActivityHeatmap,
@@ -239,12 +238,7 @@ export { AppErrorType } from "./error.types";
 export type { AppError } from "./error.types";
 
 // Analytics Types
-export type {
-  AnalyticsView,
-  AnalyticsViewType,
-  AnalyticsState,
-  RecentEditsPagination,
-} from "./analytics";
+export type { AnalyticsState } from "./analytics";
 
 // Board Types
 export type {

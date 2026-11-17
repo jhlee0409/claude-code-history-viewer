@@ -1,6 +1,6 @@
 {
-  "name": "Claude Code History Viewer",
-  "short_name": "Code History",
+  "name": "Omnilogue",
+  "short_name": "Omnilogue",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0a0a12",
@@ -10,7 +10,7 @@
       "src": "app-icon.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

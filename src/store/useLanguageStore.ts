@@ -4,7 +4,7 @@ import { storageAdapter } from "@/services/storage";
 import { isTauri } from "@/utils/platform";
 import i18n from "../i18n";
 import type { SupportedLanguage } from "../i18n";
-import { languageLocaleMap } from "../i18n";
+import { toSupportedLanguage as getSupportedLanguage } from "../i18n/documentLanguage";
 
 interface LanguageStore {
   language: SupportedLanguage;
@@ -12,21 +12,6 @@ interface LanguageStore {
   setLanguage: (language: SupportedLanguage) => Promise<void>;
   loadLanguage: () => Promise<void>;
 }
-
-const getSupportedLanguage = (lang: string): SupportedLanguage => {
-  if (lang.startsWith("zh")) {
-    const region = lang.split("-")[1]?.toUpperCase();
-    if (region === "TW" || region === "HK" || region === "MO") {
-      return "zh-TW";
-    }
-    return "zh-CN";
-  }
-  const primary = lang.split("-")[0];
-  if (primary && primary in languageLocaleMap) {
-    return primary as SupportedLanguage;
-  }
-  return "en";
-};
 
 const getCurrentLanguage = (): SupportedLanguage => {
   const storedLang = localStorage.getItem("i18nextLng");

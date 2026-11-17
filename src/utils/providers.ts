@@ -62,8 +62,6 @@ export interface ProviderSessionCapability {
 }
 
 const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapability> = {
-  // Aider shares one history file across many sessions — per-session delete
-  // would wipe every conversation in that project.
   aider: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -71,8 +69,6 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
-  // Virtual URI / DB-backed providers stay false until they grow a dedicated
-  // delete path (same pattern as cursor:// and forgecode://).
   amazonq: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -84,8 +80,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: true,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    // Session dirs under the Antigravity store (desktop + CLI).
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   claude: {
@@ -99,15 +94,14 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    // VS Code tasks (`ui_messages.json`) and SDK sessions (`*.messages.json`).
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   codebuddy: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   codex: {
@@ -121,7 +115,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   copilot: {
@@ -131,8 +125,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     // The provider-level capability is the optimistic union; per-session
     // gating is done by `supportsResumeCommandForSession` below.
     supportsResumeCommand: true,
-    // CLI: `session-state/<id>/events.jsonl`; VS Code: `chatSessions/<id>.jsonl`.
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   crush: {
@@ -146,8 +139,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    // Cursor conversations are rows in its local SQLite store. The delete
-    // command resolves the `cursor://` id and removes the composer + bubbles.
+    // `cursor://<id>` rows in Cursor's state.vscdb plus the workspace index
+    // entry; the backend refuses while Cursor is running.
     supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
@@ -155,7 +148,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    // `agent-transcripts/<uuid>/<uuid>.jsonl` — delete trashes the uuid folder.
+    // The `agent-transcripts/<id>/` folder and the CLI's `chats/*/<id>/` metadata.
     supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
@@ -170,7 +163,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   goose: {
@@ -184,7 +177,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   kilo: {
@@ -198,7 +191,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: true,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   kiro: {
@@ -240,14 +233,14 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   pi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   pearai: {
@@ -261,7 +254,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   zcode: {
@@ -282,7 +275,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: true,
-    supportsSessionDeletion: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   zed: {
@@ -513,43 +506,73 @@ export function supportsArchiveCreation(provider?: ProviderId | string): boolean
   return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsArchiveCreation;
 }
 
+// Keep in sync with `detect_project_provider` in
+// src-tauri/src/commands/session/edits.rs. Any other provider would fall back
+// to the Claude reader there, and the WebUI rejects its paths outright (#643).
+const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
+  "claude",
+  "codex",
+  "forgecode",
+  "kilo",
+  "opencode",
+];
+
+// Keep in sync with `get_session_subagents` in
+// src-tauri/src/commands/session/load.rs: Claude `<session>/subagents/` files
+// plus the OpenCode / Kilo provider ids (#560, #643).
+const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo"];
+
+// Unlike the helpers above, a missing provider counts as Claude: the backend
+// leaves `provider` unset on Claude projects and sessions.
+const isAllowedProvider = (
+  allowed: readonly ProviderId[],
+  provider?: ProviderId | string
+): boolean => allowed.includes((provider ?? DEFAULT_PROVIDER_ID) as ProviderId);
+
+export function supportsRecentEdits(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(RECENT_EDITS_PROVIDER_IDS, provider);
+}
+
+export function supportsSubagents(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(SUBAGENT_PROVIDER_IDS, provider);
+}
+
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
-  claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  codex: "bg-green-500/15 text-green-600 dark:text-green-400",
-  continue: "bg-lime-500/15 text-lime-700 dark:text-lime-300",
-  copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
-  cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
-  crush: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-  cursor: "bg-[#f54e00]/15 text-[#d04200] dark:text-[#ff6a2a]",
-  "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-  forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
-  gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  goose: "bg-red-500/15 text-red-600 dark:text-red-400",
-  grok: "bg-zinc-800/15 text-zinc-800 dark:text-zinc-200",
-  kilo: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
-  kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
-  kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
-  ompi: "bg-teal-600/15 text-teal-700 dark:text-teal-300",
-  opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  openinterpreter: "bg-stone-500/15 text-stone-600 dark:text-stone-400",
-  openhands: "bg-gray-500/15 text-gray-600 dark:text-gray-300",
-  pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
-  pi: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
-  qwen: "bg-violet-600/15 text-violet-700 dark:text-violet-300",
-  zcode: "bg-cyan-600/15 text-cyan-700 dark:text-cyan-300",
-  trae: "bg-blue-600/15 text-blue-700 dark:text-blue-300",
-  vibe: "bg-orange-600/15 text-orange-700 dark:text-orange-300",
-  zed: "bg-neutral-500/15 text-neutral-600 dark:text-neutral-400",
-  aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-  amazonq: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
-  antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+  "claude": "bg-provider-claude-surface text-provider-claude",
+  "codebuddy": "bg-provider-codebuddy-surface text-provider-codebuddy",
+  "codex": "bg-provider-codex-surface text-provider-codex",
+  "continue": "bg-provider-continue-surface text-provider-continue",
+  "copilot": "bg-provider-copilot-surface text-provider-copilot",
+  "cline": "bg-provider-cline-surface text-provider-cline",
+  "crush": "bg-provider-crush-surface text-provider-crush",
+  "cursor": "bg-provider-cursor-surface text-provider-cursor",
+  "cursor-agent": "bg-provider-cursor-agent-surface text-provider-cursor-agent",
+  "forgecode": "bg-provider-forgecode-surface text-provider-forgecode",
+  "gemini": "bg-provider-gemini-surface text-provider-gemini",
+  "goose": "bg-provider-goose-surface text-provider-goose",
+  "grok": "bg-provider-grok-surface text-provider-grok",
+  "kilo": "bg-provider-kilo-surface text-provider-kilo",
+  "kimi": "bg-provider-kimi-surface text-provider-kimi",
+  "kiro": "bg-provider-kiro-surface text-provider-kiro",
+  "llm": "bg-provider-llm-surface text-provider-llm",
+  "ompi": "bg-provider-ompi-surface text-provider-ompi",
+  "opencode": "bg-provider-opencode-surface text-provider-opencode",
+  "openinterpreter": "bg-provider-openinterpreter-surface text-provider-openinterpreter",
+  "openhands": "bg-provider-openhands-surface text-provider-openhands",
+  "pearai": "bg-provider-pearai-surface text-provider-pearai",
+  "pi": "bg-provider-pi-surface text-provider-pi",
+  "qwen": "bg-provider-qwen-surface text-provider-qwen",
+  "zcode": "bg-provider-zcode-surface text-provider-zcode",
+  "trae": "bg-provider-trae-surface text-provider-trae",
+  "vibe": "bg-provider-vibe-surface text-provider-vibe",
+  "zed": "bg-provider-zed-surface text-provider-zed",
+  "aider": "bg-provider-aider-surface text-provider-aider",
+  "amazonq": "bg-provider-amazonq-surface text-provider-amazonq",
+  "antigravity": "bg-provider-antigravity-surface text-provider-antigravity",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {
-  const id = getProviderId(provider);
-  return PROVIDER_BADGE_STYLES[id] ?? "bg-gray-500/15 text-gray-500";
+  return PROVIDER_BADGE_STYLES[getProviderId(provider)];
 }
 
 export function hasAnyConversationBreakdownProvider(

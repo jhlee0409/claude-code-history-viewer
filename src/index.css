@@ -3,62 +3,135 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================
-   ENTERPRISE DESIGN SYSTEM v2: "Command Center"
-   ============================================
-   Tone: Industrial Luxury - Precise, Authoritative Developer Tool
-   Aesthetic: Deep charcoal with warm amber accents
-   Color Space: OKLCH for perceptually uniform gradients
-   Typography: IBM Plex Sans (UI) + JetBrains Mono (Code)
+/* Role-based UI tokens: theme values here, structural cues in consumers. */
 
-   Key Principles:
-   • Extreme contrast in type scale (12px labels vs 96px headlines)
-   • Layered shadows for depth hierarchy
-   • Noise textures to eliminate flat "plastic" AI look
-   • Sharp geometric forms with intentional breaks
-   ============================================ */
+/* File regions and who may change them (inner-UI plan §4.1, R9):
+   ① tokens — :root, the theme blocks, @theme ........... F1a · F1b · F1c only
+   ② base layer — @layer base ............................ F1a · F1b · F1c only
+   ③ component classes — @layer components / utilities: the task that uses a
+     block changes or deletes it (.segmented → F2b, scrollbars → PF1,
+     .prose → TR3). A screen PR that needs a new token gets it from a small
+     F follow-up PR. */
 
 /* ============================================
    DESIGN TOKENS
    ============================================ */
 :root {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.25 0.04 0);
+  --series-2: oklch(0.65 0.12 120);
+  --series-3: oklch(0.65 0.2 330);
+  --series-4: oklch(0.33 0.15 285);
+
+  /* F1c data: scalar/prior are achromatic roles, never category identities. */
+  --series-scalar: var(--fg);
+  --series-scalar-soft: var(--fg-3);
+  --series-prior: var(--fg-2);
+  --chart-grid: var(--line-faint);
+  --chart-axis: var(--fg-2);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: oklch(0.48 0.1 65);
+  --provider-claude-surface: var(--surface-hover);
+  --provider-codebuddy: oklch(0.48 0.1 240);
+  --provider-codebuddy-surface: var(--surface-hover);
+  --provider-codex: oklch(0.48 0.1 145);
+  --provider-codex-surface: var(--surface-hover);
+  --provider-continue: oklch(0.48 0.1 125);
+  --provider-continue-surface: var(--surface-hover);
+  --provider-copilot: oklch(0.48 0.1 300);
+  --provider-copilot-surface: var(--surface-hover);
+  --provider-cline: oklch(0.48 0.1 180);
+  --provider-cline-surface: var(--surface-hover);
+  --provider-crush: oklch(0.48 0.1 350);
+  --provider-crush-surface: var(--surface-hover);
+  --provider-cursor: oklch(0.48 0.1 40);
+  --provider-cursor-surface: var(--surface-hover);
+  --provider-cursor-agent: oklch(0.48 0.1 285);
+  --provider-cursor-agent-surface: var(--surface-hover);
+  --provider-forgecode: oklch(0.48 0.1 55);
+  --provider-forgecode-surface: var(--surface-hover);
+  --provider-gemini: oklch(0.48 0.1 300);
+  --provider-gemini-surface: var(--surface-hover);
+  --provider-goose: oklch(0.48 0.1 25);
+  --provider-goose-surface: var(--surface-hover);
+  --provider-grok: oklch(0.48 0 0);
+  --provider-grok-surface: var(--surface-hover);
+  --provider-kilo: oklch(0.48 0.1 210);
+  --provider-kilo-surface: var(--surface-hover);
+  --provider-kimi: oklch(0.48 0.1 325);
+  --provider-kimi-surface: var(--surface-hover);
+  --provider-kiro: oklch(0.48 0.1 160);
+  --provider-kiro-surface: var(--surface-hover);
+  --provider-llm: oklch(0.48 0 0);
+  --provider-llm-surface: var(--surface-hover);
+  --provider-ompi: oklch(0.48 0.1 180);
+  --provider-ompi-surface: var(--surface-hover);
+  --provider-opencode: oklch(0.48 0.1 255);
+  --provider-opencode-surface: var(--surface-hover);
+  --provider-openinterpreter: oklch(0.48 0 0);
+  --provider-openinterpreter-surface: var(--surface-hover);
+  --provider-openhands: oklch(0.48 0 0);
+  --provider-openhands-surface: var(--surface-hover);
+  --provider-pearai: oklch(0.48 0.1 95);
+  --provider-pearai-surface: var(--surface-hover);
+  --provider-pi: oklch(0.48 0.1 180);
+  --provider-pi-surface: var(--surface-hover);
+  --provider-qwen: oklch(0.48 0.1 285);
+  --provider-qwen-surface: var(--surface-hover);
+  --provider-zcode: oklch(0.48 0.1 210);
+  --provider-zcode-surface: var(--surface-hover);
+  --provider-trae: oklch(0.48 0.1 255);
+  --provider-trae-surface: var(--surface-hover);
+  --provider-vibe: oklch(0.48 0.1 55);
+  --provider-vibe-surface: var(--surface-hover);
+  --provider-zed: oklch(0.48 0 0);
+  --provider-zed-surface: var(--surface-hover);
+  --provider-aider: oklch(0.48 0.1 15);
+  --provider-aider-surface: var(--surface-hover);
+  --provider-amazonq: oklch(0.48 0 0);
+  --provider-amazonq-surface: var(--surface-hover);
+  --provider-antigravity: oklch(0.48 0.1 275);
+  --provider-antigravity-surface: var(--surface-hover);
+  --agent-1: oklch(0.48 0.1 210);
+  --agent-1-surface: var(--surface-hover);
+  --agent-1-line: var(--agent-1);
+  --agent-2: oklch(0.48 0.1 285);
+  --agent-2-surface: var(--surface-hover);
+  --agent-2-line: var(--agent-2);
+  --agent-3: oklch(0.48 0.1 160);
+  --agent-3-surface: var(--surface-hover);
+  --agent-3-line: var(--agent-3);
+  --agent-4: oklch(0.48 0 0);
+  --agent-4-surface: var(--surface-hover);
+  --agent-4-line: var(--agent-4);
+  --agent-5: oklch(0.48 0.1 75);
+  --agent-5-surface: var(--surface-hover);
+  --agent-5-line: var(--agent-5);
+
   /* === Mobile Layout Tokens === */
-  --mobile-bottom-bar-height: 3.5rem;
+  /* Icon (24) + two caption lines (2 × 15) + spacing: a tab label may wrap to
+     two lines (a place keeps its one name, e.g. "Claude Code Settings"). */
+  --mobile-bottom-bar-height: 4rem;
+  /* The tab bar's full height with the device's bottom safe area: the bar is
+     this tall and the main area reserves the same, so it never covers content. */
+  --mobile-bottom-inset: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));
   --mobile-header-height: 3rem;
+  /* Reserve the transcript's 3rem navigator and its 1rem bottom inset. */
+  --mobile-transcript-controls-height: 4rem;
   --mobile-touch-target: 2.75rem;
   --mobile-drawer-width: min(80vw, 320px);
 
-  /* === Timing Functions (Easing Curves) === */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
-  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
-
-  /* === Duration Scale === */
-  --duration-instant: 50ms;
+  /* === Motion (F1a, plan §4.1 / G-MO2): three durations, two curves ===
+     Tailwind duration-fast|normal|slow and ease-standard|emphasized (see the
+     @theme blocks below) map onto these; a transition without its own
+     duration/curve uses fast + standard. */
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
-  --duration-slower: 600ms;
 
-  /* === Spacing Scale (4px base) === */
-  --space-px: 1px;
-  --space-0: 0;
-  --space-0\.5: 0.125rem;
-  --space-1: 0.25rem;
-  --space-1\.5: 0.375rem;
-  --space-2: 0.5rem;
-  --space-2\.5: 0.625rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
-  --space-24: 6rem;
 
   /* === Radius Scale === */
   --radius: 0.5rem;
@@ -71,14 +144,6 @@
   --radius-3xl: 1.5rem;
   --radius-full: 9999px;
 
-  /* === Z-Index Scale === */
-  --z-base: 0;
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-modal: 300;
-  --z-popover: 400;
-  --z-tooltip: 500;
-  --z-toast: 600;
 
   /* === Shadow Layers (Light Theme) === */
   --shadow-xs: 0 1px 2px oklch(0.2 0.02 260 / 0.06);
@@ -88,9 +153,6 @@
   --shadow-xl: 0 20px 25px -5px oklch(0.2 0.02 260 / 0.1), 0 8px 10px -6px oklch(0.2 0.02 260 / 0.1);
   --shadow-2xl: 0 25px 50px -12px oklch(0.2 0.02 260 / 0.25);
   --shadow-inner: inset 0 2px 4px oklch(0.2 0.02 260 / 0.06);
-  --shadow-ring: 0 0 0 3px oklch(0.6 0.15 250 / 0.2);
-  --shadow-glow: 0 0 24px oklch(0.75 0.18 55 / 0.25);
-  --shadow-glow-accent: 0 0 32px oklch(0.6 0.15 250 / 0.3);
 
   /* === Light Theme (Secondary) === */
   --background: oklch(0.985 0.002 240);
@@ -105,13 +167,22 @@
   --secondary-foreground: oklch(0.25 0.02 260);
   --muted: oklch(0.94 0.005 240);
   --muted-foreground: oklch(0.45 0.02 260);
-  --accent: oklch(0.50 0.15 250);
+  --accent: oklch(0.50 0.16 275);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.48 0.20 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.88 0.01 240);
   --input: oklch(0.92 0.005 240);
-  --ring: oklch(0.60 0.05 250);
+  --ring: oklch(0.60 0.06 275);
+
+  /* === Segmented control (shared: .segmented / .segmented-item) ===
+     The selected item is told apart by its accent outline, ≥3:1 against both
+     its own surface and the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  --segmented-track: oklch(0.94 0.005 240);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.145 0.02 260);
+  --segmented-selected-border: oklch(0.50 0.16 275);
 
   /* === Semantic Status Colors === */
   --success: oklch(0.45 0.12 145);
@@ -159,11 +230,20 @@
   --metric-pink: oklch(0.6 0.14 310);
   --metric-teal: oklch(0.65 0.15 170);
 
-  /* === Heatmap Colors (Activity gradient) === */
-  --heatmap-empty: oklch(0.2 0.01 260);
-  --heatmap-low: oklch(0.35 0.12 145);
-  --heatmap-medium: oklch(0.55 0.16 145);
-  --heatmap-high: oklch(0.75 0.18 145);
+  /* === Heatmap Colors (Activity gradient) ===
+     Light: an empty day is a faint tile on the card; more activity = more
+     ink (darker green). Dark (below) runs the other way: more glow. */
+  --heatmap-empty: oklch(0.93 0.008 240);
+  --heatmap-low: oklch(0.83 0.09 145);
+  --heatmap-medium: oklch(0.68 0.14 145);
+  --heatmap-high: oklch(0.52 0.15 145);
+  /* Text drawn on each cell (the day number): opaque, >= 4.5:1 on its own
+     cell (heatmapContrast.test.tsx). Dark text on the pale steps, white on
+     the darkest. */
+  --heatmap-empty-foreground: oklch(0.45 0.02 260);
+  --heatmap-low-foreground: oklch(0.32 0.08 145);
+  --heatmap-medium-foreground: oklch(0.22 0.05 145);
+  --heatmap-high-foreground: oklch(1 0 0);
 
   /* === Dashboard Glow Effects === */
   --glow-green: 0 0 12px oklch(0.7 0.16 145 / 0.3);
@@ -188,19 +268,12 @@
   /* === Sidebar (Light) === */
   --sidebar: oklch(0.97 0.005 240);
   --sidebar-foreground: oklch(0.2 0.02 260);
-  --sidebar-primary: oklch(0.75 0.18 55);
-  --sidebar-primary-foreground: oklch(0.15 0.05 55);
   --sidebar-accent: oklch(0.94 0.01 240);
   --sidebar-accent-foreground: oklch(0.2 0.02 260);
   --sidebar-border: oklch(0.88 0.01 240);
-  --sidebar-ring: oklch(0.65 0.15 55);
 
   /* === Advanced Gradients (Light) === */
-  --gradient-subtle: linear-gradient(135deg, oklch(0.98 0.005 240) 0%, oklch(0.96 0.01 250) 100%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.7 0.16 55) 0%, oklch(0.6 0.18 45) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.98 0.005 240) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.94 0.01 240) 0%, oklch(0.96 0.015 250) 50%, oklch(0.94 0.01 240) 100%);
-  --gradient-glow: radial-gradient(ellipse at center, oklch(0.75 0.18 55 / 0.15) 0%, transparent 70%);
 
   /* === Glass/Blur Effects (Light) === */
   --glass-bg: oklch(1 0 0 / 0.7);
@@ -210,10 +283,145 @@
   /* === Noise/Texture === */
   --noise-opacity: 0.025;
   --app-font-scale: 1;
+
+  /* ==========================================================
+     ROLE TOKENS (F1a, inner-UI plan §4.1). Named by role, set in all four
+     themes (light here, .dark, .high-contrast, .dark.high-contrast), each
+     a Tailwind utility (@theme inline below). Text is never dimmed with
+     opacity. Contrast: src/test/theme.contrast.test.ts; parity:
+     src/test/tokens.parity.test.ts.
+     ========================================================== */
+  /* Text: three opaque steps + disabled. */
+  --fg: var(--foreground);
+  --fg-2: var(--muted-foreground);
+  --fg-3: oklch(0.50 0.015 260);
+  --fg-disabled: oklch(0.64 0.01 260);
+  /* Surfaces: hover and selected are one step each; nothing in the flow casts a shadow. */
+  --surface-canvas: var(--background);
+  --surface-pane: var(--card);
+  --surface-raised: var(--popover);
+  --surface-well: oklch(0.972 0.003 240);
+  --surface-hover: oklch(0.955 0.005 240);
+  --surface-selected: oklch(0.94 0.03 275);
+  --surface-turn-user: oklch(0.968 0.004 240);
+  /* Lines: --line-input is a UI component border (≥ 3:1). */
+  --line: var(--border);
+  --line-faint: oklch(0.925 0.006 240);
+  --line-input: oklch(0.62 0.015 250);
+  --line-selected: var(--accent);
+  /* Status sets (text · surface · line). success = a confirmed result only. */
+  --status-danger-fg: oklch(0.48 0.19 25);
+  --status-danger-surface: oklch(0.965 0.02 25);
+  --status-danger-line: oklch(0.58 0.19 25);
+  --status-warning-fg: oklch(0.47 0.10 65);
+  --status-warning-surface: oklch(0.97 0.035 75);
+  --status-warning-line: oklch(0.62 0.13 70);
+  --status-info-fg: oklch(0.46 0.12 245);
+  --status-info-surface: oklch(0.965 0.018 245);
+  --status-info-line: oklch(0.58 0.13 245);
+  --status-success-fg: oklch(0.45 0.11 150);
+  --status-success-surface: oklch(0.965 0.03 150);
+  --status-success-line: oklch(0.58 0.13 150);
+  /* Search highlight: a different colour from warning; the current match adds an underline. */
+  --highlight-search-bg: var(--highlight);
+  --highlight-search-fg: var(--highlight-foreground);
+  --highlight-search-current: var(--highlight-current);
+  /* Diff (Q1): green/red, a +/- column always, word marks coloured and underlined. */
+  --diff-add-bg: oklch(0.955 0.045 145);
+  --diff-add-fg: oklch(0.40 0.12 145);
+  --diff-add-gutter: oklch(0.925 0.065 145);
+  --diff-word-add-bg: oklch(0.88 0.09 145);
+  --diff-word-add-mark: oklch(0.48 0.13 145);
+  --diff-del-bg: oklch(0.955 0.03 25);
+  --diff-del-fg: oklch(0.46 0.18 25);
+  --diff-del-gutter: oklch(0.925 0.05 25);
+  --diff-word-del-bg: oklch(0.89 0.07 25);
+  --diff-word-del-mark: oklch(0.50 0.18 25);
+  --diff-hunk-fg: var(--fg-3);
+  --diff-context-fg: var(--fg-2);
+  /* Code (syntax), on --surface-well. */
+  --code-keyword: oklch(0.47 0.20 265);
+  --code-string: oklch(0.47 0.16 28);
+  --code-number: oklch(0.49 0.10 165);
+  --code-comment: oklch(0.50 0.08 140);
+  --code-function: oklch(0.47 0.09 75);
+  --code-type: oklch(0.48 0.08 220);
+  --code-punct: var(--fg-2);
+  /* Focus: one ring, 2px wide, 2px outside (or inside, --focus-ring-inset). */
+  --focus-ring: var(--accent);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-inset: calc(-1 * var(--focus-ring-width));
+  /* Spacing and density: minimum heights that grow with the text and the font scale. */
+  --page-inset: 1.5rem;
+  --row-tool: calc(2rem * var(--app-font-scale));
+  --row-list: calc(1.75rem * var(--app-font-scale));
+  --row-file: calc(2.75rem * var(--app-font-scale));
+  --row-touch: 2.75rem;
+  --rail-width: calc(6.75rem * var(--app-font-scale));
+  --measure-prose: calc(42.5rem * var(--app-font-scale));
+  --measure-work: calc(45.5rem * var(--app-font-scale));
+  /* Prose rhythm (.prose): n × 2px in rem, × the font scale (G-SP3). Reading
+     rhythm, not layout spacing: the 2px steps live here as named tokens. */
+  --prose-space-1: calc(0.125rem * var(--app-font-scale));
+  --prose-space-2: calc(0.25rem * var(--app-font-scale));
+  --prose-space-3: calc(0.375rem * var(--app-font-scale));
+  --prose-space-4: calc(0.5rem * var(--app-font-scale));
+  --prose-space-6: calc(0.75rem * var(--app-font-scale));
+  --prose-space-10: calc(1.25rem * var(--app-font-scale));
+  /* Elevation: overlapping layers only (shadow-popover, shadow-overlay). */
+  --elevation-popover: 0 4px 12px -2px oklch(0.2 0.02 260 / 0.12), 0 1px 3px oklch(0.2 0.02 260 / 0.08);
+  --elevation-overlay: 0 16px 40px -8px oklch(0.2 0.02 260 / 0.22), 0 4px 12px -4px oklch(0.2 0.02 260 / 0.12);
 }
 
 /* === Dark Theme (Primary - Command Center) === */
 .dark {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.5 0.04 0);
+  --series-2: oklch(0.9 0.16 120);
+  --series-3: oklch(0.8 0.12 330);
+  --series-4: oklch(0.6 0.2 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: oklch(0.78 0.1 65);
+  --provider-codebuddy: oklch(0.78 0.1 240);
+  --provider-codex: oklch(0.78 0.1 145);
+  --provider-continue: oklch(0.78 0.1 125);
+  --provider-copilot: oklch(0.78 0.1 300);
+  --provider-cline: oklch(0.78 0.1 180);
+  --provider-crush: oklch(0.78 0.1 350);
+  --provider-cursor: oklch(0.78 0.1 40);
+  --provider-cursor-agent: oklch(0.78 0.1 285);
+  --provider-forgecode: oklch(0.78 0.1 55);
+  --provider-gemini: oklch(0.78 0.1 300);
+  --provider-goose: oklch(0.78 0.1 25);
+  --provider-grok: oklch(0.78 0 0);
+  --provider-kilo: oklch(0.78 0.1 210);
+  --provider-kimi: oklch(0.78 0.1 325);
+  --provider-kiro: oklch(0.78 0.1 160);
+  --provider-llm: oklch(0.78 0 0);
+  --provider-ompi: oklch(0.78 0.1 180);
+  --provider-opencode: oklch(0.78 0.1 255);
+  --provider-openinterpreter: oklch(0.78 0 0);
+  --provider-openhands: oklch(0.78 0 0);
+  --provider-pearai: oklch(0.78 0.1 95);
+  --provider-pi: oklch(0.78 0.1 180);
+  --provider-qwen: oklch(0.78 0.1 285);
+  --provider-zcode: oklch(0.78 0.1 210);
+  --provider-trae: oklch(0.78 0.1 255);
+  --provider-vibe: oklch(0.78 0.1 55);
+  --provider-zed: oklch(0.78 0 0);
+  --provider-aider: oklch(0.78 0.1 15);
+  --provider-amazonq: oklch(0.78 0 0);
+  --provider-antigravity: oklch(0.78 0.1 275);
+  --agent-1: oklch(0.78 0.1 210);
+  --agent-2: oklch(0.78 0.1 285);
+  --agent-3: oklch(0.78 0.1 160);
+  --agent-4: oklch(0.78 0 0);
+  --agent-5: oklch(0.78 0.1 75);
+
   --background: oklch(0.12 0.015 260);
   --foreground: oklch(0.93 0.01 240);
   --card: oklch(0.16 0.015 260);
@@ -226,13 +434,22 @@
   --secondary-foreground: oklch(0.9 0.01 240);
   --muted: oklch(0.22 0.015 260);
   --muted-foreground: oklch(0.78 0.02 240);
-  --accent: oklch(0.72 0.14 250);
+  --accent: oklch(0.73 0.12 279);
   --accent-foreground: oklch(0.12 0 0);
   --destructive: oklch(0.72 0.18 25);
   --destructive-foreground: oklch(0.12 0 0);
   --border: oklch(0.25 0.015 260);
   --input: oklch(0.22 0.015 260);
-  --ring: oklch(0.50 0.05 250);
+  --ring: oklch(0.50 0.06 275);
+
+  /* === Segmented control (Dark) ===
+     The card on the old muted/30 track measured ~1.1:1, so the selected item
+     read as unselected; it now has an indigo-tinted surface and the accent
+     outline (#9AA0F0-ish). */
+  --segmented-track: oklch(0.19 0.015 260);
+  --segmented-selected: oklch(0.30 0.06 278);
+  --segmented-selected-foreground: oklch(0.97 0.01 240);
+  --segmented-selected-border: oklch(0.73 0.12 279);
 
   /* === Semantic Status Colors (Dark) ===
      Fills are bright in dark mode, so their foregrounds must be dark (like
@@ -271,12 +488,9 @@
   /* === Sidebar (Dark - Command Center) === */
   --sidebar: oklch(0.1 0.015 260);
   --sidebar-foreground: oklch(0.9 0.01 240);
-  --sidebar-primary: oklch(0.75 0.18 55);
-  --sidebar-primary-foreground: oklch(0.15 0.05 55);
   --sidebar-accent: oklch(0.18 0.015 260);
   --sidebar-accent-foreground: oklch(0.9 0.01 240);
   --sidebar-border: oklch(0.2 0.015 260);
-  --sidebar-ring: oklch(0.75 0.18 55);
 
   /* === Chart Colors (Dark) === */
   --chart-1: oklch(0.8 0.2 55);
@@ -298,6 +512,11 @@
   --heatmap-low: oklch(0.40 0.14 145);
   --heatmap-medium: oklch(0.60 0.17 145);
   --heatmap-high: oklch(0.78 0.18 145);
+  /* Light text on the dim steps, dark on the bright ones. */
+  --heatmap-empty-foreground: oklch(0.78 0.02 240);
+  --heatmap-low-foreground: oklch(0.95 0.03 145);
+  --heatmap-medium-foreground: oklch(0.16 0.03 145);
+  --heatmap-high-foreground: oklch(0.2 0.05 145);
 
   /* === Dashboard Glow Effects (Dark) === */
   --glow-green: 0 0 16px oklch(0.75 0.18 145 / 0.4);
@@ -327,16 +546,9 @@
   --shadow-xl: 0 20px 25px -5px oklch(0 0 0 / 0.45), 0 8px 10px -6px oklch(0 0 0 / 0.4);
   --shadow-2xl: 0 25px 50px -12px oklch(0 0 0 / 0.6);
   --shadow-inner: inset 0 2px 4px oklch(0 0 0 / 0.2);
-  --shadow-ring: 0 0 0 3px oklch(0.72 0.14 250 / 0.3);
-  --shadow-glow: 0 0 32px oklch(0.80 0.16 55 / 0.35);
-  --shadow-glow-accent: 0 0 40px oklch(0.72 0.14 250 / 0.4);
 
   /* === Advanced Gradients (Dark) === */
-  --gradient-subtle: linear-gradient(135deg, oklch(0.14 0.015 260) 0%, oklch(0.12 0.02 270) 100%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.75 0.18 55) 0%, oklch(0.65 0.2 45) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(0.18 0.015 260) 0%, oklch(0.12 0.015 260) 100%);
   --gradient-shimmer: linear-gradient(90deg, oklch(0.2 0.015 260) 0%, oklch(0.25 0.02 270) 50%, oklch(0.2 0.015 260) 100%);
-  --gradient-glow: radial-gradient(ellipse at center, oklch(0.75 0.18 55 / 0.2) 0%, transparent 70%);
 
   /* === Glass/Blur Effects (Dark) === */
   --glass-bg: oklch(0.15 0.015 260 / 0.8);
@@ -345,9 +557,95 @@
 
   /* === Noise/Texture === */
   --noise-opacity: 0.04;
+
+  /* === Role tokens (Dark) — see :root === */
+  --fg-3: oklch(0.68 0.02 250);
+  --fg-disabled: oklch(0.48 0.015 260);
+  --surface-well: oklch(0.095 0.012 260);
+  --surface-hover: oklch(0.20 0.015 260);
+  --surface-selected: oklch(0.25 0.05 279);
+  --surface-turn-user: oklch(0.145 0.015 260);
+  --line-faint: oklch(0.20 0.015 260);
+  --line-input: oklch(0.50 0.015 260);
+  --status-danger-fg: oklch(0.76 0.14 25);
+  --status-danger-surface: oklch(0.22 0.05 25);
+  --status-danger-line: oklch(0.64 0.17 25);
+  --status-warning-fg: oklch(0.83 0.13 80);
+  --status-warning-surface: oklch(0.22 0.04 75);
+  --status-warning-line: oklch(0.70 0.13 75);
+  --status-info-fg: oklch(0.79 0.11 240);
+  --status-info-surface: oklch(0.21 0.04 245);
+  --status-info-line: oklch(0.64 0.12 245);
+  --status-success-fg: oklch(0.80 0.14 150);
+  --status-success-surface: oklch(0.21 0.04 150);
+  --status-success-line: oklch(0.64 0.13 150);
+  --diff-add-bg: oklch(0.22 0.04 145);
+  --diff-add-fg: oklch(0.84 0.13 145);
+  --diff-add-gutter: oklch(0.27 0.06 145);
+  --diff-word-add-bg: oklch(0.33 0.08 145);
+  --diff-word-add-mark: oklch(0.74 0.15 145);
+  --diff-del-bg: oklch(0.22 0.045 25);
+  --diff-del-fg: oklch(0.82 0.11 25);
+  --diff-del-gutter: oklch(0.27 0.07 25);
+  --diff-word-del-bg: oklch(0.34 0.09 25);
+  --diff-word-del-mark: oklch(0.72 0.15 25);
+  --code-keyword: oklch(0.70 0.11 250);
+  --code-string: oklch(0.74 0.09 45);
+  --code-number: oklch(0.82 0.07 135);
+  --code-comment: oklch(0.66 0.08 140);
+  --code-function: oklch(0.88 0.08 105);
+  --code-type: oklch(0.77 0.10 180);
+  --elevation-popover: 0 4px 12px -2px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
+  --elevation-overlay: 0 16px 40px -8px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
 }
 
 .high-contrast {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.25 0.04 0);
+  --series-2: oklch(0.65 0.12 120);
+  --series-3: oklch(0.65 0.2 330);
+  --series-4: oklch(0.33 0.15 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: var(--fg);
+  --provider-codebuddy: var(--fg);
+  --provider-codex: var(--fg);
+  --provider-continue: var(--fg);
+  --provider-copilot: var(--fg);
+  --provider-cline: var(--fg);
+  --provider-crush: var(--fg);
+  --provider-cursor: var(--fg);
+  --provider-cursor-agent: var(--fg);
+  --provider-forgecode: var(--fg);
+  --provider-gemini: var(--fg);
+  --provider-goose: var(--fg);
+  --provider-grok: var(--fg);
+  --provider-kilo: var(--fg);
+  --provider-kimi: var(--fg);
+  --provider-kiro: var(--fg);
+  --provider-llm: var(--fg);
+  --provider-ompi: var(--fg);
+  --provider-opencode: var(--fg);
+  --provider-openinterpreter: var(--fg);
+  --provider-openhands: var(--fg);
+  --provider-pearai: var(--fg);
+  --provider-pi: var(--fg);
+  --provider-qwen: var(--fg);
+  --provider-zcode: var(--fg);
+  --provider-trae: var(--fg);
+  --provider-vibe: var(--fg);
+  --provider-zed: var(--fg);
+  --provider-aider: var(--fg);
+  --provider-amazonq: var(--fg);
+  --provider-antigravity: var(--fg);
+  --agent-1: var(--fg);
+  --agent-2: var(--fg);
+  --agent-3: var(--fg);
+  --agent-4: var(--fg);
+  --agent-5: var(--fg);
+
   --foreground: oklch(0.06 0 0);
   --background: oklch(1 0 0);
   --card: oklch(1 0 0);
@@ -361,6 +659,10 @@
   --ring: oklch(0.25 0 0);
   --accent: oklch(0.25 0 0);
   --accent-foreground: oklch(1 0 0);
+  --segmented-track: oklch(0.95 0 0);
+  --segmented-selected: oklch(1 0 0);
+  --segmented-selected-foreground: oklch(0.06 0 0);
+  --segmented-selected-border: oklch(0.25 0 0);
   --destructive: oklch(0.4 0.16 25);
   --destructive-foreground: oklch(1 0 0);
   /* Status / tool hues: keep hue for meaning, push lightness to ≥7:1 on white. */
@@ -382,9 +684,92 @@
   --highlight: oklch(0.92 0.16 95);
   --highlight-current: oklch(0.80 0.2 95);
   --highlight-foreground: oklch(0.06 0 0);
+  /* Role tokens (high contrast) — see :root. Secondary text ≥ 7:1, input borders ≥ 4.5:1. */
+  --fg-3: oklch(0.30 0 0);
+  --fg-disabled: oklch(0.50 0 0);
+  --surface-well: oklch(0.97 0 0);
+  --surface-hover: oklch(0.93 0 0);
+  --surface-selected: oklch(0.90 0 0);
+  --surface-turn-user: oklch(0.96 0 0);
+  --line-faint: oklch(0.60 0 0);
+  --line-input: oklch(0.35 0 0);
+  --status-danger-fg: oklch(0.40 0.16 25);
+  --status-danger-surface: oklch(0.96 0.02 25);
+  --status-danger-line: oklch(0.45 0.17 25);
+  --status-warning-fg: oklch(0.38 0.09 65);
+  --status-warning-surface: oklch(0.965 0.03 75);
+  --status-warning-line: oklch(0.45 0.10 70);
+  --status-info-fg: oklch(0.36 0.12 245);
+  --status-info-surface: oklch(0.96 0.015 245);
+  --status-info-line: oklch(0.42 0.12 245);
+  --status-success-fg: oklch(0.36 0.10 150);
+  --status-success-surface: oklch(0.96 0.025 150);
+  --status-success-line: oklch(0.42 0.11 150);
+  --diff-add-bg: oklch(0.95 0.05 145);
+  --diff-add-fg: oklch(0.34 0.10 145);
+  --diff-add-gutter: oklch(0.90 0.07 145);
+  --diff-word-add-bg: oklch(0.86 0.10 145);
+  --diff-word-add-mark: oklch(0.40 0.12 145);
+  --diff-del-bg: oklch(0.95 0.035 25);
+  --diff-del-fg: oklch(0.38 0.16 25);
+  --diff-del-gutter: oklch(0.90 0.06 25);
+  --diff-word-del-bg: oklch(0.86 0.08 25);
+  --diff-word-del-mark: oklch(0.42 0.17 25);
+  --code-keyword: oklch(0.36 0.20 265);
+  --code-string: oklch(0.38 0.15 28);
+  --code-number: oklch(0.38 0.09 165);
+  --code-comment: oklch(0.38 0.09 140);
+  --code-function: oklch(0.37 0.08 75);
+  --code-type: oklch(0.38 0.08 220);
 }
 
 .dark.high-contrast {
+  /* F1c categories: numeric contrast/CVD gate in scripts/tokens/series-check.mjs.
+     Labels, legends and non-colour distinctions remain required in adopters. */
+  --series-1: oklch(0.5 0.04 0);
+  --series-2: oklch(0.9 0.16 120);
+  --series-3: oklch(0.8 0.12 330);
+  --series-4: oklch(0.6 0.2 285);
+
+  /* F1c identity: labels/icons remain mandatory; colours are not unique IDs.
+     Opaque neutral badge surfaces keep text readable in all themes. */
+  --provider-claude: var(--fg);
+  --provider-codebuddy: var(--fg);
+  --provider-codex: var(--fg);
+  --provider-continue: var(--fg);
+  --provider-copilot: var(--fg);
+  --provider-cline: var(--fg);
+  --provider-crush: var(--fg);
+  --provider-cursor: var(--fg);
+  --provider-cursor-agent: var(--fg);
+  --provider-forgecode: var(--fg);
+  --provider-gemini: var(--fg);
+  --provider-goose: var(--fg);
+  --provider-grok: var(--fg);
+  --provider-kilo: var(--fg);
+  --provider-kimi: var(--fg);
+  --provider-kiro: var(--fg);
+  --provider-llm: var(--fg);
+  --provider-ompi: var(--fg);
+  --provider-opencode: var(--fg);
+  --provider-openinterpreter: var(--fg);
+  --provider-openhands: var(--fg);
+  --provider-pearai: var(--fg);
+  --provider-pi: var(--fg);
+  --provider-qwen: var(--fg);
+  --provider-zcode: var(--fg);
+  --provider-trae: var(--fg);
+  --provider-vibe: var(--fg);
+  --provider-zed: var(--fg);
+  --provider-aider: var(--fg);
+  --provider-amazonq: var(--fg);
+  --provider-antigravity: var(--fg);
+  --agent-1: var(--fg);
+  --agent-2: var(--fg);
+  --agent-3: var(--fg);
+  --agent-4: var(--fg);
+  --agent-5: var(--fg);
+
   --foreground: oklch(0.98 0 0);
   --background: oklch(0.03 0 0);
   --card: oklch(0.05 0 0);
@@ -398,6 +783,10 @@
   --ring: oklch(0.95 0 0);
   --accent: oklch(0.9 0 0);
   --accent-foreground: oklch(0.08 0 0);
+  --segmented-track: oklch(0.11 0 0);
+  --segmented-selected: oklch(0.22 0 0);
+  --segmented-selected-foreground: oklch(0.98 0 0);
+  --segmented-selected-border: oklch(0.9 0 0);
   --destructive: oklch(0.78 0.18 25);
   --destructive-foreground: oklch(0.08 0 0);
   --success: oklch(0.85 0.18 145);
@@ -418,37 +807,309 @@
   --highlight: oklch(0.45 0.14 95);
   --highlight-current: oklch(0.6 0.18 95);
   --highlight-foreground: oklch(0.98 0 0);
+  /* Role tokens (dark high contrast) — every one .dark or .high-contrast sets, so neither leaks in. */
+  /* The current search match: --highlight-current measures 3.7:1 under white
+     text here, so the role token takes a darker step (the 2px underline
+     tells it from the other matches). */
+  --highlight-search-current: oklch(0.34 0.11 95);
+  --fg-3: oklch(0.85 0 0);
+  --fg-disabled: oklch(0.60 0 0);
+  --surface-well: oklch(0 0 0);
+  --surface-hover: oklch(0.16 0 0);
+  --surface-selected: oklch(0.22 0 0);
+  --surface-turn-user: oklch(0.08 0 0);
+  --line-faint: oklch(0.45 0 0);
+  --line-input: oklch(0.70 0 0);
+  --status-danger-fg: oklch(0.84 0.12 25);
+  --status-danger-surface: oklch(0.18 0.05 25);
+  --status-danger-line: oklch(0.75 0.15 25);
+  --status-warning-fg: oklch(0.90 0.12 80);
+  --status-warning-surface: oklch(0.18 0.04 75);
+  --status-warning-line: oklch(0.82 0.13 75);
+  --status-info-fg: oklch(0.86 0.10 240);
+  --status-info-surface: oklch(0.17 0.04 245);
+  --status-info-line: oklch(0.76 0.11 245);
+  --status-success-fg: oklch(0.88 0.13 150);
+  --status-success-surface: oklch(0.17 0.04 150);
+  --status-success-line: oklch(0.78 0.13 150);
+  --diff-add-bg: oklch(0.18 0.05 145);
+  --diff-add-fg: oklch(0.90 0.12 145);
+  --diff-add-gutter: oklch(0.24 0.07 145);
+  --diff-word-add-bg: oklch(0.32 0.09 145);
+  --diff-word-add-mark: oklch(0.82 0.15 145);
+  --diff-del-bg: oklch(0.18 0.05 25);
+  --diff-del-fg: oklch(0.88 0.10 25);
+  --diff-del-gutter: oklch(0.24 0.08 25);
+  --diff-word-del-bg: oklch(0.33 0.10 25);
+  --diff-word-del-mark: oklch(0.80 0.14 25);
+  --code-keyword: oklch(0.84 0.10 250);
+  --code-string: oklch(0.86 0.08 45);
+  --code-number: oklch(0.90 0.07 135);
+  --code-comment: oklch(0.84 0.08 140);
+  --code-function: oklch(0.92 0.08 105);
+  --code-type: oklch(0.88 0.09 180);
+  --elevation-popover: 0 4px 12px -2px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
+  --elevation-overlay: 0 16px 40px -8px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
+}
+
+/* ============================================
+   TYPE SCALE (plan T4, decision.html §4)
+   ============================================
+   Five steps, each × --app-font-scale (Settings → font size):
+     caption 12 / 1.4    dates, counts, badges, shortcut hints
+     list    13 / 1.4    sidebar, tabs, buttons, tool-call rows
+     body    15 / 1.7 CJK · 1.55 other   conversation text, markdown
+     code    13 / 1.5    code blocks, diffs (monospace)
+     title   17 / 1.3    screen titles, card numbers
+   text-lg / text-xl / text-2xl are analytics-number aliases only (their
+   current 18 / 20 / 24px, now also × scale). Nothing else exists: the
+   default Tailwind sizes are cleared, and src/test/typography.guard.test.ts
+   rejects any other size class (also arbitrary or concatenated), any inline
+   size that is not var(--text-<token>) and any other CSS font-size. */
+@theme static {
+  --text-*: initial;
+  --text-caption: calc(0.75rem * var(--app-font-scale));
+  --text-caption--line-height: var(--leading-caption);
+  --text-list: calc(0.8125rem * var(--app-font-scale));
+  --text-list--line-height: var(--leading-list);
+  --text-body: calc(0.9375rem * var(--app-font-scale));
+  --text-body--line-height: var(--leading-body);
+  --text-code: calc(0.8125rem * var(--app-font-scale));
+  --text-code--line-height: 1.5;
+  --text-title: calc(1.0625rem * var(--app-font-scale));
+  --text-title--line-height: 1.3;
+
+  /* Analytics numbers only (guard: AnalyticsDashboard, token/session stats, board lane). */
+  --text-lg: calc(1.125rem * var(--app-font-scale));
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: calc(1.25rem * var(--app-font-scale));
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: calc(1.5rem * var(--app-font-scale));
+  --text-2xl--line-height: calc(2 / 1.5);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+
+/* Per-language font order and body line height, keyed on html[lang]
+   (set before the first render and on every language change, see
+   src/i18n/documentLanguage.ts). Latin text always uses the bundled IBM Plex
+   Sans; CJK falls through to the platform font of that script so Japanese,
+   Simplified and Traditional Chinese each get their own glyph shapes. */
+:root {
+  --font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --leading-body: 1.55;
+  /* Caption and list steps: 1.4, and 1.5 for Hangul / Kana / Han at 12-13px
+     (F1b, G-CJ3). */
+  --leading-caption: 1.4;
+  --leading-list: 1.4;
+}
+:root:lang(ko) {
+  --font-ui: "IBM Plex Sans", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
+}
+:root:lang(ja) {
+  --font-ui: "IBM Plex Sans", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
+  --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
+}
+:root:lang(zh-CN), :root:lang(zh-Hans) {
+  --font-ui: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+  --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
+}
+:root:lang(zh-TW), :root:lang(zh-Hant), :root:lang(zh-HK) {
+  --font-ui: "IBM Plex Sans", "PingFang TC", "Microsoft JhengHei UI", "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
+  --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
 }
 
 /* === Theme inline mapping === */
+/* Role utilities (F1a): curves and radius roles are Tailwind theme values
+   themselves (always emitted, so var(--radius-row) / var(--ease-standard)
+   also work in CSS). */
+@theme static {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  /* rows, chips, wells, diffs · buttons, inputs, segmented · overlapping
+     layers · Badge only · dots and avatars (the guard counts other radii) */
+  --radius-row: 0.375rem;
+  --radius-control: 0.5rem;
+  --radius-overlay: 0.75rem;
+  --radius-pill: 9999px;
+  --radius-dot: 9999px;
+}
+
 @theme inline {
-  /* Typography Scale */
-  --font-family-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-scalar: var(--series-scalar);
+  --color-series-scalar-soft: var(--series-scalar-soft);
+  --color-series-prior: var(--series-prior);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  /* F1c identity roles (static names keep Tailwind discovery deterministic). */
+  --color-provider-claude: var(--provider-claude);
+  --color-provider-claude-surface: var(--provider-claude-surface);
+  --color-provider-codebuddy: var(--provider-codebuddy);
+  --color-provider-codebuddy-surface: var(--provider-codebuddy-surface);
+  --color-provider-codex: var(--provider-codex);
+  --color-provider-codex-surface: var(--provider-codex-surface);
+  --color-provider-continue: var(--provider-continue);
+  --color-provider-continue-surface: var(--provider-continue-surface);
+  --color-provider-copilot: var(--provider-copilot);
+  --color-provider-copilot-surface: var(--provider-copilot-surface);
+  --color-provider-cline: var(--provider-cline);
+  --color-provider-cline-surface: var(--provider-cline-surface);
+  --color-provider-crush: var(--provider-crush);
+  --color-provider-crush-surface: var(--provider-crush-surface);
+  --color-provider-cursor: var(--provider-cursor);
+  --color-provider-cursor-surface: var(--provider-cursor-surface);
+  --color-provider-cursor-agent: var(--provider-cursor-agent);
+  --color-provider-cursor-agent-surface: var(--provider-cursor-agent-surface);
+  --color-provider-forgecode: var(--provider-forgecode);
+  --color-provider-forgecode-surface: var(--provider-forgecode-surface);
+  --color-provider-gemini: var(--provider-gemini);
+  --color-provider-gemini-surface: var(--provider-gemini-surface);
+  --color-provider-goose: var(--provider-goose);
+  --color-provider-goose-surface: var(--provider-goose-surface);
+  --color-provider-grok: var(--provider-grok);
+  --color-provider-grok-surface: var(--provider-grok-surface);
+  --color-provider-kilo: var(--provider-kilo);
+  --color-provider-kilo-surface: var(--provider-kilo-surface);
+  --color-provider-kimi: var(--provider-kimi);
+  --color-provider-kimi-surface: var(--provider-kimi-surface);
+  --color-provider-kiro: var(--provider-kiro);
+  --color-provider-kiro-surface: var(--provider-kiro-surface);
+  --color-provider-llm: var(--provider-llm);
+  --color-provider-llm-surface: var(--provider-llm-surface);
+  --color-provider-ompi: var(--provider-ompi);
+  --color-provider-ompi-surface: var(--provider-ompi-surface);
+  --color-provider-opencode: var(--provider-opencode);
+  --color-provider-opencode-surface: var(--provider-opencode-surface);
+  --color-provider-openinterpreter: var(--provider-openinterpreter);
+  --color-provider-openinterpreter-surface: var(--provider-openinterpreter-surface);
+  --color-provider-openhands: var(--provider-openhands);
+  --color-provider-openhands-surface: var(--provider-openhands-surface);
+  --color-provider-pearai: var(--provider-pearai);
+  --color-provider-pearai-surface: var(--provider-pearai-surface);
+  --color-provider-pi: var(--provider-pi);
+  --color-provider-pi-surface: var(--provider-pi-surface);
+  --color-provider-qwen: var(--provider-qwen);
+  --color-provider-qwen-surface: var(--provider-qwen-surface);
+  --color-provider-zcode: var(--provider-zcode);
+  --color-provider-zcode-surface: var(--provider-zcode-surface);
+  --color-provider-trae: var(--provider-trae);
+  --color-provider-trae-surface: var(--provider-trae-surface);
+  --color-provider-vibe: var(--provider-vibe);
+  --color-provider-vibe-surface: var(--provider-vibe-surface);
+  --color-provider-zed: var(--provider-zed);
+  --color-provider-zed-surface: var(--provider-zed-surface);
+  --color-provider-aider: var(--provider-aider);
+  --color-provider-aider-surface: var(--provider-aider-surface);
+  --color-provider-amazonq: var(--provider-amazonq);
+  --color-provider-amazonq-surface: var(--provider-amazonq-surface);
+  --color-provider-antigravity: var(--provider-antigravity);
+  --color-provider-antigravity-surface: var(--provider-antigravity-surface);
+  --color-agent-1: var(--agent-1);
+  --color-agent-1-surface: var(--agent-1-surface);
+  --color-agent-1-line: var(--agent-1-line);
+  --color-agent-2: var(--agent-2);
+  --color-agent-2-surface: var(--agent-2-surface);
+  --color-agent-2-line: var(--agent-2-line);
+  --color-agent-3: var(--agent-3);
+  --color-agent-3-surface: var(--agent-3-surface);
+  --color-agent-3-line: var(--agent-3-line);
+  --color-agent-4: var(--agent-4);
+  --color-agent-4-surface: var(--agent-4-surface);
+  --color-agent-4-line: var(--agent-4-line);
+  --color-agent-5: var(--agent-5);
+  --color-agent-5-surface: var(--agent-5-surface);
+  --color-agent-5-line: var(--agent-5-line);
 
-  --font-size-2xs: calc(0.6875rem * var(--app-font-scale));
-  --font-size-2xs--line-height: calc(0.9375rem * var(--app-font-scale));
-  --font-size-xs: calc(0.8125rem * var(--app-font-scale));
-  --font-size-xs--line-height: calc(1.0625rem * var(--app-font-scale));
-  --font-size-sm: calc(0.9375rem * var(--app-font-scale));
-  --font-size-sm--line-height: calc(1.3125rem * var(--app-font-scale));
-  --font-size-base: calc(1.0625rem * var(--app-font-scale));
-  --font-size-base--line-height: calc(1.5625rem * var(--app-font-scale));
-  --font-size-lg: calc(1.1875rem * var(--app-font-scale));
-  --font-size-lg--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-xl: calc(1.3125rem * var(--app-font-scale));
-  --font-size-xl--line-height: calc(1.8125rem * var(--app-font-scale));
-  --font-size-2xl: calc(1.5625rem * var(--app-font-scale));
-  --font-size-2xl--line-height: calc(2.0625rem * var(--app-font-scale));
-  --font-size-3xl: calc(1.9375rem * var(--app-font-scale));
-  --font-size-3xl--line-height: calc(2.3125rem * var(--app-font-scale));
+  /* Radius: --radius-sm … --radius-xl live in :root (the scale rounded-sm …
+     rounded-xl read); no self-referencing entries here. */
 
-  /* Radius */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  /* Motion: duration-fast|normal|slow; unmarked transitions use fast + standard. */
+  --transition-duration-fast: var(--duration-fast);
+  --transition-duration-normal: var(--duration-normal);
+  --transition-duration-slow: var(--duration-slow);
+  --default-transition-duration: var(--duration-fast);
+  --default-transition-timing-function: var(--ease-standard);
 
+  /* Elevation (overlapping layers only): shadow-popover, shadow-overlay. */
+  --shadow-popover: var(--elevation-popover);
+  --shadow-overlay: var(--elevation-overlay);
+
+  /* Spacing and density (min-heights): px-page-inset, min-h-row-tool, w-rail, max-w-measure-prose … */
+  --spacing-page-inset: var(--page-inset);
+  --min-height-row-tool: var(--row-tool);
+  --min-height-row-list: var(--row-list);
+  --min-height-row-file: var(--row-file);
+  --min-height-row-touch: var(--row-touch);
+  --width-rail: var(--rail-width);
+  --max-width-measure-prose: var(--measure-prose);
+  --max-width-measure-work: var(--measure-work);
+
+  /* Role colours (F1a) */
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-disabled: var(--fg-disabled);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-pane: var(--surface-pane);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-well: var(--surface-well);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-turn-user: var(--surface-turn-user);
+  --color-line: var(--line);
+  --color-line-faint: var(--line-faint);
+  --color-line-input: var(--line-input);
+  --color-line-selected: var(--line-selected);
+  --color-status-danger-fg: var(--status-danger-fg);
+  --color-status-danger-surface: var(--status-danger-surface);
+  --color-status-danger-line: var(--status-danger-line);
+  --color-status-warning-fg: var(--status-warning-fg);
+  --color-status-warning-surface: var(--status-warning-surface);
+  --color-status-warning-line: var(--status-warning-line);
+  --color-status-info-fg: var(--status-info-fg);
+  --color-status-info-surface: var(--status-info-surface);
+  --color-status-info-line: var(--status-info-line);
+  --color-status-success-fg: var(--status-success-fg);
+  --color-status-success-surface: var(--status-success-surface);
+  --color-status-success-line: var(--status-success-line);
+  --color-highlight-search-bg: var(--highlight-search-bg);
+  --color-highlight-search-fg: var(--highlight-search-fg);
+  --color-highlight-search-current: var(--highlight-search-current);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-add-fg: var(--diff-add-fg);
+  --color-diff-add-gutter: var(--diff-add-gutter);
+  --color-diff-word-add-bg: var(--diff-word-add-bg);
+  --color-diff-word-add-mark: var(--diff-word-add-mark);
+  --color-diff-del-bg: var(--diff-del-bg);
+  --color-diff-del-fg: var(--diff-del-fg);
+  --color-diff-del-gutter: var(--diff-del-gutter);
+  --color-diff-word-del-bg: var(--diff-word-del-bg);
+  --color-diff-word-del-mark: var(--diff-word-del-mark);
+  --color-diff-hunk-fg: var(--diff-hunk-fg);
+  --color-diff-context-fg: var(--diff-context-fg);
+  --color-code-keyword: var(--code-keyword);
+  --color-code-string: var(--code-string);
+  --color-code-number: var(--code-number);
+  --color-code-comment: var(--code-comment);
+  --color-code-function: var(--code-function);
+  --color-code-type: var(--code-type);
+  --color-code-punct: var(--code-punct);
+  --color-focus-ring: var(--focus-ring);
   /* Colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -499,12 +1160,9 @@
   --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 /* ============================================
@@ -516,6 +1174,13 @@
     box-sizing: border-box;
   }
 
+  /* Icons keep their 14 / 16 / 24 px in a tight flex row instead of being
+     squeezed (plan T5: the UI capture probe found 4.5 px and 9.8 px wide
+     icons on narrow screens). */
+  svg.lucide {
+    flex-shrink: 0;
+  }
+
   html,
   body,
   #root {
@@ -524,7 +1189,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-ui);
     font-feature-settings: 'tnum' on, 'lnum' on;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -539,17 +1204,17 @@
   }
 
   h1 {
-    @apply text-3xl;
+    @apply text-title;
     letter-spacing: -0.03em;
   }
 
   h2 {
-    @apply text-2xl;
+    @apply text-title;
     letter-spacing: -0.025em;
   }
 
   h3 {
-    @apply text-xl;
+    @apply text-title;
     letter-spacing: -0.02em;
   }
 
@@ -558,13 +1223,94 @@
   code,
   pre,
   [data-mono] {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: var(--font-code);
     font-feature-settings: 'liga' on, 'calt' on;
   }
 
-  /* Focus styles */
+  /* Keyboard focus (F1b, G-ST1): one ring for every focusable element, from
+     the F1a focus tokens. :focus-visible keeps it off mouse clicks on
+     buttons; a component that draws its own ring still wins (utilities). */
   :focus-visible {
-    @apply outline-none;
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* Reduced motion (F1b, G-MO1): no animation, transition or smooth scroll
+     anywhere (JS scrolls ask src/utils/motion.ts). Loading spinners stand
+     still; their icon and busy state remain. Important declarations in a
+     layer beat every unlayered and later-layer one. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Forced colours (F1b, G-FC1): the selected item and the focused one stay
+     visible and look different — selected = Highlight border + 2px
+     underline, focus = a CanvasText outline (box-shadow rings are dropped
+     in this mode, so the outline is forced on every focus). The inset ring
+     stays inset: its control sits where an outside ring would be clipped. */
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid CanvasText !important;
+      outline-offset: 2px !important;
+    }
+
+    .focus-ring-inset:focus-visible {
+      outline-offset: var(--focus-ring-inset) !important;
+    }
+
+    [aria-selected="true"],
+    [aria-pressed="true"],
+    [aria-checked="true"],
+    [aria-current]:not([aria-current="false"]),
+    [data-state="on"],
+    [data-state="active"],
+    [data-state="checked"] {
+      border-color: Highlight !important;
+      text-decoration-line: underline !important;
+      text-decoration-color: Highlight !important;
+      text-decoration-thickness: 2px !important;
+      text-underline-offset: 0.25em;
+    }
+  }
+
+  /* CJK line breaking (F1b, G-CJ2, plan D12). Korean breaks between words
+     (keep-all). A word wider than its whole line still breaks instead of
+     overflowing (break-word), but unlike `anywhere` that last-resort break
+     never lowers an element's min-content width: a squeezed flex or grid
+     item keeps its longest word, so Korean words and numbers (69, 17.6K,
+     1.4 MB) never fall apart into one-character columns. Never `anywhere`
+     here. A token that must shrink inside a flex row (a hash, path or glob
+     pattern) opts in with `wrap-anywhere` where it is rendered; a value
+     whose box can be narrower than the value itself (a KPI tile) is
+     `whitespace-nowrap` there. break-word is needed at all because WebKit's
+     keep-all leaves a Latin-only text node no break but its spaces, so a
+     path would otherwise run past its card.
+     Japanese and Chinese keep their normal per-character breaking - keep-all
+     there would glue whole sentences - with strict kinsoku rules. */
+  :lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  /* A formatted number (<Num>, src/lib/format/Num.tsx) breaks like a number:
+     never inside. WebKit's keep-all breaks after the punctuation in 7,803,
+     1.8⁠만 or $270.29 when its box is squeezed; Unicode's own line breaking
+     does not. Every formatter result shown as text goes through <Num> (guard
+     in Num.test.tsx), so no number depends on a class. Same specificity as
+     :lang(ko) above, so this rule comes after it. */
+  [data-num] {
+    word-break: normal;
+  }
+
+  :lang(ja),
+  :lang(zh) {
+    line-break: strict;
   }
 
   /* Cursor */
@@ -574,57 +1320,61 @@
 
   /* Selection */
   ::selection {
-    background: oklch(0.75 0.18 55 / 0.3);
+    background: color-mix(in oklch, var(--accent) 30%, transparent);
   }
 
-  /* Prose typography overrides for compact display */
+  /* Prose typography overrides for compact display. Spacing is rem on the
+     2px grid × the app font scale (F1b, G-SP3), not em of each element's
+     own size (5.63px, 2.44px …). */
   .prose {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
-    line-height: 1.5 !important;
+    font-size: var(--text-body) !important;
+    line-height: var(--leading-body) !important;
   }
 
   .prose p {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
+    margin-top: var(--prose-space-3) !important;
+    margin-bottom: var(--prose-space-3) !important;
   }
 
   .prose h1 {
-    font-size: calc(0.9375rem * var(--app-font-scale)) !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
     margin-top: 0 !important;
-    margin-bottom: 0.375em !important;
+    margin-bottom: var(--prose-space-3) !important;
   }
 
   .prose h2 {
-    font-size: calc(0.875rem * var(--app-font-scale)) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    font-size: var(--text-title) !important;
+    line-height: var(--text-title--line-height) !important;
+    margin-top: var(--prose-space-6) !important;
+    margin-bottom: var(--prose-space-3) !important;
   }
 
   .prose h3 {
-    font-size: calc(0.8125rem * var(--app-font-scale)) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    font-size: var(--text-body) !important;
+    margin-top: var(--prose-space-6) !important;
+    margin-bottom: var(--prose-space-3) !important;
   }
 
   .prose h4,
   .prose h5,
   .prose h6 {
-    font-size: calc(0.75rem * var(--app-font-scale)) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    font-size: var(--text-body) !important;
+    margin-top: var(--prose-space-6) !important;
+    margin-bottom: var(--prose-space-3) !important;
   }
 
   .prose ul {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
-    padding-left: 1.25em !important;
+    margin-top: var(--prose-space-3) !important;
+    margin-bottom: var(--prose-space-3) !important;
+    padding-left: var(--prose-space-10) !important;
     list-style-type: disc !important;
   }
 
   .prose ol {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
-    padding-left: 1.25em !important;
+    margin-top: var(--prose-space-3) !important;
+    margin-bottom: var(--prose-space-3) !important;
+    padding-left: var(--prose-space-10) !important;
     list-style-type: decimal !important;
   }
 
@@ -637,9 +1387,9 @@
   }
 
   .prose li {
-    margin-top: 0.125em !important;
-    margin-bottom: 0.125em !important;
-    padding-left: 0.25em !important;
+    margin-top: var(--prose-space-1) !important;
+    margin-bottom: var(--prose-space-1) !important;
+    padding-left: var(--prose-space-2) !important;
   }
 
   .prose li::marker {
@@ -647,28 +1397,29 @@
   }
 
   .prose pre {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
-    line-height: 1.4 !important;
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
-    padding: 0.375em 0.5em !important;
+    font-size: var(--text-code) !important;
+    line-height: var(--text-code--line-height) !important;
+    margin-top: var(--prose-space-4) !important;
+    margin-bottom: var(--prose-space-4) !important;
+    padding: var(--prose-space-3) var(--prose-space-4) !important;
   }
 
   .prose code {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
-    padding: 0.0625em 0.1875em !important;
+    font-size: var(--text-code) !important;
+    padding: var(--prose-space-1) var(--prose-space-2) !important;
   }
 
   .prose blockquote {
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
-    padding-left: 0.5em !important;
+    margin-top: var(--prose-space-4) !important;
+    margin-bottom: var(--prose-space-4) !important;
+    padding-left: var(--prose-space-4) !important;
   }
 
   .prose table {
-    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.75em !important;
+    font-size: var(--text-list) !important;
+    line-height: var(--text-list--line-height) !important;
+    margin-top: var(--prose-space-6) !important;
+    margin-bottom: var(--prose-space-6) !important;
     width: 100% !important;
     border-collapse: collapse !important;
     border: 1px solid var(--border) !important;
@@ -685,7 +1436,7 @@
   }
 
   .prose th {
-    padding: 0.5em 0.75em !important;
+    padding: var(--prose-space-4) var(--prose-space-6) !important;
     font-weight: 600 !important;
     text-align: left !important;
     color: var(--foreground) !important;
@@ -693,7 +1444,7 @@
   }
 
   .prose td {
-    padding: 0.4em 0.75em !important;
+    padding: var(--prose-space-3) var(--prose-space-6) !important;
     border-bottom: 1px solid var(--border) !important;
     color: var(--foreground) !important;
   }
@@ -716,8 +1467,8 @@
   }
 
   .prose img {
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
+    margin-top: var(--prose-space-4) !important;
+    margin-bottom: var(--prose-space-4) !important;
     border-radius: 0.25rem !important;
   }
 
@@ -757,27 +1508,27 @@
   .prose mark {
     background-color: var(--highlight) !important;
     color: var(--highlight-foreground) !important;
-    padding: 0.0625em 0.25em !important;
+    padding: var(--prose-space-1) var(--prose-space-2) !important;
     border-radius: 0.125rem !important;
   }
 
   .prose kbd {
-    font-size: calc(0.625rem * var(--app-font-scale)) !important;
+    font-size: var(--text-caption) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
     border-radius: 0.25rem !important;
-    padding: 0.125em 0.375em !important;
+    padding: var(--prose-space-1) var(--prose-space-3) !important;
     box-shadow: 0 1px 0 var(--border) !important;
   }
 
   .prose sub {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: sub !important;
   }
 
   .prose sup {
-    font-size: 0.75em !important;
+    font-size: var(--text-caption) !important;
     vertical-align: super !important;
   }
 
@@ -895,6 +1646,48 @@
     box-shadow: 0 0 25px color-mix(in oklch, var(--accent), transparent 60%);
   }
 
+  /* === Segmented control (one shared style) ===
+     Session/Project, row density, analytics Overview/Tokens, the phone's
+     Overview/Tokens/Edits nav, Project overview/Session details, metric
+     mode. F2b owns this compatibility block. The selected item (aria-checked, aria-pressed,
+     aria-selected, or aria-current="page" in a nav) gets its own surface and an
+     accent outline (tokens --segmented-*). Padding and type size stay on each
+     control. */
+  .segmented {
+    @apply flex items-center gap-1 p-1 rounded-lg;
+    background-color: var(--segmented-track);
+  }
+
+  .segmented-item {
+    @apply rounded-md font-medium text-muted-foreground transition-colors;
+    border: 1px solid transparent;
+  }
+
+  .segmented-item:not(:disabled):hover {
+    @apply text-foreground;
+  }
+
+  .segmented-item[aria-checked="true"],
+  .segmented-item[aria-pressed="true"],
+  .segmented-item[aria-selected="true"],
+  .segmented-item[aria-current="page"],
+  .segmented-item[data-active="true"] {
+    background-color: var(--segmented-selected);
+    color: var(--segmented-selected-foreground);
+    border-color: var(--segmented-selected-border);
+  }
+
+  /* Keyboard focus, for every segmented control (the base layer removes the
+     browser outline). A 2px accent ring outside the item, with a 1px gap of
+     track: it reads apart from the selected item's 1px border, takes no
+     layout space, fits inside the track's padding, and outlines survive
+     forced-colors mode. ≥3:1 against the track in every theme
+     (src/test/segmentedControl.contrast.test.tsx). */
+  .segmented-item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
   /* === Elevated Surface (Card with depth) === */
   .surface-elevated {
     @apply bg-card border border-border;
@@ -978,25 +1771,6 @@
     opacity: 0.05;
   }
 
-  /* === Gradient Mesh Background === */
-  .gradient-mesh {
-    background:
-      radial-gradient(at 40% 20%, oklch(0.6 0.12 250 / 0.15) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, oklch(0.75 0.15 55 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, oklch(0.65 0.12 280 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, oklch(0.7 0.14 175 / 0.08) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, oklch(0.6 0.1 200 / 0.1) 0px, transparent 50%);
-  }
-
-  .dark .gradient-mesh {
-    background:
-      radial-gradient(at 40% 20%, oklch(0.5 0.1 250 / 0.2) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, oklch(0.65 0.12 55 / 0.15) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, oklch(0.55 0.1 280 / 0.12) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, oklch(0.6 0.12 175 / 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, oklch(0.5 0.08 200 / 0.12) 0px, transparent 50%);
-  }
-
   /* === Spotlight Effect === */
   .spotlight {
     position: relative;
@@ -1019,27 +1793,10 @@
         transparent 40%);
   }
 
-  /* === Data label style === */
-  .data-label {
-    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
-    letter-spacing: 0.05em;
-  }
-
   /* === Data value style (monospace) === */
   .data-value {
     font-family: 'JetBrains Mono', monospace;
     font-feature-settings: 'tnum' on;
-  }
-
-  /* === Status indicators === */
-  .status-dot {
-    @apply w-2 h-2 rounded-full;
-    box-shadow: 0 0 0 2px oklch(0 0 0 / 0.1);
-  }
-
-  .status-dot.active {
-    @apply bg-accent;
-    box-shadow: 0 0 8px oklch(0.75 0.18 55 / 0.5);
   }
 
   /* === Sidebar item === */
@@ -1058,37 +1815,15 @@
     background: var(--accent);
   }
 
-  /* === Command center card === */
-  .cmd-card {
-    @apply relative overflow-hidden rounded-xl bg-card border border-border;
-    @apply transition-all duration-300;
-  }
-
-  .cmd-card:hover {
-    @apply border-accent/30;
-    box-shadow: 0 0 0 1px oklch(0.75 0.18 55 / 0.1);
-  }
-
   /* === Metric display === */
   .metric {
     @apply flex flex-col gap-1;
   }
 
-  .metric-label {
-    @apply font-semibold uppercase tracking-[0.1em] text-muted-foreground;
-    /* reactive 11px — respects the app font-size setting (#408/#412) */
-    font-size: calc(0.6875rem * var(--app-font-scale));
-  }
-
-  .metric-value {
-    @apply text-2xl font-semibold tracking-tight;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
   /* === Action button === */
   .action-btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2;
-    @apply text-sm font-medium rounded-lg;
+    @apply text-body font-medium rounded-lg;
     @apply bg-secondary text-secondary-foreground;
     @apply hover:bg-secondary/80 active:scale-[0.98];
     @apply transition-all duration-150;
@@ -1118,7 +1853,7 @@
   .code-block-header {
     @apply flex items-center justify-between px-4 py-2;
     @apply bg-[oklch(0.08_0.015_260)] border-b border-border;
-    @apply text-xs text-muted-foreground;
+    @apply text-list text-muted-foreground;
   }
 
   /* === Tool result container === */
@@ -1131,12 +1866,12 @@
   .tool-result-header {
     @apply flex items-center gap-2 px-3 py-2;
     @apply border-b border-border/50;
-    @apply text-xs font-medium text-muted-foreground;
+    @apply text-list font-medium text-muted-foreground;
   }
 
   /* === Divider with label === */
   .divider-label {
-    @apply flex items-center gap-4 text-xs text-muted-foreground;
+    @apply flex items-center gap-4 text-list text-muted-foreground;
   }
 
   .divider-label::before,
@@ -1153,7 +1888,7 @@
 
   /* === Orchestrated Page Load Animation === */
   .animate-stagger>* {
-    animation: stagger-fade-in 0.5s var(--ease-out-expo) both;
+    animation: stagger-fade-in 0.5s var(--ease-emphasized) both;
   }
 
   .animate-stagger>*:nth-child(1) {
@@ -1204,7 +1939,7 @@
 
   /* === Fast Stagger (for smaller lists) === */
   .animate-stagger-fast>* {
-    animation: stagger-fade-in 0.3s var(--ease-out-expo) both;
+    animation: stagger-fade-in 0.3s var(--ease-emphasized) both;
   }
 
   .animate-stagger-fast>*:nth-child(1) {
@@ -1229,7 +1964,7 @@
 
   /* === Breathing Pulse (for active/loading states) === */
   .animate-breathe {
-    animation: breathe 3s var(--ease-in-out-circ) infinite;
+    animation: breathe 3s var(--ease-standard) infinite;
   }
 
   @keyframes breathe {
@@ -1265,19 +2000,19 @@
 
   /* === Slide Animations with Spring === */
   .animate-slide-up {
-    animation: slide-up 0.4s var(--ease-out-expo);
+    animation: slide-up 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-down {
-    animation: slide-down 0.4s var(--ease-out-expo);
+    animation: slide-down 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-left {
-    animation: slide-left 0.4s var(--ease-out-expo);
+    animation: slide-left 0.4s var(--ease-emphasized);
   }
 
   .animate-slide-right {
-    animation: slide-right 0.4s var(--ease-out-expo);
+    animation: slide-right 0.4s var(--ease-emphasized);
   }
 
   @keyframes slide-up {
@@ -1330,11 +2065,11 @@
 
   /* === Scale Animations === */
   .animate-scale-in {
-    animation: scale-in 0.25s var(--ease-out-back);
+    animation: scale-in 0.25s var(--ease-emphasized);
   }
 
   .animate-scale-out {
-    animation: scale-out 0.2s var(--ease-in-out-circ);
+    animation: scale-out 0.2s var(--ease-standard);
   }
 
   @keyframes scale-in {
@@ -1363,11 +2098,11 @@
 
   /* === Expand/Collapse === */
   .animate-expand {
-    animation: expand 0.3s var(--ease-out-expo);
+    animation: expand 0.3s var(--ease-emphasized);
   }
 
   .animate-collapse {
-    animation: collapse 0.25s var(--ease-in-out-circ);
+    animation: collapse 0.25s var(--ease-standard);
   }
 
   @keyframes expand {
@@ -1397,31 +2132,6 @@
       opacity: 0;
       max-height: 0;
       transform: scaleY(0.95);
-    }
-  }
-
-  /* === Glow Effects === */
-  .glow-accent {
-    box-shadow: var(--shadow-glow);
-  }
-
-  .glow-accent-strong {
-    box-shadow: var(--shadow-glow-accent);
-  }
-
-  .animate-glow-pulse {
-    animation: glow-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes glow-pulse {
-
-    0%,
-    100% {
-      box-shadow: 0 0 20px oklch(0.75 0.18 55 / 0.2);
-    }
-
-    50% {
-      box-shadow: 0 0 35px oklch(0.75 0.18 55 / 0.4);
     }
   }
 
@@ -1481,7 +2191,7 @@
 
   /* === Bounce Subtle === */
   .animate-bounce-subtle {
-    animation: bounce-subtle 0.5s var(--ease-out-back);
+    animation: bounce-subtle 0.5s var(--ease-emphasized);
   }
 
   @keyframes bounce-subtle {
@@ -1515,11 +2225,11 @@
 
   /* === Fade Animations === */
   .animate-fade-in {
-    animation: fade-in 0.3s var(--ease-out-expo);
+    animation: fade-in 0.3s var(--ease-emphasized);
   }
 
   .animate-fade-out {
-    animation: fade-out 0.2s var(--ease-in-out-circ);
+    animation: fade-out 0.2s var(--ease-standard);
   }
 
   @keyframes fade-in {
@@ -1544,7 +2254,7 @@
 
   /* === Shake (for errors) === */
   .animate-shake {
-    animation: shake 0.5s var(--ease-out-expo);
+    animation: shake 0.5s var(--ease-emphasized);
   }
 
   @keyframes shake {
@@ -1571,74 +2281,12 @@
     }
   }
 
-  /* === Attention Pulse (for notifications) === */
-  .animate-attention {
-    animation: attention 0.6s var(--ease-out-expo);
-  }
-
-  @keyframes attention {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 oklch(0.75 0.18 55 / 0.5);
-    }
-
-    70% {
-      transform: scale(1.02);
-      box-shadow: 0 0 0 10px oklch(0.75 0.18 55 / 0);
-    }
-
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 oklch(0.75 0.18 55 / 0);
-    }
-  }
 }
 
 /* ============================================
    TYPOGRAPHY UTILITIES
    ============================================ */
 @layer utilities {
-
-  /* === Custom Text Sizes === */
-  .text-2xs {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-    line-height: calc(0.9375rem * var(--app-font-scale));
-  }
-
-  .text-3xs {
-    font-size: calc(0.625rem * var(--app-font-scale));
-    line-height: calc(0.8125rem * var(--app-font-scale));
-  }
-
-  /* === Fixed pixel text sizes, made reactive to --app-font-scale (issue #408) ===
-     These replace arbitrary `text-[Npx]` classes, which compile to a literal
-     font-size and so ignore the app font-size setting. They set font-size only —
-     matching the original arbitrary-value behavior — so appearance is unchanged
-     except that they now scale with the user's font-size preference. */
-  .text-px6 {
-    font-size: calc(0.375rem * var(--app-font-scale));
-  }
-  .text-px8 {
-    font-size: calc(0.5rem * var(--app-font-scale));
-  }
-  .text-px9 {
-    font-size: calc(0.5625rem * var(--app-font-scale));
-  }
-  .text-px10 {
-    font-size: calc(0.625rem * var(--app-font-scale));
-  }
-  .text-px11 {
-    font-size: calc(0.6875rem * var(--app-font-scale));
-  }
-  .text-px12 {
-    font-size: calc(0.75rem * var(--app-font-scale));
-  }
-  .text-px13 {
-    font-size: calc(0.8125rem * var(--app-font-scale));
-  }
-  .text-px14 {
-    font-size: calc(0.875rem * var(--app-font-scale));
-  }
 
   /* === Text Wrapping === */
   .text-balance {
@@ -1710,13 +2358,6 @@
   }
 
   /* === Text Gradients === */
-  .text-gradient {
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
   .text-gradient-subtle {
     background: linear-gradient(135deg, var(--foreground) 0%, var(--muted-foreground) 100%);
     -webkit-background-clip: text;
@@ -1769,18 +2410,11 @@
 @layer utilities {
 
   /* === Focus Ring System === */
-  .focus-ring {
-    @apply outline-none;
-  }
-
-  .focus-ring:focus-visible {
-    box-shadow: var(--shadow-ring);
-    outline: none;
-  }
-
+  /* The inset variant of the one focus ring (F1b): for controls whose
+     outside ring would be clipped. An outline, so it survives forced colours. */
   .focus-ring-inset:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--ring);
-    outline: none;
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-inset);
   }
 
   /* === Hover Effects === */
@@ -1791,14 +2425,6 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
-  }
-
-  .hover-glow {
-    @apply transition-all duration-300;
-  }
-
-  .hover-glow:hover {
-    box-shadow: var(--shadow-glow);
   }
 
   .hover-scale {
@@ -1875,7 +2501,7 @@
     width: 0;
     height: 1px;
     background: currentColor;
-    transition: width 0.3s var(--ease-out-expo);
+    transition: width 0.3s var(--ease-emphasized);
   }
 
   .link-underline:hover::after {
@@ -1902,10 +2528,6 @@
     border-radius: inherit;
   }
 
-  /* === Ring on Focus Within (for groups) === */
-  .group-focus-ring:focus-within {
-    box-shadow: var(--shadow-ring);
-  }
 }
 
 /* ============================================
@@ -2038,60 +2660,6 @@
       break-inside: avoid;
     }
   }
-}
-
-/* ============================================
-   SIDEBAR SCROLLBAR (Outside @layer for highest priority)
-   ============================================ */
-.scrollbar-sidebar {
-  scrollbar-width: thin !important;
-  scrollbar-color: #6366f1 #1a1a2e !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar {
-  width: 10px !important;
-  height: 10px !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-track {
-  background: #1a1a2e !important;
-  border-radius: 8px !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
-  border-radius: 8px !important;
-  border: 2px solid #1a1a2e !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%) !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #a5b4fc 0%, #818cf8 100%) !important;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
-
-/* Light theme */
-:root:not(.dark) .scrollbar-sidebar {
-  scrollbar-color: #6366f1 #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-track {
-  background: #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
-  border-color: #e2e8f0 !important;
-}
-
-:root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4f46e5 0%, #4338ca 100%) !important;
 }
 
 /* ============================================

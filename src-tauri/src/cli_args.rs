@@ -55,6 +55,25 @@ pub fn extract_flag_value(args: &[String], flag: &str) -> Option<String> {
     None
 }
 
+/// Hidden, test-only `--serve` flag that skips the live file watcher.
+///
+/// The UI capture harness (`scripts/ui-capture`) serves a frozen fixture home
+/// and needs the data set to stay still for the whole run; a watcher event
+/// mid-capture would reload a view and break same-commit reproducibility.
+/// Deliberately left out of the README / help text: it is not a user option,
+/// and the default (watcher on) is unchanged when the flag is absent.
+pub const NO_WATCH_FLAG: &str = "--no-watch";
+
+/// Whether the `--serve` file watcher should start for this argv.
+///
+/// Only the exact bare [`NO_WATCH_FLAG`] disables it — a value form such as
+/// `--no-watch=1` or a longer flag sharing the prefix leaves it on, so a typo
+/// can never silently turn live updates off.
+#[must_use]
+pub fn server_file_watcher_enabled(args: &[String]) -> bool {
+    !args.iter().any(|arg| arg == NO_WATCH_FLAG)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +188,62 @@ mod tests {
             &argv(&["app", "--serve"]),
             "--token"
         ));
+    }
+
+    #[test]
+    fn file_watcher_runs_by_default() {
+        assert!(server_file_watcher_enabled(&argv(&["app", "--serve"])));
+        assert!(server_file_watcher_enabled(&argv(&["app"])));
+    }
+
+    #[test]
+    fn no_watch_flag_disables_file_watcher() {
+        assert!(!server_file_watcher_enabled(&argv(&[
+            "app",
+            "--serve",
+            "--no-watch"
+        ])));
+    }
+
+    #[test]
+    fn no_watch_flag_matches_only_the_bare_flag() {
+        // A value form or a longer flag sharing the prefix must not silently
+        // disable live updates; only the exact test-only flag does.
+        for arg in ["--no-watch=1", "--no-watcher", "--no-watch-dir", "no-watch"] {
+            assert!(
+                server_file_watcher_enabled(&argv(&["app", "--serve", arg])),
+                "{arg} must not disable the watcher"
+            );
+        }
+    }
+
+    #[test]
+    fn no_watch_flag_does_not_disturb_other_server_flags() {
+        // The capture harness passes `--no-watch` right after `--dist <dir>`;
+        // the bare flag must neither be taken as a value nor swallow one.
+        let args = argv(&[
+            "app",
+            "--serve",
+            "--no-auth",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "4100",
+            "--dist",
+            "/tmp/dist",
+            NO_WATCH_FLAG,
+        ]);
+        assert!(!server_file_watcher_enabled(&args));
+        assert_eq!(
+            extract_flag_value(&args, "--dist"),
+            Some("/tmp/dist".into())
+        );
+        assert_eq!(extract_flag_value(&args, "--port"), Some("4100".into()));
+        assert_eq!(
+            extract_flag_value(&args, "--host"),
+            Some("127.0.0.1".into())
+        );
+        assert_eq!(extract_flag_value(&args, NO_WATCH_FLAG), None);
     }
 
     #[test]

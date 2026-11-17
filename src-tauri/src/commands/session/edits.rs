@@ -109,10 +109,12 @@ fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) ->
     }
 }
 
-/// Process a single session file and extract edit information
+/// Process a single session file and extract edit information. `root` is
+/// the canonical project folder: the file is read inside it only
+/// (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
-    let file = session_files::open_regular_file(file_path).ok()?;
+fn process_session_file_for_edits(file_path: &Path, root: &Path) -> Option<SessionEditsResult> {
+    let (file, _) = session_files::open_session_file(file_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -928,12 +930,9 @@ fn validate_session_file_in_project(
         return Err("Invalid session file path: outside the project directory".to_string());
     }
 
-    // Residual risk, accepted and recorded rather than silently ignored: the
-    // caller reopens this path by name, so an entry swapped between here and
-    // `File::open` would not be caught. Closing that fully means handing an open
-    // handle down to `process_session_file_for_edits`, which is a larger change
-    // than this belongs to. The remaining window needs a local attacker with
-    // write access to the user's own session directory.
+    // The caller reopens this path by name, through
+    // `session_files::open_session_file`: an entry swapped for a symlink or a
+    // FIFO between here and the open is refused there (#698).
     Ok(resolved)
 }
 
@@ -1025,7 +1024,9 @@ fn collect_all_recent_edits(
         return collect_provider_edits(provider, project_path, session_file_path);
     }
 
-    // Phase 1: Collect the session files to scan
+    // Phase 1: Collect the session files to scan. Each is read inside the
+    // project folder, resolved before the walk (#698).
+    let project_root = fs::canonicalize(project_path);
     let session_files: Vec<PathBuf> = match session_file_path {
         Some(path) => vec![validate_session_file_in_project(path, project_path)?],
         // Regular files only, never through a symlink (`session_files`): the
@@ -1035,10 +1036,13 @@ fn collect_all_recent_edits(
     };
 
     // Phase 2: Process files in parallel
-    let file_results: Vec<SessionEditsResult> = session_files
-        .par_iter()
-        .filter_map(process_session_file_for_edits)
-        .collect();
+    let file_results: Vec<SessionEditsResult> = match &project_root {
+        Ok(root) => session_files
+            .par_iter()
+            .filter_map(|path| process_session_file_for_edits(path, root))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
 
     // Phase 3: Aggregate results with pre-allocated capacity
     let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
@@ -1188,6 +1192,7 @@ pub async fn read_restore_target(
             return Err("File is too large to preview".to_string());
         }
 
+        // Not a history file: the restore target in the user's project.
         let file = match fs::File::open(&file_path) {
             Ok(f) => f,
             Err(e) if not_found(&e) => return Ok(None),
@@ -1340,7 +1345,8 @@ mod tests {
         let path =
             create_test_jsonl_file(&dir, "s.jsonl", &format!("{single}\n{multi}\n{not_all}\n"));
 
-        let result = process_session_file_for_edits(&path).unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let result = process_session_file_for_edits(&path, &root).unwrap();
         let after = |file: &str| {
             result
                 .edits

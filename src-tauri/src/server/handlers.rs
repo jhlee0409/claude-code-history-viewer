@@ -74,6 +74,27 @@ fn require_claude_bases(
         .try_for_each(|c| require_claude_base(&c.path))
 }
 
+/// The usage breakdown reads the same paths as the old stats commands, so it
+/// is guarded the same way: a Claude project must be a history path and an
+/// `all` scope's Claude roots must be history roots (provider projects are
+/// resolved by their own provider store).
+fn require_usage_scope(scope: &commands::stats::usage_breakdown::UsageScope) -> Result<(), String> {
+    use commands::stats::usage_breakdown::UsageScope;
+    match scope {
+        UsageScope::Project { project_path, .. } => {
+            if commands::stats::is_claude_project_path(project_path) {
+                require_history_path(project_path)?;
+            }
+            Ok(())
+        }
+        UsageScope::All {
+            claude_path,
+            custom_claude_paths,
+            ..
+        } => require_claude_bases(Some(claude_path), Some(custom_claude_paths)),
+    }
+}
+
 // ─── Known-project guard ──────────────────────────────────────────────────────
 
 /// The one message returned for any project directory the history does not
@@ -210,6 +231,13 @@ impl From<String> for ApiError {
     }
 }
 
+/// Serialize a command result into the JSON response body.
+fn json_ok<T: serde::Serialize>(value: T) -> Result<Json<Value>, ApiError> {
+    serde_json::to_value(value)
+        .map(Json)
+        .map_err(|e| ApiError(format!("Serialization error: {e}")))
+}
+
 // ─── Macros for boilerplate reduction ─────────────────────────────────────────
 
 /// Handler with no parameters.
@@ -217,9 +245,7 @@ macro_rules! handler_no_params {
     ($name:ident, $cmd:path) => {
         pub async fn $name() -> Result<Json<Value>, ApiError> {
             let result = $cmd().await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).map_err(|e| {
-                ApiError(format!("Serialization error: {e}"))
-            })?))
+            json_ok(result)
         }
     };
 }
@@ -229,14 +255,17 @@ macro_rules! handler_json {
     ($name:ident, $params:ty, $body:expr) => {
         pub async fn $name(Json(p): Json<$params>) -> Result<Json<Value>, ApiError> {
             let result = $body(p).await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).map_err(|e| {
-                ApiError(format!("Serialization error: {e}"))
-            })?))
+            json_ok(result)
         }
     };
 }
 
 // ─── Parameter structs ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct UsageBreakdownParams {
+    pub request: commands::stats::usage_breakdown::UsageBreakdownRequest,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -487,6 +516,13 @@ pub struct DeleteSessionParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MoveSessionParams {
+    pub session_path: String,
+    pub target_project_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
     pub file_path: String,
     pub new_title: String,
@@ -620,13 +656,6 @@ pub struct UpdateProjectMetadataParams {
     pub update: crate::models::ProjectMetadata,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpScopeParam {
-    #[serde(default)]
-    pub scope: Option<String>,
-}
-
 // ─── Handlers: NO PARAMS ──────────────────────────────────────────────────────
 
 handler_no_params!(
@@ -658,16 +687,9 @@ pub async fn get_server_config(
     })))
 }
 
-/// Note: scope parameter is accepted for API contract compatibility but not used
-/// by the underlying command (it always reads the global MCP config).
-pub async fn get_mcp_servers(Json(_p): Json<McpScopeParam>) -> Result<Json<Value>, ApiError> {
-    let result = commands::claude_settings::get_mcp_servers()
-        .await
-        .map_err(ApiError::from)?;
-    Ok(Json(serde_json::to_value(result).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
-}
+// Note: the frontend still sends a `scope` body, but the underlying command
+// always reads the global MCP config, so the body is ignored.
+handler_no_params!(get_mcp_servers, commands::claude_settings::get_mcp_servers);
 
 // ─── Handlers: SIMPLE PARAMS ──────────────────────────────────────────────────
 
@@ -898,6 +920,16 @@ handler_json!(
 );
 
 handler_json!(
+    move_session_to_project,
+    MoveSessionParams,
+    |p: MoveSessionParams| async move {
+        require_history_path(&p.session_path)?;
+        require_history_path(&p.target_project_path)?;
+        commands::session::move_session_to_project(p.session_path, p.target_project_path).await
+    }
+);
+
+handler_json!(
     rename_session_native,
     RenameSessionParams,
     |p: RenameSessionParams| async move {
@@ -931,37 +963,32 @@ handler_json!(
 
 // ─── Handlers: STRUCT PARAMS ──────────────────────────────────────────────────
 
+/// Request body `{ "input": ... }` shared by the preset save handlers.
 #[derive(Deserialize)]
-pub struct SavePresetParams {
-    pub input: crate::commands::settings::PresetInput,
+pub struct InputParam<T> {
+    pub input: T,
 }
 
 handler_json!(
     save_preset,
-    SavePresetParams,
-    |p: SavePresetParams| async move { commands::settings::save_preset(p.input).await }
+    InputParam<crate::commands::settings::PresetInput>,
+    |p: InputParam<crate::commands::settings::PresetInput>| async move {
+        commands::settings::save_preset(p.input).await
+    }
 );
-
-#[derive(Deserialize)]
-pub struct SaveMcpPresetParams2 {
-    pub input: crate::commands::mcp_presets::MCPPresetInput,
-}
 
 handler_json!(
     save_mcp_preset,
-    SaveMcpPresetParams2,
-    |p: SaveMcpPresetParams2| async move { commands::mcp_presets::save_mcp_preset(p.input).await }
+    InputParam<crate::commands::mcp_presets::MCPPresetInput>,
+    |p: InputParam<crate::commands::mcp_presets::MCPPresetInput>| async move {
+        commands::mcp_presets::save_mcp_preset(p.input).await
+    }
 );
-
-#[derive(Deserialize)]
-pub struct SaveUnifiedPresetParams {
-    pub input: crate::commands::unified_presets::UnifiedPresetInput,
-}
 
 handler_json!(
     save_unified_preset,
-    SaveUnifiedPresetParams,
-    |p: SaveUnifiedPresetParams| async move {
+    InputParam<crate::commands::unified_presets::UnifiedPresetInput>,
+    |p: InputParam<crate::commands::unified_presets::UnifiedPresetInput>| async move {
         commands::unified_presets::save_unified_preset(p.input).await
     }
 );
@@ -976,6 +1003,28 @@ handler_json!(
     SendFeedbackParams,
     |p: SendFeedbackParams| async move { commands::feedback::send_feedback(p.feedback).await }
 );
+
+/// `sync_menu_state` (desktop: the native menu's language and command state).
+/// The `WebUI` has no native menu, so the menu routes only keep the desktop
+/// and `WebUI` command surfaces in parity: this one accepts the body and
+/// does nothing.
+pub async fn sync_menu_state() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
+
+/// `menu_journal` (desktop: menu events not yet acknowledged). No native
+/// menu in the `WebUI`: an empty journal.
+pub async fn menu_journal() -> Result<Json<Value>, ApiError> {
+    Ok(Json(
+        serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+    ))
+}
+
+/// `ack_menu_events` (desktop: drop acknowledged menu events). A no-op in
+/// the `WebUI`.
+pub async fn ack_menu_events() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
 
 /// Special handler: returns URL instead of opening browser on server.
 pub async fn open_github_issues() -> Result<Json<Value>, ApiError> {
@@ -1072,6 +1121,15 @@ handler_json!(
             p.custom_claude_paths,
         )
         .await
+    }
+);
+
+handler_json!(
+    get_usage_breakdown,
+    UsageBreakdownParams,
+    |p: UsageBreakdownParams| async move {
+        require_usage_scope(&p.request.scope)?;
+        commands::stats::usage_breakdown::get_usage_breakdown(p.request).await
     }
 );
 
@@ -1290,10 +1348,7 @@ pub async fn load_user_metadata(
             .lock()
             .map_err(|e| ApiError(format!("Lock error: {e}")))?;
         if let Some(ref meta) = *cached {
-            return Ok(Json(
-                serde_json::to_value(meta.clone())
-                    .map_err(|e| ApiError(format!("Serialization error: {e}")))?,
-            ));
+            return json_ok(meta.clone());
         }
     }
 
@@ -1321,9 +1376,7 @@ pub async fn load_user_metadata(
         .map_err(|e| ApiError(format!("Lock error: {e}")))?;
     *cached = Some(metadata.clone());
 
-    Ok(Json(serde_json::to_value(metadata).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(metadata)
 }
 
 /// Persist metadata written through the `WebUI`.
@@ -1403,9 +1456,7 @@ pub async fn update_session_metadata(
     })
     .await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
 }
 
 pub async fn update_project_metadata(
@@ -1423,9 +1474,7 @@ pub async fn update_project_metadata(
     })
     .await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
 }
 
 #[derive(Deserialize)]
@@ -1440,9 +1489,7 @@ pub async fn update_user_settings(
     let metadata_to_save =
         save_webui_metadata(&state, move |metadata| metadata.settings = p.settings).await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
 }
 
 pub async fn is_project_hidden(
@@ -1460,9 +1507,7 @@ pub async fn is_project_hidden(
         .as_ref()
         .map(|m| m.is_project_hidden(&p.project_path))
         .unwrap_or(false);
-    Ok(Json(serde_json::to_value(hidden).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(hidden)
 }
 
 pub async fn get_session_display_name(
@@ -1479,9 +1524,7 @@ pub async fn get_session_display_name(
         .and_then(|m| m.get_session(&p.session_id))
         .and_then(|s| s.custom_name.clone())
         .or(p.fallback_summary);
-    Ok(Json(serde_json::to_value(name).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(name)
 }
 
 // ─── Handlers: APP_HANDLE (Disabled in web mode) ──────────────────────────────
@@ -1781,6 +1824,43 @@ mod tests {
         let saved = persisted_metadata().settings.custom_claude_paths;
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
+    }
+
+    /// The `WebUI` path (Axum `/update_session_metadata`) keeps a favourite's
+    /// `ref` from the request body on disk and in its response (plan T7, A2).
+    #[tokio::test]
+    #[serial]
+    async fn webui_session_update_keeps_the_favourite_ref() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let state = metadata_state();
+        // The JSON body the frontend posts.
+        let params: UpdateSessionMetadataParams = serde_json::from_value(serde_json::json!({
+            "sessionId": "s1",
+            "update": {
+                "starred": true,
+                "ref": {
+                    "provider": "codex",
+                    "filePath": "/c/rollout-1.jsonl",
+                    "sessionId": "s1",
+                    "actualSessionId": "a1"
+                }
+            }
+        }))
+        .unwrap();
+
+        let Json(response) = update_session_metadata(State(state), Json(params))
+            .await
+            .unwrap_or_else(|_| panic!("update_session_metadata failed"));
+        assert_eq!(
+            response["sessions"]["s1"]["ref"]["filePath"],
+            "/c/rollout-1.jsonl"
+        );
+        assert_eq!(response["sessions"]["s1"]["ref"]["actualSessionId"], "a1");
+
+        let saved = persisted_metadata();
+        let saved_ref = saved.sessions["s1"].session_ref.clone().unwrap();
+        assert_eq!(saved_ref.provider, "codex");
+        assert_eq!(saved_ref.actual_session_id.as_deref(), Some("a1"));
     }
 
     /// Concurrent `WebUI` session updates must all survive on disk and in the
@@ -2300,6 +2380,37 @@ mod provider_uri_scope_tests {
             .await;
             assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
         }
+    }
+
+    /// Every provider the UI offers "Delete" for reaches its deleter over
+    /// `--serve`: Cursor Agent transcripts are inside the `~/.cursor` root and
+    /// `cursor://` ids pass to the Cursor deleter (which then reports its own
+    /// errors), while other URI schemes stay rejected.
+    #[tokio::test]
+    #[serial]
+    async fn delete_session_accepts_every_deletable_provider() {
+        let home = crate::test_utils::SandboxHome::new();
+        let id = "sess-webui";
+        let dir = home
+            .path()
+            .join(".cursor/projects/proj/agent-transcripts")
+            .join(id);
+        std::fs::create_dir_all(&dir).unwrap();
+        let transcript = dir.join(format!("{id}.jsonl"));
+        std::fs::write(&transcript, "{}\n").unwrap();
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: transcript.to_string_lossy().into_owned(),
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+        assert!(!dir.exists());
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: "cursor://comp-1".to_string(),
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 
     /// A project the recent-edits panel does not route to a provider is read

@@ -1181,6 +1181,10 @@ pub async fn search_all_providers(
         }
     }
 
+    // Central pass over every provider's results (e.g. `sessionIds`, which
+    // every provider sets). Claude and Codex already filtered before their own
+    // limit; providers that ignore filters truncated first, so a narrow scope
+    // can return fewer than `max_results` from them.
     all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
 
     // Prefer the user's matching prompts, then displayable assistant text,
@@ -1236,10 +1240,51 @@ fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usi
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
-    for msg in messages {
+    for mut msg in messages {
         if msg.message_type != "user" {
             merged.push(msg);
             continue;
+        }
+
+        // Associate raw metadata with its source result before moving that block.
+        // Other providers own their normalized shapes and are left untouched.
+        if msg.provider.as_deref() == Some("claude") {
+            if let (Some(raw), Some(blocks)) = (
+                msg.tool_use_result.as_ref(),
+                msg.content.as_mut().and_then(Value::as_array_mut),
+            ) {
+                let indices: Vec<usize> = blocks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, block)| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                    })
+                    .map(|(index, _)| index)
+                    .collect();
+                if let Some(&index) = indices.first() {
+                    let block = blocks[index].as_object_mut().expect("typed result block");
+                    let assigned = indices.len() == 1 && !block.contains_key("toolUseResult");
+                    if assigned {
+                        block.insert("toolUseResult".into(), raw.clone());
+                    }
+                    let source = crate::models::ToolUseResultSource {
+                        message_uuid: msg.uuid.clone(),
+                        session_id: msg.session_id.clone(),
+                        content_index: index,
+                        association: if assigned {
+                            "single_result"
+                        } else {
+                            "unassigned"
+                        }
+                        .into(),
+                        result_content_indices: if assigned { None } else { Some(indices) },
+                        unassigned_tool_use_result: if assigned { None } else { Some(raw.clone()) },
+                    };
+                    block
+                        .entry("toolUseResultSource")
+                        .or_insert_with(|| serde_json::to_value(source).expect("JSON provenance"));
+                }
+            }
         }
 
         let Some(content_arr) = msg.content.as_ref().and_then(Value::as_array) else {
@@ -1319,6 +1364,48 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn search_all_providers_honors_session_ids_for_claude() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("demo");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let line = |uuid: &str, session: &str, minute: u32| {
+            format!(
+                r#"{{"uuid":"{uuid}","sessionId":"{session}","timestamp":"2025-06-26T10:{minute:02}:00Z","type":"user","message":{{"role":"user","content":"sessionScopeProbe {uuid}"}}}}"#
+            )
+        };
+        std::fs::write(
+            project_dir.join("old.jsonl"),
+            format!("{}\n", line("old-1", "old", 1)),
+        )
+        .unwrap();
+        std::fs::write(
+            project_dir.join("new.jsonl"),
+            format!("{}\n{}\n", line("new-1", "new", 2), line("new-2", "new", 3)),
+        )
+        .unwrap();
+
+        // The older session must survive a limit of 1 because scoping is
+        // applied before truncation.
+        let results = search_all_providers(
+            Some(temp_dir.path().to_string_lossy().to_string()),
+            "sessionScopeProbe".to_string(),
+            Some(vec!["claude".to_string()]),
+            None,
+            Some(serde_json::json!({ "sessionIds": ["old"] })),
+            Some(1),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let ids: Vec<&str> = results.iter().map(|m| m.uuid.as_str()).collect();
+        assert_eq!(ids, ["old-1"]);
+        assert_eq!(results[0].provider.as_deref(), Some("claude"));
+    }
+
+    #[tokio::test]
     async fn load_provider_session_by_path_rejects_providers_without_a_lookup() {
         let result = load_provider_session_by_path(
             "codex".to_string(),
@@ -1354,37 +1441,13 @@ mod tests {
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {
         ClaudeMessage {
             uuid: format!("{message_type}-id"),
-            parent_uuid: None,
             session_id: "session-1".to_string(),
             timestamp: "2026-02-19T12:00:00Z".to_string(),
             message_type: message_type.to_string(),
             content: Some(content),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
             role: Some(message_type.to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("claude".to_string()),
+            ..Default::default()
         }
     }
 
