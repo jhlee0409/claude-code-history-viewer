@@ -282,7 +282,11 @@ fn file_signature(path: &Path) -> Option<FileSignature> {
 
 /// Extract provider-specific project/session identifiers from changed file path.
 fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
-    let ext = path.extension()?.to_str()?;
+    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+        // Vibe's unified store points at the current generation through an
+        // extensionless `CURRENT` file.
+        return extract_vibe_paths(path);
+    };
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
@@ -1223,7 +1227,8 @@ mod tests {
         );
     }
 
-    /// Unified-store files (chunks, manifests, journal) map to their session.
+    /// Unified-store files (chunks, manifests, journal, `CURRENT`) map to their
+    /// session through the watcher's dispatcher.
     #[test]
     #[serial]
     fn test_extract_vibe_paths_unified_store() {
@@ -1245,10 +1250,10 @@ mod tests {
         std::fs::write(&loops, "{}").unwrap();
 
         let cases = [
-            extract_vibe_paths(&chunk),
-            extract_vibe_paths(&manifest),
-            extract_vibe_paths(&journal),
-            extract_vibe_paths(&current),
+            extract_provider_paths(&chunk),
+            extract_provider_paths(&manifest),
+            extract_provider_paths(&journal),
+            extract_provider_paths(&current),
         ];
         let irrelevant = extract_vibe_paths(&loops);
 
