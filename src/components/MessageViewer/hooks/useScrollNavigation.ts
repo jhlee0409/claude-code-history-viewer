@@ -10,6 +10,7 @@ import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { SCROLL_HIGHLIGHT_DELAY_MS } from "../types";
 import { scrollBehavior } from "@/utils/motion";
+import { rowScrollAlign } from "../helpers/rowScrollAlign";
 import type { MessageUpdateKind } from "@/store/slices/messageSlice";
 
 // Scroll behavior constants
@@ -168,6 +169,17 @@ export const useScrollNavigation = ({
 
     const viewport = getScrollViewport();
 
+    // The whole message, when there is no highlight to aim at: centred, or
+    // from its start when it is taller than the viewport (rowScrollAlign).
+    const revealMessage = (root: HTMLElement) => {
+      const messageElement = root.querySelector(messageSelector);
+      if (!messageElement) return;
+      messageElement.scrollIntoView({
+        behavior: scrollBehavior(),
+        block: rowScrollAlign(messageElement.getBoundingClientRect().height, root.clientHeight),
+      });
+    };
+
     // Prefer the active highlight if the target message is already rendered:
     // scroll straight to the occurrence instead of first jumping the whole
     // message into view, which caused a visible double-scroll. (#429)
@@ -182,7 +194,8 @@ export const useScrollNavigation = ({
     if (virtualizer && getScrollIndex) {
       const index = getScrollIndex(matchUuid);
       if (index !== null) {
-        virtualizer.scrollToIndex(index, { align: "center" });
+        const rowHeight = virtualizer.measurementsCache[index]?.size ?? 0;
+        virtualizer.scrollToIndex(index, { align: rowScrollAlign(rowHeight, viewport?.clientHeight ?? 0) });
         setTimeout(() => {
           const vp = getScrollViewport();
           if (!vp) return;
@@ -192,17 +205,15 @@ export const useScrollNavigation = ({
             return;
           }
           // No highlight in the now-rendered message (e.g. match outside the
-          // visible text window) — center the message as a fallback.
-          const messageElement = vp.querySelector(messageSelector);
-          messageElement?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+          // visible text window) — bring the message itself into view.
+          revealMessage(vp);
         }, 100);
         return;
       }
     }
 
-    // DOM-only fallback (no virtualizer): center the message.
-    const messageElement = viewport?.querySelector(messageSelector);
-    messageElement?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+    // DOM-only fallback (no virtualizer): the message itself.
+    if (viewport) revealMessage(viewport);
   }, [getScrollViewport, virtualizer, getScrollIndex]);
 
   // 메시지 로드 완료 후 스크롤 실행
