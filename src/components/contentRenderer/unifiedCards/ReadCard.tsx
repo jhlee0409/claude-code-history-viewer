@@ -1,14 +1,17 @@
 import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
 import { ToolRow } from "../../transcript/ToolRow";
 import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
-import { toolFamily, toolOutcome } from "../../transcript/toolOutcome";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import { useToolPathContext } from "../../transcript/pathContext";
 import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
 import { num, strAny } from "./shared";
 
 export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
   const pathCtx = useToolPathContext();
   const name = (toolUse.name as string) || "Read";
   const toolId = (toolUse.id as string) || "";
@@ -17,7 +20,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
   const offset = num(input, "offset");
   const limit = num(input, "limit");
   const family = toolFamily(name);
-  const outcome = toolOutcome(toolUse, toolResults, family);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
   const expandKey = `unified-${toolId}`;
 
   const rangeLabel = offset != null || limit != null
@@ -26,7 +29,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
 
   return (
     <ToolRow
-      icon={<ToolIcon toolName="Read" className="w-4 h-4" />}
+      icon={<ToolIcon toolName="Read" title={null} className="w-4 h-4" />}
       verb={name}
       target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
       meta={rangeLabel ? <span data-mono="code" className="font-mono">{rangeLabel}</span> : undefined}
@@ -35,7 +38,10 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
       toolId={toolId}
       expandKey={expandKey}
     >
-      <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      {/* The path and range are the row's: the opened detail is the result alone. */}
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} source="file" expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
     </ToolRow>
   );
 });

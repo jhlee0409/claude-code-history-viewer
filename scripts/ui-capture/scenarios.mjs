@@ -464,6 +464,19 @@ const INNER_SCREENS = [
     steps: [{ do: "openSession", session: "unknown-outcome" }, { do: "expandToolRows", match: ["git status"], limit: 1 }],
   },
   {
+    id: "transcript-webfetch-open",
+    title: "TR1a: the failed WebFetch (error_code) and the successful one, opened (the code once, no API-response box)",
+    steps: [{ do: "openSession", session: "outcomes" }, { do: "expandToolRows", match: ["status.example.com", "example.com/changelog"], limit: 2 }],
+  },
+  {
+    id: "transcript-agent-open",
+    title: "TR1a: the Task that spawned a subagent, opened (prompt, result and stats without nested tinted folds)",
+    // Head: the row's target is the description. A pre-TR1a base shows the
+    // description only inside the card; its header button reads the
+    // (translated) "Agent" title and the uppercase subagent-type pill.
+    steps: [{ do: "openSession", session: "subagent" }, { do: "expandToolRows", match: ["Audit the production bundle", "GENERAL-PURPOSE"], limit: 1 }],
+  },
+  {
     id: "transcript-cjk",
     title: "Korean session mixing prose, paths and code (D12)",
     steps: [{ do: "openSession", session: "cjk-ko" }],
@@ -519,6 +532,45 @@ const INNER_SCREENS = [
 
 /** Desktop-only inner scenarios (the gear menu lives in the desktop toolbar). */
 const INNER_DESKTOP_SCREENS = [{ id: "gear", title: "The gear (app settings) menu open", steps: [{ do: "gearMenu" }] }];
+
+/**
+ * TR2a (plan §4.3 "펼친 Edit", D5): the opened Edit's `…` menu open, the
+ * side-by-side comparison chosen from it, and the Edits screen's full diff
+ * (comfortable and compact rows). The transcript pair is new from TR2a (no
+ * menu on a base build); the Edits pair compares with the base's white
+ * react-diff-viewer table.
+ */
+const TR2A_SCREENS = [
+  {
+    id: "transcript-edit-menu-open",
+    title: "The opened Edit's … menu: comparison modes, copies, open in Edits",
+    steps: [
+      { do: "openSession", session: "mixed-turn" },
+      { do: "expandToolRows", match: ["renderPreview.ts"], limit: 1 },
+      { do: "diffMenu" },
+    ],
+  },
+  {
+    id: "transcript-edit-side-by-side",
+    title: "The opened Edit with Side by side chosen from its … menu",
+    steps: [
+      { do: "openSession", session: "mixed-turn" },
+      { do: "expandToolRows", match: ["renderPreview.ts"], limit: 1 },
+      { do: "diffMenu", mode: "sideBySide" },
+    ],
+  },
+  {
+    id: "recent-edits-diff",
+    title: "Edits screen: the first row's full diff",
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }, { do: "editsDiff" }],
+  },
+  {
+    id: "recent-edits-compact-diff",
+    title: "Edits screen, compact rows: the first row opened on its diff",
+    storage: { "recent-edits-density-page": "compact", "recent-edits-density": "compact" },
+    steps: [{ do: "openSession", session: "large" }, { do: "view", view: "recentEdits" }, { do: "editsDiff", compact: true }],
+  },
+];
 
 /**
  * Part (b): later-active scenarios (plan I0, RR C7). The surface does not
@@ -586,6 +638,9 @@ export const MATRIX = [
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1180x760"), themes: ["dark"], screens: [...INNER_SCREENS, ...INNER_DESKTOP_SCREENS] },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: INNER_SCREENS },
+  // TR2a: 1440 both themes, the phone in dark.
+  { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: THEMES, screens: TR2A_SCREENS },
+  { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: TR2A_SCREENS },
   // Later-active (b): expanded like any scenario, split out by run.mjs.
   { viewports: DESKTOP_VIEWPORTS.filter((v) => v.id === "1440x900"), themes: ["dark"], screens: LATER_SCREENS },
   { viewports: MOBILE_VIEWPORTS, themes: ["dark"], screens: LATER_SCREENS.filter((s) => s.id === "session-detail-sheet") },

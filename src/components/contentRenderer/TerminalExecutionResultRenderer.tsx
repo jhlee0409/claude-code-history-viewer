@@ -1,11 +1,9 @@
-import type { ReactNode } from "react";
-import { memo } from "react";
-import { CircleCheckBig, CircleAlert } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { memo, useContext } from "react";
 import { cn } from "@/lib/utils";
-import { layout, type RendererVariant } from "../renderers";
-import { ToolResultCard } from "./ToolResultCard";
-import { AnsiText } from "../common/AnsiText";
+import { layout } from "../renderers";
+import { OutputBlock } from "../transcript/OutputBlock";
+import { ResultRow } from "../transcript/ResultRow";
+import { ResultRowContext } from "../transcript/resultRowContext";
 
 interface ExecutionResultLike {
   stdout?: string;
@@ -19,117 +17,60 @@ interface ExecutionErrorLike {
 
 type Content = ExecutionResultLike | ExecutionErrorLike;
 
-const isExecutionError = (content: Content): content is ExecutionErrorLike => {
-  return "error_code" in content;
-};
+const isExecutionError = (content: Content): content is ExecutionErrorLike => content !== null && typeof content === "object" && "error_code" in content;
 
 interface Props {
   toolUseId: string;
   content: Content;
-  icon: ReactNode;
-  title: string;
-  errorTitle: string;
+  /** The recorded tool name the result answers (`code_execution`, `bash_code_execution`). */
+  verb: string;
+  /** The result block's type, for the outcome adapter. */
+  resultType: string;
   noOutputLabel: string;
   errorMessages: Record<string, string>;
-  successVariant?: RendererVariant;
 }
 
-export const TerminalExecutionResultRenderer = memo(function TerminalExecutionResultRenderer({
-  toolUseId,
-  content,
-  icon,
-  title,
-  errorTitle,
-  noOutputLabel,
-  errorMessages,
-  successVariant = "system",
-}: Props) {
-  const { t } = useTranslation();
+/**
+ * A code / bash execution result (TR1b, amendment 17): its head is its call's
+ * ToolRow (or `ResultRow` alone), whose outcome comes from `toolOutcome` —
+ * the recorded `return_code` decides (exit 0 succeeded, else "Failed · exit
+ * code N"), an `error_code` reads "Failed · <code>". The body is a plain
+ * output: one OutputBlock with the stdout and stderr zones (stderr in the
+ * danger style only when the verdict is failed), search hits marked. No
+ * success glyph, no exit-code pill: the code is stated by the row.
+ */
+export const TerminalExecutionResultRenderer = memo(function TerminalExecutionResultRenderer({ toolUseId, content, verb, resultType, noOutputLabel, errorMessages }: Props) {
+  const { highlight } = useContext(ResultRowContext);
+  const result = { type: resultType, tool_use_id: toolUseId, content };
 
   if (isExecutionError(content)) {
+    const explanation = errorMessages[content.error_code];
     return (
-      <ToolResultCard
-        title={errorTitle}
-        icon={<CircleAlert className={cn(layout.iconSize, "text-destructive")} />}
-        variant="error"
-        toolUseId={toolUseId}
-      >
-        <div className={cn(layout.bodyText, "text-destructive")}>
-          {errorMessages[content.error_code] || content.error_code}
-        </div>
-      </ToolResultCard>
+      <ResultRow verb={verb} family="process" result={result} toolUseId={toolUseId}>
+        {explanation && <div className={cn(layout.bodyText, "text-fg-2")}>{explanation}</div>}
+      </ResultRow>
     );
   }
 
-  const { stdout, stderr, return_code } = content;
-  const isSuccess = return_code === 0;
+  const stdout = typeof content?.stdout === "string" ? content.stdout : "";
+  const stderr = typeof content?.stderr === "string" ? content.stderr : "";
+  const failed = typeof content?.return_code === "number" && content.return_code !== 0;
 
   return (
-    <ToolResultCard
-      title={title}
-      icon={
-        <span className={cn("flex items-center", layout.iconGap)}>
-          {icon}
-          {isSuccess ? (
-            <CircleCheckBig className={cn(layout.iconSizeSmall, "text-success")} />
-          ) : (
-            <CircleAlert className={cn(layout.iconSizeSmall, "text-warning")} />
-          )}
-        </span>
-      }
-      variant={successVariant}
-      toolUseId={toolUseId}
-      rightContent={
-        return_code !== undefined ? (
-          <span
-            className={cn(
-              layout.monoText,
-              "px-1.5 py-0.5 rounded",
-              isSuccess ? "bg-success/20 text-success" : "bg-warning/20 text-warning"
-            )}
-          >
-            {t("terminalStreamRenderer.exitCode")}: {return_code}
-          </span>
-        ) : null
-      }
-    >
-      {stdout && (
-        <div className="mb-2">
-          <div className={cn("flex items-center space-x-1 mb-1", layout.smallText, "text-muted-foreground")}>
-            <span className="font-mono">{t("terminalExecutionResultRenderer.stdout")}:</span>
-          </div>
-          <pre
-            className={cn(
-              layout.monoText,
-              "bg-secondary text-success rounded p-2 overflow-x-auto whitespace-pre-wrap",
-              layout.codeMaxHeight
-            )}
-          >
-            <AnsiText text={stdout} />
-          </pre>
-        </div>
-      )}
-
-      {stderr && (
-        <div>
-          <div className={cn("flex items-center space-x-1 mb-1", layout.smallText, "text-warning")}>
-            <span className="font-mono">{t("terminalExecutionResultRenderer.stderr")}:</span>
-          </div>
-          <pre
-            className={cn(
-              layout.monoText,
-              "bg-secondary text-destructive rounded p-2 overflow-x-auto whitespace-pre-wrap",
-              layout.codeMaxHeight
-            )}
-          >
-            <AnsiText text={stderr} />
-          </pre>
-        </div>
-      )}
-
-      {!stdout && !stderr && (
+    <ResultRow verb={verb} family="process" result={result} toolUseId={toolUseId}>
+      {stdout || stderr ? (
+        <OutputBlock
+          text={stdout}
+          errorText={stderr || undefined}
+          source="command"
+          failed={failed}
+          expandKey={`exec-${toolUseId}`}
+          searchQuery={highlight?.searchQuery}
+          highlight={highlight ? { isCurrentMatch: highlight.isCurrentMatch, currentMatchIndex: highlight.currentMatchIndex } : undefined}
+        />
+      ) : (
         <div className={cn(layout.smallText, "text-muted-foreground italic")}>{noOutputLabel}</div>
       )}
-    </ToolResultCard>
+    </ResultRow>
   );
 });

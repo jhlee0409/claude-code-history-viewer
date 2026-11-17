@@ -60,6 +60,18 @@ describe("population contract", () => {
     expect(PROBE_APPLICABILITY.wordBreak({ ...ctx, locale: "ko" })).toBe(true);
     expect(PROBE_APPLICABILITY.chromeSelect({ ...ctx, mobile: true })).toBe(false);
   });
+
+  it("skips the row and chrome probes behind a modal menu (…-menu-open), keeps the rest", () => {
+    const ctx = { screen: "transcript-edit-menu-open", locale: "en", mobile: false, theme: "dark", viewport: "1440x900", live: false };
+    expect(PROBE_APPLICABILITY.toolRowMetrics(ctx)).toBe(false);
+    expect(PROBE_APPLICABILITY.chromeSelect(ctx)).toBe(false);
+    expect(PROBE_APPLICABILITY.absPathLeaks(ctx)).toBe(true);
+    expect(PROBE_APPLICABILITY.overflowX(ctx)).toBe(true);
+    // The same transcript with the menu closed again keeps both.
+    const closed = { ...ctx, screen: "transcript-edit-side-by-side" };
+    expect(PROBE_APPLICABILITY.toolRowMetrics(closed)).toBe(true);
+    expect(PROBE_APPLICABILITY.chromeSelect(closed)).toBe(true);
+  });
 });
 
 const req = browserRequirement({ webkit: true });

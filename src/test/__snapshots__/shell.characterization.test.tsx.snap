@@ -58,58 +58,28 @@ exports[`shell characterization > desktop > analytics 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_1_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_1_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -358,58 +328,28 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_0_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_0_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -662,58 +602,28 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_2_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_2_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Session summary not found.
-              </p>
-            </div>
+              Session summary not found.
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -962,59 +872,28 @@ exports[`shell characterization > desktop > archive 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_7_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_7_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-archive w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  height="5"
-                  rx="1"
-                  width="20"
-                  x="2"
-                  y="3"
-                />
-                <path
-                  d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"
-                />
-                <path
-                  d="M10 12h4"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Archive
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Archive
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Manage and preserve your conversation history
-              </p>
-            </div>
+              Manage and preserve your conversation history
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -1128,62 +1007,28 @@ exports[`shell characterization > desktop > board 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_6_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_6_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-square-kanban lucide-kanban-square w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  height="18"
-                  rx="2"
-                  width="18"
-                  x="3"
-                  y="3"
-                />
-                <path
-                  d="M8 7v7"
-                />
-                <path
-                  d="M12 7v4"
-                />
-                <path
-                  d="M16 7v9"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Session board
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Session board
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Comparative overview of different sessions
-              </p>
-            </div>
+              Comparative overview of different sessions
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -1972,52 +1817,28 @@ exports[`shell characterization > desktop > global stats 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_3_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_3_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-pie lucide-pie-chart w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"
-                />
-                <path
-                  d="M21.21 15.89A10 10 0 1 1 8 2.83"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics · All projects
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics · All projects
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Aggregated statistics across projects on your machine
-              </p>
-            </div>
+              Aggregated statistics across projects on your machine
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -2175,58 +1996,28 @@ exports[`shell characterization > desktop > loading stats 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_8_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_8_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -2737,58 +2528,28 @@ exports[`shell characterization > desktop > recent edits 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_4_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_4_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-file-pen-line lucide-file-signature w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-                />
-                <path
-                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
-                />
-                <path
-                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-                />
-                <path
-                  d="M8 18h1"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Recent edits
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Recent edits
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Recover accidentally deleted files by viewing the latest content after changes
-              </p>
-            </div>
+              Recover accidentally deleted files by viewing the latest content after changes
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -2942,54 +2703,28 @@ exports[`shell characterization > desktop > settings 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_5_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_5_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-settings w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Claude Code Settings
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Claude Code Settings
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Manage Claude Code settings across different scopes
-              </p>
-            </div>
+              Manage Claude Code settings across different scopes
+            </p>
           </div>
-        </div>
+        </header>
         <div
           aria-labelledby="view-tab-conversation"
           class="flex-1 overflow-hidden"
@@ -3098,58 +2833,28 @@ exports[`shell characterization > mobile > analytics 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_a_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_a_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <nav
           aria-label="Analytics views"
           class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
@@ -3417,58 +3122,28 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_9_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_9_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <nav
           aria-label="Analytics views"
           class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
@@ -3740,58 +3415,28 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_b_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_b_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Session summary not found.
-              </p>
-            </div>
+              Session summary not found.
+            </p>
           </div>
-        </div>
+        </header>
         <nav
           aria-label="Analytics views"
           class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
@@ -4059,59 +3704,28 @@ exports[`shell characterization > mobile > archive 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_g_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_g_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-archive w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  height="5"
-                  rx="1"
-                  width="20"
-                  x="2"
-                  y="3"
-                />
-                <path
-                  d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"
-                />
-                <path
-                  d="M10 12h4"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Archive
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Archive
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Manage and preserve your conversation history
-              </p>
-            </div>
+              Manage and preserve your conversation history
+            </p>
           </div>
-        </div>
+        </header>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -4223,62 +3837,28 @@ exports[`shell characterization > mobile > board 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_f_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_f_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-square-kanban lucide-kanban-square w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  height="18"
-                  rx="2"
-                  width="18"
-                  x="3"
-                  y="3"
-                />
-                <path
-                  d="M8 7v7"
-                />
-                <path
-                  d="M12 7v4"
-                />
-                <path
-                  d="M16 7v9"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Session board
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Session board
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Comparative overview of different sessions
-              </p>
-            </div>
+              Comparative overview of different sessions
+            </p>
           </div>
-        </div>
+        </header>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -4949,52 +4529,28 @@ exports[`shell characterization > mobile > global stats 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_c_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_c_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-pie lucide-pie-chart w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"
-                />
-                <path
-                  d="M21.21 15.89A10 10 0 1 1 8 2.83"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics · All projects
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics · All projects
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Aggregated statistics across projects on your machine
-              </p>
-            </div>
+              Aggregated statistics across projects on your machine
+            </p>
           </div>
-        </div>
+        </header>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"
@@ -5150,58 +4706,28 @@ exports[`shell characterization > mobile > loading stats 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_h_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_h_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-chart-column lucide-bar-chart-3 w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3v16a2 2 0 0 0 2 2h16"
-                />
-                <path
-                  d="M18 17V9"
-                />
-                <path
-                  d="M13 17V5"
-                />
-                <path
-                  d="M8 17v-3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Analytics
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Analytics
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                session summary
-              </p>
-            </div>
+              session summary
+            </p>
           </div>
-        </div>
+        </header>
         <nav
           aria-label="Analytics views"
           class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
@@ -5614,58 +5140,28 @@ exports[`shell characterization > mobile > recent edits 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_d_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_d_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-file-pen-line lucide-file-signature w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z"
-                />
-                <path
-                  d="M14.487 7.858A1 1 0 0 1 14 7V2"
-                />
-                <path
-                  d="M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516"
-                />
-                <path
-                  d="M8 18h1"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Recent edits
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Recent edits
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Recover accidentally deleted files by viewing the latest content after changes
-              </p>
-            </div>
+              Recover accidentally deleted files by viewing the latest content after changes
+            </p>
           </div>
-        </div>
+        </header>
         <nav
           aria-label="Analytics views"
           class="px-3 py-2 border-b border-border/40 bg-card/30 md:hidden"
@@ -5929,54 +5425,28 @@ exports[`shell characterization > mobile > settings 1`] = `
         id="main-content"
         tabindex="-1"
       >
-        <div
-          class="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50"
+        <header
+          aria-labelledby="_r_e_"
+          class="flex flex-wrap items-center gap-4 px-[var(--page-inset)] py-3 md:py-4 border-b border-border/50 bg-card/50"
+          data-page-header=""
+          role="group"
         >
           <div
-            class="flex items-center gap-3"
+            class="min-w-0 flex-1"
           >
-            <div
-              class="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center"
+            <h1
+              class="text-title font-semibold text-foreground"
+              id="_r_e_"
             >
-              <svg
-                aria-hidden="true"
-                class="lucide lucide-settings w-4 h-4 text-accent"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="3"
-                />
-              </svg>
-            </div>
-            <div
-              class="min-w-0 flex-1"
+              Claude Code Settings
+            </h1>
+            <p
+              class="text-list text-muted-foreground"
             >
-              <h2
-                class="text-body font-semibold text-foreground"
-              >
-                Claude Code Settings
-              </h2>
-              <p
-                class="text-list text-muted-foreground"
-              >
-                Manage Claude Code settings across different scopes
-              </p>
-            </div>
+              Manage Claude Code settings across different scopes
+            </p>
           </div>
-        </div>
+        </header>
         <div
           class="flex-1 overflow-hidden"
           id="view-panel"

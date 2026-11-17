@@ -1197,8 +1197,10 @@ fn convert_folded_message(
                 "tool_use_id": message.tool_call_id.unwrap_or_default(),
                 "content": content,
             });
-            if message.is_error == Some(true) {
-                block["is_error"] = json!(true);
+            // Preserve optional false as well as true, without defaulting absence.
+            // https://github.com/MoonshotAI/kimi-code/blob/a2afdbc7d1fa0737d45d5780cc6c2bd38e477b55/packages/agent-core-v2/src/agent/contextMemory/loopEventFold.ts#L192-L205
+            if let Some(is_error) = message.is_error {
+                block["is_error"] = json!(is_error);
             }
             Some(build_provider_message(
                 PROVIDER_ID,
@@ -1668,6 +1670,36 @@ mod tests {
         );
 
         assert_eq!(sessions[0].summary.as_deref(), Some("Custom title"));
+    }
+
+    #[test]
+    fn outcome_preservation_keeps_explicit_false() {
+        for flag in [None, Some(false), Some(true)] {
+            let temp = TempDir::new().expect("temp dir");
+            let root = code_root(&temp);
+            let wires: Vec<String> = full_turn_wire()
+                .iter()
+                .map(|line| {
+                    if let Some(value) = flag {
+                        line.replace(
+                            "\"output\":\"fn main() {}\"",
+                            &format!("\"output\":\"fn main() {{}}\",\"isError\":{value}"),
+                        )
+                    } else {
+                        (*line).to_string()
+                    }
+                })
+                .collect();
+            let refs: Vec<&str> = wires.iter().map(String::as_str).collect();
+            let dir = write_session(&root, "wd_a", "session_x", &default_state(), &refs);
+            let messages = load_messages_from_root(&root, &dir.to_string_lossy()).unwrap();
+            assert_eq!(
+                messages[2].content.as_ref().unwrap()[0]
+                    .get("is_error")
+                    .and_then(Value::as_bool),
+                flag
+            );
+        }
     }
 
     #[test]

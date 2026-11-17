@@ -122,6 +122,11 @@ function kilnSessions(cwd) {
       title: "Run the release checks and tell me what failed.",
       build: (t) => {
         t.user("Run the release checks and tell me what failed.");
+        if (process.env.CCHV_CAPTURE_PRODUCER_CONTEXT === "1") {
+          t.user("<bash-input>printf synthetic</bash-input>");
+          t.user("<bash-stdout>synthetic</bash-stdout><bash-stderr></bash-stderr>");
+          t.user("<task-notification><task-id>synthetic-auto</task-id><status>completed</status><summary>Synthetic automatic notification</summary></task-notification>");
+        }
         round(t, { name: "Bash", input: { command: "pnpm build", description: "Build" }, result: "Exit code 1\nerror TS2322: Type 'string' is not assignable to type 'number'.", isError: true, toolUseResult: { stdout: "", stderr: "error TS2322: Type 'string' is not assignable to type 'number'.", interrupted: false, isImage: false, exitCode: 1 } });
         round(t, { name: "Bash", input: { command: "pnpm lint", description: "Lint" }, result: "warning: React version not specified in eslint-plugin-react settings\n✔ No problems found", toolUseResult: { stdout: "✔ No problems found", stderr: "warning: React version not specified in eslint-plugin-react settings", interrupted: false, isImage: false, exitCode: 0 } });
         round(t, { name: "WebFetch", input: { url: "https://status.example.com/api", prompt: "Is the API up?" }, result: [{ type: "text", text: "{\"error_code\":\"url_not_accessible\"}" }], toolUseResult: { error_code: "url_not_accessible" } });
@@ -334,6 +339,13 @@ function codexPatchProject(kit, { home, out, rel, fixedNow, namedSessions }) {
   push(at(0), "session_meta", { id: sessionId, timestamp: null, cwd, originator: "codex_cli_rs", cli_version: "0.46.0", instructions: null, source: "cli", model_provider: "openai" });
   push(at(0), "turn_context", { cwd, approval_policy: "on-request", sandbox_policy: { mode: "workspace-write" }, model: "gpt-5.5", effort: "medium", summary: "auto" });
   push(at(1000), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: title }] });
+  if (process.env.CCHV_CAPTURE_PRODUCER_CONTEXT === "1") {
+    // Opt-in synthetic regression fixture only; default CI32 data is unchanged.
+    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: '<codex_internal_context source="user_goal">Synthetic goal context</codex_internal_context>' }] });
+    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<recommended_plugins>Synthetic plugin context</recommended_plugins>" }] });
+    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<turn_aborted>Synthetic abort context</turn_aborted>" }] });
+    push(at(100), "response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<heartbeat>\n  <automation_id>synthetic</automation_id>\n  <current_time_iso>2026-09-23T00:00:00Z</current_time_iso>\n  <instructions>\nSynthetic client wake\n  </instructions>\n</heartbeat>" }] });
+  }
   patches.forEach((patch, i) => {
     const callId = `call_${kit.hexFor(`${sessionId}#patch${i}`, 24)}`;
     push(at(20_000), "response_item", { type: "custom_tool_call", status: "completed", call_id: callId, name: "apply_patch", input: patch });

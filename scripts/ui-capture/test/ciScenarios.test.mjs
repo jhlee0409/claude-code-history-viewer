@@ -123,6 +123,24 @@ describe("frontend-tests.yml ui-harness", () => {
     expect(gate).toMatch(/--expect-changed "\$/);
   });
 
+  it("splits the job into a gate part and two disjoint halves of the harness tests that together run every file", () => {
+    expect(workflow).toMatch(/fail-fast: false\n\s+matrix:\n\s+part: \[gate, tests-1, tests-2\]/);
+    // Both halves of vitest's file sharding, one per tests part (vitest --shard is disjoint and complete).
+    expect(workflow).toContain(`SHARD: \${{ matrix.part == 'tests-1' && '1/2' || '2/2' }}`);
+    const scripts = runScripts(workflow);
+    const tests = scripts.filter((script) => script.includes("vitest run scripts/ui-capture"));
+    expect(tests).toEqual(['pnpm exec vitest run scripts/ui-capture --shard="$SHARD" --maxWorkers=2 --testTimeout=60000']);
+    // Every step that gates pixels or states runs in the gate part only, and the tests only in the halves.
+    const stepIf = (name) => workflow.match(new RegExp(`- name: ${name}[^\\n]*\\n\\s+(?:id: \\w+\\n\\s+)?if: ([^\\n]+)`))?.[1];
+    expect(stepIf("Expected visual changes")).toMatch(/matrix\.part == 'gate'/);
+    expect(stepIf("Primitive states gallery")).toBe("matrix.part == 'gate'");
+    expect(stepIf("Capture gate \\(unchanged vs\\. base, CI subset\\)")).toMatch(/^matrix\.part == 'gate' && \(/);
+    expect(stepIf("Capture gate \\(unchanged vs\\. base, full matrix\\)")).toMatch(/^matrix\.part == 'gate' && /);
+    expect(stepIf("Harness tests")).toBe("startsWith(matrix.part, 'tests-')");
+    // Artifacts of the three parts must not overwrite each other.
+    expect(workflow).toContain("name: ui-harness-${{ github.sha }}-${{ matrix.part }}");
+  });
+
   it("re-runs on a PR body edit, keeping the default pull_request activity types", () => {
     const types = workflow.match(/^ {2}pull_request:\n(?: {4}.*\n)*? {4}types: \[([^\]]*)\]/m);
     expect(types).not.toBeNull();

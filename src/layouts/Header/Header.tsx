@@ -230,7 +230,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           disabled={!canGoForward}
           onClick={() => commands.run("go.forward")}
         />
-        <h1 className="sr-only">{t("common.appName")}</h1>
+        {!VIEW_REGISTRY[screenOf(computed)].header && <h1 className="sr-only">{t("common.appName")}</h1>}
         <nav aria-label={t("common.toolbar.location")} className="ml-1 min-w-0 pointer-events-none">
           <ol className="flex min-w-0 items-center gap-1 text-list">
             {location.map((segment, index) => {

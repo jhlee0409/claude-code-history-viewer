@@ -29,6 +29,10 @@ export const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
  * ARE considered empty because they have no user-visible content.
  */
 export const isEmptyMessage = (message: ClaudeMessage): boolean => {
+  // Codex attaches producer FileChange evidence to the preceding message,
+  // even when that carrier has no ordinary content (codex.rs:514–517).
+  if (message.provider === "codex" && message.codexEvidence?.fileChanges?.length) return false;
+
   // Snapshot blocks have dedicated renderer and no standard "content" payload.
   if (message.type === "file-history-snapshot") {
     return false;

@@ -1,18 +1,11 @@
-# Renderer Infrastructure - Implementation Summary
+# Renderer Infrastructure — historical implementation notes
 
-**Status**: ✅ WORKER_COMPLETE
+> Superseded by [Renderer patterns and ownership](README.md).
+> The notes below describe the original preparatory infrastructure, not the
+> current extension API. TR1c removed the unused RendererCard module/export;
+> do not follow the old integration steps or reintroduce that tool head.
 
-## TODO: Integration Required
-
-> **Note**: This infrastructure is preparatory and not yet integrated into existing renderers.
->
-> **Next Steps**:
-> 1. Migrate one existing renderer (e.g., ThinkingRenderer) to use RendererCard
-> 2. Add import existence test to verify exports work
-> 3. Update a tool result renderer to demonstrate the new pattern
->
-> This infrastructure was created to reduce boilerplate when building new renderers.
-> Integration with existing renderers is optional and can be done incrementally.
+## Original files and rationale (historical)
 
 ## Files Created
 

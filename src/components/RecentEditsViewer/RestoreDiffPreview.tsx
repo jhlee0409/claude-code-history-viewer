@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TriangleAlert, LoaderCircle } from "lucide-react";
 import { api } from "@/services/api";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
 export interface RestoreDiffPreviewProps {
@@ -156,9 +156,10 @@ export const RestoreDiffPreview: React.FC<RestoreDiffPreviewProps> = ({
       */}
       <div className="max-h-64 overflow-auto rounded border border-border">
         {/* The confirmation renders outside the expanded row's provider, and
-            AdvancedTextDiff throws without one. */}
+            DiffView needs its own expansion registry scope. */}
         <ExpandKeyProvider value={`restore-preview:${filePath}`}>
-          <EnhancedDiffViewer
+          <DiffWithMenu
+            expandKey="restore-preview-diff"
             oldText={state.current}
             newText={restoreContent}
             filePath={filePath}

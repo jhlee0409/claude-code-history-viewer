@@ -1,0 +1,3 @@
+# Context
+
+Base d63f524d4fa7bac4988c0abb28ef01a63abb8503. Parent approved low-disk debug cold build, overriding scratch/trbe/brief.md's original existing-target restriction only. See scratch/trbe/resume-plan.md and ../cchv-handoff/plan-v3.1-amendments.md amendment 5. Existing contract docs/contracts/tool-result-metadata.md (#727). Codex normalize_tool_output strips wrapper metadata; local merger precedes shared merger. Preserve at conversion boundary, not a tool-ID cache. Single-threaded Rust tests mandatory. Node 22.18.0, unset NODE_ENV, pnpm frozen lock and normal Husky hooks. No live prior owner; target is this worktree's exclusively owned isolated directory. Logs with source diff/hash/features/binary checksums and disk minima live under scratch/trbe.

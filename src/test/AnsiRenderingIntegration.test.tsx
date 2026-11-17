@@ -121,14 +121,13 @@ describe("CommandRenderer ANSI rendering", () => {
 describe("TerminalExecutionResultRenderer ANSI rendering", () => {
   const defaultProps = {
     toolUseId: "test-tool-id",
-    icon: <span data-testid="icon">$</span>,
-    title: "Bash Execution",
-    errorTitle: "Bash Error",
+    verb: "bash_code_execution",
+    resultType: "bash_code_execution_tool_result",
     noOutputLabel: "No output",
     errorMessages: {},
   };
 
-  /** Expand ToolResultCard to reveal content */
+  /** Open the result's ToolRow (TR1b: ResultRow, no ToolResultCard) to reveal its output */
   function expandResult(container: HTMLElement) {
     const btn = container.querySelector("button");
     if (btn) {

@@ -1,72 +1,27 @@
 import React from "react";
-import { Highlight, themes } from "prism-react-renderer";
-import { useTranslation } from "react-i18next";
-import { ToolIcon } from "../ToolIcon";
-import { layout } from "@/components/renderers";
-import { cn } from "@/lib/utils";
-import { useTheme } from "@/contexts/theme";
-import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
+import { ToolUseRenderer } from "../contentRenderer/ToolUseRenderer";
 
 interface ClaudeToolUseDisplayProps {
   toolUse: Record<string, unknown>;
 }
 
-export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
-  toolUse,
-}) => {
-  const { t } = useTranslation();
-  const { isDarkMode } = useTheme();
-  const toolName = toolUse.name || toolUse.tool || t("claudeToolUseDisplay.unknownTool");
-
-  return (
-    <div className={cn("mt-2 bg-muted border border-border", layout.containerPadding, layout.rounded)}>
-      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-        <ToolIcon
-          toolName={toolName as string}
-          className="text-muted-foreground"
-        />
-        <span className={cn(layout.titleText, "text-foreground")}>
-          {String(toolName)}{" "}
-          {typeof toolUse.description === "string" &&
-            `- ${toolUse.description}`}
-        </span>
-      </div>
-      <div className={cn("rounded overflow-auto", layout.contentMaxHeight)}>
-        <Highlight
-          theme={isDarkMode ? themes.vsDark : themes.vsLight}
-          code={JSON.stringify(toolUse.input || toolUse.parameters || toolUse, null, 2)}
-          language="json"
-        >
-          {({ className, style, tokens, getLineProps, getTokenProps }) => (
-            <pre
-              className={className}
-              style={getPreStyles(isDarkMode, style, {
-                fontSize: "var(--text-code)",
-                padding: "0.5rem",
-                overflowX: "auto",
-              })}
-            >
-              {tokens.map((line, i) => {
-                const lineProps = getLineProps({ line, key: i });
-                return (
-                  <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
-                    {line.map((token, key) => {
-                      const tokenProps = getTokenProps({ token, key });
-                      return (
-                        <span
-                          key={key}
-                          {...tokenProps}
-                          style={getTokenStyles(isDarkMode, tokenProps.style)}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </pre>
-          )}
-        </Highlight>
-      </div>
-    </div>
-  );
+/**
+ * A message's legacy top-level `toolUse` field, shown only when its content
+ * array holds no `tool_use` block (ClaudeMessageNode). Claude's loader fills
+ * the field from the content's own block, so for Claude it is reached only by
+ * a raw record carrying a `toolUse` and no tool_use block; ForgeCode reaches
+ * it with an object content (`providers/forgecode.rs`; TR1c owns that shape).
+ *
+ * TR1b: the same ToolRow as any unpaired call (`ToolUseRenderer`): the
+ * recorded name (`name`, or another provider's `tool`) · "No result
+ * recorded"; opened, the routed body of its input (`input`, or another
+ * provider's `parameters`; with neither, the whole object as JSON, so every
+ * recorded key stays visible). The old card's "<name> - <description>"
+ * title read a `description` beside `input` that no known shape records
+ * (amendment 10: deleted).
+ */
+export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({ toolUse }) => {
+  const name = typeof toolUse.name === "string" ? toolUse.name : typeof toolUse.tool === "string" ? toolUse.tool : "";
+  const input = toolUse.input ?? toolUse.parameters ?? toolUse;
+  return <ToolUseRenderer toolUse={{ type: "tool_use", id: toolUse.id, name, input }} />;
 };

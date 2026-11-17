@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { memo, useContext, useEffect, useId } from "react";
 import { ChevronRight, Folder, FileText } from "lucide-react";
@@ -47,17 +48,17 @@ export const StringRenderer = memo(function StringRenderer({ result, searchQuery
 
   return (
     <div className="mt-1">
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         onClick={toggle}
         aria-expanded={open}
         aria-controls={contentId}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "flex w-full items-center rounded-row text-left hover:bg-surface-hover",
           layout.iconGap,
           layout.headerPadding,
           layout.headerHeight,
-        )}
+        ))}
       >
         <ChevronRight
           aria-hidden="true"
@@ -65,7 +66,7 @@ export const StringRenderer = memo(function StringRenderer({ result, searchQuery
         />
         <Icon aria-hidden="true" className={cn(layout.iconSize, "shrink-0 text-fg-3")} />
         <span className={cn(layout.titleText, "truncate text-fg-2")}>{t("toolResult.toolExecutionResult")}</span>
-      </button>
+      </Button>
       <div id={contentId} hidden={!open} className={open ? layout.contentPadding : undefined}>
         {open && <OutputBlock text={result} searchQuery={searchQuery} expandKey="string-output" />}
       </div>

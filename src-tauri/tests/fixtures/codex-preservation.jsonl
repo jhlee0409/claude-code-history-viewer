@@ -1,0 +1,18 @@
+{"type":"session_meta","payload":{"id":"be1-session","cwd":"/synthetic"}}
+{"timestamp":"2026-01-01T00:00:00Z","type":"response_item","payload":{"id":"before-turn","type":"message","role":"user","content":[{"type":"input_text","text":"Synthetic prompt"}]}}
+{"timestamp":"2026-01-01T00:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"human-turn","root_turn_id":null}}
+{"type":"turn_context","payload":{"turn_id":"human-turn","model":"synthetic-model","extension":{"null":null,"false":false,"zero":0,"empty":""}}}
+{"type":"response_item","payload":{"id":"use-one","type":"function_call","call_id":"duplicate","name":"exec_command","arguments":"{\"cmd\":\"synthetic\"}"}}
+{"type":"response_item","payload":{"id":"result-one","type":"function_call_output","call_id":"duplicate","output":"Wall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\nError: ordinary stdout\n"}}
+{"type":"response_item","payload":{"id":"use-two","type":"function_call","call_id":"duplicate","name":"exec_command","arguments":"{}"}}
+{"type":"response_item","payload":{"id":"result-two","type":"function_call_output","call_id":"duplicate","output":"Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2\nOutput:\nsynthetic failure\n"}}
+{"type":"response_item","payload":{"id":"result-orphan","type":"custom_tool_call_output","call_id":"missing","output":[{"type":"input_text","text":"first-needle"},{"type":"input_image","image_url":"data:image/png;base64,AAAA","detail":null},{"type":"input_text","text":"last-needle"}]}}
+{"timestamp":"2026-01-01T00:00:02Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"human-turn","item":{"type":"FileChange","id":"patch-source","changes":{"a.txt":{"type":"update","unified_diff":"@@ -1 +1 @@\n-old\n+new\n","move_path":null},"b.txt":{"type":"add","content":""}},"status":"completed","unknown":false}}}
+{"type":"event_msg","payload":{"type":"patch_apply_end","call_id":"not-a-model-call","turn_id":"human-turn","changes":{"c.txt":{"type":"delete","content":"old"}},"success":false,"status":"failed","stdout":"","stderr":"synthetic"}}
+{"type":"event_msg","payload":{"type":"task_complete","turn_id":"human-turn"}}
+{"timestamp":"2026-01-01T00:00:03Z","type":"event_msg","payload":{"type":"task_started","turn_id":"goal-turn"}}
+{"type":"response_item","payload":{"id":"goal-context","type":"message","role":"user","content":[{"type":"input_text","text":"Synthetic injected continuation"},{"type":"input_image","file_id":"synthetic-file"},{"type":"input_audio","audio_url":"synthetic-audio"},{"type":"future_kind","zero":0},{"type":null},{}],"internal_chat_message_metadata_passthrough":{"content_item_kinds":["user.text",null,false,0,""]}}}
+{"type":"turn_context","payload":{"turn_id":null,"model":"synthetic-model"}}
+{"type":"response_item","payload":{"id":"explicit-null-turn","type":"message","role":"assistant","content":[{"type":"output_text","text":"Synthetic reply"}]}}
+{"type":"response_item","payload":{"id":"no-header","type":"function_call_output","call_id":"absent","output":"Process exited with code 9\nordinary prose, not a producer header"}}
+{"type":"response_item","payload":{"id":"zero-wrapper","type":"function_call_output","call_id":"missing","output":"{\"output\":null,\"metadata\":{\"exit_code\":0},\"unknown\":false}"}}

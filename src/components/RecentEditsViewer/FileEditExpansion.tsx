@@ -13,8 +13,8 @@ import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { Markdown } from "../common";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
-import { FilteredDiffLines } from "./FilteredDiffLines";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
+import { DiffFiltered } from "../transcript/DiffViewComparison";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
 import type { DiffLineGroup } from "./diffUtils";
 import { getLanguageFromPath, formatTimestamp } from "./utils";
@@ -185,12 +185,11 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
               edit.message_uuid ?? edit.timestamp
             }`}
           >
-            <EnhancedDiffViewer
+            <DiffWithMenu
               oldText={edit.original_content ?? ""}
               newText={edit.content_after_change}
               filePath={edit.file_path}
-              showAdvancedDiff={true}
-              defaultMode="visual"
+              expandKey="diff"
             />
           </ExpandKeyProvider>
         </div>
@@ -198,7 +197,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
 
       {(viewMode === "added" || viewMode === "removed") && (
         <div className="max-h-80 overflow-auto">
-          <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+          <DiffFiltered groups={filteredGroups} kind={viewMode} expandKey={`recent-edits-compact-filter:${edit.session_id}:${edit.file_path}:${edit.timestamp}`} />
         </div>
       )}
 

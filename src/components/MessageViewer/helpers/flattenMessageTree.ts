@@ -18,6 +18,7 @@ import type {
 } from "../types";
 
 interface GroupContext {
+  groupLeaderByUuid: ReadonlyMap<string, string>;
   agentTaskGroups: Map<string, AgentTaskGroupResult>;
   agentTaskMemberUuids: Set<string>;
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
@@ -159,7 +160,14 @@ export function flattenMessageTree({
   const rootMessages = childrenMap.get(null) ?? [];
 
   // Build group context
+  const groupLeaderByUuid = new Map<string, string>();
+  for (const family of [agentTaskGroups, agentProgressGroups, taskOperationGroups]) {
+    for (const [leader, group] of family) for (const uuid of group.messageUuids) {
+      if (uuid !== leader && !groupLeaderByUuid.has(uuid)) groupLeaderByUuid.set(uuid, leader);
+    }
+  }
   const groups: GroupContext = {
+    groupLeaderByUuid,
     agentTaskGroups,
     agentTaskMemberUuids,
     agentProgressGroups,
@@ -184,29 +192,30 @@ export function flattenMessageTree({
   const orderedMessages: ClaudeMessage[] = [];
   const visited = new Set<string>();
 
-  function traverse(message: ClaudeMessage, skipDueToHiddenParent = false): void {
-    if (visited.has(message.uuid)) {
-      if (import.meta.env.DEV) {
-        console.warn(`Circular reference detected for message: ${message.uuid}`);
+  function traverse(root: ClaudeMessage): void {
+    // Keep conversation depth off the call stack. Reverse-push sorted siblings
+    // so the LIFO worklist preserves recursive preorder, including timestamp ties.
+    const pending = [{ message: root, isHiddenByParent: false }];
+    while (pending.length > 0) {
+      const { message, isHiddenByParent } = pending.pop()!;
+      if (visited.has(message.uuid)) {
+        if (import.meta.env.DEV) {
+          console.warn(`Circular reference detected for message: ${message.uuid}`);
+        }
+        continue;
       }
-      return;
-    }
 
-    visited.add(message.uuid);
+      visited.add(message.uuid);
+      if (!isHiddenByParent) {
+        orderedMessages.push(message);
+      }
 
-    // Track if this message should be skipped due to hidden parent
-    const isHiddenByParent = skipDueToHiddenParent;
-
-    // Add message to ordered list (we'll filter later)
-    if (!isHiddenByParent) {
-      orderedMessages.push(message);
-    }
-
-    // Traverse children (skip children if this message is hidden)
-    const isHidden = hiddenSet.has(message.uuid) || isHiddenByParent;
-    const children = childrenMap.get(message.uuid) ?? [];
-    for (const child of children) {
-      traverse(child, isHidden);
+      // Hidden descendants still count as visited for partial-window recovery.
+      const isHidden = hiddenSet.has(message.uuid) || isHiddenByParent;
+      const children = childrenMap.get(message.uuid) ?? [];
+      for (let index = children.length - 1; index >= 0; index--) {
+        pending.push({ message: children[index]!, isHiddenByParent: isHidden });
+      }
     }
   }
 
@@ -445,6 +454,7 @@ function createFlattenedMessage(
 
   return {
     type: "message",
+    ...(groups.groupLeaderByUuid.has(message.uuid) ? { groupLeaderUuid: groups.groupLeaderByUuid.get(message.uuid) } : {}),
     message,
     depth,
     originalIndex,

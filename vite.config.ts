@@ -121,7 +121,7 @@ export default defineConfig(async () => {
             }
 
             // Diff viewer bundle
-            if (id.includes("react-diff-viewer") || id.includes("node_modules/diff/")) {
+            if (id.includes("node_modules/diff/")) {
               return "diff-viewer";
             }
 
