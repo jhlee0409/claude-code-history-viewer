@@ -137,7 +137,17 @@ async fn an_unreadable_part_of_a_file_store_is_never_a_scanned_zero() {
 #[tokio::test]
 #[serial]
 async fn an_unreadable_part_of_a_database_store_is_never_a_scanned_zero() {
-    check(&[opencode, kilo, forgecode, zcode, llm, cursor]).await;
+    check(&[
+        opencode,
+        kilo,
+        forgecode,
+        zcode,
+        llm,
+        cursor,
+        hermes,
+        hermes_profile,
+    ])
+    .await;
 }
 
 /// Antigravity's project scan falls back to its CLI projects when the
@@ -1037,6 +1047,45 @@ fn zcode(home: &Path) -> Store {
     )
     .unwrap();
     Store::new("zcode", vec![top.clone(), top.join("cli"), db_dir, db])
+}
+
+/// `~/.hermes/state.db`, the Hermes root store.
+fn hermes(home: &Path) -> Store {
+    let root = home.join(".hermes");
+    let db = hermes_db(&root);
+    Store::new("hermes", vec![root, db])
+}
+
+/// `$HERMES_HOME/profiles/coder/state.db`, a named profile's store: the
+/// root, `profiles/` and the profile directory are each on the way to it.
+fn hermes_profile(home: &Path) -> Store {
+    let root = home.join("hermes-home");
+    let profiles = root.join("profiles");
+    let profile = profiles.join("coder");
+    let db = hermes_db(&profile);
+    Store::new("hermes", vec![root.clone(), profiles, profile, db]).with_env("HERMES_HOME", &root)
+}
+
+/// A Hermes `state.db` in `dir` holding one session with token totals.
+fn hermes_db(dir: &Path) -> PathBuf {
+    fs::create_dir_all(dir).unwrap();
+    let db = dir.join("state.db");
+    let conn = rusqlite::Connection::open(&db).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE sessions (id TEXT PRIMARY KEY, source TEXT NOT NULL, model TEXT,
+             started_at REAL NOT NULL, cwd TEXT, input_tokens INTEGER DEFAULT 0,
+             output_tokens INTEGER DEFAULT 0, actual_cost_usd REAL);
+         CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT,
+             session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT,
+             timestamp REAL NOT NULL);
+         INSERT INTO sessions VALUES ('s1', 'cli', 'anthropic/claude-sonnet-4.6',
+             1792141200.0, '/work/app', 120, 45, 0.01);
+         INSERT INTO messages (session_id, role, content, timestamp) VALUES
+             ('s1', 'user', 'hi', 1792141200.0),
+             ('s1', 'assistant', 'ok', 1792141201.0);",
+    )
+    .unwrap();
+    db
 }
 
 /// `$LLM_USER_PATH/logs.db`.

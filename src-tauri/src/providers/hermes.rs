@@ -29,6 +29,9 @@
 //! Session token totals and cost come from the `sessions` row and are
 //! attached to the last assistant message (per-message `token_count` is used
 //! only when a session has no totals), so a session is never counted twice.
+//! Hermes records no per-turn split of those totals, so date-filtered
+//! statistics place a whole session's tokens and cost on the day of its last
+//! assistant message.
 //!
 //! The store is opened read-only — Hermes may be running — and never written.
 //! It is not registered with the file watcher or the `WebUI` session-path
@@ -36,6 +39,7 @@
 //! and browser profiles, so it must not become a readable or watched tree.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::types::ValueRef;
@@ -113,12 +117,17 @@ struct Store {
 }
 
 /// A regular (non-symlink) file — symlinks could point outside the root.
-fn is_regular_file(path: &Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_file())
+/// Metadata that cannot be read is recorded in `report`.
+fn is_regular_file(path: &Path, report: &ScanReport) -> bool {
+    report
+        .symlink_metadata(path)
+        .is_some_and(|m| m.file_type().is_file())
 }
 
-fn is_regular_dir(path: &Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_dir())
+fn is_regular_dir(path: &Path, report: &ScanReport) -> bool {
+    report
+        .symlink_metadata(path)
+        .is_some_and(|m| m.file_type().is_dir())
 }
 
 /// Profile names become one path segment and part of a URI, so accept only
@@ -132,30 +141,27 @@ fn is_valid_profile_name(name: &str) -> bool {
 }
 
 /// Every store under the root that has a `state.db`: the root store first,
-/// then profiles by name.
-fn discover_stores() -> Vec<Store> {
+/// then profiles by name. A part of the root that cannot be looked into (the
+/// root itself, `profiles/`, a profile directory or its `state.db`) is
+/// recorded in `report` and skipped.
+fn discover_stores(report: &ScanReport) -> Vec<Store> {
     let Some(root) = hermes_root() else {
         return Vec::new();
     };
     let mut stores = Vec::new();
-    if let Some(store) = resolve_store(&root, DEFAULT_STORE) {
-        stores.push(store);
-    }
+    stores.extend(resolve_store(&root, DEFAULT_STORE, report));
     let profiles_dir = root.join(PROFILES_DIR);
-    if is_regular_dir(&profiles_dir) {
-        if let Ok(entries) = std::fs::read_dir(&profiles_dir) {
-            let mut names: Vec<String> = entries
-                .flatten()
-                .filter_map(|e| e.file_name().to_str().map(str::to_string))
-                .filter(|name| is_valid_profile_name(name))
-                .collect();
-            names.sort();
-            for name in names {
-                if let Some(store) = resolve_store(&root, &format!("{PROFILE_STORE_PREFIX}{name}"))
-                {
-                    stores.push(store);
-                }
-            }
+    if is_regular_dir(&profiles_dir, report) {
+        let mut names: Vec<String> = report
+            .read_dir(&profiles_dir)
+            .into_iter()
+            .filter_map(|e| e.file_name().to_str().map(str::to_string))
+            .filter(|name| is_valid_profile_name(name))
+            .collect();
+        names.sort();
+        for name in names {
+            let key = format!("{PROFILE_STORE_PREFIX}{name}");
+            stores.extend(resolve_store(&root, &key, report));
         }
     }
     stores
@@ -163,7 +169,7 @@ fn discover_stores() -> Vec<Store> {
 
 /// Map a store key back to its database, rejecting anything that is not the
 /// root store or a plain profile name (no traversal through the key).
-fn resolve_store(root: &Path, key: &str) -> Option<Store> {
+fn resolve_store(root: &Path, key: &str, report: &ScanReport) -> Option<Store> {
     let dir = if key == DEFAULT_STORE {
         root.to_path_buf()
     } else {
@@ -172,38 +178,48 @@ fn resolve_store(root: &Path, key: &str) -> Option<Store> {
             return None;
         }
         let profiles = root.join(PROFILES_DIR);
-        if !is_regular_dir(&profiles) {
+        if !is_regular_dir(&profiles, report) {
             return None;
         }
         profiles.join(name)
     };
     let db = dir.join(DB_FILE);
-    (is_regular_dir(&dir) && is_regular_file(&db)).then(|| Store {
+    (is_regular_dir(&dir, report) && is_regular_file(&db, report)).then(|| Store {
         key: key.to_string(),
         db,
     })
 }
 
-fn store_by_key(key: &str) -> Option<Store> {
-    resolve_store(&hermes_root()?, key)
+fn store_by_key(key: &str, report: &ScanReport) -> Option<Store> {
+    resolve_store(&hermes_root()?, key, report)
+}
+
+/// Read-only, and without `SQLite`'s own mutex (one connection per call).
+fn open_flags() -> OpenFlags {
+    OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX
 }
 
 /// Open a store read-only; WAL readers coexist with a running Hermes writer.
 fn open_db(path: &Path) -> Result<Connection, String> {
-    let conn = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| format!("Failed to open Hermes state.db: {e}"))?;
+    let conn = Connection::open_with_flags(path, open_flags())
+        .map_err(|e| format!("Failed to open Hermes state.db: {e}"))?;
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(|e| format!("Failed to set Hermes db busy timeout: {e}"))?;
     Ok(conn)
 }
 
+/// [`open_db`] for a scan that records what it cannot read: `None` when the
+/// store cannot be opened, which is recorded in `report`.
+fn open_db_reporting(path: &Path, report: &ScanReport) -> Option<Connection> {
+    let conn = report.db(path, Connection::open_with_flags(path, open_flags()))?;
+    report.db(path, conn.busy_timeout(Duration::from_secs(5)))?;
+    Some(conn)
+}
+
 /// Detect a Hermes Agent installation (any store with a `state.db`).
 pub fn detect() -> Option<ProviderInfo> {
     let root = hermes_root()?;
-    if discover_stores().is_empty() {
+    if discover_stores(&ScanReport::default()).is_empty() {
         return None;
     }
     Some(ProviderInfo {
@@ -217,7 +233,7 @@ pub fn detect() -> Option<ProviderInfo> {
 /// The Hermes root directory, when it exists.
 pub fn get_base_path() -> Option<String> {
     let root = hermes_root()?;
-    is_regular_dir(&root).then(|| root.to_string_lossy().to_string())
+    is_regular_dir(&root, &ScanReport::default()).then(|| root.to_string_lossy().to_string())
 }
 
 // ============================================================================
@@ -589,8 +605,8 @@ fn session_rows(
 /// others.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
-    for store in discover_stores() {
-        match scan_store(&store) {
+    for store in discover_stores(&ScanReport::default()) {
+        match open_db(&store.db).and_then(|conn| scan_store(&store, &conn)) {
             Ok(found) => projects.extend(found),
             Err(e) => log::warn!("Hermes store '{}' skipped: {e}", store.key),
         }
@@ -599,9 +615,28 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     Ok(projects)
 }
 
-fn scan_store(store: &Store) -> Result<Vec<ClaudeProject>, String> {
-    let conn = open_db(&store.db)?;
-    let schema = Schema::probe(&conn)?;
+/// [`scan_projects`], recording in `report` every part of the root it went
+/// past (see [`discover_stores`]) and every store it could not open or read.
+/// The plain scan only logs a skipped store; a caller that counts the report
+/// must not see it as an empty one.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    let mut projects = Vec::new();
+    for store in discover_stores(report) {
+        let Some(conn) = open_db_reporting(&store.db, report) else {
+            continue;
+        };
+        match scan_store(&store, &conn) {
+            Ok(found) => projects.extend(found),
+            Err(e) => report.unread(format!("{}: {e}", store.db.display())),
+        }
+    }
+    projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    Ok(projects)
+}
+
+fn scan_store(store: &Store, conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
+    let schema = Schema::probe(conn)?;
 
     #[derive(Default)]
     struct Acc {
@@ -610,7 +645,7 @@ fn scan_store(store: &Store) -> Result<Vec<ClaudeProject>, String> {
         last: f64,
     }
     let mut groups: BTreeMap<Group, Acc> = BTreeMap::new();
-    for row in session_rows(&conn, &schema, None)? {
+    for row in session_rows(conn, &schema, None)? {
         let acc = groups.entry(row.group).or_default();
         acc.sessions += 1;
         acc.messages += row.message_count;
@@ -653,19 +688,45 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let (store_key, group) = parse_project_path(project_path)?;
-    let Some(store) = store_by_key(&store_key) else {
+    let Some(store) = store_by_key(&store_key, &ScanReport::default()) else {
         return Ok(Vec::new());
     };
     let conn = open_db(&store.db)?;
-    let schema = Schema::probe(&conn)?;
-    let project_name = project_display_name(&store.key, &group);
+    load_sessions_conn(&store, &group, &conn)
+}
 
-    let mut rows = session_rows(&conn, &schema, Some(&group))?;
+/// [`load_sessions`], recording in `report` a part of the root on the way to
+/// the store, or a store, that cannot be read. Unlike [`load_sessions`], a
+/// store that cannot be opened is no sessions, not an error: for a caller
+/// that counts the report only.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let (store_key, group) = parse_project_path(project_path)?;
+    let Some(store) = store_by_key(&store_key, report) else {
+        return Ok(Vec::new());
+    };
+    let Some(conn) = open_db_reporting(&store.db, report) else {
+        return Ok(Vec::new());
+    };
+    load_sessions_conn(&store, &group, &conn)
+}
+
+fn load_sessions_conn(
+    store: &Store,
+    group: &Group,
+    conn: &Connection,
+) -> Result<Vec<ClaudeSession>, String> {
+    let schema = Schema::probe(conn)?;
+    let project_name = project_display_name(&store.key, group);
+
+    let mut rows = session_rows(conn, &schema, Some(group))?;
     rows.sort_by(|a, b| b.last_at.total_cmp(&a.last_at));
     Ok(rows
         .into_iter()
         .map(|row| {
-            let path = session_path(&store.key, &group, &row.id);
+            let path = session_path(&store.key, group, &row.id);
             let last = secs_to_iso(row.last_at);
             ClaudeSession {
                 session_id: path.clone(),
@@ -804,7 +865,7 @@ fn message_rows(
 /// Load all visible messages of one Hermes session.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let session = parse_session_path(session_path)?;
-    let store = store_by_key(&session.store)
+    let store = store_by_key(&session.store, &ScanReport::default())
         .ok_or_else(|| format!("Hermes store not found for {session_path}"))?;
     let conn = open_db(&store.db)?;
     let schema = Schema::probe(&conn)?;
@@ -823,15 +884,18 @@ fn load_messages_conn(
         .filter_map(|row| convert_row(&row, session_id, &meta, per_message_usage))
         .collect();
 
-    if let Some(totals) = meta.totals {
-        if let Some(last) = messages
-            .iter_mut()
-            .rev()
-            .find(|m| m.message_type == "assistant")
-        {
+    // Session totals replace the per-message counts only when there are any;
+    // the session's source cost attaches either way, since nothing can
+    // rebuild it later (Hermes is source-cost-only).
+    if let Some(last) = messages
+        .iter_mut()
+        .rev()
+        .find(|m| m.message_type == "assistant")
+    {
+        if let Some(totals) = meta.totals {
             last.usage = Some(totals);
-            last.cost_usd = meta.cost_usd;
         }
+        last.cost_usd = meta.cost_usd;
     }
     Ok(messages)
 }
@@ -1014,7 +1078,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         return Ok(Vec::new());
     }
     let mut results = Vec::new();
-    for store in discover_stores() {
+    for store in discover_stores(&ScanReport::default()) {
         if results.len() >= limit {
             break;
         }
@@ -1025,13 +1089,25 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     Ok(results)
 }
 
+/// Values the viewer itself adds when it turns rows into blocks: the block
+/// type tags (`tool_use` also covers the fallback tool name `tool`). They are
+/// in no column, so no `LIKE` over the columns can find them.
+const GENERATED_BLOCK_VALUES: [&str; 4] = ["text", "thinking", "tool_use", "tool_result"];
+
 /// SQL `LIKE` prefilter pattern. `LIKE` is case-insensitive for ASCII only
 /// and `tool_calls` is raw JSON (quotes/backslashes escaped), so only plain
-/// ASCII queries are prefiltered; anything else scans every session and the
-/// Rust matcher decides, which cannot lose results.
+/// ASCII queries are prefiltered. A query that a generated block value
+/// contains could match a converted message whose columns lack it. Anything
+/// else scans every session and the Rust matcher decides, which cannot lose
+/// results.
 fn like_prefilter_pattern(query: &str) -> Option<String> {
-    let safe =
-        query.is_ascii() && !query.contains(['"', '\\']) && !query.chars().any(char::is_control);
+    let query_lower = query.to_ascii_lowercase();
+    let safe = query.is_ascii()
+        && !query.contains(['"', '\\'])
+        && !query.chars().any(char::is_control)
+        && !GENERATED_BLOCK_VALUES
+            .iter()
+            .any(|value| value.contains(query_lower.as_str()));
     safe.then(|| {
         let escaped: String = query
             .chars()
@@ -1056,8 +1132,11 @@ fn search_store(
     let query_lower = query.to_lowercase();
     let pattern = like_prefilter_pattern(query);
 
+    // Every column a converted block takes a string from (`tool_call_id` is
+    // a tool result's `tool_use_id`).
     let searchable: Vec<String> = [
         "content",
+        "tool_call_id",
         "tool_calls",
         "reasoning",
         "reasoning_content",
@@ -1399,7 +1478,7 @@ mod tests {
         std::fs::create_dir_all(home.root.join(PROFILES_DIR).join("empty")).unwrap();
         std::fs::write(home.root.join(PROFILES_DIR).join("notes.txt"), "x").unwrap();
 
-        let stores = discover_stores();
+        let stores = discover_stores(&ScanReport::default());
         let keys: Vec<_> = stores.iter().map(|s| s.key.as_str()).collect();
         assert_eq!(keys, vec!["default", "profile.coder"]);
 
@@ -1784,6 +1863,35 @@ mod tests {
         assert_eq!(last.cost_usd, Some(0.2));
     }
 
+    #[test]
+    fn a_cost_only_session_keeps_its_cost() {
+        let home = HermesHome::new();
+        let conn = home.root_db(MODERN_SCHEMA);
+        seed_tool_session(&conn);
+        // No token totals (all default 0), but Hermes recorded a cost.
+        conn.execute(
+            "UPDATE sessions SET estimated_cost_usd = 0.05 WHERE id = 's-tools'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE messages SET token_count = 42 WHERE role = 'assistant'",
+            [],
+        )
+        .unwrap();
+
+        let messages = load_messages("hermes://default::dir:/work/app#s-tools").unwrap();
+        let costed: Vec<_> = messages.iter().filter(|m| m.cost_usd.is_some()).collect();
+        assert_eq!(costed.len(), 1);
+        assert_eq!(costed[0].uuid, messages[3].uuid);
+        assert_eq!(costed[0].cost_usd, Some(0.05));
+        // Without totals, each assistant row keeps its own count.
+        assert_eq!(
+            costed[0].usage.as_ref().and_then(|u| u.output_tokens),
+            Some(42)
+        );
+    }
+
     #[tokio::test]
     async fn session_token_stats_use_the_session_totals() {
         let home = HermesHome::new();
@@ -1843,6 +1951,50 @@ mod tests {
         // LIKE wildcards are literal, and the limit is honoured.
         assert!(search("%", 10).unwrap().is_empty());
         assert_eq!(search("s", 1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn search_finds_values_only_the_conversion_adds() {
+        let home = HermesHome::new();
+        let conn = home.root_db(MODERN_SCHEMA);
+        seed_tool_session(&conn);
+
+        // No column holds the block type tag; the converted block does.
+        let hits = search("TOOL_RESULT", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(blocks(&hits[0])[0]["type"], "tool_result");
+        assert!(like_prefilter_pattern("tool_res").is_none());
+        assert!(like_prefilter_pattern("main.rs").is_some());
+
+        // A tool result's `tool_use_id` comes from `tool_call_id`.
+        let hits = search("call_1", 10).unwrap();
+        assert_eq!(hits.len(), 2, "the call and its result");
+    }
+
+    #[test]
+    fn the_reporting_scan_records_a_store_it_cannot_read() {
+        let home = HermesHome::new();
+        let coder = home.profile_db("coder", MODERN_SCHEMA);
+        seed_tool_session(&coder);
+        drop(coder);
+        std::fs::write(home.root.join(DB_FILE), "not a database").unwrap();
+
+        // The plain scan skips the broken root store and keeps the profile.
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 1);
+
+        let report = ScanReport::default();
+        let projects = scan_projects_reporting(&report).unwrap();
+        assert_eq!(projects.len(), 1);
+        let unread = report.into_unread();
+        assert_eq!(unread.len(), 1);
+        assert!(unread[0].contains(DB_FILE), "{unread:?}");
+
+        let report = ScanReport::default();
+        let sessions =
+            load_sessions_reporting("hermes://profile.coder::dir:/work/app", &report).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert!(report.is_empty());
     }
 
     #[test]

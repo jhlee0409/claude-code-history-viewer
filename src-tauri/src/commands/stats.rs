@@ -1693,6 +1693,7 @@ fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderIn
         StatsProvider::Kiro => providers::kiro::detect(),
         StatsProvider::Llm => providers::llm::detect(),
         StatsProvider::Grok => providers::grok::detect(),
+        StatsProvider::Hermes => providers::hermes::detect(),
         StatsProvider::Kimi => providers::kimi::detect(),
         StatsProvider::Antigravity => providers::antigravity::detect(),
         StatsProvider::Copilot => providers::copilot::detect(),
