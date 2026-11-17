@@ -449,7 +449,10 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Gemini
     } else if project_path.starts_with("cursor://") {
         StatsProvider::Cursor
-    } else if is_antigravity_path(project_path) {
+    } else if project_path.starts_with(providers::antigravity::DESKTOP_SCHEME)
+        || is_antigravity_path(project_path)
+    {
+        // Desktop projects are keyed `antigravity://<workspace>`.
         StatsProvider::Antigravity
     } else if is_ompi_path(project_path) {
         StatsProvider::Ompi

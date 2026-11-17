@@ -384,10 +384,12 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
 
 /// Recursively collects all file paths under `dir` into `files`, skipping
 /// system files (`.DS_Store`, `Thumbs.db`, backup files with `~` suffix) and symlinks.
-/// When `transcript_full.jsonl` is present in `dir`, skips `transcript.jsonl` to avoid
-/// double-counting the compact and full transcripts.
+/// When a non-empty `transcript_full.jsonl` is present in `dir`, skips
+/// `transcript.jsonl` to avoid double-counting the compact and full
+/// transcripts; an empty full transcript leaves the compact one counted.
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
-    let has_full_transcript = dir.join("transcript_full.jsonl").is_file();
+    let has_full_transcript = std::fs::symlink_metadata(dir.join("transcript_full.jsonl"))
+        .is_ok_and(|meta| meta.file_type().is_file() && meta.len() > 0);
     let entries =
         std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {}", dir.display(), e))?;
 
@@ -448,6 +450,70 @@ pub(crate) fn legacy_ide_brain_session_dir(root: &Path, session_id: &str) -> Opt
     Some(session_dir)
 }
 
+/// Whether `path` is a regular file, not a symlink to one.
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_file())
+}
+
+/// `<root>/conversations` when it is a real directory. A symlinked one would
+/// list, and later open, databases outside the Antigravity store; the
+/// per-file checks under it cannot see that (#698, #700).
+pub(crate) fn conversations_dir(root: &Path) -> Option<PathBuf> {
+    let dir = root.join("conversations");
+    std::fs::symlink_metadata(&dir)
+        .is_ok_and(|meta| meta.file_type().is_dir())
+        .then_some(dir)
+}
+
+/// `<root>/conversations/<session_id>.db` when it is a regular file in a real
+/// `conversations/` directory.
+pub(crate) fn conversation_db_path(root: &Path, session_id: &str) -> Option<PathBuf> {
+    if !is_valid_antigravity_session_id(session_id) {
+        return None;
+    }
+    let path = conversations_dir(root)?.join(format!("{session_id}.db"));
+    is_regular_file(&path).then_some(path)
+}
+
+/// The path the session list gives a desktop session discovered on disk (its
+/// `file_path`): the rpc-cache directory when the token monitor recorded
+/// usage or steps for it, else its `brain/<id>` directory, else its
+/// `conversations/<id>.db` (a database-only install), else the `brain/<id>`
+/// path a summary-only session is addressed by.
+///
+/// The watcher names changed sessions by this same path, so the two cannot
+/// drift apart.
+pub(crate) fn desktop_session_storage_path(
+    root: &Path,
+    session_id: &str,
+    report: &ScanReport,
+) -> PathBuf {
+    let rpc_dir = get_antigravity_rpc_cache_root(root).join(session_id);
+    if report.metadata(&rpc_dir.join("usage.jsonl")).is_some()
+        || report.metadata(&rpc_dir.join("steps.jsonl")).is_some()
+    {
+        return rpc_dir;
+    }
+    let brain_dir = root.join("brain").join(session_id);
+    if std::fs::symlink_metadata(&brain_dir).is_ok_and(|meta| meta.file_type().is_dir()) {
+        return brain_dir;
+    }
+    conversation_db_path(root, session_id).unwrap_or(brain_dir)
+}
+
+/// The `file_path` the session list gives desktop session `session_id`: the
+/// one the token monitor's state recorded for it when it is listed there
+/// (monitor sessions take precedence), else
+/// [`desktop_session_storage_path`].
+pub(crate) fn desktop_session_file_path(root: &Path, session_id: &str) -> PathBuf {
+    let monitor = merge_states(load_archive_states(root), load_active_state(root));
+    monitor
+        .sessions
+        .get(session_id)
+        .map(|session| PathBuf::from(&session.latest.file_path))
+        .unwrap_or_else(|| desktop_session_storage_path(root, session_id, &ScanReport::default()))
+}
+
 /// Summary metadata loaded from `conversation_summaries.db` (`conversation_summaries` + `conversations_fts`).
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ConversationSummaryMeta {
@@ -461,7 +527,11 @@ pub(crate) struct ConversationSummaryMeta {
     pub last_modified_ms: u64,
 }
 
-fn normalize_workspace_uri(raw: &str) -> Option<String> {
+/// Turns a workspace value (`file:///…` URI or plain path) into the folder path
+/// the project list groups by. A Windows drive URI (`file:///C:/work`, or VS
+/// Code's `file:///c%3A/work`) becomes `C:/work`: the leading slash RFC 8089
+/// puts before the drive letter is not part of the path.
+pub(crate) fn normalize_workspace_uri(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;
@@ -470,27 +540,37 @@ fn normalize_workspace_uri(raw: &str) -> Option<String> {
     let decoded = urlencoding::decode(without_scheme)
         .map(std::borrow::Cow::into_owned)
         .unwrap_or_else(|_| without_scheme.to_string());
-    let cleaned = if decoded.len() > 1 {
-        decoded.trim_end_matches('/').to_string()
+    let bytes = decoded.as_bytes();
+    let path = if bytes.len() >= 3
+        && bytes[0] == b'/'
+        && bytes[1].is_ascii_alphabetic()
+        && bytes[2] == b':'
+    {
+        &decoded[1..]
     } else {
-        decoded
+        decoded.as_str()
+    };
+    let cleaned = if path.len() > 1 {
+        path.trim_end_matches('/')
+    } else {
+        path
     };
     if cleaned.is_empty() {
         None
     } else {
-        Some(cleaned)
+        Some(cleaned.to_string())
     }
 }
 
+/// The first usable workspace in a `workspace_uris` value. A JSON array with
+/// no usable entry (`[]`, `[null]`) has no workspace; only a value that is not
+/// a JSON array is read as a single URI.
 fn parse_workspace_uris_json(raw: &str) -> Option<String> {
     if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(raw) {
-        for item in items {
-            if let Some(s) = item.as_str() {
-                if let Some(ws) = normalize_workspace_uri(s) {
-                    return Some(ws);
-                }
-            }
-        }
+        return items
+            .iter()
+            .filter_map(Value::as_str)
+            .find_map(normalize_workspace_uri);
     }
     normalize_workspace_uri(raw)
 }
@@ -696,8 +776,11 @@ pub(crate) fn load_conversation_summaries_map(
         }
     }
 
+    // The per-conversation metadata row (negative `chunk_index`) is preferred;
+    // content chunks are the fallback, earliest first.
     if let Ok(mut stmt) = conn.prepare(
-        "SELECT conversation_id, workspace FROM conversations_fts WHERE CAST(chunk_index AS INTEGER) < 0",
+        "SELECT conversation_id, workspace FROM conversations_fts \
+         ORDER BY CAST(chunk_index AS INTEGER) >= 0, CAST(chunk_index AS INTEGER)",
     ) {
         if let Ok(mut rows) = stmt.query([]) {
             while let Ok(Some(row)) = rows.next() {
@@ -766,15 +849,36 @@ pub(crate) fn read_annotation_pbtxt(root: &Path, session_id: &str) -> (Option<St
     }
 
     let mut view_ms = mtime_ms;
-    if let Some(pos) = content.find("seconds:") {
-        let after = content[pos + "seconds:".len()..].trim_start();
-        let digits: String = after.chars().take_while(char::is_ascii_digit).collect();
-        if let Ok(sec) = digits.parse::<u64>() {
-            view_ms = view_ms.max(sec.saturating_mul(1000));
-        }
+    if let Some(sec) = annotation_last_user_view_seconds(&content) {
+        view_ms = view_ms.max(sec.saturating_mul(1000));
     }
 
     (title, view_ms)
+}
+
+/// `seconds` of the `last_user_view_time` message in an annotation, in
+/// either text-format spelling (`last_user_view_time:{seconds:1}` or
+/// `last_user_view_time { seconds: 1 }`). A `seconds` field of any other
+/// timestamp in the file is not the view time.
+fn annotation_last_user_view_seconds(content: &str) -> Option<u64> {
+    const FIELD: &str = "last_user_view_time";
+    let after_field = &content[content.find(FIELD)? + FIELD.len()..];
+    let body = after_field
+        .trim_start()
+        .strip_prefix(':')
+        .unwrap_or(after_field)
+        .trim_start()
+        .strip_prefix('{')?;
+    let body = &body[..body.find('}')?];
+    let after_seconds = &body[body.find("seconds")? + "seconds".len()..];
+    let digits: String = after_seconds
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start()
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().ok()
 }
 
 /// Scans the `brain/` directory for session candidates, returning them sorted
@@ -784,7 +888,7 @@ fn scan_brain_candidates(
     report: &ScanReport,
 ) -> Result<Vec<SessionCandidate>, String> {
     let brain_dir = root.join("brain");
-    let conversations_dir = root.join("conversations");
+    let conversations_dir = conversations_dir(root);
     let has_summaries_db = report
         .metadata(&root.join("conversation_summaries.db"))
         .is_some();
@@ -831,28 +935,24 @@ fn scan_brain_candidates(
             }
         }
 
-        let pb_path = conversations_dir.join(format!("{session_id}.pb"));
-        // Defense-in-depth: reject symlinks even though the parent
-        // directory was already symlink-guarded — a symlinked .pb
-        // artifact could point outside the trusted antigravity root.
-        if let Ok(meta) = std::fs::symlink_metadata(&pb_path) {
-            if !meta.file_type().is_symlink() && meta.file_type().is_file() {
-                file_paths.push(pb_path);
-            }
+        if let Some(pb_path) = conversations_dir
+            .as_ref()
+            .map(|dir| dir.join(format!("{session_id}.pb")))
+            .filter(|path| is_regular_file(path))
+        {
+            file_paths.push(pb_path);
         }
 
-        let db_path = conversations_dir.join(format!("{session_id}.db"));
-        let has_conv_db = std::fs::symlink_metadata(&db_path)
-            .map(|m| !m.file_type().is_symlink() && m.file_type().is_file())
-            .unwrap_or(false);
+        let conv_db = conversation_db_path(root, &session_id);
 
         let mut last_modified_ms = 0;
         for file_path in &file_paths {
             last_modified_ms = last_modified_ms.max(file_mtime_ms(file_path));
         }
-        if has_conv_db {
-            last_modified_ms = last_modified_ms.max(file_mtime_ms(&db_path));
+        if let Some(db_path) = &conv_db {
+            last_modified_ms = last_modified_ms.max(file_mtime_ms(db_path));
         }
+        let has_conv_db = conv_db.is_some();
 
         if file_paths.is_empty() && !has_conv_db && !has_summaries_db {
             continue;
@@ -876,8 +976,14 @@ fn scan_brain_candidates(
 /// or falling back to the first `USER_INPUT` prompt in a transcript file.
 fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     for label_file in ["task.md", "implementation_plan.md", "walkthrough.md"] {
+        // A symlinked label file is not followed (#698): a `task.md` swapped
+        // for a link would otherwise surface an outside file's heading as the
+        // session title.
         let path = session_dir.join(label_file);
-        let Ok(content) = std::fs::read_to_string(path) else {
+        if !is_regular_file(&path) {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
             continue;
         };
         for line in content.lines() {
@@ -1203,11 +1309,7 @@ fn build_state_from_token_monitor_sources(
             )
         };
 
-        let storage_dir = if has_rpc_artifact {
-            rpc_dir.clone()
-        } else {
-            candidate.session_dir.clone()
-        };
+        let storage_dir = desktop_session_storage_path(root, &candidate.session_id, report);
         let mut persisted = build_session_state(
             &candidate.session_id,
             &candidate.session_dir,
@@ -1228,10 +1330,7 @@ fn build_state_from_token_monitor_sources(
         if !has_rpc_artifact
             && candidate.file_paths.is_empty()
             && !summaries_map.contains_key(&candidate.session_id)
-            && !root
-                .join("conversations")
-                .join(format!("{}.db", candidate.session_id))
-                .is_file()
+            && conversation_db_path(root, &candidate.session_id).is_none()
         {
             continue;
         }
@@ -1311,8 +1410,8 @@ fn build_state_from_token_monitor_sources(
         .cloned()
         .collect();
 
-    let conversations_dir = root.join("conversations");
-    if let Ok(entries) = std::fs::read_dir(&conversations_dir) {
+    // A symlinked `conversations/` is not listed (`conversations_dir`).
+    if let Some(entries) = conversations_dir(root).and_then(|dir| std::fs::read_dir(dir).ok()) {
         for entry in entries.flatten() {
             let Ok(ft) = entry.file_type() else {
                 continue;
@@ -1342,24 +1441,16 @@ fn build_state_from_token_monitor_sources(
         if let Some(legacy_dir) = legacy_ide_brain_session_dir(root, &session_id) {
             let _ = collect_files(&legacy_dir, &mut token_files);
         }
-        let db_path = conversations_dir.join(format!("{session_id}.db"));
-        let has_db = std::fs::symlink_metadata(&db_path)
-            .map(|m| !m.file_type().is_symlink() && m.file_type().is_file())
-            .unwrap_or(false);
         let mut last_modified = token_files
             .iter()
             .map(|p| file_mtime_ms(p))
             .max()
             .unwrap_or(0);
-        if has_db {
+        if let Some(db_path) = conversation_db_path(root, &session_id) {
             last_modified = last_modified.max(file_mtime_ms(&db_path));
         }
 
-        let storage_dir = if root.join("brain").is_dir() || !has_db {
-            brain_session_dir.clone()
-        } else {
-            db_path.clone()
-        };
+        let storage_dir = desktop_session_storage_path(root, &session_id, report);
         let label_dir = legacy_ide_brain_session_dir(root, &session_id)
             .unwrap_or_else(|| brain_session_dir.clone());
 
@@ -1571,14 +1662,23 @@ pub(crate) fn load_antigravity_state_reporting(
     if report.metadata(root).is_some() {
         let active = load_active_state_reporting(root, report);
         let archive_states = load_archive_states_reporting(root, report);
-        let merged = merge_states(archive_states, active);
+        let mut merged = merge_states(archive_states, active);
+
+        // The token monitor only knows the sessions it polled; conversations
+        // found on disk since (brain/, rpc-cache, conversation_summaries.db,
+        // conversations/*.db) are added, and a session in both keeps the
+        // monitor's record.
+        match build_state_from_rpc_cache(root, report) {
+            Ok(discovered) => {
+                for (session_id, session) in discovered.sessions {
+                    merged.sessions.entry(session_id).or_insert(session);
+                }
+            }
+            Err(err) if merged.sessions.is_empty() => return Err(err),
+            Err(err) => report.unread(&err),
+        }
         if !merged.sessions.is_empty() {
             return Ok(merged);
-        }
-
-        let rpc_state = build_state_from_rpc_cache(root, report)?;
-        if !rpc_state.sessions.is_empty() {
-            return Ok(rpc_state);
         }
     }
 
@@ -2033,5 +2133,178 @@ mod tests {
         assert_eq!(summary.session_count, 1);
         assert_eq!(summary.total_tokens, 270);
         assert_eq!(summary.sessions[0].session_id, "sess-explicit-root");
+    }
+
+    #[test]
+    /// `workspace_uris` of `[]` or `[null]` records no workspace. It used to
+    /// be read as a URI itself, which created a project literally named `[]`
+    /// and kept the `conversations_fts` workspace from being used.
+    fn test_parse_workspace_uris_json_without_usable_entry_is_none() {
+        assert_eq!(parse_workspace_uris_json("[]"), None);
+        assert_eq!(parse_workspace_uris_json("[null]"), None);
+        assert_eq!(parse_workspace_uris_json("[\"\", 3]"), None);
+        assert_eq!(
+            parse_workspace_uris_json("[null, \"file:///work/demo\"]").as_deref(),
+            Some("/work/demo")
+        );
+        assert_eq!(
+            parse_workspace_uris_json("file:///work/plain/").as_deref(),
+            Some("/work/plain")
+        );
+    }
+
+    #[test]
+    /// A Windows drive URI keeps no slash before the drive letter, whether the
+    /// colon is literal or percent-encoded as VS Code writes it.
+    fn test_normalize_workspace_uri_converts_windows_drive_uris() {
+        assert_eq!(
+            normalize_workspace_uri("file:///C:/work/demo").as_deref(),
+            Some("C:/work/demo")
+        );
+        assert_eq!(
+            normalize_workspace_uri("file:///c%3A/work/my%20demo/").as_deref(),
+            Some("c:/work/my demo")
+        );
+        assert_eq!(
+            normalize_workspace_uri("file:///Users/dev/app").as_deref(),
+            Some("/Users/dev/app")
+        );
+    }
+
+    #[test]
+    /// Only the `seconds` of `last_user_view_time` is the view time; an
+    /// earlier timestamp field's `seconds` used to be taken instead.
+    fn test_annotation_view_time_reads_only_last_user_view_time() {
+        assert_eq!(
+            annotation_last_user_view_seconds(
+                "created_time:{seconds:9999999999} title:\"T\" last_user_view_time:{seconds:1793804930 nanos:0}"
+            ),
+            Some(1_793_804_930)
+        );
+        assert_eq!(
+            annotation_last_user_view_seconds(
+                "title: \"T\"\nlast_user_view_time {\n  seconds: 1700000000\n  nanos: 5\n}\n"
+            ),
+            Some(1_700_000_000)
+        );
+        assert_eq!(
+            annotation_last_user_view_seconds("created_time:{seconds:9999999999}"),
+            None
+        );
+
+        let dir = TempDir::new().unwrap();
+        let annotations = dir.path().join("annotations");
+        std::fs::create_dir_all(&annotations).unwrap();
+        std::fs::write(
+            annotations.join("sess-view.pbtxt"),
+            "created_time:{seconds:9999999999} last_user_view_time:{seconds:1700000000}",
+        )
+        .unwrap();
+        let (_, view_ms) = read_annotation_pbtxt(dir.path(), "sess-view");
+        assert!(
+            view_ms < 9_999_999_999_000,
+            "another timestamp's seconds was read as the view time: {view_ms}"
+        );
+    }
+
+    #[test]
+    /// A non-empty `monitor-state.json` used to hide every session it does
+    /// not list. Database-only conversations are merged in; a session in
+    /// both keeps the monitor's record.
+    fn test_monitor_state_merges_database_only_sessions() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let monitor = AntigravityState {
+            last_poll_at: Some(42),
+            sessions: HashMap::from([
+                (
+                    "sess-monitor".to_string(),
+                    make_session("sess-monitor", 1000, SessionLifecycleStatus::Active),
+                ),
+                (
+                    "sess-both".to_string(),
+                    make_session("sess-both", 2000, SessionLifecycleStatus::Active),
+                ),
+            ]),
+        };
+        std::fs::write(
+            root.join("monitor-state.json"),
+            serde_json::to_string(&monitor).unwrap(),
+        )
+        .unwrap();
+        let conversations = root.join("conversations");
+        std::fs::create_dir_all(&conversations).unwrap();
+        std::fs::write(conversations.join("sess-db-only.db"), b"").unwrap();
+        std::fs::write(conversations.join("sess-both.db"), b"").unwrap();
+
+        let state = load_antigravity_state_impl(root).unwrap();
+
+        assert_eq!(state.last_poll_at, Some(42));
+        assert_eq!(state.sessions.len(), 3);
+        assert_eq!(state.sessions["sess-both"].latest.total_tokens, 2000);
+        assert_eq!(
+            state.sessions["sess-db-only"].latest.file_path,
+            conversations
+                .join("sess-db-only.db")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(
+            desktop_session_file_path(root, "sess-both"),
+            PathBuf::from(&state.sessions["sess-both"].latest.file_path)
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// A symlinked `conversations/` would list and open databases outside the
+    /// store; the per-file checks under it cannot see the parent link.
+    fn test_symlinked_conversations_dir_is_not_listed() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let outside = TempDir::new().unwrap();
+        std::fs::write(outside.path().join("sess-outside.db"), b"").unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.join("conversations")).unwrap();
+
+        assert!(conversations_dir(root).is_none());
+        assert!(conversation_db_path(root, "sess-outside").is_none());
+        let state = build_state_from_token_monitor_sources(root, &ScanReport::default()).unwrap();
+        assert!(state.sessions.is_empty(), "{:?}", state.sessions.keys());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// A symlinked legacy `task.md` is not read for the session title.
+    fn test_resolve_label_refuses_symlinked_task_md() {
+        let dir = TempDir::new().unwrap();
+        let session_dir = dir.path().join("brain").join("sess-link");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().join("secret.md");
+        std::fs::write(&secret, "# Outside heading\n").unwrap();
+        std::os::unix::fs::symlink(&secret, session_dir.join("task.md")).unwrap();
+
+        assert_eq!(resolve_label(&session_dir, "sess-link"), "sess-link");
+
+        std::fs::remove_file(session_dir.join("task.md")).unwrap();
+        std::fs::write(session_dir.join("task.md"), "# Task: Real title\n").unwrap();
+        assert_eq!(resolve_label(&session_dir, "sess-link"), "Real title");
+    }
+
+    #[test]
+    /// An empty `transcript_full.jsonl` does not hide the compact transcript
+    /// from the message count.
+    fn test_collect_files_keeps_compact_transcript_beside_empty_full_one() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("transcript_full.jsonl"), b"").unwrap();
+        std::fs::write(dir.path().join("transcript.jsonl"), b"{}\n").unwrap();
+        let mut files = Vec::new();
+        collect_files(dir.path(), &mut files).unwrap();
+        assert!(files.iter().any(|f| f.ends_with("transcript.jsonl")));
+
+        std::fs::write(dir.path().join("transcript_full.jsonl"), b"{}\n").unwrap();
+        let mut files = Vec::new();
+        collect_files(dir.path(), &mut files).unwrap();
+        assert!(!files.iter().any(|f| f.ends_with("transcript.jsonl")));
     }
 }

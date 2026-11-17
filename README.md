@@ -145,7 +145,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Provider | Notes |
 |---------|-------|
-| **Antigravity** | Loaded through the standard provider pipeline. Sessions are automatically grouped by workspace folder and parsed from `conversation_summaries.db`, `conversations/*.db`, and `brain/` transcripts (prompts, thinking, tool calls, token stats, analytics, and global search) with real-time file monitoring. |
+| **Antigravity** | Loaded through the standard provider pipeline. Desktop sessions are grouped by workspace folder, with full conversations (prompts, thinking, tool calls) recovered from `brain/` transcripts, `conversations/*.db`, and `conversation_summaries.db`, plus token stats, analytics, and global search. In server mode (`--serve`) the WebUI refreshes them live. |
 
 ### New in v1.32.0
 

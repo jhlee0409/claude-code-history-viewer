@@ -145,7 +145,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 提供商 | 说明 |
 |---------|-------|
-| **Antigravity** | 走现有统一 provider 数据流接入。桌面端会话按工作区文件夹自动分组，支持完整对话还原（提示词、思考过程、工具调用）、Token 统计、分析仪表板、全局搜索以及实时会话文件监控。 |
+| **Antigravity** | 走现有统一 provider 数据流接入。桌面端会话按工作区文件夹分组，并从 `brain/` 转录、`conversations/*.db` 和 `conversation_summaries.db` 还原完整对话（提示词、思考过程、工具调用），支持 Token 统计、分析仪表板和全局搜索；在服务器模式（`--serve`）下 WebUI 会实时刷新。 |
 
 ### v1.32.0 新增
 

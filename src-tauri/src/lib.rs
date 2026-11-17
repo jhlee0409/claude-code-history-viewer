@@ -1206,25 +1206,20 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    // The whole desktop store, not just `brain/` and `conversations/`:
+    // `conversation_summaries.db` lives at its root, the rpc-cache under
+    // `.token-monitor/`, and a sub-directory created after startup is covered
+    // too. Files outside the session layout are filtered by the extractor.
     if let Some(ag_root) = commands::antigravity::resolve_antigravity_root() {
-        for sub in ["brain", "conversations"] {
-            let sub_dir = ag_root.join(sub);
-            if std::fs::symlink_metadata(&sub_dir)
-                .map(|m| !m.file_type().is_symlink() && m.is_dir())
-                .unwrap_or(false)
-            {
-                paths.push(sub_dir);
-            }
+        if std::fs::symlink_metadata(&ag_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_root);
         }
     }
 
+    // The CLI store root, so a `brain/` created after startup is covered.
     if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
-        let cli_brain = ag_cli_root.join("brain");
-        if std::fs::symlink_metadata(&cli_brain)
-            .map(|m| !m.file_type().is_symlink() && m.is_dir())
-            .unwrap_or(false)
-        {
-            paths.push(cli_brain);
+        if std::fs::symlink_metadata(&ag_cli_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_cli_root);
         }
     }
 
