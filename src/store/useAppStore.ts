@@ -69,6 +69,10 @@ import {
   createMinimapSlice,
 } from "./slices/minimapSlice";
 import {
+  type ApiViewSlice,
+  createApiViewSlice,
+} from "./slices/apiViewSlice";
+import {
   type RecentEditsSlice,
   createRecentEditsSlice,
 } from "./slices/recentEditsSlice";
@@ -127,6 +131,7 @@ export type AppStore = ProjectSlice &
   NavigatorSlice &
   InspectorSlice &
   MinimapSlice &
+  ApiViewSlice &
   RecentEditsSlice &
   ProviderSlice &
   ArchiveSlice &
@@ -160,6 +165,7 @@ export const useAppStore = create<AppStore>()((...args) => {
     ...createNavigatorSlice(...args),
     ...createInspectorSlice(...args),
     ...createMinimapSlice(...args),
+    ...createApiViewSlice(...args),
     ...createRecentEditsSlice(...args),
     ...createProviderSlice(...args),
     ...createArchiveSlice(...args),
