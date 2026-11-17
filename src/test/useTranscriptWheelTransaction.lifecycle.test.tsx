@@ -1,4 +1,5 @@
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { Suspense, startTransition } from "react";
 import { Toaster, toast } from "sonner";
 import i18n from "@/i18n";
 import { Virtualizer } from "@tanstack/react-virtual";
@@ -30,7 +31,12 @@ function fixture() {
   scroller.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
     if (typeof options === "object") scroller.scrollTop = Math.round(options.top ?? 0);
   });
-  const hook = renderHook(useTranscriptWheelTransaction);
+  const never = new Promise<never>(() => {});
+  const hook = renderHook(({ owner, suspend }) => {
+    const transaction = useTranscriptWheelTransaction(owner);
+    if (suspend) throw never;
+    return transaction;
+  }, { initialProps: { owner: "committed", suspend: false }, wrapper: ({ children }) => <Suspense fallback={null}>{children}</Suspense> });
   const transaction = hook.result.current;
   const onChange = vi.fn();
   const instance = new Virtualizer<HTMLElement, Element>({
@@ -53,6 +59,16 @@ function fixture() {
   const wheel = () => { const event = dispatch(); frame(); return event; };
   return { scroller, instance, transaction, onChange, boundary, wheel, dispatch, frame, frames, hook };
 }
+
+it("retains the committed owner and queued input across a suspended owner transition", () => {
+  const f = fixture();
+  expect(f.dispatch().defaultPrevented).toBe(true);
+  act(() => startTransition(() => f.hook.rerender({ owner: "uncommitted", suspend: true })));
+  expect(f.transaction.selection.current).toBe("committed");
+  expect(f.dispatch().defaultPrevented).toBe(true);
+  f.frame();
+  expect(f.onChange).toHaveBeenCalled();
+});
 
 it("cancels a scheduled callback when the transaction owner unmounts before its boundary", () => {
   const f = fixture();

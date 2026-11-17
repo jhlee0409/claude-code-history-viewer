@@ -66,7 +66,7 @@ export function useTranscriptWheelTransaction(owner?: unknown, onRelease?: () =>
     return () => { mounted.current = false; clearFailure(); };
   }, [clearFailure]);
   const selection = useRef(owner);
-  selection.current = owner;
+  useLayoutEffect(() => { selection.current = owner; });
   // Only a committed render publishes the listener; an abandoned render's
   // closure must never run after a later wheel batch.
   const releaseListener = useRef<(() => void) | undefined>(undefined);

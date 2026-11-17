@@ -186,6 +186,41 @@ it.each(["gap", "missing", "foreign"] as const)("fails closed for a genuine %s r
   expect(f.errors).not.toHaveBeenCalled();
 });
 
+it("keeps physical reading position and coverage consistent after a clamped rejection", () => {
+  const f = fixture();
+  f.wheel();
+  const before = f.scroller.scrollTop;
+  f.setDefect("gap");
+  f.wheel();
+  f.setDefect(undefined);
+  const physical = f.scroller.scrollTop;
+  const firstVisible = () => [...f.host.querySelectorAll<HTMLElement>("[data-index]")].find(node => {
+    const rect = node.getBoundingClientRect();
+    return rect.top <= capture.commits[0]!.viewportTop && rect.bottom > capture.commits[0]!.viewportTop;
+  })?.dataset.index;
+  expect(physical).toBe(Math.min(before, f.scroller.scrollHeight - f.scroller.clientHeight));
+  // At the real tail the rounded scrollHeight leaves a fractional empty strip.
+  // Require every pixel up to the actual relative sizer end, not a fictional row.
+  const expectCoverage = () => {
+    const required = Math.min(f.scroller.clientHeight, f.host.getBoundingClientRect().bottom - capture.commits[0]!.viewportTop);
+    expect(f.coverage(f.scroller.scrollTop).end).toBeGreaterThanOrEqual(required - 0.01);
+  };
+  expectCoverage();
+  const row = firstVisible();
+  // Earlier cases may have warmed the shared height estimates; the source
+  // must be present and remain identical across the physical native echo.
+  expect(row).toBeDefined();
+  act(() => f.scroller.dispatchEvent(new Event("scroll")));
+  expect(f.current().virtualizer.scrollOffset).toBe(physical);
+  expect(f.scroller.scrollTop).toBe(physical);
+  expect(firstVisible()).toBe(row);
+  expectCoverage();
+  const logical = f.current().virtualizer.scrollOffset!;
+  f.wheel(-0.25);
+  expect(f.releases.at(-1)?.destination).toBeCloseTo(logical - 0.25, 7);
+  expectCoverage();
+});
+
 it("retains real ResizeObserver height changes after a successful clamped transaction", () => {
   const f = fixture(); f.wheel(); f.wheel();
   const v = f.current().virtualizer, index = 119;
