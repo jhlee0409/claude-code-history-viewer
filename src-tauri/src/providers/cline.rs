@@ -1422,7 +1422,10 @@ pub(crate) mod fixtures {
     pub(crate) fn write_extension_task(home: &Path, cwd: &str) -> PathBuf {
         let ext = crate::utils::config_dir()
             .unwrap()
-            .join("Code/User/globalStorage/saoudrizwan.claude-dev");
+            .join("Code")
+            .join("User")
+            .join("globalStorage")
+            .join("saoudrizwan.claude-dev");
         assert!(ext.starts_with(home), "{}", ext.display());
         let history = json!([{"id": "task-1", "ts": TS_MS, "task": "hi",
                               "tokensIn": 100, "tokensOut": 50,
@@ -1433,7 +1436,9 @@ pub(crate) mod fixtures {
             {"type": "say", "say": "task", "text": "hi", "ts": TS_MS},
             {"type": "say", "say": "text", "text": "hello", "ts": TS_MS + 1_000}
         ]);
-        let file = ext.join("tasks/task-1/ui_messages.json");
+        // Joined per component: the listing returns native separators, and a
+        // `/`-joined path would not compare equal on Windows.
+        let file = ext.join("tasks").join("task-1").join("ui_messages.json");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, messages.to_string()).unwrap();
         file
@@ -1445,7 +1450,7 @@ pub(crate) mod fixtures {
     /// id is `cline://sdk:<id>`.
     pub(crate) fn write_sdk_session(home: &Path, cwd: &str) -> PathBuf {
         let id = "1792141200000_sdk01";
-        let dir = home.join(".cline/data/sessions").join(id);
+        let dir = home.join(".cline").join("data").join("sessions").join(id);
         fs::create_dir_all(&dir).unwrap();
         let manifest = json!({"version": 1, "session_id": id, "cwd": cwd,
                               "started_at": "2026-10-16T09:00:00.000Z",
