@@ -73,6 +73,7 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
 
   // --- the open place's transcript and session list --------------------------
   messages: "reloaded",
+  messageUpdateKind: "reloaded",
   pagination: "reloaded",
   isLoadingMessages: "reloaded",
   subagentSessions: "reloaded",
