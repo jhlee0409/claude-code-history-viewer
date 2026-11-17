@@ -233,20 +233,22 @@ fn plan_move(
         ));
     }
 
+    // A `<id>/` folder already in the target would be taken for this
+    // session's subagents and tool results, so it is a collision even when
+    // the session has no companion folder of its own.
+    let dst_dir = target_project.join(&session_id);
+    if fs::symlink_metadata(&dst_dir).is_ok() {
+        return Err(format!(
+            "{ERR_TARGET_EXISTS}: target project already contains a {session_id}/ folder"
+        ));
+    }
+
     let src_dir = source_project.join(&session_id);
     let companion = match fs::symlink_metadata(&src_dir) {
         Ok(meta) if meta.file_type().is_symlink() => {
             return Err("Session folder cannot be a symlink".to_string());
         }
-        Ok(meta) if meta.is_dir() => {
-            let dst_dir = target_project.join(&session_id);
-            if fs::symlink_metadata(&dst_dir).is_ok() {
-                return Err(format!(
-                    "{ERR_TARGET_EXISTS}: target project already contains a {session_id}/ folder"
-                ));
-            }
-            Some((src_dir, dst_dir))
-        }
+        Ok(meta) if meta.is_dir() => Some((src_dir, dst_dir)),
         _ => None,
     };
 
@@ -318,72 +320,101 @@ fn is_source_not_removed(e: &io::Error) -> bool {
     matches!(e.get_ref(), Some(inner) if inner.is::<SourceNotRemoved>())
 }
 
-/// Rename, falling back to copy + remove (e.g. across devices). The callers
-/// guarantee `to` does not exist, which also sidesteps Windows `fs::rename`
-/// failing on an existing destination.
+/// Moves `from` to `to` without ever replacing something at `to`: the
+/// callers checked that `to` is free, but another process may claim it in
+/// the meantime, and `fs::rename` overwrites an existing file.
 ///
-/// A failed copy is undone. A file whose original cannot be removed is undone
-/// too (the original is still whole). A directory copied in full is kept even
-/// if removing the original fails, since `remove_dir_all` can stop halfway:
-/// that error is a [`SourceNotRemoved`].
+/// - A file is hard-linked to `to` (fails if `to` exists) and then unlinked
+///   from `from`. Where hard links are unavailable (across devices, some
+///   file systems) it is copied into a newly created `to` instead.
+/// - A folder is renamed, which never replaces a file or a non-empty
+///   folder; failing that (e.g. across devices) it is copied into a newly
+///   created `to`.
+///
+/// A failed copy is undone, removing only what this call created. A file
+/// whose original cannot be removed is undone too (the original is still
+/// whole). A folder copied in full is kept even if removing the original
+/// fails, since `remove_dir_all` can stop halfway: that error is a
+/// [`SourceNotRemoved`].
 fn move_path(from: &Path, to: &Path) -> io::Result<()> {
-    let Err(rename_err) = fs::rename(from, to) else {
-        return Ok(());
-    };
-    if fs::symlink_metadata(to).is_ok() {
-        return Err(rename_err);
-    }
-
-    let remove = |path: &Path| {
-        if path.is_dir() {
-            fs::remove_dir_all(path)
-        } else {
-            fs::remove_file(path)
+    if fs::symlink_metadata(from)?.is_dir() {
+        let Err(rename_err) = fs::rename(from, to) else {
+            return Ok(());
+        };
+        if fs::symlink_metadata(to).is_ok() {
+            return Err(rename_err);
         }
-    };
-
-    let is_dir = from.is_dir();
-    let copied = if is_dir {
-        copy_dir_recursive(from, to)
-    } else {
-        fs::copy(from, to).map(|_| ())
-    };
-    if let Err(e) = copied {
-        let _ = remove(to);
-        return Err(e);
+        copy_dir_recursive(from, to)?;
+        return fs::remove_dir_all(from).map_err(|cause| {
+            io::Error::new(
+                cause.kind(),
+                SourceNotRemoved {
+                    copy: to.to_path_buf(),
+                    cause,
+                },
+            )
+        });
     }
 
-    match remove(from) {
-        Ok(()) => Ok(()),
-        Err(cause) if is_dir => Err(io::Error::new(
-            cause.kind(),
-            SourceNotRemoved {
-                copy: to.to_path_buf(),
-                cause,
-            },
-        )),
-        Err(cause) => {
-            let _ = fs::remove_file(to);
-            Err(cause)
-        }
+    match fs::hard_link(from, to) {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Err(e),
+        Err(_) => copy_file_new(from, to)?,
     }
+    if let Err(cause) = fs::remove_file(from) {
+        let _ = fs::remove_file(to);
+        return Err(cause);
+    }
+    Ok(())
 }
 
+/// Copies a regular file into `to`, which must not exist yet. On failure,
+/// removes `to` only if this call created it.
+fn copy_file_new(from: &Path, to: &Path) -> io::Result<()> {
+    let mut src = fs::File::open(from)?;
+    let permissions = src.metadata()?.permissions();
+    let mut dst = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(to)?;
+    let copied = io::copy(&mut src, &mut dst)
+        .and_then(|_| dst.sync_all())
+        .and_then(|()| fs::set_permissions(to, permissions));
+    if copied.is_err() {
+        drop(dst);
+        let _ = fs::remove_file(to);
+    }
+    copied
+}
+
+/// Copies the folder `from` into `to`, which must not exist yet. On failure,
+/// removes the partial copy, and only if this call created `to`.
 fn copy_dir_recursive(from: &Path, to: &Path) -> io::Result<()> {
     fs::create_dir(to)?;
+    let copied = copy_dir_contents(from, to);
+    if copied.is_err() {
+        let _ = fs::remove_dir_all(to);
+    }
+    copied
+}
+
+fn copy_dir_contents(from: &Path, to: &Path) -> io::Result<()> {
     for entry in fs::read_dir(from)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
         let dst = to.join(entry.file_name());
-        if file_type.is_symlink() {
+        if file_type.is_dir() {
+            fs::create_dir(&dst)?;
+            copy_dir_contents(&entry.path(), &dst)?;
+        } else if file_type.is_file() {
+            copy_file_new(&entry.path(), &dst)?;
+        } else {
+            // Symlinks are not followed; FIFOs, sockets and devices could
+            // block or are not session data.
             return Err(io::Error::other(format!(
-                "refusing to copy symlink {}",
+                "refusing to copy {}: not a regular file or folder",
                 entry.path().display()
             )));
-        } else if file_type.is_dir() {
-            copy_dir_recursive(&entry.path(), &dst)?;
-        } else {
-            fs::copy(entry.path(), &dst)?;
         }
     }
     Ok(())
@@ -603,6 +634,74 @@ mod tests {
         let err = run(&g, &g.target).unwrap_err();
         assert!(err.starts_with(ERR_TARGET_EXISTS), "{err}");
         assert!(g.session.exists());
+    }
+
+    #[test]
+    fn refuses_existing_target_folder_without_a_source_folder() {
+        let f = fixture("abc-1");
+        fs::create_dir_all(f.target.join("abc-1/subagents")).unwrap();
+
+        let err = run(&f, &f.target).unwrap_err();
+        assert!(err.starts_with(ERR_TARGET_EXISTS), "{err}");
+        assert!(f.session.is_file());
+        assert!(!f.target.join("abc-1.jsonl").exists());
+    }
+
+    #[test]
+    fn move_path_never_replaces_an_existing_destination() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("a.jsonl");
+        let to = tmp.path().join("b.jsonl");
+        fs::write(&from, "mine\n").unwrap();
+        fs::write(&to, "theirs\n").unwrap();
+
+        assert!(move_path(&from, &to).is_err());
+        assert_eq!(fs::read_to_string(&from).unwrap(), "mine\n");
+        assert_eq!(fs::read_to_string(&to).unwrap(), "theirs\n");
+
+        let dir_from = tmp.path().join("d1");
+        let dir_to = tmp.path().join("d2");
+        fs::create_dir_all(&dir_from).unwrap();
+        fs::write(dir_from.join("x"), "mine").unwrap();
+        fs::create_dir_all(&dir_to).unwrap();
+        fs::write(dir_to.join("y"), "theirs").unwrap();
+
+        assert!(move_path(&dir_from, &dir_to).is_err());
+        assert!(dir_from.join("x").is_file());
+        assert_eq!(fs::read_to_string(dir_to.join("y")).unwrap(), "theirs");
+    }
+
+    #[test]
+    fn copy_fallback_leaves_a_folder_it_did_not_create() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("a");
+        fs::create_dir_all(&from).unwrap();
+        fs::write(from.join("file.txt"), "x").unwrap();
+        let to = tmp.path().join("b");
+        fs::create_dir_all(&to).unwrap();
+        fs::write(to.join("other.txt"), "keep").unwrap();
+
+        assert!(copy_dir_recursive(&from, &to).is_err());
+        assert_eq!(fs::read_to_string(to.join("other.txt")).unwrap(), "keep");
+        assert!(!to.join("file.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_fallback_refuses_special_files() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("a");
+        fs::create_dir_all(&from).unwrap();
+        let status = std::process::Command::new("mkfifo")
+            .arg(from.join("pipe"))
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let to = tmp.path().join("b");
+
+        let err = copy_dir_recursive(&from, &to).unwrap_err();
+        assert!(err.to_string().contains("not a regular file"), "{err}");
+        assert!(!to.exists());
     }
 
     #[cfg(unix)]
