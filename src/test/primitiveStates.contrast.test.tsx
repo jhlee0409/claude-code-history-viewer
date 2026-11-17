@@ -71,7 +71,7 @@ function paintOver(theme: ThemeName, p: Paint | undefined, back: Srgb8): Srgb8 {
 const fmt = (c: Srgb8) => `rgb(${c.join(",")})`;
 
 describe("Button state colours", () => {
-  const VARIANTS = ["default", "destructive", "outline", "secondary", "ghost", "accent", "success", "warning"] as const;
+  const VARIANTS = ["primary", "destructive", "outline", "secondary", "ghost"] as const;
 
   for (const variant of VARIANTS) {
     const classes = buttonVariants({ variant }).split(/\s+/);

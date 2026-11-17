@@ -1076,7 +1076,7 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())?
         .to_string();
-    let success = data.get("success").and_then(Value::as_bool).unwrap_or(true);
+    let success = data.get("success").and_then(Value::as_bool);
     let content = data
         .get("result")
         .and_then(|r| r.get("content"))
@@ -1089,10 +1089,10 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         "tool_use_id": tool_use_id,
         "content": content,
     });
-    if !success {
-        if let Some(obj) = block.as_object_mut() {
-            obj.insert("is_error".to_string(), Value::Bool(true));
-        }
+    // Copilot SDK pinned schema: success is a boolean, not an absent-field default.
+    // https://github.com/github/copilot-sdk/blob/68de1a7afe4bc9e7435d185825043bd9dc9c47cf/nodejs/src/generated/session-events.ts#L9938-L9951
+    if let Some(success) = success {
+        block["is_error"] = Value::Bool(!success);
     }
     Some((tool_use_id, block))
 }
@@ -1604,5 +1604,24 @@ mod tests {
         let after = extract_session_info_cached(&events).unwrap();
         assert_eq!(after.client_kind, ClientKind::Desktop);
         assert_eq!(after.summary.as_deref(), Some("Delayed Workspace Name"));
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [None, Some(true), Some(false)] {
+            let mut record = serde_json::json!({"toolCallId":"c","result":{"content":"synthetic"}});
+            if let Some(v) = flag {
+                record["success"] = serde_json::json!(v);
+            }
+            let (_, block) = build_tool_result_block(&record).unwrap();
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.map(|v| !v)
+            );
+        }
     }
 }

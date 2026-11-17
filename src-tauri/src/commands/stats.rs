@@ -5412,7 +5412,8 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             message_type: log_entry.message_type.clone(),
             content: log_entry.message.map(|m| m.content).or(log_entry.content),
             tool_use: log_entry.tool_use,
-            tool_use_result: log_entry.tool_use_result,
+            // Stats retains legacy null-as-absent semantics; the load API preserves raw null.
+            tool_use_result: log_entry.tool_use_result.filter(|value| !value.is_null()),
             is_sidechain: log_entry.is_sidechain,
             usage,
             role,
@@ -5977,6 +5978,8 @@ mod tests {
     ) -> ClaudeMessage {
         ClaudeMessage {
             uuid: "test-uuid".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session-123".to_string(),
             timestamp: "2025-06-26T10:00:00Z".to_string(),
@@ -6337,6 +6340,8 @@ mod tests {
     fn test_extract_token_usage_from_usage_field() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),

@@ -1,4 +1,6 @@
 import type { ClaudeMessage } from "../../types";
+import { codexTurnId } from "../transcript/codexTurns";
+import { turnStartKinds, type TurnStartKind } from "../transcript/isTurnStart";
 import type { NavigatorEntryData } from "./types";
 import { getToolUseBlock } from "../../utils/messageUtils";
 import { isEmptyMessage } from "../MessageViewer/helpers/messageHelpers";
@@ -63,6 +65,8 @@ export interface ClassifiedRow {
   message: ClaudeMessage;
   info: MessageKindInfo;
   entry: NavigatorEntryData;
+  turnStartKind?: TurnStartKind;
+  producerTurnId?: string;
 }
 
 /**
@@ -75,9 +79,14 @@ export function getFilteredClassifiedMessages(messages: ClaudeMessage[]): Classi
   if (!messages || messages.length === 0) return [];
 
   const rows: ClassifiedRow[] = [];
+  const starts = turnStartKinds(messages, { inSubagent: true });
+  const pendingAutomated = new Set<string>();
   let turnIndex = 0;
 
   for (const message of messages) {
+    const producerTurnId = codexTurnId(message);
+    const cycleKey = producerTurnId ? JSON.stringify([message.sessionId, producerTurnId]) : undefined;
+    if (cycleKey && starts.get(message.uuid) === "automated") pendingAutomated.add(cycleKey);
     // Filter out noise types
     if (NOISE_TYPES.has(message.type)) continue;
 
@@ -107,7 +116,10 @@ export function getFilteredClassifiedMessages(messages: ClaudeMessage[]): Classi
       turnIndex,
     };
 
-    rows.push({ message, info, entry });
+    // A producer start may be an empty assistant row. Its view boundary belongs
+    // to the first surviving row of that same session/cycle, never another turn.
+    const turnStartKind = cycleKey && pendingAutomated.delete(cycleKey) ? "automated" : starts.get(message.uuid);
+    rows.push({ message, info, entry, turnStartKind, producerTurnId });
   }
 
   return rows;

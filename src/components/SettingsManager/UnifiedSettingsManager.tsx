@@ -28,6 +28,7 @@ import type {
 } from "@/types";
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
+import { SettingsScopeLine } from "./SettingsScopeLine";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
@@ -115,6 +116,13 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Project path state - allows changing project within the component
   const [projectPath, setProjectPath] = React.useState<string | undefined>(initialProjectPath);
+  const [loadedProjectPath, setLoadedProjectPath] = React.useState<string | undefined>();
+  const selectedProjectRef = React.useRef(projectPath);
+  React.useLayoutEffect(() => {
+    selectedProjectRef.current = projectPath;
+  }, [projectPath]);
+  const settingsRequestRef = React.useRef(0);
+  const settingsLoading = isLoading || loadedProjectPath !== projectPath;
 
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
@@ -124,6 +132,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Pending changes state (shared across components for dirty tracking)
   const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
+  const [editorDirty, setEditorDirty] = React.useState(false);
 
   // Sync with initial prop if it changes
   React.useEffect(() => {
@@ -142,20 +151,32 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Load settings
   const loadSettings = React.useCallback(async () => {
+    // A save started under a previous project can finish after selection moves.
+    // Its refresh must not cancel the current selection's request generation.
+    if (selectedProjectRef.current !== projectPath) return;
+    const request = ++settingsRequestRef.current;
+    const ownsSelection = () => request === settingsRequestRef.current && selectedProjectRef.current === projectPath;
     try {
       setIsLoading(true);
       setError(null);
       const settingsResult = await api<AllSettingsResponse>("get_all_settings", { projectPath });
-      setAllSettings(settingsResult);
+      if (ownsSelection()) {
+        setAllSettings(settingsResult);
+        setLoadedProjectPath(projectPath);
+      }
     } catch (err) {
-      setError(String(err));
+      if (ownsSelection()) {
+        setError(String(err));
+        setLoadedProjectPath(projectPath);
+      }
     } finally {
-      setIsLoading(false);
+      if (ownsSelection()) setIsLoading(false);
     }
   }, [projectPath]);
 
   React.useEffect(() => {
     loadSettings();
+    return () => { settingsRequestRef.current += 1; };
   }, [loadSettings]);
 
   // Parse current settings
@@ -201,10 +222,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     return JSON.stringify(pendingSettings) !== JSON.stringify(currentSettings);
   }, [pendingSettings, currentSettings]);
 
-  // Reset pending settings when scope changes
+  // A pending snapshot belongs to this scope AND project, even if it was clean.
   React.useEffect(() => {
     setPendingSettings(null);
-  }, [activeScope]);
+  }, [activeScope, projectPath]);
 
   // Listen for open-settings-section events to expand and scroll to target card
   React.useEffect(() => {
@@ -337,8 +358,17 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           </div>
         </div>
 
+        <SettingsScopeLine
+          allSettings={allSettings}
+          scope={activeScope}
+          dirty={hasUnsavedChanges || (activePanel === "editor" && editorDirty)}
+          readOnly={isReadOnly}
+          loading={settingsLoading}
+          error={!!error}
+        />
+
         {/* Content */}
-        {isLoading ? (
+        {settingsLoading ? (
           <LoadingState
             isLoading={isLoading}
             error={error}
@@ -388,7 +418,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <SettingsSidebar availableScopes={availableScopes} />
 
               {/* Main Content Area */}
-              {activePanel === "editor" ? <SettingsEditorPane /> : <SettingsDiagnosticsPanel />}
+              {activePanel === "editor" ? <SettingsEditorPane key={JSON.stringify([projectPath, activeScope])} onDirtyChange={setEditorDirty} /> : <SettingsDiagnosticsPanel />}
             </div>
           </div>
         )}

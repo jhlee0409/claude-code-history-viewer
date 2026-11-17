@@ -60,7 +60,6 @@
     "prism-react-renderer": "^2.4.1",
     "prismjs": "^1.30.0",
     "react": "^19.2.8",
-    "react-diff-viewer-continued": "^3.4.0",
     "react-dom": "^19.2.8",
     "react-i18next": "^15.7.4",
     "react-markdown": "^10.1.0",

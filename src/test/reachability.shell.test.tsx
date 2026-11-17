@@ -235,6 +235,8 @@ describe("§6 reachability through the real shell", () => {
       await renderShell();
       await activate(sidebar().querySelector(`[data-library-item="${item}"]`)!);
       await waitFor(() => expect(state().view).toBe(view));
+      // F2b: real toolbar + PageHeader must not announce two page headings.
+      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     });
 
     it("the help button opens the feedback form", async () => {

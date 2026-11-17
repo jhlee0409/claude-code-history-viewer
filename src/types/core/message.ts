@@ -123,7 +123,16 @@ export interface MessagePayload {
 // Raw Message (from JSONL files)
 // ============================================================================
 
+/** Pi/OMP local ! execution: source evidence, explicitly not a tool result. */
+export interface SourceExecution {
+  messageUuid: string;
+  sessionId: string;
+  association: "local_execution";
+  message: unknown;
+}
+
 export interface RawClaudeMessage {
+  sourceExecution?: SourceExecution;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
@@ -175,7 +184,20 @@ export interface CompactMetadata {
   warning?: string;
 }
 
+/** Additive producer evidence; transport carrier does not assert call ownership. */
+export interface CodexEvidence {
+  turn?: { started?: unknown; context?: unknown };
+  contentItems?: Array<{ type?: unknown }>;
+  contentItemKinds?: unknown;
+  fileChanges?: Array<{ sourceLine: number; record: unknown }>;
+}
+
 export interface BaseClaudeMessage {
+  codexEvidence?: CodexEvidence;
+  /** Frontend view projection only: the actual loaded progress/start row hidden
+   * by the system-message toggle, carried by the cycle's first retained row.
+   * Never serialized to the provider or inferred from copied turn evidence. */
+  codexLoadedStart?: ClaudeMessage;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
@@ -237,6 +259,7 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
 /** System information, warnings, errors, or internal events */
 export interface ClaudeSystemMessage extends BaseClaudeMessage {
   type: "system";
+  sourceExecution?: SourceExecution;
   subtype?: string;
   level?: "info" | "warning" | "error" | "suggestion";
 
