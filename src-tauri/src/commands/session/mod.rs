@@ -6,12 +6,14 @@
 //! - `edits`: File edit tracking and restore functions
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
+//! - `move_session`: Moving a Claude Code session to another project
 
 mod api_view;
 mod chain;
 mod delete;
 mod edits;
 mod load;
+mod move_session;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
 mod rename;
@@ -27,6 +29,7 @@ pub use chain::{resolve_session_chain, superseded_chain_paths};
 pub use delete::*;
 pub use edits::*;
 pub use load::*;
+pub use move_session::move_session_to_project;
 pub use rename::*;
 pub use resume::*;
 pub use search::*;
