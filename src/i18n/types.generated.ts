@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T14:47:51.739Z
- * 총 키 개수: 2391
+ * 생성 시간: 2026-11-17T14:59:05.496Z
+ * 총 키 개수: 2431
  * Namespace 수: 13
  */
 
@@ -1594,7 +1594,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (126개)
+ * message namespace의 번역 키 (166개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1634,6 +1634,46 @@ export type MessageKeys =
   | 'messageContentDisplay.showMore'
   | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
+  | 'messageViewer.apiView.answers'
+  | 'messageViewer.apiView.around'
+  | 'messageViewer.apiView.cacheBreakpoint'
+  | 'messageViewer.apiView.collapseAll'
+  | 'messageViewer.apiView.error'
+  | 'messageViewer.apiView.expandAll'
+  | 'messageViewer.apiView.filtersDisabled'
+  | 'messageViewer.apiView.foundIn'
+  | 'messageViewer.apiView.hide'
+  | 'messageViewer.apiView.inRequest'
+  | 'messageViewer.apiView.inferred'
+  | 'messageViewer.apiView.inferredPartial'
+  | 'messageViewer.apiView.inferredTag'
+  | 'messageViewer.apiView.inputs'
+  | 'messageViewer.apiView.kept'
+  | 'messageViewer.apiView.lineToggle'
+  | 'messageViewer.apiView.loading'
+  | 'messageViewer.apiView.messageCount'
+  | 'messageViewer.apiView.newMessages'
+  | 'messageViewer.apiView.noResponse'
+  | 'messageViewer.apiView.notInRequest'
+  | 'messageViewer.apiView.params'
+  | 'messageViewer.apiView.problems'
+  | 'messageViewer.apiView.request'
+  | 'messageViewer.apiView.response'
+  | 'messageViewer.apiView.responseOf'
+  | 'messageViewer.apiView.resultIn'
+  | 'messageViewer.apiView.sameAsMessage'
+  | 'messageViewer.apiView.shape'
+  | 'messageViewer.apiView.show'
+  | 'messageViewer.apiView.source.blob'
+  | 'messageViewer.apiView.source.lines'
+  | 'messageViewer.apiView.source.unresolved'
+  | 'messageViewer.apiView.summary'
+  | 'messageViewer.apiView.toggle'
+  | 'messageViewer.apiView.toolError'
+  | 'messageViewer.apiView.tools'
+  | 'messageViewer.apiView.unattributed'
+  | 'messageViewer.apiView.unchecked'
+  | 'messageViewer.apiView.usage'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'
@@ -3532,6 +3572,46 @@ export type TranslationKey =
   | 'messageContentDisplay.showMore'
   | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
+  | 'messageViewer.apiView.answers'
+  | 'messageViewer.apiView.around'
+  | 'messageViewer.apiView.cacheBreakpoint'
+  | 'messageViewer.apiView.collapseAll'
+  | 'messageViewer.apiView.error'
+  | 'messageViewer.apiView.expandAll'
+  | 'messageViewer.apiView.filtersDisabled'
+  | 'messageViewer.apiView.foundIn'
+  | 'messageViewer.apiView.hide'
+  | 'messageViewer.apiView.inRequest'
+  | 'messageViewer.apiView.inferred'
+  | 'messageViewer.apiView.inferredPartial'
+  | 'messageViewer.apiView.inferredTag'
+  | 'messageViewer.apiView.inputs'
+  | 'messageViewer.apiView.kept'
+  | 'messageViewer.apiView.lineToggle'
+  | 'messageViewer.apiView.loading'
+  | 'messageViewer.apiView.messageCount'
+  | 'messageViewer.apiView.newMessages'
+  | 'messageViewer.apiView.noResponse'
+  | 'messageViewer.apiView.notInRequest'
+  | 'messageViewer.apiView.params'
+  | 'messageViewer.apiView.problems'
+  | 'messageViewer.apiView.request'
+  | 'messageViewer.apiView.response'
+  | 'messageViewer.apiView.responseOf'
+  | 'messageViewer.apiView.resultIn'
+  | 'messageViewer.apiView.sameAsMessage'
+  | 'messageViewer.apiView.shape'
+  | 'messageViewer.apiView.show'
+  | 'messageViewer.apiView.source.blob'
+  | 'messageViewer.apiView.source.lines'
+  | 'messageViewer.apiView.source.unresolved'
+  | 'messageViewer.apiView.summary'
+  | 'messageViewer.apiView.toggle'
+  | 'messageViewer.apiView.toolError'
+  | 'messageViewer.apiView.tools'
+  | 'messageViewer.apiView.unattributed'
+  | 'messageViewer.apiView.unchecked'
+  | 'messageViewer.apiView.usage'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
   | 'messageViewer.claude'
