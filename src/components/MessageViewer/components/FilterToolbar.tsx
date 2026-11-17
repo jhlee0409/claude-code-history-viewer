@@ -1,4 +1,4 @@
-import { Funnel, RotateCcw, User, Bot, MessagesSquare, MessageSquareText, Brain, Wrench, SquareTerminal, Zap } from "lucide-react";
+import { Funnel, RotateCcw, User, Bot, MessagesSquare, MessageSquareText, Brain, Wrench, SquareTerminal, Zap, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChipToggle, ChipToggleGroup } from "@/components/ui/chipToggle";
@@ -11,21 +11,27 @@ interface FilterToggleProps {
   /** Tooltip text when the label alone does not explain the toggle. */
   description?: string;
   icon: React.ReactNode;
+  /** Set when the toggle has no effect; the reason becomes the tooltip. */
+  disabledReason?: string;
 }
 
-function FilterToggle({ active, onClick, label, description, icon }: FilterToggleProps) {
+function FilterToggle({ active, onClick, label, description, icon, disabledReason }: FilterToggleProps) {
+  const disabled = disabledReason != null;
   return (
     <ChipToggle
       pressed={active}
       onPressedChange={onClick}
+      // aria-disabled keeps the toggle focusable, so its tooltip still says why.
+      aria-disabled={disabled || undefined}
       className={cn(
         "flex items-center gap-1 px-1.5 py-0.5 rounded text-caption border transition-colors",
         active
           ? "bg-accent/15 text-accent border-accent/30"
-          : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
+          : "bg-transparent text-muted-foreground border-transparent",
+        !active && !disabled && "hover:text-foreground hover:bg-muted/50"
       )}
       aria-label={label}
-      title={description ?? label}
+      title={disabledReason ?? description ?? label}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
@@ -37,9 +43,11 @@ interface FilterToolbarProps {
   totalCount: number;
   filteredCount: number;
   hasParallelTasks: boolean;
+  /** The session can be shown as API requests (Claude Code only). */
+  apiViewAvailable?: boolean;
 }
 
-export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: FilterToolbarProps) {
+export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks, apiViewAvailable = false }: FilterToolbarProps) {
   const { t } = useTranslation();
   const {
     messageFilter,
@@ -48,9 +56,14 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
     togglePromptsAndFinalReplies,
     resetMessageFilter,
     isMessageFilterActive,
+    isApiViewOpen,
+    toggleApiView,
   } = useAppStore();
 
-  const isActive = isMessageFilterActive();
+  // The API request view ignores message filters, so they are shown inert.
+  const apiViewShown = apiViewAvailable && isApiViewOpen;
+  const filtersOff = apiViewShown ? t("messageViewer.apiView.filtersDisabled") : undefined;
+  const isActive = !apiViewShown && isMessageFilterActive();
 
   return (
     <ChipToggleGroup
@@ -61,7 +74,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
       )}
     >
       {/* Filter icon + count */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className={cn("flex items-center gap-1 shrink-0", apiViewShown && "opacity-40")} title={filtersOff}>
         <Funnel className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
         <span className={cn("text-caption tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
           {isActive
@@ -79,12 +92,14 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           onClick={() => toggleRole("user")}
           label={t("filter.role.user")}
           icon={<User className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         <FilterToggle
           active={messageFilter.roles.assistant}
           onClick={() => toggleRole("assistant")}
           label={t("filter.role.assistant")}
           icon={<Bot className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         {/* Narrows both roles: typed prompts plus each one's final reply */}
         <FilterToggle
@@ -93,6 +108,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           label={t("filter.promptsAndFinalReplies")}
           description={t("filter.promptsAndFinalRepliesHint")}
           icon={<MessagesSquare className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
       </div>
 
@@ -105,24 +121,28 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
           onClick={() => toggleContentType("text")}
           label={t("filter.content.text")}
           icon={<MessageSquareText className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         <FilterToggle
           active={messageFilter.contentTypes.thinking}
           onClick={() => toggleContentType("thinking")}
           label={t("filter.content.thinking")}
           icon={<Brain className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         <FilterToggle
           active={messageFilter.contentTypes.toolCalls}
           onClick={() => toggleContentType("toolCalls")}
           label={t("filter.content.toolCalls")}
           icon={<Wrench className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         <FilterToggle
           active={messageFilter.contentTypes.commands}
           onClick={() => toggleContentType("commands")}
           label={t("filter.content.commands")}
           icon={<SquareTerminal className="w-3.5 h-3.5" />}
+          disabledReason={filtersOff}
         />
         {hasParallelTasks && (
           <FilterToggle
@@ -130,9 +150,22 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
             onClick={() => toggleContentType("parallelTasks")}
             label={t("filter.content.parallelTasks")}
             icon={<Zap className="w-3.5 h-3.5" />}
+            disabledReason={filtersOff}
           />
         )}
       </div>
+
+      {apiViewAvailable && (
+        <>
+          <div className="h-3.5 w-px bg-border/40 shrink-0" />
+          <FilterToggle
+            active={isApiViewOpen}
+            onClick={toggleApiView}
+            label={t("messageViewer.apiView.toggle")}
+            icon={<Network className="w-3.5 h-3.5" />}
+          />
+        </>
+      )}
 
       {/* Reset button */}
       {isActive && (

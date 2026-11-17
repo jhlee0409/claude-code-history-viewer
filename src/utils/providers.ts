@@ -534,6 +534,12 @@ export function supportsSubagents(provider?: ProviderId | string): boolean {
   return isAllowedProvider(SUBAGENT_PROVIDER_IDS, provider);
 }
 
+// `load_session_api_view` reads Claude Code's `api-request` records and
+// `requestId` / `requestRef` lines; other providers' files have neither.
+export function supportsApiRequestView(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(["claude"], provider);
+}
+
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "claude": "bg-provider-claude-surface text-provider-claude",
   "codebuddy": "bg-provider-codebuddy-surface text-provider-codebuddy",
