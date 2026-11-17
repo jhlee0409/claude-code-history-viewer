@@ -104,7 +104,12 @@ async function searchScrolls(motion) {
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
     const requests = await session.page.evaluate(() => window.__scrollRequests);
-    return { runs, requests };
+    // CSS can animate an `auto` request too: record every scroller's computed
+    // scroll-behavior so a stylesheet glide is caught without frame timing.
+    const behaviors = await session.page.evaluate(() => [document.scrollingElement, ...document.querySelectorAll("*")]
+      .filter((el) => el && el.scrollHeight > el.clientHeight)
+      .map((el) => getComputedStyle(el).scrollBehavior));
+    return { runs, requests, behaviors };
   } finally {
     await session.close();
   }
@@ -134,14 +139,17 @@ describe.skipIf(!ENABLED)("reduced motion in the running app (real WebKit, --liv
   }, 180_000);
 
   it("search: under prefers-reduced-motion: reduce, every jump to a match is instant", async () => {
-    const { runs, requests } = await searchScrolls("reduce");
-    const detail = JSON.stringify({ requests, runs });
+    const { runs, requests, behaviors } = await searchScrolls("reduce");
+    const detail = JSON.stringify({ requests, behaviors, runs });
     // The app asks for scrolls (the jumps happen) but never a smooth one ...
     expect(requests.length, detail).toBeGreaterThan(0);
     expect(requests.filter((b) => b === "smooth"), detail).toEqual([]);
-    // ... and positions do not form a distributed monotone glide. Consecutive
-    // instant virtualizer corrections alone are not evidence of animation.
-    expect(runs.filter((m) => m.scrollGlide), detail).toEqual([]);
+    // ... and no scroller lets CSS turn an `auto` request into a glide. The
+    // cause is checked, not the position trace: on a slow runner a real smooth
+    // scroll lands in three frames (0 → 1363 → 1498 → 1500), the same shape as
+    // an instant jump followed by virtualizer measurement corrections.
+    expect(behaviors.length, detail).toBeGreaterThan(0);
+    expect(behaviors.filter((b) => b !== "auto"), detail).toEqual([]);
     for (const m of runs) expect(m.animationsAt).toEqual([0, 0, 0]);
   }, 180_000);
 

@@ -63,9 +63,6 @@ describe.skipIf(!req.enabled)("--live interaction mode (real WebKit)", () => {
     try {
       const motion = await measureMotion(session.page, () => smoothScroll(session.page));
       expect(motion.scrollFrames).toBeGreaterThan(1);
-      // Positive control for the same position verdict used by search: CSS
-      // smooth movement must fail the no-glide assertion even with auto calls.
-      expect(motion.scrollGlide, JSON.stringify(motion)).toBe(true);
       expect(motion.scrollTrace.some((point) => point.top > 0)).toBe(true);
     } finally {
       await session.close();
