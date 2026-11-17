@@ -184,17 +184,57 @@ it("preserves discrete FIFO and fractional projection across unrelated commits",
   expect(f.notifications).not.toHaveBeenCalled();
 });
 
-it("projects each pending clamp for edge chaining without merging opposite deltas", () => {
+it("retains pending edge ownership and chains only after release without merging opposite deltas", () => {
   const f = fixture(true);
   Object.defineProperty(f.scroller, "scrollHeight", { value: 672.25 });
   expect(f.dispatch({ deltaY: 20 }).defaultPrevented).toBe(true);
-  expect(f.dispatch({ deltaY: 1 }).defaultPrevented).toBe(false);
+  // A projected edge is not a released edge: native default could cancel FIFO.
+  expect(f.dispatch({ deltaY: 1 }).defaultPrevented).toBe(true);
   expect(f.dispatch({ deltaY: -0.25 }).defaultPrevented).toBe(true);
   expect(f.dispatch({ deltaY: 0.25 }).defaultPrevented).toBe(true);
-  expect(f.dispatch({ deltaY: 0.1 }).defaultPrevented).toBe(false);
+  expect(f.dispatch({ deltaY: 0.1 }).defaultPrevented).toBe(true);
+  expect(f.scroller.scrollTop).toBe(0);
+  expect(f.releases).toEqual([]);
   f.frame();
   expect(f.releases.map(release => release.offset)).toEqual([1.25, 1, 1.25]);
   expect(f.releases.every(release => release.coverageBeforeRelease)).toBe(true);
+  // Preserve native chaining after release, including a rounded physical edge.
+  expect(f.dispatch({ deltaY: 1 }).defaultPrevented).toBe(false);
+  expect(f.dispatch({ deltaY: 0.1 }).defaultPrevented).toBe(false);
+  expect(f.releases).toHaveLength(3);
+});
+
+it.each([
+  { start: 0, delta: 1000, follow: 100, expected: 1000, offsets: [1000] },
+  { start: 1000, delta: -1000, follow: -100, expected: 0, offsets: [0] },
+  { start: 0, delta: 1000, follow: -100, expected: 900, offsets: [1000, 900] },
+  { start: 1000, delta: -1000, follow: 100, expected: 100, offsets: [0, 100] },
+])("keeps queued edge input ahead of native default: %j", ({ start, delta, follow, expected, offsets }) => {
+  const f = fixture();
+  Object.defineProperty(f.scroller, "scrollHeight", { value: 1671 });
+  act(() => { f.scroller.scrollTop = start; f.scroller.dispatchEvent(new Event("scroll")); });
+  f.releases.length = 0;
+  f.released.mockClear();
+  expect(f.dispatch({ deltaY: delta }).defaultPrevented).toBe(true);
+  const second = f.dispatch({ deltaY: follow });
+  // JSDOM lacks native wheel default. Model the competing scroll before rAF,
+  // so losing ownership reproduces the original 100px / empty-release witness.
+  if (!second.defaultPrevented) act(() => {
+    f.scroller.scrollTop = Math.max(0, Math.min(1000, f.scroller.scrollTop + follow));
+    f.scroller.dispatchEvent(new Event("scroll"));
+  });
+  f.frame();
+  expect(f.scroller.scrollTop).toBe(expected);
+  expect(second.defaultPrevented).toBe(true);
+  expect(f.releases.map(release => release.offset)).toEqual(offsets);
+  expect(f.releases.every(release => release.coverageBeforeRelease)).toBe(true);
+  expect(f.released).toHaveBeenCalledTimes(1);
+  expect(f.notifications).not.toHaveBeenCalled();
+  if (expected === 0 || expected === 1000) {
+    expect(f.dispatch({ deltaY: follow }).defaultPrevented).toBe(false);
+    f.frame();
+    expect(f.releases.map(release => release.offset)).toEqual(offsets);
+  }
 });
 
 it("preserves queued wheel input through core's ordinary resize anchor correction", () => {

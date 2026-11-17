@@ -354,8 +354,13 @@ export function useTranscriptWheelBoundary(instance: TranscriptVirtualizer,
         const max = Math.max(0, scroller.scrollHeight - height);
         const clamp = (value: number) => Math.max(0, Math.min(max, value));
         const projected = pending.current.reduce((offset, input) => clamp(offset + input), base);
-        if ((delta > 0 && projected >= max) || (delta < 0 && projected <= 0)) return;
-        if (clamp(projected + delta) === projected) return;
+        if (clamp(projected + delta) === projected) {
+          // A projected edge is not yet released. Native default could move
+          // the viewport first and invalidate the queued transaction. Swallow
+          // the no-op until release; only then allow ancestor edge chaining.
+          if (active.current || pending.current.length > 0) event.preventDefault();
+          return;
+        }
         event.preventDefault();
         pending.current.push(delta);
         schedule();
