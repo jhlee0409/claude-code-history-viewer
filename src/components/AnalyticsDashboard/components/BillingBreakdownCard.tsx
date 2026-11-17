@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
 import { SectionCard } from "./SectionCard";
@@ -6,6 +6,7 @@ import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
 import type { SessionTokenStats } from "@/types";
 import { tokenRecordingNote } from "@/lib/format/missingValue";
+import { calculateGlobalCostSummary } from "../utils";
 
 interface BillingBreakdownCardProps {
   billingTokens: number;
@@ -49,6 +50,20 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   const hasConversationCostData = conversationCost != null;
   const conversationCostValue = conversationCost ?? 0;
   const nonConversationCostValue = Math.max(0, safeBillingCost - conversationCostValue);
+  // Subagent runs a provider stores as separate sessions (OpenCode, Kilo) are
+  // part of the session's billing total, i.e. of "Non-conversation" (#577).
+  const subagentStats = billingStats?.subagent_stats;
+  const subagentCostSummary = useMemo(
+    () =>
+      subagentStats
+        ? calculateGlobalCostSummary(subagentStats.model_distribution ?? [], subagentStats.total_tokens)
+        : null,
+    [subagentStats]
+  );
+  const subagentAmount =
+    subagentCostSummary && subagentCostSummary.pricedModels > 0
+      ? fmt.cost(subagentCostSummary.totalEstimatedCost)
+      : fmt.tokens(subagentStats?.total_tokens ?? 0);
 
   return (
     <SectionCard
@@ -145,6 +160,14 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
             </p>
           </div>
         </div>
+        {subagentStats && subagentStats.session_count > 0 && (
+          <p className="text-caption text-muted-foreground">
+            <Num>{t("analytics.subagentShare", {
+              amount: subagentAmount,
+              count: subagentStats.session_count,
+            })}</Num>
+          </p>
+        )}
       </div>
     </SectionCard>
   );

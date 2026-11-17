@@ -484,6 +484,7 @@ mod stats_snapshots {
             summary: None,
             most_used_tools: Vec::new(),
             model_distribution: Vec::new(),
+            subagent_stats: None,
         };
 
         assert_json_snapshot!("session_token_stats", stats);

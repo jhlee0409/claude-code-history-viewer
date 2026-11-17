@@ -229,6 +229,26 @@ pub fn load_child_sessions_at(
     opencode::load_child_sessions_from_db(base_path, DB_FILE, project_id, session_id)
 }
 
+/// Messages of a Kilo session's descendant sessions (subagent runs), marked
+/// as sidechain like the `OpenCode` reader's (#577).
+pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    load_subagent_messages_at(&base_path, session_path)
+}
+
+/// [`load_subagent_messages`] against an explicit store root.
+pub fn load_subagent_messages_at(base_path: &str, session_path: &str) -> Vec<ClaudeMessage> {
+    opencode::load_subagent_messages_at(base_path, DB_FILE, &to_store_scheme(session_path))
+        .into_iter()
+        .map(|mut message| {
+            message.provider = Some(PROVIDER_ID.to_string());
+            message
+        })
+        .collect()
+}
+
 /// Fixture helpers for a minimal `kilo.db`, shared with stats tests that need
 /// a Kilo store behind `KILO_HOME`.
 #[cfg(test)]
