@@ -14,6 +14,15 @@ import { classifyMessage, isCodexHeartbeat } from "./messageKinds";
 import { codexAutomatedTurns } from "../../transcript/codexTurns";
 import { turnStartKinds } from "../../transcript/isTurnStart";
 
+/** True when any text block (or string content) holds non-whitespace text. */
+function hasReplyText(msg: ClaudeMessage): boolean {
+  if (typeof msg.content === "string") return msg.content.trim() !== "";
+  if (!Array.isArray(msg.content)) return false;
+  return msg.content.some(
+    (block) => block.type === "text" && typeof block.text === "string" && block.text.trim() !== "",
+  );
+}
+
 /**
  * The prompts the user typed (human turn starts) plus, for each, the last
  * assistant message with text before the next typed prompt. Automated turns
@@ -36,7 +45,7 @@ function promptAndFinalReplyUuids(
       if (lastReply) keep.add(lastReply);
       lastReply = null;
       keep.add(msg.uuid);
-    } else if (msg.type === "assistant" && extractClaudeMessageContent(msg)?.trim()) {
+    } else if (msg.type === "assistant" && hasReplyText(msg)) {
       lastReply = msg.uuid;
     }
   }

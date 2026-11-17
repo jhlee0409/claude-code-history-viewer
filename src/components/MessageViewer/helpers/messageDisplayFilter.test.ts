@@ -41,6 +41,15 @@ describe("applyMessageDisplayFilter: prompts and final replies", () => {
     expect(uuids(applyMessageDisplayFilter(messages, outline()))).toEqual(["p1", "p2", "final2"]);
   });
 
+  it("counts a reply whose text sits in a later block", () => {
+    const late = assistant("final1", [
+      { type: "text", text: "  " },
+      { type: "text", text: "Done." },
+    ] as ContentItem[]);
+    const messages = [user("p1"), text("progress"), late];
+    expect(uuids(applyMessageDisplayFilter(messages, outline()))).toEqual(["p1", "final1"]);
+  });
+
   it("does not end a turn at an agent update and hides the update itself", () => {
     const messages = [user("p1"), text("early"), notification("update"), text("after-update"), user("p2")];
     expect(uuids(applyMessageDisplayFilter(messages, outline()))).toEqual(["p1", "after-update", "p2"]);
