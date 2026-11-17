@@ -481,14 +481,12 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
 
 /// Whether a project path is read as Claude history (the fallback for any
 /// path no other provider claims).
-#[cfg(feature = "webui-server")]
 pub(crate) fn is_claude_project_path(project_path: &str) -> bool {
     detect_project_provider(project_path) == StatsProvider::Claude
 }
 
 /// Whether a session path is read as Claude history (the fallback for any
 /// path no other provider claims).
-#[cfg(feature = "webui-server")]
 pub(crate) fn is_claude_session_path(session_path: &str) -> bool {
     detect_session_provider(session_path) == StatsProvider::Claude
 }
@@ -501,7 +499,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("amazonq://") {
         return StatsProvider::AmazonQ;
     }
-    if session_path.starts_with("cline://") {
+    // A Cline session is opened by the file it lists as well as by its id
+    // (#707).
+    if session_path.starts_with("cline://") || providers::cline::is_session_file(session_path) {
         return StatsProvider::Cline;
     }
     if session_path.starts_with("continue://") {
@@ -1209,9 +1209,11 @@ fn process_session_file_for_global_stats(
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionFileStats> {
-    if let Some(aggregate) = cache::global_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_global_file_aggregate(session_path, root, mode)
-    }) {
+    if let Some(aggregate) =
+        cache::global_stats_cache().get_or_build(session_path, root, mode, |file| {
+            cache::build_global_file_aggregate(file, mode)
+        })
+    {
         if let cache::Composed::Ready(stats) = cache::compose_global(
             &aggregate,
             claude_project_name(project_path),
@@ -2001,9 +2003,11 @@ fn process_session_file_for_project_stats(
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<ProjectSessionFileStats> {
-    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, root, mode)
-    }) {
+    if let Some(aggregate) =
+        cache::message_stats_cache().get_or_build(session_path, root, mode, |file| {
+            cache::build_message_file_aggregate(file, mode)
+        })
+    {
         if let cache::Composed::Ready(stats) = cache::compose_project(&aggregate, s_limit, e_limit)
         {
             return stats;
@@ -3440,9 +3444,10 @@ fn resolve_provider_project_name_from_session(
             }
             "Cursor".to_string()
         }
+        StatsProvider::Cline => providers::cline::project_name_for_session(session_path)
+            .unwrap_or_else(|| fallback_provider_name(provider, session_path)),
         StatsProvider::Aider
         | StatsProvider::AmazonQ
-        | StatsProvider::Cline
         | StatsProvider::Continue
         | StatsProvider::OpenHands
         | StatsProvider::OpenInterpreter
@@ -4664,9 +4669,11 @@ fn extract_session_token_accum_sync(
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenAccum> {
-    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, root, mode)
-    }) {
+    if let Some(aggregate) =
+        cache::message_stats_cache().get_or_build(session_path, root, mode, |file| {
+            cache::build_message_file_aggregate(file, mode)
+        })
+    {
         if let cache::Composed::Ready(accum) =
             cache::compose_session_token_accum(&aggregate, s_limit, e_limit)
         {
@@ -5285,9 +5292,11 @@ fn process_session_file_for_comparison(
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionComparisonStats> {
-    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
-        cache::build_message_file_aggregate(session_path, root, mode)
-    }) {
+    if let Some(aggregate) =
+        cache::message_stats_cache().get_or_build(session_path, root, mode, |file| {
+            cache::build_message_file_aggregate(file, mode)
+        })
+    {
         if let cache::Composed::Ready(stats) =
             cache::compose_comparison(&aggregate, s_limit, e_limit)
         {

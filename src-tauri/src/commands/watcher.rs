@@ -1,3 +1,4 @@
+use crate::commands::stats::session_files;
 use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
@@ -558,16 +559,14 @@ fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
         return None;
     }
 
+    // Read inside the sessions root, never through a link or a FIFO named
+    // `meta.json` (`session_files::open_session_file`).
     let metadata_path = session_dir.join("meta.json");
-    if std::fs::symlink_metadata(&metadata_path)
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return None;
-    }
-    let cwd = std::fs::read_to_string(&metadata_path)
+    let (mut file, _) = session_files::open_session_file(&metadata_path, &canonical_root).ok()?;
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut file, &mut content).ok()?;
+    let cwd = serde_json::from_str::<serde_json::Value>(&content)
         .ok()
-        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|metadata| {
             metadata
                 .get("environment")

@@ -419,14 +419,18 @@ fn claude_write_line(cwd: &Path, file: &Path, uuid: &str, ts: &str, content: &st
 }
 
 /// A Claude project directory whose one session is built by `lines` from the
-/// repo root and the edited file, and the file itself.
+/// repo root and the edited file, and the file itself. The home is a sandbox:
+/// recent edits ask which provider a project belongs to, which reads the
+/// provider roots under it.
 struct ClaudeProject {
+    _home: SandboxHome,
     _tmp: tempfile::TempDir,
     project_path: String,
     target: PathBuf,
 }
 
 fn claude_project(lines: impl Fn(&Path, &Path) -> Vec<String>) -> ClaudeProject {
+    let home = SandboxHome::new();
     let tmp = tempfile::TempDir::new().unwrap();
     let project_dir = tmp.path().join("claude-proj");
     let cwd = tmp.path().join("repo");
@@ -439,6 +443,7 @@ fn claude_project(lines: impl Fn(&Path, &Path) -> Vec<String>) -> ClaudeProject 
         .collect();
     fs::write(project_dir.join("s.jsonl"), body).unwrap();
     ClaudeProject {
+        _home: home,
         project_path: project_dir.to_string_lossy().to_string(),
         _tmp: tmp,
         target,

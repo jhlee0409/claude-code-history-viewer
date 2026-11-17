@@ -156,7 +156,8 @@ fn outside(root: &Path) -> io::Error {
 ///   the opened handle's own path where the system reports it (`F_GETPATH`
 ///   on macOS, `/proc/self/fd` on Linux), so a folder on the way swapped for
 ///   a link out of the root is refused too;
-/// - the handle is the file that was checked (same device and inode).
+/// - the handle is the file that was checked (same device and inode on
+///   Unix, same volume and file index on Windows).
 ///
 /// The root itself may be reached through a symlink (a symlinked
 /// `~/.claude`, #355); callers pass its canonical path. A hardlink is a
@@ -164,12 +165,12 @@ fn outside(root: &Path) -> io::Error {
 /// for a file with more than one link the handle's path is any of its names,
 /// so the canonical path and the identity decide.
 ///
-/// Windows has no `O_NOFOLLOW`, and std reports neither a file id nor a
-/// handle's path there. The file is opened with
-/// `FILE_FLAG_OPEN_REPARSE_POINT`, so a symlink or junction swapped in is
-/// opened as the link itself and refused by the opened handle's metadata; a
-/// folder on the way swapped for a junction between the containment check
-/// and the open is not detected.
+/// Windows has no `O_NOFOLLOW`, and std reports no handle's path there. The
+/// file is opened with `FILE_FLAG_OPEN_REPARSE_POINT`, so a symlink or
+/// junction swapped in for it is opened as the link itself and refused by
+/// the opened handle's metadata; a file reached through a folder swapped for
+/// a junction after the containment check is another file, refused by its
+/// identity (`GetFileInformationByHandle`, #712).
 pub(crate) fn open_session_file(path: &Path, root: &Path) -> Result<(File, Metadata), String> {
     open_inside(path, root).map_err(|error| format!("{}: {error}", path.display()))
 }
@@ -201,6 +202,7 @@ fn open_inside(path: &Path, root: &Path) -> io::Result<(File, Metadata)> {
     if !checked.is_file() {
         return Err(refused(NOT_REGULAR));
     }
+    let checked_id = checked_id(path, &checked)?;
     #[cfg(all(test, unix))]
     swap_after_check::checked(path);
     let canonical = fs::canonicalize(path)?;
@@ -216,7 +218,7 @@ fn open_inside(path: &Path, root: &Path) -> io::Result<(File, Metadata)> {
     if !opened.is_file() {
         return Err(refused(NOT_REGULAR));
     }
-    if !same_file(&checked, &opened) {
+    if checked_id != file_id(&file, &opened)? {
         return Err(refused(CHANGED));
     }
     blocking_reads(&file)?;
@@ -244,9 +246,11 @@ fn open_without_following(path: &Path) -> io::Result<File> {
 /// `FILE_FLAG_OPEN_REPARSE_POINT`: a symlink or junction is opened itself,
 /// not what it points to.
 #[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+
+#[cfg(windows)]
 fn open_without_following(path: &Path) -> io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
-    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     fs::OpenOptions::new()
         .read(true)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
@@ -274,17 +278,85 @@ fn blocking_reads(_file: &File) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn same_file(checked: &Metadata, opened: &Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    (checked.dev(), checked.ino()) == (opened.dev(), opened.ino())
+/// A file's identity: its device and its index on that device (inode on
+/// Unix, volume serial number and file index on Windows). What an opened
+/// handle is compared on against the file that was checked, and what the
+/// stats cache keys its entries by (`stats/cache.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct FileId {
+    device: u64,
+    index: u64,
 }
 
-/// std has no stable file id off Unix; the symlink and containment checks
-/// above still apply.
-#[cfg(not(unix))]
-fn same_file(_checked: &Metadata, _opened: &Metadata) -> bool {
-    true
+/// The identity of the regular file `checked` describes, which is at `path`.
+#[cfg(unix)]
+#[allow(clippy::unnecessary_wraps)] // Result matches the Windows version, which opens.
+fn checked_id(_path: &Path, checked: &Metadata) -> io::Result<Option<FileId>> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(Some(FileId {
+        device: checked.dev(),
+        index: checked.ino(),
+    }))
+}
+
+/// std reports no file id from a path's metadata on Windows: what is at
+/// `path` is opened itself (a link as the link, `FILE_FLAG_OPEN_REPARSE_POINT`),
+/// with no access to its content, and the id read from that handle. A link
+/// swapped in after the check then has an id of its own.
+#[cfg(windows)]
+fn checked_id(path: &Path, _checked: &Metadata) -> io::Result<Option<FileId>> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let handle = fs::OpenOptions::new()
+        .access_mode(0)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    file_id(&handle, &handle.metadata()?)
+}
+
+#[cfg(not(any(unix, windows)))]
+#[allow(clippy::unnecessary_wraps)]
+fn checked_id(_path: &Path, _checked: &Metadata) -> io::Result<Option<FileId>> {
+    Ok(None)
+}
+
+/// The identity of an opened file, `opened` being its metadata.
+#[cfg(unix)]
+#[allow(clippy::unnecessary_wraps)] // Result matches the Windows version, which can fail.
+pub(crate) fn file_id(_file: &File, opened: &Metadata) -> io::Result<Option<FileId>> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(Some(FileId {
+        device: opened.dev(),
+        index: opened.ino(),
+    }))
+}
+
+/// std has no stable file id on Windows (`windows_by_handle`); the handle
+/// is asked for it (`GetFileInformationByHandle`).
+#[cfg(windows)]
+#[allow(unsafe_code)] // One FFI call on a handle the caller owns.
+pub(crate) fn file_id(file: &File, _opened: &Metadata) -> io::Result<Option<FileId>> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    };
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `file` keeps its handle open for the duration of the call, and
+    // `info` is a writable struct of the type the call fills.
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut info) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(Some(FileId {
+        device: u64::from(info.dwVolumeSerialNumber),
+        index: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+    }))
+}
+
+/// No file id off Unix and Windows; the symlink and containment checks
+/// still apply.
+#[cfg(not(any(unix, windows)))]
+#[allow(clippy::unnecessary_wraps)]
+pub(crate) fn file_id(_file: &File, _opened: &Metadata) -> io::Result<Option<FileId>> {
+    Ok(None)
 }
 
 /// Whether the opened file lies inside `root`, judged by the path the system
@@ -433,8 +505,10 @@ mod raw_open_guard {
 
     /// The history readers: the stats commands and the usage breakdown, the
     /// session and subagent loaders and their chains, search, recent edits,
-    /// archives and the project list. Settings metadata reuses the same safe
-    /// regular-file opener and is held to the raw-open guard as well.
+    /// archives and the project list, the provider loaders' entry points,
+    /// the session rename, the CLI export and the file watcher. Settings
+    /// metadata reuses the same safe regular-file opener and is held to the
+    /// raw-open guard as well.
     const READERS: &[&str] = &[
         "src/commands/claude_settings/metadata.rs",
         "src/commands/stats.rs",
@@ -449,14 +523,22 @@ mod raw_open_guard {
         "src/commands/session/chain.rs",
         "src/commands/session/edits.rs",
         "src/commands/session/load.rs",
+        "src/commands/session/rename.rs",
         "src/commands/session/search.rs",
         "src/commands/archive.rs",
+        "src/commands/multi_provider.rs",
         "src/commands/project.rs",
+        "src/commands/watcher.rs",
+        "src/export.rs",
     ];
 
-    /// Opens by path that follow a symlink and block on a FIFO.
+    /// Opens by path that follow a symlink and block on a FIFO. An
+    /// `OpenOptions` open is reported where its builder starts, which is
+    /// also the line a marker goes above.
     const RAW_OPENS: &[&str] = &[
         "File::open(",
+        "File::options(",
+        "OpenOptions::new(",
         "fs::read(",
         "fs::read_to_string(",
         "fs::copy(",
@@ -473,7 +555,8 @@ mod raw_open_guard {
     }
 
     /// `line: code` for every raw open in the production code of `source`
-    /// that is not marked. Test code is skipped: a top-level item under a
+    /// that is not marked, and every import that would hide one
+    /// ([`hides_an_open`]). Test code is skipped: a top-level item under a
     /// test attribute, up to the `;` or the `}` that ends it, found by
     /// counting its brackets ([`Brackets`]). Test code that never ends is
     /// reported as well: it would hide the rest of the file.
@@ -482,6 +565,7 @@ mod raw_open_guard {
         let mut brackets = Brackets::default();
         let mut test_item: Option<usize> = None;
         let mut marked_lines: usize = 0;
+        let mut declaration: Option<(usize, String)> = None;
         for (index, line) in source.lines().enumerate() {
             if test_item.is_none() && brackets.within == Within::Code && is_test_attribute(line) {
                 test_item = Some(index + 1);
@@ -502,6 +586,25 @@ mod raw_open_guard {
             if code.starts_with("//") {
                 continue;
             }
+            if declaration.is_none() && is_use_declaration(code) {
+                declaration = Some((index + 1, String::new()));
+            }
+            if let Some((start, text)) = declaration.as_mut() {
+                let code = code.split("//").next().unwrap_or_default().trim();
+                text.push_str(code);
+                if code.contains(';') {
+                    if imports(text)
+                        .iter()
+                        .any(|(path, alias)| hides_an_open(path, alias.as_deref()))
+                    {
+                        found.push(format!("{start}: {text}"));
+                    }
+                    declaration = None;
+                } else {
+                    text.push(' ');
+                }
+                continue;
+            }
             if RAW_OPENS.iter().any(|open| code.contains(open)) {
                 if marked_lines == 0 {
                     found.push(format!("{}: {code}", index + 1));
@@ -514,6 +617,110 @@ mod raw_open_guard {
             found.push(format!("{start}: test code that never ends"));
         }
         found
+    }
+
+    /// A `use` declaration, of any visibility.
+    fn is_use_declaration(code: &str) -> bool {
+        let rest = code.strip_prefix("pub").map_or(code, |rest| {
+            let rest = rest.trim_start();
+            match rest.strip_prefix('(') {
+                Some(scoped) => scoped.split_once(')').map_or("", |(_, rest)| rest),
+                None => rest,
+            }
+        });
+        rest.trim_start().starts_with("use ")
+    }
+
+    /// Imports that hide an open from [`RAW_OPENS`]: a `std::fs` open
+    /// imported by name (a bare `read_to_string(path)` is no
+    /// `fs::read_to_string(`), a glob of `std::fs`, and `std::fs`, its
+    /// `File` or its `OpenOptions` renamed (`use std::fs::File as F` opens
+    /// with `F::open(`).
+    fn hides_an_open(path: &str, alias: Option<&str>) -> bool {
+        matches!(
+            path,
+            "std::fs::read" | "std::fs::read_to_string" | "std::fs::copy" | "std::fs::*"
+        ) || (alias.is_some()
+            && matches!(path, "std::fs" | "std::fs::File" | "std::fs::OpenOptions"))
+    }
+
+    /// Every path a `use` declaration imports, with the name it is renamed
+    /// to: `use std::{fs::{self as f, File}, io};` imports `std::fs` as
+    /// `f`, `std::fs::File` and `std::io`.
+    fn imports(declaration: &str) -> Vec<(String, Option<String>)> {
+        let tree = declaration.split_once("use ").map_or("", |(_, tree)| tree);
+        let mut tokens: Vec<String> = Vec::new();
+        let mut chars = tree.chars().peekable();
+        while let Some(c) = chars.next() {
+            if is_word(c) {
+                let mut word = c.to_string();
+                while let Some(next) = chars.next_if(|&next| is_word(next)) {
+                    word.push(next);
+                }
+                tokens.push(word);
+            } else if c == ':' && chars.next_if_eq(&':').is_some() {
+                tokens.push("::".to_string());
+            } else if !c.is_whitespace() {
+                tokens.push(c.to_string());
+            }
+        }
+        let mut found = Vec::new();
+        use_tree(&tokens, &mut 0, "", &mut found);
+        found
+    }
+
+    /// Read one use tree from `tokens` at `at`, below `prefix`.
+    fn use_tree(
+        tokens: &[String],
+        at: &mut usize,
+        prefix: &str,
+        found: &mut Vec<(String, Option<String>)>,
+    ) {
+        let token = |at: usize| tokens.get(at).map_or("", String::as_str);
+        let mut path = prefix.to_string();
+        loop {
+            match token(*at) {
+                // `self` names the path it is in.
+                "::" | "self" => {}
+                "{" => {
+                    *at += 1;
+                    while !matches!(token(*at), "}" | "") {
+                        let before = *at;
+                        use_tree(tokens, at, &path, found);
+                        if token(*at) == "," {
+                            *at += 1;
+                        }
+                        if *at == before {
+                            break;
+                        }
+                    }
+                    *at += 1;
+                    return;
+                }
+                "*" => {
+                    *at += 1;
+                    found.push((format!("{path}::*"), None));
+                    return;
+                }
+                word if word.chars().next().is_some_and(is_word) && word != "as" => {
+                    path = if path.is_empty() {
+                        word.to_string()
+                    } else {
+                        format!("{path}::{word}")
+                    };
+                }
+                _ => break,
+            }
+            *at += 1;
+            if token(*at - 1) != "::" && token(*at) != "::" {
+                break;
+            }
+        }
+        let alias = (token(*at) == "as").then(|| {
+            *at += 2;
+            token(*at - 1).to_string()
+        });
+        found.push((path, alias));
     }
 
     /// Where a line of source leaves off: in code, or in a string literal or
@@ -785,6 +992,63 @@ fn after_comment(path: &Path) -> Vec<u8> {
         assert_eq!(
             raw_opens("#[cfg(test)]\nmod tests {\n    fn f() {}\n"),
             ["1: test code that never ends"]
+        );
+    }
+
+    /// Opens under other names are reported as well (#712): an
+    /// `OpenOptions` builder (from where it starts) and `File::options`,
+    /// and the imports that would hide an open from the patterns: a renamed
+    /// `std::fs`, `File` or `OpenOptions`, an open function imported by
+    /// name, and a glob of `std::fs`. A rename of something else named `fs`
+    /// is not one, and a marker covers a builder as it covers an open.
+    #[test]
+    fn the_guard_reports_opens_under_other_names() {
+        let planted = "\
+use std::fs::{self, File};
+use std::os::unix::fs as unix_fs;
+use std::fs::File as F;
+use std::{
+    fs::{self as filesystem, OpenOptions},
+    io,
+};
+use std::fs::read_to_string;
+pub(crate) use std::fs::*;
+
+fn options(path: &Path) -> File {
+    fs::OpenOptions::new()
+        .read(true)
+        .open(path)
+        .unwrap()
+}
+
+fn file_options(path: &Path) -> File {
+    File::options().read(true).open(path).unwrap()
+}
+
+fn write_log(path: &Path) -> File {
+    // Not a history file: the app's own log.
+    OpenOptions::new().append(true).open(path).unwrap()
+}
+
+fn aliased(path: &Path) -> String {
+    use std::fs::read as slurp;
+    String::from_utf8(slurp(path).unwrap()).unwrap()
+}
+
+#[cfg(test)]
+use std::fs::read;
+";
+        assert_eq!(
+            raw_opens(planted),
+            [
+                "3: use std::fs::File as F;",
+                "4: use std::{ fs::{self as filesystem, OpenOptions}, io, };",
+                "8: use std::fs::read_to_string;",
+                "9: pub(crate) use std::fs::*;",
+                "12: fs::OpenOptions::new()",
+                "19: File::options().read(true).open(path).unwrap()",
+                "28: use std::fs::read as slurp;",
+            ]
         );
     }
 }

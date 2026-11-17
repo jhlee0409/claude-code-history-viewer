@@ -83,6 +83,10 @@ rustix = { version = "1.1", features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+# A history file's identity is read from its handle
+# (`GetFileInformationByHandle`; commands/stats/session_files.rs), which std
+# does not expose on stable. Already in the tree; no new crate.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 # Core testing utilities

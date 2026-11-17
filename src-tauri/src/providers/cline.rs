@@ -9,7 +9,7 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// Known Cline-family extension IDs and their display names
 const EXTENSIONS: &[(&str, &str)] = &[
@@ -202,19 +202,121 @@ pub(crate) fn load_sessions_reporting(
     Ok(sessions)
 }
 
-/// Load messages from a Cline task
+/// Load messages from a Cline session, named by its `cline://` id or by the
+/// file it lists as its `file_path` (#707).
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
+    match resolve_session(session_path)? {
+        SessionRef::Sdk { root, id } => cline_sdk::load_messages_in(&root, &id),
+        SessionRef::Task { base, id } => load_task_messages(&base, &id),
+    }
+}
+
+/// Whether `path` is the file a Cline session lists, in a store discovery
+/// finds.
+pub fn is_session_file(path: &str) -> bool {
+    !path.starts_with("cline://") && resolve_listed_file(Path::new(path)).is_ok()
+}
+
+/// The project name of a Cline session (the last component of its working
+/// directory), named as [`load_messages`] takes it.
+pub fn project_name_for_session(session_path: &str) -> Option<String> {
+    match resolve_session(session_path).ok()? {
+        SessionRef::Sdk { root, id } => cline_sdk::project_name_of(&root, &id),
+        SessionRef::Task { base, id } => load_task_history(&base, &ScanReport::default())
+            .iter()
+            .find(|item| item.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            .and_then(task_cwd)
+            .and_then(|cwd| {
+                PathBuf::from(cwd)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+            }),
+    }
+}
+
+/// A Cline session resolved to its store.
+enum SessionRef {
+    /// A task of an extension directory discovery found.
+    Task { base: PathBuf, id: String },
+    /// A session of the SDK session store.
+    Sdk { root: PathBuf, id: String },
+}
+
+/// Resolve a session's `cline://` id, or the file a session lists, to its
+/// store.
+fn resolve_session(session_path: &str) -> Result<SessionRef, String> {
     if let Some(id) = session_path.strip_prefix(cline_sdk::PREFIX) {
         let root =
             cline_sdk::sessions_dir().ok_or_else(|| "Cline session store not found".to_string())?;
-        return cline_sdk::load_messages_in(&root, id);
+        return Ok(SessionRef::Sdk {
+            root,
+            id: id.to_string(),
+        });
     }
-    let (base_path, task_id) = parse_session_path(session_path)?;
-    require_discovered_base(&base_path)?;
+    if session_path.starts_with("cline://") {
+        let (base, id) = parse_session_path(session_path)?;
+        require_discovered_base(&base)?;
+        return Ok(SessionRef::Task { base, id });
+    }
+    resolve_listed_file(Path::new(session_path))
+}
 
+/// Resolve the file a session lists back to its store: `tasks/<id>/ui_messages.json`
+/// of an extension directory, or `<id>/<id>.messages.json` of the SDK session
+/// store. The store must be one discovery finds (the same containment as a
+/// `cline://` id), so a file shaped like either anywhere else is refused.
+fn resolve_listed_file(file: &Path) -> Result<SessionRef, String> {
+    let invalid = || format!("Invalid Cline path: {}", file.display());
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(invalid)?;
+    let session_dir = file.parent().ok_or_else(invalid)?;
+    let id = session_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(invalid)?;
+    let store = session_dir.parent().ok_or_else(invalid)?;
+    if !file.is_absolute() || file.components().any(|c| c == Component::ParentDir) {
+        return Err(invalid());
+    }
+
+    if name == "ui_messages.json" && store.file_name().is_some_and(|n| n == "tasks") {
+        let base = store.parent().ok_or_else(invalid)?;
+        validate_task_id(id)?;
+        require_discovered_base(base)?;
+        return Ok(SessionRef::Task {
+            base: base.to_path_buf(),
+            id: id.to_string(),
+        });
+    }
+
+    if name.strip_suffix(".messages.json") == Some(id) {
+        let root = cline_sdk::sessions_dir().ok_or_else(invalid)?;
+        let same_store = matches!(
+            (store.canonicalize(), root.canonicalize()),
+            (Ok(store), Ok(root)) if store == root
+        );
+        if !same_store {
+            return Err(format!(
+                "Cline path is outside the session store: {}",
+                file.display()
+            ));
+        }
+        return Ok(SessionRef::Sdk {
+            root,
+            id: id.to_string(),
+        });
+    }
+
+    Err(invalid())
+}
+
+/// Messages of one task of an extension directory.
+fn load_task_messages(base_path: &Path, task_id: &str) -> Result<Vec<ClaudeMessage>, String> {
     let ui_path = base_path
         .join("tasks")
-        .join(&task_id)
+        .join(task_id)
         .join("ui_messages.json");
     if !ui_path.is_file() {
         return Err(format!("UI messages file not found for task {task_id}"));
@@ -229,7 +331,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let mut counter = 0u64;
 
     for msg in &ui_messages {
-        if let Some(claude_msg) = convert_cline_message(msg, &task_id, &mut counter) {
+        if let Some(claude_msg) = convert_cline_message(msg, task_id, &mut counter) {
             messages.push(claude_msg);
         }
     }
@@ -548,12 +650,16 @@ fn parse_session_path(session_path: &str) -> Result<(PathBuf, String), String> {
         return Err("Cline base path must be absolute".to_string());
     }
 
-    // Reject path traversal in task_id
+    validate_task_id(&task_id)?;
+    Ok((base_path, task_id))
+}
+
+/// Reject path traversal in a task id.
+fn validate_task_id(task_id: &str) -> Result<(), String> {
     if task_id.contains("..") || task_id.contains('/') || task_id.contains('\\') {
         return Err(format!("Invalid task ID: {task_id}"));
     }
-
-    Ok((base_path, task_id))
+    Ok(())
 }
 
 /// Convert a `ClineMessage` to `ClaudeMessage`
@@ -1218,5 +1324,149 @@ mod tests {
 
         let messages = load_messages(&format!("cline://{}:1700000000000", base.display())).unwrap();
         assert!(!messages.is_empty());
+    }
+
+    /// Every Cline session opens by the file it lists, in both stores, and
+    /// reads what its `cline://` id reads (#707).
+    #[test]
+    #[serial_test::serial]
+    fn sessions_load_by_the_file_they_list() {
+        let home = crate::test_utils::SandboxHome::new();
+        let task_file = fixtures::write_extension_task(home.path(), "/work/app");
+        let sdk_file = fixtures::write_sdk_session(home.path(), "/work/app");
+
+        let mut sessions: Vec<ClaudeSession> = scan_projects()
+            .unwrap()
+            .iter()
+            .flat_map(|project| load_sessions(&project.path, false).unwrap())
+            .collect();
+        sessions.sort_by(|a, b| a.file_path.cmp(&b.file_path));
+        let mut listed = vec![
+            task_file.to_string_lossy().to_string(),
+            sdk_file.to_string_lossy().to_string(),
+        ];
+        listed.sort();
+        assert_eq!(
+            sessions
+                .iter()
+                .map(|s| s.file_path.clone())
+                .collect::<Vec<_>>(),
+            listed
+        );
+
+        for session in &sessions {
+            let uuids = |path: &str| {
+                load_messages(path)
+                    .unwrap_or_else(|e| panic!("{path}: {e}"))
+                    .into_iter()
+                    .map(|m| m.uuid)
+                    .collect::<Vec<_>>()
+            };
+            let by_file = uuids(&session.file_path);
+            assert!(!by_file.is_empty(), "{}", session.file_path);
+            assert_eq!(by_file, uuids(&session.session_id));
+            assert!(is_session_file(&session.file_path));
+            assert_eq!(
+                project_name_for_session(&session.file_path).as_deref(),
+                Some("app")
+            );
+        }
+    }
+
+    /// A file shaped like a listed one is read only from a store discovery
+    /// finds: anywhere else, or through `..`, it is refused.
+    #[test]
+    #[serial_test::serial]
+    fn listed_files_outside_their_stores_are_refused() {
+        let home = crate::test_utils::SandboxHome::new();
+        let task_file = fixtures::write_extension_task(home.path(), "/work/app");
+        let sdk_file = fixtures::write_sdk_session(home.path(), "/work/app");
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_base = outside.path().join("saoudrizwan.claude-dev");
+        write_task(&outside_base, "1700000000000");
+        let outside_sdk = outside.path().join("sessions/1_x/1_x.messages.json");
+        fs::create_dir_all(outside_sdk.parent().unwrap()).unwrap();
+        fs::copy(&sdk_file, &outside_sdk).unwrap();
+        let task_dir = task_file.parent().unwrap();
+        let traversal = task_dir
+            .join("..")
+            .join(task_dir.file_name().unwrap())
+            .join("ui_messages.json");
+
+        for path in [
+            outside_base.join("tasks/1700000000000/ui_messages.json"),
+            outside_sdk,
+            traversal,
+            PathBuf::from("tasks/task-1/ui_messages.json"),
+        ] {
+            let path = path.to_string_lossy().to_string();
+            assert!(load_messages(&path).is_err(), "{path} was read");
+            assert!(!is_session_file(&path), "{path} was taken for a Cline file");
+        }
+    }
+}
+
+/// Cline sessions in both stores, for tests across the crate.
+#[cfg(test)]
+pub(crate) mod fixtures {
+    use serde_json::json;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    /// 2026-10-16T09:00:00Z.
+    pub(crate) const TS_MS: u64 = 1_792_141_200_000;
+
+    /// A task of Cline's VS Code extension in `cwd`, under the sandboxed
+    /// `home`. Returns the file it lists, `tasks/<id>/ui_messages.json`; its
+    /// session id is `cline://<extension dir>:<id>`.
+    pub(crate) fn write_extension_task(home: &Path, cwd: &str) -> PathBuf {
+        let ext = crate::utils::config_dir()
+            .unwrap()
+            .join("Code")
+            .join("User")
+            .join("globalStorage")
+            .join("saoudrizwan.claude-dev");
+        assert!(ext.starts_with(home), "{}", ext.display());
+        let history = json!([{"id": "task-1", "ts": TS_MS, "task": "hi",
+                              "tokensIn": 100, "tokensOut": 50,
+                              "cwdOnTaskInitialization": cwd}]);
+        fs::create_dir_all(ext.join("state")).unwrap();
+        fs::write(ext.join("state/taskHistory.json"), history.to_string()).unwrap();
+        let messages = json!([
+            {"type": "say", "say": "task", "text": "hi", "ts": TS_MS},
+            {"type": "say", "say": "text", "text": "hello", "ts": TS_MS + 1_000}
+        ]);
+        // Joined per component: the listing returns native separators, and a
+        // `/`-joined path would not compare equal on Windows.
+        let file = ext.join("tasks").join("task-1").join("ui_messages.json");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, messages.to_string()).unwrap();
+        file
+    }
+
+    /// A session of Cline's SDK store (`~/.cline/data/sessions/<id>/`) in
+    /// `cwd` whose reply carries usage (21 in, 8 out, 3 cache read, 1 cache
+    /// write). Returns the file it lists, `<id>.messages.json`; its session
+    /// id is `cline://sdk:<id>`.
+    pub(crate) fn write_sdk_session(home: &Path, cwd: &str) -> PathBuf {
+        let id = "1792141200000_sdk01";
+        let dir = home.join(".cline").join("data").join("sessions").join(id);
+        fs::create_dir_all(&dir).unwrap();
+        let manifest = json!({"version": 1, "session_id": id, "cwd": cwd,
+                              "started_at": "2026-10-16T09:00:00.000Z",
+                              "ended_at": "2026-10-16T09:00:02.000Z",
+                              "metadata": {"title": "Demo"}});
+        fs::write(dir.join(format!("{id}.json")), manifest.to_string()).unwrap();
+        let transcript = json!({"version": 1, "agent": "lead", "sessionId": id, "messages": [
+            {"id": "u1", "role": "user", "content": [{"type": "text", "text": "hi"}]},
+            {"id": "a1", "role": "assistant", "ts": TS_MS + 2_000,
+             "modelInfo": {"id": "claude-sonnet-4-6", "provider": "anthropic"},
+             "metrics": {"inputTokens": 21, "outputTokens": 8, "cacheReadTokens": 3,
+                         "cacheWriteTokens": 1, "cost": 0.13},
+             "content": [{"type": "text", "text": "ok"}]}
+        ]});
+        let file = dir.join(format!("{id}.messages.json"));
+        fs::write(&file, transcript.to_string()).unwrap();
+        file
     }
 }

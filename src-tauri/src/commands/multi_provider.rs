@@ -1825,4 +1825,30 @@ mod tests {
             Some("text")
         );
     }
+
+    /// The viewer opens a Cline session by the file it lists (#707), in
+    /// both stores, through both the paged and the full load.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn cline_sessions_open_by_the_file_they_list() {
+        use crate::providers::cline::fixtures;
+        let home = crate::test_utils::SandboxHome::new();
+        let files = [
+            fixtures::write_extension_task(home.path(), "/work/app"),
+            fixtures::write_sdk_session(home.path(), "/work/app"),
+        ];
+
+        for file in files {
+            let path = file.to_string_lossy().to_string();
+            let page =
+                load_provider_messages_paginated("cline".into(), path.clone(), None, None, None)
+                    .await
+                    .unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert_eq!(page.total_count, 2, "{path}");
+            let full = load_provider_messages("cline".into(), path.clone())
+                .await
+                .unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert_eq!(full.len(), 2, "{path}");
+        }
+    }
 }

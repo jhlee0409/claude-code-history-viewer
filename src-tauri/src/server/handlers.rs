@@ -32,14 +32,16 @@ fn require_history_path_or_provider_uri(path: &str) -> Result<(), String> {
 }
 
 /// Recent edits read a provider project through the provider (its path is a
-/// provider id) and any other project from disk. A session is accepted as a
-/// provider id only when it is one of that same provider's ids; anything else
-/// must be a history file.
+/// provider id) and a Claude project from disk. Another provider's project
+/// is answered with no edits and nothing of it is opened, so it needs no
+/// history root (#643). A session is accepted as a provider id only when it
+/// is one of that same provider's ids; anything else must be a history file.
 fn require_edits_project(project_path: &str, session: Option<&str>) -> Result<(), String> {
-    if commands::session::is_provider_edits_project(project_path) {
-        require_history_path_or_provider_uri(project_path)?;
-    } else {
-        require_history_path(project_path)?;
+    use commands::session::EditsSource;
+    match commands::session::edits_source(project_path) {
+        EditsSource::NotRecorded => return Ok(()),
+        EditsSource::Provider => require_history_path_or_provider_uri(project_path)?,
+        EditsSource::History => require_history_path(project_path)?,
     }
     match session {
         Some(s) if commands::session::is_provider_session_of_project(project_path, s) => {
@@ -789,8 +791,12 @@ handler_json!(
     get_session_subagents,
     SessionPathParam,
     |p: SessionPathParam| async move {
-        // OpenCode / Kilo / Z Code subagents are read by provider id.
-        require_history_path_or_provider_uri(&p.session_path)?;
+        // OpenCode / Kilo / Z Code subagents are read by provider id. Another
+        // provider's session file is answered with no subagents and never
+        // opened, so it needs no history root (#643).
+        if !commands::session::is_other_provider_session_file(&p.session_path) {
+            require_history_path_or_provider_uri(&p.session_path)?;
+        }
         commands::session::get_session_subagents(p.session_path).await
     }
 );
@@ -1943,6 +1949,11 @@ mod tests {
                 "cline",
                 format!("cline://{}:1700000000000", cline_base.display()),
             ),
+            // The file a Cline session lists is confined the same way (#707).
+            (
+                "cline",
+                task.join("ui_messages.json").to_string_lossy().to_string(),
+            ),
         ] {
             let res = load_provider_messages(Json(ProviderMessagesParams {
                 provider: provider.to_string(),
@@ -2487,6 +2498,54 @@ mod provider_uri_scope_tests {
         }))
         .await;
         assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// Another file-based provider's project or session (oh-my-pi, Pi) is
+    /// answered with no recent edits and no subagents rather than refused,
+    /// and nothing of it is read, even through `..` out of its root; a path
+    /// outside every root is still refused (#643).
+    #[tokio::test]
+    #[serial]
+    async fn other_providers_get_no_edits_or_subagents_instead_of_an_error() {
+        let home = crate::test_utils::SandboxHome::new();
+        let edit = r#"{"uuid":"u1","sessionId":"s1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/a.rs","content":"x"}}}"#;
+        let plant = |dir: &std::path::Path| {
+            std::fs::create_dir_all(dir.join("s/subagents")).unwrap();
+            std::fs::write(dir.join("s.jsonl"), edit).unwrap();
+            std::fs::write(dir.join("s/subagents/agent-1.jsonl"), edit).unwrap();
+        };
+        let ompi = home.path().join(".omp/agent/sessions/--test-project--");
+        let pi = home.path().join(".pi/agent/sessions/--test-project--");
+        let beside = home.path().join("elsewhere");
+        for dir in [&ompi, &pi, &beside] {
+            plant(dir);
+        }
+        let through_parent = home.path().join(".omp/agent/sessions/../../../elsewhere");
+
+        let edits = |project: &std::path::Path| {
+            get_recent_edits(Json(RecentEditsParams {
+                project_path: project.to_string_lossy().to_string(),
+                offset: None,
+                limit: None,
+                session_file_path: Some(project.join("s.jsonl").to_string_lossy().to_string()),
+                grouping: None,
+            }))
+        };
+        let subagents = |project: &std::path::Path| {
+            get_session_subagents(Json(SessionPathParam {
+                session_path: project.join("s.jsonl").to_string_lossy().to_string(),
+            }))
+        };
+        for project in [&ompi, &pi, &through_parent] {
+            let page = edits(project).await.unwrap_or_else(|e| panic!("{}", e.0));
+            assert_eq!(page.0["total_edits_count"], 0, "{}", project.display());
+            let found = subagents(project)
+                .await
+                .unwrap_or_else(|e| panic!("{}", e.0));
+            assert_eq!(found.0, serde_json::json!([]), "{}", project.display());
+        }
+        assert_eq!(error_of(edits(&beside).await).as_deref(), Some(OUTSIDE));
+        assert_eq!(error_of(subagents(&beside).await).as_deref(), Some(OUTSIDE));
     }
 
     /// Handlers whose commands resolve database-backed provider ids keep

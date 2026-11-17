@@ -516,8 +516,9 @@ export function supportsArchiveCreation(provider?: ProviderId | string): boolean
 }
 
 // Keep in sync with `detect_project_provider` in
-// src-tauri/src/commands/session/edits.rs. Any other provider would fall back
-// to the Claude reader there, and the WebUI rejects its paths outright (#643).
+// src-tauri/src/commands/session/edits.rs. Any other provider's project has
+// no recorded edits there: the backend answers it with an empty page (#643),
+// so the views say the feature is unavailable rather than showing nothing.
 const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
   "claude",
   "codex",
