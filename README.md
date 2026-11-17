@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **The unified history viewer for AI coding assistants.**
+
+*(formerly Claude Code History Viewer)*
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
@@ -70,7 +72,7 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 
 AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
 
-**Twenty-nine assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code & Kilo Code), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+**Thirty-one assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
 
 | Provider | Data Location | What You Get |
 |----------|--------------|--------------|
@@ -79,7 +81,8 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
 | **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
-| **Cline** (incl. Roo Code, Kilo Code) | VS Code `globalStorage/<ext>/tasks/` | Task-based history across the Cline family |
+| **Cline** (incl. Roo Code; legacy Kilo Code) | `~/.cline/data/sessions/` (current Cline) and VS Code `globalStorage/<ext>/tasks/` (older versions) | Task-based history across the Cline family |
+| **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
 | **Aider** | Project directories | Chat history and edit logs |
@@ -101,6 +104,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Mistral Vibe** | `~/.vibe/logs/session/` | OpenAI-style chat transcripts with reasoning and tool calls (`VIBE_HOME` override) |
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | Per-session JSONL transcripts (tool calls, thinking, token usage) |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
+| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai's GLM coding agent — session/message/part SQLite store (titles, tool calls, thinking, token usage) |
 | **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
 
@@ -128,7 +132,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **29 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code & Kilo Code), Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae — filter by provider, compare across tools |
+| **Multi-Provider Support** | Unified viewer for **31 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
@@ -142,6 +146,49 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | Provider | Notes |
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+
+### New in v1.32.0
+
+| Feature | Description |
+|---------|-------------|
+| **Jump between prompts** | **Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS) moves the message list to the previous or next prompt you typed, with or without the Messages panel open |
+| **Session minimap** | Optional strip beside the message list that shows the whole session by row kind; click or drag to move. Settings menu → **Show session minimap** |
+| **Restore preview fixed** | Recent Edits' restore confirmation shows what will change (now in the WebUI too) and refuses symlinked targets |
+
+### New in v1.31.0
+
+| Feature | Description |
+|---------|-------------|
+| **Custom resume arguments** | Settings → **Session Resume Arguments** adds extra flags per CLI, used by **Copy Resume Command** and when resuming sessions in a terminal, with a live preview; dangerous flags are highlighted |
+| **Correct Claude Opus 5.5 cost** | Opus 5.5 sessions are priced at Opus 5.5's own rates (they were billed at Opus 5's); pricing added for GPT-6, Gemini 3.8 Flash and Grok 4.7 |
+
+### New in v1.30.0
+
+| Feature | Description |
+|---------|-------------|
+| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **Claude Code auto titles** | Sessions show the title Claude Code generated, in the session list, stats, export and archives (your own rename still wins) |
+| **Prompts vs. agent updates** | The Messages panel marks your typed prompts, agent updates, commands and injected context, with a "Show my prompts only" filter |
+
+### New in v1.29.0
+
+| Feature | Description |
+|---------|-------------|
+| **Z Code provider** | Browse Z Code (Z.ai) sessions from `~/.zcode/cli/db/db.sqlite` with titles, tool calls, thinking and token usage — 31 assistants in total |
+| **Subagent cost in its session** | A session's billed tokens and cost now include the subagent runs it delegated to (Claude Code and Z Code); *Conversation Only* still shows the main thread |
+| **Faster session lists** | Large Claude and Codex histories load their session lists several times faster |
+
+### New in v1.28.0
+
+| Feature | Description |
+|---------|-------------|
+| **Current Cline sessions** | Recent Cline releases (the VS Code extension included) store sessions in `~/.cline/data/sessions/`; they now appear with titles, full transcripts, and token/cost stats. Cline, Roo Code and Kilo Code are also discovered on Windows |
+| **Kilo Code's new store** | Kilo Code's OpenCode-core database (`kilo.db`) is read as its own provider, with live refresh and global stats |
+| **Accurate output tokens** | Streamed Claude Code turns were undercounted by roughly 40%; each turn now counts its final usage once |
+| **Sessions pane & merged folders** | The selected project's sessions open in their own resizable column, and a folder used by several tools is one explorer row with provider chips |
+| **Cleaner transcripts** | Tool calls are summarized in the collapsed row, repeated headers on continued turns are gone, and the header has one view switcher |
+| **Pricing refresh** | Every rate re-verified against official pricing pages, fast/priority tiers priced, and retiring models flagged with their replacement |
+| **Transcript retention** | Claude Code's `cleanupPeriodDays` accepts long retention (e.g. 3650) and is clearly labelled as Claude Code's setting — this app never deletes sessions |
 
 ### New in v1.23.0
 
@@ -398,7 +445,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all 29 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
+2. It automatically scans for conversation data from all 31 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
@@ -503,6 +550,8 @@ See [Development Commands](CLAUDE.md#development-commands) for the full list of 
 ## License
 
 [MIT](LICENSE) — free for personal and commercial use.
+
+Omnilogue is an independent open-source project, not affiliated with, endorsed by, or sponsored by Anthropic, OpenAI, GitHub, Google, or any other vendor whose session logs it reads. Claude and Claude Code are trademarks of Anthropic, PBC; other names are trademarks of their respective owners.
 
 ---
 

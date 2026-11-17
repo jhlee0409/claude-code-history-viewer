@@ -28,7 +28,6 @@ import type {
   ProjectStatsSummary,
   SubagentSession,
 } from "../types";
-import { AppErrorType } from "../types";
 import {
   createMessageSlice,
   type MessageSlice,
@@ -101,6 +100,7 @@ type TestStore = MessageSlice & {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   setError: ReturnType<typeof vi.fn>;
+  markSessionUnavailable: ReturnType<typeof vi.fn>;
   setSelectedSession: (s: ClaudeSession | null) => void;
   resetMessageFilter: () => void;
   selectedProject: null;
@@ -113,6 +113,7 @@ const createTestStore = () => {
     excludeSidechain: true,
     showSystemMessages: false,
     setError: vi.fn(),
+    markSessionUnavailable: vi.fn(),
     setSelectedSession: (s) => set({ selectedSession: s }),
     resetMessageFilter: vi.fn(),
     selectedProject: null,
@@ -561,6 +562,32 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
 
 });
 
+describe("messageSlice.loadSubagents — provider gating (#643)", () => {
+  beforeEach(() => {
+    mockApi.mockReset();
+    mockToastWarning.mockReset();
+  });
+
+  it("does not ask the backend for subagents of a provider without them", async () => {
+    const store = createTestStore();
+    const session = makeSession({
+      file_path: "/Users/x/.omp/agent/sessions/-Users-x-proj/s1.jsonl",
+      provider: "ompi",
+    });
+    store.setState({ selectedSession: session });
+    mockApi.mockResolvedValue([]);
+
+    await store.getState().loadSubagents(session.file_path, []);
+
+    expect(mockApi).not.toHaveBeenCalledWith(
+      "get_session_subagents",
+      expect.anything(),
+    );
+    expect(store.getState().subagentSessions).toEqual([]);
+    expect(mockToastWarning).not.toHaveBeenCalled();
+  });
+});
+
 describe("messageSlice — navigate guards & error branches", () => {
   beforeEach(() => {
     mockApi.mockReset();
@@ -730,8 +757,8 @@ describe("messageSlice — navigate guards & error branches", () => {
     expect(store.getState().setError).not.toHaveBeenCalled();
   });
 
-  it("selectSession routes subagent load failure to toast, top-level failure to setError", async () => {
-    // Top-level: setError is called
+  it("selectSession routes subagent load failure to toast, top-level failure to the tab's in-tab state", async () => {
+    // Top-level: the tab shows it (T8 review #6), never the app's error screen
     const store = createTestStore();
     const topSession = makeSession({ file_path: "/tmp/top.jsonl" });
     mockApi.mockImplementation((cmd: string) => {
@@ -742,9 +769,8 @@ describe("messageSlice — navigate guards & error branches", () => {
 
     await store.getState().selectSession(topSession);
 
-    expect(store.getState().setError).toHaveBeenCalledWith(
-      expect.objectContaining({ type: AppErrorType.UNKNOWN }),
-    );
+    expect(store.getState().markSessionUnavailable).toHaveBeenCalledWith(topSession.file_path);
+    expect(store.getState().setError).not.toHaveBeenCalled();
     expect(mockToastError).not.toHaveBeenCalled();
 
     // Subagent reload: toast is called, setError is NOT

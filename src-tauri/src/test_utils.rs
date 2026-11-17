@@ -17,6 +17,15 @@ use tempfile::TempDir;
 pub use proptest::prelude::*;
 pub use rstest::*;
 
+/// Build a fixture path in the same native component spelling as discovery.
+/// `Path::join` preserves `/` inside a relative string on Windows; provider
+/// stats use exact session-path strings, so mixed separators miss that session.
+/// Rebuilding components also removes redundant `.` without touching file data
+/// or canonicalizing into Windows' extended-length path syntax.
+pub fn native_fixture_path(home: &Path, relative: &str) -> PathBuf {
+    home.join(relative).components().collect()
+}
+
 /// Test fixture for creating a mock Claude project structure
 pub struct MockClaudeProject {
     pub temp_dir: TempDir,
@@ -178,32 +187,10 @@ impl MessageBuilder {
                 .unwrap_or_else(|| "2025-01-01T00:00:00Z".to_string()),
             message_type: self.message_type.unwrap_or_else(|| "user".to_string()),
             content: self.content,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
             usage: self.usage,
             role: self.role,
             model: self.model,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         }
     }
 
@@ -395,10 +382,9 @@ pub fn encode_path_claude_style(path: &std::path::Path) -> String {
 /// else produces that shape, so a fixture that canonicalises and then compares
 /// against a value built any other way will not match there (#541).
 pub fn strip_verbatim_prefix(path: &std::path::Path) -> String {
-    let raw = path.to_string_lossy();
-    raw.strip_prefix(r"\\?\UNC\")
-        .map(|rest| format!(r"\\{rest}"))
-        .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string())
+    crate::utils::strip_windows_extended_prefix(path)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// A temporary home directory, exported to the process for the lifetime of the

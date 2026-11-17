@@ -12,7 +12,9 @@ import {
   normalizeProviderIds,
   supportsConversationBreakdown,
   supportsNativeRename,
+  supportsRecentEdits,
   supportsSessionDeletion,
+  supportsSubagents,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -63,6 +65,7 @@ describe("providers utils", () => {
       "gemini",
       "goose",
       "grok",
+      "kilo",
       "kimi",
       "kiro",
       "llm",
@@ -75,6 +78,7 @@ describe("providers utils", () => {
       "qwen",
       "trae",
       "vibe",
+      "zcode",
       "zed",
     ]);
   });
@@ -213,6 +217,45 @@ describe("providers utils", () => {
     expect(getResumeCommand("claude", "abc-123", cwd)).toBe(
       String.raw`powershell.exe -NoProfile -Command "Set-Location -LiteralPath 'E:\work\My Project'; claude --resume abc-123"`,
     );
+    expect(
+      getResumeCommand("claude", "abc-123", cwd, undefined, "--dangerously-skip-permissions")
+    ).toBe(
+      String.raw`powershell.exe -NoProfile -Command "Set-Location -LiteralPath 'E:\work\My Project'; claude --dangerously-skip-permissions --resume abc-123"`,
+    );
+  });
+
+  it("getResumeCommand includes extra arguments in proper position across providers", () => {
+    expect(
+      getResumeCommand("claude", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("claude --dangerously-skip-permissions --resume abc-123");
+
+    expect(
+      getResumeCommand("claude", "abc-123", undefined, undefined, ["--model", "sonnet"])
+    ).toBe("claude --model sonnet --resume abc-123");
+
+    expect(
+      getResumeCommand("codex", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("codex --dangerously-skip-permissions resume abc-123");
+
+    expect(
+      getResumeCommand("copilot", "abc-123", undefined, "copilot-cli", "--dangerously-skip-permissions")
+    ).toBe("copilot --dangerously-skip-permissions --resume=abc-123");
+
+    expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("forge --dangerously-skip-permissions conversation resume abc-123");
+
+    expect(
+      getResumeCommand("forgecode", "abc-123", undefined, undefined, ["--model", "custom"])
+    ).toBe("forge --model custom conversation resume abc-123");
+
+    expect(
+      getResumeCommand("kimi", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("kimi --dangerously-skip-permissions -r abc-123");
+
+    expect(
+      getResumeCommand("vibe", "abc-123", undefined, undefined, "--dangerously-skip-permissions")
+    ).toBe("vibe --dangerously-skip-permissions --resume abc-123");
   });
 
   afterEach(() => {
@@ -254,5 +297,31 @@ describe("providers utils", () => {
     expect(coverage.coveredTokens).toBe(0);
     expect(coverage.coveragePercent).toBe(0);
     expect(coverage.hasLimitedProviders).toBe(false);
+  });
+
+  // Mirrors `detect_project_provider` in src-tauri/src/commands/session/edits.rs (#643).
+  it("allows recent edits only for providers the backend reads", () => {
+    for (const id of ["claude", "codex", "forgecode", "kilo", "opencode"]) {
+      expect(supportsRecentEdits(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "qwen", "kimi", "zcode", "copilot"]) {
+      expect(supportsRecentEdits(id)).toBe(false);
+    }
+    // Claude projects come back from the backend with no provider stamped.
+    expect(supportsRecentEdits(undefined)).toBe(true);
+    // An unknown id is not silently treated as Claude.
+    expect(supportsRecentEdits("not-a-provider")).toBe(false);
+  });
+
+  // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
+  it("allows subagent lookups only for providers the backend reads", () => {
+    for (const id of ["claude", "opencode", "kilo"]) {
+      expect(supportsSubagents(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode", "zcode"]) {
+      expect(supportsSubagents(id)).toBe(false);
+    }
+    expect(supportsSubagents(undefined)).toBe(true);
+    expect(supportsSubagents("not-a-provider")).toBe(false);
   });
 });

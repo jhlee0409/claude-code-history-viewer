@@ -13,8 +13,8 @@ import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { Markdown } from "../common";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
-import { FilteredDiffLines } from "./FilteredDiffLines";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
+import { DiffFiltered } from "../transcript/DiffViewComparison";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
 import type { DiffLineGroup } from "./diffUtils";
 import { getLanguageFromPath, formatTimestamp } from "./utils";
@@ -27,6 +27,7 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+import { Num } from "@/lib/format/Num";
 
 export interface FileEditExpansionProps {
   edit: RecentFileEdit;
@@ -116,7 +117,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
     <div className="border-t border-border bg-card/40">
       {/* Full absolute path, plus the jump arrow. */}
       <div className="flex items-start gap-2 px-2 py-1.5">
-        <code className="min-w-0 flex-1 break-all text-px11 text-muted-foreground">
+        <code className="min-w-0 flex-1 break-all text-caption text-muted-foreground">
           {edit.file_path}
         </code>
         {canJump && (
@@ -157,13 +158,13 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
                 title={hint}
                 aria-label={hint}
                 className={cn(
-                  "flex items-center gap-1 border-r border-border px-2 py-0.5 text-px11 transition-colors last:border-r-0",
+                  "flex items-center gap-1 border-r border-border px-2 py-0.5 text-caption transition-colors last:border-r-0",
                   active
                     ? "bg-accent/20 text-accent"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                {chip.mode === "diff" && <FileDiff className="h-3 w-3" />}
+                {chip.mode === "diff" && <FileDiff className="h-3.5 w-3.5" />}
                 <span>{label}</span>
               </button>
             );
@@ -184,12 +185,11 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
               edit.message_uuid ?? edit.timestamp
             }`}
           >
-            <EnhancedDiffViewer
+            <DiffWithMenu
               oldText={edit.original_content ?? ""}
               newText={edit.content_after_change}
               filePath={edit.file_path}
-              showAdvancedDiff={true}
-              defaultMode="visual"
+              expandKey="diff"
             />
           </ExpandKeyProvider>
         </div>
@@ -197,7 +197,7 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
 
       {(viewMode === "added" || viewMode === "removed") && (
         <div className="max-h-80 overflow-auto">
-          <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+          <DiffFiltered groups={filteredGroups} kind={viewMode} expandKey={`recent-edits-compact-filter:${edit.session_id}:${edit.file_path}:${edit.timestamp}`} />
         </div>
       )}
 
@@ -223,8 +223,8 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
                 <pre
                   className={className}
                   style={getPreStyles(isDarkMode, style, {
-                    fontSize: "calc(0.75rem * var(--app-font-scale))",
-                    lineHeight: "1.15rem",
+                    fontSize: "var(--text-code)",
+                    lineHeight: "var(--text-code--line-height)",
                     padding: "0.5rem",
                   })}
                 >
@@ -277,9 +277,9 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-border px-2 py-1 text-px11 text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-border px-2 py-1 text-caption text-muted-foreground">
         <span>{language}</span>
-        <span>{formatTimestamp(edit.timestamp)}</span>
+        <span><Num>{formatTimestamp(edit.timestamp)}</Num></span>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   type ProviderInfo,
   type UserMetadata,
 } from "../types";
+import type { View } from "../navigation/place";
 
 vi.mock("../services/api", () => ({
   api: vi.fn(),
@@ -48,15 +49,16 @@ type TestStore = ProjectSlice & {
   userMetadata: UserMetadata;
   updateUserSettings: ReturnType<typeof vi.fn>;
   excludeSidechain: boolean;
-  analytics: { currentView: "messages" | "analytics" | "tokenStats" | "recentEdits" | "board" | "archive" };
+  view: View;
   messages: unknown[];
+  parentSessionStack: ClaudeSession[];
   activeProviders: ProviderInfo["id"][];
   detectProviders: ReturnType<typeof vi.fn>;
   setActiveProviders: ReturnType<typeof vi.fn>;
   loadMetadata: ReturnType<typeof vi.fn>;
   loadServerConfig: ReturnType<typeof vi.fn>;
   exitSessionSelectionMode: ReturnType<typeof vi.fn>;
-  selectSession: ReturnType<typeof vi.fn>;
+  reloadCurrent: ReturnType<typeof vi.fn>;
   loadGlobalStats: ReturnType<typeof vi.fn>;
   loadProjectTokenStats: ReturnType<typeof vi.fn>;
   loadSessionTokenStats: ReturnType<typeof vi.fn>;
@@ -73,7 +75,7 @@ type TestStore = ProjectSlice & {
   clearTargetMessage: ReturnType<typeof vi.fn>;
   resetAnalytics: ReturnType<typeof vi.fn>;
   clearBoard: ReturnType<typeof vi.fn>;
-  clearRecentEditsDock: ReturnType<typeof vi.fn>;
+  clearRecentEditsList: ReturnType<typeof vi.fn>;
   setDateFilter: ReturnType<typeof vi.fn>;
 };
 
@@ -115,8 +117,9 @@ const createTestStore = () =>
     userMetadata: DEFAULT_USER_METADATA,
     updateUserSettings: vi.fn().mockResolvedValue(undefined),
     excludeSidechain: true,
-    analytics: { currentView: "messages" },
+    view: "conversation",
     messages: [],
+    parentSessionStack: [],
     activeProviders: ["claude"],
     detectProviders: vi.fn().mockResolvedValue(true),
     setActiveProviders: vi.fn().mockImplementation((ids: ProviderInfo["id"][]) => {
@@ -127,8 +130,10 @@ const createTestStore = () =>
     // Cross-slice dep added by the multi-select feature: selectProject /
     // clearProjectSelection abandon any in-progress session selection.
     exitSessionSelectionMode: vi.fn(),
-    selectSession: vi.fn().mockImplementation(async (session: ClaudeSession) => {
-      set({ selectedSession: session });
+    // The refresh reloads the open session in place; a fresh record of the
+    // same file replaces the held one.
+    reloadCurrent: vi.fn().mockImplementation(async (_reason: string, fresh?: ClaudeSession) => {
+      if (fresh) set({ selectedSession: fresh });
     }),
     loadGlobalStats: vi.fn().mockResolvedValue(undefined),
     loadProjectTokenStats: vi.fn().mockResolvedValue(undefined),
@@ -144,6 +149,14 @@ const createTestStore = () =>
       project_cwd: "/workspace",
     }),
     setAnalyticsRecentEdits: vi.fn(),
+    // The refresh reloads the open screen through the shared screen loaders
+    // (`navigation/screenData`), which own their loading and error flags.
+    setAnalyticsLoadingProjectSummary: vi.fn(),
+    setAnalyticsProjectSummaryError: vi.fn(),
+    setAnalyticsLoadingSessionComparison: vi.fn(),
+    setAnalyticsSessionComparisonError: vi.fn(),
+    setAnalyticsLoadingRecentEdits: vi.fn(),
+    setAnalyticsRecentEditsError: vi.fn(),
     loadBoardSessions: vi.fn().mockResolvedValue(undefined),
     loadArchives: vi.fn().mockResolvedValue(undefined),
     clearSessionSearch: vi.fn(),
@@ -151,7 +164,7 @@ const createTestStore = () =>
     clearTargetMessage: vi.fn(),
     resetAnalytics: vi.fn(),
     clearBoard: vi.fn(),
-    clearRecentEditsDock: vi.fn(),
+    clearRecentEditsList: vi.fn(),
     setDateFilter: vi.fn(),
     ...createProjectSlice(
       set as Parameters<typeof createProjectSlice>[0],
@@ -179,15 +192,15 @@ describe("projectSlice scanProjects", () => {
     expect(url.searchParams.get("msg")).toBeNull();
   });
 
-  it("drops the docked Recent Edits rows along with the selection", () => {
-    // The dock survives deselection now - it is a workspace fixture, not a
-    // property of the selected project - so the rows have to be dropped here.
-    // Without this the panel keeps rendering the deselected project's edits.
+  it("drops the Edits screen's rows along with the selection", () => {
+    // The rows are keyed by their request, not by the selection, so they have
+    // to be dropped here; otherwise the next project's Edits screen would hold
+    // the deselected project's rows until its own answer lands.
     const store = createTestStore();
 
     store.getState().clearProjectSelection();
 
-    expect(store.getState().clearRecentEditsDock).toHaveBeenCalled();
+    expect(store.getState().clearRecentEditsList).toHaveBeenCalled();
   });
 
   it("publishes each provider as soon as that provider scan completes", async () => {
@@ -435,11 +448,30 @@ describe("projectSlice scanProjects", () => {
 
     expect(updateUserSettings).toHaveBeenCalledWith({
       discoveredProviderIds: ["codex"],
+      providersDiscovered: true,
     });
     expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
       "codex",
     ]);
     expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("saves that discovery completed even when it found no provider", async () => {
+    const store = createTestStore();
+    const updateUserSettings = vi.fn().mockResolvedValue(undefined);
+    store.setState({ claudePath: "", providers: [], updateUserSettings });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") return Promise.resolve(null);
+      if (command === "scan_all_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).toHaveBeenCalledWith({
+      discoveredProviderIds: [],
+      providersDiscovered: true,
+    });
   });
 
   it("preserves persisted provider IDs when explicit discovery fails", async () => {
@@ -606,8 +638,231 @@ describe("projectSlice scanProjects", () => {
     expect(store.getState().activeProviders).toEqual(["claude"]);
     expect(store.getState().selectedProject).toEqual(refreshedProject);
     expect(store.getState().sessions).toEqual([refreshedSession]);
-    expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedSession);
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedSession);
     expect(store.getState().isRefreshingAllConversations).toBe(false);
+  });
+
+  it("keeps the session selected when re-selecting it so the reload is in place (#609)", async () => {
+    // selectSession only treats a call as an in-place reload (keeping the
+    // subagent stack, pagination and search index) when the same session is
+    // still selected. Going through selectProject nulled it first.
+    const store = createTestStore();
+    const project = createMockProject("current", "claude");
+    const selectedSession = createMockSession("session-1", project);
+    const refreshedSession = { ...selectedSession, message_count: 3 };
+    const selectedAtSelectSession: Array<ClaudeSession | null> = [];
+    store.getState().reloadCurrent.mockImplementation(async () => {
+      selectedAtSelectSession.push(store.getState().selectedSession);
+    });
+
+    store.setState({
+      claudePath: "/root/.claude",
+      providers: [
+        {
+          id: "claude",
+          display_name: "Claude Code",
+          base_path: "/root/.claude",
+          is_available: true,
+        },
+      ],
+      selectedProject: project,
+      selectedSession,
+      sessions: [selectedSession],
+      activeProviders: ["claude"],
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "scan_projects") {
+        return Promise.resolve([project]);
+      }
+      if (command === "load_provider_sessions_page") {
+        return Promise.resolve({
+          sessions: [refreshedSession],
+          total: 1,
+          offset: 0,
+          limit: 250,
+          nextOffset: 1,
+          hasMore: false,
+        });
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().refreshAllConversations();
+
+    expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedSession);
+    expect(selectedAtSelectSession).toHaveLength(1);
+    expect(selectedAtSelectSession[0]?.file_path).toBe(selectedSession.file_path);
+  });
+
+  describe("selected session beyond the first page", () => {
+    // The list reloads only page 1. A session the user paged to is looked up
+    // on its own instead of being mistaken for a deleted one.
+    const project = createMockProject("current", "claude");
+    const firstPageSession = createMockSession("session-1", project);
+    const pagedSession = createMockSession("session-2", project);
+    const refreshedPagedSession = { ...pagedSession, message_count: 7 };
+    const firstPage = {
+      sessions: [firstPageSession],
+      total: 2,
+      offset: 0,
+      limit: 250,
+      nextOffset: 1,
+      hasMore: true,
+    };
+
+    const setup = (lookup: () => Promise<unknown>) => {
+      const store = createTestStore();
+      store.setState({
+        claudePath: "/root/.claude",
+        providers: [
+          {
+            id: "claude",
+            display_name: "Claude Code",
+            base_path: "/root/.claude",
+            is_available: true,
+          },
+        ],
+        selectedProject: project,
+        selectedSession: pagedSession,
+        sessions: [firstPageSession, pagedSession],
+        sessionsOffset: 2,
+        hasMoreSessions: false,
+        activeProviders: ["claude"],
+      });
+      vi.mocked(api).mockImplementation((command, args) => {
+        if (command === "scan_projects") {
+          return Promise.resolve([project]);
+        }
+        if (command === "load_provider_sessions_page") {
+          const offset = (args as { offset: number }).offset;
+          return Promise.resolve(
+            offset === 0
+              ? firstPage
+              : { sessions: [refreshedPagedSession], total: 2, offset: 1, limit: 250, nextOffset: 2, hasMore: false }
+          );
+        }
+        if (command === "load_provider_session_by_path") {
+          return lookup();
+        }
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      });
+      return store;
+    };
+
+    it("keeps it selected and listed once when it still exists", async () => {
+      const store = setup(() => Promise.resolve(refreshedPagedSession));
+
+      await store.getState().refreshAllConversations();
+
+      expect(api).toHaveBeenCalledWith("load_provider_session_by_path", {
+        provider: "claude",
+        projectPath: project.path,
+        filePath: pagedSession.file_path,
+        excludeSidechain: true,
+      });
+      expect(store.getState().reloadCurrent).toHaveBeenCalledWith("refresh", refreshedPagedSession);
+      expect(store.getState().selectedSession).toEqual(refreshedPagedSession);
+      expect(store.getState().sessions).toEqual([firstPageSession, refreshedPagedSession]);
+      // Pagination still continues from page 1.
+      expect(store.getState().sessionsOffset).toBe(1);
+      expect(store.getState().hasMoreSessions).toBe(true);
+    });
+
+    it("does not list it twice when its page is loaded later", async () => {
+      const store = setup(() => Promise.resolve(refreshedPagedSession));
+
+      await store.getState().refreshAllConversations();
+      await store.getState().loadMoreSessions();
+
+      expect(store.getState().selectedSession).toEqual(refreshedPagedSession);
+      expect(store.getState().sessions).toEqual([firstPageSession, refreshedPagedSession]);
+      expect(store.getState().hasMoreSessions).toBe(false);
+    });
+
+    it("leaves a subagent view alone instead of listing the subagent", async () => {
+      // A subagent view selects the subagent's own file (under
+      // `<session>/subagents/`), which is never a list row. Looking it up
+      // would append it to the sidebar.
+      const subagent = {
+        ...pagedSession,
+        session_id: `${project.path}/session-2/subagents/agent-a.jsonl`,
+        file_path: `${project.path}/session-2/subagents/agent-a.jsonl`,
+      };
+      const store = setup(() => Promise.resolve(subagent));
+      store.setState({ selectedSession: subagent, parentSessionStack: [pagedSession] });
+
+      await store.getState().reloadProjectSessions(project);
+
+      expect(api).not.toHaveBeenCalledWith("load_provider_session_by_path", expect.anything());
+      expect(store.getState().sessions).toEqual([firstPageSession]);
+      expect(store.getState().selectedSession).toBe(subagent);
+    });
+
+    it("keeps the row's summary when the lookup has none (empty counts as none)", async () => {
+      const store = setup(() => Promise.resolve({ ...refreshedPagedSession, summary: "" }));
+      store.setState({ selectedSession: { ...pagedSession, summary: "Borrowed title" } });
+
+      await store.getState().reloadProjectSessions(project);
+
+      expect(store.getState().selectedSession?.summary).toBe("Borrowed title");
+      expect(store.getState().sessions[1]?.summary).toBe("Borrowed title");
+    });
+
+    it("clears it when its file is gone", async () => {
+      const store = setup(() => Promise.resolve(null));
+
+      await store.getState().refreshAllConversations();
+
+      expect(store.getState().selectedSession).toBeNull();
+      expect(store.getState().sessions).toEqual([firstPageSession]);
+    });
+  });
+
+  it("drops a next page requested while a reload is in flight", async () => {
+    // A reload keeps the rows on screen and leaves the spinner off, so the
+    // list can still ask for the next page at the offset of the OLD list.
+    // Appending that page after the reloaded page 1 skips the rows between.
+    const project = createMockProject("current", "claude");
+    const [s0, s1, s2, s3, s4] = ["s0", "s1", "s2", "s3", "s4"].map((id) =>
+      createMockSession(id, project)
+    );
+    const store = createTestStore();
+    store.setState({
+      selectedProject: project,
+      selectedSession: null,
+      sessions: [s1, s2, s3],
+      sessionsOffset: 3,
+      hasMoreSessions: true,
+    });
+    const firstPage = createDeferred<unknown>();
+    const nextPage = createDeferred<unknown>();
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "load_provider_sessions_page") {
+        return (args as { offset: number }).offset === 0
+          ? (firstPage.promise as Promise<never>)
+          : (nextPage.promise as Promise<never>);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    const reload = store.getState().reloadProjectSessions(project);
+    const loadMore = store.getState().loadMoreSessions();
+    expect(api).toHaveBeenCalledWith(
+      "load_provider_sessions_page",
+      expect.objectContaining({ offset: 3 })
+    );
+
+    // A new session s0 shifted everything down by one.
+    firstPage.resolve({ sessions: [s0, s1], total: 5, offset: 0, limit: 2, nextOffset: 2, hasMore: true });
+    await reload;
+    nextPage.resolve({ sessions: [s4], total: 5, offset: 3, limit: 2, nextOffset: 4, hasMore: false });
+    await loadMore;
+
+    expect(store.getState().sessions).toEqual([s0, s1]);
+    expect(store.getState().sessionsOffset).toBe(2);
+    expect(store.getState().hasMoreSessions).toBe(true);
+    expect(store.getState().isLoadingMoreSessions).toBe(false);
   });
 
   it("clears stale selection when the selected project no longer exists", async () => {
@@ -701,7 +956,7 @@ describe("projectSlice scanProjects", () => {
 
     store.setState({
       claudePath: "/root/.claude",
-      analytics: { currentView: "analytics" },
+      view: "analytics",
       providers: [
         {
           id: "claude",
@@ -735,13 +990,89 @@ describe("projectSlice scanProjects", () => {
     await store.getState().refreshAllConversations();
 
     expect(store.getState().loadProjectStatsSummary).toHaveBeenCalledWith(
-      project.path
+      project.path,
+      expect.any(Function)
     );
     expect(store.getState().setAnalyticsProjectSummary).toHaveBeenCalledWith(
-      projectSummary
+      projectSummary,
+      project.path
     );
     expect(store.getState().setAnalyticsSessionComparison).toHaveBeenCalledWith(
       null
     );
+  });
+});
+
+describe("projectSlice homeDir", () => {
+  const SAVED_PATH_KEY = "webui:settings.json:claudePath";
+
+  beforeEach(() => {
+    vi.mocked(api).mockReset();
+    localStorage.removeItem(SAVED_PATH_KEY);
+  });
+
+  it("takes home from the backend's default Claude folder lookup", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      if (command === "scan_projects") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().claudePath).toBe("/Users/me/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("does not take home from a custom folder that happens to be named .claude", async () => {
+    // `validate_claude_folder` accepts any `.claude` folder with `projects/`;
+    // its parent is not the user's home.
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBeNull();
+  });
+
+  it("still learns the real home from the backend when a custom folder is saved", async () => {
+    localStorage.setItem(SAVED_PATH_KEY, JSON.stringify("/Volumes/backup/.claude"));
+    const store = createTestStore();
+    store.setState({ claudePath: "", providers: [], activeProviders: ["claude"] });
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "validate_claude_folder") return Promise.resolve(true);
+      if (command === "scan_projects") return Promise.resolve([]);
+      if (command === "get_claude_folder_path") return Promise.resolve("/Users/me/.claude");
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+    await flushMicrotasks();
+
+    expect(store.getState().claudePath).toBe("/Volumes/backup/.claude");
+    expect(store.getState().homeDir).toBe("/Users/me");
+  });
+
+  it("keeps home when the user picks another Claude folder", async () => {
+    const store = createTestStore();
+    store.setState({ claudePath: "/Users/me/.claude", homeDir: "/Users/me" });
+
+    await store.getState().setClaudePath("/Volumes/backup/.claude");
+
+    expect(store.getState().homeDir).toBe("/Users/me");
+    localStorage.removeItem(SAVED_PATH_KEY);
   });
 });

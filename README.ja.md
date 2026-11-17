@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AIコーディングアシスタントのための統合履歴ビューア。**
+
+*（旧称: Claude Code History Viewer）*
 
 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**、**Grok CLI**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
@@ -70,7 +72,7 @@ Docker、VPS、systemdのセットアップは[サーバーモード](#サーバ
 
 AIコーディングアシスタントは数千もの会話メッセージを生成しますが、ツール間で履歴を振り返る方法を提供していません。CCHVがこの課題を解決します。
 
-**29のアシスタント。1つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code・Kilo Code含む）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Traeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
+**三十一のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Codeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
 
 | プロバイダー | データの場所 | 取得できる情報 |
 |----------|--------------|--------------|
@@ -79,7 +81,8 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
 | **Antigravity** | `~/.gemini/antigravity/` | `brain/`配下の会話状態と`.token-monitor/rpc-cache/v1/`配下のトークンモニターデータ |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
-| **Cline**（Roo Code・Kilo Code含む） | VS Code `globalStorage/<ext>/tasks/` | Clineファミリー全体のタスクベースの履歴 |
+| **Cline**（Roo Code 含む、旧 Kilo Code） | `~/.cline/data/sessions/`（最新の Cline）および VS Code `globalStorage/<ext>/tasks/`（旧バージョン） | Clineファミリー全体のタスクベースの履歴 |
+| **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
 | **Cursor** | `~/.cursor/` | Composerとチャットの会話 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | エージェントトランスクリプト（Cursor IDEソースとは別系統） |
 | **Aider** | プロジェクトディレクトリ | チャット履歴と編集ログ |
@@ -101,6 +104,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Mistral Vibe** | `~/.vibe/logs/session/` | reasoningとツール呼び出しを含むOpenAIスタイルのチャットトランスクリプト（`VIBE_HOME`で上書き可） |
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | セッション単位のJSONLトランスクリプト（ツール呼び出し、思考プロセス、トークン使用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panelスレッド — SQLite + Zstd圧縮JSON |
+| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai の GLM コーディングエージェント — session/message/part 型 SQLite ストア（タイトル、ツール呼び出し、思考、トークン使用量） |
 | **OpenHands** | `~/.openhands/sessions/` | クラシックなイベントストア形式の会話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | ワークスペース単位のチャット（icubeストア；実験的、リバースエンジニアリングによる対応） |
 
@@ -128,7 +132,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |---------|-------------|
-| **マルチプロバイダー対応** | **29のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code・Kilo Code含む）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae — プロバイダー別フィルタリング、ツール間比較 |
+| **マルチプロバイダー対応** | **31のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code — プロバイダー別フィルタリング、ツール間比較 |
 | **会話ブラウザ** | プロジェクト/セッション別に会話を閲覧（ワークツリーグループ化対応） |
 | **グローバル検索** | 全プロバイダーの会話を瞬時に検索 |
 | **分析ダッシュボード** | デュアルモードトークン統計（課金 vs 会話）、コスト内訳、プロバイダー分布チャート |
@@ -142,6 +146,49 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 | プロバイダー | メモ |
 |---------|-------|
 | **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+
+### v1.32.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **プロンプト間の移動** | **Alt+↑ / Alt+↓**（macOS は ⌥↑ / ⌥↓）で、入力した前後のプロンプトへメッセージ一覧を移動します。メッセージパネルを閉じていても動作します |
+| **セッションミニマップ** | メッセージ一覧の横に、セッション全体を行の種類ごとの色で表示する帯を表示できます。クリックまたはドラッグで移動します。設定メニュー → **セッションミニマップを表示** |
+| **復元プレビューの修正** | 最近の編集の復元確認で変更内容を表示し（WebUI でも）、シンボリックリンクの対象は復元しません |
+
+### v1.31.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **セッション再開のカスタム引数** | 設定 → **セッション再開引数** で CLI ごとに追加フラグを指定すると、**再開コマンドをコピー** とターミナルでのセッション再開の両方に適用されます。ライブプレビュー付きで、危険なフラグは強調表示されます |
+| **Claude Opus 5.5 のコストを修正** | Opus 5.5 のセッションが Opus 5 の料金で計算されていた問題を修正しました。GPT-6、Gemini 3.8 Flash、Grok 4.7 の料金も追加しました |
+
+### v1.30.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **WebUI のセキュリティ強化** | `--serve` モードでは、セッション・プロジェクトのパスは履歴フォルダ内に、プロジェクト設定は既知のプロジェクトに限定されます — WebUI をお使いの場合はアップグレードしてください（[アドバイザリ](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **Claude Code の自動タイトル** | セッション一覧、統計、エクスポート、アーカイブに Claude Code が生成したタイトルを表示します（手動で付けた名前が優先） |
+| **自分のプロンプトとエージェント更新の区別** | Messages パネルが入力したプロンプト、エージェントの更新、コマンド、注入されたコンテキストを区別し、「自分のプロンプトのみ表示」フィルターを提供します |
+
+### v1.29.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **Z Code プロバイダー** | `~/.zcode/cli/db/db.sqlite` の Z Code（Z.ai）セッションを、タイトル、ツール呼び出し、思考過程、トークン使用量とともに閲覧できます — 合計31のアシスタント |
+| **サブエージェントのコストをセッションに合算** | セッションの課金トークンとコストに、そのセッションが委任したサブエージェントの実行が含まれます（Claude Code、Z Code）。*会話のみ* モードではメインの会話だけを表示します |
+| **より速いセッション一覧** | 大規模な Claude・Codex 履歴のセッション一覧が数倍速く読み込まれます |
+
+### v1.28.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **最新の Cline セッション** | 最新の Cline（VS Code 拡張を含む）はセッションを `~/.cline/data/sessions/` に保存します。タイトル、全文の会話、トークン・コスト統計とともに表示されるようになりました。Windows でも Cline、Roo Code、Kilo Code を検出します |
+| **Kilo Code の新しいストア** | Kilo Code の OpenCode コアデータベース（`kilo.db`）を独立したプロバイダーとして読み込み、ライブ更新とグローバル統計に対応します |
+| **正確な出力トークン** | ストリーミングされた Claude Code のターンで出力トークンが約40%少なく集計されていた問題を修正し、各ターンの最終使用量を一度だけ数えます |
+| **セッションペインとフォルダの統合** | 選択したプロジェクトのセッションがサイズ変更可能な専用列に表示され、複数のツールが使う同じフォルダはプロバイダーチップ付きの1行にまとまります |
+| **すっきりしたトランスクリプト** | 折りたたみ行にツール呼び出しの要約を表示し、続くターンの重複ヘッダーを省き、ヘッダーのビュー切り替えを1つにしました |
+| **料金表の更新** | すべての料金を公式の料金ページで再検証し、fast/priority ティアに対応し、提供終了予定のモデルを後継モデルとともに表示します |
+| **トランスクリプト保持期間** | Claude Code の `cleanupPeriodDays` に長期保持の値（例: 3650）を設定でき、Claude Code の設定であることを明示します — このアプリはセッションを削除しません |
 
 ### v1.23.0の新機能
 
@@ -398,7 +445,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全29プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全31プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え
@@ -503,6 +550,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## ライセンス
 
 [MIT](LICENSE) — 個人・商用利用無料。
+
+Omnilogueは独立したオープンソースプロジェクトであり、セッションログを読み込むAnthropic、OpenAI、GitHub、Googleなどいずれのベンダーとも提携・承認・後援の関係はありません。ClaudeおよびClaude CodeはAnthropic, PBCの商標であり、その他の名称は各所有者の商標です。
 
 ---
 

@@ -231,6 +231,17 @@ describe("provider pricing boundaries", () => {
         { providerId: "copilot" },
       ),
     ).toBeNull();
+    // Kilo Code routes models through its own gateway (OpenCode core).
+    expect(
+      calculateModelPrice(
+        "gpt-5.3-codex",
+        oneMillionTokens,
+        oneMillionTokens,
+        0,
+        0,
+        { providerId: "kilo" },
+      ),
+    ).toBeNull();
   });
 
   it("applies GPT-5.6 and GPT-5.4 long-context pricing", () => {
@@ -382,6 +393,7 @@ describe("provider pricing boundaries", () => {
       "gpt-image-1",
       "sora-2",
       "grok-imagine-video",
+      "gemini-nano-banana-2.1",
     ]) {
       expect(
         calculateModelPrice(
@@ -416,5 +428,40 @@ describe("provider pricing boundaries", () => {
 
     expect(fiveMinute).toBeCloseTo(14.7);
     expect(oneHour).toBeCloseTo(16.2);
+  });
+});
+
+describe("Claude Opus 5.5 pricing", () => {
+  // 1M input + 1M output + 1M cache read at $4 / $20 / $0.20.
+  it("prices claude-opus-5-5 at its own rate, not Opus 5's", () => {
+    expect(
+      calculateModelPrice("claude-opus-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(24.2);
+  });
+
+  it("ignores a bracketed context suffix such as [1m]", () => {
+    expect(
+      calculateModelPrice("claude-opus-5-5[1m]", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(24.2);
+  });
+});
+
+describe("Claude 5.5 pricing updates (2026-10-10)", () => {
+  // 1M input + 1M output + 1M cache read.
+  it("prices Sonnet 5.5 cache reads at 0.05x input", () => {
+    expect(
+      calculateModelPrice("claude-sonnet-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(12.1);
+  });
+
+  it("prices Haiku 5.5 by prompt length", () => {
+    expect(
+      calculateModelPrice("claude-haiku-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens)
+    ).toBeCloseTo(0.61);
+    expect(
+      calculateModelPrice("claude-haiku-5-5", oneMillionTokens, oneMillionTokens, 0, oneMillionTokens, {
+        contextTokens: 100_001,
+      })
+    ).toBeCloseTo(3.05);
   });
 });

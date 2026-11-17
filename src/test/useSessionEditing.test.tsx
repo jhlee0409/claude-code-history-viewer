@@ -173,11 +173,15 @@ describe("useSessionEditing clipboard actions", () => {
     });
 
     const { result } = renderHook(() =>
-      useSessionEditing({
-        ...session,
-        provider: "codex",
-        actual_session_id: "abc-123",
-      })
+      useSessionEditing(
+        {
+          ...session,
+          provider: "codex",
+          actual_session_id: "abc-123",
+        },
+        // The row's own project, as the sidebar's project preview passes it.
+        project
+      )
     );
 
     await act(async () => {
@@ -191,6 +195,36 @@ describe("useSessionEditing clipboard actions", () => {
     );
     expect(toast.success).toHaveBeenCalledWith("Resume command copied");
 
+    useAppStore.setState({ projects: [] });
+  });
+
+  it("never takes the cwd of a project that only shares the session's name", async () => {
+    const sameName: ClaudeProject = {
+      name: session.project_name,
+      path: "codex:///elsewhere/project",
+      actual_path: "/elsewhere/project",
+      session_count: 1,
+      message_count: 1,
+      last_modified: session.last_modified,
+      provider: "codex",
+    };
+    useAppStore.setState({ projects: [sameName] });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const { result } = renderHook(() =>
+      useSessionEditing({ ...session, provider: "codex", actual_session_id: "abc-123" })
+    );
+    await act(async () => {
+      await result.current.handleCopyResumeCommand({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(writeText).toHaveBeenCalledWith("codex resume abc-123");
     useAppStore.setState({ projects: [] });
   });
 
@@ -244,22 +278,19 @@ describe("useSessionEditing clipboard actions", () => {
   });
 
   it("does not offer resume when the last-known project location is unavailable", async () => {
-    useAppStore.setState({
-      projects: [
-        {
-          name: session.project_name,
-          path: "/root/.claude/projects/-tmp-deleted-worktree",
-          actual_path: "/tmp/deleted-worktree",
-          session_count: 1,
-          message_count: 1,
-          last_modified: session.last_modified,
-          path_status: "unavailable",
-          provider: "claude",
-        },
-      ],
-    });
+    const unavailable: ClaudeProject = {
+      name: session.project_name,
+      path: "/root/.claude/projects/-tmp-deleted-worktree",
+      actual_path: "/tmp/deleted-worktree",
+      session_count: 1,
+      message_count: 1,
+      last_modified: session.last_modified,
+      path_status: "unavailable",
+      provider: "claude",
+    };
+    useAppStore.setState({ projects: [unavailable] });
 
-    const { result } = renderHook(() => useSessionEditing(session));
+    const { result } = renderHook(() => useSessionEditing(session, unavailable));
 
     expect(result.current.supportsResumeCommand).toBe(false);
 

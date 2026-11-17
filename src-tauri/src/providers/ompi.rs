@@ -9,9 +9,10 @@
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::pi::{
-    base_path_of, detect_store, load_messages_of, load_sessions_of, load_stats_messages_of,
-    scan_store, search_store, PiStore,
+    base_path_of, detect_store, load_messages_of, load_sessions_of, load_sessions_of_reporting,
+    load_stats_messages_of, scan_store, scan_store_reporting, search_store, PiStore,
 };
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 
 const OMPI_STORE: PiStore = PiStore {
@@ -35,12 +36,26 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     Ok(scan_store(&OMPI_STORE))
 }
 
+/// [`scan_projects`], recording in `report` what it could not read.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    Ok(scan_store_reporting(&OMPI_STORE, report))
+}
+
 /// Load the sessions in one oh-my-pi project directory.
 pub fn load_sessions(
     project_path: &str,
     exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     load_sessions_of(&OMPI_STORE, project_path, exclude_sidechain)
+}
+
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_of_reporting(&OMPI_STORE, project_path, report)
 }
 
 /// Load all messages from one oh-my-pi session file.

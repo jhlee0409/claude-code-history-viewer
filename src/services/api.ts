@@ -18,6 +18,13 @@ import {
   clearAuthToken,
   clearAuthCookie,
 } from "@/utils/platform";
+import { normalizeSettingsMetadata } from "./settingsMetadata";
+
+function normalizeResponse<T>(command: string, value: T): T {
+  if (command !== "get_all_settings" || value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const response = value as Record<string, unknown>;
+  return { ...response, metadata: normalizeSettingsMetadata(response.metadata) } as T;
+}
 
 /** Validate command name to prevent path traversal in URL. */
 const COMMAND_RE = /^[a-zA-Z0-9_]+$/;
@@ -37,7 +44,8 @@ export async function api<T>(
 ): Promise<T> {
   if (isTauri()) {
     const { invoke } = await import("@tauri-apps/api/core");
-    return args != null ? invoke<T>(command, args) : invoke<T>(command);
+    const result = await (args != null ? invoke<T>(command, args) : invoke<T>(command));
+    return normalizeResponse(command, result);
   }
 
   if (!COMMAND_RE.test(command)) {
@@ -104,5 +112,5 @@ export async function api<T>(
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  return normalizeResponse(command, await response.json() as T);
 }

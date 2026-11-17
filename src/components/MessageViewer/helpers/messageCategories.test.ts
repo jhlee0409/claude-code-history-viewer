@@ -264,6 +264,44 @@ describe("parallel-task message category", () => {
     )).toEqual(new Set(["opencode-tasks"]));
   });
 
+  it("categorizes a Kilo Code (OpenCode-core) message with multiple Task calls", () => {
+    const parallelTasks = makeMessage("kilo-tasks", {
+      provider: "kilo",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "kilo-task-1",
+          name: "Task",
+          input: { description: "Check API", prompt: "Review the API" },
+        },
+        {
+          type: "tool_use",
+          id: "kilo-task-2",
+          name: "Task",
+          input: { description: "Check UI", prompt: "Review the UI" },
+        },
+      ],
+    });
+    const singleTask = makeMessage("kilo-single-task", {
+      provider: "kilo",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "kilo-task-3",
+        name: "Task",
+        input: { description: "One check", prompt: "Review one thing" },
+      }],
+    });
+
+    expect(getMessageUuidsByCategory(
+      [parallelTasks, singleTask],
+      "parallel-task",
+    )).toEqual(new Set(["kilo-tasks"]));
+  });
+
   it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",

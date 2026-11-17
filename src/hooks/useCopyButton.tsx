@@ -82,7 +82,7 @@ export const useCopyButton = () => {
         aria-label={label}
         onClick={() => copyToClipboard(text, id)}
         disabled={state === "copying"}
-        className={`h-6 flex items-center gap-1 px-2 text-xs rounded transition-colors ${
+        className={`h-6 flex items-center gap-1 px-2 text-list rounded transition-colors ${
           state === "success"
             ? "bg-success/20 text-success"
             : state === "error"
@@ -93,22 +93,22 @@ export const useCopyButton = () => {
       >
         {state === "copying" ? (
           <>
-            <RefreshCw className="w-3 h-3 animate-spin" />
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
             <span>{t('copyButton.copying')}</span>
           </>
         ) : state === "success" ? (
           <>
-            <Check className="w-3 h-3" />
+            <Check className="w-3.5 h-3.5" />
             <span>{t('copyButton.copied')}</span>
           </>
         ) : state === "error" ? (
           <>
-            <X className="w-3 h-3" />
+            <X className="w-3.5 h-3.5" />
             <span>{t('copyButton.error')}</span>
           </>
         ) : (
           <>
-            <Clipboard className="w-3 h-3" />
+            <Clipboard className="w-3.5 h-3.5" />
             <span>{label}</span>
           </>
         )}

@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Terminal } from "lucide-react";
+import { ChevronDown, Copy, SquareTerminal, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -9,10 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { ClaudeProject, ClaudeSession } from "@/types";
+import type { ClaudeProject, ClaudeSession, ProviderId } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { getResumeCommand } from "@/utils/providers";
+import { parseResumeArgs } from "@/utils/resumeArgs";
 import { isProjectPathUnavailable } from "@/utils/pathUtils";
+import { useAppStore } from "@/store/useAppStore";
+import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
+import { openSettingsSection } from "@/components/SettingsManager/settingsNavigation";
 
 interface SessionCopyMenuProps {
   project: ClaudeProject | null;
@@ -20,13 +24,24 @@ interface SessionCopyMenuProps {
   compact?: boolean;
 }
 
+/**
+ * Dropdown menu for copying session IDs or full resume commands,
+ * with direct navigation to configure resume CLI arguments.
+ */
 export const SessionCopyMenu = ({
   project,
   session,
   compact = false,
 }: SessionCopyMenuProps) => {
   const { t } = useTranslation();
-  const providerId = session.provider ?? project?.provider ?? "claude";
+  const { userMetadata } = useAppStore();
+  const { switchToSettings } = useAnalyticsNavigation();
+  const providerId = (session.provider ?? project?.provider ?? "claude") as ProviderId;
+
+  const rawArgs = userMetadata?.settings?.resumeCliArgs?.[providerId] ?? "";
+  const { tokens } = parseResumeArgs(rawArgs);
+  const hasCustomArgs = tokens.length > 0;
+
   const resumeCommand = isProjectPathUnavailable(project)
     ? null
     : getResumeCommand(
@@ -34,6 +49,7 @@ export const SessionCopyMenu = ({
         session.actual_session_id,
         project?.actual_path,
         session.entrypoint,
+        hasCustomArgs ? tokens.join(" ") : undefined,
       );
   const copySessionIdLabel = t("session.copySessionId", "Copy Session ID");
   const triggerLabel = `${resumeCommand
@@ -58,14 +74,14 @@ export const SessionCopyMenu = ({
           title={triggerLabel}
           className={cn(
             "inline-flex items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            compact ? "p-2" : "gap-1.5 px-2 py-1 text-2xs font-mono",
+            compact ? "p-2" : "gap-1.5 px-2 py-1 text-caption font-mono",
           )}
         >
-          <Terminal className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
+          <SquareTerminal className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
           {!compact && (
             <>
               <span>{session.actual_session_id.slice(0, 8)}</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
             </>
           )}
         </button>
@@ -83,22 +99,43 @@ export const SessionCopyMenu = ({
           {copySessionIdLabel}
         </DropdownMenuItem>
         {resumeCommand && (
-          <DropdownMenuItem
-            onSelect={() => {
-              void copyToClipboard(
-                resumeCommand,
-                project?.actual_path
-                  ? t("session.copiedResumeCommand", "Resume command copied")
-                  : t(
-                      "session.copiedResumeCommandNoCwd",
-                      "Resume command copied (working directory unknown)",
-                    ),
-              );
-            }}
-          >
-            <Terminal className="mr-2 h-4 w-4" />
-            {t("session.copyResumeCommand", "Copy Resume Command")}
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem
+              onSelect={() => {
+                void copyToClipboard(
+                  resumeCommand,
+                  project?.actual_path
+                    ? t("session.copiedResumeCommand", "Resume command copied")
+                    : t(
+                        "session.copiedResumeCommandNoCwd",
+                        "Resume command copied (working directory unknown)",
+                      ),
+                );
+              }}
+            >
+              <SquareTerminal className="mr-2 h-4 w-4 shrink-0" />
+              <div className="flex flex-col text-left">
+                <span>{t("session.copyResumeCommand", "Copy Resume Command")}</span>
+                {hasCustomArgs && (
+                  <span className="text-caption text-muted-foreground">
+                    {t("session.withCustomArguments", "with custom arguments")}
+                  </span>
+                )}
+              </div>
+            </DropdownMenuItem>
+            {hasCustomArgs && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  openSettingsSection("session-resume");
+                  switchToSettings();
+                }}
+                className="text-caption text-muted-foreground hover:text-foreground"
+              >
+                <SlidersHorizontal className="mr-2 h-3.5 w-3.5" />
+                <span>{t("session.editCustomArguments", "Edit custom arguments…")}</span>
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

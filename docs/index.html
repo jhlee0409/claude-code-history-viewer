@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude Code History Viewer</title>
-  <meta name="description" content="Desktop app to browse Claude Code conversation history. View analytics, search messages, and track token usage.">
-  <meta name="keywords" content="Claude, Claude Code, conversation history, desktop app, analytics">
+  <title>Omnilogue — unified history viewer for AI coding assistants (formerly Claude Code History Viewer)</title>
+  <meta name="description" content="Omnilogue (formerly Claude Code History Viewer) is an offline desktop app and headless server to browse, search, and analyze conversation history from Claude Code, Codex CLI, GitHub Copilot, Gemini CLI, Cursor, and more.">
+  <meta name="keywords" content="Omnilogue, Claude Code history viewer, Codex CLI history, GitHub Copilot chat history, Gemini CLI history, AI coding assistant, conversation history, desktop app">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "Omnilogue", "alternateName": ["Claude Code History Viewer"], "url": "https://jhlee0409.github.io/claude-code-history-viewer/"}</script>
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Claude Code History Viewer">
-  <meta property="og:description" content="Desktop app to browse Claude Code conversation history">
+  <meta property="og:title" content="Omnilogue (formerly Claude Code History Viewer)">
+  <meta property="og:description" content="Browse, search, and analyze conversation history from every AI coding assistant on your machine. 100% offline.">
+  <meta property="og:site_name" content="Omnilogue">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://jhlee0409.github.io/claude-code-history-viewer/">
 
@@ -30,8 +32,8 @@
       --color-bg-alt: #F3EFE9;
       --color-text: #1C1917;
       --color-text-muted: #78716C;
-      --color-accent: #D97757;
-      --color-accent-hover: #C4684A;
+      --color-accent: #4F5BC4;
+      --color-accent-hover: #4650B8;
       --color-border: #E7E5E4;
       --font-sans: 'Noto Sans', 'Noto Sans KR', -apple-system, sans-serif;
       --font-mono: 'IBM Plex Mono', monospace;
@@ -556,8 +558,8 @@
   <nav>
     <div class="nav-inner">
       <a href="#" class="nav-brand">
-        <img src="assets/app-icon.png" alt="Logo">
-        <span>claude-code-history-viewer</span>
+        <img src="assets/app-icon.png" alt="">
+        <span>Omnilogue</span>
       </a>
       <div class="nav-actions">
         <select id="lang-select" class="lang-select">
@@ -583,10 +585,10 @@
           <span>Open Source Desktop App</span>
         </div>
         <h1 class="animate-fade-up animate-delay-1" data-i18n="hero.title">
-          Claude Code<br><span class="accent">History Viewer</span>
+          Omnilogue
         </h1>
         <p class="hero-subtitle animate-fade-up animate-delay-2" data-i18n="hero.subtitle">
-          A desktop app to explore, search, and analyze your Claude Code conversation history stored locally.
+          Explore, search, and analyze your AI coding assistant conversations stored locally — Claude Code, Codex CLI, GitHub Copilot, Gemini CLI, and more.
         </p>
         <div class="hero-actions animate-fade-up animate-delay-3">
           <a id="download-primary" href="#" class="btn-primary">
@@ -735,8 +737,8 @@
 
     const translations = {
       en: {
-        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
-        'hero.subtitle': 'Explore, search, and analyze your Claude Code conversation history stored locally.',
+        'hero.title': 'Omnilogue',
+        'hero.subtitle': 'Explore, search, and analyze your AI coding assistant conversations stored locally — Claude Code, Codex CLI, GitHub Copilot, Gemini CLI, and more.',
         'hero.download': 'Download for macOS',
         'hero.otherPlatforms': 'Other platforms',
         'hero.privacy': '100% Local',
@@ -757,8 +759,8 @@
         'download.allReleases': 'All releases'
       },
       ko: {
-        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
-        'hero.subtitle': '로컬에 저장된 Claude Code 대화 기록을 탐색하고 분석하세요.',
+        'hero.title': 'Omnilogue',
+        'hero.subtitle': '로컬에 저장된 AI 코딩 어시스턴트 대화 기록을 탐색하고 분석하세요 — Claude Code, Codex CLI, GitHub Copilot, Gemini CLI 등.',
         'hero.download': 'macOS 다운로드',
         'hero.otherPlatforms': '다른 플랫폼',
         'hero.privacy': '100% 로컬',
@@ -779,8 +781,8 @@
         'download.allReleases': '모든 릴리즈'
       },
       ja: {
-        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
-        'hero.subtitle': 'ローカルに保存されたClaude Codeの会話履歴を探索・分析。',
+        'hero.title': 'Omnilogue',
+        'hero.subtitle': 'ローカルに保存されたAIコーディングアシスタントの会話履歴を探索・分析 — Claude Code、Codex CLI、GitHub Copilot、Gemini CLIなど。',
         'hero.download': 'macOS版をダウンロード',
         'hero.otherPlatforms': '他のプラットフォーム',
         'hero.privacy': '100%ローカル',
@@ -801,8 +803,8 @@
         'download.allReleases': 'すべてのリリース'
       },
       'zh-CN': {
-        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
-        'hero.subtitle': '探索、搜索和分析本地存储的 Claude Code 对话历史。',
+        'hero.title': 'Omnilogue',
+        'hero.subtitle': '探索、搜索和分析本地存储的 AI 编程助手对话历史 — Claude Code、Codex CLI、GitHub Copilot、Gemini CLI 等。',
         'hero.download': '下载 macOS 版',
         'hero.otherPlatforms': '其他平台',
         'hero.privacy': '100% 本地',
@@ -823,8 +825,8 @@
         'download.allReleases': '所有版本'
       },
       'zh-TW': {
-        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
-        'hero.subtitle': '探索、搜尋和分析本地儲存的 Claude Code 對話歷史。',
+        'hero.title': 'Omnilogue',
+        'hero.subtitle': '探索、搜尋和分析本地儲存的 AI 程式設計助手對話歷史 — Claude Code、Codex CLI、GitHub Copilot、Gemini CLI 等。',
         'hero.download': '下載 macOS 版',
         'hero.otherPlatforms': '其他平台',
         'hero.privacy': '100% 本地',

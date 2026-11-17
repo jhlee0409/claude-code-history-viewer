@@ -14,10 +14,17 @@ import {
   supportsResumeCommandForSession,
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
-import type { ClaudeSession } from "@/types";
+import { parseResumeArgs } from "@/utils/resumeArgs";
+import type { ClaudeProject, ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { projectListing } from "@/navigation/library";
 
-export function useSessionEditing(session: ClaudeSession) {
+/**
+ * A session row's editing and context-menu actions. `owner` is the project
+ * the row is listed under, when the caller knows it (the sidebar's project
+ * preview); it gives the resume command its working directory.
+ */
+export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -30,6 +37,7 @@ export function useSessionEditing(session: ClaudeSession) {
   const ignoreBlurRef = useRef<boolean>(false);
 
   const providerId = session.provider ?? "claude";
+  const userMetadata = useAppStore((state) => state.userMetadata);
   const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
   const selectedProject = useAppStore((state) => state.selectedProject);
   const loadedSessions = useAppStore((state) => state.sessions);
@@ -182,27 +190,13 @@ export function useSessionEditing(session: ClaudeSession) {
     [handleCopyToClipboard, session.actual_session_id, t]
   );
 
-  const projectForSession = useMemo(() => {
-    const isLoadedInSelectedProject =
-      !!selectedProject &&
-      loadedSessions.some(
-        (loadedSession) =>
-          loadedSession.session_id === session.session_id ||
-          loadedSession.file_path === session.file_path
-      );
-
-    if (isLoadedInSelectedProject) {
-      return selectedProject;
-    }
-
-    return (
-      projects.find(
-        (project) =>
-          (project.provider ?? "claude") === providerId &&
-          project.name === session.project_name
-      ) ?? projects.find((project) => project.name === session.project_name)
-    );
-  }, [loadedSessions, projects, providerId, selectedProject, session.file_path, session.project_name, session.session_id]);
+  const projectForSession = useMemo(
+    // The row's own project, else the open project when its list holds the
+    // session, else the one whose storage holds the file - never a project
+    // that only shares the name (`projectListing`).
+    () => projectListing({ projects, selectedProject, sessions: loadedSessions }, session, owner),
+    [loadedSessions, owner, projects, selectedProject, session]
+  );
 
   const projectPathUnavailable = projectForSession?.path_status === "unavailable";
   const projectCwd = projectPathUnavailable ? undefined : projectForSession?.actual_path;
@@ -212,13 +206,16 @@ export function useSessionEditing(session: ClaudeSession) {
 
   const handleCopyResumeCommand = useCallback(
     (e: React.MouseEvent) => {
+      const rawArgs = userMetadata?.settings?.resumeCliArgs?.[providerId] ?? "";
+      const { tokens } = parseResumeArgs(rawArgs);
       const resumeCommand = projectPathUnavailable
         ? null
         : getResumeCommand(
             providerId,
             session.actual_session_id,
             projectCwd,
-            session.entrypoint
+            session.entrypoint,
+            tokens.length > 0 ? tokens.join(" ") : undefined
           );
       if (!resumeCommand) {
         e.stopPropagation();
@@ -253,6 +250,7 @@ export function useSessionEditing(session: ClaudeSession) {
       session.actual_session_id,
       session.entrypoint,
       t,
+      userMetadata?.settings?.resumeCliArgs,
     ]
   );
 
@@ -307,11 +305,13 @@ export function useSessionEditing(session: ClaudeSession) {
     setIsDeletingSession(true);
     try {
       await api("delete_session", { filePath: session.file_path });
-      const { sessions, setSessions, selectedSession, setSelectedSession } =
+      const { sessions, setSessions, selectedSession, navigate } =
         useAppStore.getState();
       setSessions(sessions.filter((s) => s.session_id !== session.session_id));
       if (selectedSession?.session_id === session.session_id) {
-        setSelectedSession(null);
+        // The open place lost its session: fall back to the project's empty
+        // screen. Not a step the user can go back to.
+        await navigate({ session: null }, { record: false, history: "replace" });
       }
       setIsDeleteDialogOpen(false);
       toast.success(t("session.deleteSuccess", "Session deleted"));

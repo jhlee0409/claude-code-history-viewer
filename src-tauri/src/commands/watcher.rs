@@ -1,4 +1,4 @@
-use crate::utils::is_safe_storage_id;
+use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, Debouncer};
@@ -168,8 +168,20 @@ pub async fn stop_file_watcher(app_handle: AppHandle) -> Result<(), String> {
 /// extracted.  This is the shared core used by both the Tauri desktop watcher
 /// and the `WebUI` SSE server watcher.
 pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
-    let path = &event.path;
+    // Event paths are joined onto the watched root, and the desktop watcher
+    // watches a canonicalized root, which on Windows carries the `\\?\`
+    // prefix. Every other path the frontend holds (session `file_path`,
+    // project `path`) comes without it, so its strict equality checks never
+    // matched and live refresh silently did nothing on Windows.
+    //
+    // Strip it from the input so extractors compare like with like, and again
+    // from the output because some extractors (e.g. Pi) canonicalize
+    // internally and would bring it back.
+    let path = strip_windows_extended_prefix(&event.path);
+    let path = path.as_path();
     let (project_path, session_path) = extract_provider_paths(path)?;
+    let project_path = strip_extended_prefix_str(project_path);
+    let session_path = strip_extended_prefix_str(session_path);
 
     if !record_content_signature_change(path) {
         return None;
@@ -186,6 +198,12 @@ pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
         session_path,
         event_type: event_type.to_string(),
     })
+}
+
+fn strip_extended_prefix_str(path: String) -> String {
+    strip_windows_extended_prefix(Path::new(&path))
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Seed the file signature cache for a watched tree.
@@ -293,7 +311,8 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             .or_else(|| extract_kimi_paths(path))
             .or_else(|| extract_kimi_code_paths(path))
             .or_else(|| extract_opencode_paths(path)),
-        // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
+        // OpenCode-core SQLite database change (opencode.db / kilo.db) — emit a
+        // broad refresh for every project in that store
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
     }
@@ -540,18 +559,23 @@ fn extract_kimi_code_paths(path: &Path) -> Option<(String, String)> {
     ))
 }
 
-/// Handle `OpenCode` `SQLite` database file changes.
+/// Handle `OpenCode`-core `SQLite` database file changes.
 ///
-/// Since we cannot determine which project/session changed from a DB write,
-/// emit a broad event with `"opencode://*"` so the frontend refreshes all
-/// `OpenCode` data.
+/// Covers `opencode.db` and Kilo Code's `kilo.db` (plus their `-wal`
+/// companions). Since we cannot determine which project/session changed from
+/// a DB write, emit a broad event with `"<scheme>://*"` so the frontend
+/// refreshes all data for that store (`opencode://*` or `kilo://*`).
 fn extract_opencode_db_event(path: &Path) -> Option<(String, String)> {
     let filename = path.file_name()?.to_str()?;
-    if filename.starts_with("opencode.") {
-        Some(("opencode://*".to_string(), "opencode://*".to_string()))
+    let scheme = if filename.starts_with("opencode.") {
+        "opencode"
+    } else if filename.starts_with("kilo.") {
+        "kilo"
     } else {
-        None
-    }
+        return None;
+    };
+    let wildcard = format!("{scheme}://*");
+    Some((wildcard.clone(), wildcard))
 }
 
 /// Extract `OpenCode` virtual identifiers from storage JSON files.
@@ -705,6 +729,67 @@ mod tests {
         let result = extract_paths(&path);
 
         assert!(result.is_none());
+    }
+
+    /// `extract_pi_store_paths` canonicalizes internally, so on Windows its
+    /// output carries `\\?\` even for a plain input path. The normalization
+    /// `to_file_watch_event` applies to extractor output must remove it.
+    #[cfg(windows)]
+    #[test]
+    fn test_pi_extractor_output_is_normalized_for_emitted_events() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("agent").join("sessions");
+        let project = root.join("--Users-jack-my-proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let file = project.join("2026-07-12T10-00-00_abc.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        let (project_path, session_path) = extract_pi_store_paths(&root, &file).unwrap();
+        assert!(session_path.starts_with(r"\\?\"));
+
+        let project_path = strip_extended_prefix_str(project_path);
+        let session_path = strip_extended_prefix_str(session_path);
+        assert!(!project_path.starts_with(r"\\?\"), "{project_path}");
+        assert!(!session_path.starts_with(r"\\?\"), "{session_path}");
+        assert!(session_path.ends_with(r"--Users-jack-my-proj\2026-07-12T10-00-00_abc.jsonl"));
+    }
+
+    /// The desktop watcher watches a canonicalized root, so on Windows its
+    /// events arrive as `\\?\C:\...`. The emitted paths must match the plain
+    /// form the frontend compares against.
+    #[cfg(windows)]
+    #[test]
+    fn test_to_file_watch_event_emits_paths_without_extended_prefix() {
+        let temp = TempDir::new().unwrap();
+        std::env::set_var("CCHV_TEST_HOME", temp.path());
+        let project_dir = temp
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("my-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let session_path = project_dir.join("session.jsonl");
+        std::fs::write(&session_path, "{}\n").unwrap();
+
+        let canonical = session_path.canonicalize().unwrap();
+        assert!(canonical.to_string_lossy().starts_with(r"\\?\"));
+
+        let event = to_file_watch_event(&DebouncedEvent {
+            path: canonical,
+            kind: DebouncedEventKind::Any,
+        })
+        .expect("a changed session file should produce an event");
+        assert!(
+            !event.session_path.starts_with(r"\\?\"),
+            "{}",
+            event.session_path
+        );
+        assert!(
+            !event.project_path.starts_with(r"\\?\"),
+            "{}",
+            event.project_path
+        );
+        assert!(event.session_path.ends_with(r"my-project\session.jsonl"));
     }
 
     #[test]
@@ -948,6 +1033,36 @@ mod tests {
 
         assert_eq!(result.0, "opencode://project_1");
         assert_eq!(result.1, "opencode://project_1/session_1");
+    }
+
+    #[test]
+    fn test_extract_opencode_db_event_emits_opencode_wildcard() {
+        for name in ["opencode.db", "opencode.db-wal"] {
+            let path = PathBuf::from("/Users/test/.local/share/opencode").join(name);
+            let result = extract_provider_paths(&path).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(
+                result,
+                ("opencode://*".to_string(), "opencode://*".to_string())
+            );
+        }
+    }
+
+    /// Kilo Code's OpenCode-core store lives in `kilo.db`; before this branch
+    /// existed the filename fell through to `None` and live refresh never
+    /// fired for Kilo (PR #580 review).
+    #[test]
+    fn test_extract_kilo_db_event_emits_kilo_wildcard() {
+        for name in ["kilo.db", "kilo.db-wal"] {
+            let path = PathBuf::from("/Users/test/.local/share/kilo").join(name);
+            let result = extract_provider_paths(&path).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(result, ("kilo://*".to_string(), "kilo://*".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_extract_db_event_ignores_unknown_stores() {
+        let path = PathBuf::from("/Users/test/.local/share/other/other.db");
+        assert!(extract_provider_paths(&path).is_none());
     }
 
     #[test]

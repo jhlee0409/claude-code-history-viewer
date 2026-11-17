@@ -10,8 +10,9 @@ import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { TokenDistribution } from "../types";
-import { formatNumber } from "../utils";
 import { cn } from "@/lib/utils";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface TokenDistributionChartProps {
   distribution: TokenDistribution;
@@ -23,6 +24,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
   total,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   const items = useMemo(
     () => [
@@ -95,7 +97,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                   strokeLinecap="butt"
                   tabIndex={0}
                   role="img"
-                  aria-label={`${arc.label}: ${formatNumber(arc.value)} (${(arc.percentage * 100).toFixed(1)}%)`}
+                  aria-label={`${arc.label}: ${fmt.tokens(arc.value)} (${fmt.percent(arc.percentage)})`}
                   className="cursor-pointer transition-opacity duration-200 hover:opacity-70 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:opacity-70"
                 />
               </TooltipTrigger>
@@ -103,8 +105,8 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                 title={arc.label}
                 side="right"
                 rows={[
-                  { label: t("analytics.tooltip.tokens"), value: `${formatNumber(arc.value)}`, color: arc.color },
-                  { label: t("analytics.tooltip.share"), value: `${(arc.percentage * 100).toFixed(1)}%` },
+                  { label: t("analytics.tooltip.tokens"), value: fmt.tokens(arc.value), color: arc.color },
+                  { label: t("analytics.tooltip.share"), value: fmt.percent(arc.percentage) },
                 ]}
               />
             </Tooltip>
@@ -114,9 +116,9 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-            {formatNumber(total)}
+            <Num>{fmt.tokens(total)}</Num>
           </div>
-          <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider mt-1">
+          <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
             {t("analytics.totalTokenUsage")}
           </div>
         </div>
@@ -149,11 +151,11 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
               {/* Label & Bar */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between mb-1">
-                  <span className="text-px11 font-medium text-foreground/80 truncate">
+                  <span className="text-caption font-medium text-foreground/80 truncate">
                     {item.label}
                   </span>
-                  <span className="font-mono text-px10 text-muted-foreground ml-2 tabular-nums">
-                    {percentage.toFixed(1)}%
+                  <span className="font-mono text-caption text-muted-foreground ml-2 tabular-nums">
+                    <Num>{fmt.percent(percentage / 100)}</Num>
                   </span>
                 </div>
                 <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
@@ -170,10 +172,10 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
 
               {/* Value */}
               <div
-                className="font-mono text-sm font-semibold text-right shrink-0 tabular-nums"
+                className="font-mono text-body font-semibold text-right shrink-0 tabular-nums"
                 style={{ color: item.color }}
               >
-                {formatNumber(item.value)}
+                <Num>{fmt.tokens(item.value)}</Num>
               </div>
             </div>
           );

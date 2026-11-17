@@ -3,8 +3,8 @@
 //! This module provides commands for creating, listing, and managing
 //! archived sessions stored in ~/.claude-history-viewer/archives/
 
+use crate::commands::stats::session_files;
 use crate::models::ClaudeSession;
-use crate::utils::find_subagent_files;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -132,7 +132,7 @@ pub struct ExportResult {
 // ---------------------------------------------------------------------------
 
 /// Returns the archives base directory path: `~/.claude-history-viewer/archives/`
-fn get_archives_dir() -> Result<PathBuf, String> {
+pub(crate) fn get_archives_dir() -> Result<PathBuf, String> {
     let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("archives"))
 }
@@ -153,6 +153,10 @@ fn ensure_archives_dir() -> Result<PathBuf, String> {
     }
     Ok(dir)
 }
+
+/// Per-archive `manifest.json` schema version.
+/// v2: session `summary` is derived with ai-title > legacy summary precedence (#611).
+const ARCHIVE_MANIFEST_VERSION: u64 = 2;
 
 /// Path to the global archive manifest file.
 fn get_manifest_path() -> Result<PathBuf, String> {
@@ -279,6 +283,7 @@ fn load_manifest() -> Result<ArchiveManifest, String> {
     if !path.exists() {
         return Ok(ArchiveManifest::default());
     }
+    // Not a history file: the archive manifest the app writes.
     let content =
         fs::read_to_string(&path).map_err(|e| format!("Failed to read archive manifest: {e}"))?;
     let manifest: ArchiveManifest = serde_json::from_str(&content)
@@ -329,6 +334,7 @@ fn update_per_archive_manifest(
     if !per_manifest_path.exists() {
         return Ok(());
     }
+    // Not a history file: the per-archive manifest the app writes.
     let content = fs::read_to_string(per_manifest_path).map_err(|e| {
         format!(
             "Failed to read per-archive manifest '{}': {e}",
@@ -354,9 +360,18 @@ fn update_per_archive_manifest(
     atomic_write_string(per_manifest_path, &updated)
 }
 
+/// Copy a history file found under `root` into the archive. The source is
+/// opened without following a link (`session_files::open_session_file`), and
+/// the copy is made only once it opened as a regular file inside `root`.
+fn copy_history_file(source: &Path, root: &Path, dest: &Path) -> Result<u64, String> {
+    let (mut from, _) = session_files::open_session_file(source, root)?;
+    let mut to = fs::File::create(dest).map_err(|e| e.to_string())?;
+    std::io::copy(&mut from, &mut to).map_err(|e| e.to_string())
+}
+
 /// Counts the number of non-sidechain messages in a JSONL file.
 fn count_messages(path: &Path) -> usize {
-    let file = match fs::File::open(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return 0,
     };
@@ -383,7 +398,7 @@ fn count_messages(path: &Path) -> usize {
 /// Returns `(first, last)` as ISO 8601 strings, or empty strings if unavailable.
 #[cfg(test)]
 fn extract_timestamps(path: &Path) -> (String, String) {
-    let file = match fs::File::open(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (String::new(), String::new()),
     };
@@ -411,7 +426,7 @@ fn extract_timestamps(path: &Path) -> (String, String) {
 /// Extracts the summary from a JSONL file (last `type: "summary"` entry).
 #[cfg(test)]
 fn extract_summary(path: &Path) -> Option<String> {
-    let file = fs::File::open(path).ok()?;
+    let file = session_files::open_history_file(path).ok()?;
     let reader = BufReader::new(file);
     let mut summary: Option<String> = None;
     for line in reader.lines().map_while(Result::ok) {
@@ -436,7 +451,7 @@ fn extract_summary(path: &Path) -> Option<String> {
 /// Extracts message count, timestamps, and summary in a single pass through the JSONL file.
 /// Returns `(message_count, first_timestamp, last_timestamp, summary)`.
 fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<String>) {
-    let file = match fs::File::open(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (0, String::new(), String::new(), None),
     };
@@ -445,6 +460,7 @@ fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<Strin
     let mut first_ts: Option<String> = None;
     let mut last_ts: Option<String> = None;
     let mut summary: Option<String> = None;
+    let mut ai_title: Option<String> = None;
 
     for line in reader.lines().map_while(Result::ok) {
         if line.trim().is_empty() {
@@ -482,13 +498,21 @@ fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<Strin
                 summary = Some(s.to_string());
             }
         }
+        // Claude Code's auto-generated title outranks legacy summaries (last one wins)
+        if msg_type == "ai-title" {
+            if let Some(t) = val.get("aiTitle").and_then(serde_json::Value::as_str) {
+                if !t.trim().is_empty() {
+                    ai_title = Some(t.trim().to_string());
+                }
+            }
+        }
     }
 
     (
         count,
         first_ts.unwrap_or_default(),
         last_ts.unwrap_or_default(),
-        summary,
+        ai_title.or(summary),
     )
 }
 
@@ -511,7 +535,8 @@ fn dir_size(path: &Path) -> u64 {
 
 /// Converts a JSONL file to a pretty-printed JSON array string.
 fn jsonl_to_json_array(path: &Path) -> Result<String, String> {
-    let file = fs::File::open(path).map_err(|e| format!("Failed to read session file: {e}"))?;
+    let file = session_files::open_history_file(path)
+        .map_err(|e| format!("Failed to read session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut entries: Vec<serde_json::Value> = Vec::new();
     for line_result in reader.lines() {
@@ -687,6 +712,12 @@ pub async fn create_archive(
                             "Session path is a symlink (rejected for security): {session_path_str}"
                         ));
                     }
+                    // A FIFO named like a session would block the copy.
+                    Ok(meta) if !meta.is_file() => {
+                        return Err(format!(
+                            "Session path is not a regular file: {session_path_str}"
+                        ));
+                    }
                     Ok(_) => {}
                     Err(_) => {
                         return Err(format!("Session file not found: {session_path_str}"));
@@ -714,7 +745,13 @@ pub async fn create_archive(
                         suffix += 1;
                     }
                 }
-                fs::copy(session_path, &dest).map_err(|e| {
+                // Copied through a no-follow open inside the session's own
+                // folder: an entry swapped for a symlink or a FIFO since the
+                // check above is refused, not followed (#698).
+                let session_root = session_files::own_folder(session_path).map_err(|e| {
+                    format!("Failed to resolve session folder '{session_path_str}': {e}")
+                })?;
+                copy_history_file(session_path, &session_root, &dest).map_err(|e| {
                     format!("Failed to copy session file '{session_path_str}': {e}")
                 })?;
 
@@ -737,7 +774,22 @@ pub async fn create_archive(
                 let mut subagent_size: u64 = 0;
 
                 if include_subagents {
-                    let subagent_files = find_subagent_files(session_path);
+                    // Never through a symlinked folder
+                    // (`session_files::subagent_files`): a linked folder would
+                    // copy transcripts from outside the root into the archive.
+                    // An entry there that is not a regular file holds no
+                    // transcript and is left out, as a link is; one that stops
+                    // being a file before it is copied is refused below.
+                    let (subagent_files, not_files): (Vec<_>, Vec<_>) =
+                        session_files::subagent_files(session_path)
+                            .into_iter()
+                            .partition(|path| session_files::is_regular_file(path));
+                    for path in &not_files {
+                        log::warn!(
+                            "Not archiving subagent entry that is not a regular file: {}",
+                            path.display()
+                        );
+                    }
                     if !subagent_files.is_empty() {
                         let dest_subagent_dir = subagents_dir.join(&dest_stem);
                         fs::create_dir_all(&dest_subagent_dir)
@@ -763,12 +815,14 @@ pub async fn create_archive(
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("agent.jsonl");
                             let sa_dest = dest_subagent_dir.join(sa_name);
-                            fs::copy(subagent_file, &sa_dest).map_err(|e| {
-                                format!(
-                                    "Failed to copy subagent file '{}': {e}",
-                                    subagent_file.display()
-                                )
-                            })?;
+                            copy_history_file(subagent_file, &session_root, &sa_dest).map_err(
+                                |e| {
+                                    format!(
+                                        "Failed to copy subagent file '{}': {e}",
+                                        subagent_file.display()
+                                    )
+                                },
+                            )?;
                             let copied_meta = sa_dest.metadata().map_err(|e| {
                                 format!(
                                     "Failed to read copied subagent file '{}': {e}",
@@ -802,7 +856,7 @@ pub async fn create_archive(
             let created_at = Utc::now().to_rfc3339();
             let archive_manifest_path = archive_dir.join("manifest.json");
             let archive_manifest = serde_json::json!({
-                "version": 1,
+                "version": ARCHIVE_MANIFEST_VERSION,
                 "archiveId": archive_id,
                 "name": name,
                 "description": description,
@@ -960,6 +1014,7 @@ pub async fn rename_archive(archive_id: String, new_name: String) -> Result<Stri
         let per_manifest_path = target_dir.join("manifest.json");
         let previous_per_manifest = if per_manifest_path.exists() {
             Some(
+                // Not a history file: the per-archive manifest the app writes.
                 fs::read_to_string(&per_manifest_path)
                     .map_err(|e| format!("Failed to read per-archive manifest: {e}"))?,
             )
@@ -1014,12 +1069,21 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
         }
 
         // Try to load metadata from the per-archive manifest for richer information
-        let per_manifest: Option<serde_json::Value> = {
-            let path = archive_dir.join("manifest.json");
-            fs::read_to_string(&path)
-                .ok()
-                .and_then(|c| serde_json::from_str(&c).ok())
-        };
+        let per_manifest_path = archive_dir.join("manifest.json");
+        // Not a history file: the per-archive manifest the app writes.
+        let mut per_manifest: Option<serde_json::Value> = fs::read_to_string(&per_manifest_path)
+            .ok()
+            .and_then(|c| serde_json::from_str(&c).ok());
+
+        // Manifests written before #611 cached titles without ai-title precedence.
+        let needs_title_refresh = per_manifest.as_ref().is_some_and(|pm| {
+            pm.get("version")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(1)
+                < ARCHIVE_MANIFEST_VERSION
+        });
+        let mut refreshed_titles: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
 
         let session_meta_map: std::collections::HashMap<String, serde_json::Value> =
             if let Some(ref pm) = per_manifest {
@@ -1084,9 +1148,20 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                             .and_then(serde_json::Value::as_str)
                             .unwrap_or("")
                             .to_string(),
-                        meta.get("summary")
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::to_string),
+                        {
+                            let cached = meta
+                                .get("summary")
+                                .and_then(serde_json::Value::as_str)
+                                .map(str::to_string);
+                            if needs_title_refresh {
+                                // One-time re-derivation; only the title is refreshed.
+                                let title = extract_session_metadata(&path).3.or(cached);
+                                refreshed_titles.insert(file_name.clone(), title.clone());
+                                title
+                            } else {
+                                cached
+                            }
+                        },
                     )
                 } else {
                     let (mc, first, last, sum) = extract_session_metadata(&path);
@@ -1164,6 +1239,32 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                 subagent_size_bytes,
                 subagents,
             });
+        }
+
+        // Cache refreshed titles back so the JSONL is only re-read once. Best-effort:
+        // a failed write (e.g. read-only dir) just means re-deriving on the next call.
+        // May race a concurrent rename_archive rewrite of the same file (last write wins).
+        if let Some(pm) = per_manifest.as_mut().filter(|_| needs_title_refresh) {
+            if let Some(arr) = pm
+                .get_mut("sessions")
+                .and_then(serde_json::Value::as_array_mut)
+            {
+                for s in arr.iter_mut() {
+                    let key = s
+                        .get("fileName")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string);
+                    if let Some(title) = key.and_then(|k| refreshed_titles.get(&k)) {
+                        s["summary"] = serde_json::json!(title);
+                    }
+                }
+            }
+            pm["version"] = serde_json::json!(ARCHIVE_MANIFEST_VERSION);
+            if let Ok(content) = serde_json::to_string_pretty(pm) {
+                if let Err(e) = atomic_write_string(&per_manifest_path, &content) {
+                    log::warn!("Failed to cache refreshed archive titles: {e}");
+                }
+            }
         }
 
         // Sort by first message time descending (newest first), falling back to file name
@@ -1316,6 +1417,7 @@ pub async fn get_expiring_sessions(
             let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
             let settings_path = home.join(".claude").join("settings.json");
             if settings_path.exists() {
+                // Not a history file: Claude Code's settings.
                 fs::read_to_string(&settings_path)
                     .ok()
                     .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
@@ -1344,6 +1446,12 @@ pub async fn get_expiring_sessions(
         for entry in rd.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            // A regular file only, never through a symlink (`session_files`):
+            // a linked file would be read wherever it points, and a FIFO
+            // would block the read below.
+            if !session_files::is_regular_file(&path) {
                 continue;
             }
 
@@ -1411,7 +1519,7 @@ pub async fn get_expiring_sessions(
                     entrypoint: None,
                 };
 
-                let subagent_count = find_subagent_files(&path).len() as u32;
+                let subagent_count = session_files::regular_subagent_files(&path).len() as u32;
 
                 expiring.push(ExpiringSession {
                     session,
@@ -1672,6 +1780,20 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_session_metadata_prefers_ai_title_over_summary() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("session.jsonl");
+        let content = r#"{"type":"summary","summary":"Legacy summary"}
+{"type":"ai-title","aiTitle":"First title","sessionId":"s1"}
+{"type":"user","timestamp":"2026-01-01T10:00:00Z"}
+{"type":"ai-title","aiTitle":"Second title","sessionId":"s1"}
+"#;
+        fs::write(&path, content).unwrap();
+        let (_, _, _, summary) = extract_session_metadata(&path);
+        assert_eq!(summary, Some("Second title".to_string()));
+    }
+
+    #[test]
     fn test_extract_summary_none() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("no_summary.jsonl");
@@ -1897,6 +2019,65 @@ mod tests {
         assert_eq!(sessions[0].summary, Some("A good talk".to_string()));
     }
 
+    #[tokio::test]
+    async fn test_get_archive_sessions_refreshes_legacy_manifest_title_from_ai_title() {
+        let _temp = setup_test_env();
+
+        let session_dir = tempfile::tempdir().unwrap();
+        let session_path = session_dir.path().join("legacy.jsonl");
+        let content = r#"{"type":"user","timestamp":"2026-02-01T08:00:00Z","message":{"role":"user","content":"question"}}
+{"type":"summary","summary":"Legacy summary"}
+{"type":"ai-title","aiTitle":"First title","sessionId":"s1"}
+{"type":"ai-title","aiTitle":"Second title","sessionId":"s1"}
+"#;
+        fs::write(&session_path, content).unwrap();
+
+        let entry = create_archive(
+            "Legacy Title".to_string(),
+            None,
+            vec![session_path.to_string_lossy().to_string()],
+            "claude".to_string(),
+            "/p".to_string(),
+            "p".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Rewrite the per-archive manifest as a pre-#611 archive would have it:
+        // version 1, legacy summary, plus a sentinel cached count the JSONL can't produce.
+        let manifest_path = get_archives_dir()
+            .unwrap()
+            .join(&entry.id)
+            .join("manifest.json");
+        let mut pm: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        pm["version"] = serde_json::json!(1);
+        pm["sessions"][0]["summary"] = serde_json::json!("Legacy summary");
+        pm["sessions"][0]["messageCount"] = serde_json::json!(99);
+        fs::write(&manifest_path, serde_json::to_string_pretty(&pm).unwrap()).unwrap();
+
+        let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("Second title".to_string()));
+        assert_eq!(sessions[0].message_count, 99);
+        assert_eq!(sessions[0].first_message_time, "2026-02-01T08:00:00Z");
+        assert_eq!(
+            sessions[0].original_file_path,
+            session_path.to_string_lossy().to_string()
+        );
+
+        // The refreshed title is cached back so the JSONL is only re-read once.
+        let pm: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        assert_eq!(pm["version"], serde_json::json!(ARCHIVE_MANIFEST_VERSION));
+        assert_eq!(
+            pm["sessions"][0]["summary"],
+            serde_json::json!("Second title")
+        );
+        assert_eq!(pm["sessions"][0]["messageCount"], serde_json::json!(99));
+    }
+
     #[cfg(unix)]
     #[test]
     fn test_find_subagent_files_skips_symlinked_candidate_dir() {
@@ -1916,8 +2097,8 @@ mod tests {
         fs::create_dir_all(&project_subagents).unwrap();
         unix_fs::symlink(&external_subagents, project_subagents.join("agent_run")).unwrap();
 
-        let files = find_subagent_files(&session_path);
-        assert!(files.is_empty());
+        let files = crate::utils::find_subagent_files(&session_path);
+        assert_eq!(files, Vec::<std::path::PathBuf>::new());
     }
 
     #[tokio::test]
@@ -1976,20 +2157,62 @@ mod tests {
         assert_eq!(sessions[1].subagents[0].file_name, "beta.jsonl");
     }
 
+    /// A directory named like a subagent transcript holds no transcript: the
+    /// archive leaves it out, with a warning, instead of failing.
     #[tokio::test]
-    async fn test_create_archive_fails_when_subagent_copy_fails() {
+    async fn test_create_archive_skips_a_subagent_entry_that_is_not_a_file() {
         let _temp = setup_test_env();
 
         let session_dir = tempfile::tempdir().unwrap();
         let session_path = session_dir.path().join("with_subagent.jsonl");
         fs::write(&session_path, r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}"#).unwrap();
+        let subagents = session_dir.path().join("subagents").join("with_subagent");
+        fs::create_dir_all(subagents.join("broken.jsonl")).unwrap();
+        fs::write(subagents.join("agent-1.jsonl"), r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}"#).unwrap();
 
-        let invalid_subagent = session_dir
+        let entry = create_archive(
+            "Skipping Archive".to_string(),
+            None,
+            vec![session_path.to_string_lossy().to_string()],
+            "claude".to_string(),
+            "/p".to_string(),
+            "p".to_string(),
+            true,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(entry.session_count, 1);
+        let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
+        let subagents: Vec<_> = sessions[0].subagents.iter().map(|s| &s.file_name).collect();
+        assert_eq!(subagents, ["agent-1.jsonl"]);
+        let manifest = list_archives().await.unwrap();
+        assert_eq!(manifest.archives.len(), 1);
+    }
+
+    /// A subagent transcript that cannot be copied fails the archive, and no
+    /// archive is left behind. (Unix only: an unreadable file is how the copy
+    /// is made to fail here.)
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_create_archive_fails_when_subagent_copy_fails() {
+        use std::os::unix::fs::PermissionsExt;
+        let _temp = setup_test_env();
+
+        let session_dir = tempfile::tempdir().unwrap();
+        let session_path = session_dir.path().join("with_subagent.jsonl");
+        fs::write(&session_path, r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}"#).unwrap();
+        let unreadable = session_dir
             .path()
             .join("subagents")
             .join("with_subagent")
-            .join("broken.jsonl");
-        fs::create_dir_all(&invalid_subagent).unwrap();
+            .join("agent-1.jsonl");
+        fs::create_dir_all(unreadable.parent().unwrap()).unwrap();
+        fs::write(&unreadable, r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}"#).unwrap();
+        fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(&unreadable).is_ok() {
+            return; // file permissions are not enforced for this user (root)
+        }
 
         let result = create_archive(
             "Broken Archive".to_string(),
@@ -2003,7 +2226,7 @@ mod tests {
         .await;
 
         let err = result.unwrap_err();
-        assert!(err.contains("Subagent path is not a file"));
+        assert!(err.contains("Failed to copy subagent file"), "{err}");
 
         let manifest = list_archives().await.unwrap();
         assert!(manifest.archives.is_empty());

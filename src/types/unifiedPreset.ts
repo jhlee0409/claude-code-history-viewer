@@ -158,15 +158,3 @@ export function parsePresetContent(preset: UnifiedPresetData): {
     return { settings: {}, mcpServers: {} };
   }
 }
-
-/**
- * Format preset date for display
- */
-export function formatPresetDate(isoDate: string): string {
-  const date = new Date(isoDate);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}

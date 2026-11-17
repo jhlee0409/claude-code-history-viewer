@@ -5,17 +5,22 @@
  * Uses @tanstack/react-virtual for efficient rendering of large message lists.
  */
 
+import { CodexFileChangeProvider } from "../transcript/CodexFileChanges";
 import { useRef, useCallback, useMemo, useState, useEffect, useLayoutEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
+import { LoadingRows } from "@/components/ui/loading-rows";
 
 // Local imports
 import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
-import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
+import { CurrentDateBar } from "./components/CurrentDateBar";
+import { SessionMinimap, MINIMAP_WIDTH_PX } from "./components/SessionMinimap";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
@@ -23,6 +28,8 @@ import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
+import { usePromptJump } from "./hooks/usePromptJump";
+import { useVisibleMessageTracking } from "./hooks/useVisibleMessageTracking";
 import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
@@ -33,6 +40,9 @@ import {
   applyMessageDisplayFilter,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
+import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
+import type { ScrollAnchor } from "@/navigation/documents";
+import { useMinimapVisible } from "../../hooks/useMinimapVisible";
 import { useExpandRegistry } from "../../store/expandRegistryStore";
 import { useExport } from "../../hooks/useExport";
 import {
@@ -43,8 +53,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
+import { useFindTarget } from "@/commands/findTarget";
+import { scrollBehavior } from "@/utils/motion";
+import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
+/** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
+const ANCHOR_BOTTOM_PX = 100;
 const SUBAGENT_ROW_HEIGHT_REM = 1.75;
 const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
 const SUBAGENT_PANEL_MAX_HEIGHT_REM =
@@ -74,10 +89,10 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
         className="flex items-center gap-2 w-full text-left cursor-pointer hover:text-foreground/80"
         aria-label={label}
       >
-        <ChevronIcon className="w-3 h-3 text-muted-foreground" />
+        <ChevronIcon className="w-3.5 h-3.5 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="text-px10 text-muted-foreground/70 bg-muted rounded-full px-1.5">
+        <span className="text-list font-medium text-muted-foreground">{label}</span>
+        <span className="text-caption text-muted-foreground/70 bg-muted rounded-full px-1.5">
           {subagentSessions.length}
         </span>
       </button>
@@ -91,14 +106,14 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
               key={sa.file_path}
               type="button"
               onClick={() => void navigateToSubagent(sa)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-list rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
               title={sa.summary ?? sa.agent_id}
             >
-              <Bot className="w-3 h-3 text-muted-foreground" />
+              <Bot className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="max-w-[200px] truncate">
                 {sa.summary ?? sa.agent_id}
               </span>
-              <span className="text-px10 text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
               </span>
             </button>
@@ -124,6 +139,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // ⌘F (`edit.find`) focuses this field.
+  useFindTarget(searchInputRef);
   const virtualHeaderRef = useRef<HTMLDivElement>(null);
 
   // Track when OverlayScrollbars is initialized
@@ -154,6 +171,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     targetMessageUuid,
     shouldHighlightTarget,
     clearTargetMessage,
+    navigateToMessage,
     messageFilter,
     // SubAgent navigation
     subagentSessions,
@@ -163,13 +181,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // 메시지 로딩 상태 — 로딩 스피너 표시 조건
     isLoadingMessages,
     setActiveSessionNearBottom,
+    messageUpdateKind,
   } = useAppStore();
+
+  // Session minimap: combines the settings switch, Capture Mode, and the md
+  // breakpoint into one gate (see useMinimapVisible). Drives both whether the
+  // strip mounts and whether the list gets right-padded for it.
+  const isMinimapVisible = useMinimapVisible();
 
   const isInSubagent = parentSessionStack.length > 0;
   const hasParallelTasks = useMemo(
     () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
     [messages],
   );
+
+  // Follow source writes, not display-filter/group expansion or virtual-row count.
+  const messageUuids = useMemo(() => messages.map((message) => message.uuid), [messages]);
 
   // Apply role + content type filters
   const displayMessages = useMemo(
@@ -182,6 +209,16 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const loadMoreMessages = useAppStore((s) => s.loadMoreMessages);
   const ensureMessageLoaded = useAppStore((s) => s.ensureMessageLoaded);
   const fetchFullSessionMessages = useAppStore((s) => s.fetchFullSessionMessages);
+  // Selectors, not a destructured useAppStore() call, so existing test
+  // mocks that don't stub these two fields keep working unaffected.
+  const navigatorViewMode = useAppStore((s) => s.navigatorViewMode);
+  // A tab being reopened brings its scroll position (T8, plan §4.3).
+  const pendingAnchor = useAppStore((s) => s.pendingAnchor) ?? null;
+  // The tab on screen: switching tabs starts the find field empty.
+  const activeDocumentId = useAppStore((s) => s.activeDocumentId);
+  const sessionPath = selectedSession?.file_path ?? null;
+  const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
+  const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
 
   // Export must cover the COMPLETE session even when only a window is
   // loaded — fetch the full message list and apply the same display filter.
@@ -229,7 +266,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     handleClearSearch: handleClearSearchState,
   } = useSearchState({
     onSearchChange,
-    sessionId: selectedSession?.session_id,
+    resetKey: `${activeDocumentId ?? ""}:${selectedSession?.session_id ?? ""}`,
   });
 
   // 매치된 메시지 UUID Set (효율적인 조회용)
@@ -250,6 +287,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   }, [sessionSearch.currentMatchIndex, sessionSearch.matches]);
 
   const currentMatchUuid = currentMatch?.messageUuid ?? null;
+
+  // Search matches in pages not loaded yet. The minimap draws no tick for
+  // them; its not-loaded band's tooltip counts them instead.
+  const notLoadedMatchCount = useMemo(() => {
+    if (!pagination.hasMore || !sessionSearch.matches?.length) return 0;
+    const loadedUuids = new Set(messages.map((message) => message.uuid));
+    return sessionSearch.matches.filter((match) => !loadedUuids.has(match.messageUuid)).length;
+  }, [pagination.hasMore, sessionSearch.matches, messages]);
   // ... (skip down to render loop)
   // We need to apply the highlight logic in the map function
 
@@ -379,6 +424,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [scrollElementReady, selectedSession?.session_id]);
 
+  // An owned wheel releases the viewport without a native scroll event. Its
+  // notification reaches the near-top autoload check declared further down
+  // (it needs the virtualizer), which publishes itself on layout commit.
+  const nearTopCheckRef = useRef<(() => void) | null>(null);
+  const handleWheelRelease = useCallback(() => nearTopCheckRef.current?.(), []);
+
   // Virtual scrolling
   const {
     virtualizer,
@@ -403,6 +454,29 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // height, so the height estimate must not collapse them to 0 (issue #334).
     isInSubagent: parentSessionStack.length > 0,
     scrollMargin: virtualScrollMargin,
+    onWheelRelease: handleWheelRelease,
+  });
+
+  // Alt+ArrowUp / Alt+ArrowDown jump between turn starts in the loaded rows.
+  usePromptJump({
+    flattenedMessages,
+    virtualizer,
+    getScrollElement,
+    targetMessageUuid,
+    navigateToMessage,
+  });
+
+  // Reports the first visible message row to the Messages panel's outline
+  // mode, which highlights the turn containing it (Design, "Highlighting
+  // the turn in view"). Gated on outline mode, not `isInspectorOpen` (that
+  // flag never describes the narrow-screen sheet).
+  useVisibleMessageTracking({
+    enabled: navigatorViewMode === "outline",
+    scrollElementReady,
+    virtualizer,
+    flattenedMessages,
+    getScrollElement,
+    setVisibleMessageUuid,
   });
 
   // Set of selected message UUIDs for O(1) lookup
@@ -575,9 +649,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     virtualizer,
     getScrollIndex,
     scrollElementReady,
-    targetMessageUuid,
+    // A saved anchor, like a target, replaces the initial scroll to the bottom.
+    targetMessageUuid: targetMessageUuid ?? anchorHere?.anchor?.messageUuid ?? null,
     onNearBottomChange: setActiveSessionNearBottom,
-    firstItemKey: messages[0]?.uuid ?? null,
+    messageUuids,
+    messageUpdateKind,
   });
 
   // ─── Load-earlier (chat-style message pagination) ──────────────────────
@@ -591,11 +667,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // True while a prepend restore is converging — suppresses the near-top
   // autoload so restore-induced scroll events cannot cascade page loads.
   const anchorRestoringRef = useRef(false);
+  useFilterReadingPosition({
+    sessionPath,
+    messages: displayMessages,
+    messageFilter,
+    getScrollElement,
+    getScrollIndex,
+    virtualizer,
+    explicitTarget: targetMessageUuid ?? currentMatchUuid ?? anchorHere?.anchor?.messageUuid ?? null,
+    restoringRef: anchorRestoringRef,
+  });
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
+  // The setting of the explicit target (`targetRequest`) already looked up:
+  // one lookup per setting, so a target restored after A→B→A gets its own
+  // even while the superseded one is still pending.
+  const targetLookupRef = useRef<number | null>(null);
+  // The earlier-page load this viewer started and has not seen settle. The
+  // store sets isLoadingMore only once its queued job runs, so a second
+  // near-top signal before then must not queue a page or replace the anchor.
+  const loadEarlierInFlightRef = useRef<object | null>(null);
+  useLayoutEffect(() => () => { loadEarlierInFlightRef.current = null; }, [sessionPath]);
 
   const handleLoadEarlier = useCallback(() => {
-    if (pagination.isLoadingMore || !pagination.hasMore) return;
+    if (pagination.isLoadingMore || !pagination.hasMore || loadEarlierInFlightRef.current) return;
     const viewport = getScrollElement();
     const scrollTop = viewport?.scrollTop ?? 0;
     const firstVisible = virtualizer
@@ -613,7 +708,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             screenOffset: firstVisible.start - scrollTop,
           }
         : null;
-    void loadMoreMessages();
+    const request = {};
+    loadEarlierInFlightRef.current = request;
+    // Only this request's settle releases its own guard; a session change
+    // already released it, and must not be undone by a stale settle.
+    const release = () => {
+      if (loadEarlierInFlightRef.current === request) loadEarlierInFlightRef.current = null;
+    };
+    loadMoreMessages().then(release, (error: unknown) => {
+      release();
+      console.error("Failed to load earlier messages:", error);
+    });
   }, [pagination.isLoadingMore, pagination.hasMore, getScrollElement, virtualizer, flattenedMessages, loadMoreMessages]);
 
   useLayoutEffect(() => {
@@ -654,7 +759,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // Auto-load the previous page when the user scrolls near the top.
   // Guarded on scrollReadyForSessionId so the initial scroll-to-bottom pass
   // of a freshly opened session cannot trigger a spurious page load.
-  useEffect(() => {
+  // The same check serves native scroll events and owned wheel releases.
+  useLayoutEffect(() => {
     if (!scrollElementReady) return;
     if (scrollReadyForSessionId !== selectedSession?.session_id) return;
     const viewport = getScrollElement();
@@ -669,7 +775,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       handleLoadEarlier();
     };
     viewport.addEventListener("scroll", handleScroll, { passive: true });
-    return () => viewport.removeEventListener("scroll", handleScroll);
+    nearTopCheckRef.current = handleScroll;
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+      if (nearTopCheckRef.current === handleScroll) nearTopCheckRef.current = null;
+    };
   }, [scrollElementReady, scrollReadyForSessionId, selectedSession?.session_id, getScrollElement, handleLoadEarlier]);
 
   // Search-match navigation into an unloaded region: extend the window until
@@ -680,10 +790,102 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     const p = useAppStore.getState().pagination;
     if (!p.hasMore || ensureInFlightRef.current) return;
     ensureInFlightRef.current = currentMatchUuid;
-    void ensureMessageLoaded(currentMatchUuid).finally(() => {
-      ensureInFlightRef.current = null;
-    });
-  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded]);
+    ensureMessageLoaded(currentMatchUuid)
+      .catch((error: unknown) => {
+        console.error("Failed to load the page holding a search match:", error);
+        toast.error(t("common.error.unexpected"));
+      })
+      .finally(() => {
+        ensureInFlightRef.current = null;
+      });
+  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded, t]);
+
+  // ─── Tab scroll anchor (T8, plan §4.3) ─────────────────────────────────
+  // A tab switch saves the first visible message and its offset (null at
+  // the bottom); reopening the tab restores it once the list is measured,
+  // loading older pages first when it lives there. An explicit target wins.
+  const readAnchorRef = useRef<() => ScrollAnchor | null>(() => null);
+  useEffect(() => {
+    readAnchorRef.current = () => {
+      const viewport = getScrollElement();
+      if (!viewport) return null;
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      if (scrollHeight - scrollTop - clientHeight < ANCHOR_BOTTOM_PX) return null;
+      const row = virtualizer
+        .getVirtualItems()
+        .find((r) => r.start + r.size > scrollTop && flattenedMessages[r.index]?.type === "message");
+      const item = row ? flattenedMessages[row.index] : undefined;
+      return row && item?.type === "message" ? { messageUuid: item.message.uuid, offset: row.start - scrollTop } : null;
+    };
+  });
+  useEffect(() => {
+    if (!sessionPath) return;
+    return registerScrollAnchorSource({ sessionPath, read: () => readAnchorRef.current() });
+  }, [sessionPath]);
+
+  useEffect(() => {
+    const pending = anchorHere;
+    if (!pending || !scrollElementReady || isLoading || flattenedMessages.length === 0) return;
+    const { clearPendingAnchor } = useAppStore.getState();
+    if (targetMessageUuid) {
+      clearPendingAnchor(pending);
+      return;
+    }
+    const viewport = getScrollElement();
+    if (!viewport) return;
+    const saved = pending.anchor;
+    const index = saved
+      ? flattenedMessages.findIndex((item) => item.type === "message" && item.message.uuid === saved.messageUuid)
+      : -1;
+    if (saved && index === -1) {
+      const p = useAppStore.getState().pagination;
+      if (p.hasMore) {
+        if (!ensureInFlightRef.current) {
+          ensureInFlightRef.current = saved.messageUuid;
+          // A failed load drops the anchor as a missing message does (the
+          // view stays at the newest messages) and always frees the guard,
+          // which a search match into an older page also waits on.
+          ensureMessageLoaded(saved.messageUuid)
+            .then((found) => {
+              if (!found) useAppStore.getState().clearPendingAnchor(pending);
+            })
+            .catch((error: unknown) => {
+              console.error("Failed to restore the tab's scroll position:", error);
+              useAppStore.getState().clearPendingAnchor(pending);
+              toast.error(t("common.error.unexpected"));
+            })
+            .finally(() => {
+              ensureInFlightRef.current = null;
+            });
+        }
+        return;
+      }
+      // The message is gone from the session: the bottom, as for a new open.
+    }
+    const restore = () => {
+      if (!saved || index === -1) {
+        viewport.scrollTop = viewport.scrollHeight;
+        return;
+      }
+      const [start] = virtualizer.getOffsetForIndex(index, "start") ?? [];
+      if (typeof start === "number") viewport.scrollTop = start - saved.offset;
+    };
+    anchorRestoringRef.current = true;
+    restore();
+    const passes = [
+      setTimeout(restore, 50),
+      setTimeout(restore, 200),
+      setTimeout(() => {
+        restore();
+        anchorRestoringRef.current = false;
+        useAppStore.getState().clearPendingAnchor(pending);
+      }, 450),
+    ];
+    return () => {
+      passes.forEach(clearTimeout);
+      anchorRestoringRef.current = false;
+    };
+  }, [anchorHere, scrollElementReady, isLoading, flattenedMessages, targetMessageUuid, getScrollElement, virtualizer, ensureMessageLoaded, t]);
 
   // Handle Deep Linking / Scrolling to Target
   useEffect(() => {
@@ -696,14 +898,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       if (index === -1) {
         // Target may live in an unloaded older page — extend the window.
         // The effect re-runs when flattenedMessages grows and then scrolls.
-        const p = useAppStore.getState().pagination;
-        if (p.hasMore && !ensureInFlightRef.current) {
-          const uuid = targetMessageUuid;
-          ensureInFlightRef.current = uuid;
-          void ensureMessageLoaded(uuid).then((found) => {
-            ensureInFlightRef.current = null;
-            if (!found) clearTargetMessage();
-          });
+        const { pagination: p, targetRequest, lookUpTargetMessage } = useAppStore.getState();
+        if (p.hasMore && targetLookupRef.current !== targetRequest) {
+          // The lookup clears the target it was started for only while that
+          // is still the target (plan §4.3: document id and epoch).
+          targetLookupRef.current = targetRequest;
+          void lookUpTargetMessage();
         }
         return;
       }
@@ -726,7 +926,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         }, 200);
 
         const finalPass = setTimeout(() => {
-          virtualizer.scrollToIndex(index, { align: "start", behavior: "smooth" });
+          virtualizer.scrollToIndex(index, { align: "start", behavior: scrollBehavior() });
         }, 450);
 
         // Auto-clear the target after a few seconds so the highlight fades
@@ -767,16 +967,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 로딩 중일 때 로딩 표시 (isLoadingMessages 기반 — scrollReady 의존 제거로 빈 세션 무한 스피너 방지)
   if ((isLoading || isLoadingMessages) && messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center h-full">
-        <LoadingState
-          isLoading={true}
-          loadingMessage={t("messageViewer.loadingMessages")}
-          spinnerSize="md"
-          withSparkle={false}
-        />
-      </div>
-    );
+    return <LoadingRows label={t("common.loadingMessages")} className="flex-1 h-full p-6" />;
   }
 
   // 로딩 종료 후 메시지가 없으면 "No Messages" 표시 (위 L606 스피너 분기가 로딩을 먼저 처리).
@@ -791,12 +982,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         emptyComponent={
           <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
             <div className="mb-4">
-              <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
+              <Icon icon={MessageCircle} size={24} className="mx-auto text-muted-foreground/50" />
             </div>
-            <h3 className="text-lg font-medium mb-2 text-foreground">
+            <h3 className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noMessages")}
             </h3>
-            <p className="text-sm text-center whitespace-pre-line">
+            <p className="text-body text-center whitespace-pre-line">
               {t("messageViewer.noMessagesDescription")}
             </p>
           </div>
@@ -805,13 +996,23 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
+  // One condition for the strip, the wrapper's padding, and the scroll buttons'
+  // offset: the list's own render guard plus the visibility gate (switch /
+  // Capture Mode / md breakpoint), so no gutter is reserved for an unmounted strip.
+  const showMinimapStrip = flattenedMessages.length > 0 && scrollElementReady && isMinimapVisible;
+
   return (
+    <CodexFileChangeProvider messages={messages}>
     <div className="relative flex-1 h-full flex flex-col">
       {/* Search Toolbar - Editorial aesthetic */}
       <div
         role="search"
         className={cn(
-          "flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
+          // A size container: the pane's width (sidebar, sessions column and
+          // navigator all take from it), not the viewport's, decides when the
+          // button labels show. The search keeps a readable minimum width and
+          // moves to its own line, with the buttons, when the row is too narrow.
+          "@container flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
           "flex-wrap",
           "bg-card/95 backdrop-blur-sm border-border"
         )}
@@ -827,18 +1028,19 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               "border border-border/60 hover:border-border"
             )}
             title={t("common.back")}
+            aria-label={t("common.back")}
           >
             <ChevronDown className="w-4 h-4 rotate-90" />
           </button>
         )}
 
         {/* Filter Toggle - Segmented control style */}
-        <div className="shrink-0 flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/60 order-2 lg:order-none">
+        <div className="shrink-0 flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/60">
           <button
             type="button"
             onClick={() => onFilterTypeChange("content")}
             className={cn(
-              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              "text-list px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "content"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -851,7 +1053,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={() => onFilterTypeChange("toolId")}
             className={cn(
-              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              "text-list px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "toolId"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -863,7 +1065,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
 
         {/* Search Input - Glass morphism */}
-        <div className="relative flex-1 group order-1 lg:order-none w-full lg:w-auto">
+        <div className="relative grow basis-60 min-w-0 group">
           <Search className={cn(
             "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
             "text-muted-foreground group-focus-within:text-foreground transition-colors"
@@ -877,7 +1079,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             placeholder={t("messageViewer.searchPlaceholder")}
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
-              "w-full pl-9 pr-9 py-2 rounded-lg text-sm",
+              "w-full pl-9 py-2 rounded-lg text-body",
+              // Room on the right only for the clear button / spinner.
+              searchQuery ? "pr-9" : "pr-3",
               "bg-muted/50 border border-border/60",
               "text-foreground placeholder:text-muted-foreground",
               "focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring/70",
@@ -893,7 +1097,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <button
                 type="button"
                 onClick={handleClearSearch}
-                aria-label="Clear search"
+                aria-label={t("messageViewer.clearSearch")}
                 className={cn(
                   "absolute right-2.5 top-1/2 transform -translate-y-1/2",
                   "p-1 rounded-md text-muted-foreground",
@@ -909,8 +1113,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         {/* Match Navigation - Enhanced touch targets */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-          <div className="shrink-0 flex items-center gap-1.5 order-3 lg:order-none">
-            <span className="whitespace-nowrap text-xs font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
+          <div className="shrink-0 flex items-center gap-1.5">
+            <span className="whitespace-nowrap text-list font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
             <div className="flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60">
@@ -918,7 +1122,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 type="button"
                 onClick={onPrevMatch}
                 disabled={sessionSearch.matches.length === 0}
-                aria-label="Previous match (Shift+Enter)"
+                aria-label={t("messageViewer.prevMatch")}
                 title="Shift+Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",
@@ -932,7 +1136,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 type="button"
                 onClick={onNextMatch}
                 disabled={sessionSearch.matches.length === 0}
-                aria-label="Next match (Enter)"
+                aria-label={t("messageViewer.nextMatch")}
                 title="Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",
@@ -953,7 +1157,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               type="button"
               onClick={enterCaptureMode}
               className={cn(
-                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
+                "flex items-center gap-1.5 text-list px-3 py-1.5 rounded-lg whitespace-nowrap",
                 "transition-all duration-200",
                 "bg-muted/60 hover:bg-muted",
                 "text-foreground/80 hover:text-foreground",
@@ -964,7 +1168,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               aria-label={t("captureMode.enter")}
             >
               <Camera className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline font-medium">{t("captureMode.enter")}</span>
+              <span className="hidden @3xl:inline font-medium">{t("captureMode.enter")}</span>
             </button>
 
             <DropdownMenu>
@@ -973,7 +1177,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   type="button"
                   disabled={isExporting || displayMessages.length === 0}
                   className={cn(
-                    "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
+                    "flex items-center gap-1.5 text-list px-3 py-1.5 rounded-lg whitespace-nowrap",
                     "transition-all duration-200",
                     "bg-muted/60 hover:bg-muted",
                     "text-foreground/80 hover:text-foreground",
@@ -985,7 +1189,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   aria-label={t("session.export.button")}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline font-medium">
+                  <span className="hidden @3xl:inline font-medium">
                     {isExporting ? t("session.export.exporting") : t("session.export.button")}
                   </span>
                 </button>
@@ -1035,7 +1239,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={() => void navigateBackToParent()}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md",
+              "inline-flex items-center gap-1.5 px-2.5 py-1 text-list font-medium rounded-md",
               "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
             )}
             aria-label={t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
@@ -1044,7 +1248,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             {t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
           </button>
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <span className="text-list text-muted-foreground flex items-center gap-1">
             <Bot className="w-3.5 h-3.5" />
             {selectedSession?.summary ?? selectedSession?.actual_session_id}
           </span>
@@ -1061,18 +1265,45 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
-      <div className="relative flex-1 min-h-0">
-        {/* Floating date overlay — outside scroll container to stay fixed */}
-        {flattenedMessages.length > 0 && scrollElementReady && (
-          <FloatingDateOverlay
-            virtualRows={virtualRows}
+      {/* Current date — its own row above the list, never over a message. */}
+      {flattenedMessages.length > 0 && (
+        <CurrentDateBar
+          virtualRows={virtualRows}
+          scrollOffset={virtualizer.scrollOffset ?? 0}
+          flattenedMessages={flattenedMessages}
+        />
+      )}
+
+      {/* Mobile controls use a 4rem lane: 3rem FAB plus its 1rem inset. */}
+      <div
+        className="relative flex-1 min-h-0 pb-[var(--mobile-transcript-controls-height)] md:pb-0"
+        style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
+      >
+        {/* Session minimap strip — see `showMinimapStrip`. */}
+        {showMinimapStrip && (
+          <SessionMinimap
+            virtualizer={virtualizer}
             flattenedMessages={flattenedMessages}
+            virtualRows={virtualRows}
+            totalSize={totalSize}
+            getScrollElement={getScrollElement}
+            matchedUuids={matchedUuids}
+            currentMatchUuid={currentMatchUuid}
+            getScrollIndex={getScrollIndex}
+            notLoadedMatchCount={notLoadedMatchCount}
+            hasMore={pagination.hasMore}
+            isLoadingMore={pagination.isLoadingMore}
+            unloadedCount={Math.max(0, pagination.totalCount - pagination.currentOffset)}
+            totalCount={pagination.totalCount}
+            onLoadEarlier={handleLoadEarlier}
           />
         )}
 
+        {/* Keep native centring away from the shortened mobile viewport's lower
+            clip edge, including the trailing actions of expanded tool details. */}
         <OverlayScrollbarsComponent
           ref={scrollContainerRef}
-          className="h-full"
+          className="h-full [&_[data-overlayscrollbars-viewport]]:scroll-pb-[var(--mobile-transcript-controls-height)] md:[&_[data-overlayscrollbars-viewport]]:scroll-pb-0"
           options={{
             scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
           }}
@@ -1080,7 +1311,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
-          <div className="bg-muted/60 p-2 text-xs text-foreground border-b border-border space-y-1">
+          <div className="bg-muted/60 p-2 text-list text-foreground border-b border-border space-y-1">
             <div>
               {t("messageViewer.debugInfo.messages", {
                 current: displayMessages.length,
@@ -1134,11 +1365,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* 검색 결과 없음 */}
         {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
           <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
-            <p className="text-lg font-medium mb-2 text-foreground">
+            <Icon icon={Search} size={24} className="mb-4 text-muted-foreground/50" />
+            <p className="text-title font-medium mb-2 text-foreground">
               {t("messageViewer.noSearchResults")}
             </p>
-            <p className="text-sm">
+            <p className="text-body">
               {t("messageViewer.tryDifferentKeyword")}
             </p>
           </div>
@@ -1156,7 +1387,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 onClick={handleLoadEarlier}
                 disabled={pagination.isLoadingMore}
                 className={cn(
-                  "inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
+                  "inline-flex items-center gap-2 px-3 py-1.5 text-body rounded-md",
                   "text-muted-foreground bg-muted/50 hover:bg-muted transition-colors",
                   "disabled:opacity-60 disabled:cursor-default",
                 )}
@@ -1182,7 +1413,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 })}
               </button>
             ) : (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-body text-muted-foreground">
                 {t("messageViewer.allMessagesLoaded", {
                   count: messages.length,
                 })}
@@ -1253,8 +1484,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         </OverlayScrollbarsComponent>
 
-        {/* Floating scroll buttons — bottom-right of message area */}
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
+        {/* Floating scroll buttons — bottom-right of message area, kept left
+            of the minimap strip when it is shown. */}
+        <div
+          data-testid="message-scroll-buttons"
+          className="absolute bottom-4 right-4 flex flex-row md:flex-col gap-2 z-30"
+          style={showMinimapStrip ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
+        >
           {/* Scroll to top */}
           {showScrollToTop && (
             <button
@@ -1268,7 +1504,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title={t("messageViewer.scrollToTop")}
               aria-label={t("messageViewer.scrollToTop")}
             >
-              <ChevronUp className="w-3 h-3" />
+              <ChevronUp className="w-3.5 h-3.5" />
             </button>
           )}
           {/* Scroll to bottom */}
@@ -1284,7 +1520,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title={t("messageViewer.scrollToBottom")}
               aria-label={t("messageViewer.scrollToBottom")}
             >
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -1319,7 +1555,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           aria-atomic="true"
           className={cn(
             "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
-            "px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium",
+            "px-4 py-2.5 rounded-lg shadow-lg text-body font-medium",
             "animate-in fade-in slide-in-from-bottom-2 duration-200",
             captureToast.type === "success"
               ? "bg-success text-success-foreground"
@@ -1330,5 +1566,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       )}
     </div>
+    </CodexFileChangeProvider>
   );
 };

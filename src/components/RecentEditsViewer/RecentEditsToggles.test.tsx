@@ -14,14 +14,14 @@ import {
 } from "./RecentEditsToggles";
 
 describe("RecentEditsScopeToggle", () => {
-  it("reflects the selected scope through aria-pressed", () => {
+  it("reflects the selected scope through aria-checked", () => {
     render(<RecentEditsScopeToggle value="session" onChange={() => {}} />);
 
     expect(
-      screen.getByRole("button", { name: "Session" }).getAttribute("aria-pressed")
+      screen.getByRole("radio", { name: "Session" }).getAttribute("aria-checked")
     ).toBe("true");
     expect(
-      screen.getByRole("button", { name: "Project" }).getAttribute("aria-pressed")
+      screen.getByRole("radio", { name: "Project" }).getAttribute("aria-checked")
     ).toBe("false");
   });
 
@@ -29,7 +29,7 @@ describe("RecentEditsScopeToggle", () => {
     const onChange = vi.fn();
     render(<RecentEditsScopeToggle value="session" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Project" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Project" }));
 
     expect(onChange).toHaveBeenCalledWith("project");
   });
@@ -40,10 +40,9 @@ describe("RecentEditsScopeToggle", () => {
     // test asserted it but only ever explained where the tooltip lives, never
     // why Project should be unavailable.
     //
-    // It became visibly wrong once the dock started rendering without a
-    // session. Project is then the active scope, and the panel is showing its
-    // results, while the control for it sits dimmed and dead - which reads as
-    // the panel being broken rather than as one mode being unavailable.
+    // Without a session, Project is the active scope and the Edits screen is
+    // showing its results; a dimmed, dead control for it would read as the
+    // screen being broken rather than as one mode being unavailable.
     const onChange = vi.fn();
     const { container } = render(
       <RecentEditsScopeToggle
@@ -53,8 +52,8 @@ describe("RecentEditsScopeToggle", () => {
       />
     );
 
-    const session = screen.getByRole("button", { name: "Session" });
-    const project = screen.getByRole("button", { name: "Project" });
+    const session = screen.getByRole("radio", { name: "Session" });
+    const project = screen.getByRole("radio", { name: "Project" });
 
     expect(session.hasAttribute("disabled")).toBe(true);
     expect(project.hasAttribute("disabled")).toBe(false);
@@ -74,11 +73,10 @@ describe("RecentEditsScopeToggle", () => {
   });
 
   it("disables both buttons when there is no project either", () => {
-    // The dock outlives the project selection, so this state is reachable:
-    // collapsing the selected project in the tree deselects it while the panel
-    // stays open. Neither scope resolves without a project, and the hint has to
-    // name the project rather than the session - telling someone to pick a
-    // session is useless advice when they have not picked a project.
+    // The Edits screen itself shows "select a project" without one, so this is
+    // the control's own contract: neither scope resolves without a project,
+    // and the hint has to name the project rather than the session - telling
+    // someone to pick a session is useless advice before a project is picked.
     const onChange = vi.fn();
     const { container } = render(
       <RecentEditsScopeToggle
@@ -89,8 +87,8 @@ describe("RecentEditsScopeToggle", () => {
       />
     );
 
-    const session = screen.getByRole("button", { name: "Session" });
-    const project = screen.getByRole("button", { name: "Project" });
+    const session = screen.getByRole("radio", { name: "Session" });
+    const project = screen.getByRole("radio", { name: "Project" });
 
     expect(session.hasAttribute("disabled")).toBe(true);
     expect(project.hasAttribute("disabled")).toBe(true);
@@ -106,18 +104,18 @@ describe("RecentEditsScopeToggle", () => {
 });
 
 describe("RecentEditsDensityToggle", () => {
-  it("reflects the selected density through aria-pressed", () => {
+  it("reflects the selected density through aria-checked", () => {
     render(<RecentEditsDensityToggle value="compact" onChange={() => {}} />);
 
     expect(
       screen
-        .getByRole("button", { name: "Compact rows" })
-        .getAttribute("aria-pressed")
+        .getByRole("radio", { name: "Compact rows" })
+        .getAttribute("aria-checked")
     ).toBe("true");
     expect(
       screen
-        .getByRole("button", { name: "Full cards" })
-        .getAttribute("aria-pressed")
+        .getByRole("radio", { name: "Full cards" })
+        .getAttribute("aria-checked")
     ).toBe("false");
   });
 
@@ -125,7 +123,7 @@ describe("RecentEditsDensityToggle", () => {
     const onChange = vi.fn();
     render(<RecentEditsDensityToggle value="compact" onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Full cards" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Full cards" }));
 
     expect(onChange).toHaveBeenCalledWith("standard");
   });

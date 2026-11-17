@@ -5,6 +5,8 @@
  */
 
 export type StatsMode = "billing_total" | "conversation_only";
+/** Native Claude accepted-row counter coverage, not billing completeness. */
+export type TokenUsageRecording = "absent" | "recorded" | "partial" | "unknown";
 export type MetricMode = "tokens" | "cost_estimated";
 
 // ============================================================================
@@ -12,6 +14,9 @@ export type MetricMode = "tokens" | "cost_estimated";
 // ============================================================================
 
 export interface SessionTokenStats {
+  /** Older servers omit this member: treat omission as unknown, never zero/absent.
+   * Session-level only; not evidence of presence for individual components. */
+  token_usage_recording?: TokenUsageRecording;
   session_id: string;
   project_name: string;
   total_input_tokens: number;
@@ -26,16 +31,18 @@ export interface SessionTokenStats {
   summary?: string;
   most_used_tools: ToolUsageStats[];
   model_distribution?: ModelStats[];
-  /** Rolled-up usage of the sessions this session spawned (#577). */
+  /** Share of the billing totals that came from spawned subagent sessions (#577). */
   subagent_stats?: SubagentTokenStats;
 }
 
 /**
- * Aggregate usage of every descendant session a session spawned.
+ * Usage of the descendant sessions a session spawned, already included in
+ * that session's `billing_total` totals.
  *
- * Providers that model a subagent run as its own session row (OpenCode:
- * `session.parent_id`) keep that billed usage outside the parent session;
- * this carries the rolled-up totals.
+ * Providers that model a subagent run as its own session row (OpenCode and
+ * Kilo: `session.parent_id`) store that billed usage outside the parent
+ * session; this breaks the rolled-in share back out for the billing UI.
+ * `session_count` counts only the runs with usage inside the date filter.
  */
 export interface SubagentTokenStats {
   session_count: number;

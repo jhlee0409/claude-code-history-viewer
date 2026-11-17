@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Braces, Undo2, Redo2 } from "lucide-react";
+import { CircleCheckBig, CircleX, Braces, Undo2, Redo2 } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import { EffectiveSummaryBanner } from "./EffectiveSummaryBanner";
 import { EditorFooter } from "./EditorFooter";
@@ -79,7 +79,7 @@ type SaveResult = {
   message: string;
 } | null;
 
-export const SettingsEditorPane: React.FC = () => {
+export const SettingsEditorPane: React.FC<{ onDirtyChange?: (dirty: boolean) => void }> = ({ onDirtyChange }) => {
   const { t } = useTranslation();
   const {
     allSettings,
@@ -201,6 +201,13 @@ export const SettingsEditorPane: React.FC = () => {
 
   // Section refs for scrolling
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // A retired editor's save may settle after another scope/project mounts.
+  // Reset in setup too: StrictMode replays layout effects on the same instance.
+  const editorMountedRef = useRef(false);
+  React.useLayoutEffect(() => {
+    editorMountedRef.current = true;
+    return () => { editorMountedRef.current = false; };
+  }, []);
 
   // Clear save result after delay
   React.useEffect(() => {
@@ -255,7 +262,7 @@ export const SettingsEditorPane: React.FC = () => {
 
     try {
       await saveSettings(settingsToSave);
-      setPendingSettings(null);
+      if (editorMountedRef.current) setPendingSettings(null);
       if (editorMode === "json") {
         jsonHistory.reset(JSON.stringify(settingsToSave, null, 2));
         setJsonError(null);
@@ -283,6 +290,13 @@ export const SettingsEditorPane: React.FC = () => {
       setJsonError(null);
     }
   }, [editorMode, currentSettings, jsonHistory, setPendingSettings]);
+
+  // One predicate for the footer and the always-visible write-scope line.
+  // Publish before paint so raw/invalid JSON edits cannot flash as saved.
+  const editorHasUnsavedChanges = hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2));
+  React.useLayoutEffect(() => {
+    onDirtyChange?.(editorHasUnsavedChanges);
+  }, [onDirtyChange, editorHasUnsavedChanges]);
 
   // If no settings exist for this scope
   if (!hasSettings) {
@@ -361,7 +375,7 @@ export const SettingsEditorPane: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 gap-1.5 text-xs"
+                  className="h-7 px-2 gap-1.5 text-list"
                   onClick={handleFormatJson}
                   disabled={isReadOnly || !!jsonError}
                   aria-label={t("settingsManager.json.format")}
@@ -391,7 +405,7 @@ export const SettingsEditorPane: React.FC = () => {
                   <Redo2 className="w-3.5 h-3.5" />
                 </Button>
                 {jsonError && (
-                  <span className="ml-2 text-xs text-destructive truncate">
+                  <span className="ml-2 text-list text-destructive truncate">
                     {t("settingsManager.json.invalidJson")}: {jsonError}
                   </span>
                 )}
@@ -399,7 +413,7 @@ export const SettingsEditorPane: React.FC = () => {
               {/* JSON Textarea */}
               <textarea
                 ref={jsonEditorRef}
-                className="flex-1 min-h-0 w-full bg-muted p-4 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
+                className="flex-1 min-h-80 @2xl:min-h-0 w-full bg-muted p-4 rounded-lg text-body font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring border border-border/40"
                 value={jsonHistory.currentText}
                 onChange={handleJsonChange}
                 onKeyDown={handleJsonKeyDown}
@@ -420,11 +434,11 @@ export const SettingsEditorPane: React.FC = () => {
               className={saveResult.type === "success" ? "border-success bg-success/10" : ""}
             >
               {saveResult.type === "success" ? (
-                <CheckCircle className="h-4 w-4 text-success" />
+                <CircleCheckBig className="h-4 w-4 text-success" />
               ) : (
-                <XCircle className="h-4 w-4" />
+                <CircleX className="h-4 w-4" />
               )}
-              <AlertDescription className="text-sm">
+              <AlertDescription className="text-body">
                 {saveResult.message}
               </AlertDescription>
             </Alert>
@@ -435,7 +449,7 @@ export const SettingsEditorPane: React.FC = () => {
         <EditorFooter
           editorMode={editorMode}
           onModeChange={handleModeChange}
-          hasUnsavedChanges={hasUnsavedChanges || (editorMode === "json" && jsonHistory.currentText !== JSON.stringify(currentSettings, null, 2))}
+          hasUnsavedChanges={editorHasUnsavedChanges}
           onSave={handleSave}
           onReset={handleReset}
           readOnly={isReadOnly}

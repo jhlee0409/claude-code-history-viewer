@@ -35,14 +35,19 @@ import {
   Settings2,
   Brain,
   RefreshCw,
-  GitCommit,
+  GitCommitHorizontal,
   Eye,
   FolderOpen,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
 import { getModelLifecycle } from "@/components/AnalyticsDashboard/utils/calculations";
+import {
+  DEFAULT_CLEANUP_PERIOD_DAYS,
+  MIN_CLEANUP_PERIOD_DAYS,
+  parseCleanupPeriodInput,
+} from "@/utils/cleanupPeriod";
 
 // ============================================================================
 // Types
@@ -85,6 +90,15 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
 }) => {
   const { t } = useTranslation();
 
+  // The cleanup-period field keeps its own draft so a transient or invalid
+  // entry (empty while retyping, `0`) never replaces the saved value — writing
+  // `undefined` would drop the key and silently reset e.g. 3650 to 30 (#587).
+  const savedCleanupPeriod = settings.cleanupPeriodDays ?? DEFAULT_CLEANUP_PERIOD_DAYS;
+  const [cleanupDraft, setCleanupDraft] = React.useState(String(savedCleanupPeriod));
+  React.useEffect(() => {
+    setCleanupDraft(String(savedCleanupPeriod));
+  }, [savedCleanupPeriod]);
+
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
@@ -103,8 +117,18 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   };
 
   const handleCleanupPeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    onChange({ cleanupPeriodDays: isNaN(value) ? undefined : value });
+    setCleanupDraft(e.target.value);
+    // Claude Code rejects 0 and fractions: only a valid period is written.
+    const value = parseCleanupPeriodInput(e.target.value);
+    if (value !== undefined) {
+      onChange({ cleanupPeriodDays: value });
+    }
+  };
+
+  const handleCleanupPeriodBlur = () => {
+    if (parseCleanupPeriodInput(cleanupDraft) === undefined) {
+      setCleanupDraft(String(savedCleanupPeriod));
+    }
   };
 
   const handleOutputStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,12 +193,12 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           >
             <Settings2 className="w-4 h-4 text-accent" />
           </div>
-          <span className="font-medium text-sm">
+          <span className="font-medium text-body">
             {t("settingsManager.unified.sections.general")}
           </span>
         </div>
         {summaryParts.length > 0 && (
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-list text-muted-foreground font-mono">
             {summaryParts.join(" · ")}
           </span>
         )}
@@ -186,7 +210,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           {/* Model & Language Group */}
           {/* ============================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="flex items-center gap-2 text-list font-medium text-muted-foreground uppercase tracking-wide">
               <Brain className="w-3.5 h-3.5" />
               {t("settingsManager.general.modelLanguage")}
             </div>
@@ -220,20 +244,20 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.unified.model.description")}
               </p>
               {modelLifecycle && modelLifecycle.status !== "active" && (
                 <div
                   role="alert"
                   className={cn(
-                    "flex items-start gap-1.5 text-xs rounded-md px-2 py-1.5",
+                    "flex items-start gap-1.5 text-list rounded-md px-2 py-1.5",
                     modelLifecycle.status === "retired"
                       ? "bg-red-500/10 text-red-700 dark:text-red-300"
                       : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
                   )}
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <TriangleAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <span className="flex-1">
                     {modelLifecycle.status === "retired"
                       ? t("settingsManager.general.modelRetired", {
@@ -293,7 +317,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.languageDesc")}
               </p>
             </div>
@@ -304,7 +328,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Label htmlFor="always-thinking">
                   {t("settingsManager.general.alwaysThinking")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.general.alwaysThinkingDesc")}
                 </p>
               </div>
@@ -328,7 +352,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 placeholder={t("settingsManager.general.outputStylePlaceholder")}
                 disabled={readOnly}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.outputStyleDesc")}
               </p>
             </div>
@@ -340,7 +364,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           {/* Updates & Maintenance Group */}
           {/* ============================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="flex items-center gap-2 text-list font-medium text-muted-foreground uppercase tracking-wide">
               <RefreshCw className="w-3.5 h-3.5" />
               {t("settingsManager.general.maintenance")}
             </div>
@@ -367,7 +391,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.autoUpdatesChannelDesc")}
               </p>
             </div>
@@ -381,18 +405,18 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Input
                   id="cleanup-period"
                   type="number"
-                  min={0}
-                  max={365}
-                  value={settings.cleanupPeriodDays ?? 30}
+                  min={MIN_CLEANUP_PERIOD_DAYS}
+                  value={cleanupDraft}
                   onChange={handleCleanupPeriodChange}
+                  onBlur={handleCleanupPeriodBlur}
                   className="w-24"
                   disabled={readOnly}
                 />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-body text-muted-foreground">
                   {t("settingsManager.general.days")}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.cleanupPeriodDesc")}
               </p>
             </div>
@@ -412,7 +436,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 placeholder="~/.claude/plans"
                 disabled={readOnly}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.plansDirectoryDesc")}
               </p>
             </div>
@@ -424,7 +448,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           {/* Behavior Toggles Group */}
           {/* ============================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="flex items-center gap-2 text-list font-medium text-muted-foreground uppercase tracking-wide">
               <Eye className="w-3.5 h-3.5" />
               {t("settingsManager.general.behavior")}
             </div>
@@ -435,7 +459,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Label htmlFor="respect-gitignore">
                   {t("settingsManager.general.respectGitignore")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.general.respectGitignoreDesc")}
                 </p>
               </div>
@@ -453,7 +477,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Label htmlFor="show-turn-duration">
                   {t("settingsManager.general.showTurnDuration")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.general.showTurnDurationDesc")}
                 </p>
               </div>
@@ -471,7 +495,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Label htmlFor="spinner-tips">
                   {t("settingsManager.general.spinnerTips")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.general.spinnerTipsDesc")}
                 </p>
               </div>
@@ -489,7 +513,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Label htmlFor="terminal-progress-bar">
                   {t("settingsManager.general.terminalProgressBar")}
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-list text-muted-foreground">
                   {t("settingsManager.general.terminalProgressBarDesc")}
                 </p>
               </div>
@@ -509,8 +533,8 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
           {/* Attribution Group */}
           {/* ============================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              <GitCommit className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 text-list font-medium text-muted-foreground uppercase tracking-wide">
+              <GitCommitHorizontal className="w-3.5 h-3.5" />
               {t("settingsManager.general.attribution")}
             </div>
 
@@ -526,7 +550,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 placeholder="Co-Authored-By: Claude <noreply@anthropic.com>"
                 disabled={readOnly}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.commitAttributionDesc")}
               </p>
             </div>
@@ -543,7 +567,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 placeholder="Generated with Claude Code"
                 disabled={readOnly}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-list text-muted-foreground">
                 {t("settingsManager.general.prAttributionDesc")}
               </p>
             </div>

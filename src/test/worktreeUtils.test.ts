@@ -12,6 +12,7 @@ import {
   getParentDirectory,
   toDisplayPath,
   groupProjectsByDirectory,
+  groupProjectsByTime,
 } from "../utils/worktreeUtils";
 import type { ClaudeProject } from "../types";
 
@@ -654,5 +655,65 @@ describe("detectWorktreeGroupsHybrid", () => {
     // Without git_info, no grouping should happen
     expect(result.groups).toHaveLength(0);
     expect(result.ungrouped).toHaveLength(2);
+  });
+});
+
+describe("groupProjectsByTime", () => {
+  const NOW = new Date("2026-03-15T12:00:00");
+
+  const at = (lastModified: string, name: string) =>
+    createMockProject({
+      name,
+      path: `/work/${name}`,
+      actual_path: `/work/${name}`,
+      last_modified: lastModified,
+    });
+
+  it("buckets projects by calendar-day distance from now", () => {
+    const future = at("2026-03-20T10:00:00", "future");
+    const today = at("2026-03-15T09:00:00", "today");
+    const yesterday = at("2026-03-14T22:00:00", "yesterday");
+    const twoDays = at("2026-03-13T10:00:00", "two-days");
+    const sixDays = at("2026-03-09T10:00:00", "six-days");
+    const sevenDays = at("2026-03-08T10:00:00", "seven-days");
+    const invalid = at("not-a-date", "invalid");
+
+    const result = groupProjectsByTime(
+      [today, yesterday, twoDays, sixDays, sevenDays, invalid, future],
+      NOW
+    );
+
+    const byBucket = Object.fromEntries(
+      result.groups.map((group) => [group.bucket, group.projects.map((p) => p.name)])
+    );
+
+    // Future timestamps (clock skew) clamp into "today"; within a bucket newest-first.
+    expect(byBucket.today).toEqual(["future", "today"]);
+    expect(byBucket.yesterday).toEqual(["yesterday"]);
+    expect(byBucket.last7Days).toEqual(["two-days", "six-days"]);
+    expect(new Set(byBucket.earlier)).toEqual(new Set(["seven-days", "invalid"]));
+  });
+
+  it("omits empty buckets and keeps most-recent-first order", () => {
+    const result = groupProjectsByTime(
+      [at("2026-03-15T09:00:00", "fresh"), at("2026-01-01T00:00:00", "stale")],
+      NOW
+    );
+
+    expect(result.groups.map((group) => group.bucket)).toEqual(["today", "earlier"]);
+    expect(result.ungrouped).toEqual([]);
+  });
+
+  it("orders projects newest-first within a bucket", () => {
+    const result = groupProjectsByTime(
+      [at("2026-03-15T08:00:00", "older"), at("2026-03-15T11:00:00", "newer")],
+      NOW
+    );
+
+    expect(result.groups[0]!.projects.map((p) => p.name)).toEqual(["newer", "older"]);
+  });
+
+  it("returns no groups for empty input", () => {
+    expect(groupProjectsByTime([], NOW)).toEqual({ groups: [], ungrouped: [] });
   });
 });

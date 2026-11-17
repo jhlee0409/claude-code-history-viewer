@@ -12,6 +12,7 @@ pub mod antigravity_cli;
 pub mod antigravity_state_sync;
 pub mod claude;
 pub mod cline;
+mod cline_sdk;
 pub mod codebuddy;
 pub mod codex;
 pub mod continue_dev;
@@ -24,6 +25,10 @@ pub mod forgecode;
 pub mod gemini;
 pub mod goose;
 pub mod grok;
+/// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store surfaced through
+/// its own provider id; the pre-migration Cline-family store stays with
+/// `cline`.
+pub mod kilo;
 pub mod kimi;
 /// Kimi Code (`~/.kimi-code`) layout — surfaced through the `kimi`
 /// provider, not a separate provider id.
@@ -39,9 +44,12 @@ pub mod pi;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
 pub mod qwen;
+/// What a provider scan could not read; collected for usage coverage.
+pub mod scan_report;
 pub mod trae;
 pub mod vibe;
 pub mod vscode;
+pub mod zcode;
 pub mod zed;
 
 /// Provider identifier
@@ -73,6 +81,9 @@ pub enum ProviderId {
     Goose,
     /// xAI Grok CLI (`~/.grok/sessions`).
     Grok,
+    /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store (`kilo.db`).
+    /// The pre-migration Cline-family store is still surfaced by `Cline`.
+    Kilo,
     Kimi,
     ForgeCode,
     Kiro,
@@ -96,6 +107,8 @@ pub enum ProviderId {
     Trae,
     /// Mistral Vibe CLI (`~/.vibe/logs/session/<session>/`).
     Vibe,
+    /// Z.ai Z Code (`~/.zcode/cli/db/db.sqlite`).
+    Zcode,
 }
 
 impl ProviderId {
@@ -116,6 +129,7 @@ impl ProviderId {
             Self::Gemini => "gemini",
             Self::Goose => "goose",
             Self::Grok => "grok",
+            Self::Kilo => "kilo",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
@@ -130,6 +144,7 @@ impl ProviderId {
             Self::Zed => "zed",
             Self::Trae => "trae",
             Self::Vibe => "vibe",
+            Self::Zcode => "zcode",
         }
     }
 
@@ -150,6 +165,7 @@ impl ProviderId {
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
             "grok" => Some(Self::Grok),
+            "kilo" => Some(Self::Kilo),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
@@ -164,6 +180,7 @@ impl ProviderId {
             "zed" => Some(Self::Zed),
             "trae" => Some(Self::Trae),
             "vibe" => Some(Self::Vibe),
+            "zcode" => Some(Self::Zcode),
             _ => None,
         }
     }
@@ -185,6 +202,7 @@ impl ProviderId {
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
+            Self::Kilo => "Kilo Code",
             Self::Kimi => "Kimi",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
@@ -199,6 +217,7 @@ impl ProviderId {
             Self::Zed => "Zed",
             Self::Trae => "Trae",
             Self::Vibe => "Mistral Vibe",
+            Self::Zcode => "Z Code",
         }
     }
 }
@@ -235,6 +254,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = grok::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = kilo::detect() {
         providers.push(info);
     }
     if let Some(info) = kimi::detect() {
@@ -303,6 +325,10 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = vibe::detect() {
         providers.push(info);
     }
+    if let Some(info) = zcode::detect() {
+        providers.push(info);
+    }
 
     providers
 }
+mod result_evidence;

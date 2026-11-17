@@ -21,6 +21,7 @@ import {
   formatCharSize,
 } from "../../utils/contentSizeGuard";
 import { TruncatedPre } from "./TruncatedPre";
+import { Num } from "@/lib/format/Num";
 
 interface CodeHighlightProps {
   code: string;
@@ -41,12 +42,12 @@ export const CodeHighlight: React.FC<CodeHighlightProps> = ({
   if (isTooLargeToHighlight(code)) {
     return (
       <div>
-        <div className="px-2 py-1 text-xs text-muted-foreground">
-          {t("sizeGuard.highlightDisabled", {
+        <div className="px-2 py-1 text-list text-muted-foreground">
+          <Num>{t("sizeGuard.highlightDisabled", {
             size: formatCharSize(code.length),
             defaultValue:
               "Syntax highlighting disabled for large content ({{size}})",
-          })}
+          })}</Num>
         </div>
         <TruncatedPre
           content={code}

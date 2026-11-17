@@ -2,9 +2,11 @@ pub mod cli;
 pub mod cli_args;
 pub mod commands;
 pub mod export;
+pub mod menu;
 pub mod models;
 pub mod providers;
 pub mod utils;
+pub mod window_state;
 pub mod wsl;
 
 #[cfg(feature = "webui-server")]
@@ -54,8 +56,8 @@ use crate::commands::{
     },
     multi_provider::{
         detect_providers, get_provider_message_offset, load_provider_messages,
-        load_provider_messages_paginated, load_provider_sessions, load_provider_sessions_page,
-        scan_all_projects, search_all_providers,
+        load_provider_messages_paginated, load_provider_session_by_path, load_provider_sessions,
+        load_provider_sessions_page, scan_all_projects, search_all_providers,
     },
     project::{
         detect_claude_config_dir, get_claude_folder_path, get_git_log, scan_projects,
@@ -64,13 +66,14 @@ use crate::commands::{
     session::{
         delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
         load_project_sessions, load_project_sessions_page, load_session_messages,
-        load_session_messages_paginated, open_resume_in_terminal, rename_opencode_session_title,
-        rename_session_native, reset_session_native_name, restore_file, search_messages,
+        load_session_messages_paginated, open_resume_in_terminal, read_restore_target,
+        rename_opencode_session_title, rename_session_native, reset_session_native_name,
+        restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
         get_global_stats_summary, get_project_stats_summary, get_project_token_stats,
-        get_session_comparison, get_session_token_stats,
+        get_session_comparison, get_session_token_stats, usage_breakdown::get_usage_breakdown,
     },
     unified_presets::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
@@ -173,7 +176,35 @@ fn run_tauri() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        // The native menu bar, built from the command manifest (plan §4.4,
+        // T11a). After the plugins: single-instance stays first. One
+        // app-wide menu-event handler; a rebuilt menu adds no listener.
+        .manage(menu::MenuBridge::new("en"))
+        .manage(menu::MenuJournal::for_this_run())
+        // One setup hook (a second one would replace the first):
+        // 1. The menu, built here because the saved UI language is read from
+        //    the app data folder, whose path resolver does not exist yet when
+        //    `Builder::menu` runs. First, so the menu bar (Windows/Linux) is
+        //    in the decoration the window restore measures.
+        // 2. The window opens hidden; `restore_and_track` restores its saved
+        //    frame, then shows it (T11b). Keep it last, after anything that
+        //    changes the window's decoration.
+        // A menu error is logged, never returned: an `Err` from `setup`
+        // panics before the window is shown. The app runs on without the
+        // native menu (macOS keeps Tauri's default one).
+        .setup(|app| {
+            if let Err(error) = menu::initial_menu(app.handle()).and_then(|menu| app.set_menu(menu))
+            {
+                log::error!("native menu not installed: {error}");
+            }
+            window_state::restore_and_track(app.handle());
+            Ok(())
+        })
+        // Every menu event is journaled (numbered, kept until acknowledged):
+        // a (re)loading page pulls what it has not run, so no page-load hook
+        // or ready state is needed.
+        .on_menu_event(|app, event| menu::handle_menu_event(app, event.id().as_ref()));
 
     builder
         .manage(MetadataState::default())
@@ -199,11 +230,13 @@ fn run_tauri() {
             get_session_subagents,
             get_recent_edits,
             restore_file,
+            read_restore_target,
             get_session_token_stats,
             get_project_token_stats,
             get_project_stats_summary,
             get_session_comparison,
             get_global_stats_summary,
+            get_usage_breakdown,
             send_feedback,
             get_system_info,
             open_github_issues,
@@ -257,6 +290,7 @@ fn run_tauri() {
             scan_all_projects,
             load_provider_sessions,
             load_provider_sessions_page,
+            load_provider_session_by_path,
             load_provider_messages,
             load_provider_messages_paginated,
             get_provider_message_offset,
@@ -280,11 +314,16 @@ fn run_tauri() {
             get_antigravity_session,
             get_antigravity_project_summary,
             // Updater fallback
-            force_quit_and_relaunch
+            force_quit_and_relaunch,
+            // Native menu bridge (WebUI: no-op route)
+            menu::native::sync_menu_state,
+            menu::native::menu_journal,
+            menu::native::ack_menu_events
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            window_state::on_run_event(app, &event);
             // macOS-only: Spotlight / Dock / Finder launches don't re-exec
             // argv, so `tauri-plugin-single-instance` cannot see them. The OS
             // instead delivers the target as an Apple Event that Tauri
@@ -367,6 +406,31 @@ fn linux_ime_environment_updates(
 }
 
 #[cfg(test)]
+mod builder_order_tests {
+    /// T11a keeps the single-instance plugin registered first: a second
+    /// launch must be intercepted before any other plugin (or the menu) does
+    /// work. Checked on the source, as the builder cannot be run headless.
+    #[test]
+    fn single_instance_is_the_first_plugin_and_the_menu_comes_after_the_plugins() {
+        let source = include_str!("lib.rs");
+        let start = source
+            .find("let mut builder = tauri::Builder::default()")
+            .expect("builder");
+        let body = &source[start..];
+        let first_plugin = body.find(".plugin(").expect("a plugin");
+        assert!(
+            body[first_plugin..].starts_with(".plugin(tauri_plugin_single_instance::init("),
+            "single-instance must be the first plugin"
+        );
+        let last_plugin = body
+            .find(".plugin(tauri_plugin_os::init())")
+            .expect("os plugin");
+        let menu = body.find("menu::initial_menu(app.handle())").expect("menu");
+        assert!(menu > last_plugin, "the menu is set up after every plugin");
+    }
+}
+
+#[cfg(test)]
 mod ime_environment_tests {
     use super::linux_ime_environment_updates;
 
@@ -385,7 +449,7 @@ mod ime_environment_tests {
         let updates =
             linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
 
-        assert!(updates.is_empty());
+        assert_eq!(updates, Vec::<(&str, &str)>::new());
     }
 
     #[test]
@@ -399,7 +463,7 @@ mod ime_environment_tests {
     fn linux_ime_environment_does_nothing_without_ibus_signal() {
         let updates = linux_ime_environment_updates(None, None, None);
 
-        assert!(updates.is_empty());
+        assert_eq!(updates, Vec::<(&str, &str)>::new());
     }
 }
 
@@ -424,6 +488,7 @@ fn run_server(args: &[String]) {
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
     let read_only = args.iter().any(|a| a == "--read-only");
+    let file_watcher_enabled = crate::cli_args::server_file_watcher_enabled(args);
     let base_path = crate::cli_args::extract_flag_value(args, "--base-path")
         .map(|value| {
             server::normalize_base_path(&value).unwrap_or_else(|error| {
@@ -549,8 +614,18 @@ fn run_server(args: &[String]) {
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
-        // Start background file watcher (sends events to broadcast channel)
-        let _watcher_handle = start_server_file_watcher(&state);
+        // Start background file watcher (sends events to broadcast channel).
+        // The hidden test-only `--no-watch` skips it so a capture run sees a
+        // frozen data set; the handle must stay alive while the server runs.
+        let _watcher_handle = if file_watcher_enabled {
+            start_server_file_watcher(&state)
+        } else {
+            eprintln!(
+                "👁 File watcher disabled ({})",
+                crate::cli_args::NO_WATCH_FLAG
+            );
+            None
+        };
 
         server::start(state, &host, port, dist_dir.as_deref(), &base_path).await;
     });
@@ -978,6 +1053,10 @@ fn start_server_file_watcher(
     Some(debouncer)
 }
 
+/// A provider's `get_base_path`, used to build the watch-path tables below.
+#[cfg(feature = "webui-server")]
+type BasePathFn = fn() -> Option<String>;
+
 /// Collect available provider directories to watch for live session file updates.
 #[cfg(feature = "webui-server")]
 fn collect_watch_paths() -> Vec<std::path::PathBuf> {
@@ -1016,25 +1095,6 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    if let Some(codex_base) = providers::codex::get_base_path() {
-        let base = PathBuf::from(codex_base);
-        let sessions = base.join("sessions");
-        let archived_sessions = base.join("archived_sessions");
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-        if archived_sessions.is_dir() {
-            paths.push(archived_sessions);
-        }
-    }
-
-    if let Some(kimi_base) = providers::kimi::get_base_path() {
-        let sessions = PathBuf::from(kimi_base).join("sessions");
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-    }
-
     // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
     // roots are not registered — `is_dir()` follows symlinks, and watching
     // through one would observe directories outside the store.
@@ -1044,21 +1104,6 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
             .map(|meta| meta.file_type().is_dir())
             .unwrap_or(false);
         if is_real_dir {
-            paths.push(sessions);
-        }
-    }
-
-    // Pi / oh-my-pi: get_base_path() is already the sessions root.
-    if let Some(pi_base) = providers::pi::get_base_path() {
-        let sessions = PathBuf::from(pi_base);
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-    }
-
-    if let Some(ompi_base) = providers::ompi::get_base_path() {
-        let sessions = PathBuf::from(ompi_base);
-        if sessions.is_dir() {
             paths.push(sessions);
         }
     }
@@ -1081,103 +1126,75 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
-        let codebuddy_projects = PathBuf::from(codebuddy_base);
-        if codebuddy_projects.is_dir() {
-            paths.push(codebuddy_projects);
+    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
+    // session/message storage dirs), so watching the store root covers it.
+    // Symlinked roots/databases are not registered — `is_file()` follows
+    // symlinks, and watching through one would observe paths outside the
+    // store (same hardening as the Kimi Code block above).
+    if let Some(kilo_base) = providers::kilo::get_base_path() {
+        let base = PathBuf::from(&kilo_base);
+        let is_real = |path: &std::path::Path, check: fn(&std::fs::FileType) -> bool| {
+            std::fs::symlink_metadata(path)
+                .map(|meta| check(&meta.file_type()))
+                .unwrap_or(false)
+        };
+        if is_real(&base, std::fs::FileType::is_dir)
+            && is_real(
+                &base.join(providers::kilo::DB_FILE),
+                std::fs::FileType::is_file,
+            )
+        {
+            paths.push(base);
         }
     }
 
-    if let Some(cursor_agent_base) = providers::cursor_agent::get_base_path() {
-        let cursor_agent_projects = PathBuf::from(cursor_agent_base);
-        if cursor_agent_projects.is_dir() {
-            paths.push(cursor_agent_projects);
-        }
-    }
+    // Providers whose base path is itself the directory to watch. For Pi and
+    // oh-my-pi, get_base_path() is already the sessions root.
+    let flat_bases: [BasePathFn; 14] = [
+        providers::pi::get_base_path,
+        providers::ompi::get_base_path,
+        providers::codebuddy::get_base_path,
+        providers::cursor_agent::get_base_path,
+        providers::continue_dev::get_base_path,
+        providers::pearai::get_base_path,
+        providers::goose::get_base_path,
+        providers::llm::get_base_path,
+        providers::amazon_q::get_base_path,
+        providers::qwen::get_base_path,
+        providers::zcode::get_base_path,
+        providers::zed::get_base_path,
+        providers::openhands::get_base_path,
+        providers::trae::get_base_path,
+    ];
+    paths.extend(
+        flat_bases
+            .iter()
+            .filter_map(|base| base())
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_dir()),
+    );
 
-    if let Some(continue_base) = providers::continue_dev::get_base_path() {
-        let continue_sessions = PathBuf::from(continue_base);
-        if continue_sessions.is_dir() {
-            paths.push(continue_sessions);
-        }
-    }
-
-    if let Some(pearai_base) = providers::pearai::get_base_path() {
-        let pearai_sessions = PathBuf::from(pearai_base);
-        if pearai_sessions.is_dir() {
-            paths.push(pearai_sessions);
-        }
-    }
-
-    if let Some(goose_base) = providers::goose::get_base_path() {
-        let goose_sessions = PathBuf::from(goose_base);
-        if goose_sessions.is_dir() {
-            paths.push(goose_sessions);
-        }
-    }
-
-    if let Some(llm_base) = providers::llm::get_base_path() {
-        let llm_dir = PathBuf::from(llm_base);
-        if llm_dir.is_dir() {
-            paths.push(llm_dir);
-        }
-    }
-
-    if let Some(amazon_q_base) = providers::amazon_q::get_base_path() {
-        let amazon_q_dir = PathBuf::from(amazon_q_base);
-        if amazon_q_dir.is_dir() {
-            paths.push(amazon_q_dir);
-        }
-    }
-
-    if let Some(oi_base) = providers::openinterpreter::get_base_path() {
-        for sub in ["sessions", "archived_sessions"] {
-            let dir = PathBuf::from(&oi_base).join(sub);
-            if dir.is_dir() {
-                paths.push(dir);
-            }
-        }
-    }
-
-    if let Some(qwen_base) = providers::qwen::get_base_path() {
-        let qwen_projects = PathBuf::from(qwen_base);
-        if qwen_projects.is_dir() {
-            paths.push(qwen_projects);
-        }
-    }
-
-    if let Some(zed_base) = providers::zed::get_base_path() {
-        let zed_dir = PathBuf::from(zed_base);
-        if zed_dir.is_dir() {
-            paths.push(zed_dir);
-        }
-    }
-
-    if let Some(oh_base) = providers::openhands::get_base_path() {
-        let oh_dir = PathBuf::from(oh_base);
-        if oh_dir.is_dir() {
-            paths.push(oh_dir);
-        }
-    }
-
-    if let Some(trae_base) = providers::trae::get_base_path() {
-        let trae_dir = PathBuf::from(trae_base);
-        if trae_dir.is_dir() {
-            paths.push(trae_dir);
-        }
-    }
-
-    if let Some(vibe_base) = providers::vibe::get_base_path() {
-        let vibe_sessions = PathBuf::from(vibe_base).join("logs/session");
-        if vibe_sessions.is_dir() {
-            paths.push(vibe_sessions);
-        }
-    }
-
-    if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
-        let session_state = PathBuf::from(copilot_base).join("session-state");
-        if session_state.is_dir() {
-            paths.push(session_state);
+    // Providers that keep sessions in sub-directories of their base path.
+    let nested_bases: [(BasePathFn, &[&str]); 5] = [
+        (
+            providers::codex::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::kimi::get_base_path, &["sessions"]),
+        (
+            providers::openinterpreter::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::vibe::get_base_path, &["logs/session"]),
+        (providers::copilot_cli::get_base_path, &["session-state"]),
+    ];
+    for (get_base, subs) in nested_bases {
+        if let Some(base) = get_base() {
+            paths.extend(
+                subs.iter()
+                    .map(|sub| PathBuf::from(&base).join(sub))
+                    .filter(|dir| dir.is_dir()),
+            );
         }
     }
 

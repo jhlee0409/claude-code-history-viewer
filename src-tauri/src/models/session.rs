@@ -24,18 +24,6 @@ pub struct GitInfo {
     pub main_project_path: Option<String>,
 }
 
-/// Availability of a project's last-known filesystem location.
-///
-/// This is intentionally only serialized for unavailable absolute paths. A
-/// missing worktree does not mean the conversation is gone; it only means
-/// path-dependent actions such as opening the folder or resuming in that cwd
-/// need to be disabled.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ProjectPathStatus {
-    Unavailable,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct ClaudeProject {
     pub name: String,
@@ -69,7 +57,7 @@ struct ClaudeProjectPayload<'a> {
     message_count: usize,
     last_modified: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    path_status: Option<ProjectPathStatus>,
+    path_status: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     git_info: &'a Option<GitInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -102,13 +90,19 @@ impl Serialize for ClaudeProject {
     }
 }
 
-fn project_path_status(actual_path: &str) -> Option<ProjectPathStatus> {
+/// Availability of a project's last-known filesystem location.
+///
+/// This is intentionally only serialized for unavailable absolute paths. A
+/// missing worktree does not mean the conversation is gone; it only means
+/// path-dependent actions such as opening the folder or resuming in that cwd
+/// need to be disabled.
+fn project_path_status(actual_path: &str) -> Option<&'static str> {
     let path = actual_path.trim();
     if path.is_empty() || path.contains("://") || !Path::new(path).is_absolute() {
         return None;
     }
 
-    (!Path::new(path).is_dir()).then_some(ProjectPathStatus::Unavailable)
+    (!Path::new(path).is_dir()).then_some("unavailable")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

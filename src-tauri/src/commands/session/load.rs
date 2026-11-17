@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
 use chrono::{DateTime, Utc};
@@ -12,7 +13,6 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use uuid::Uuid;
-use walkdir::WalkDir;
 
 /// Cache entry for a single session file (supports incremental parsing)
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -62,7 +62,9 @@ struct SessionMetadataCache {
 // Bumped 10 -> 11: a verifiable folder name now takes priority over the JSONL
 // `cwd` for the project name (handles sessions moved between project folders);
 // stale caches must be invalidated to recompute project_name.
-const CACHE_VERSION: u32 = 11;
+// Bumped 11 -> 12: Claude Code `ai-title` records now set the session title
+// (and are no longer counted as messages); stale caches must be invalidated.
+const CACHE_VERSION: u32 = 12;
 const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
 const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
@@ -82,10 +84,15 @@ fn get_cache_path(project_path: &str) -> PathBuf {
     PathBuf::from(project_path).join(".session_cache.json")
 }
 
-/// Load cache from disk
+/// Load cache from disk. The cache file lies in the project's history
+/// folder, so it is opened as a history file is: a symlink or a FIFO named
+/// like it is no cache (`session_files::open_history_file`).
 fn load_cache(project_path: &str) -> SessionMetadataCache {
     let cache_path = get_cache_path(project_path);
-    if let Ok(content) = fs::read_to_string(&cache_path) {
+    let mut content = String::new();
+    let read = session_files::open_history_file(&cache_path)
+        .and_then(|mut file| std::io::Read::read_to_string(&mut file, &mut content));
+    if read.is_ok() {
         if let Ok(cache) = serde_json::from_str::<SessionMetadataCache>(&content) {
             if cache.version == CACHE_VERSION {
                 return cache;
@@ -202,6 +209,8 @@ struct SessionMetadataEntry {
     message: Option<SessionMetadataMessage>,
     #[serde(rename = "customTitle")]
     custom_title: Option<String>,
+    #[serde(rename = "aiTitle")]
+    ai_title: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -224,6 +233,8 @@ struct QuickLineClassifier {
     entrypoint: Option<String>,
     #[serde(rename = "customTitle")]
     custom_title: Option<String>,
+    #[serde(rename = "aiTitle")]
+    ai_title: Option<String>,
 }
 
 /// Fast session metadata extraction result
@@ -250,35 +261,58 @@ struct SessionExtractionResult {
 /// Phase 1: Extract essential metadata from first ~50 lines
 /// Phase 2: Count remaining messages with minimal parsing
 /// Always extracts total count (without sidechain filtering) for caching purposes
-fn extract_session_metadata_from_file(file_path: &PathBuf) -> Option<SessionExtractionResult> {
-    extract_session_metadata_internal(file_path, None)
+///
+/// `root` is the canonical project folder the file was found in: the file is
+/// read inside it only (`session_files::open_session_file`).
+fn extract_session_metadata_from_file(
+    file_path: &PathBuf,
+    root: &Path,
+) -> Option<SessionExtractionResult> {
+    extract_session_metadata_internal(file_path, root, None)
+}
+
+/// The lines of a session file for a metadata scan. A line that is not UTF-8
+/// is skipped; any other read error ends the scan. `BufRead::lines` returns
+/// such an error again on every call (each read of a directory fails), so a
+/// scan that skipped it as well never ended.
+fn session_lines(reader: impl BufRead) -> impl Iterator<Item = String> {
+    reader
+        .lines()
+        .map_while(|line| match line {
+            Ok(line) => Some(Some(line)),
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Some(None),
+            Err(_) => None,
+        })
+        .flatten()
 }
 
 /// Incremental session metadata extraction - only parses new content from given offset
 fn extract_session_metadata_incremental(
     file_path: &PathBuf,
+    root: &Path,
     state: IncrementalParseState,
 ) -> Option<SessionExtractionResult> {
-    extract_session_metadata_internal(file_path, Some(state))
+    extract_session_metadata_internal(file_path, root, Some(state))
 }
 
 /// Internal extraction function that supports both full and incremental parsing
 fn extract_session_metadata_internal(
     file_path: &PathBuf,
+    root: &Path,
     incremental_state: Option<IncrementalParseState>,
 ) -> Option<SessionExtractionResult> {
-    let metadata = file_path.metadata().ok();
-    let file_size = metadata.as_ref().map_or(0, std::fs::Metadata::len);
+    // The size and time are the opened file's own.
+    let (mut file, metadata) = session_files::open_session_file(file_path, root).ok()?;
+    let file_size = metadata.len();
     let last_modified = metadata
-        .as_ref()
-        .and_then(|m| m.modified().ok())
+        .modified()
+        .ok()
         .map(|t| {
             let dt: DateTime<Utc> = t.into();
             dt.to_rfc3339()
         })
         .unwrap_or_else(|| Utc::now().to_rfc3339());
 
-    let mut file = fs::File::open(file_path).ok()?;
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // Initialize from incremental state or start fresh
@@ -324,6 +358,10 @@ fn extract_session_metadata_internal(
             None, None, None,
         )
     };
+    // Claude Code's auto-generated title (last `ai-title` record wins). Not
+    // cached separately: on incremental parses a previously found ai-title is
+    // already carried in `session_summary` (seeded from the final title).
+    let mut ai_title: Option<String> = None;
 
     // Seek to start position for incremental parsing
     if start_offset > 0 && file.seek(SeekFrom::Start(start_offset)).is_err() {
@@ -340,12 +378,7 @@ fn extract_session_metadata_internal(
     let mut lines_processed = 0usize;
     const METADATA_PHASE_LINES: usize = 100; // Full parse first N lines
 
-    for line_result in reader.lines() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -368,6 +401,13 @@ fn extract_session_metadata_internal(
                 if entry.message_type == "summary" {
                     if session_summary.is_none() {
                         session_summary = entry.summary;
+                    }
+                    continue;
+                }
+
+                if entry.message_type == "ai-title" {
+                    if let Some(title) = try_extract_ai_title(entry.ai_title.as_deref()) {
+                        ai_title = Some(title);
                     }
                     continue;
                 }
@@ -521,6 +561,13 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
+            if classifier.message_type == "ai-title" {
+                if let Some(title) = try_extract_ai_title(classifier.ai_title.as_deref()) {
+                    ai_title = Some(title);
+                }
+                continue;
+            }
+
             // Extract rename from system messages (using fast string check before full parse)
             if classifier.message_type == "system" {
                 if line.contains("Session renamed to: ") {
@@ -622,9 +669,11 @@ fn extract_session_metadata_internal(
         })
         .or(incremental_project_name)
         .unwrap_or_else(|| extract_project_name(&raw_project_name));
-    // Rename name takes highest priority, then existing summary fallback chain
+    // Rename name takes highest priority, then Claude Code's ai-title, then the
+    // existing summary fallback chain
     let final_summary = rename_name
         .clone()
+        .or(ai_title)
         .or(session_summary)
         .or(first_user_content.clone())
         .or(first_assistant_text.clone())
@@ -662,7 +711,7 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 6] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
@@ -671,6 +720,8 @@ const EXCLUDED_MESSAGE_TYPES: [&str; 6] = [
     // Emitted alongside "custom-title" by the `/branch` command; redundant with it
     // (same name), so it's excluded from the viewer rather than used as a rename source.
     "agent-name",
+    // Claude Code's auto-generated session title; used as the session name, not a message.
+    "ai-title",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -733,6 +784,12 @@ fn try_extract_custom_title(message_type: &str, custom_title: Option<&str>) -> O
         return None;
     }
     Some(name.to_string())
+}
+
+/// Extract Claude Code's auto-generated session title from an `ai-title` record.
+pub(crate) fn try_extract_ai_title(ai_title: Option<&str>) -> Option<String> {
+    let title = ai_title?.trim();
+    (!title.is_empty()).then(|| title.to_string())
 }
 
 /// Derive a project display name from a real working-directory path (its leaf).
@@ -1123,24 +1180,16 @@ fn load_project_sessions_page_blocking(
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
     let mut known_dropped_candidates = 0usize;
 
-    for entry in WalkDir::new(project_root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        if entry.file_type().is_symlink() {
-            continue;
-        }
-
-        let Ok(canonical_path) = entry.path().canonicalize() else {
+    // Regular files only, no symlink below the project followed
+    // (`session_files`).
+    for path in session_files::regular_session_files(project_root) {
+        let Ok(canonical_path) = path.canonicalize() else {
             continue;
         };
         if !canonical_path.starts_with(&canonical_project_root) {
             continue;
         }
 
-        let path = entry.path().to_path_buf();
         let path_str = path.to_string_lossy().to_string();
         let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
 
@@ -1231,7 +1280,8 @@ fn load_project_sessions_page_blocking(
                         None,
                     ),
                     SessionPageCandidateSource::Parse(path) => {
-                        let result = extract_session_metadata_from_file(&path);
+                        let result =
+                            extract_session_metadata_from_file(&path, &canonical_project_root);
                         (SessionPageCandidateSource::Parse(path), result)
                     }
                     SessionPageCandidateSource::KnownDropped => {
@@ -1353,6 +1403,101 @@ fn load_project_sessions_page_blocking(
     })
 }
 
+/// Look up one Claude session by its file path, without scanning the project.
+///
+/// The session list only reloads its first page, so a selected session further
+/// down needs another way to tell "still there" from "deleted". This reads the
+/// one file: the metadata cache entry when it is still fresh, otherwise a parse
+/// of that file alone. The cache is only read, never written.
+///
+/// `Ok(None)` means the file is gone or has no displayable messages (after the
+/// sidechain filter, as in the list). The continuation-chain hiding the list
+/// applies needs a project scan, so it is not applied here.
+///
+/// `project_path` is trusted the same way the page loader trusts it; paths are
+/// confined to it, not to known Claude roots.
+pub fn find_project_session_by_path(
+    project_path: &str,
+    file_path: &str,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<ClaudeSession>, String> {
+    let project_path = project_path.trim();
+    if project_path.is_empty() {
+        return Err("project_path is required".to_string());
+    }
+    let project_root = Path::new(project_path);
+    if !project_root.is_absolute() {
+        return Err("project_path must be an absolute path".to_string());
+    }
+    let path = PathBuf::from(file_path);
+    if !path.is_absolute() || path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("file_path must be an absolute .jsonl path".to_string());
+    }
+    let canonical_project_root = project_root
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+
+    // Containment first, before touching the file itself: every path outside
+    // the project gets this one error whether or not it exists, so the lookup
+    // is not an existence oracle for arbitrary paths.
+    let outside = || "file_path is outside the project".to_string();
+    let parent_inside = path
+        .parent()
+        .and_then(|parent| parent.canonicalize().ok())
+        .is_some_and(|parent| parent.starts_with(&canonical_project_root));
+    if !parent_inside {
+        return Err(outside());
+    }
+
+    // A missing file is the one expected failure: the session was deleted.
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Failed to read session file: {error}")),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err("Session file cannot be a symlink".to_string());
+    }
+    // Nothing but a regular file is read: a directory named like a session
+    // fails every read, and a FIFO blocks the read.
+    if !metadata.is_file() {
+        return Err("Session file is not a regular file".to_string());
+    }
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve file_path: {error}"))?;
+    if !canonical_path.starts_with(&canonical_project_root) {
+        return Err(outside());
+    }
+
+    // Same cache key form as the page loader (the caller's path, not the
+    // canonical one).
+    let path_str = path.to_string_lossy().to_string();
+    let (current_mtime, current_size, _) = metadata_sort_snapshot(&path);
+    let cached = load_cache(project_path)
+        .entries
+        .remove(&path_str)
+        .filter(|c| Some(c.modified_time) == current_mtime && c.file_size == current_size);
+    let (session, sidechain_count) = match cached {
+        Some(cached) => (cached.session, cached.sidechain_count),
+        None => match extract_session_metadata_from_file(&path, &canonical_project_root) {
+            Some(result) => (Some(result.session), result.sidechain_count),
+            None => (None, 0),
+        },
+    };
+
+    // Same filter as the page loader (a sidechain-only session is dropped when
+    // sidechains are excluded). No superseded set: that needs a project scan.
+    Ok(session.and_then(|session| {
+        session_with_sidechain_filter(
+            session,
+            sidechain_count,
+            exclude_sidechain.unwrap_or(false),
+            &std::collections::HashSet::new(),
+        )
+    }))
+}
+
 /// Load every session in a project.
 ///
 /// Same shape as the paginated variant above and the same reasoning: the work
@@ -1390,13 +1535,15 @@ fn load_project_sessions_blocking(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
-    // 2. Collect all JSONL file paths
-    let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // 2. Collect the session files: regular files only, no symlink below the
+    // project followed (`session_files`). A linked file would be read
+    // wherever it points; a directory named like a session used to stall
+    // this load, and a FIFO would block it.
+    // Each is read inside the project folder, resolved before the walk.
+    let Ok(canonical_project_root) = fs::canonicalize(&project_path) else {
+        return Vec::new();
+    };
+    let file_paths: Vec<PathBuf> = session_files::regular_session_files(Path::new(&project_path));
 
     #[cfg(debug_assertions)]
     eprintln!(
@@ -1485,11 +1632,15 @@ fn load_project_sessions_blocking(
         .map(|strategy| match &strategy {
             FileParseStrategy::UseCached(_, _) => (strategy, None),
             FileParseStrategy::Incremental(path, state) => {
-                let result = extract_session_metadata_incremental(path, state.clone());
+                let result = extract_session_metadata_incremental(
+                    path,
+                    &canonical_project_root,
+                    state.clone(),
+                );
                 (strategy, result)
             }
             FileParseStrategy::FullParse(path) => {
-                let result = extract_session_metadata_from_file(path);
+                let result = extract_session_metadata_from_file(path, &canonical_project_root);
                 (strategy, result)
             }
         })
@@ -1644,32 +1795,7 @@ fn parse_line_to_message(
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         });
     }
 
@@ -1705,7 +1831,6 @@ fn parse_line_to_message(
             .unwrap_or_else(|| Utc::now().to_rfc3339()),
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
-        project_name: None,
         tool_use: log_entry.tool_use,
         tool_use_result: log_entry.tool_use_result,
         is_sidechain: log_entry.is_sidechain,
@@ -1730,7 +1855,7 @@ fn parse_line_to_message(
         prevented_continuation: log_entry.prevented_continuation,
         compact_metadata: log_entry.compact_metadata,
         microcompact_metadata: log_entry.microcompact_metadata,
-        provider: None,
+        ..Default::default()
     })
 }
 
@@ -1774,32 +1899,7 @@ fn parse_line_simd(
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         });
     }
 
@@ -1848,7 +1948,6 @@ fn parse_line_simd(
             .unwrap_or_else(|| Utc::now().to_rfc3339()),
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
-        project_name: None,
         tool_use: log_entry.tool_use.or(extracted_tool_use),
         tool_use_result: log_entry.tool_use_result,
         is_sidechain: log_entry.is_sidechain,
@@ -1873,7 +1972,7 @@ fn parse_line_simd(
         prevented_continuation: log_entry.prevented_continuation,
         compact_metadata: log_entry.compact_metadata,
         microcompact_metadata: log_entry.microcompact_metadata,
-        provider: None,
+        ..Default::default()
     })
 }
 
@@ -1927,8 +2026,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
     // Use memory-mapped file for faster I/O
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_history_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2045,11 +2144,41 @@ fn opencode_subagents(session_path: &str) -> Vec<SubagentSession> {
         .collect()
 }
 
+/// Subagent rows for a `kilo://<project_id>/<session_id>` parent. Kilo Code's
+/// OpenCode-core store keeps the same child-rows-in-`SQLite` shape as
+/// `OpenCode`, addressed with the `kilo://` scheme.
+fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
+    let Some(rest) = session_path.strip_prefix("kilo://") else {
+        return Vec::new();
+    };
+    let Some((project_id, session_id)) = rest.split_once('/') else {
+        return Vec::new();
+    };
+    if !crate::utils::is_safe_storage_id(project_id)
+        || !crate::utils::is_safe_storage_id(session_id)
+    {
+        return Vec::new();
+    }
+
+    crate::providers::kilo::load_child_sessions(project_id, session_id)
+        .into_iter()
+        .map(|child| SubagentSession {
+            file_path: format!("kilo://{project_id}/{}", child.id),
+            agent_id: child.id,
+            message_count: child.message_count,
+            file_size: 0,
+            first_message_time: Some(child.created_at),
+            last_message_time: Some(child.updated_at),
+            summary: (!child.title.trim().is_empty()).then_some(child.title),
+            tool_use_id: None,
+            workflow_run_id: None,
+        })
+        .collect()
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
-    use crate::utils::find_subagent_files;
-
     // OpenCode keeps subagent runs as child rows in SQLite rather than as
     // sidechain files beside the parent, so the file scan below has nothing to
     // find and the absolute-path check would reject the URI outright (#560).
@@ -2057,15 +2186,25 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         return Ok(opencode_subagents(&session_path));
     }
 
+    if session_path.starts_with("kilo://") {
+        return Ok(kilo_subagents(&session_path));
+    }
+
     let path = PathBuf::from(&session_path);
     if !path.is_absolute() {
         return Err("session_path must be an absolute path".to_string());
     }
-    let subagent_files = find_subagent_files(&path);
+    // Regular files only, never through a symlinked folder
+    // (`session_files::regular_subagent_files`): a linked `<session>/` or
+    // `subagents/` folder would list transcripts from outside the root.
+    let subagent_files = session_files::regular_subagent_files(&path);
 
     if subagent_files.is_empty() {
         return Ok(Vec::new());
     }
+    // Each transcript and its meta file is read inside the session's folder
+    // (`session_files::open_session_file`).
+    let root = session_files::own_folder(&path).map_err(|e| format!("{}: {e}", path.display()))?;
 
     let mut sessions: Vec<SubagentSession> = Vec::new();
     for sa_path in subagent_files {
@@ -2081,16 +2220,15 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
             .unwrap_or(&file_name)
             .to_string();
 
-        let file_size = fs::metadata(&sa_path).map(|m| m.len()).unwrap_or(0);
-
         // Quick scan: first and last lines + line count
-        let (message_count, first_time, last_time, summary) = extract_subagent_metadata(&sa_path);
+        let (file_size, message_count, first_time, last_time, summary) =
+            extract_subagent_metadata(&sa_path, &root);
 
         // Newer Claude Code persists the spawning Task tool_use id in a sibling
         // `agent-<id>.meta.json`. Read it so multi-subagent sessions can map a click
         // to the right file (#288); older sessions have no meta file -> None.
         let meta_path = sa_path.with_file_name(format!("{file_name}.meta.json"));
-        let tool_use_id = read_subagent_tool_use_id(&meta_path);
+        let tool_use_id = read_subagent_tool_use_id(&meta_path, &root);
         let workflow_run_id = workflow_run_id_for(&sa_path);
 
         sessions.push(SubagentSession {
@@ -2113,15 +2251,14 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
 }
 
 /// Read the `toolUseId` from a subagent's sibling `agent-<id>.meta.json`.
-/// Returns `None` if the file is missing, a symlink, unreadable, or has no
-/// non-empty `toolUseId` — all non-fatal, so a subagent without a meta file still
-/// lists. The symlink guard mirrors the session-path hardening.
-fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
-    let meta = std::fs::symlink_metadata(meta_path).ok()?;
-    if meta.file_type().is_symlink() {
-        return None;
-    }
-    let content = std::fs::read_to_string(meta_path).ok()?;
+/// Returns `None` if the file is missing, a symlink, not a regular file,
+/// unreadable, or has no non-empty `toolUseId` — all non-fatal, so a subagent
+/// without a meta file still lists. It is read inside `root` like the
+/// transcripts (`session_files::open_session_file`).
+fn read_subagent_tool_use_id(meta_path: &Path, root: &Path) -> Option<String> {
+    let (mut file, _) = session_files::open_session_file(meta_path, root).ok()?;
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut file, &mut content).ok()?;
 
     #[derive(serde::Deserialize)]
     struct SubagentMeta {
@@ -2133,16 +2270,17 @@ fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
     parsed.tool_use_id.filter(|s| !s.is_empty())
 }
 
-/// Metadata extraction from a subagent JSONL file.
+/// Metadata extraction from a subagent JSONL file, read inside `root`.
 ///
 /// Scans all lines to count messages, extract first/last timestamps, and find
-/// the first user message content as a summary.
+/// the first user message content as a summary. The size is the opened
+/// file's own; a file that cannot be opened lists as empty.
 fn extract_subagent_metadata(
     path: &PathBuf,
-) -> (usize, Option<String>, Option<String>, Option<String>) {
-    let file = match fs::File::open(path) {
-        Ok(f) => f,
-        Err(_) => return (0, None, None, None),
+    root: &Path,
+) -> (u64, usize, Option<String>, Option<String>, Option<String>) {
+    let Ok((file, metadata)) = session_files::open_session_file(path, root) else {
+        return (0, 0, None, None, None);
     };
     let reader = std::io::BufReader::new(file);
     let mut line_count: usize = 0;
@@ -2150,8 +2288,7 @@ fn extract_subagent_metadata(
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
 
-    for line_result in reader.lines() {
-        let Ok(line) = line_result else { continue };
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -2200,7 +2337,7 @@ fn extract_subagent_metadata(
         }
     }
 
-    (line_count, first_time, last_time, summary)
+    (metadata.len(), line_count, first_time, last_time, summary)
 }
 
 /// Shared viewer-visibility rules for a classified JSONL line.
@@ -2282,8 +2419,8 @@ pub fn get_session_message_offset(
     message_uuid: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Option<usize>, String> {
-    let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_history_file(Path::new(&session_path))
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2342,8 +2479,8 @@ fn load_message_window_from_file(
     limit: usize,
     exclude: bool,
 ) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_history_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2390,8 +2527,8 @@ fn load_message_window_from_file(
 /// Count viewer-visible messages in a single file (the pre-chain algorithm).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn count_valid_messages_in_file(session_path: &Path, exclude: bool) -> Result<usize, String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_history_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2564,6 +2701,143 @@ mod tests {
 
     fn create_sample_summary_message(summary: &str) -> String {
         format!(r#"{{"type":"summary","summary":"{summary}","leafUuid":"leaf-123"}}"#)
+    }
+
+    fn create_sample_ai_title_message(session_id: &str, title: &str) -> String {
+        format!(r#"{{"type":"ai-title","aiTitle":"{title}","sessionId":"{session_id}"}}"#)
+    }
+
+    async fn load_single_session(content: &str) -> ClaudeSession {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(temp_dir.path().join("test.jsonl"), content).unwrap();
+        let mut sessions =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+                .await
+                .unwrap();
+        assert_eq!(sessions.len(), 1);
+        sessions.remove(0)
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_excludes_ai_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_ai_title_message("session-1", "AI title"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(types, vec!["user", "assistant"]);
+    }
+
+    #[tokio::test]
+    async fn test_ai_title_beats_first_user_message_and_is_not_counted() {
+        // ai-title after metadata is complete (fast-counting phase), repeated as Claude Code does.
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!"),
+            create_sample_ai_title_message("session-1", "Fix login bug"),
+            create_sample_ai_title_message("session-1", "Fix login bug"),
+        );
+        let session = load_single_session(&content).await;
+        assert_eq!(session.summary, Some("Fix login bug".to_string()));
+        assert_eq!(session.message_count, 2);
+        assert!(!session.is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_ai_title_in_metadata_phase_beats_legacy_summary() {
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_summary_message("Legacy summary"),
+            create_sample_ai_title_message("session-1", "AI title"),
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+        );
+        let session = load_single_session(&content).await;
+        assert_eq!(session.summary, Some("AI title".to_string()));
+        assert_eq!(session.message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_last_ai_title_wins() {
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_ai_title_message("session-1", "First title"),
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_ai_title_message("session-1", "Second title"),
+        );
+        let session = load_single_session(&content).await;
+        assert_eq!(session.summary, Some("Second title".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_custom_rename_beats_ai_title() {
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            r#"{"type":"custom-title","customTitle":"My name","sessionId":"session-1"}"#,
+            create_sample_ai_title_message("session-1", "AI title"),
+        );
+        let session = load_single_session(&content).await;
+        assert_eq!(session.summary, Some("My name".to_string()));
+        assert!(session.is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_ai_title_appended_after_cache_replaces_fallback_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(
+            &file_path,
+            format!(
+                "{}\n",
+                create_sample_user_message("uuid-1", "session-1", "Hello")
+            ),
+        )
+        .unwrap();
+        let project = temp_dir.path().to_string_lossy().to_string();
+
+        let first = load_project_sessions(project.clone(), None).await.unwrap();
+        assert_eq!(first[0].summary, Some("Hello".to_string()));
+
+        // Incremental parse picks up an appended ai-title
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(
+            file,
+            "{}",
+            create_sample_ai_title_message("session-1", "AI title")
+        )
+        .unwrap();
+        drop(file);
+        let second = load_project_sessions(project.clone(), None).await.unwrap();
+        assert_eq!(second[0].summary, Some("AI title".to_string()));
+        assert_eq!(second[0].message_count, 1);
+
+        // An unrelated append keeps the cached ai-title
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(
+            file,
+            "{}",
+            create_sample_assistant_message("uuid-2", "session-1", "More")
+        )
+        .unwrap();
+        drop(file);
+        let third = load_project_sessions(project, None).await.unwrap();
+        assert_eq!(third[0].summary, Some("AI title".to_string()));
+        assert_eq!(third[0].message_count, 2);
     }
 
     #[tokio::test]
@@ -3263,6 +3537,189 @@ mod tests {
         assert!(!second_page.has_more);
     }
 
+    #[test]
+    fn test_find_project_session_by_path_returns_the_session() {
+        let temp_dir = TempDir::new().unwrap();
+        create_test_jsonl_file(
+            &temp_dir,
+            "other.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-o", "session-other", "Other")
+            ),
+        );
+        let target = create_test_jsonl_file(
+            &temp_dir,
+            "target.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-t", "session-target", "Hi")
+            ),
+        );
+
+        let session = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &target.to_string_lossy(),
+            None,
+        )
+        .unwrap()
+        .expect("session should be found");
+
+        assert_eq!(session.actual_session_id, "session-target");
+        assert_eq!(session.file_path, target.to_string_lossy());
+        assert_eq!(session.message_count, 1);
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_reports_a_deleted_file_as_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let gone = temp_dir.path().join("gone.jsonl");
+
+        let result = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &gone.to_string_lossy(),
+            None,
+        );
+
+        assert!(
+            matches!(result, Ok(None)),
+            "expected Ok(None), got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_rejects_paths_outside_the_project() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let project = temp_dir.path().to_string_lossy().to_string();
+
+        assert!(find_project_session_by_path(&project, &outside.to_string_lossy(), None).is_err());
+        assert!(find_project_session_by_path(&project, "relative/a.jsonl", None).is_err());
+        assert!(
+            find_project_session_by_path("relative", &outside.to_string_lossy(), None).is_err()
+        );
+        let traversal = temp_dir.path().join("..").join(
+            outside
+                .strip_prefix(outside_dir.path().parent().unwrap())
+                .unwrap(),
+        );
+        assert!(
+            find_project_session_by_path(&project, &traversal.to_string_lossy(), None).is_err()
+        );
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_gives_one_error_for_any_outside_path() {
+        // Existing or missing, an outside path must get the same answer, so
+        // the lookup can't be used to probe the filesystem.
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let existing = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let missing = outside_dir.path().join("missing.jsonl");
+        let missing_dir = outside_dir.path().join("no-such-dir").join("a.jsonl");
+        let project = temp_dir.path().to_string_lossy().to_string();
+
+        for path in [&existing, &missing, &missing_dir] {
+            assert_eq!(
+                find_project_session_by_path(&project, &path.to_string_lossy(), None).unwrap_err(),
+                "file_path is outside the project",
+                "path: {}",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn test_find_project_session_by_path_drops_a_session_the_sidechain_filter_empties() {
+        // Matches the page loader, which drops sessions whose every message
+        // is a sidechain when sidechains are excluded.
+        let temp_dir = TempDir::new().unwrap();
+        let file = create_test_jsonl_file(
+            &temp_dir,
+            "sidechain.jsonl",
+            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Side"},"isSidechain":true}
+"#,
+        );
+        let project = temp_dir.path().to_string_lossy().to_string();
+        let file = file.to_string_lossy().to_string();
+
+        assert!(matches!(
+            find_project_session_by_path(&project, &file, Some(true)),
+            Ok(None)
+        ));
+        assert!(matches!(
+            find_project_session_by_path(&project, &file, Some(false)),
+            Ok(Some(_))
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_find_project_session_by_path_symlink_outside_gets_the_outside_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let target = create_test_jsonl_file(
+            &outside_dir,
+            "target.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let link = outside_dir.path().join("link.jsonl");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        assert_eq!(
+            find_project_session_by_path(
+                &temp_dir.path().to_string_lossy(),
+                &link.to_string_lossy(),
+                None
+            )
+            .unwrap_err(),
+            "file_path is outside the project"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_find_project_session_by_path_rejects_a_symlink_escape() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-x", "session-x", "X")
+            ),
+        );
+        let link = temp_dir.path().join("linked.jsonl");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+
+        let result = find_project_session_by_path(
+            &temp_dir.path().to_string_lossy(),
+            &link.to_string_lossy(),
+            None,
+        );
+
+        assert!(result.is_err());
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn test_load_project_sessions_page_ignores_symlinked_jsonl_outside_project() {
@@ -3407,7 +3864,7 @@ mod tests {
         let messages = result.unwrap();
         assert_eq!(messages.len(), 1);
         // Should have a generated UUID
-        assert!(!messages[0].uuid.is_empty());
+        assert_ne!(messages[0].uuid, "");
         assert!(messages[0].uuid.contains("-line-"));
     }
 
@@ -4071,6 +4528,11 @@ mod tests {
         );
     }
 
+    /// The canonical folder a test's files are read inside.
+    fn canonical(dir: &TempDir) -> PathBuf {
+        dir.path().canonicalize().unwrap()
+    }
+
     #[test]
     fn read_subagent_tool_use_id_reads_meta_json() {
         let dir = TempDir::new().unwrap();
@@ -4081,7 +4543,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            read_subagent_tool_use_id(&meta),
+            read_subagent_tool_use_id(&meta, &canonical(&dir)),
             Some("toolu_123".to_string())
         );
     }
@@ -4091,21 +4553,24 @@ mod tests {
         let dir = TempDir::new().unwrap();
         // Missing file.
         assert_eq!(
-            read_subagent_tool_use_id(&dir.path().join("nope.meta.json")),
+            read_subagent_tool_use_id(&dir.path().join("nope.meta.json"), &canonical(&dir)),
             None
         );
         // Present but no toolUseId (older meta or different shape).
         let meta = dir.path().join("agent-y.meta.json");
         std::fs::write(&meta, r#"{"agentType":"task"}"#).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta), None);
+        assert_eq!(read_subagent_tool_use_id(&meta, &canonical(&dir)), None);
         // Empty toolUseId is treated as absent.
         let meta_empty = dir.path().join("agent-z.meta.json");
         std::fs::write(&meta_empty, r#"{"toolUseId":""}"#).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta_empty), None);
+        assert_eq!(
+            read_subagent_tool_use_id(&meta_empty, &canonical(&dir)),
+            None
+        );
         // Invalid JSON is non-fatal.
         let meta_bad = dir.path().join("agent-bad.meta.json");
         std::fs::write(&meta_bad, "not json").unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta_bad), None);
+        assert_eq!(read_subagent_tool_use_id(&meta_bad, &canonical(&dir)), None);
     }
 
     #[cfg(unix)]
@@ -4116,6 +4581,23 @@ mod tests {
         std::fs::write(&real, r#"{"toolUseId":"toolu_real"}"#).unwrap();
         let link = dir.path().join("agent-link.meta.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&link), None);
+        assert_eq!(read_subagent_tool_use_id(&link, &canonical(&dir)), None);
+    }
+
+    /// A read that keeps failing ends a metadata scan: `BufRead::lines`
+    /// returns the same error again (every read of a directory fails), so a
+    /// scan that skipped it never returned. A line that is not UTF-8 is
+    /// still skipped.
+    #[test]
+    fn test_session_lines_end_at_a_read_error() {
+        struct Unreadable;
+        impl std::io::Read for Unreadable {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("unreadable"))
+            }
+        }
+        assert_eq!(session_lines(BufReader::new(Unreadable)).count(), 0);
+        let mixed: &[u8] = b"one\n\xff\ntwo\n";
+        assert_eq!(session_lines(mixed).collect::<Vec<_>>(), ["one", "two"]);
     }
 }

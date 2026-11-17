@@ -13,14 +13,14 @@ import {
   Wrench,
   Cpu,
   Layers,
-  BarChart3,
+  ChartColumn,
   Server,
   Sparkles,
   Bot,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react";
 import type { GlobalStatsSummary, MetricMode } from "../../../types";
-import { formatDurationCompact } from "../../../utils/time";
+import { useFormat } from "@/lib/format/useFormat";
 import { cn } from "@/lib/utils";
 import {
   MetricCard,
@@ -31,8 +31,6 @@ import {
   ProviderDistributionChart,
 } from "../components";
 import {
-  formatNumber,
-  formatCurrency,
   calculateModelMetrics,
   MODEL_PRICING_AUDITED_AT,
   calculateGlobalCostSummary,
@@ -43,6 +41,7 @@ import {
 import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
 import { ModelLifecycleBadge } from "../../ModelLifecycleBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { Num } from "@/lib/format/Num";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
@@ -58,6 +57,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   metricMode = "tokens",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
   const modelDistribution = globalSummary.model_distribution ?? EMPTY_MODEL_DISTRIBUTION;
   const conversationModelDistribution =
@@ -102,18 +102,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
     if (Number.isNaN(parsed.getTime())) {
       return t("analytics.lastUpdatedUnknown", "Unknown");
     }
-    return new Intl.DateTimeFormat(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(parsed);
-  }, [globalSummary.date_range.last_message, t]);
+    return fmt.dateTime(parsed, { year: "always" });
+  }, [globalSummary.date_range.last_message, t, fmt]);
 
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto bg-background space-y-4 md:space-y-6 animate-stagger">
-      <p className="text-px11 text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         {t(
           "analytics.providerScopeProjectTree",
           "Provider scope follows Project Tree provider tabs."
@@ -125,12 +119,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
-          value={formatNumber(globalSummary.total_tokens)}
+          value={fmt.tokens(globalSummary.total_tokens)}
           subValue={
             t("analytics.estimatedCostValue", "Estimated Cost: {{cost}}", {
               cost: billingCost == null
                 ? t("common.dash", "—")
-                : formatCurrency(totalEstimatedCost),
+                : fmt.cost(totalEstimatedCost),
             })
           }
           colorVariant="blue"
@@ -138,14 +132,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <MetricCard
           icon={MessageCircle}
           label={t("analytics.totalMessages")}
-          value={formatNumber(globalSummary.total_messages)}
-          subValue={`${t("analytics.totalSessions")}: ${globalSummary.total_sessions}`}
+          value={fmt.count(globalSummary.total_messages)}
+          subValue={`${t("analytics.totalSessions")}: ${fmt.count(globalSummary.total_sessions)}`}
           colorVariant="purple"
         />
         <MetricCard
           icon={Clock}
           label={t("analytics.sessionTime")}
-          value={formatDurationCompact(totalSessionTime)}
+          value={fmt.minutes(totalSessionTime)}
           colorVariant="green"
         />
         <MetricCard
@@ -169,7 +163,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-px11">
+        <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-caption">
           {costSummary.exactModels === 0 && costSummary.estimatedModels === 0
             ? t("analytics.noDataAvailable")
             : costSummary.exactModels > 0 && costSummary.estimatedModels > 0
@@ -178,22 +172,22 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                 ? t("analytics.exactCostLabel", "Exact source cost")
                 : t("analytics.estimatedLabel", "Estimated")}
         </span>
-        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
-          {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
+        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
+          {t("analytics.pricingCoverage", "Pricing coverage")}: <Num>{fmt.percent(costSummary.coveragePercent / 100)}</Num>
         </span>
         <span
-          className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11"
+          className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption"
           title={t("analytics.pricingTableAuditedHint", "Date the API pricing table was last verified against official provider pages")}
         >
           {t("analytics.pricingTableAudited", "Prices verified")}: {MODEL_PRICING_AUDITED_AT}
         </span>
         {costSummary.unpricedModels > 0 && (
-          <span className="px-2 py-1 rounded-md bg-red-500/10 text-red-700 dark:text-red-300 text-px11">
+          <span className="px-2 py-1 rounded-md bg-red-500/10 text-red-700 dark:text-red-300 text-caption">
             {t("analytics.unpricedModels", "Unpriced models")}: {costSummary.unpricedModels}
           </span>
         )}
-        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
-          {t("analytics.lastUpdated", "Last updated")}: {lastUpdated}
+        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
+          {t("analytics.lastUpdated", "Last updated")}: <Num>{lastUpdated}</Num>
         </span>
       </div>
 
@@ -213,7 +207,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
               {modelDistribution.map((model) => {
-                const { percentage, formattedPrice, formattedTokens, pricingStatus } = calculateModelMetrics(
+                const { percentage, price, pricingStatus } = calculateModelMetrics(
                   model.model_name,
                   model.token_count,
                   model.input_tokens,
@@ -230,6 +224,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                   },
                 );
                 const modelKey = `${model.provider_id ?? "unknown"}:${model.model_name}:${model.service_tier ?? "standard"}`;
+                const formattedPrice = price == null ? "—" : fmt.cost(price);
+                const formattedTokens = fmt.tokens(model.token_count);
 
                 return (
                   <div key={modelKey}>
@@ -239,15 +235,15 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              className="block min-w-0 text-px12 font-medium text-foreground truncate text-left cursor-default"
+                              className="block min-w-0 text-caption font-medium text-foreground truncate text-left cursor-default"
                             >
                               <span className="flex items-center gap-1.5">
                                 <span>{model.model_name}</span>
-                                <span className="text-px10 text-muted-foreground/70">
+                                <span className="text-caption text-muted-foreground/70">
                                   [{model.provider_id ?? t("analytics.unknownProvider", "unknown provider")}]
                                 </span>
                                 {model.service_tier && model.service_tier !== "standard" && (
-                                  <span className="text-px10 text-muted-foreground/70">
+                                  <span className="text-caption text-muted-foreground/70">
                                     [{model.service_tier}]
                                   </span>
                                 )}
@@ -262,17 +258,17 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                         <ModelLifecycleBadge model={model.model_name} compact />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-px12 text-muted-foreground">
-                          {metricMode === "cost_estimated" ? formattedTokens : formattedPrice}
+                        <span className="font-mono text-caption text-muted-foreground">
+                          <Num>{metricMode === "cost_estimated" ? formattedTokens : formattedPrice}</Num>
                         </span>
-                        <span className="font-mono text-px12 font-semibold text-foreground">
-                          {metricMode === "cost_estimated"
+                        <span className="font-mono text-caption font-semibold text-foreground">
+                          <Num>{metricMode === "cost_estimated"
                             ? formattedPrice
-                            : formattedTokens}
+                            : formattedTokens}</Num>
                         </span>
                         <span
                           className={cn(
-                            "text-px10 uppercase tracking-wide",
+                            "text-caption uppercase tracking-wide",
                             pricingStatus === "exact"
                               ? "text-emerald-600 dark:text-emerald-400"
                               : pricingStatus === "estimated"
@@ -318,10 +314,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       {retirementImpact.length > 0 && (
         <SectionCard
           title={t("analytics.retirementImpactTitle", "Retiring models")}
-          icon={AlertTriangle}
+          icon={TriangleAlert}
           colorVariant="amber"
         >
-          <p className="text-px11 text-muted-foreground mb-3">
+          <p className="text-caption text-muted-foreground mb-3">
             {t(
               "analytics.retirementImpactDescription",
               "Estimated API cost of the recorded usage, re-priced at the replacement model the provider recommends.",
@@ -336,21 +332,21 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                   key={`${row.providerId ?? "unknown"}:${row.modelName}:${row.serviceTier ?? "standard"}`}
                   className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
                 >
-                  <span className="flex items-center gap-1.5 min-w-0 text-px12">
+                  <span className="flex items-center gap-1.5 min-w-0 text-caption">
                     <span className="truncate font-medium text-foreground" title={row.modelName}>{row.modelName}</span>
                     <ModelLifecycleBadge model={row.modelName} />
                     <span className="text-muted-foreground">→</span>
                     <span className="truncate font-medium text-foreground" title={row.replacedBy}>{row.replacedBy}</span>
                   </span>
-                  <span className="flex items-center gap-2 font-mono text-px12">
-                    <span className="text-muted-foreground">{formatNumber(row.tokenCount)}</span>
-                    <span className="text-muted-foreground">{formatCurrency(row.currentCost)}</span>
+                  <span className="flex items-center gap-2 font-mono text-caption">
+                    <span className="text-muted-foreground"><Num>{fmt.tokens(row.tokenCount)}</Num></span>
+                    <span className="text-muted-foreground"><Num>{fmt.cost(row.currentCost)}</Num></span>
                     <span className="text-muted-foreground">→</span>
-                    <span className="font-semibold text-foreground">{formatCurrency(row.replacementCost)}</span>
+                    <span className="font-semibold text-foreground"><Num>{fmt.cost(row.replacementCost)}</Num></span>
                     {deltaPercent != null && (
                       <span
                         className={cn(
-                          "text-px10",
+                          "text-caption",
                           delta > 0
                             ? "text-red-600 dark:text-red-400"
                             : delta < 0
@@ -358,7 +354,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                               : "text-muted-foreground",
                         )}
                       >
-                        {delta > 0 ? "+" : ""}{deltaPercent.toFixed(0)}%
+                        <Num>{fmt.change(row.currentCost, row.replacementCost).text}</Num>
                       </span>
                     )}
                   </span>
@@ -392,14 +388,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           {globalSummary.daily_stats.length > 0 ? (
             <ActivityHeatmapComponent data={globalSummary.daily_stats} />
           ) : (
-            <div className="text-center py-8 text-muted-foreground text-px12">
+            <div className="text-center py-8 text-muted-foreground text-caption">
               {t("analytics.No activity data available")}
             </div>
           )}
         </SectionCard>
 
         {globalSummary.top_projects.length > 0 && (
-          <SectionCard title={t("analytics.topProjects")} icon={BarChart3} colorVariant="purple">
+          <SectionCard title={t("analytics.topProjects")} icon={ChartColumn} colorVariant="purple">
             <div className="space-y-2">
               {globalSummary.top_projects.slice(0, 8).map((project, index) => {
                 const medal = getRankMedal(index);
@@ -414,8 +410,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div
                         className={cn(
-                          "w-6 h-6 rounded-md flex items-center justify-center text-px12 font-bold",
-                          hasMedal(index) ? "text-base" : "bg-muted text-muted-foreground"
+                          "w-6 h-6 rounded-md flex items-center justify-center text-caption font-bold",
+                          hasMedal(index) ? "text-title" : "bg-muted text-muted-foreground"
                         )}
                       >
                         {medal ?? index + 1}
@@ -425,7 +421,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              className="block w-full text-px12 font-medium text-foreground truncate text-left cursor-default"
+                              className="block w-full text-caption font-medium text-foreground truncate text-left cursor-default"
                             >
                               {project.project_name}
                             </button>
@@ -434,23 +430,23 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                             {project.project_name}
                           </TooltipContent>
                         </Tooltip>
-                        <p className="text-px12 text-muted-foreground">
-                          {t(
+                        <p className="text-caption text-muted-foreground">
+                          <Num>{t(
                             "analytics.topProjectMeta",
                             "{{sessions}} sessions • {{messages}} msgs",
                             {
-                              sessions: project.sessions,
-                              messages: project.messages,
+                              sessions: fmt.count(project.sessions),
+                              messages: fmt.count(project.messages),
                             }
-                          )}
+                          )}</Num>
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-mono text-px12 font-bold text-foreground">
-                        {formatNumber(project.tokens)}
+                      <p className="font-mono text-caption font-bold text-foreground">
+                        <Num>{fmt.tokens(project.tokens)}</Num>
                       </p>
-                      <p className="text-px12 text-muted-foreground">{t("analytics.tokens")}</p>
+                      <p className="text-caption text-muted-foreground">{t("analytics.tokens")}</p>
                     </div>
                   </div>
                 );

@@ -23,6 +23,7 @@
 //! provider (`copilot-cli://<cwd>`).
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
@@ -335,63 +336,79 @@ fn classify_client(meta: &WorkspaceMetadata) -> ClientKind {
 
 /// Group sessions by `cwd` to expose virtual `copilot-cli://<cwd>` projects.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Cli)
+    scan_projects_filtered(&base, None, ClientKind::Cli, report)
 }
 
 /// Group sessions by `cwd` to expose virtual `copilot-desktop://<cwd>` projects.
 pub fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_desktop_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_desktop_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_desktop_projects_reporting(
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Desktop)
+    scan_projects_filtered(&base, None, ClientKind::Desktop, report)
 }
 
 pub fn scan_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Cli)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Cli,
+        &ScanReport::default(),
+    )
 }
 
 pub fn scan_desktop_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Desktop)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Desktop,
+        &ScanReport::default(),
+    )
 }
 
+/// The projects of one client's sessions; the session directories and
+/// event logs it could not read are recorded in `report`.
 #[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
 fn scan_projects_filtered(
     base_path: &str,
     custom_directory_label: Option<&str>,
     client: ClientKind,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeProject>, String> {
     let root = get_session_root_from_base(base_path);
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parse files in parallel; cache hits are essentially free, misses dominate
     // on first scan where there's a big multi-MB events.jsonl in the mix.
     let infos: Vec<SessionInfo> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .collect();
 
@@ -436,10 +453,35 @@ fn scan_projects_filtered(
     Ok(projects)
 }
 
+/// Every `<session>/events.jsonl` under the session root; what the walk
+/// cannot read is recorded in `report`.
+fn session_event_logs(root: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    report
+        .walk(
+            WalkDir::new(root)
+                .follow_links(false)
+                .min_depth(2)
+                .max_depth(2),
+        )
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| is_events_jsonl(e.path()))
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
 /// Load every session whose recorded `cwd` matches `project_path`.
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read: an
+/// event log that cannot be read may belong to the project.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let (base_path, target_cwd, client) = parse_project_path(project_path)?;
     let root = match base_path {
@@ -455,26 +497,17 @@ pub fn load_sessions(
             Err(_) => return Ok(Vec::new()),
         },
     };
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parallel cached extraction. After the first scan most calls hit the
     // mtime cache and return instantly.
     let mut sessions: Vec<ClaudeSession> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .filter(|info| info.cwd.as_deref().unwrap_or("unknown") == target_cwd)
         .map(|info| ClaudeSession {
@@ -1043,7 +1076,7 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())?
         .to_string();
-    let success = data.get("success").and_then(Value::as_bool).unwrap_or(true);
+    let success = data.get("success").and_then(Value::as_bool);
     let content = data
         .get("result")
         .and_then(|r| r.get("content"))
@@ -1056,10 +1089,10 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         "tool_use_id": tool_use_id,
         "content": content,
     });
-    if !success {
-        if let Some(obj) = block.as_object_mut() {
-            obj.insert("is_error".to_string(), Value::Bool(true));
-        }
+    // Copilot SDK pinned schema: success is a boolean, not an absent-field default.
+    // https://github.com/github/copilot-sdk/blob/68de1a7afe4bc9e7435d185825043bd9dc9c47cf/nodejs/src/generated/session-events.ts#L9938-L9951
+    if let Some(success) = success {
+        block["is_error"] = Value::Bool(!success);
     }
     Some((tool_use_id, block))
 }
@@ -1571,5 +1604,24 @@ mod tests {
         let after = extract_session_info_cached(&events).unwrap();
         assert_eq!(after.client_kind, ClientKind::Desktop);
         assert_eq!(after.summary.as_deref(), Some("Delayed Workspace Name"));
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [None, Some(true), Some(false)] {
+            let mut record = serde_json::json!({"toolCallId":"c","result":{"content":"synthetic"}});
+            if let Some(v) = flag {
+                record["success"] = serde_json::json!(v);
+            }
+            let (_, block) = build_tool_result_block(&record).unwrap();
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.map(|v| !v)
+            );
+        }
     }
 }

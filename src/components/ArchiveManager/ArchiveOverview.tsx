@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, HardDrive, Clock, Archive, Info, Settings2, Loader2, ShieldCheck } from 'lucide-react';
+import { TriangleAlert, HardDrive, Clock, Archive, Info, Settings2, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { Icon } from "@/components/icon/Icon";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -24,11 +25,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
-import { formatBytes } from '@/utils/formatters';
 import { api } from '@/services/api';
 import { archiveApi } from '@/services/archiveApi';
 import type { ClaudeSession } from '@/types';
 import { toast } from 'sonner';
+import {
+  DEFAULT_CLEANUP_PERIOD_DAYS,
+  MIN_CLEANUP_PERIOD_DAYS,
+  isValidCleanupPeriod,
+  parseCleanupPeriodInput,
+} from '@/utils/cleanupPeriod';
+import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -66,22 +74,24 @@ export const ArchiveOverview: React.FC = () => {
   const [thresholdDays, setThresholdDays] = useState(() => {
     try {
       const v = parseInt(localStorage.getItem('archive.thresholdDays') ?? '', 10);
-      return !isNaN(v) && v >= 1 && v <= 365 ? v : 7;
+      return Number.isInteger(v) && v >= 1 ? v : 7;
     } catch { return 7; }
   });
   // cleanupDays: read from ~/.claude/settings.json (cleanupPeriodDays)
-  const [cleanupDays, setCleanupDays] = useState(30);
+  const [cleanupDays, setCleanupDays] = useState(DEFAULT_CLEANUP_PERIOD_DAYS);
 
   // Draft settings as strings to allow intermediate input states (empty, partial)
   const [draftThreshold, setDraftThreshold] = useState(String(7));
-  const [draftCleanup, setDraftCleanup] = useState(String(30));
+  const [draftCleanup, setDraftCleanup] = useState(String(DEFAULT_CLEANUP_PERIOD_DAYS));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const parsedCleanup = parseInt(draftCleanup, 10);
+  // Claude Code's cleanupPeriodDays has no upper limit (#587); the threshold
+  // is only bounded by the cleanup period itself.
+  const parsedCleanup = parseCleanupPeriodInput(draftCleanup);
   const parsedThreshold = parseInt(draftThreshold, 10);
-  const isCleanupValid = !isNaN(parsedCleanup) && parsedCleanup >= 1 && parsedCleanup <= 365;
-  const isThresholdValid = !isNaN(parsedThreshold) && parsedThreshold >= 1 && parsedThreshold <= (isCleanupValid ? parsedCleanup : 365);
-  const thresholdExceedsCleanup = isCleanupValid && !isNaN(parsedThreshold) && parsedThreshold > parsedCleanup;
+  const isCleanupValid = parsedCleanup !== undefined;
+  const isThresholdValid = !isNaN(parsedThreshold) && parsedThreshold >= 1 && (parsedCleanup === undefined || parsedThreshold <= parsedCleanup);
+  const thresholdExceedsCleanup = parsedCleanup !== undefined && !isNaN(parsedThreshold) && parsedThreshold > parsedCleanup;
   const canSave = isCleanupValid && isThresholdValid && (parsedThreshold !== thresholdDays || parsedCleanup !== cleanupDays);
 
   // Auto-select sidebar project if available
@@ -120,7 +130,7 @@ export const ArchiveOverview: React.FC = () => {
         const raw = await api<string>('get_settings_by_scope', { scope: 'user' });
         const parsed = JSON.parse(raw);
         const v = parsed?.cleanupPeriodDays;
-        if (typeof v === 'number' && v >= 1 && v <= 365) {
+        if (isValidCleanupPeriod(v)) {
           setCleanupDays(v);
         }
       } catch { /* use default 30 */ }
@@ -151,7 +161,7 @@ export const ArchiveOverview: React.FC = () => {
       const raw = await api<string>('get_settings_by_scope', { scope: 'user' });
       const parsed = JSON.parse(raw);
       const v = parsed?.cleanupPeriodDays;
-      if (typeof v === 'number' && v >= 1 && v <= 365) {
+      if (isValidCleanupPeriod(v)) {
         setCleanupDays(v);
         setDraftCleanup(String(v));
       } else {
@@ -177,7 +187,7 @@ export const ArchiveOverview: React.FC = () => {
   );
 
   const handleSaveSettings = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || parsedCleanup === undefined) return;
     try {
       // Save cleanupPeriodDays to ~/.claude/settings.json if changed
       if (parsedCleanup !== cleanupDays) {
@@ -228,7 +238,7 @@ export const ArchiveOverview: React.FC = () => {
   const handleArchiveAll = async (includeSubagents: boolean) => {
     if (!selectedProject || archive.expiringSessions.length === 0) return;
     const batchName = t('archive.create.expiringBatchName', {
-      date: new Date().toLocaleDateString(),
+      date: appFormat().date(Date.now()),
     });
     try {
       await createArchive({
@@ -258,7 +268,7 @@ export const ArchiveOverview: React.FC = () => {
     }
     if (claudeProjects.length === 0) return;
 
-    const date = new Date().toLocaleDateString();
+    const date = appFormat().date(Date.now());
     let okProjects = 0;
     let okSessions = 0;
     const failed: string[] = [];
@@ -327,7 +337,7 @@ export const ArchiveOverview: React.FC = () => {
       {/* Error display */}
       {archive.expiringError && (
         <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
+          <TriangleAlert className="h-4 w-4" />
           <AlertTitle>{t('archive.error.loadExpiringFailed')}</AlertTitle>
           <AlertDescription>{archive.expiringError}</AlertDescription>
         </Alert>
@@ -335,7 +345,7 @@ export const ArchiveOverview: React.FC = () => {
 
       {/* Cleanup Warning + Settings button */}
       <Alert>
-        <AlertTriangle className="h-4 w-4" />
+        <TriangleAlert className="h-4 w-4" />
         <AlertTitle className="flex items-center justify-between">
           {t('archive.overview.cleanupWarning.title')}
           <Button
@@ -349,7 +359,7 @@ export const ArchiveOverview: React.FC = () => {
         </AlertTitle>
         <AlertDescription>
           {t('archive.overview.cleanupWarning.description', { days: cleanupDays })}
-          <p className="mt-1 text-xs">
+          <p className="mt-1 text-list">
             {t('archive.overview.cleanupWarning.configured', { days: cleanupDays })}
             {' · '}
             {t('archive.overview.expiring.thresholdLabel', { days: thresholdDays })}
@@ -360,19 +370,19 @@ export const ArchiveOverview: React.FC = () => {
       {/* Full Backup (issue #326) */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardTitle className="text-body font-medium flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" />
             {t('archive.overview.fullBackup.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-list text-muted-foreground">
             {t('archive.overview.fullBackup.description')}
           </p>
           {backupProgress ? (
             <div className="flex items-center gap-2 py-1">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">
+              <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
+              <p className="text-list text-muted-foreground">
                 {t('archive.overview.fullBackup.progress', {
                   current: backupProgress.current,
                   total: backupProgress.total,
@@ -380,19 +390,19 @@ export const ArchiveOverview: React.FC = () => {
               </p>
             </div>
           ) : claudeProjects.length === 0 ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+            <div className="flex items-center gap-2 text-list text-muted-foreground py-1">
               <Info className="w-4 h-4" />
               {t('archive.overview.fullBackup.noProjects')}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Switch
                   id={backupSubagentsId}
                   checked={includeBackupSubagents}
                   onCheckedChange={setIncludeBackupSubagents}
                 />
-                <Label htmlFor={backupSubagentsId} className="text-xs cursor-pointer">
+                <Label htmlFor={backupSubagentsId} className="text-list cursor-pointer">
                   {t('archive.overview.fullBackup.includeSubagents')}
                 </Label>
               </div>
@@ -412,7 +422,7 @@ export const ArchiveOverview: React.FC = () => {
       {/* Disk Usage */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardTitle className="text-body font-medium flex items-center gap-2">
             <HardDrive className="w-4 h-4" />
             {t('archive.overview.diskUsage.title')}
           </CardTitle>
@@ -424,7 +434,7 @@ export const ArchiveOverview: React.FC = () => {
                 <Badge variant="secondary">
                   {archive.diskUsage.archiveCount}
                 </Badge>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalArchives')}
                 </span>
               </div>
@@ -432,26 +442,26 @@ export const ArchiveOverview: React.FC = () => {
                 <Badge variant="secondary">
                   {archive.diskUsage.sessionCount}
                 </Badge>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSessions')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {formatBytes(archive.diskUsage.totalBytes)}
+                  <Num>{appFormat().bytes(archive.diskUsage.totalBytes)}</Num>
                 </Badge>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSize')}
                 </span>
               </div>
             </div>
           ) : archive.isLoadingDiskUsage ? (
             <div className="flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">{t('common.loading')}</p>
+              <LoaderCircle className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+              <p className="text-list text-muted-foreground">{t('common.loading')}</p>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-list text-muted-foreground">
               {t('archive.overview.diskUsage.loadFailed')}
             </p>
           )}
@@ -462,10 +472,10 @@ export const ArchiveOverview: React.FC = () => {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <CardTitle className="text-body font-medium flex items-center gap-2">
               <Clock className="w-4 h-4" />
               {t('archive.overview.expiring.title')}
-              <Badge variant="outline" className="text-2xs font-normal">
+              <Badge variant="outline" className="text-caption font-normal">
                 {t('archive.overview.expiring.thresholdLabel', { days: thresholdDays })}
               </Badge>
             </CardTitle>
@@ -477,7 +487,7 @@ export const ArchiveOverview: React.FC = () => {
                 disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 ) : (
                   <Archive className="w-3.5 h-3.5 mr-1.5" />
                 )}
@@ -490,7 +500,7 @@ export const ArchiveOverview: React.FC = () => {
                 disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || subagentExpiring.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 ) : (
                   <Archive className="w-3.5 h-3.5 mr-1.5" />
                 )}
@@ -503,7 +513,7 @@ export const ArchiveOverview: React.FC = () => {
           {/* Project selector dropdown */}
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor={selectId} className="text-xs">
+              <Label htmlFor={selectId} className="text-list">
                 {t('archive.overview.expiring.projectSelect')}
               </Label>
               <Select
@@ -525,7 +535,7 @@ export const ArchiveOverview: React.FC = () => {
                         <span className="flex items-center gap-1.5">
                           {project.name}
                           {!isClaude && (
-                            <span className="text-2xs text-muted-foreground">
+                            <span className="text-caption text-muted-foreground">
                               ({project.provider})
                             </span>
                           )}
@@ -538,22 +548,22 @@ export const ArchiveOverview: React.FC = () => {
             </div>
 
             {!selectedProjectPath ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+              <div className="flex items-center gap-2 text-list text-muted-foreground py-4">
                 <Info className="w-4 h-4" />
                 {t('archive.overview.expiring.selectProject')}
               </div>
             ) : archive.isLoadingExpiring ? (
               <div className="flex items-center justify-center gap-2 py-6">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+                <LoaderCircle className="w-4 h-4 animate-spin text-muted-foreground" />
+                <p className="text-body text-muted-foreground">{t('common.loading')}</p>
               </div>
             ) : archive.expiringSessions.length === 0 ? (
               <div className="text-center py-6">
-                <Clock className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">
+                <Icon icon={Clock} size={24} className="mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-body text-muted-foreground">
                   {t('archive.overview.expiring.noExpiring')}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-list text-muted-foreground mt-1">
                   {t('archive.overview.expiring.noExpiringDescription')}
                 </p>
               </div>
@@ -561,11 +571,11 @@ export const ArchiveOverview: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 {/* Main sessions column */}
                 <div className="space-y-2.5">
-                  <p className="text-xs font-medium text-muted-foreground pb-0.5 border-b border-border/40">
+                  <p className="text-list font-medium text-muted-foreground pb-0.5 border-b border-border/40">
                     {t('archive.overview.expiring.mainSessions', { count: mainExpiring.length })}
                   </p>
                   {mainExpiring.length === 0 ? (
-                    <p className="text-2xs text-muted-foreground/60 py-3 text-center">
+                    <p className="text-caption text-muted-foreground/60 py-3 text-center">
                       {t('archive.overview.expiring.noMainExpiring')}
                     </p>
                   ) : (
@@ -575,15 +585,15 @@ export const ArchiveOverview: React.FC = () => {
                         className="flex items-center justify-between p-2.5 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm truncate">
+                          <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="destructive" className="text-2xs">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
-                            <span className="text-2xs text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                            <span className="text-caption text-muted-foreground">
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                           </div>
                         </div>
@@ -603,11 +613,11 @@ export const ArchiveOverview: React.FC = () => {
 
                 {/* Subagent sessions column */}
                 <div className="space-y-2.5">
-                  <p className="text-xs font-medium text-muted-foreground pb-0.5 border-b border-border/40">
+                  <p className="text-list font-medium text-muted-foreground pb-0.5 border-b border-border/40">
                     {t('archive.overview.expiring.subagentSessions', { count: subagentExpiring.length })}
                   </p>
                   {subagentExpiring.length === 0 ? (
-                    <p className="text-2xs text-muted-foreground/60 py-3 text-center">
+                    <p className="text-caption text-muted-foreground/60 py-3 text-center">
                       {t('archive.overview.expiring.noSubagentExpiring')}
                     </p>
                   ) : (
@@ -617,17 +627,17 @@ export const ArchiveOverview: React.FC = () => {
                         className="p-2.5 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm truncate">
+                          <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="destructive" className="text-2xs">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
-                            <span className="text-2xs text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                            <span className="text-caption text-muted-foreground">
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
-                            <span className="text-2xs text-muted-foreground">
+                            <span className="text-caption text-muted-foreground">
                               {t('archive.browse.sessions.subagents', { count: expiring.subagentCount })}
                             </span>
                           </div>
@@ -636,21 +646,21 @@ export const ArchiveOverview: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-7 text-list"
                             onClick={() => handleArchiveSession(expiring, false)}
                             disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
-                            <Archive className="w-3 h-3 mr-1" />
+                            <Archive className="w-3.5 h-3.5 mr-1" />
                             {t('archive.overview.expiring.archiveMainOnly')}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-7 text-list"
                             onClick={() => handleArchiveSession(expiring, true)}
                             disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
-                            <Archive className="w-3 h-3 mr-1" />
+                            <Archive className="w-3.5 h-3.5 mr-1" />
                             {t('archive.overview.expiring.archiveWithSubagents')}
                           </Button>
                         </div>
@@ -690,27 +700,26 @@ export const ArchiveOverview: React.FC = () => {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor={`${settingsId}-cleanup`} className="text-sm">
+              <Label htmlFor={`${settingsId}-cleanup`} className="text-body">
                 {t('archive.overview.settings.cleanupDays')}
               </Label>
               <div className="flex items-center gap-2">
                 <Input
                   id={`${settingsId}-cleanup`}
                   type="number"
-                  min={1}
-                  max={365}
+                  min={MIN_CLEANUP_PERIOD_DAYS}
                   value={draftCleanup}
                   onChange={(e) => setDraftCleanup(e.target.value)}
                   className="w-24"
                 />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-body text-muted-foreground">
                   {t('archive.overview.settings.days')}
                 </span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor={`${settingsId}-threshold`} className="text-sm">
+              <Label htmlFor={`${settingsId}-threshold`} className="text-body">
                 {t('archive.overview.settings.thresholdDays')}
               </Label>
               <div className="flex items-center gap-2">
@@ -718,12 +727,12 @@ export const ArchiveOverview: React.FC = () => {
                   id={`${settingsId}-threshold`}
                   type="number"
                   min={1}
-                  max={365}
+                  max={parsedCleanup}
                   value={draftThreshold}
                   onChange={(e) => setDraftThreshold(e.target.value)}
                   className="w-24"
                 />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-body text-muted-foreground">
                   {t('archive.overview.settings.days')}
                 </span>
               </div>
@@ -731,8 +740,8 @@ export const ArchiveOverview: React.FC = () => {
 
             {thresholdExceedsCleanup && (
               <Alert variant="destructive" className="py-2 flex items-center gap-2 [&>svg]:static [&>svg]:translate-y-0 [&>svg~*]:pl-0">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <AlertDescription className="text-xs">
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                <AlertDescription className="text-list">
                   {t('archive.overview.settings.thresholdExceedsCleanup')}
                 </AlertDescription>
               </Alert>
@@ -741,7 +750,7 @@ export const ArchiveOverview: React.FC = () => {
             {canSave && (
               <Alert className="py-2 flex items-center gap-2 [&>svg]:static [&>svg]:translate-y-0 [&>svg~*]:pl-0">
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                <AlertDescription className="text-xs">
+                <AlertDescription className="text-list">
                   {t('archive.overview.settings.unsavedChanges')}
                 </AlertDescription>
               </Alert>

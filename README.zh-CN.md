@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 编程助手的统一历史查看器。**
+
+*（原名：Claude Code History Viewer）*
 
 浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
@@ -70,7 +72,7 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 
 AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
 
-**二十九个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
+**三十一个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 会话之间无缝切换 — 比较令牌用量、跨提供商搜索、在一个界面中分析你的工作流。
 
 | 提供商 | 数据位置 | 获取内容 |
 |----------|--------------|--------------|
@@ -79,7 +81,8 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具调用的对话历史 |
 | **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的对话状态，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 监控数据 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理响应的会话记录 |
-| **Cline**（含 Roo Code、Kilo Code） | VS Code `globalStorage/<ext>/tasks/` | Cline 系列基于任务的对话历史 |
+| **Cline**（含 Roo Code；旧版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（旧版） | Cline 系列基于任务的对话历史 |
+| **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；迁移前的 Cline 系列数据仍归 Cline |
 | **Cursor** | `~/.cursor/` | Composer 和聊天对话 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent 会话记录，独立于 Cursor IDE 数据源 |
 | **Aider** | 项目目录 | 聊天记录和编辑日志 |
@@ -101,6 +104,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Mistral Vibe** | `~/.vibe/logs/session/` | 含 reasoning 与工具调用的 OpenAI 风格聊天转录（支持 `VIBE_HOME` 覆盖） |
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | 每会话 JSONL 记录（工具调用、思维过程、Token 用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 线程 — SQLite + Zstd 压缩 JSON |
+| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 编程智能体 — session/message/part 三表 SQLite 存储（标题、工具调用、思考过程、Token 用量） |
 | **OpenHands** | `~/.openhands/sessions/` | 经典事件存储对话 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 按工作区的聊天记录（icube 存储；实验性，逆向工程） |
 
@@ -128,7 +132,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商支持** | 统一查看 **29 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 按提供商筛选、跨工具比较 |
+| **多提供商支持** | 统一查看 **31 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
@@ -142,6 +146,49 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 | 提供商 | 说明 |
 |---------|-------|
 | **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+
+### v1.32.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **在提示之间跳转** | **Alt+↑ / Alt+↓**（macOS 为 ⌥↑ / ⌥↓）将消息列表移到你输入的上一条或下一条提示，消息面板关闭时同样可用 |
+| **会话小地图** | 可在消息列表旁显示按行类型着色的整段会话条带，点击或拖动即可跳转。设置菜单 → **显示会话小地图** |
+| **修复恢复预览** | 最近编辑的恢复确认会显示将要改变的内容（WebUI 中同样可用），并拒绝恢复符号链接目标 |
+
+### v1.31.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **会话恢复自定义参数** | 在 设置 → **会话恢复参数** 中为每个 CLI 指定额外参数，会同时应用于 **复制恢复命令** 和在终端中恢复会话，提供实时预览，危险参数会高亮提示 |
+| **修正 Claude Opus 5.5 费用** | Opus 5.5 会话此前按 Opus 5 价格计算，现已使用 Opus 5.5 自身的价格；并新增 GPT-6、Gemini 3.8 Flash 和 Grok 4.7 的价格 |
+
+### v1.30.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **WebUI 安全加固** | `--serve` 模式下，会话和项目路径仅限历史记录目录，项目设置仅限已知项目 — 如果你在使用 WebUI，请升级（[安全公告](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **Claude Code 自动标题** | 会话列表、统计、导出和归档中显示 Claude Code 生成的标题（你手动设置的名称优先） |
+| **区分你的提示与代理更新** | Messages 面板会区分你输入的提示、代理更新、命令和注入的上下文，并提供“仅显示我的提示”筛选 |
+
+### v1.29.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **Z Code 提供商** | 浏览 `~/.zcode/cli/db/db.sqlite` 中的 Z Code（Z.ai）会话，包含标题、工具调用、思考过程和 token 用量 — 共支持 31 个助手 |
+| **子代理费用计入会话** | 会话的计费 token 和费用现在包含其委派的子代理运行（Claude Code、Z Code）；*仅对话* 模式仍只显示主对话 |
+| **更快的会话列表** | 大型 Claude 和 Codex 历史的会话列表加载速度提升数倍 |
+
+### v1.28.0 新增
+
+| 功能 | 说明 |
+|------|------|
+| **新版 Cline 会话** | 新版 Cline（包括 VS Code 扩展）将会话保存在 `~/.cline/data/sessions/`，现在会连同标题、完整对话以及 token/费用统计一起显示。Windows 上也能发现 Cline、Roo Code 和 Kilo Code |
+| **Kilo Code 新存储** | 将 Kilo Code 的 OpenCode 核心数据库（`kilo.db`）作为独立提供商读取，支持实时刷新和全局统计 |
+| **准确的输出 token** | 修复了流式 Claude Code 回合的输出 token 少计约 40% 的问题，每个回合的最终用量只计一次 |
+| **会话面板与文件夹合并** | 所选项目的会话在可调整宽度的独立列中打开；多个工具共用的同一文件夹合并为一行，并以提供商标签显示 |
+| **更简洁的对话视图** | 折叠行中显示工具调用摘要，连续回合不再重复标题，顶部只保留一个视图切换器 |
+| **价格表更新** | 所有费率均已对照官方定价页面重新核实，支持 fast/priority 档位，并标注即将停用的模型及其替代模型 |
+| **对话记录保留期** | Claude Code 的 `cleanupPeriodDays` 可设置长期保留值（如 3650），并明确标注为 Claude Code 的设置 — 本应用不会删除任何会话 |
 
 ### v1.23.0 新增
 
@@ -398,7 +445,7 @@ GET /health
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描全部 29 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
+2. 自动扫描全部 31 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
@@ -503,6 +550,8 @@ claude-code-history-viewer://session-title/auth%20bug
 ## 许可证
 
 [MIT](LICENSE) — 免费用于个人和商业用途。
+
+Omnilogue 是独立的开源项目，与其读取会话日志的 Anthropic、OpenAI、GitHub、Google 等任何厂商均无关联、认可或赞助关系。Claude 和 Claude Code 是 Anthropic, PBC 的商标，其他名称为其各自所有者的商标。
 
 ---
 

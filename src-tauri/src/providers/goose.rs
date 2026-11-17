@@ -444,7 +444,8 @@ fn map_content_item(item: &Value) -> Option<Value> {
                 "type": "tool_result",
                 "tool_use_id": id,
                 "content": content,
-                "is_error": is_error
+                "is_error": is_error,
+                "is_error_source": "derived"
             }))
         }
         _ => None,
@@ -614,7 +615,7 @@ mod tests {
         assert_eq!(normalize_ts("2026-06-21T10:00:00Z"), "2026-06-21T10:00:00Z");
         assert_eq!(normalize_ts(""), "");
         // epoch seconds -> iso (non-empty)
-        assert!(!epoch_to_iso(1750500000).is_empty());
+        assert_ne!(epoch_to_iso(1750500000), "");
         assert_eq!(epoch_to_iso(0), "");
     }
 
@@ -691,5 +692,15 @@ mod tests {
         let found = search_conn(&conn, "NEEDLE", 10).unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(&found[0].uuid, loaded_uuid, "load and search must agree");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let block=map_content_item(&serde_json::json!({"type":"toolResponse","id":"c","toolResult":{"value":{"content":[]}}})).unwrap();
+        assert_eq!(block["is_error_source"], "derived");
     }
 }

@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
 
-use crate::utils::is_safe_storage_id;
+use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 
 lazy_static! {
     /// Regex for validating JSONL filename pattern (alphanumeric, underscore, hyphen only)
@@ -187,11 +187,12 @@ fn write_jsonl_lines(file_path: &str, lines: &[String]) -> Result<(), String> {
         let mut temp_file = File::create(&temp_path)
             .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
 
-        for (i, line) in lines.iter().enumerate() {
-            if i > 0 {
-                writeln!(temp_file).map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
-            }
-            write!(temp_file, "{line}")
+        // Terminate every line, including the last: Claude Code appends
+        // `JSON.stringify(entry) + "\n"` without a leading newline, so a file
+        // left unterminated here would get its next entry glued onto our last
+        // line, making both unparseable.
+        for line in lines {
+            writeln!(temp_file, "{line}")
                 .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
         }
     }
@@ -272,7 +273,7 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
 /// Collect the Claude configuration directories the user has registered, plus
 /// `CLAUDE_CONFIG_DIR`. These are the same sources `scan_all_projects` reads, so
 /// any directory whose sessions the app displays is represented here.
-fn configured_claude_dirs() -> Vec<String> {
+pub(super) fn configured_claude_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
 
     if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {
@@ -356,20 +357,6 @@ fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
     }
 }
 
-/// Remove the extended-length prefix that Windows may add to canonical paths.
-/// Keep this cross-platform so the representation rule can be unit-tested on
-/// Unix hosts as well.
-fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
-    let raw = path.to_string_lossy();
-    if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
-        return PathBuf::from(format!(r"\\{rest}"));
-    }
-    if let Some(rest) = raw.strip_prefix(r"\\?\") {
-        return PathBuf::from(rest);
-    }
-    path.to_path_buf()
-}
-
 /// Normalize only the representation used for the allowlist boundary check.
 /// Windows paths are case-insensitive for normal filesystem access, while
 /// Unix paths retain their case-sensitive semantics.
@@ -381,7 +368,7 @@ fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
 /// one happens to come last. The lint only fires when compiling for Windows,
 /// which is why CI does not see it.
 #[allow(clippy::needless_return)]
-fn normalize_path_for_comparison(path: &Path) -> PathBuf {
+pub(crate) fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     let stripped = strip_windows_extended_prefix(path);
 
     #[cfg(windows)]
@@ -393,7 +380,7 @@ fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     stripped
 }
 
-fn allowed_claude_roots() -> Vec<PathBuf> {
+pub(crate) fn allowed_claude_roots() -> Vec<PathBuf> {
     resolve_claude_roots(&configured_claude_dirs())
 }
 
@@ -1102,6 +1089,11 @@ mod tests {
         assert_eq!(result.new_title, "My [Project] v2");
 
         let updated = fs::read_to_string(&file_path).unwrap();
+        // A later append by Claude Code must start on a fresh line.
+        assert!(
+            updated.ends_with('\n'),
+            "rewritten JSONL must end with a newline"
+        );
         let lines: Vec<&str> = updated.lines().collect();
         // Original 2 messages + legacy rename event + modern custom-title event.
         assert_eq!(lines.len(), 4);

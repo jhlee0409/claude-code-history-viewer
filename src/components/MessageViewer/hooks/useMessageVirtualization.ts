@@ -5,8 +5,9 @@
  * using @tanstack/react-virtual.
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { useTranscriptWheelBoundary, useTranscriptWheelTransaction } from "./useTranscriptWheelTransaction";
 import type { ClaudeMessage } from "../../../types";
 import type {
   FlattenedMessage,
@@ -42,6 +43,8 @@ interface UseMessageVirtualizationOptions {
   isInSubagent?: boolean;
   /** Height before the virtual list inside the same scroll viewport. */
   scrollMargin?: number;
+  /** Called once after a whole owned wheel batch physically released. */
+  onWheelRelease?: () => void;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -71,6 +74,7 @@ export const useMessageVirtualization = ({
   isCaptureMode = false,
   isInSubagent = false,
   scrollMargin = 0,
+  onWheelRelease,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -156,6 +160,15 @@ export const useMessageVirtualization = ({
   );
 
   // Initialize virtualizer
+  // A lease token avoids retaining an old message list in a scheduled callback.
+  // Filter/group changes can replace the projection without changing its count.
+  const wheelHiddenIds = isCaptureMode ? hiddenMessageIds : null;
+  const wheelOwner = useMemo(() => ({}), [
+    messages, wheelHiddenIds, isCaptureMode, isInSubagent,
+    agentTaskGroups, agentTaskMemberUuids, agentProgressGroups,
+    agentProgressMemberUuids, taskOperationGroups, taskOperationMemberUuids,
+  ]);
+  const wheelTransaction = useTranscriptWheelTransaction(wheelOwner, onWheelRelease);
   const virtualizer = useVirtualizer({
     count: flattenedMessages.length,
     getScrollElement,
@@ -163,7 +176,13 @@ export const useMessageVirtualization = ({
     getItemKey,
     overscan: VIRTUALIZER_OVERSCAN,
     scrollMargin,
-    useAnimationFrameWithResizeObserver: true,
+    observeElementOffset: wheelTransaction.observeOffset,
+    scrollToFn: wheelTransaction.scrollToFn,
+    // Owned transactions quiet their own notifications; native input must stay synchronous.
+    useFlushSync: true,
+    // Consume layout measurements before paint. Deferring RO to another rAF
+    // leaves newly mounted rows at estimated positions during wheel scrolling.
+    useAnimationFrameWithResizeObserver: false,
     // Enable dynamic measurement
     measureElement: (element) => {
       if (!element) return MIN_ROW_HEIGHT;
@@ -174,6 +193,61 @@ export const useMessageVirtualization = ({
     },
   });
 
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  // Copy render values now: ref/RO delivery during commit can change core caches.
+  const committedRows = virtualRows.map(({ key, index, start, size, end }) => ({ key, index, start, size, end }));
+  useLayoutEffect(() => {
+    wheelTransaction.committed.current = {
+      instance: virtualizer,
+      element: virtualizer.scrollElement,
+      owner: wheelOwner,
+      count: flattenedMessages.length,
+      margin: scrollMargin,
+      totalSize,
+      rectWidth: virtualizer.scrollRect?.width,
+      rectHeight: virtualizer.scrollRect?.height,
+      rows: committedRows,
+    };
+  });
+
+  const mountedRowKeys = useRef(new WeakMap<Element, VirtualItem["key"]>());
+  useTranscriptWheelBoundary(virtualizer, wheelTransaction);
+  useLayoutEffect(() => {
+    const measurements: { index: number; height: number }[] = [];
+    for (const [key, node] of virtualizer.elementsCache) {
+      const index = virtualizer.indexFromElement(node);
+      // A removed/reindexed node must not resize the new occupant of its index.
+      if (!node.isConnected || !Number.isInteger(index) || index < 0 ||
+          index >= virtualizer.options.count || virtualizer.options.getItemKey(index) !== key) continue;
+      if (mountedRowKeys.current.get(node) === key) continue;
+      mountedRowKeys.current.set(node, key);
+      // Idle refs already measure synchronously. During wheel scrolling core
+      // skips that read; reconcile each new node/key once before paint instead
+      // of waiting for RO (and another estimated range to mount).
+      if (virtualizer.isScrolling) {
+        measurements.push({ index, height: virtualizer.options.measureElement(node, undefined, virtualizer) });
+      }
+    }
+    if (measurements.length === 0) return;
+
+    // resizeItem retains core's anchor adjustments. Layout-effect updates are
+    // already committed before paint; don't ask the React adapter to flushSync
+    // reentrantly inside this commit. Restore normal scroll/RO notification.
+    const onChange = virtualizer.options.onChange;
+    virtualizer.setOptions({ ...virtualizer.options, onChange: instance => onChange(instance, false) });
+    try {
+      for (const { index, height } of measurements) {
+        virtualizer.resizeItem(index, height);
+        // Async notifications leave starts stale while core advances scrollOffset.
+        // Recompute before the next resize so its anchor decision uses the same frame.
+        virtualizer.getTotalSize();
+      }
+    } finally {
+      virtualizer.setOptions({ ...virtualizer.options, onChange });
+    }
+  });
+
   // Get scroll index for a UUID (resolves group members to their leaders)
   const getScrollIndex = useCallback(
     (uuid: string): number | null => {
@@ -182,12 +256,13 @@ export const useMessageVirtualization = ({
       if (directIndex !== undefined) {
         const item = flattenedMessages[directIndex];
         // If this is a group member, find the leader instead
-        if (item?.type === "message" && (item.isGroupMember || item.isProgressGroupMember)) {
+        if (item?.type === "message" && (item.isGroupMember || item.isProgressGroupMember || item.isTaskOperationGroupMember)) {
           const leaderIndex = findGroupLeaderIndex(
             uuid,
             flattenedMessages,
             agentTaskGroups,
-            agentProgressGroups
+            agentProgressGroups,
+            taskOperationGroups
           );
           return leaderIndex ?? directIndex;
         }
@@ -200,6 +275,7 @@ export const useMessageVirtualization = ({
       flattenedMessages,
       agentTaskGroups,
       agentProgressGroups,
+      taskOperationGroups,
     ]
   );
 
@@ -218,8 +294,8 @@ export const useMessageVirtualization = ({
     virtualizer,
     flattenedMessages,
     uuidToIndexMap,
-    virtualRows: virtualizer.getVirtualItems(),
-    totalSize: virtualizer.getTotalSize(),
+    virtualRows,
+    totalSize,
     scrollToMessage,
     getScrollIndex,
     rowTranslateOffset: scrollMargin,

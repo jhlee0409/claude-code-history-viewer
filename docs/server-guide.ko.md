@@ -1,6 +1,6 @@
 # 서버 모드 가이드
 
-Claude Code History Viewer를 웹 서버로 실행하세요 — 어디서든 브라우저로 대화 기록을 확인할 수 있습니다.
+Omnilogue(이전 이름: Claude Code History Viewer)를 웹 서버로 실행하세요 — 어디서든 브라우저로 대화 기록을 확인할 수 있습니다.
 
 **Languages**: [English](server-guide.md) | [한국어](server-guide.ko.md)
 

@@ -1,0 +1,460 @@
+{
+  "searches": [
+    {
+      "filters": {},
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "same\n",
+              "tool_use_id": "orphan",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "user",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-orphan"
+        },
+        {
+          "content": [
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "pwd"
+              },
+              "name": "shell_command",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-replay"
+        },
+        {
+          "content": [
+            {
+              "id": "parallel",
+              "input": {
+                "patch": "*** Begin Patch\n*** End Patch"
+              },
+              "name": "apply_patch",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": {
+            "id": "parallel",
+            "input": {
+              "patch": "*** Begin Patch\n*** End Patch"
+            },
+            "name": "apply_patch",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-custom"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "same\n",
+              "tool_use_id": "orphan",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "user",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-orphan"
+        },
+        {
+          "content": [
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "pwd"
+              },
+              "name": "shell_command",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-replay"
+        },
+        {
+          "content": [
+            {
+              "id": "parallel",
+              "input": {
+                "patch": "*** Begin Patch\n*** End Patch"
+              },
+              "name": "apply_patch",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": {
+            "id": "parallel",
+            "input": {
+              "patch": "*** Begin Patch\n*** End Patch"
+            },
+            "name": "apply_patch",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-custom"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "same\n",
+              "tool_use_id": "orphan",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "user",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:07Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-orphan"
+        },
+        {
+          "content": [
+            {
+              "id": "duplicate",
+              "input": {
+                "command": "pwd"
+              },
+              "name": "shell_command",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "duplicate",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:04Z",
+          "toolUse": {
+            "id": "duplicate",
+            "input": {
+              "command": "pwd"
+            },
+            "name": "shell_command",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-replay"
+        },
+        {
+          "content": [
+            {
+              "id": "parallel",
+              "input": {
+                "patch": "*** Begin Patch\n*** End Patch"
+              },
+              "name": "apply_patch",
+              "type": "tool_use"
+            },
+            {
+              "content": "same\n",
+              "tool_use_id": "parallel",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "assistant",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:03Z",
+          "toolUse": {
+            "id": "parallel",
+            "input": {
+              "patch": "*** Begin Patch\n*** End Patch"
+            },
+            "name": "apply_patch",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "use-custom"
+        }
+      ],
+      "query": "same"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "result-function"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "result-function"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "result-function"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "codex-structured"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "codex-structured"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "codex-structured"
+    },
+    {
+      "filters": {},
+      "messages": [],
+      "query": "Output"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [],
+      "query": "Output"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "Output"
+    },
+    {
+      "filters": {},
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "Error: stdout only\n",
+              "tool_use_id": "plain",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "user",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-plain"
+        }
+      ],
+      "query": "Error"
+    },
+    {
+      "filters": {
+        "hasToolCalls": true
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "content": "Error: stdout only\n",
+              "tool_use_id": "plain",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "projectName": "fixture",
+          "provider": "codex",
+          "role": "user",
+          "sessionId": "codex-structured",
+          "timestamp": "2026-10-01T00:00:08Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "result-plain"
+        }
+      ],
+      "query": "Error"
+    },
+    {
+      "filters": {
+        "hasErrors": false
+      },
+      "messages": [],
+      "query": "Error"
+    }
+  ],
+  "sessions": [
+    {
+      "actual_session_id": "codex-structured",
+      "file_path": "$HOME/.codex/sessions/rollout-structured.jsonl",
+      "first_message_time": "",
+      "has_errors": false,
+      "has_tool_use": true,
+      "is_renamed": false,
+      "last_message_time": "",
+      "last_modified": "2025-10-01T00:00:00+00:00",
+      "message_count": 10,
+      "project_name": "fixture",
+      "provider": "codex",
+      "session_id": "$HOME/.codex/sessions/rollout-structured.jsonl",
+      "summary": null
+    }
+  ],
+  "stats": {
+    "first_message_time": "2026-10-01T00:00:01Z",
+    "last_message_time": "2026-10-01T00:00:10Z",
+    "message_count": 7,
+    "model_distribution": [],
+    "most_used_tools": [
+      {
+        "avg_execution_time": null,
+        "success_rate": 50.0,
+        "tool_name": "shell_command",
+        "usage_count": 4
+      },
+      {
+        "avg_execution_time": null,
+        "success_rate": 50.0,
+        "tool_name": "apply_patch",
+        "usage_count": 2
+      }
+    ],
+    "project_name": "fixture",
+    "session_id": "codex-structured",
+    "token_usage_recording": "unknown",
+    "total_cache_creation_tokens": 0,
+    "total_cache_read_tokens": 0,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_reasoning_tokens": 0,
+    "total_tokens": 0
+  }
+}

@@ -20,13 +20,17 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 
-use crate::utils::is_symlink;
+use crate::commands::stats::session_files;
 
-/// A regular `.jsonl` file in the project directory. Symlinks are skipped so a
-/// planted link can't pull a file outside the project root into chain scans.
+/// A regular `.jsonl` file in the project directory: never a symlink, so a
+/// planted link can't pull a file outside the project root into chain scans,
+/// and never anything else named like a session (a FIFO would block the scan
+/// that opens it).
 fn is_regular_jsonl(path: &Path) -> bool {
-    path.extension().and_then(|s| s.to_str()) == Some("jsonl") && !is_symlink(path)
+    path.extension().and_then(|s| s.to_str()) == Some("jsonl")
+        && session_files::is_regular_file(path)
 }
 
 /// Hard cap on how many hops `resolve_session_chain` will follow. Guards
@@ -97,8 +101,14 @@ struct BoundaryClassifier {
 /// `logicalParentUuid` is NOT among this file's own message uuids. That
 /// absence is exactly what marks "this file's history starts abruptly here;
 /// the messages before it live in a different file."
+#[allow(unsafe_code)]
 fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
-    let file = fs::File::open(path).ok()?;
+    {
+        let file = session_files::open_history_file(path).ok()?;
+        let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
+        memchr::memmem::find(&map, b"compact_boundary")?;
+    }
+    let file = session_files::open_history_file(path).ok()?;
     let reader = BufReader::new(file);
 
     let mut own_uuids: HashSet<String> = HashSet::new();
@@ -133,9 +143,12 @@ fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
 /// v4 strings, so an accidental match elsewhere in the file is not a realistic
 /// concern, and this avoids parsing every line of every candidate file.
 fn file_contains_uuid(path: &Path, target_uuid: &str) -> bool {
-    let Ok(content) = fs::read(path) else {
+    let mut content = Vec::new();
+    let read = session_files::open_history_file(path)
+        .and_then(|mut file| std::io::Read::read_to_end(&mut file, &mut content));
+    if read.is_err() {
         return false;
-    };
+    }
     let needle = format!("\"uuid\":\"{target_uuid}\"");
     memchr::memmem::find(&content, needle.as_bytes()).is_some()
 }
@@ -169,7 +182,7 @@ fn find_file_containing_uuid(
 /// UUID referenced by a continuation boundary. A true result means the newer
 /// file is a branch from the predecessor, not a replacement for it.
 fn has_main_conversation_after_uuid(path: &Path, target_uuid: &str) -> bool {
-    let Ok(file) = fs::File::open(path) else {
+    let Ok(file) = session_files::open_history_file(path) else {
         return false;
     };
     let reader = BufReader::new(file);
@@ -251,42 +264,44 @@ pub fn resolve_session_chain(session_path: &Path) -> Vec<PathBuf> {
     chain
 }
 
-/// Every file in `project_root` that is unambiguously replaced by one direct
-/// continuation. A predecessor remains visible when multiple files branch
-/// from the same boundary, or when it keeps receiving conversation turns
-/// after the referenced UUID. Those shapes are forks, not linear automatic
-/// continuation chains.
+/// Every file in `project_root` whose direct continuations already cover its
+/// conversation history. Multiple children can share the same predecessor
+/// without making that predecessor useful as a separate session-list entry.
+/// It remains visible only when it kept receiving main-conversation turns
+/// after at least one referenced branch point.
 pub fn superseded_chain_paths(project_root: &Path) -> HashSet<PathBuf> {
-    let mut direct_successors: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    let mut referenced_branch_points: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     let Ok(entries) = fs::read_dir(project_root) else {
         return HashSet::new();
     };
 
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !is_regular_jsonl(&path) {
-            continue;
-        }
+    let paths: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| is_regular_jsonl(path))
+        .collect();
+    let dangling: Vec<(PathBuf, String)> = paths
+        .into_par_iter()
+        .filter_map(|path| find_dangling_parent_uuid(&path).map(|uuid| (path, uuid)))
+        .collect();
 
-        let Some(parent_uuid) = find_dangling_parent_uuid(&path) else {
-            continue;
-        };
+    for (path, parent_uuid) in dangling {
         let skip = HashSet::from([path]);
         let Some(predecessor) = find_file_containing_uuid(project_root, &parent_uuid, &skip) else {
             continue;
         };
-        direct_successors
+        referenced_branch_points
             .entry(predecessor)
             .or_default()
-            .push(parent_uuid);
+            .insert(parent_uuid);
     }
 
-    direct_successors
+    referenced_branch_points
         .into_iter()
         .filter_map(|(predecessor, parent_uuids)| {
-            let parent_uuid = parent_uuids.first()?;
-            (parent_uuids.len() == 1
-                && !has_main_conversation_after_uuid(&predecessor, parent_uuid))
+            (!parent_uuids
+                .iter()
+                .any(|parent_uuid| has_main_conversation_after_uuid(&predecessor, parent_uuid)))
             .then_some(predecessor)
         })
         .collect()
@@ -486,12 +501,49 @@ mod tests {
     }
 
     #[test]
-    fn superseded_paths_keeps_a_parent_with_multiple_direct_children() {
+    fn superseded_paths_hides_an_inactive_parent_with_multiple_direct_children() {
         let dir = TempDir::new().unwrap();
         let parent = write_file(
             &dir,
             "parent.jsonl",
             "{\"uuid\":\"tail-uuid\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+        );
+        let first_child = write_file(
+            &dir,
+            "first-child.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u1\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"first\"}}\n",
+            ),
+        );
+        let second_child = write_file(
+            &dir,
+            "second-child.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-2\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u2\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"second\"}}\n",
+            ),
+        );
+
+        let superseded = superseded_chain_paths(dir.path());
+        assert!(superseded.contains(&parent));
+        assert!(!superseded.contains(&first_child));
+        assert!(!superseded.contains(&second_child));
+    }
+
+    #[test]
+    fn superseded_paths_keeps_an_active_parent_with_multiple_direct_children() {
+        let dir = TempDir::new().unwrap();
+        let parent = write_file(
+            &dir,
+            "parent.jsonl",
+            concat!(
+                "{\"uuid\":\"tail-uuid\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+                "{\"uuid\":\"later-user\",\"type\":\"user\",\"isSidechain\":false,",
+                "\"message\":{\"role\":\"user\",\"content\":\"still active\"}}\n",
+            ),
         );
         let first_child = write_file(
             &dir,

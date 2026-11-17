@@ -11,9 +11,13 @@ mod chain;
 mod delete;
 mod edits;
 mod load;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
 mod rename;
 mod resume;
 mod search;
+#[cfg(all(test, unix))]
+mod swap_after_check_tests;
 
 // Re-export all commands
 pub use chain::{resolve_session_chain, superseded_chain_paths};
@@ -31,11 +35,13 @@ pub use search::*;
 /// per-module constants across seventeen providers, and a copy kept here would
 /// silently fall behind the next one added — the failure mode being a provider
 /// that works on desktop and is rejected over `--serve`.
+///
+/// Schemes shorter than two characters are not provider ids.
 #[cfg(feature = "webui-server")]
 fn uri_parts(path: &std::path::Path) -> Option<(String, String)> {
     let raw = path.to_string_lossy();
     let (scheme, rest) = raw.split_once("://")?;
-    let valid = !scheme.is_empty()
+    let valid = scheme.len() >= 2
         && scheme.starts_with(|c: char| c.is_ascii_lowercase())
         && scheme
             .chars()
@@ -43,16 +49,22 @@ fn uri_parts(path: &std::path::Path) -> Option<(String, String)> {
     valid.then(|| (scheme.to_string(), rest.to_string()))
 }
 
-/// Reject session file paths that fall outside the on-disk roots used by
-/// the supported providers. Defends `WebUI` handlers (which accept untrusted
-/// HTTP input) against being pointed at arbitrary `.jsonl` files on the host.
-///
-/// Desktop builds do not need this guard — those paths flow from
-/// `scan_projects` / `load_sessions` output, never raw user input.
+/// The one message returned for any path outside the history roots, whether
+/// it exists or not, so a response does not reveal which it was.
+#[cfg(feature = "webui-server")]
+pub(crate) const OUTSIDE_HISTORY_ROOTS: &str = "Path is outside the configured history directories";
+
+/// The message for a path inside the history roots that is neither a
+/// directory nor a regular file.
+#[cfg(feature = "webui-server")]
+const NOT_A_FILE_OR_DIRECTORY: &str = "Path is not a regular file or directory";
+
+/// Like [`is_safe_history_file_path`], but also accepts a provider URI
+/// (`scheme://…`). Use only where the receiving command resolves such ids
+/// itself; anything that opens the value as a path must use the
+/// filesystem-only guard.
 #[cfg(feature = "webui-server")]
 pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String> {
-    use std::path::PathBuf;
-
     // A provider URI is not a filesystem path. Several providers keep their
     // sessions in a database rather than in files - OpenCode's SQLite store,
     // Zed, Trae, ForgeCode and a dozen others - and mint identifiers of the
@@ -75,16 +87,29 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
         };
     }
 
-    fn strip_windows_prefix(p: &std::path::Path) -> PathBuf {
-        let s = p.to_string_lossy();
-        s.strip_prefix(r"\\?\")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| p.to_path_buf())
-    }
+    is_safe_history_file_path(path)
+}
+
+/// Reject session / project paths that fall outside the configured history
+/// roots: the supported providers' on-disk roots, every Claude directory the
+/// user has configured (`~/.claude`, `CLAUDE_CONFIG_DIR`, Settings → Custom
+/// Claude Directories), and the app's own archive directory. Defends `WebUI`
+/// handlers (which accept untrusted HTTP input) against being pointed at
+/// arbitrary directories or `.jsonl` files on the host. Inside the roots,
+/// only a directory or a regular file passes.
+///
+/// Filesystem paths only: a URI-shaped value is judged as the path it would
+/// open, so it passes only if that path is inside a root.
+///
+/// Desktop builds do not need this guard — those paths flow from
+/// `scan_projects` / `load_sessions` output, never raw user input.
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), String> {
+    use std::path::PathBuf;
 
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
-    let home = strip_windows_prefix(&home);
+    let home = crate::utils::strip_windows_extended_prefix(&home);
 
     let mut allowed: Vec<PathBuf> = vec![
         home.join(".claude").join("projects"),
@@ -92,6 +117,7 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
         home.join(".codex").join("archived_sessions"),
         home.join(".gemini"),
         home.join(".local").join("share").join("opencode"),
+        home.join(".local").join("share").join("kilo"),
         home.join(".cline").join("tasks"),
         home.join(".cursor"),
         home.join(".codebuddy").join("projects"),
@@ -131,6 +157,11 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     if let Some(qwen_base) = crate::providers::qwen::get_base_path() {
         allowed.push(PathBuf::from(qwen_base));
     }
+    // Z Code sessions are `zcode://` pseudo-paths, so nothing currently
+    // reaches this entry — kept for symmetry with the zed entry above.
+    if let Some(zcode_base) = crate::providers::zcode::get_base_path() {
+        allowed.push(PathBuf::from(zcode_base));
+    }
     if let Some(zed_base) = crate::providers::zed::get_base_path() {
         allowed.push(PathBuf::from(zed_base));
     }
@@ -139,6 +170,20 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     }
     if let Some(trae_base) = crate::providers::trae::get_base_path() {
         allowed.push(PathBuf::from(trae_base));
+    }
+    // Claude directories the user configured (Settings → Custom Claude
+    // Directories, `CLAUDE_CONFIG_DIR`) — the same sources `scan_all_projects`
+    // reads. Each must pass the custom-directory validator, which already
+    // returns the canonical `projects/` folder.
+    for dir in rename::configured_claude_dirs() {
+        if let Ok(projects) = crate::utils::validate_custom_claude_path(std::path::Path::new(&dir))
+        {
+            allowed.push(projects);
+        }
+    }
+    // Archived copies of sessions, served back by the archive browser.
+    if let Ok(archives) = crate::commands::archive::get_archives_dir() {
+        allowed.push(archives);
     }
 
     // Canonicalize each allowlist entry so the comparison below is like-for-like
@@ -152,34 +197,40 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
         .into_iter()
         .map(|d| {
             let resolved = d.canonicalize().unwrap_or(d);
-            strip_windows_prefix(&resolved)
+            rename::normalize_path_for_comparison(&resolved)
         })
         .collect();
 
     if let Some(codex_base) = crate::providers::codex::get_base_path() {
         let codex_raw = PathBuf::from(codex_base);
         let codex_base = codex_raw.canonicalize().unwrap_or(codex_raw);
-        let codex_base = strip_windows_prefix(&codex_base);
+        let codex_base = rename::normalize_path_for_comparison(&codex_base);
         allowed.push(codex_base.join("sessions"));
         allowed.push(codex_base.join("archived_sessions"));
     }
 
+    // Canonicalising resolves symlinks, so a link inside a root that points
+    // outside it is judged by its target.
     let canonical = if path.exists() {
-        path.canonicalize()
-            .map_err(|e| format!("Path canonicalization error: {e}"))?
+        path.canonicalize().ok()
     } else {
         path.parent()
             .and_then(|p| p.canonicalize().ok())
             .map(|p| p.join(path.file_name().unwrap_or_default()))
-            .ok_or_else(|| "Invalid path".to_string())?
-    };
-    let canonical = strip_windows_prefix(&canonical);
-
-    if allowed.iter().any(|d| canonical.starts_with(d)) {
-        Ok(())
-    } else {
-        Err("Session path not in allowed provider directories".to_string())
     }
+    .ok_or_else(|| OUTSIDE_HISTORY_ROOTS.to_string())?;
+    let canonical = rename::normalize_path_for_comparison(&canonical);
+
+    if !allowed.iter().any(|d| canonical.starts_with(d)) {
+        return Err(OUTSIDE_HISTORY_ROOTS.to_string());
+    }
+    // Inside a root, history is directories and regular files. Anything else
+    // is refused here, for every route at once: a FIFO named like a session
+    // blocks the reader that opens it.
+    if std::fs::metadata(path).is_ok_and(|meta| !meta.is_dir() && !meta.is_file()) {
+        return Err(NOT_A_FILE_OR_DIRECTORY.to_string());
+    }
+    Ok(())
 }
 
 #[cfg(all(test, feature = "webui-server", unix))]
@@ -394,5 +445,178 @@ mod tests {
         std::fs::write(&session_file, "{}").unwrap();
 
         assert!(is_safe_session_path(&session_file).is_ok());
+    }
+
+    /// Build `<dir>/projects/proj/session.jsonl` and return the session path.
+    fn make_claude_session(dir: &std::path::Path) -> std::path::PathBuf {
+        let project = dir.join("projects").join("proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = project.join("session.jsonl");
+        std::fs::write(&session, "{}\n").unwrap();
+        session
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_allows_default_claude_project_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let session = make_claude_session(&home.path().join(".claude"));
+
+        assert!(is_safe_session_path(session.parent().unwrap()).is_ok());
+        assert!(is_safe_session_path(&session).is_ok());
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_rejects_project_dir_outside_every_root() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let outside = TempDir::new().unwrap();
+        let session = make_claude_session(outside.path());
+
+        assert!(is_safe_session_path(session.parent().unwrap()).is_err());
+        assert!(is_safe_session_path(&session).is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_allows_claude_config_dir() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let config_dir = TempDir::new().unwrap();
+        let session = make_claude_session(config_dir.path());
+        let _guard = EnvVarGuard::set("CLAUDE_CONFIG_DIR", config_dir.path());
+
+        let res = is_safe_session_path(session.parent().unwrap());
+        assert!(res.is_ok(), "CLAUDE_CONFIG_DIR project rejected: {res:?}");
+        assert!(is_safe_session_path(&session).is_ok());
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_allows_custom_claude_directory_from_settings() {
+        let home = crate::test_utils::SandboxHome::new();
+        let custom = TempDir::new().unwrap();
+        let custom_base = custom.path().canonicalize().unwrap();
+        let session = make_claude_session(&custom_base);
+        let meta_dir = home.path().join(".claude-history-viewer");
+        std::fs::create_dir_all(&meta_dir).unwrap();
+        let user_data = serde_json::json!({
+            "version": 1,
+            "sessions": {},
+            "projects": {},
+            "settings": {
+                "customClaudePaths": [{ "path": custom_base.to_string_lossy(), "label": "work" }]
+            }
+        });
+        std::fs::write(meta_dir.join("user-data.json"), user_data.to_string()).unwrap();
+
+        let res = is_safe_session_path(session.parent().unwrap());
+        assert!(
+            res.is_ok(),
+            "custom Claude directory project rejected: {res:?}"
+        );
+        assert!(is_safe_session_path(&session).is_ok());
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_allows_app_archive_directory() {
+        let home = crate::test_utils::SandboxHome::new();
+        let sessions = home
+            .path()
+            .join(".claude-history-viewer")
+            .join("archives")
+            .join("backup_1234")
+            .join("sessions");
+        std::fs::create_dir_all(&sessions).unwrap();
+        let file = sessions.join("session.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        assert!(is_safe_session_path(&file).is_ok());
+    }
+
+    #[test]
+    #[serial]
+    fn history_root_rejects_symlink_escaping_the_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().join("secret.jsonl");
+        std::fs::write(&secret, "{}\n").unwrap();
+        let project = home.path().join(".claude").join("projects").join("proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let link = project.join("escape.jsonl");
+        symlink(&secret, &link).unwrap();
+        let dir_link = home.path().join(".claude").join("projects").join("linked");
+        symlink(outside.path(), &dir_link).unwrap();
+
+        assert!(is_safe_session_path(&link).is_err());
+        assert!(is_safe_session_path(&dir_link).is_err());
+    }
+
+    /// Every out-of-root outcome reports the same message, so the response
+    /// does not reveal whether the path exists.
+    #[test]
+    #[serial]
+    fn history_root_error_is_uniform() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let outside = TempDir::new().unwrap();
+        let existing = make_claude_session(outside.path());
+        let missing = outside.path().join("nope").join("missing.jsonl");
+
+        let a = is_safe_session_path(&existing).unwrap_err();
+        let b = is_safe_session_path(&missing).unwrap_err();
+        let c = is_safe_session_path(existing.parent().unwrap()).unwrap_err();
+        assert_eq!(a, b);
+        assert_eq!(a, c);
+        assert!(!a.contains(&*outside.path().to_string_lossy()));
+    }
+}
+
+/// Not `unix`-gated: these checks apply on every platform.
+#[cfg(all(test, feature = "webui-server"))]
+mod history_file_guard_tests {
+    use super::*;
+    use serial_test::serial;
+    use std::path::Path;
+
+    /// Values that are not files under a history root.
+    const NOT_HISTORY_FILES: [&str; 4] = [
+        "c://cchv-none/a/b.jsonl",
+        "x://cchv-none/a/b.jsonl",
+        "file:///cchv-none/etc/x.jsonl",
+        "opencode://proj-1/ses_abc123",
+    ];
+
+    #[test]
+    #[serial]
+    fn history_file_guard_refuses_uri_shaped_values() {
+        let _home = crate::test_utils::SandboxHome::new();
+        for value in NOT_HISTORY_FILES {
+            assert_eq!(
+                is_safe_history_file_path(Path::new(value)),
+                Err(OUTSIDE_HISTORY_ROOTS.to_string()),
+                "{value} passed the history-file guard"
+            );
+        }
+    }
+
+    #[test]
+    fn a_single_letter_scheme_is_not_a_provider_uri() {
+        assert_eq!(uri_parts(Path::new("c://a/b.jsonl")), None);
+        assert_eq!(uri_parts(Path::new("x://a/b.jsonl")), None);
+        assert_eq!(
+            uri_parts(Path::new("opencode://proj-1/ses_abc123")),
+            Some(("opencode".to_string(), "proj-1/ses_abc123".to_string()))
+        );
+    }
+
+    /// A value with a short scheme is checked against the history roots.
+    #[test]
+    #[serial]
+    fn session_guard_rejects_short_scheme_outside_roots() {
+        let _home = crate::test_utils::SandboxHome::new();
+        assert_eq!(
+            is_safe_session_path(Path::new("c://cchv-none/a/b.jsonl")),
+            Err(OUTSIDE_HISTORY_ROOTS.to_string())
+        );
     }
 }

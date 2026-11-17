@@ -50,15 +50,7 @@ fn summarize_input(input: &serde_json::Map<String, Value>) -> String {
     let mut parts: Vec<String> = Vec::new();
     for (key, val) in input {
         match val {
-            Value::String(s) => {
-                let truncated = if s.chars().count() > 120 {
-                    let head: String = s.chars().take(120).collect();
-                    format!("{head}...")
-                } else {
-                    s.clone()
-                };
-                parts.push(format!("{key}: {truncated}"));
-            }
+            Value::String(s) => parts.push(format!("{key}: {}", truncate(s, 120))),
             Value::Bool(b) => parts.push(format!("{key}: {b}")),
             Value::Number(n) => parts.push(format!("{key}: {n}")),
             _ => {}
@@ -72,6 +64,11 @@ fn nested<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a 
     obj.get("content")
         .and_then(|c| c.as_object())
         .and_then(|c| c.get(key))
+}
+
+fn json_content(obj: &serde_json::Map<String, Value>) -> String {
+    serde_json::to_string_pretty(obj.get("content").unwrap_or(&Value::Null))
+        .unwrap_or_else(|_| "null".to_string())
 }
 
 fn str_field<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a str> {
@@ -153,16 +150,14 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                     } else {
                         ""
                     };
-                    match obj.get("content") {
-                        Some(Value::String(c)) => blocks.push(ExtractedBlock {
-                            kind: BlockKind::Result,
-                            text: format!("{prefix}{}", truncate(c, 500)),
-                        }),
-                        _ => blocks.push(ExtractedBlock {
-                            kind: BlockKind::Result,
-                            text: format!("{prefix}[Tool result]"),
-                        }),
-                    }
+                    let body = match obj.get("content") {
+                        Some(Value::String(c)) => truncate(c, 500),
+                        _ => "[Tool result]".to_string(),
+                    };
+                    blocks.push(ExtractedBlock {
+                        kind: BlockKind::Result,
+                        text: format!("{prefix}{body}"),
+                    });
                 }
             }
             "server_tool_use" => {
@@ -185,6 +180,7 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                                     .and_then(|v| v.as_str())
                                     .or_else(|| r.get("url").and_then(|v| v.as_str()))
                             })
+                            .filter(|title| !title.is_empty())
                             .collect();
                         if urls.is_empty() {
                             "[Web search results]".to_string()
@@ -200,11 +196,9 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                 });
             }
             "web_fetch_tool_result" => {
-                let url = obj
-                    .get("content")
-                    .and_then(|c| c.as_object())
-                    .and_then(|c| c.get("url"))
-                    .and_then(|v| v.as_str());
+                let url = nested(obj, "url")
+                    .and_then(Value::as_str)
+                    .filter(|url| !url.is_empty());
                 let text = match url {
                     Some(u) => format!("[Web fetch: {u}]"),
                     None => "[Web fetch result]".to_string(),
@@ -238,25 +232,57 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                     text,
                 });
             }
-            "text_editor_code_execution_tool_result" => {
-                let op = nested(obj, "operation")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                let path = nested(obj, "path").and_then(|v| v.as_str()).unwrap_or("");
-                let text = if path.is_empty() {
-                    format!("[File {op}]")
-                } else {
-                    format!("[File {op}: {path}]")
-                };
+            // Preserve SDK discriminants/fields, not invented operation/path summaries.
+            // https://github.com/anthropics/anthropic-sdk-typescript/blob/cb5fba419808e3844fa6407e59577ab7ba346b79/src/resources/beta/messages/messages.ts#L7085-L7192
+            // Tool search is an object with tool_references (same source L8010-L8057).
+            // Readable JSON matches TS; HTML escaping happens in block_to_html.
+            "text_editor_code_execution_tool_result" | "tool_search_tool_result" => {
                 blocks.push(ExtractedBlock {
-                    kind: BlockKind::Code,
+                    kind: if typ == "text_editor_code_execution_tool_result" {
+                        BlockKind::Code
+                    } else {
+                        BlockKind::Result
+                    },
+                    text: json_content(obj),
+                });
+            }
+            "advisor_tool_result" => {
+                // SDK cb5fba4198 messages.ts L360-L405,449-L457: ciphertext is opaque;
+                // exact max_tokens on either advice variant means truncation.
+                // Claude Code 2.1.285 j0r/khe/Wa: refusal means declined, not truncated.
+                // Pinned binary hash/offsets: docs/contracts/headless-export-parity.md.
+                let variant = nested(obj, "type").and_then(Value::as_str);
+                let is_advice =
+                    matches!(variant, Some("advisor_result" | "advisor_redacted_result"));
+                let text = match variant {
+                    Some("advisor_redacted_result") => {
+                        "[Redacted advice: encrypted content; plaintext unavailable]".to_string()
+                    }
+                    Some("advisor_result") => nested(obj, "text")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| json_content(obj)),
+                    _ => json_content(obj),
+                };
+                let notice = if is_advice {
+                    match nested(obj, "stop_reason").and_then(Value::as_str) {
+                        Some("max_tokens") => "[Advice truncated: output token limit reached.]",
+                        Some("refusal") => "[Advisor declined to advise on this request.]",
+                        _ => "",
+                    }
+                } else {
+                    ""
+                };
+                let text = [text.as_str(), notice]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                blocks.push(ExtractedBlock {
+                    kind: BlockKind::Result,
                     text,
                 });
             }
-            "tool_search_tool_result" => blocks.push(ExtractedBlock {
-                kind: BlockKind::Result,
-                text: "[Tool search result]".to_string(),
-            }),
             "image" => blocks.push(ExtractedBlock {
                 kind: BlockKind::Media,
                 text: "[Image]".to_string(),
@@ -339,7 +365,12 @@ fn is_exportable(msg: &Value) -> bool {
     let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
     !matches!(
         typ,
-        "system" | "summary" | "progress" | "queue-operation" | "file-history-snapshot"
+        "system"
+            | "summary"
+            | "ai-title"
+            | "progress"
+            | "queue-operation"
+            | "file-history-snapshot"
     )
 }
 
@@ -432,12 +463,11 @@ fn format_timestamp(ts: &str) -> (String, String) {
     }
 }
 
-/// Render markdown to HTML. comrak with `unsafe_ = false` (the default) drops raw
-/// HTML rather than emitting it, so injected markup never executes. (The TS
-/// exporter escapes raw HTML to visible text instead; both are safe — the input
-/// is trusted conversation data and raw HTML in message text is rare.)
+/// Render markdown to HTML, escaping raw HTML to visible text like the TS
+/// exporter. Never enable unsafe HTML: report content must not execute markup.
 fn render_markdown(text: &str) -> String {
     let mut options = comrak::Options::default();
+    options.render.escape = true;
     options.render.hardbreaks = true; // matches marked({ breaks: true })
     options.extension.autolink = true;
     options.extension.table = true;
@@ -685,18 +715,27 @@ fn resolve_session_path(value: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Best-effort display title: a `summary` message if present, else the file stem.
+/// Best-effort display title: the last Claude Code `ai-title` if present, else
+/// a `summary` message, else the file stem.
 fn session_title(messages: &[Value], path: &Path) -> String {
+    fn field_of_type(m: &Value, typ: &str, field: &str) -> Option<String> {
+        if m.get("type").and_then(|t| t.as_str()) != Some(typ) {
+            return None;
+        }
+        m.get(field)
+            .and_then(|s| s.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
     messages
         .iter()
-        .find_map(|m| {
-            if m.get("type").and_then(|t| t.as_str()) == Some("summary") {
-                m.get("summary")
-                    .and_then(|s| s.as_str())
-                    .map(str::to_string)
-            } else {
-                None
-            }
+        .rev()
+        .find_map(|m| field_of_type(m, "ai-title", "aiTitle"))
+        .or_else(|| {
+            messages
+                .iter()
+                .find_map(|m| field_of_type(m, "summary", "summary"))
         })
         .unwrap_or_else(|| {
             path.file_stem()
@@ -778,6 +817,127 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // Producer-shaped synthetic inputs; source citations live in the export contract.
+    // The same corpus/visible-text oracle is exercised by the TS exporter and CLI harness.
+    fn assert_server_tool_cases(typ: &str) {
+        let cases: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/export-parity.json")).unwrap();
+        let cases: Vec<_> = cases
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|case| case["block"]["type"] == typ)
+            .collect();
+        assert_ne!(cases.len(), 0, "no parity cases for {typ}");
+        for case in cases {
+            let blocks = extract_blocks(&json!([case["block"]]));
+            assert_eq!(blocks.len(), 1, "{}", case["name"]);
+            assert_eq!(
+                blocks[0].text,
+                case["text"].as_str().unwrap(),
+                "{}",
+                case["name"]
+            );
+            let kind = match case["kind"].as_str().unwrap() {
+                "code" => BlockKind::Code,
+                "search" => BlockKind::Search,
+                _ => BlockKind::Result,
+            };
+            assert_eq!(blocks[0].kind, kind, "{}", case["name"]);
+            let html = render_session_html(
+                &[json!({"type":"assistant", "message":{"content":[case["block"]]}})],
+                "Parity",
+            );
+            assert!(
+                html.contains(&block_to_html(&ExtractedBlock {
+                    kind,
+                    text: case["text"].as_str().unwrap().to_string(),
+                })),
+                "{}",
+                case["name"]
+            );
+            assert!(!html.contains("opaque-do-not-display"));
+        }
+    }
+
+    #[test]
+    fn hostile_html_uses_literal_escaped_output() {
+        // Independent literal oracle: never derive expectations with block_to_html
+        // or escape_html. Modeled on the round-1 reviewer's hostile-input probe.
+        // Missing-title URL fallback is a legacy compatibility control, not SDK shape.
+        let cases: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/export-hostile.json")).unwrap();
+        let cases = cases.as_array().unwrap();
+        assert_eq!(cases.len(), 17);
+        for case in cases {
+            let html = render_session_html(
+                &[json!({"type":"assistant", "message":{"content":[case["block"]]}})],
+                "Hostile export",
+            );
+            for expected in case["html"].as_array().unwrap() {
+                let expected = expected.as_str().unwrap();
+                assert!(
+                    html.contains(expected),
+                    "{}: missing literal escaped HTML {expected:?}",
+                    case["name"]
+                );
+            }
+            let lower = html.to_ascii_lowercase();
+            for forbidden in [
+                "<script",
+                "<img",
+                "<advice",
+                "<safe>",
+                "href=\"javascript:",
+                "href='javascript:",
+                "opaque-do-not-display",
+                "raw HTML omitted",
+            ] {
+                assert!(
+                    !lower.contains(&forbidden.to_ascii_lowercase()),
+                    "{}: unsafe or lost HTML {forbidden:?}",
+                    case["name"]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn server_tool_export_parity_editor() {
+        assert_server_tool_cases("text_editor_code_execution_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_tool_search() {
+        assert_server_tool_cases("tool_search_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_advisor() {
+        assert_server_tool_cases("advisor_tool_result");
+    }
+
+    #[test]
+    fn server_tool_export_parity_web_search() {
+        assert_server_tool_cases("web_search_tool_result");
+    }
+
+    #[test]
+    fn empty_search_fields_match_frontend_placeholders() {
+        // Compatibility controls: SDK string fields have no nonempty constraint,
+        // but these empty values were not observed locally. TS uses truthiness
+        // for fetch URLs and drops empty search titles (without falling back).
+        let content = json!([
+            {"type":"web_search_tool_result", "tool_use_id":"search", "content":[
+                {"type":"web_search_result", "title":"", "url":"https://example.test", "encrypted_content":"opaque", "page_age":null}
+            ]},
+            {"type":"web_fetch_tool_result", "tool_use_id":"fetch", "content":{"type":"web_fetch_result", "url":""}}
+        ]);
+        let blocks = extract_blocks(&content);
+        assert_eq!(blocks[0].text, "[Web search results]");
+        assert_eq!(blocks[1].text, "[Web fetch result]");
+    }
+
     #[test]
     fn extract_string_content() {
         let blocks = extract_blocks(&json!("hello"));
@@ -845,8 +1005,24 @@ mod tests {
         ));
         assert!(!is_exportable(&json!({ "type": "system" })));
         assert!(!is_exportable(&json!({ "type": "summary" })));
+        assert!(!is_exportable(
+            &json!({ "type": "ai-title", "aiTitle": "T" })
+        ));
         assert!(is_exportable(&json!({ "type": "user" })));
         assert!(is_exportable(&json!({ "type": "assistant" })));
+    }
+
+    #[test]
+    fn session_title_prefers_last_ai_title_over_summary() {
+        let path = Path::new("/tmp/abc-123.jsonl");
+        let messages = vec![
+            json!({ "type": "summary", "summary": "Legacy summary" }),
+            json!({ "type": "ai-title", "aiTitle": "First title" }),
+            json!({ "type": "ai-title", "aiTitle": "Second title" }),
+        ];
+        assert_eq!(session_title(&messages, path), "Second title");
+        assert_eq!(session_title(&messages[..1], path), "Legacy summary");
+        assert_eq!(session_title(&[], path), "abc-123");
     }
 
     #[test]
@@ -883,9 +1059,19 @@ mod tests {
     }
 
     #[test]
+    fn render_markdown_preserves_raw_html_as_visible_text() {
+        let out = render_markdown("hi <script>alert(1)</script> <b>literal</b>");
+        assert!(
+            out.contains("&lt;script&gt;alert(1)&lt;/script&gt;"),
+            "{out}"
+        );
+        assert!(out.contains("&lt;b&gt;literal&lt;/b&gt;"), "{out}");
+        assert!(!out.contains("<script>"));
+    }
+
+    #[test]
     fn render_markdown_neutralizes_raw_html() {
-        // comrak with unsafe_ = false drops raw HTML (the TS exporter escapes it
-        // to visible text instead). Either way no executable markup survives.
+        // Raw tags remain readable as escaped text, never executable HTML.
         let out = render_markdown("hi <script>alert(1)</script>");
         assert!(!out.contains("<script>"));
         assert!(out.contains("hi"));

@@ -147,7 +147,7 @@ The project is a **Tauri 2 desktop application** with a layered, module-based ar
 - **Framework**: Tailwind CSS v4 (atomic utilities)
 - **Utilities**: `tailwind-merge` (prevent class conflicts), `clsx` (conditional classes)
 - **Components**: Radix UI primitives (headless, accessible)
-- **Custom**: Brand colors defined in `tailwind.config.js`
+- **Custom**: Brand colors are CSS custom properties in `src/index.css` (Tailwind v4 `@theme inline`)
 - **Responsive**: Vite plugin `@tailwindcss/vite` for CSS optimization
 - **Icons**: Lucide React (SVG icons, tree-shaken)
 

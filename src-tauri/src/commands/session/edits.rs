@@ -1,6 +1,7 @@
 //! File edit and restore functions
 
-use crate::models::{ClaudeMessage, RawLogEntry, RecentFileEdit};
+use crate::commands::stats::session_files;
+use crate::models::{ClaudeMessage, EditContentKind, RawLogEntry, RecentFileEdit};
 use crate::providers;
 use crate::utils::find_line_ranges;
 use memmap2::Mmap;
@@ -8,13 +9,13 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EditsProvider {
     Claude,
     Codex,
     ForgeCode,
+    Kilo,
     OpenCode,
 }
 
@@ -23,11 +24,35 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
         EditsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
         EditsProvider::ForgeCode
+    } else if project_path.starts_with("kilo://") {
+        EditsProvider::Kilo
     } else if project_path.starts_with("opencode://") {
         EditsProvider::OpenCode
     } else {
         EditsProvider::Claude
     }
+}
+
+/// Whether recent edits for this project are read through a provider (its
+/// path is a provider id) rather than from the project directory on disk.
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_provider_edits_project(project_path: &str) -> bool {
+    detect_project_provider(project_path) != EditsProvider::Claude
+}
+
+/// Whether `session_path` is a provider id minted by the same provider as
+/// `project_path`. Codex sessions are rollout files, so never ids.
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_provider_session_of_project(project_path: &str, session_path: &str) -> bool {
+    let schemes: &[&str] = match detect_project_provider(project_path) {
+        EditsProvider::OpenCode => &["opencode://"],
+        EditsProvider::Kilo => &["kilo://"],
+        EditsProvider::ForgeCode => &["forgecode://", "forgecode-db://"],
+        EditsProvider::Codex | EditsProvider::Claude => &[],
+    };
+    schemes
+        .iter()
+        .any(|scheme| session_path.starts_with(scheme))
 }
 
 /// Page size when the caller does not ask for one.
@@ -64,10 +89,32 @@ struct SessionEditsResult {
     cwd_counts: HashMap<String, usize>,
 }
 
-/// Process a single session file and extract edit information
+/// Whether replaying an edit of `old_str` onto `content` reproduces it.
+///
+/// The Edit tool fails when `old_string` is absent, so a recorded edit always
+/// matched the file it ran on. When the replay text lacks it, the recorded
+/// `originalFile` is not that file, and the replay result is the unchanged
+/// input presented as the post-edit file. Such a row is not restorable.
+fn replays(content: &str, old_str: &str) -> bool {
+    content.contains(old_str)
+}
+
+/// Replay one Edit/MultiEdit step the way the Edit tool applied it:
+/// every occurrence when `replace_all` was set, otherwise the first.
+fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) -> String {
+    if replace_all {
+        content.replace(old_str, new_str)
+    } else {
+        content.replacen(old_str, new_str, 1)
+    }
+}
+
+/// Process a single session file and extract edit information. `root` is
+/// the canonical project folder: the file is read inside it only
+/// (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
-    let file = fs::File::open(file_path).ok()?;
+fn process_session_file_for_edits(file_path: &Path, root: &Path) -> Option<SessionEditsResult> {
+    let (file, _) = session_files::open_session_file(file_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -121,6 +168,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                         cwd: cwd.clone(),
                         message_uuid: log_entry.uuid.clone(),
                         exists_on_disk: None,
+                        content_kind: EditContentKind::Full,
                     });
                 }
             }
@@ -134,6 +182,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                             tool_use_result.get("originalFile").and_then(|v| v.as_str())
                         {
                             let mut content = original.to_string();
+                            let mut content_kind = EditContentKind::Full;
                             let mut lines_added = 0usize;
                             let mut lines_removed = 0usize;
 
@@ -143,7 +192,15 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                         edit.get("old_string").and_then(|v| v.as_str()),
                                         edit.get("new_string").and_then(|v| v.as_str()),
                                     ) {
-                                        content = content.replacen(old_str, new_str, 1);
+                                        let replace_all = edit
+                                            .get("replace_all")
+                                            .and_then(serde_json::Value::as_bool)
+                                            .unwrap_or(false);
+                                        if !replays(&content, old_str) {
+                                            content_kind = EditContentKind::Unavailable;
+                                        }
+                                        content =
+                                            apply_edit(&content, old_str, new_str, replace_all);
                                         lines_removed += old_str.lines().count();
                                         lines_added += new_str.lines().count();
                                     }
@@ -162,6 +219,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind,
                             });
                         }
                     } else if let (Some(old_str), Some(new_str)) = (
@@ -172,7 +230,16 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                         if let Some(original) =
                             tool_use_result.get("originalFile").and_then(|v| v.as_str())
                         {
-                            let content = original.replacen(old_str, new_str, 1);
+                            let replace_all = tool_use_result
+                                .get("replaceAll")
+                                .and_then(serde_json::Value::as_bool)
+                                .unwrap_or(false);
+                            let content_kind = if replays(original, old_str) {
+                                EditContentKind::Full
+                            } else {
+                                EditContentKind::Unavailable
+                            };
+                            let content = apply_edit(original, old_str, new_str, replace_all);
 
                             edits.push(RecentFileEdit {
                                 file_path: file_path_str.to_string(),
@@ -186,6 +253,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind,
                             });
                         }
                     }
@@ -214,6 +282,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 cwd: cwd.clone(),
                                 message_uuid: log_entry.uuid.clone(),
                                 exists_on_disk: None,
+                                content_kind: EditContentKind::Full,
                             });
                         }
                     }
@@ -251,6 +320,19 @@ fn resolve_provider_project_cwd(provider: EditsProvider, project_path: &str) -> 
             } else {
                 Some(project.actual_path)
             }
+        }
+        EditsProvider::Kilo => {
+            let projects = providers::kilo::scan_projects().ok()?;
+            projects
+                .into_iter()
+                .find(|project| project.path == project_path)
+                .and_then(|project| {
+                    if project.actual_path.is_empty() {
+                        None
+                    } else {
+                        Some(project.actual_path)
+                    }
+                })
         }
         EditsProvider::OpenCode => {
             let projects = providers::opencode::scan_projects().ok()?;
@@ -356,12 +438,36 @@ fn parse_patch_file_paths(patch: &str) -> Vec<String> {
     files
 }
 
-fn get_tool_input_content(input: &serde_json::Value) -> String {
-    if let Some(content) = get_first_string(input, &["content", "new_string", "newString", "patch"])
-    {
-        return content;
+/// The content a provider tool call recorded for its file, and what kind of
+/// content it is, decided together from the key the content came from.
+///
+/// Only a write's `content` is the whole file: an edit tool's `content`
+/// (`replace_file_content`) is not known to be, `new_string` is the changed
+/// part, and the input JSON fallback is not file content at all.
+///
+/// Unlike [`get_first_string`], an empty string counts as present: a write of
+/// `""` is the empty file, not missing content.
+fn get_tool_input_content(
+    input: &serde_json::Value,
+    operation_type: &str,
+) -> (String, EditContentKind) {
+    let present = |key: &str| input.get(key).and_then(serde_json::Value::as_str);
+
+    if let Some(content) = present("content") {
+        let kind = if operation_type == "write" {
+            EditContentKind::Full
+        } else {
+            EditContentKind::Fragment
+        };
+        return (content.to_string(), kind);
     }
-    input.to_string()
+    if let Some(fragment) = present("new_string").or_else(|| present("newString")) {
+        return (fragment.to_string(), EditContentKind::Fragment);
+    }
+    if let Some(patch) = present("patch") {
+        return (patch.to_string(), EditContentKind::Patch);
+    }
+    (input.to_string(), EditContentKind::Unavailable)
 }
 
 fn build_tool_use_edits(
@@ -407,6 +513,8 @@ fn build_tool_use_edits(
                 cwd: project_cwd.map(str::to_string),
                 message_uuid: message_uuid.map(str::to_string),
                 exists_on_disk: None,
+                // The same multi-file patch text on every file it names.
+                content_kind: EditContentKind::Patch,
             })
             .collect();
     }
@@ -415,7 +523,7 @@ fn build_tool_use_edits(
         return Vec::new();
     };
 
-    let content_after_change = get_tool_input_content(input);
+    let (content_after_change, content_kind) = get_tool_input_content(input, operation_type);
     let lines_added = content_after_change.lines().count();
     let lines_removed = get_first_string(input, &["old_string", "oldString"])
         .map(|s| s.lines().count())
@@ -433,6 +541,7 @@ fn build_tool_use_edits(
         cwd: project_cwd.map(str::to_string),
         message_uuid: message_uuid.map(str::to_string),
         exists_on_disk: None,
+        content_kind,
     }]
 }
 
@@ -677,6 +786,7 @@ fn collect_provider_edits(
     let sessions = match provider {
         EditsProvider::Codex => providers::codex::load_sessions(project_path, false)?,
         EditsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false)?,
+        EditsProvider::Kilo => providers::kilo::load_sessions(project_path, false)?,
         EditsProvider::OpenCode => providers::opencode::load_sessions(project_path, false)?,
         EditsProvider::Claude => {
             return Err("Claude provider should use legacy edits path".to_string())
@@ -699,6 +809,7 @@ fn collect_provider_edits(
         let messages = match provider {
             EditsProvider::Codex => providers::codex::load_messages(&session.file_path)?,
             EditsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path)?,
+            EditsProvider::Kilo => providers::kilo::load_messages(&session.file_path)?,
             EditsProvider::OpenCode => providers::opencode::load_messages(&session.file_path)?,
             EditsProvider::Claude => Vec::new(),
         };
@@ -755,11 +866,15 @@ fn validate_session_file_in_project(
     // Reject a symlink outright, matching the policy `decode_project_path_verified`
     // already applies to project directories. `canonicalize` would happily follow
     // one out of the project and then report the resolved name as fine.
-    if fs::symlink_metadata(candidate)
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err("Invalid session file path: symlinks are not allowed".to_string());
+    if let Ok(meta) = fs::symlink_metadata(candidate) {
+        if meta.file_type().is_symlink() {
+            return Err("Invalid session file path: symlinks are not allowed".to_string());
+        }
+        // Regular files only, as the directory walk below: a FIFO named like
+        // a session would block the reader that opens it.
+        if !meta.is_file() {
+            return Err("Invalid session file path: not a regular file".to_string());
+        }
     }
 
     // The check above reports on the final component only: `symlink_metadata`
@@ -815,12 +930,9 @@ fn validate_session_file_in_project(
         return Err("Invalid session file path: outside the project directory".to_string());
     }
 
-    // Residual risk, accepted and recorded rather than silently ignored: the
-    // caller reopens this path by name, so an entry swapped between here and
-    // `File::open` would not be caught. Closing that fully means handing an open
-    // handle down to `process_session_file_for_edits`, which is a larger change
-    // than this belongs to. The remaining window needs a local attacker with
-    // write access to the user's own session directory.
+    // The caller reopens this path by name, through
+    // `session_files::open_session_file`: an entry swapped for a symlink or a
+    // FIFO between here and the open is refused there (#698).
     Ok(resolved)
 }
 
@@ -900,7 +1012,7 @@ fn get_recent_edits_blocking(
 /// Every edit recorded for a project, before pagination, with the project's
 /// most common `cwd`.
 ///
-/// Shared by the paginated command and by [`is_recorded_edit_target`], so the
+/// Shared by the paginated command and by [`recorded_edits_of`], so the
 /// set the panel shows and the set restore will authorise are the same set by
 /// construction rather than by two implementations agreeing.
 fn collect_all_recent_edits(
@@ -912,25 +1024,25 @@ fn collect_all_recent_edits(
         return collect_provider_edits(provider, project_path, session_file_path);
     }
 
-    // Phase 1: Collect the session files to scan
+    // Phase 1: Collect the session files to scan. Each is read inside the
+    // project folder, resolved before the walk (#698).
+    let project_root = fs::canonicalize(project_path);
     let session_files: Vec<PathBuf> = match session_file_path {
         Some(path) => vec![validate_session_file_in_project(path, project_path)?],
-        None => WalkDir::new(project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            // Same symlink policy as the single-file path above. Without it the
-            // two entry points disagree about what is in the project.
-            .filter(|e| !e.path_is_symlink())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
+        // Regular files only, never through a symlink (`session_files`): the
+        // same policy as the single-file path above. Without it the two entry
+        // points disagree about what is in the project.
+        None => session_files::regular_session_files(Path::new(project_path)),
     };
 
     // Phase 2: Process files in parallel
-    let file_results: Vec<SessionEditsResult> = session_files
-        .par_iter()
-        .filter_map(process_session_file_for_edits)
-        .collect();
+    let file_results: Vec<SessionEditsResult> = match &project_root {
+        Ok(root) => session_files
+            .par_iter()
+            .filter_map(|path| process_session_file_for_edits(path, root))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
 
     // Phase 3: Aggregate results with pre-allocated capacity
     let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
@@ -953,11 +1065,12 @@ fn collect_all_recent_edits(
     Ok((all_edits, project_cwd))
 }
 
-/// Whether `file_path` is recorded as an edit target in this project's history.
+/// The edits this project's history records for `file_path`; empty when the
+/// project never edited it.
 ///
-/// This is the authorisation boundary for restore, replacing the question "is
-/// this path inside a directory we allow?" with "did this project actually
-/// edit this file?" (#525).
+/// Being non-empty is the authorisation boundary for restore, replacing the
+/// question "is this path inside a directory we allow?" with "did this project
+/// actually edit this file?" (#525).
 ///
 /// The distinction matters because containment is not a boundary here. The
 /// allowlist matches by prefix, and a project root is not a leaf: run `claude`
@@ -969,16 +1082,134 @@ fn collect_all_recent_edits(
 /// Compared on `file_identity` rather than on the raw string, for the same
 /// separator and Windows-case reasons the grouping code already handles: under
 /// `--serve` the caller spells the path itself.
-pub(crate) fn is_recorded_edit_target(
+fn recorded_edits_of(
     project_path: &str,
     session_file_path: Option<&str>,
     file_path: &str,
-) -> Result<bool, String> {
+) -> Result<Vec<RecentFileEdit>, String> {
     let wanted = file_identity(file_path);
     let (edits, _) = collect_all_recent_edits(project_path, session_file_path)?;
     Ok(edits
-        .iter()
-        .any(|edit| file_identity(&edit.file_path) == wanted))
+        .into_iter()
+        .filter(|edit| file_identity(&edit.file_path) == wanted)
+        .collect())
+}
+
+/// The one gate in front of a restore target, shared by the write
+/// ([`restore_file`]) and the preview read ([`read_restore_target`]) so the two
+/// cannot drift apart: a path the preview may read is exactly a path restore
+/// may write.
+///
+/// Returns the target's recorded edits, so [`restore_file`] can check the
+/// content it was given against them without scanning the history again.
+///
+/// Blocking: the authorisation scans session logs, so callers run it on a
+/// blocking thread.
+fn authorise_restore_target(
+    file_path: &str,
+    project_path: &str,
+    session_file_path: Option<&str>,
+) -> Result<Vec<RecentFileEdit>, String> {
+    // Security validation: reject paths with null bytes
+    if file_path.contains('\0') {
+        return Err("Invalid file path: contains null bytes".to_string());
+    }
+
+    // Security validation: reject relative paths (must be absolute)
+    let path = Path::new(file_path);
+    if !path.is_absolute() {
+        return Err("Invalid file path: must be an absolute path".to_string());
+    }
+
+    // Security validation: reject paths with parent traversal segments
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Invalid file path: path traversal not allowed".to_string());
+        }
+    }
+
+    // Authorisation. Scoped to the session when the caller names one, so the
+    // common case reads one JSONL rather than walking the project. The scan
+    // costs what a panel refresh costs, and restores are rare and
+    // user-initiated.
+    let recorded = recorded_edits_of(project_path, session_file_path, file_path)?;
+    if recorded.is_empty() {
+        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
+    }
+
+    // Checked after authorisation so the result for a path the history never
+    // named stays the same whether or not a link sits there.
+    //
+    // Reject a symlinked target or a symlinked immediate parent. The history
+    // authorises a path by name; a link at that name would send the read (or
+    // the write's temp file) somewhere the history never named. Same policy
+    // `validate_session_file_in_project` applies to session files. Bounded to
+    // the parent because the target lives in an arbitrary workspace with no
+    // project root to stop at, and ancestors such as macOS `/var` are links in
+    // ordinary use. An absent path is fine: restore creates it.
+    let is_symlink = |p: &Path| {
+        fs::symlink_metadata(p)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+    };
+    if is_symlink(path) || path.parent().is_some_and(is_symlink) {
+        return Err("Invalid file path: symlinks are not allowed".to_string());
+    }
+    Ok(recorded)
+}
+
+/// Largest file the restore preview reads; beyond this a text diff is not
+/// useful in a dialog, and the whole file would cross IPC/HTTP in one response.
+const MAX_RESTORE_PREVIEW_BYTES: u64 = 5 * 1024 * 1024;
+
+/// Read the current contents of a restore target for the restore preview.
+///
+/// Authorised exactly like [`restore_file`], not through the generic
+/// `read_text_file` allowlist, which deliberately excludes project directories
+/// (#640). `Ok(None)` means the target is absent, so restoring would create it.
+#[tauri::command]
+pub async fn read_restore_target(
+    file_path: String,
+    project_path: String,
+    session_file_path: Option<String>,
+) -> Result<Option<String>, String> {
+    use std::io::Read;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
+        let not_found = |e: &std::io::Error| e.kind() == std::io::ErrorKind::NotFound;
+
+        // Checked before opening: opening a FIFO would block the thread.
+        let metadata = match fs::symlink_metadata(&file_path) {
+            Ok(m) => m,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        if !metadata.file_type().is_file() {
+            return Err("Not a regular file".to_string());
+        }
+        if metadata.len() > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+
+        // Not a history file: the restore target in the user's project.
+        let file = match fs::File::open(&file_path) {
+            Ok(f) => f,
+            Err(e) if not_found(&e) => return Ok(None),
+            Err(e) => return Err(format!("Failed to read file: {e}")),
+        };
+        // Bounded again here in case the file grew after the check above.
+        let mut content = String::new();
+        file.take(MAX_RESTORE_PREVIEW_BYTES + 1)
+            .read_to_string(&mut content)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if content.len() as u64 > MAX_RESTORE_PREVIEW_BYTES {
+            return Err("File is too large to preview".to_string());
+        }
+        Ok(Some(content))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Restore a file by writing content to the specified path
@@ -991,6 +1222,12 @@ pub(crate) fn is_recorded_edit_target(
 /// session logs name as edit targets (#525). `project_path` is therefore
 /// required, and `session_file_path` narrows the scan the same way the panel's
 /// session scope does.
+///
+/// It writes only `content` that byte-equals a recorded whole-file version of
+/// that path ([`EditContentKind::Full`]). A patch, an edit fragment or a
+/// tool-input blob is not a file, and writing one over the file destroys it.
+/// Enforced here rather than only in the UI, so an older frontend or a caller
+/// of the web server cannot bypass it; the request shape is unchanged.
 #[tauri::command]
 pub async fn restore_file(
     file_path: String,
@@ -1001,41 +1238,30 @@ pub async fn restore_file(
     use std::fs;
     use std::path::Path;
 
-    // Security validation: reject paths with null bytes
-    if file_path.contains('\0') {
-        return Err("Invalid file path: contains null bytes".to_string());
-    }
-
-    // Security validation: reject relative paths (must be absolute)
-    let path = Path::new(&file_path);
-    if !path.is_absolute() {
-        return Err("Invalid file path: must be an absolute path".to_string());
-    }
-
-    // Security validation: reject paths with parent traversal segments
-    for component in path.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err("Invalid file path: path traversal not allowed".to_string());
-        }
-    }
-
-    // Authorisation. Runs before `create_dir_all` below, which is itself a
-    // write: an unauthorised path must not leave directories behind.
-    //
-    // Scoped to the session when the caller names one, so the common case
-    // reads one JSONL rather than walking the project. The scan costs what a
-    // panel refresh costs, and restores are rare and user-initiated.
-    let authorised = tauri::async_runtime::spawn_blocking({
-        let project_path = project_path.clone();
+    // Runs before `create_dir_all` below, which is itself a write: an
+    // unauthorised path must not leave directories behind.
+    let content = tauri::async_runtime::spawn_blocking({
         let file_path = file_path.clone();
-        move || is_recorded_edit_target(&project_path, session_file_path.as_deref(), &file_path)
+        move || {
+            let recorded =
+                authorise_restore_target(&file_path, &project_path, session_file_path.as_deref())?;
+            let is_whole_file_version = recorded.iter().any(|edit| {
+                edit.content_kind.is_restorable() && edit.content_after_change == content
+            });
+            if !is_whole_file_version {
+                return Err(
+                    "Refusing to restore: the content is not a recorded whole-file \
+                     version of this file"
+                        .to_string(),
+                );
+            }
+            Ok(content)
+        }
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
-    if !authorised {
-        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
-    }
+    let path = Path::new(&file_path);
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -1046,8 +1272,8 @@ pub async fn restore_file(
     // This ensures the target file is never in a partial state
     let temp_path = path.with_extension("tmp.restore");
 
-    // Write to temporary file
-    fs::write(&temp_path, &content).map_err(|e| format!("Failed to write temporary file: {e}"))?;
+    // Write to a freshly created temporary file, never through a leftover link
+    crate::commands::fs_utils::write_fresh_temp_file(&temp_path, content.as_bytes())?;
 
     // Cross-platform atomic rename
     crate::commands::fs_utils::atomic_rename(&temp_path, path)?;
@@ -1067,6 +1293,71 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
         file_path
+    }
+
+    /// `content_after_change` is what Restore writes to disk, so it must match
+    /// what the Edit tool produced. With `replaceAll` / `replace_all` that is
+    /// every occurrence, not just the first.
+    #[test]
+    fn edit_results_honor_replace_all() {
+        let dir = TempDir::new().unwrap();
+        let original = "let foo = 1;\nfoo += foo;\n";
+        let single = serde_json::json!({
+            "uuid": "u1",
+            "sessionId": "s",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "type": "user",
+            "toolUseResult": {
+                "filePath": "/p/a.rs",
+                "oldString": "foo",
+                "newString": "bar",
+                "originalFile": original,
+                "replaceAll": true,
+            }
+        });
+        let multi = serde_json::json!({
+            "uuid": "u2",
+            "sessionId": "s",
+            "timestamp": "2026-01-01T00:00:01Z",
+            "type": "user",
+            "toolUseResult": {
+                "filePath": "/p/b.rs",
+                "originalFile": original,
+                "edits": [
+                    { "old_string": "foo", "new_string": "bar", "replace_all": true },
+                    { "old_string": "1", "new_string": "2" },
+                ],
+            }
+        });
+        let not_all = serde_json::json!({
+            "uuid": "u3",
+            "sessionId": "s",
+            "timestamp": "2026-01-01T00:00:02Z",
+            "type": "user",
+            "toolUseResult": {
+                "filePath": "/p/c.rs",
+                "oldString": "foo",
+                "newString": "bar",
+                "originalFile": original,
+                "replaceAll": false,
+            }
+        });
+        let path =
+            create_test_jsonl_file(&dir, "s.jsonl", &format!("{single}\n{multi}\n{not_all}\n"));
+
+        let root = dir.path().canonicalize().unwrap();
+        let result = process_session_file_for_edits(&path, &root).unwrap();
+        let after = |file: &str| {
+            result
+                .edits
+                .iter()
+                .find(|e| e.file_path == file)
+                .map(|e| e.content_after_change.clone())
+                .unwrap()
+        };
+        assert_eq!(after("/p/a.rs"), "let bar = 1;\nbar += bar;\n");
+        assert_eq!(after("/p/b.rs"), "let bar = 2;\nbar += bar;\n");
+        assert_eq!(after("/p/c.rs"), "let bar = 1;\nfoo += foo;\n");
     }
 
     // ------------------------------------------------------------------
@@ -1144,6 +1435,14 @@ mod tests {
     // #525: restore is authorised by recorded edit history, not containment
     // ------------------------------------------------------------------
 
+    fn is_recorded_edit_target(
+        project_path: &str,
+        session_file_path: Option<&str>,
+        file_path: &str,
+    ) -> Result<bool, String> {
+        Ok(!recorded_edits_of(project_path, session_file_path, file_path)?.is_empty())
+    }
+
     #[test]
     fn recorded_edit_target_admits_only_files_the_project_edited() {
         let (dir, _a, _b) = project_with_two_sessions();
@@ -1208,16 +1507,232 @@ mod tests {
         let root = dir.path();
         let target = root.join("alpha.txt");
 
+        // Restore writes a recorded whole-file version, here the latest write.
+        let recorded = "contents written at 2026-08-21T12:00:00Z";
         restore_file(
             target.to_string_lossy().to_string(),
-            "restored".to_string(),
+            recorded.to_string(),
             root.to_string_lossy().to_string(),
             None,
         )
         .await
         .expect("a recorded edit target must be restorable");
 
-        assert_eq!(std::fs::read_to_string(&target).unwrap(), "restored");
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), recorded);
+    }
+
+    // ------------------------------------------------------------------
+    // #640: the restore preview reads through restore's own authorisation
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn read_restore_target_reads_a_recorded_edit_target() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        fs::write(&target, "on disk now").unwrap();
+
+        let current = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("a recorded edit target must be readable for the preview");
+
+        assert_eq!(current.as_deref(), Some("on disk now"));
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_reports_a_missing_recorded_file_as_none() {
+        // The fixture records `beta.txt` but never writes it: restoring would
+        // create it, which the preview shows as "creating", not "unreadable".
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+
+        let current = read_restore_target(
+            root.join("beta.txt").to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("an absent recorded target is not an error");
+
+        assert_eq!(current, None);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_what_restore_refuses() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+        let neighbour = root.join("never-edited.txt");
+        fs::write(&neighbour, "not yours").unwrap();
+        let neighbour = neighbour.to_string_lossy().to_string();
+
+        let read_err = read_restore_target(neighbour.clone(), project.clone(), None)
+            .await
+            .expect_err("a path the project never edited must not be readable");
+        let restore_err = restore_file(neighbour, "x".to_string(), project, None)
+            .await
+            .expect_err("restore refuses it too");
+
+        // One gate for both directions, so the refusals cannot drift apart.
+        assert_eq!(read_err, restore_err);
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_rejects_relative_and_traversal_paths() {
+        let relative = read_restore_target(
+            "relative/path/file.txt".to_string(),
+            "/tmp".to_string(),
+            None,
+        )
+        .await
+        .expect_err("relative path must be refused");
+        assert!(relative.contains("absolute path"), "{relative}");
+
+        let traversal = read_restore_target(
+            crate::test_utils::abs("tmp/../etc/passwd"),
+            crate::test_utils::abs("tmp"),
+            None,
+        )
+        .await
+        .expect_err("traversal must be refused");
+        assert!(traversal.contains("path traversal"), "{traversal}");
+
+        let null = read_restore_target("/tmp/a\0b".to_string(), "/tmp".to_string(), None)
+            .await
+            .expect_err("null bytes must be refused");
+        assert!(null.contains("null bytes"), "{null}");
+    }
+
+    /// Read and restore must give the same verdict on a path; returns the
+    /// shared error. Unix-gated with its only callers, the symlink tests.
+    #[cfg(unix)]
+    async fn refused_alike(file: &Path, project: &Path) -> String {
+        let file = file.to_string_lossy().to_string();
+        let project = project.to_string_lossy().to_string();
+        let read_err = read_restore_target(file.clone(), project.clone(), None)
+            .await
+            .expect_err("read must refuse");
+        let restore_err = restore_file(file, "overwritten".to_string(), project, None)
+            .await
+            .expect_err("restore must refuse");
+        assert_eq!(read_err, restore_err);
+        read_err
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_that_is_a_symlink_is_refused_by_read_and_restore() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        // `alpha.txt` is a recorded target; it is now a link.
+        let target = root.join("alpha.txt");
+        std::os::unix::fs::symlink(&outside, &target).unwrap();
+
+        let message = refused_alike(&target, root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside contents");
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unrecorded_path_gets_the_same_refusal_whether_or_not_it_is_a_symlink() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "outside contents").unwrap();
+        let plain = root.join("never-recorded.txt");
+        fs::write(&plain, "plain").unwrap();
+        let link = root.join("never-recorded-link.txt");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        let project = root.to_string_lossy().to_string();
+
+        let plain_err =
+            read_restore_target(plain.to_string_lossy().to_string(), project.clone(), None)
+                .await
+                .expect_err("unrecorded path must be refused");
+        let link_err = read_restore_target(link.to_string_lossy().to_string(), project, None)
+            .await
+            .expect_err("unrecorded link must be refused");
+
+        assert_eq!(plain_err, link_err);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn restore_target_under_a_symlinked_parent_is_refused() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let elsewhere = TempDir::new().unwrap();
+        fs::write(elsewhere.path().join("x.txt"), "outside contents").unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), root.join("linked")).unwrap();
+        let target = root.join("linked").join("x.txt");
+        create_test_jsonl_file(
+            &dir,
+            "session.jsonl",
+            &write_record("u1", "s1", "2026-08-21T10:00:00Z", &root, &target),
+        );
+
+        let message = refused_alike(&target, &root).await;
+
+        assert!(message.contains("symlink"), "{message}");
+        assert_eq!(
+            fs::read_to_string(elsewhere.path().join("x.txt")).unwrap(),
+            "outside contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_an_oversized_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+        let too_big = usize::try_from(MAX_RESTORE_PREVIEW_BYTES).unwrap() + 1;
+        fs::write(&target, "a".repeat(too_big)).unwrap();
+
+        let result = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await;
+        // Not `expect_err`: on failure it would print megabytes of content.
+        let Err(err) = result else {
+            panic!("an oversized file must not be read into the preview");
+        };
+
+        assert!(err.contains("too large"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn read_restore_target_refuses_a_non_regular_file() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        // A directory where the recorded file used to be.
+        let target = root.join("alpha.txt");
+        fs::create_dir(&target).unwrap();
+
+        let err = read_restore_target(
+            target.to_string_lossy().to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect_err("a non-regular file must not be read");
+
+        assert!(err.contains("regular file"), "{err}");
     }
 
     #[tokio::test]
@@ -1849,6 +2364,9 @@ mod tests {
     /// A project whose session log records one edit to `name`, so restore is
     /// authorised for it. Tests below that only care about the write mechanics
     /// still have to satisfy the #525 authorisation gate to reach it.
+    ///
+    /// Restore writes only a recorded whole-file version, which for this
+    /// project is [`RECORDED_CONTENT`].
     fn project_recording_edit_to(name: &str) -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let root = dir.path().to_path_buf();
@@ -1860,6 +2378,9 @@ mod tests {
         );
         (dir, target)
     }
+
+    /// What [`project_recording_edit_to`]'s single write recorded.
+    const RECORDED_CONTENT: &str = "contents written at 2026-08-21T10:00:00Z";
 
     // Test restore_file security validations
     #[tokio::test]
@@ -1901,13 +2422,35 @@ mod tests {
         assert!(result.unwrap_err().contains("path traversal"));
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_restore_file_does_not_write_through_a_linked_temp_file() {
+        let (temp_dir, file_path) = project_recording_edit_to("linked_temp.txt");
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("outside.txt");
+        fs::write(&outside, "original").unwrap();
+        std::os::unix::fs::symlink(&outside, file_path.with_extension("tmp.restore")).unwrap();
+
+        restore_file(
+            file_path.to_string_lossy().to_string(),
+            RECORDED_CONTENT.to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("restore must succeed");
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), RECORDED_CONTENT);
+    }
+
     #[tokio::test]
     async fn test_restore_file_success() {
         let (temp_dir, file_path) = project_recording_edit_to("test_restore.txt");
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "restored content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -1917,7 +2460,7 @@ mod tests {
 
         // Verify file content
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "restored content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -1927,7 +2470,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "atomic content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -1938,7 +2481,7 @@ mod tests {
         assert!(!temp_path.exists());
         // Verify target file exists with correct content
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "atomic content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -1950,7 +2493,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "new content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -1958,7 +2501,7 @@ mod tests {
 
         assert!(result.is_ok());
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "new content");
+        assert_eq!(content, RECORDED_CONTENT);
     }
 
     #[tokio::test]
@@ -1967,7 +2510,7 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "content".to_string(),
+            RECORDED_CONTENT.to_string(),
             temp_dir.path().to_string_lossy().to_string(),
             None,
         )
@@ -2152,3 +2695,6 @@ mod tests {
         assert_eq!(edits_result.project_cwd, Some("/test/project".to_string()));
     }
 }
+
+#[cfg(test)]
+mod restore_safety_tests;

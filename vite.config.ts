@@ -1,9 +1,35 @@
 /// <reference types="vitest" />
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 // import { visualizer } from "rollup-plugin-visualizer";
 import tailwindcss from "@tailwindcss/vite";
+import fs from "fs";
 import path from "path";
+
+/**
+ * Ship the SIL OFL 1.1 notices of the bundled fonts with the build. Vite only
+ * emits the woff2 files fonts.css references, so each
+ * src/assets/fonts/<family>/OFL.txt is emitted to fonts/<family>/OFL.txt in
+ * the dist that Tauri packages and the WebUI serves.
+ */
+function fontLicenses(): Plugin {
+  const fontsDir = path.resolve(__dirname, "src/assets/fonts");
+  return {
+    name: "cchv:font-licenses",
+    apply: "build",
+    generateBundle() {
+      for (const family of fs.readdirSync(fontsDir)) {
+        const license = path.join(fontsDir, family, "OFL.txt");
+        if (!fs.existsSync(license)) continue;
+        this.emitFile({
+          type: "asset",
+          fileName: `fonts/${family}/OFL.txt`,
+          source: fs.readFileSync(license),
+        });
+      }
+    },
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig(async () => {
@@ -14,9 +40,17 @@ export default defineConfig(async () => {
 
   return {
     base: "./",
+    // The search worker is created with `{ type: "module" }`, and its
+    // dependency graph (flexsearch) contains dynamic imports that rollup on
+    // macOS treats as code-splitting — which the default `iife` worker format
+    // rejects. ES output matches the instantiation and works everywhere.
+    worker: {
+      format: "es" as const,
+    },
     plugins: [
       react(),
       tailwindcss(),
+      fontLicenses(),
       // Mock API plugin for browser testing (VITE_MOCK=1 pnpm dev)
       mockPlugin,
       // Bundle analyzer disabled - uncomment to enable
@@ -87,7 +121,7 @@ export default defineConfig(async () => {
             }
 
             // Diff viewer bundle
-            if (id.includes("react-diff-viewer") || id.includes("node_modules/diff/")) {
+            if (id.includes("node_modules/diff/")) {
               return "diff-viewer";
             }
 
@@ -174,10 +208,12 @@ export default defineConfig(async () => {
         "src/**/*.test.ts",
         "src/**/*.test.tsx",
         "src-tauri/tests/**/*.test.ts",
+        "scripts/**/*.test.mjs",
       ],
       environmentMatchGlobs: [
         // Node environment for file system tests
         ["src-tauri/tests/**", "node"],
+        ["scripts/**", "node"],
       ],
     },
 

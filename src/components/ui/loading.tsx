@@ -7,8 +7,10 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Loader2, Sparkles } from "lucide-react";
+import { Inbox, LoaderCircle, Sparkles, TriangleAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
+import type { IconSize } from "@/components/icon/iconRules";
 import { Skeleton, SkeletonText } from "./skeleton";
 import i18n from "@/i18n";
 
@@ -26,24 +28,29 @@ interface LoadingSpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: SpinnerVariant;
   /** Show decorative sparkle overlay */
   withSparkle?: boolean;
-  /** Custom icon to use instead of Loader2 */
+  /** Custom icon to use instead of LoaderCircle */
   icon?: LucideIcon;
 }
 
-const spinnerSizes: Record<SpinnerSize, { spinner: string; sparkle: string }> = {
-  xs: { spinner: "w-3 h-3", sparkle: "w-1.5 h-1.5" },
-  sm: { spinner: "w-4 h-4", sparkle: "w-2 h-2" },
-  md: { spinner: "w-6 h-6", sparkle: "w-3 h-3" },
-  lg: { spinner: "w-10 h-10", sparkle: "w-4 h-4" },
-  xl: { spinner: "w-14 h-14", sparkle: "w-6 h-6" },
+/**
+ * Spinner and sparkle sizes. Icons come in 14 / 16 / 24 only, so md, lg and
+ * xl share the 24 px spinner (the variants stay for their callers).
+ */
+const spinnerSizes: Record<SpinnerSize, { spinner: IconSize; sparkle: IconSize; box: string }> = {
+  xs: { spinner: 14, sparkle: 14, box: "w-3.5 h-3.5" },
+  sm: { spinner: 16, sparkle: 14, box: "w-4 h-4" },
+  md: { spinner: 24, sparkle: 14, box: "w-6 h-6" },
+  lg: { spinner: 24, sparkle: 14, box: "w-6 h-6" },
+  xl: { spinner: 24, sparkle: 16, box: "w-6 h-6" },
 };
 
-const spinnerVariants: Record<SpinnerVariant, string> = {
+// `as const`: the icon guard resolves these literal classes (no sizes in them).
+const spinnerVariants = {
   default: "text-foreground",
   accent: "text-accent",
   muted: "text-muted-foreground",
   primary: "text-primary",
-};
+} as const satisfies Record<SpinnerVariant, string>;
 
 const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
   (
@@ -52,7 +59,7 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
       size = "md",
       variant = "accent",
       withSparkle = false,
-      icon: Icon = Loader2,
+      icon: glyph = LoaderCircle,
       ...props
     },
     ref
@@ -64,14 +71,18 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
       return (
         <div
           ref={ref}
-          className={cn("relative inline-flex items-center justify-center", sizeConfig.spinner, className)}
+          className={cn("relative inline-flex items-center justify-center", sizeConfig.box, className)}
           {...props}
         >
           <Icon
-            className={cn("absolute", sizeConfig.spinner, colorClass, "animate-spin opacity-40")}
+            icon={glyph}
+            size={sizeConfig.spinner}
+            className={cn("absolute", colorClass, "animate-spin opacity-40")}
           />
-          <Sparkles
-            className={cn("absolute", sizeConfig.sparkle, colorClass, "animate-pulse")}
+          <Icon
+            icon={Sparkles}
+            size={sizeConfig.sparkle}
+            className={cn("absolute", colorClass, "animate-pulse")}
           />
         </div>
       );
@@ -79,7 +90,7 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
 
     return (
       <div ref={ref} className={cn("inline-flex items-center justify-center", className)} {...props}>
-        <Icon className={cn(sizeConfig.spinner, colorClass, "animate-spin")} />
+        <Icon icon={glyph} size={sizeConfig.spinner} className={cn(colorClass, "animate-spin")} />
       </div>
     );
   }
@@ -130,13 +141,15 @@ const LoadingProgress = React.forwardRef<HTMLDivElement, LoadingProgressProps>(
     ref
   ) => {
     const clampedProgress = Math.min(100, Math.max(0, progress));
+    // format-guard: not-a-share — progress bar label, how far a task has got (0-100)
+    const label = `${Math.round(clampedProgress)}%`;
 
     return (
       <div ref={ref} className={cn("w-full", className)} {...props}>
         {showLabel && !indeterminate && (
           <div className="flex justify-end mb-1">
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {Math.round(clampedProgress)}%
+            <span className="text-list text-muted-foreground tabular-nums">
+              {label}
             </span>
           </div>
         )}
@@ -225,9 +238,9 @@ const LoadingOverlay = React.forwardRef<HTMLDivElement, LoadingOverlayProps>(
               />
               {message && (
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{message}</p>
+                  <p className="text-body font-semibold text-foreground">{message}</p>
                   {subMessage && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-list text-muted-foreground mt-0.5">
                       {subMessage}
                     </p>
                   )}
@@ -251,6 +264,12 @@ interface LoadingStateProps extends React.HTMLAttributes<HTMLDivElement> {
   isLoading: boolean;
   /** Error state */
   error?: string | null;
+  /** What failed, shown above the error's detail */
+  errorTitle?: string;
+  /** Offered under the error as a retry button */
+  onRetry?: () => void;
+  /** The retry button's label (required with `onRetry`) */
+  retryLabel?: string;
   /** Empty state check */
   isEmpty?: boolean;
   /** Custom loading component */
@@ -282,6 +301,9 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
       children,
       isLoading,
       error,
+      errorTitle,
+      onRetry,
+      retryLabel,
       isEmpty = false,
       loadingComponent,
       errorComponent,
@@ -344,11 +366,11 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
             />
             {loadingMessage && (
               <div>
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-body font-semibold text-foreground">
                   {loadingMessage}
                 </p>
                 {loadingSubMessage && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-list text-muted-foreground mt-1">
                     {loadingSubMessage}
                   </p>
                 )}
@@ -379,23 +401,25 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
           )}
           {...props}
         >
-          <div className="text-center max-w-sm">
+          <div className="text-center max-w-sm" role="alert">
             <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-6 h-6 text-destructive"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
+<Icon icon={TriangleAlert} size={24} className="text-destructive" />
             </div>
-            <p className="text-sm text-destructive">{error}</p>
+            {errorTitle && (
+              <p className="text-body font-semibold text-foreground mb-1">
+                {errorTitle}
+              </p>
+            )}
+            <p className="text-body text-destructive break-words">{error}</p>
+            {onRetry && retryLabel && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="action-btn primary mt-4"
+              >
+                {retryLabel}
+              </button>
+            )}
           </div>
         </div>
       );
@@ -423,21 +447,9 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
         >
           <div className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-muted-foreground/50"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                />
-              </svg>
+<Icon icon={Inbox} size={24} className="text-muted-foreground/50" />
             </div>
-            <p className="text-sm text-muted-foreground">{i18n.t("common.noDataAvailable")}</p>
+            <p className="text-body text-muted-foreground">{i18n.t("common.noDataAvailable")}</p>
           </div>
         </div>
       );

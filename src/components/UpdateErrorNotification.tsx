@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { AlertCircle, X, RefreshCw } from "lucide-react";
+import { CircleAlert, X, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
 import { ERROR_NOTIFICATION_DURATION_MS } from "@/config/update.config";
@@ -42,7 +42,7 @@ export function UpdateErrorNotification({
       <div className="bg-card rounded-lg shadow-lg border border-destructive/50 p-4 min-w-80 max-w-sm">
         <div className="flex items-start space-x-3">
           <div className="p-2 rounded-full bg-destructive/10">
-            <AlertCircle className="w-5 h-5 text-destructive" />
+            <CircleAlert className="w-4 h-4 text-destructive" />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -58,7 +58,7 @@ export function UpdateErrorNotification({
                   onClose();
                   onRetry();
                 }}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                className="mt-2 inline-flex items-center gap-1.5 text-body font-medium text-primary hover:text-primary/80 transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 {t("common.retry")}

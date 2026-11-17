@@ -1,6 +1,7 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{is_safe_storage_id, search_json_value_case_insensitive};
+use crate::utils::is_safe_storage_id;
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
@@ -180,6 +181,26 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan `OpenCode` projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_store(base_path, OPENCODE_DB_FILE)
+}
+
+/// Scan projects from an explicit store root and database file. Shared with
+/// the Kilo Code provider, whose store is an OpenCode-core database under a
+/// different root (`kilo.db` in `~/.local/share/kilo`).
+pub fn scan_projects_from_store(
+    base_path: &str,
+    db_file: &str,
+) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_store_reporting(base_path, db_file, &ScanReport::default())
+}
+
+/// [`scan_projects_from_store`], recording in `report` a database that is
+/// there but cannot be read and the JSON project files it could not read.
+pub(crate) fn scan_projects_from_store_reporting(
+    base_path: &str,
+    db_file: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "OpenCode base path")?;
 
     let storage_path = Path::new(base_path).join("storage");
@@ -197,10 +218,10 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
     // Pre-build DB session ID set per project (single connection, reused for all projects)
     let db_sessions_by_project: std::collections::HashMap<String, HashSet<String>> =
-        build_db_session_map(base_path).unwrap_or_default();
+        build_db_session_map(base_path, db_file).unwrap_or_default();
 
     // 1. Read from SQLite (preferred, newer source)
-    if let Some(db_projects) = scan_projects_from_db(base_path) {
+    if let Some(db_projects) = scan_projects_from_db(base_path, db_file, report) {
         for mut p in db_projects {
             let project_ref = match OpenCodeProjectRef::parse(&p.path) {
                 Ok(project_ref) => project_ref,
@@ -212,7 +233,9 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             let storage_id = project_ref.storage_id().to_string();
             // Supplement session count with JSON-only sessions
             let sessions_dir = storage_path.join("session").join(&storage_id);
-            if !project_ref.is_virtual_global_directory() && is_non_symlink_dir(&sessions_dir) {
+            if !project_ref.is_virtual_global_directory()
+                && is_non_symlink_dir_reporting(&sessions_dir, report)
+            {
                 let db_ids = db_sessions_by_project.get(&storage_id);
                 let json_only = count_json_sessions_excluding(
                     &sessions_dir,
@@ -227,10 +250,10 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
     // 2. Read from JSON files (fallback / merge)
     let projects_dir = storage_path.join("project");
-    if is_non_symlink_dir(&projects_dir) {
+    if is_non_symlink_dir_reporting(&projects_dir, report) {
         let entries = fs::read_dir(&projects_dir).map_err(|e| e.to_string())?;
 
-        for entry in entries.flatten() {
+        for entry in entries.filter_map(|entry| report.read(&projects_dir, entry)) {
             if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
                 continue;
             }
@@ -239,9 +262,8 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
                 continue;
             }
 
-            let content = match fs::read_to_string(&path) {
-                Ok(c) => c,
-                Err(_) => continue,
+            let Some(content) = report.read_to_string(&path) else {
+                continue;
             };
 
             let val: Value = match serde_json::from_str(&content) {
@@ -319,16 +341,56 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
 /// Scan `OpenCode` projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("OpenCode base path not found")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_store_reporting(&base, OPENCODE_DB_FILE, report)
 }
 
 /// Load sessions for an `OpenCode` project
 pub fn load_sessions(
     project_path: &str,
-    _exclude_sidechain: bool,
+    exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    load_sessions_at(
+        &base_path,
+        OPENCODE_DB_FILE,
+        project_path,
+        exclude_sidechain,
+    )
+}
+
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    load_sessions_at_reporting(&base_path, OPENCODE_DB_FILE, project_path, report)
+}
+
+/// [`load_sessions`] against an explicit store root and database file.
+pub fn load_sessions_at(
+    base_path: &str,
+    db_file: &str,
+    project_path: &str,
+    _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_at_reporting(base_path, db_file, project_path, &ScanReport::default())
+}
+
+/// [`load_sessions_at`], recording in `report` a database that is there but
+/// cannot be read and the JSON session files it could not read.
+pub(crate) fn load_sessions_at_reporting(
+    base_path: &str,
+    db_file: &str,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let storage_path = Path::new(&base_path).join("storage");
 
     let project_ref = OpenCodeProjectRef::parse(project_path)?;
@@ -338,7 +400,7 @@ pub fn load_sessions(
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     // 1. Read from SQLite
-    if let Some(db_sessions) = load_sessions_from_db(&base_path, &project_ref) {
+    if let Some(db_sessions) = load_sessions_from_db(base_path, db_file, &project_ref, report) {
         for s in db_sessions {
             seen_ids.insert(s.actual_session_id.clone());
             sessions.push(s);
@@ -347,10 +409,12 @@ pub fn load_sessions(
 
     // 2. Read from JSON files
     let sessions_dir = storage_path.join("session").join(&project_id);
-    if !project_ref.is_virtual_global_directory() && is_non_symlink_dir(&sessions_dir) {
+    if !project_ref.is_virtual_global_directory()
+        && is_non_symlink_dir_reporting(&sessions_dir, report)
+    {
         for entry in fs::read_dir(&sessions_dir)
             .map_err(|e| e.to_string())?
-            .flatten()
+            .filter_map(|entry| report.read(&sessions_dir, entry))
         {
             if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
                 continue;
@@ -360,9 +424,8 @@ pub fn load_sessions(
                 continue;
             }
 
-            let content = match fs::read_to_string(&path) {
-                Ok(c) => c,
-                Err(_) => continue,
+            let Some(content) = report.read_to_string(&path) else {
+                continue;
             };
 
             let val: Value = match serde_json::from_str(&content) {
@@ -464,17 +527,18 @@ pub fn load_child_sessions(project_id: &str, session_id: &str) -> Vec<ChildSessi
     let Some(base_path) = get_base_path() else {
         return Vec::new();
     };
-    load_child_sessions_from_db(&base_path, project_id, session_id)
+    load_child_sessions_from_db(&base_path, OPENCODE_DB_FILE, project_id, session_id)
 }
 
 /// [`load_child_sessions`] against an explicit store root, matching
 /// `scan_projects_from_db` and friends so it can be exercised on a fixture.
 pub fn load_child_sessions_from_db(
     base_path: &str,
+    db_file: &str,
     project_id: &str,
     session_id: &str,
 ) -> Vec<ChildSession> {
-    let Some(conn) = open_db(base_path) else {
+    let Some(conn) = open_db(base_path, db_file) else {
         return Vec::new();
     };
     let Ok(mut stmt) = conn.prepare(
@@ -514,19 +578,22 @@ pub fn parse_session_path(session_path: &str) -> Option<(String, String)> {
 
 /// Every descendant session of `session_id` (children, grandchildren, ...),
 /// oldest first. A subagent can itself spawn subagents, so the walk is
-/// recursive rather than a single `parent_id` query.
+/// recursive rather than a single `parent_id` query. `UNION` (not
+/// `UNION ALL`) keeps a corrupted `parent_id` cycle finite, and the session
+/// itself is excluded even when it sits on such a cycle.
 pub fn load_descendant_sessions_from_db(
     base_path: &str,
+    db_file: &str,
     project_id: &str,
     session_id: &str,
 ) -> Vec<ChildSession> {
-    let Some(conn) = open_db(base_path) else {
+    let Some(conn) = open_db(base_path, db_file) else {
         return Vec::new();
     };
     let Ok(mut stmt) = conn.prepare(
         "WITH RECURSIVE descendants(id) AS (
                 SELECT id FROM session WHERE parent_id = ?1 AND project_id = ?2
-                UNION ALL
+                UNION
                 SELECT s.id FROM session s
                 JOIN descendants d ON s.parent_id = d.id
                 WHERE s.project_id = ?2
@@ -535,6 +602,7 @@ pub fn load_descendant_sessions_from_db(
                    (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
             FROM session s
             JOIN descendants d ON s.id = d.id
+            WHERE s.id != ?1
             ORDER BY s.time_created ASC",
     ) else {
         return Vec::new();
@@ -555,17 +623,52 @@ pub fn load_descendant_sessions_from_db(
     rows.filter_map(std::result::Result::ok).collect()
 }
 
-/// [`load_descendant_sessions_from_db`] against the default store root.
-pub fn load_descendant_sessions(project_id: &str, session_id: &str) -> Vec<ChildSession> {
+/// Messages of every descendant session (subagent run) of an
+/// `opencode://<project_id>/<session_id>` session, marked as sidechain so
+/// stats count them in `billing_total` only, as Claude subagent transcripts
+/// are (#577). A descendant whose messages cannot be read is skipped.
+pub fn load_subagent_messages_at(
+    base_path: &str,
+    db_file: &str,
+    session_path: &str,
+) -> Vec<ClaudeMessage> {
+    let Some((project_id, session_id)) = parse_session_path(session_path) else {
+        return Vec::new();
+    };
+    let mut messages = Vec::new();
+    for child in load_descendant_sessions_from_db(base_path, db_file, &project_id, &session_id) {
+        let child_path = format!("opencode://{project_id}/{}", child.id);
+        let Ok(mut child_messages) = load_messages_at(base_path, db_file, &child_path) else {
+            continue;
+        };
+        for message in &mut child_messages {
+            message.is_sidechain = Some(true);
+        }
+        messages.extend(child_messages);
+    }
+    messages
+}
+
+/// [`load_subagent_messages_at`] against the default store root.
+pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
     let Some(base_path) = get_base_path() else {
         return Vec::new();
     };
-    load_descendant_sessions_from_db(&base_path, project_id, session_id)
+    load_subagent_messages_at(&base_path, OPENCODE_DB_FILE, session_path)
 }
 
 /// Load messages for an `OpenCode` session
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    load_messages_at(&base_path, OPENCODE_DB_FILE, session_path)
+}
+
+/// [`load_messages`] against an explicit store root and database file.
+pub fn load_messages_at(
+    base_path: &str,
+    db_file: &str,
+    session_path: &str,
+) -> Result<Vec<ClaudeMessage>, String> {
     let storage_path = Path::new(&base_path).join("storage");
 
     // Extract session info from virtual path "opencode://{project_id}/{session_id}"
@@ -586,7 +689,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     // Try SQLite first
-    if let Some(db_messages) = load_messages_from_db(&base_path, session_id) {
+    if let Some(db_messages) = load_messages_from_db(base_path, db_file, session_id) {
         if !db_messages.is_empty() {
             return Ok(db_messages);
         }
@@ -675,7 +778,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             Vec::new()
         };
 
-        let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
+        let (content_value, parts_usage, parts_cost) =
+            process_parts(&part_values, &msg_id, session_id);
 
         // Message-level input/output are aggregate values. Fill only missing
         // fields from parts so cache/reasoning usage is retained without
@@ -696,32 +800,12 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             timestamp: created_at,
             message_type: message_type.to_string(),
             content: content_value,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
             usage: final_usage,
             role: Some(role.to_string()),
             model,
-            stop_reason: None,
             cost_usd: final_cost,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("opencode".to_string()),
+            ..Default::default()
         });
     }
 
@@ -731,6 +815,16 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// Search `OpenCode` sessions for a query string
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    search_at(&base_path, OPENCODE_DB_FILE, query, limit)
+}
+
+/// [`search`] against an explicit store root and database file.
+pub fn search_at(
+    base_path: &str,
+    db_file: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
     let storage_path = Path::new(&base_path).join("storage");
     let session_root = storage_path.join("session");
 
@@ -739,7 +833,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let mut searched_sessions: HashSet<String> = HashSet::new();
 
     // 1. Search SQLite
-    if let Some((db_results, db_session_ids)) = search_from_db(&base_path, &query_lower, limit) {
+    if let Some((db_results, db_session_ids)) =
+        search_from_db(base_path, db_file, &query_lower, limit)
+    {
         searched_sessions.extend(db_session_ids);
         results.extend(db_results);
         if results.len() >= limit {
@@ -790,14 +886,14 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
             let virtual_path = format!("opencode://{project_id}/{session_id}");
 
-            if let Ok(messages) = load_messages(&virtual_path) {
+            if let Ok(messages) = load_messages_at(base_path, db_file, &virtual_path) {
                 for msg in messages {
                     if results.len() >= limit {
                         return Ok(results);
                     }
 
                     if let Some(content) = &msg.content {
-                        if search_json_value_case_insensitive(content, &query_lower) {
+                        if super::result_evidence::content_matches(content, &query_lower) {
                             results.push(msg);
                         }
                     }
@@ -811,9 +907,15 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
 /// Check that a path is a real directory (not a symlink).
 fn is_non_symlink_dir(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .map(|m| m.file_type().is_dir() && !m.file_type().is_symlink())
-        .unwrap_or(false)
+    is_non_symlink_dir_reporting(path, &ScanReport::default())
+}
+
+/// [`is_non_symlink_dir`], recording in `report` a path that may not be
+/// looked at.
+fn is_non_symlink_dir_reporting(path: &Path, report: &ScanReport) -> bool {
+    report
+        .symlink_metadata(path)
+        .is_some_and(|m| m.file_type().is_dir() && !m.file_type().is_symlink())
 }
 
 // ============================================================================
@@ -832,8 +934,9 @@ fn escape_like_pattern(input: &str) -> String {
 /// Opens a single connection and queries all sessions at once.
 fn build_db_session_map(
     base_path: &str,
+    db_file: &str,
 ) -> Option<std::collections::HashMap<String, HashSet<String>>> {
-    let conn = open_db(base_path)?;
+    let conn = open_db(base_path, db_file)?;
     let mut stmt = conn.prepare("SELECT project_id, id FROM session").ok()?;
     let rows = stmt
         .query_map([], |row| {
@@ -887,42 +990,63 @@ fn count_json_sessions_excluding(
         .unwrap_or(0)
 }
 
+/// `SQLite` database file name for the `OpenCode` store. Kilo Code reuses the
+/// OpenCode-core reader against its own store root and `kilo.db`.
+pub const OPENCODE_DB_FILE: &str = "opencode.db";
+
 /// Open the `OpenCode` `SQLite` database in read-only mode.
-fn open_db(base_path: &str) -> Option<Connection> {
-    let db_path = Path::new(base_path).join("opencode.db");
-    let meta = fs::symlink_metadata(&db_path).ok()?;
+fn open_db(base_path: &str, db_file: &str) -> Option<Connection> {
+    open_db_reporting(base_path, db_file, &ScanReport::default())
+}
+
+/// [`open_db`], recording in `report` a database that is there but cannot
+/// be opened. No database file (a JSON-only store) is nothing to read.
+fn open_db_reporting(base_path: &str, db_file: &str, report: &ScanReport) -> Option<Connection> {
+    let db_path = Path::new(base_path).join(db_file);
+    let meta = report.symlink_metadata(&db_path)?;
     if !meta.file_type().is_file() {
         return None;
     }
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(&db_path, flags).ok()?;
-    conn.busy_timeout(std::time::Duration::from_secs(1)).ok()?;
+    let conn = report.db(&db_path, Connection::open_with_flags(&db_path, flags))?;
+    report.db(
+        &db_path,
+        conn.busy_timeout(std::time::Duration::from_secs(1)),
+    )?;
     Some(conn)
 }
 
-fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
-    let conn = open_db(base_path)?;
-    let mut stmt = conn
-        .prepare(
+fn scan_projects_from_db(
+    base_path: &str,
+    db_file: &str,
+    report: &ScanReport,
+) -> Option<Vec<ClaudeProject>> {
+    let conn = open_db_reporting(base_path, db_file, report)?;
+    let db_path = Path::new(base_path).join(db_file);
+    let mut stmt = report.db(
+        &db_path,
+        conn.prepare(
             "SELECT p.id, p.worktree, p.name, p.time_created, p.time_updated,
                     (SELECT COUNT(*) FROM session s WHERE s.project_id = p.id) AS session_count
              FROM project p",
-        )
-        .ok()?;
+        ),
+    )?;
 
-    let rows: Vec<DbProjectRecord> = stmt
-        .query_map([], |row| {
-            Ok(DbProjectRecord {
-                id: row.get(0)?,
-                worktree: row.get(1)?,
-                name: row.get(2)?,
-                time_created: row.get(3)?,
-                time_updated: row.get(4)?,
-                session_count: row.get(5)?,
-            })
-        })
-        .ok()?
-        .filter_map(std::result::Result::ok)
+    let rows: Vec<DbProjectRecord> = report
+        .db(
+            &db_path,
+            stmt.query_map([], |row| {
+                Ok(DbProjectRecord {
+                    id: row.get(0)?,
+                    worktree: row.get(1)?,
+                    name: row.get(2)?,
+                    time_created: row.get(3)?,
+                    time_updated: row.get(4)?,
+                    session_count: row.get(5)?,
+                })
+            }),
+        )?
+        .filter_map(|row| report.db(&db_path, row))
         .collect();
     drop(stmt);
 
@@ -1022,60 +1146,63 @@ fn scan_global_directory_projects(
 
 fn load_sessions_from_db(
     base_path: &str,
+    db_file: &str,
     project_ref: &OpenCodeProjectRef,
+    report: &ScanReport,
 ) -> Option<Vec<ClaudeSession>> {
-    let conn = open_db(base_path)?;
-    let mut stmt = conn
-        .prepare(
+    let conn = open_db_reporting(base_path, db_file, report)?;
+    let db_path = Path::new(base_path).join(db_file);
+    let mut stmt = report.db(
+        &db_path,
+        conn.prepare(
             "SELECT s.id, s.title, s.time_created, s.time_updated, s.directory,
                     (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
              FROM session s
              WHERE s.project_id = ?1",
-        )
-        .ok()?;
+        ),
+    )?;
 
-    let rows = stmt
-        .query_map([project_ref.storage_id()], |row| {
-            let session_id: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let time_created: u64 = row.get(2)?;
-            let time_updated: u64 = row.get(3)?;
-            let directory: String = row.get(4)?;
-            let message_count: usize = row.get(5)?;
+    let rows = stmt.query_map([project_ref.storage_id()], |row| {
+        let session_id: String = row.get(0)?;
+        let title: String = row.get(1)?;
+        let time_created: u64 = row.get(2)?;
+        let time_updated: u64 = row.get(3)?;
+        let directory: String = row.get(4)?;
+        let message_count: usize = row.get(5)?;
 
-            let created_at = epoch_ms_to_rfc3339(time_created);
-            let updated_at = epoch_ms_to_rfc3339(time_updated);
-            let project_name = if project_ref.is_virtual_global_directory() {
-                opencode_project_display_name(None, &directory)
-            } else {
-                String::new()
-            };
+        let created_at = epoch_ms_to_rfc3339(time_created);
+        let updated_at = epoch_ms_to_rfc3339(time_updated);
+        let project_name = if project_ref.is_virtual_global_directory() {
+            opencode_project_display_name(None, &directory)
+        } else {
+            String::new()
+        };
 
-            Ok((
-                directory,
-                ClaudeSession {
-                    session_id: format!("opencode://{session_id}"),
-                    actual_session_id: session_id.clone(),
-                    file_path: format!("opencode://{}/{session_id}", project_ref.storage_id()),
-                    project_name,
-                    message_count,
-                    first_message_time: created_at.clone(),
-                    last_message_time: updated_at.clone(),
-                    last_modified: updated_at,
-                    has_tool_use: false,
-                    has_errors: false,
-                    summary: if title.is_empty() { None } else { Some(title) },
-                    is_renamed: false,
-                    provider: Some("opencode".to_string()),
-                    storage_type: Some("sqlite".to_string()),
-                    entrypoint: None,
-                },
-            ))
-        })
-        .ok()?;
+        Ok((
+            directory,
+            ClaudeSession {
+                session_id: format!("opencode://{session_id}"),
+                actual_session_id: session_id.clone(),
+                file_path: format!("opencode://{}/{session_id}", project_ref.storage_id()),
+                project_name,
+                message_count,
+                first_message_time: created_at.clone(),
+                last_message_time: updated_at.clone(),
+                last_modified: updated_at,
+                has_tool_use: false,
+                has_errors: false,
+                summary: if title.is_empty() { None } else { Some(title) },
+                is_renamed: false,
+                provider: Some("opencode".to_string()),
+                storage_type: Some("sqlite".to_string()),
+                entrypoint: None,
+            },
+        ))
+    });
+    let rows = report.db(&db_path, rows)?;
 
     let sessions: Vec<ClaudeSession> = rows
-        .filter_map(std::result::Result::ok)
+        .filter_map(|row| report.db(&db_path, row))
         .filter(|(directory, _)| project_ref.matches_directory(directory))
         .map(|(_, session)| session)
         .collect();
@@ -1086,8 +1213,12 @@ fn load_sessions_from_db(
     }
 }
 
-fn load_messages_from_db(base_path: &str, session_id: &str) -> Option<Vec<ClaudeMessage>> {
-    let conn = open_db(base_path)?;
+fn load_messages_from_db(
+    base_path: &str,
+    db_file: &str,
+    session_id: &str,
+) -> Option<Vec<ClaudeMessage>> {
+    let conn = open_db(base_path, db_file)?;
     load_messages_with_conn(&conn, session_id)
 }
 
@@ -1162,7 +1293,8 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
             Err(_) => Vec::new(),
         };
 
-        let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
+        let (content_value, parts_usage, parts_cost) =
+            process_parts(&part_values, &msg_id, session_id);
 
         let final_usage = merge_token_usage(usage, parts_usage);
         let final_cost = cost_usd.or(parts_cost);
@@ -1180,32 +1312,12 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
             timestamp: created_at,
             message_type: message_type.to_string(),
             content: content_value,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
             usage: final_usage,
             role: Some(role.to_string()),
             model,
-            stop_reason: None,
             cost_usd: final_cost,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("opencode".to_string()),
+            ..Default::default()
         });
     }
 
@@ -1219,10 +1331,11 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
 /// Returns `(matching_messages, searched_session_ids)` for dedup with JSON search.
 fn search_from_db(
     base_path: &str,
+    db_file: &str,
     query_lower: &str,
     limit: usize,
 ) -> Option<(Vec<ClaudeMessage>, HashSet<String>)> {
-    let conn = open_db(base_path)?;
+    let conn = open_db(base_path, db_file)?;
 
     let escaped = escape_like_pattern(query_lower);
     let search_pattern = format!("%{escaped}%");
@@ -1254,7 +1367,7 @@ fn search_from_db(
                     return Some((results, searched_set));
                 }
                 if let Some(content) = &msg.content {
-                    if search_json_value_case_insensitive(content, query_lower) {
+                    if super::result_evidence::content_matches(content, query_lower) {
                         results.push(msg);
                     }
                 }
@@ -1408,12 +1521,16 @@ fn merge_token_usage(
 
 // is_safe_storage_id is imported from crate::utils
 
-fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {
+fn process_parts(
+    parts: &[Value],
+    message_id: &str,
+    session_id: &str,
+) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {
     let mut content_items: Vec<Value> = Vec::new();
     let mut usage: Option<TokenUsage> = None;
     let mut cost_usd: Option<f64> = None;
 
-    for part in parts {
+    for (part_index, part) in parts.iter().enumerate() {
         let part_type = part.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match part_type {
@@ -1455,6 +1572,9 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     "type": "tool_use",
                     "id": tool_id,
                     "name": tool_name,
+                    // Exact producer tool ID (not built-in provenance) survives the shared Kilo route.
+                    // OpenCode b9a39b8 tool/grep.ts:8; Kilo 0a9faeff tool/grep.ts:22-23.
+                    "rawToolName": part.get("tool"),
                     "input": input
                 }));
 
@@ -1473,6 +1593,15 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     if is_error {
                         tool_result["is_error"] = Value::Bool(true);
                     }
+                    // State belongs to this exact part, not another call with the same ID.
+                    super::result_evidence::attach(
+                        &mut tool_result,
+                        &part["state"],
+                        message_id,
+                        session_id,
+                        content_items.len(),
+                    );
+                    tool_result["toolUseResultSource"]["partIndex"] = Value::from(part_index);
                     content_items.push(tool_result);
                 }
             }
@@ -1767,7 +1896,7 @@ mod tests {
             }
         ]);
 
-        let (content, _, _) = process_parts(parts.as_array().unwrap());
+        let (content, _, _) = process_parts(parts.as_array().unwrap(), "fixture", "session");
         let blocks = content.unwrap();
         let blocks = blocks.as_array().unwrap();
 
@@ -1993,7 +2122,7 @@ mod tests {
         drop(conn);
 
         let base = tmp.path().to_string_lossy().to_string();
-        let children = load_child_sessions_from_db(&base, "proj1", "ses_001");
+        let children = load_child_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001");
 
         // Newest first.
         assert_eq!(
@@ -2004,7 +2133,9 @@ mod tests {
 
         // A session with no children yields nothing rather than erroring, and
         // children are not claimed by a sibling parent.
-        assert!(load_child_sessions_from_db(&base, "proj1", "ses_child_a").is_empty());
+        assert!(
+            load_child_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_child_a").is_empty()
+        );
     }
 
     #[test]
@@ -2034,7 +2165,8 @@ mod tests {
         drop(conn);
 
         let base = tmp.path().to_string_lossy().to_string();
-        let descendants = load_descendant_sessions_from_db(&base, "proj1", "ses_001");
+        let descendants =
+            load_descendant_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001");
 
         assert_eq!(
             descendants
@@ -2045,7 +2177,80 @@ mod tests {
         );
 
         // The walk starts below the root, and a leaf terminates it.
-        assert!(load_descendant_sessions_from_db(&base, "proj1", "ses_grandchild").is_empty());
+        assert!(load_descendant_sessions_from_db(
+            &base,
+            OPENCODE_DB_FILE,
+            "proj1",
+            "ses_grandchild"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn sqlite_load_descendant_sessions_terminates_on_parent_cycle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+        // A corrupted store: ses_001 -> ses_a -> ses_b -> ses_001. A session has
+        // one parent, so a cycle reachable from the root runs through it.
+        for (id, parent) in [("ses_a", "ses_001"), ("ses_b", "ses_a")] {
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+                 VALUES (?1, 'proj1', ?1, 1700000200000, 1700000200000, ?2)",
+                rusqlite::params![id, parent],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "UPDATE session SET parent_id = 'ses_b' WHERE id = 'ses_001'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let base = tmp.path().to_string_lossy().to_string();
+        let mut ids: Vec<String> =
+            load_descendant_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001")
+                .into_iter()
+                .map(|c| c.id)
+                .collect();
+        ids.sort();
+        // Each session once, and never the root itself.
+        assert_eq!(ids, vec!["ses_a", "ses_b"]);
+    }
+
+    #[test]
+    fn sqlite_load_subagent_messages_marks_descendants_as_sidechain() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+             VALUES ('ses_child', 'proj1', 'child', 1700000200000, 1700000200000, 'ses_001')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES ('msg_child', 'ses_child', 1700000210000, 1700000210000, ?1)",
+            [r#"{"role":"assistant","time":{"created":1700000210000},"modelID":"test-model","tokens":{"input":7,"output":3}}"#],
+        )
+        .unwrap();
+        drop(conn);
+
+        let base = tmp.path().to_string_lossy().to_string();
+        let messages =
+            load_subagent_messages_at(&base, OPENCODE_DB_FILE, "opencode://proj1/ses_001");
+        assert!(!messages.is_empty());
+        assert!(messages.iter().all(|m| m.session_id == "ses_child"));
+        assert!(messages.iter().all(|m| m.is_sidechain == Some(true)));
+
+        // A leaf session, or a path that is not an OpenCode session, has none.
+        assert!(
+            load_subagent_messages_at(&base, OPENCODE_DB_FILE, "opencode://proj1/ses_child")
+                .is_empty()
+        );
+        assert!(load_subagent_messages_at(&base, OPENCODE_DB_FILE, "/tmp/x.jsonl").is_empty());
     }
 
     #[test]
@@ -2066,7 +2271,12 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects = scan_projects_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &ScanReport::default(),
+        )
+        .unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "my-project");
         assert_eq!(projects[0].path, "opencode://proj1");
@@ -2081,8 +2291,13 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let sessions =
-            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).unwrap();
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref("proj1"),
+            &ScanReport::default(),
+        )
+        .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_001");
         assert_eq!(sessions[0].summary, Some("Test session".to_string()));
@@ -2097,7 +2312,9 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let messages = load_messages_from_db(&tmp.path().to_string_lossy(), "ses_001").unwrap();
+        let messages =
+            load_messages_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE, "ses_001")
+                .unwrap();
         assert_eq!(messages.len(), 2);
 
         // First message: user
@@ -2120,12 +2337,24 @@ mod tests {
     fn sqlite_returns_none_when_no_db() {
         let tmp = tempfile::tempdir().unwrap();
         // No opencode.db created
-        assert!(open_db(&tmp.path().to_string_lossy()).is_none());
-        assert!(scan_projects_from_db(&tmp.path().to_string_lossy()).is_none());
+        assert!(open_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).is_none());
+        assert!(scan_projects_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &ScanReport::default()
+        )
+        .is_none());
+        assert!(load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref("proj1"),
+            &ScanReport::default()
+        )
+        .is_none());
         assert!(
-            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).is_none()
+            load_messages_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE, "ses_001")
+                .is_none()
         );
-        assert!(load_messages_from_db(&tmp.path().to_string_lossy(), "ses_001").is_none());
     }
 
     #[test]
@@ -2135,13 +2364,23 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let (results, session_ids) =
-            search_from_db(&tmp.path().to_string_lossy(), "hello from user", 10).unwrap();
+        let (results, session_ids) = search_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            "hello from user",
+            10,
+        )
+        .unwrap();
         assert!(!results.is_empty());
         assert!(session_ids.contains("ses_001"));
 
         // Search for non-existent text
-        let none_result = search_from_db(&tmp.path().to_string_lossy(), "nonexistent_xyz", 10);
+        let none_result = search_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            "nonexistent_xyz",
+            10,
+        );
         assert!(none_result.is_none());
     }
 
@@ -2204,7 +2443,7 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let map = build_db_session_map(&tmp.path().to_string_lossy()).unwrap();
+        let map = build_db_session_map(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         assert_eq!(map.len(), 2);
         assert!(map["proj1"].contains("ses_001"));
         assert!(map["proj2"].contains("ses_x"));
@@ -2242,7 +2481,12 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects = scan_projects_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &ScanReport::default(),
+        )
+        .unwrap();
         assert!(projects.iter().all(|project| project.name != "unknown"));
 
         let project_a = projects
@@ -2286,14 +2530,25 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects = scan_projects_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &ScanReport::default(),
+        )
+        .unwrap();
         let project_a = projects
             .iter()
             .find(|project| project.actual_path == "/tmp/a")
             .expect("global /tmp/a directory project should exist");
         let project_ref = OpenCodeProjectRef::parse(&project_a.path).unwrap();
 
-        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref).unwrap();
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref,
+            &ScanReport::default(),
+        )
+        .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_a");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_a");
@@ -2325,7 +2580,12 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects = scan_projects_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &ScanReport::default(),
+        )
+        .unwrap();
         let empty_dir_project = projects
             .iter()
             .find(|project| {
@@ -2336,10 +2596,28 @@ mod tests {
         assert!(empty_dir_project.path.starts_with("opencode://global-dir-"));
 
         let project_ref = OpenCodeProjectRef::parse(&empty_dir_project.path).unwrap();
-        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref)
-            .expect("empty-directory sessions must load, not be silently dropped");
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref,
+            &ScanReport::default(),
+        )
+        .expect("empty-directory sessions must load, not be silently dropped");
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_empty");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_empty");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for raw in ["grep", "grep_search", "Grep", "read_file"] {
+            let part = serde_json::json!({"type":"tool","tool":raw,"callID":"c","state":{"status":"completed","input":{},"output":"synthetic"}});
+            let (content, _, _) = process_parts(&[part], "m", "s");
+            assert_eq!(content.unwrap()[0]["rawToolName"], raw);
+        }
     }
 }

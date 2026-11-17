@@ -1,4 +1,5 @@
 import FlexSearch from "flexsearch";
+import { serverToolTexts } from "./anthropicServerTools";
 import type { Document as FlexSearchDocument } from "flexsearch";
 import type { ClaudeMessage } from "../types";
 import type { SearchFilterType } from "../store/useAppStore";
@@ -66,6 +67,7 @@ const extractSearchableText = (message: ClaudeMessage): string => {
             parts.push(item);
           } else if (isRecord(item)) {
             const itemType = item.type as string | undefined;
+            parts.push(...serverToolTexts(itemType, item.content));
 
             // Skip image content (base64 data is not searchable)
             if (itemType === "image") {

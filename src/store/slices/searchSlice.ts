@@ -7,8 +7,10 @@
 import { api } from "@/services/api";
 import { toast } from "sonner";
 import type { ClaudeMessage, SearchFilters } from "../../types";
-import { AppErrorType } from "../../types";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
+import { ownPlace, ownWork } from "@/navigation/ownership";
 import { searchMessagesAsync, buildSearchIndex, isSearchIndexReady, linearSearchMessages } from "../../utils/searchIndex";
 import {
   type SearchState,
@@ -81,6 +83,7 @@ export const createSearchSlice: StateCreator<
   // is async - earlier async result can otherwise land on top of a later
   // sync result).
   let sessionSearchRequestId = 0;
+  let globalSearchRequestId = 0;
 
   return {
   ...initialSearchState,
@@ -97,12 +100,21 @@ export const createSearchSlice: StateCreator<
     const nativeClaudePath = claudePath || undefined;
     const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
+    // Not scoped to a project: the latest call owns the results - a clear
+    // included, so a search still pending when the query is cleared lands
+    // nothing. Its failure is feedback, raised only while no navigation has
+    // begun since.
+    const requestId = ++globalSearchRequestId;
+
     if (!query.trim() || (!claudePath && !hasAlternativeSource)) {
       set({ searchResults: [], searchQuery: "" });
       return;
     }
 
     set({ searchQuery: query });
+    const owner = ownWork(get, {
+      isLatest: () => requestId === globalSearchRequestId,
+    });
     try {
       const results = (hasNonClaudeProviders || hasCustomPaths || wslEnabled)
         ? await api<ClaudeMessage[]>("search_all_providers", {
@@ -120,10 +132,12 @@ export const createSearchSlice: StateCreator<
             query,
             filters,
           });
-      set({ searchResults: results });
+      if (owner.ownsData()) set({ searchResults: results });
     } catch (error) {
       console.error("Failed to search messages:", error);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      if (!owner.ownsFeedback()) return;
+      // A search that failed says so; the app and its tabs stay.
+      toast.error(i18n.t("error.searchFailed", { detail: errorDetail(error) }));
     }
   },
 
@@ -137,6 +151,8 @@ export const createSearchSlice: StateCreator<
     const { sessionSearch } = get();
     const { filterType } = sessionSearch;
     const sessionPath = get().selectedSession?.file_path;
+    // Its toast is feedback: also gone once the user has navigated.
+    const ownsPlace = ownPlace(get);
 
     // Empty query clears search results
     if (!query.trim()) {
@@ -228,7 +244,7 @@ export const createSearchSlice: StateCreator<
       // the `isSearching` state.
       if (!isStillLatest()) return;
       const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to search messages: ${message}`);
+      if (ownsPlace()) toast.error(`Failed to search messages: ${message}`);
       set((state) => ({
         sessionSearch: {
           query,
@@ -239,6 +255,17 @@ export const createSearchSlice: StateCreator<
           results: [],
         },
       }));
+    } finally {
+      // The spinner is this search's to stop, also when the session changed
+      // under it (nothing else would) - unless a newer search took it over.
+      if (
+        requestId === sessionSearchRequestId &&
+        get().sessionSearch.isSearching
+      ) {
+        set((state) => ({
+          sessionSearch: { ...state.sessionSearch, isSearching: false },
+        }));
+      }
     }
   },
 
@@ -293,13 +320,16 @@ export const createSearchSlice: StateCreator<
     });
   },
 
+  // A clear is the latest request too: a search still running lands nothing.
   clearSessionSearch: () => {
+    sessionSearchRequestId += 1;
     set((state) => ({
       sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
     }));
   },
 
   setSearchFilterType: (filterType: SearchFilterType) => {
+    sessionSearchRequestId += 1;
     set(() => ({
       sessionSearch: createEmptySearchState(filterType),
     }));

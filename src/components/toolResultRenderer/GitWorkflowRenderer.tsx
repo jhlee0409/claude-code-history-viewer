@@ -1,8 +1,10 @@
 "use client";
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 
 import { GitBranch, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -21,6 +23,8 @@ export const GitWorkflowRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
+  const showFilesContentId = useId();
+  const showDiffContentId = useId();
   const { t } = useTranslation();
   const command = gitData.command || "";
   const status = gitData.status || "";
@@ -31,20 +35,15 @@ export const GitWorkflowRenderer = ({
   const [showDiff, setShowDiff] = useCaptureExpandState("git-diff", false);
 
   return (
-    <Renderer className="bg-tool-git/10 border-tool-git/30">
-      <Renderer.Header
-        title={t('gitWorkflowRenderer.gitWorkflow')}
-        icon={<GitBranch className={cn(layout.iconSize, "text-tool-git")} />}
-        titleClassName="text-foreground"
-        rightContent={
+    <RecordedResult title={t('gitWorkflowRenderer.gitWorkflow')}
+        icon={<GitBranch className="w-4 h-4" />}
+        meta={
           command && (
             <code className={`${layout.monoText} px-2 py-1 rounded bg-tool-git/20 text-tool-git`}>
               git {String(command)}
             </code>
           )
-        }
-      />
-      <Renderer.Content>
+        } record={gitData} expandKey={"git-result"} searchQuery={searchQuery}>
         {status && (
           <div className={`mb-2 ${layout.bodyText} text-tool-git`}>
             <span className="font-medium">{t('gitWorkflowRenderer.status')}</span>{" "}
@@ -63,15 +62,15 @@ export const GitWorkflowRenderer = ({
 
         {Array.isArray(files) && files.length > 0 && (
           <div className="mb-2">
-            <button
+            <Button aria-expanded={showFiles} aria-controls={showFilesContentId} variant="ghost" size="sm"
               type="button"
               onClick={() => setShowFiles(prev => !prev)}
-              className={cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText))}
             >
               <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showFiles && "rotate-90")} />
               <span>{t('gitWorkflowRenderer.changedFiles', { count: files.length })}</span>
-            </button>
-            {showFiles && (
+            </Button>
+            <div id={showFilesContentId} hidden={!showFiles}>{showFiles && (
               <div className="mt-2 space-y-1">
                 {files.map((file, idx) => (
                   <div
@@ -91,21 +90,21 @@ export const GitWorkflowRenderer = ({
                   </div>
                 ))}
               </div>
-            )}
+            )}</div>
           </div>
         )}
 
         {diff && (
           <div>
-            <button
+            <Button aria-expanded={showDiff} aria-controls={showDiffContentId} variant="ghost" size="sm"
               type="button"
               onClick={() => setShowDiff(prev => !prev)}
-              className={cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText)}
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText))}
             >
               <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showDiff && "rotate-90")} />
               <span>{t('gitWorkflowRenderer.viewDiff')}</span>
-            </button>
-            {showDiff && (
+            </Button>
+            <div id={showDiffContentId} hidden={!showDiff}>{showDiff && (
               <pre className={`mt-2 ${layout.monoText} p-2 rounded overflow-auto max-h-48 bg-muted text-foreground`}>
                 {searchQuery ? (
                   <HighlightedText
@@ -118,10 +117,9 @@ export const GitWorkflowRenderer = ({
                   String(diff)
                 )}
               </pre>
-            )}
+            )}</div>
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

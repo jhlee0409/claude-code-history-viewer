@@ -10,6 +10,8 @@ import type { ClaudeMessage } from "../../../types";
 import type { MessageFilter } from "../../../store/slices/filterSlice";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { filterMessagesByCategory } from "./messageCategories";
+import { classifyMessage, isCodexHeartbeat } from "./messageKinds";
+import { codexAutomatedTurns } from "../../transcript/codexTurns";
 
 export function applyMessageDisplayFilter(
   messages: ClaudeMessage[],
@@ -25,9 +27,15 @@ export function applyMessageDisplayFilter(
   );
   if (allRoles && allContent) return parallelTaskFilteredMessages;
 
+  const automated = !roles.assistant ? codexAutomatedTurns(messages).uuids : new Set<string>();
   return parallelTaskFilteredMessages.filter((msg) => {
     // Role filter
-    if (msg.type === "user") return roles.user;
+    if (msg.type === "user") {
+      // Owner decision: user-only means human input, not automatic producer
+      // cycles. Keep automation in all-messages; the model owns its own turns.
+      if (!roles.assistant && (automated.has(msg.uuid) || classifyMessage(msg).kind === "agent-update" || isCodexHeartbeat(msg))) return false;
+      return roles.user;
+    }
     if (msg.type === "assistant") {
       if (!roles.assistant) return false;
       // Content type filter — check if assistant message has any visible content left

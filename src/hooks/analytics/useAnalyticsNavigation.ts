@@ -2,287 +2,219 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
-import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
+import {
+  type ClaudeProject,
+  type MetricMode,
+  type StatsMode,
+} from "../../types";
+import {
+  projectRefOf,
+  viewAfterLeavingProject,
+  type AnalyticsTab,
+  type View,
+} from "../../navigation/place";
+import { ownPlace, type PlaceOwner } from "../../navigation/ownership";
+import {
+  loadProjectAnalytics,
+  loadRecentEditsScreen,
+  loadTokenStatsScreen,
+  reloadBoard,
+} from "../../navigation/screenData";
 
-/**
- * Sequence number for Recent Edits fetches, so a request can tell whether it is
- * still the most recent one.
- *
- * Module scope rather than a ref: several components mount this hook, and a
- * per-instance ref would let two of them each believe they are the latest.
- */
-let recentEditsRequestSeq = 0;
+/** Whether `project` is still among the scanned projects. */
+function isKnownProject(project: ClaudeProject): boolean {
+  const ref = projectRefOf(project);
+  return useAppStore
+    .getState()
+    .projects.some((candidate) => {
+      const other = projectRefOf(candidate);
+      return other?.path === ref?.path && other?.provider === ref?.provider;
+    });
+}
 
 export function useAnalyticsNavigation() {
   const { t } = useTranslation();
   const {
-    analytics,
-    selectedSession,
-    setAnalyticsCurrentView,
+    navigate,
+    stepPlaceHistory,
     setAnalyticsStatsMode,
     setAnalyticsMetricMode,
     setAnalyticsProjectSummary,
     setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
     setAnalyticsProjectSummaryError,
     setAnalyticsSessionComparisonError,
-    setAnalyticsRecentEdits,
-    setAnalyticsLoadingRecentEdits,
-    setAnalyticsRecentEditsError,
     resetAnalytics,
     clearAnalyticsErrors,
-    loadProjectTokenStats,
-    loadProjectStatsSummary,
-    loadSessionComparison,
-    loadSessionTokenStats,
-    loadRecentEdits,
     loadGlobalStats,
     clearTokenStats,
     clearBoard,
   } = useAppStore();
 
+  // Every switch below is a navigation: `navigate` commits the screen at once
+  // (synchronously, before its first await), and the switch then loads the
+  // screen's data as that navigation (`enterScreen`). The data loaders are
+  // shared with `refreshAnalytics`, which reloads the open screen without
+  // navigating (`src/navigation/screenData.ts`).
+
+  /**
+   * Commit `view` (and, on analytics, the sub-tab when one is named) and take
+   * ownership of the navigation that did it, so the screen's data is written
+   * only while that navigation is still in charge.
+   */
+  const enterScreen = useCallback(
+    (view: View, analyticsTab?: AnalyticsTab): PlaceOwner => {
+      void navigate(analyticsTab ? { view, analyticsTab } : { view });
+      return ownPlace(useAppStore.getState);
+    },
+    [navigate]
+  );
+
+  const requireProject = useCallback(() => {
+    const project = useAppStore.getState().selectedProject;
+    if (!project) {
+      throw new Error(t("common.hooks.noProjectSelected"));
+    }
+    return project;
+  }, [t]);
+
+  const loadTokenStatsData = useCallback(async () => {
+    const { selectedProject, selectedSession } = useAppStore.getState();
+    if (!selectedProject) return;
+    try {
+      await loadTokenStatsScreen(
+        useAppStore.getState,
+        selectedProject,
+        selectedSession
+      );
+    } catch (error) {
+      console.error("Failed to load token stats:", error);
+      throw error;
+    }
+  }, []);
+
+  const loadAnalyticsData = useCallback(
+    async (ownsPlace: PlaceOwner) => {
+      const { selectedProject, selectedSession } = useAppStore.getState();
+      if (!selectedProject) return;
+      try {
+        await loadProjectAnalytics(
+          useAppStore.getState,
+          selectedProject,
+          selectedSession,
+          {
+            ownsPlace,
+            failureText: {
+              summary: t("common.hooks.projectSummaryLoadFailed"),
+              comparison: t("common.hooks.sessionComparisonLoadFailed"),
+            },
+          }
+        );
+      } catch (error) {
+        console.error("Failed to load analytics:", error);
+        throw error;
+      }
+    },
+    [t]
+  );
+
+  /** The Edits screen's rows (`recentEditsSlice`, keyed by their request). */
+  const loadRecentEditsData = useCallback(
+    (options?: { force?: boolean }) => loadRecentEditsScreen(useAppStore.getState, options),
+    []
+  );
+
   const switchToMessages = useCallback(() => {
-    setAnalyticsCurrentView("messages");
+    void navigate({ view: "conversation" });
     clearAnalyticsErrors();
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [navigate, clearAnalyticsErrors]);
 
   const switchToSettings = useCallback(() => {
-    setAnalyticsCurrentView("settings");
+    void navigate({ view: "settingsManager" });
     clearAnalyticsErrors();
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [navigate, clearAnalyticsErrors]);
+
+  /** Global stats keeps the project and session as the place's context. */
+  const switchToGlobalStats = useCallback(async () => {
+    enterScreen("globalStats");
+    await loadGlobalStats();
+  }, [enterScreen, loadGlobalStats]);
 
   const switchToArchive = useCallback(() => {
-    setAnalyticsCurrentView("archive");
+    enterScreen("archive");
     clearAnalyticsErrors();
     // Load archives list when switching to archive view.
     const store = useAppStore.getState();
     if (!store.archive.isLoadingArchives) {
       void store.loadArchives();
     }
-  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [enterScreen, clearAnalyticsErrors]);
 
-  const switchToTokenStats = useCallback(async () => {
-    const project = useAppStore.getState().selectedProject;
-    if (!project) {
-      throw new Error(t("common.hooks.noProjectSelected"));
-    }
-
-    setAnalyticsCurrentView("tokenStats");
-    clearAnalyticsErrors();
-
-    try {
-      const promises: Promise<void>[] = [];
-      promises.push(loadProjectTokenStats(project.path));
-
-      if (selectedSession) {
-        promises.push(loadSessionTokenStats(selectedSession.file_path));
+  /**
+   * Project analytics on `tab` (T9b: the overview or the token statistics,
+   * which used to be a screen of their own). Without a tab it opens the
+   * sub-tab the place already holds - the one last shown in this tab, or the
+   * one a restored tab or history entry just put there.
+   */
+  const switchToAnalytics = useCallback(
+    async (tab?: AnalyticsTab) => {
+      requireProject();
+      const ownsPlace = enterScreen("analytics", tab);
+      clearAnalyticsErrors();
+      if (useAppStore.getState().analyticsTab === "tokens") {
+        await loadTokenStatsData();
+      } else {
+        await loadAnalyticsData(ownsPlace);
       }
-
-      await Promise.all(promises);
-    } catch (error) {
-      console.error("Failed to load token stats:", error);
-      throw error;
-    }
-  }, [
-    t,
-    selectedSession,
-    setAnalyticsCurrentView,
-    clearAnalyticsErrors,
-    loadProjectTokenStats,
-    loadSessionTokenStats,
-  ]);
-
-  const switchToAnalytics = useCallback(async () => {
-    const project = useAppStore.getState().selectedProject;
-    if (!project) {
-      throw new Error(t("common.hooks.noProjectSelected"));
-    }
-
-    setAnalyticsCurrentView("analytics");
-    clearAnalyticsErrors();
-
-    try {
-      setAnalyticsLoadingProjectSummary(true);
-      try {
-        const summary = await loadProjectStatsSummary(project.path);
-        setAnalyticsProjectSummary(summary);
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : t("common.hooks.projectSummaryLoadFailed");
-        setAnalyticsProjectSummaryError(errorMessage);
-        throw error;
-      } finally {
-        setAnalyticsLoadingProjectSummary(false);
-      }
-
-      if (selectedSession) {
-        setAnalyticsLoadingSessionComparison(true);
-        try {
-          const [comparison] = await Promise.all([
-            loadSessionComparison(
-              selectedSession.actual_session_id,
-              project.path
-            ),
-            loadSessionTokenStats(selectedSession.file_path),
-          ]);
-          setAnalyticsSessionComparison(comparison);
-          setAnalyticsSessionComparisonError(null);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : t("common.hooks.sessionComparisonLoadFailed");
-          setAnalyticsSessionComparisonError(errorMessage);
-        } finally {
-          setAnalyticsLoadingSessionComparison(false);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load analytics:", error);
-      throw error;
-    }
-  }, [
-    t,
-    selectedSession,
-    setAnalyticsCurrentView,
-    clearAnalyticsErrors,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsProjectSummary,
-    setAnalyticsSessionComparison,
-    setAnalyticsProjectSummaryError,
-    setAnalyticsSessionComparisonError,
-    loadProjectStatsSummary,
-    loadSessionComparison,
-    loadSessionTokenStats,
-  ]);
+    },
+    [requireProject, enterScreen, clearAnalyticsErrors, loadTokenStatsData, loadAnalyticsData]
+  );
 
   const switchToRecentEdits = useCallback(async () => {
-    const project = useAppStore.getState().selectedProject;
-    if (!project) {
-      throw new Error(t("common.hooks.noProjectSelected"));
-    }
-
-    setAnalyticsCurrentView("recentEdits");
+    requireProject();
+    enterScreen("edits");
     clearAnalyticsErrors();
-
-    // Read the cache at call time rather than from the render closure.
-    // `refreshAnalytics` clears it and then calls this in the same tick, so a
-    // closed-over value is a render behind and reports a hit on data that no
-    // longer exists, leaving the view empty. That was survivable only while the
-    // guard never held.
-    const cached = useAppStore.getState().analytics.recentEdits;
-    // No `files.length` condition: with request identity on the entry, an empty
-    // result is a valid answer ("this project has no edits") rather than an
-    // absent one. Requiring a non-empty list made such a project miss the cache
-    // on every visit and re-walk its whole JSONL set forever.
-    const hasCachedRecentEdits =
-      cached && cached.requestedProjectPath === project.path;
-
-    if (hasCachedRecentEdits) {
-      return;
-    }
-
-    const requestId = ++recentEditsRequestSeq;
-    // One predicate for both outcomes. A late failure is every bit as capable
-    // of writing over a newer request's state as a late success is, and the
-    // two paths disagreeing about what ownership means is how that gets
-    // missed.
-    const stillOwnsRecentEdits = () =>
-      recentEditsRequestSeq === requestId &&
-      useAppStore.getState().selectedProject?.path === project.path;
-
-    try {
-      setAnalyticsLoadingRecentEdits(true);
-      const result = await loadRecentEdits(project.path);
-
-      // The user may have switched projects while this was in flight. Writing
-      // anyway would show one project's edits under another's identity, and the
-      // cache guard would then treat that as a valid hit indefinitely.
-      //
-      // The sequence check is the other half of the same rule. A project path
-      // cannot tell two requests for the *same* project apart, so refreshing
-      // while the first load was still running let the slower of the two land
-      // last and overwrite the newer result, cursor included.
-      if (!stillOwnsRecentEdits()) {
-        return;
-      }
-
-      // One write. The cursor used to be a second `setState` right here, which
-      // is the shape that let `refreshAllConversations` replace the list and
-      // forget the cursor (#517).
-      setAnalyticsRecentEdits(result, project.path);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : t("common.hooks.recentEditsLoadFailed");
-      if (stillOwnsRecentEdits()) {
-        setAnalyticsRecentEditsError(errorMessage);
-      }
-      console.error("Failed to load recent edits:", error);
-      throw error;
-    } finally {
-      // Clear on the *latest* request rather than on the selected project.
-      // Keying this to the selection stranded the flag: a request whose project
-      // was deselected would never clear it, and nothing else does, because
-      // `resetAnalytics` runs in `clearProjectSelection` rather than on a
-      // project switch. Keying it to the sequence still stops a late loser from
-      // reporting a newer request as finished.
-      if (recentEditsRequestSeq === requestId) {
-        setAnalyticsLoadingRecentEdits(false);
-      }
-    }
-  }, [
-    t,
-    setAnalyticsCurrentView,
-    clearAnalyticsErrors,
-    setAnalyticsLoadingRecentEdits,
-    setAnalyticsRecentEdits,
-    setAnalyticsRecentEditsError,
-    loadRecentEdits,
-  ]);
+    await loadRecentEditsData();
+  }, [requireProject, enterScreen, clearAnalyticsErrors, loadRecentEditsData]);
 
   const switchToBoard = useCallback(async () => {
-    const project = useAppStore.getState().selectedProject;
-    if (!project) {
-      throw new Error(t("common.hooks.noProjectSelected"));
-    }
+    const project = requireProject();
 
     const provider = project.provider ?? "claude";
     if (provider !== "claude") {
-      setAnalyticsCurrentView("messages");
+      void navigate({ view: "conversation" });
       clearAnalyticsErrors();
       toast.warning(t("session.boardNotSupported"));
       return;
     }
 
+    const ownsPlace = enterScreen("board");
+    clearAnalyticsErrors();
     try {
-      const {
-        boardSessions,
-        loadBoardSessions,
-        dateFilter,
-        setDateFilter,
-        sessions,
-      } = useAppStore.getState();
+      const { boardSessions, boardOwner, loadBoardSessions, dateFilter, sessions } =
+        useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
-      setAnalyticsCurrentView("board");
-      clearAnalyticsErrors();
-
-      const firstSession = Object.values(boardSessions)[0];
+      // The cached board belongs to the open project only when it holds the
+      // open project's sessions, compared by file: a project name is the
+      // last directory segment, so two projects can both be "repo".
+      const listed = new Set(sessions.map((s) => s.file_path));
+      const holdsOtherSessions = Object.values(boardSessions).some(
+        (board) => !listed.has(board.session.file_path)
+      );
       const needsFullReload =
         !hasAnySessionsLoaded ||
-        (firstSession &&
-          firstSession.session.project_name !== project.name) ||
+        // Loaded for another project (`navigation/screenOwner.ts`).
+        boardOwner !== project.path ||
+        holdsOtherSessions ||
         sessions.length > Object.keys(boardSessions).length;
 
-      if (needsFullReload && sessions.length > 0) {
+      // An empty list loads too: the empty board is the project's own.
+      if (needsFullReload) {
         await loadBoardSessions(sessions);
+        // The date range below frames this board; a navigation since then
+        // owns the screen and its filter.
+        if (!ownsPlace()) return;
 
         if (
           sessions.length > 0 &&
@@ -299,7 +231,7 @@ export function useAnalyticsNavigation() {
             const minTime = Math.min(...timestamps);
             const maxTime = Math.max(...timestamps);
 
-            setDateFilter({
+            useAppStore.getState().setDateFilter({
               start: new Date(minTime),
               end: new Date(maxTime),
             });
@@ -308,16 +240,21 @@ export function useAnalyticsNavigation() {
       }
     } catch (error) {
       console.error("Failed to load board:", error);
+      if (!ownsPlace()) return;
       window.alert(
         `Failed to load board: ${error instanceof Error ? error.message : String(error)}`
       );
     }
-  }, [t, setAnalyticsCurrentView, clearAnalyticsErrors]);
+  }, [t, navigate, requireProject, enterScreen, clearAnalyticsErrors]);
 
+  /**
+   * Switch billing / conversation statistics. A reload of the open screen:
+   * it never navigates, and its writes stop once the user does.
+   */
   const setStatsMode = useCallback(
     async (
       mode: StatsMode,
-      options?: { isViewingGlobalStats?: boolean }
+      options?: { isGlobalScope?: boolean }
     ) => {
       const currentMode = useAppStore.getState().analytics.statsMode;
       if (currentMode === mode) {
@@ -332,13 +269,14 @@ export function useAnalyticsNavigation() {
       setAnalyticsProjectSummaryError(null);
       setAnalyticsSessionComparisonError(null);
 
+      const ownsPlace = ownPlace(useAppStore.getState);
       const state = useAppStore.getState();
       const project = state.selectedProject;
-      const session = state.selectedSession;
-      const currentView = state.analytics.currentView;
+      const screen = state.view;
+      const onTokens = screen === "analytics" && state.analyticsTab === "tokens";
       const isGlobalScope =
-        options?.isViewingGlobalStats ??
-        ((state.isViewingGlobalStats || !project) && currentView === "analytics");
+        options?.isGlobalScope ??
+        (screen === "globalStats" || (!project && screen === "analytics"));
 
       try {
         if (isGlobalScope) {
@@ -346,77 +284,35 @@ export function useAnalyticsNavigation() {
           return;
         }
 
-        if (!project) {
+        if (onTokens) {
+          await loadTokenStatsData();
           return;
         }
 
-        if (currentView === "tokenStats") {
-          await loadProjectTokenStats(project.path);
-          if (session) {
-            await loadSessionTokenStats(session.file_path);
-          }
-          return;
-        }
-
-        if (currentView === "analytics") {
-          setAnalyticsLoadingProjectSummary(true);
-          try {
-            const summary = await loadProjectStatsSummary(project.path);
-            setAnalyticsProjectSummary(summary);
-          } finally {
-            setAnalyticsLoadingProjectSummary(false);
-          }
-
-          if (session) {
-            setAnalyticsLoadingSessionComparison(true);
-            try {
-              const [comparison] = await Promise.all([
-                loadSessionComparison(
-                  session.actual_session_id,
-                  project.path
-                ),
-                loadSessionTokenStats(session.file_path),
-              ]);
-              setAnalyticsSessionComparison(comparison);
-            } finally {
-              setAnalyticsLoadingSessionComparison(false);
-            }
-          }
+        if (screen === "analytics") {
+          await loadAnalyticsData(ownsPlace);
         }
       } catch (error) {
+        if (!ownsPlace()) return;
         const errorMessage =
           error instanceof Error
             ? error.message
             : t("common.hooks.projectSummaryLoadFailed");
+        // Project analytics never lands here: its loader records and
+        // reports a failure itself (`loadProjectAnalytics`).
         toast.error(errorMessage);
-        if (currentView === "analytics") {
-          setAnalyticsProjectSummaryError(errorMessage);
-          if (session != null) {
-            setAnalyticsSessionComparisonError(errorMessage);
-          }
-          return;
-        }
+        // The token stats sub-tab is one tab's: the notification is all
+        // (never the app's error screen, which would hide every tab).
+        if (onTokens || !project) return;
 
-        if (currentView === "tokenStats") {
-          useAppStore.getState().setError({
-            type: AppErrorType.UNKNOWN,
-            message: errorMessage,
-          });
-          return;
-        }
-
-        setAnalyticsProjectSummaryError(errorMessage);
+        setAnalyticsProjectSummaryError(errorMessage, project.path);
       }
     },
     [
       clearTokenStats,
       loadGlobalStats,
-      loadProjectStatsSummary,
-      loadProjectTokenStats,
-      loadSessionComparison,
-      loadSessionTokenStats,
-      setAnalyticsLoadingProjectSummary,
-      setAnalyticsLoadingSessionComparison,
+      loadTokenStatsData,
+      loadAnalyticsData,
       setAnalyticsProjectSummary,
       setAnalyticsProjectConversationSummary,
       setAnalyticsProjectSummaryError,
@@ -434,26 +330,40 @@ export function useAnalyticsNavigation() {
     [setAnalyticsMetricMode]
   );
 
+  /**
+   * Reload the open screen's data. A reload, not a navigation (plan §4.2): it
+   * never calls `navigate`, so it neither advances the epoch nor records
+   * history, and a navigation that starts meanwhile supersedes it.
+   */
   const refreshAnalytics = useCallback(async () => {
-    switch (analytics.currentView) {
-      case "tokenStats":
-        clearTokenStats();
-        await switchToTokenStats();
-        break;
+    const ownsPlace = ownPlace(useAppStore.getState);
+    const { view, analyticsTab } = useAppStore.getState();
+    switch (view) {
       case "analytics":
+        if (analyticsTab === "tokens") {
+          clearTokenStats();
+          await loadTokenStatsData();
+          break;
+        }
+        clearAnalyticsErrors();
         setAnalyticsProjectSummary(null);
         setAnalyticsProjectConversationSummary(null);
         setAnalyticsSessionComparison(null);
-        await switchToAnalytics();
+        await loadAnalyticsData(ownsPlace);
         break;
-      case "recentEdits":
-        setAnalyticsRecentEdits(null);
-        await switchToRecentEdits();
+      case "edits":
+        clearAnalyticsErrors();
+        await loadRecentEditsData({ force: true });
         break;
       case "board":
-        await switchToBoard();
+        await reloadBoard(useAppStore.getState);
         break;
-      case "messages":
+      case "globalStats":
+        await loadGlobalStats();
+        break;
+      case "conversation":
+      case "empty":
+      case "settingsManager":
         break;
       case "archive":
         if (!useAppStore.getState().archive.isLoadingArchives) {
@@ -461,20 +371,90 @@ export function useAnalyticsNavigation() {
         }
         break;
       default:
-        console.warn("Unknown analytics view:", analytics.currentView);
+        console.warn("Unknown analytics view:", view);
     }
   }, [
-    analytics.currentView,
-    switchToTokenStats,
-    switchToAnalytics,
-    switchToRecentEdits,
-    switchToBoard,
+    loadGlobalStats,
+    loadTokenStatsData,
+    loadAnalyticsData,
+    loadRecentEditsData,
     clearTokenStats,
+    clearAnalyticsErrors,
     setAnalyticsProjectSummary,
     setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
-    setAnalyticsRecentEdits,
   ]);
+
+  /** Open a screen and load its data: one entry point per `view`. */
+  const openView = useCallback(
+    async (view: View) => {
+      switch (view) {
+        case "analytics":
+          return switchToAnalytics();
+        case "edits":
+          return switchToRecentEdits();
+        case "board":
+          return switchToBoard();
+        case "globalStats":
+          return switchToGlobalStats();
+        case "settingsManager":
+          return switchToSettings();
+        case "archive":
+          return switchToArchive();
+        case "conversation":
+        case "empty":
+          return switchToMessages();
+      }
+    },
+    [
+      switchToAnalytics,
+      switchToRecentEdits,
+      switchToBoard,
+      switchToGlobalStats,
+      switchToSettings,
+      switchToArchive,
+      switchToMessages,
+    ]
+  );
+
+  /**
+   * Back/forward through the places this window has been (plan §4.1: the
+   * document owns its history). Restores the context first, then opens the
+   * screen with its data; neither step records a new entry.
+   */
+  const stepHistory = useCallback(
+    async (direction: "back" | "forward"): Promise<boolean> => {
+      const entry = stepPlaceHistory(direction);
+      if (!entry) return false;
+      // A place whose project has gone since (deleted, provider turned off)
+      // falls back like any place missing its context, with the reason.
+      if (entry.project && !isKnownProject(entry.project)) {
+        toast.info(t("project.notFound"));
+        return navigate(
+          { project: null, view: viewAfterLeavingProject(entry.view) },
+          { record: false }
+        );
+      }
+      const restored = await navigate(
+        {
+          view: entry.view,
+          analyticsTab: entry.analyticsTab,
+          project: entry.project,
+          session: entry.session,
+          messageId: entry.messageId,
+        },
+        { record: false }
+      );
+      if (!restored) return false;
+      if (entry.view !== "conversation" && entry.view !== "empty") {
+        await openView(entry.view);
+      }
+      return true;
+    },
+    [t, navigate, openView, stepPlaceHistory]
+  );
+  const goBack = useCallback(() => stepHistory("back"), [stepHistory]);
+  const goForward = useCallback(() => stepHistory("forward"), [stepHistory]);
 
   const clearAll = useCallback(() => {
     resetAnalytics();
@@ -484,12 +464,15 @@ export function useAnalyticsNavigation() {
 
   return {
     switchToMessages,
-    switchToTokenStats,
     switchToAnalytics,
     switchToRecentEdits,
     switchToSettings,
     switchToBoard,
     switchToArchive,
+    switchToGlobalStats,
+    openView,
+    goBack,
+    goForward,
     setStatsMode,
     setMetricMode,
     refreshAnalytics,

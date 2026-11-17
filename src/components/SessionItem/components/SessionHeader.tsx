@@ -29,12 +29,12 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
                 : "bg-amber-500/10 text-amber-500"
             )}
           >
-            <Archive className="w-3 h-3" />
+            <Archive className="w-3.5 h-3.5" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <p className="font-medium">{t("session.item.archived", "Archived session")}</p>
-          <p className="text-px11 text-primary-foreground/80 mt-1 leading-relaxed">
+          <p className="text-caption text-primary-foreground/80 mt-1 leading-relaxed">
             {t("session.item.archivedDescription", "Stored under Codex archived_sessions.")}
           </p>
         </TooltipContent>
@@ -52,7 +52,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
       )}
     >
       <span title={t("session.item.session")}>
-        <MessageCircle className="w-3 h-3" />
+        <MessageCircle className="w-3.5 h-3.5" />
       </span>
     </div>
   );

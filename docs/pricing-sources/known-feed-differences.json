@@ -1,0 +1,16 @@
+{
+  "note": "Feed values checked against the official pricing pages and found to be feed artifacts. The weekly pricing watch lists these separately while the feed still reports the recorded feedValue; if the feed value changes, it is flagged again. Rates are USD per 1M tokens.",
+  "entries": [
+    { "model": "gpt-5.6-sol", "field": "input", "feed": "openrouter", "feedValue": 2, "verifiedAt": "2026-10-01", "reason": "OpenRouter shows OpenAI's Batch row; the official standard rate is the $4/$20 promotional price (through 2026-11-21). See openai.md." },
+    { "model": "gpt-5.6-sol", "field": "output", "feed": "openrouter", "feedValue": 10, "verifiedAt": "2026-10-01", "reason": "Batch row (see input)." },
+    { "model": "gpt-5.6-sol", "field": "cacheRead", "feed": "openrouter", "feedValue": 0.2, "verifiedAt": "2026-10-01", "reason": "Batch row (see input)." },
+    { "model": "gpt-5.6-sol", "field": "cacheWrite", "feed": "openrouter", "feedValue": 2.5, "verifiedAt": "2026-10-01", "reason": "Batch row (see input)." },
+    { "model": "minimax-m2.5", "field": "input", "feed": "openrouter", "feedValue": 0.27, "verifiedAt": "2026-10-01", "reason": "OpenRouter discount; official rate is $0.3/$1.2. See minimax.md." },
+    { "model": "minimax-m2.5", "field": "output", "feed": "openrouter", "feedValue": 1.08, "verifiedAt": "2026-10-01", "reason": "OpenRouter discount (see input)." },
+    { "model": "minimax-m2.7", "field": "input", "feed": "openrouter", "feedValue": 0.21, "verifiedAt": "2026-10-01", "reason": "OpenRouter discount; official rate is $0.3/$1.2, cache read $0.06. See minimax.md." },
+    { "model": "minimax-m2.7", "field": "output", "feed": "openrouter", "feedValue": 0.84, "verifiedAt": "2026-10-01", "reason": "OpenRouter discount (see input)." },
+    { "model": "minimax-m2.7", "field": "cacheRead", "feed": "openrouter", "feedValue": 0.042, "verifiedAt": "2026-10-01", "reason": "OpenRouter discount (see input)." },
+    { "model": "claude-sonnet-4-5", "field": "contextTiers(>200K)", "feed": "litellm", "feedValue": 6, "verifiedAt": "2026-10-01", "reason": "Not on Anthropic's pricing page; Sonnet 4.5 has a 200k context window. See anthropic.md." },
+    { "model": "claude-mythos-preview", "field": "deprecation", "feed": "litellm", "feedValue": "2026-06-09", "verifiedAt": "2026-10-01", "reason": "2026-06-09 is the deprecation date; Anthropic lists the retirement date as 'To be announced'. See anthropic.md." }
+  ]
+}

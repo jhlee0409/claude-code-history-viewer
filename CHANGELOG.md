@@ -7,20 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
+
 ### Fixed
-- **Several API cost estimates were wrong** — every rate in the analytics pricing table was re-verified against the providers' official pricing pages on 2026-09-02 (`docs/pricing-sources/`). Corrections: GPT-5.6 Sol was priced at $5/$30 instead of the published $4/$20 (cache write $5, long context $8/$30); `grok-code-fast-1`, `grok-code-fast` and `grok-code-fast-1-0825` are aliases of Grok Build 0.1 ($1/$2) and were priced as Grok 4.3 ($1.25/$2.50); MiniMax-M3 recorded the struck-through list price instead of the permanent-discount rate actually charged ($0.30/$1.20); MiniMax M2.5/M2.1 cache reads are $0.03, not $0.06; the OpenAI Daybreak aliases were keyed without their `gpt-` prefix and never matched; Claude Fable 5.1 / Mythos 5.1 fell through to the 5.0 entry and had cache reads over-priced 4x; MiniMax `-highspeed` variants fell through to the base model at half their real rate. Long-context thresholds now follow each provider's definition (xAI ≥ 200k, OpenAI ≥ 272k).
+- **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+
+## [1.32.2] - 2026-10-20
+
+Patch release for Recent Edits; upgrade if you use Codex, OpenCode or Kilo.
+
+### Fixed
+- **Restore in Recent Edits only writes a recorded whole-file version** (desktop and WebUI). For an edit recorded as a patch or a partial change (Codex patches, OpenCode and Kilo edits, or an edit whose result could not be reconstructed), the Restore button is disabled and says why, and restoring such content is refused instead of writing it over the file. Recorded whole-file versions (Claude edits and writes, OpenCode and Kilo writes) restore as before. (#682, backported; #705)
+
+## [1.32.1] - 2026-10-20
+
+Patch release for the WebUI server mode (`--serve`); upgrade if you run the WebUI.
+
+### Security
+- **History readers stay inside the history folders** (desktop and WebUI). The session list, subagent list, project list, message search, recent edits, usage statistics, archives and the list of sessions about to expire no longer read a session or subagent file through a symbolic link inside a Claude history folder. A project folder under `projects/` that is itself a link is no longer counted in the global summary; that project's own statistics are unchanged. (#691, backported; #696)
+
+### Fixed
+- **A folder named like a session file no longer stalls loading.** History readers open regular files only: an entry in a history folder that is named like a session but is not a file is skipped by the lists and archives and refused when opened directly, instead of stalling the request. (#696)
+- **WebUI: an empty Claude folder means the default one.** Requests that leave the Claude folder empty (project list, search, global statistics) read `~/.claude` instead of a `projects` folder in the server's working directory. (#693)
+
+## [1.32.0] - 2026-10-11
 
 ### Added
-- **Fast / priority service tiers** for every OpenAI model that publishes one, Claude Opus 5 / 4.8 fast mode, and MiniMax-M3 priority, so Codex CLI sessions that report `service_tier` are priced at the rate they were billed.
-- **Retired models stay priced** at their last published rate (Claude 3.7 Sonnet, Opus 4/4.1, Sonnet 4, the GPT-5.x Codex/Chat snapshots, `grok-4`, …) with the provider's retirement date recorded; unknown ids still show "unavailable" rather than a guess.
-- The Global Overview cost strip shows the date the pricing table was last verified.
-- **Retired and soon-to-retire models are flagged** — the message header, assistant message details and the Global Overview model list show a "retired {date}" / "retires {date}" badge, with the provider's recommended replacement in the tooltip, for every model whose shutdown the provider has announced (within 90 days, or already past). Settings Manager warns when `settings.model` names such a model, and opening the Global Overview raises a single toast when the history contains any. Dates and replacements come from each provider's deprecations page and live in `model-pricing.json` (`deprecatedAt`, `replacedBy`).
-- **"Retiring models" card in the Global Overview** re-prices the usage recorded on each retiring model at the replacement's API rate, so the cost impact of migrating (e.g. Opus 4.1 → Opus 4.8: −67%, GPT-5-Codex → GPT-5.6 Sol: +~90% on output) is visible before the shutdown forces the move. Both sides use the API estimate; subscription and proxy providers are skipped because their current cost cannot be estimated.
+- **Jump between prompts with Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS). Moves the message list to the previous or next prompt you typed (slash commands included), with or without the Messages panel open. Ignored in text fields and dialogs, and it also works with focus in the project tree. (#629, #630)
+- **Session minimap** (opt-in): a strip beside the message list that shows the whole loaded session as colored blocks by row kind, with a box for the visible part; click or drag to move. Turn it on in the settings menu → View → Show session minimap, or with ⌘/Ctrl+Shift+F. (#599, #634)
+
+### Fixed
+- **Restore preview in Recent Edits**: the confirmation now shows what restoring will change in the WebUI too (it read project files through a generic endpoint the WebUI refuses), and opening it no longer crashes when the file differs. (#640, #641, #642)
+- **Restore safety**: restore and its preview refuse a symlinked target or parent directory, the preview skips files over 5 MiB and non-regular files, and the restore's temporary file is always created fresh. (#641)
+- Restoring from Recent Edits uses the row's current project scope instead of a stale one. (#633)
+- **Pricing**: Claude Sonnet 5.5 cache reads are $0.10 per million tokens (lowered by Anthropic on 2026-10-07); Claude Haiku 5.5 is priced, including its higher rate for prompts over 100,000 tokens; Gemini Nano Banana image generation is no longer priced as text. Aggregate stats now apply the long-context rates of GPT-6 Sol / 6.1 Sol / 6 Luna / 6 Astra and Grok 4.7. (#639)
 
 ### Internal
-- The pricing table moved out of `calculations.ts` into `src/data/model-pricing.json`, with an official source URL and verification date on every entry and a test that enforces the shape.
-- `scripts/check-model-pricing.mjs` diffs the table against LiteLLM and OpenRouter feeds and lists newly listed models we do not price; `.github/workflows/pricing-watch.yml` runs it weekly and upserts a "📊 Model pricing watch" issue. Feeds are corroboration only — a maintainer confirms each finding on the official page before editing the JSON. Nothing is auto-merged.
-- `VITE_MOCK=1 pnpm dev` now serves complete project/global summaries and paged session/message responses, so the Global Overview and a session can be opened in mock mode instead of crashing on the stub shapes.
+- The weekly pricing watch lists feed values already verified as feed artifacts separately instead of re-flagging them. (#638)
+- Serena project config moved to the Serena 1.7 schema, with the Rust language server enabled. (#636)
+
+## [1.31.0] - 2026-10-04
+
+### Added
+- **Custom arguments for session resume, per CLI.** Settings → Session Resume lets you add extra flags for each assistant's resume command (for example `--dangerously-skip-permissions` for Claude Code). They apply to both "Copy resume command" and "Open in terminal", with a live preview and inline validation. Dangerous flags are highlighted, and resuming several sessions with one asks for confirmation. (#509, #595, #628)
+
+### Fixed
+- **Claude Opus 5.5 cost was overstated.** Opus 5.5 sessions were priced at Opus 5 rates; they now use Opus 5.5's own $4 / $20 (cache reads $0.20), including model ids with a `[1m]` suffix. (#625)
+- Pricing added for GPT-6 Sol, GPT-6.1 Sol, GPT-6 Luna, GPT-6 Astra, Gemini 3.8 Flash, Grok 4.7 and Claude Sonnet 5.5. Claude Sonnet 4.5 shows its announced retirement on 2026-11-30. (#625)
+- The Messages panel marks a row as failed when any of its task notifications failed, not only the first, and ToolSearch's "Tool loaded." note no longer shows as a typed prompt. (#626)
+- Windows: file-watch events use plain paths, so the open session refreshes when its file changes; settings and export paths on network shares (UNC) are matched correctly. (#604, #624)
+
+### Internal
+- Tests updated for Rust 1.99's `clippy::assert_is_empty` lint. (#627)
+
+## [1.30.0] - 2026-10-01
+
+### Security
+- **WebUI server mode (`--serve`) hardening** ([GHSA-j5r9-j75x-wprj](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)). Upgrade if you run the WebUI.
+  - Endpoints that take a session or project path only accept paths under the configured history roots (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`, custom Claude directories, the app archive folder); anything else gets one uniform error. Provider loaders (including Aider and the Cline family) confine path-bearing ids to their own discovery roots. (#617, #620)
+  - Project-scoped settings endpoints and the Board's git log only accept project directories recorded in Claude history. In the WebUI, non-Claude providers no longer get git log or project-scoped settings reads. (#618)
+  - Custom Claude directories are now server configuration: the WebUI can no longer add, change or remove them. Set them from the desktop app, `CLAUDE_CONFIG_DIR`, or the server's `user-data.json`. (#617)
+- **Project settings saves stay inside the project** (desktop and WebUI): a symlinked `.claude` directory or a pre-existing link at the temp-file path is no longer written through. (#618)
+
+### Added
+- **Messages panel row kinds:** typed prompts, agent updates, slash commands and injected context get their own icon, and a "Show my prompts only" filter; tool-result rows no longer show as "(user message)". The panel's text filter matches the visible row kind. (#600, #615)
+- **Claude Code auto-generated session titles** (`ai-title` records) are used for session names, with the priority custom rename › auto title › legacy summary › first message — in the session list, stats, CLI `--export`, and archives (existing archives update on first open). (#601, #611, #616, #622)
+
+### Fixed
+- Codex sessions from models that store reasoning in `content` instead of `summary` (e.g. DeepSeek) now show their reasoning. (#597, #610)
+- Task notifications with `killed`, `stopped` or `error` status render as failed instead of "DONE". (#615)
+- Refreshing (manual, file watcher, sidechain toggle) keeps the open session and its view in place, including subagent views and sessions beyond the first page of the list; a page loaded during a refresh no longer leaves gaps in the list. (#603, #609, #612, #614, #621)
+- Clicking a relative or `file:` link in a transcript no longer navigates the app window away; bare `data:`/`blob:` links are blocked unless they are downloads. (#602, #613)
+- Restoring a file from Recent Edits honors `replace_all` edits. (#606)
+- Renaming or resetting a session name ends the rewritten JSONL with a newline, so Claude Code's next append isn't glued to the last line. (#607)
+- Saving MCP servers refuses to overwrite a config file that fails to parse instead of replacing it with `{}`. (#605)
+- Concurrent metadata saves (session/project metadata, settings) no longer lose updates. (#623)
+- MCP project entries in `~/.claude.json` are keyed by the canonical project path. (#618)
+
+## [1.29.0] - 2026-09-28
+
+### Added
+- **Z Code (Z.ai) provider** — sessions from Z Code's SQLite store (`~/.zcode/cli/db/db.sqlite`, or `ZCODE_HOME`) with titles, tool calls, thinking and token usage, searchable and included in analytics. Brings coverage to 31 assistants. (#573)
+
+### Changed
+- **Subagent usage counts toward the session that spawned it.** Under the default *Billing Total* mode, a session's token and cost stats now include the subagent runs it delegated to, and *Conversation Only* still shows the main thread alone. This matches the existing policy that subagent (sidechain) usage is billed usage. (#577)
+  - **Claude Code:** transcripts under `<session>/subagents/` are folded into their parent session. In the Token Statistics per-session list, the project summary and session comparison, they no longer appear as separate sessions. Their usage shows in the parent's row, so session counts drop, but project and global totals are unchanged. On a real session with 11 runs, subagents were ~34% of its billed usage. (#594)
+  - **Z Code:** subagent runs were previously left out of every stats view. They now count toward their parent session, and toward project and global totals. (#593)
+- Redundant Claude predecessor sessions are hidden from the session list when every continuation already contains their history and they have no activity of their own after a branch point. (#572)
+
+### Performance
+- **Session lists load much faster on large histories.** The cross-file chain scan skips JSON parsing for transcripts without a `compact_boundary` event, using a memory-mapped prefilter, and runs in parallel. Codex rollouts also load in parallel. Measured on 16k Claude sessions (9.9 GB), the first load dropped from 22 s to 2 s. (#591)
+
+### Internal
+- Frontend CI now also runs `vite build`, so bundler and config failures surface on the PR instead of at release time. (#592)
+
+## [1.28.0] - 2026-09-26
+
+### Added
+- **Cline's current session store** — recent Cline releases (the VS Code extension included) save sessions under `~/.cline/data/sessions/` instead of the editor's `globalStorage`, so their history was invisible. Those sessions now appear under Cline with titles, full transcripts (thinking, tool calls and results), and token usage and cost in the stats views. (#582, #589)
+- **Kilo Code's OpenCode-core store** (`kilo.db`) is read as its own Kilo provider, with live refresh and global stats. Tasks from the older Cline-style Kilo store are still read. (#580)
+- **Sessions pane** — from the `lg` breakpoint up, the selected project's sessions open in their own resizable column instead of pushing the other projects out of the sidebar.
+- **One row per folder across providers** — a directory used by several tools (Claude Code, Codex, OpenCode, …) is one explorer row, with the other providers shown as chips.
+- **Temporary locations group** — projects under OS temp and cache directories collapse into a group instead of crowding the top of the list.
+- **Tool calls are summarized in the collapsed row** (command, path, pattern or intent) and expand in one click, including for providers that emit lowercase tool names.
+- Cursor Agent sessions show the title set with `/rename` in the CLI. (#571)
+
+### Changed
+- **Header:** one segmented view switcher, one refresh button, and the tools moved into the app menu, replacing eleven icon-only buttons.
+- Consecutive assistant turns from the same model no longer repeat the role/time/model header on every tool call.
+- **Pricing table:** every analytics rate was re-verified against the providers' official pricing pages. Several wrong prices were corrected (GPT-5.6 Sol, Grok Code Fast aliases, MiniMax M3/M2.x, Claude Fable/Mythos 5.1 cache reads, …).
+- **Fast / priority tiers are priced.** Retired models keep their last rate and show a "retired / retires {date}" badge with the recommended replacement. The Global Overview adds a "Retiring models" card.
+- **The Claude Code transcript-retention setting** (`cleanupPeriodDays`) is now labelled as Claude Code's own setting, and the copy states that this app never deletes sessions. (#587)
+
+### Fixed
+- **Output tokens were undercounted by roughly 40%** for Claude Code sessions. A streamed turn is written as several rows with growing `output_tokens`, and only the first row was counted. Each turn now counts its final usage once, in both live and cached stats. Long-context tiers and cache TTL splits stay correct. (#575, #585)
+- **Cline, Roo Code and Kilo Code on Windows:** the extensions were never discovered, because no Windows data path was searched. Their project paths also split at the drive-letter colon. Both are fixed. (#582, #586, #588)
+- **Transcript retention above 365 days can be set**, as Claude Code's docs recommend (e.g. 3650). A saved value above 365 is no longer shown as 30 days. `0`, which Claude Code rejects, can no longer be written. (#587, #590)
+- Plural strings render correctly in every locale ("79 messages", not "79 message").
+- User messages are no longer rendered twice for providers that store user turns as content arrays (OpenCode, pi, oh-my-pi). (#567)
+- Collapsibles inside one message no longer all toggle together.
+- Global search previews show the matched text even when the hit is inside a tool payload.
+- Analytics and Global Overview show "All time" when no date filter is set, instead of today's date.
+- MCP server, custom directory and WSL failures raise a visible error toast instead of looking like success.
+- Light-theme chrome and status colors follow theme tokens, and dark-theme status foregrounds meet contrast.
+- KPI cards, Settings Manager and header titles reflow in narrow panes.
+- Branched Claude conversations are preserved across session files (#568). Symlinked `.jsonl` files are skipped during cross-file chain scans.
+- oh-my-pi sessions parse with the current schema.
+- The search worker bundles on macOS x86_64 builds. (#579)
+
+### Internal
+- CI's frontend suite runs again: a transitive `nwsapi` bump had made a Radix dropdown test time out on every run since 2026-09-01. (#584)
+- `scripts/check-model-pricing.mjs` and a weekly `pricing-watch` workflow flag pricing drift for maintainer review.
 
 ## [1.27.0] - 2026-09-01
 

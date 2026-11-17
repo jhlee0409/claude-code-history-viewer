@@ -87,6 +87,7 @@ pub async fn scan_all_projects(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -108,6 +109,7 @@ pub async fn scan_all_projects(
             "openhands".to_string(),
             "trae".to_string(),
             "vibe".to_string(),
+            "zcode".to_string(),
         ]
     });
 
@@ -175,6 +177,7 @@ pub async fn scan_all_projects(
         ("gemini", providers::gemini::scan_projects),
         ("goose", providers::goose::scan_projects),
         ("grok", providers::grok::scan_projects),
+        ("kilo", providers::kilo::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
         ("opencode", providers::opencode::scan_projects),
@@ -197,6 +200,7 @@ pub async fn scan_all_projects(
         ("kiro", providers::kiro::scan_projects),
         ("llm", providers::llm::scan_projects),
         ("copilot", providers::copilot::scan_projects),
+        ("zcode", providers::zcode::scan_projects),
     ];
 
     // Spawn every enabled scanner up front so they run concurrently on the
@@ -367,9 +371,11 @@ pub async fn load_provider_sessions(
         "continue" => providers::continue_dev::load_sessions(&project_path, exclude),
         "pearai" => providers::pearai::load_sessions(&project_path, exclude),
         "copilot" => providers::copilot::load_sessions(&project_path, exclude),
+        "zcode" => providers::zcode::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "goose" => providers::goose::load_sessions(&project_path, exclude),
         "grok" => providers::grok::load_sessions(&project_path, exclude),
+        "kilo" => providers::kilo::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -464,6 +470,41 @@ pub async fn load_provider_sessions_page(
     })
 }
 
+/// Look up the selected session by file path, for a list that only reloaded
+/// its first page.
+///
+/// `Ok(None)` means the session is gone. Only Claude has a single-file path
+/// (and a metadata cache); other providers return an error, which the frontend
+/// treats as "unknown" and falls back to its previous behavior.
+#[tauri::command]
+pub async fn load_provider_session_by_path(
+    provider: String,
+    project_path: String,
+    file_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<ClaudeSession>, String> {
+    if provider != "claude" {
+        return Err(format!(
+            "Single-session lookup is not supported for provider: {provider}"
+        ));
+    }
+    let session = tauri::async_runtime::spawn_blocking(move || {
+        crate::commands::session::find_project_session_by_path(
+            &project_path,
+            &file_path,
+            exclude_sidechain,
+        )
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+    Ok(session.map(|mut session| {
+        if session.provider.is_none() {
+            session.provider = Some("claude".to_string());
+        }
+        session
+    }))
+}
+
 /// Default / maximum page size for `load_provider_messages_paginated`.
 const DEFAULT_MESSAGE_PAGE_SIZE: usize = 200;
 const MAX_MESSAGE_PAGE_LIMIT: usize = 500;
@@ -480,9 +521,11 @@ fn load_non_claude_messages(
         "continue" => providers::continue_dev::load_messages(session_path),
         "pearai" => providers::pearai::load_messages(session_path),
         "copilot" => providers::copilot::load_messages(session_path),
+        "zcode" => providers::zcode::load_messages(session_path),
         "gemini" => providers::gemini::load_messages(session_path),
         "goose" => providers::goose::load_messages(session_path),
         "grok" => providers::grok::load_messages(session_path),
+        "kilo" => providers::kilo::load_messages(session_path),
         "kimi" => providers::kimi::load_messages(session_path),
         "forgecode" => providers::forgecode::load_messages(session_path),
         "opencode" => providers::opencode::load_messages(session_path),
@@ -660,6 +703,7 @@ pub async fn search_all_providers(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -681,6 +725,7 @@ pub async fn search_all_providers(
             "openhands".to_string(),
             "trae".to_string(),
             "vibe".to_string(),
+            "zcode".to_string(),
         ]
     });
     // Native loaders use the full active provider selection. WSL loaders use
@@ -839,6 +884,16 @@ pub async fn search_all_providers(
         }
     }
 
+    // Kilo Code
+    if providers_to_search.iter().any(|p| p == "kilo") {
+        match providers::kilo::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Kilo search failed: {e}");
+            }
+        }
+    }
+
     // OpenCode
     if providers_to_search.iter().any(|p| p == "opencode") {
         match providers::opencode::search(&query, max_results) {
@@ -875,6 +930,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("oh-my-pi search failed: {e}");
+            }
+        }
+    }
+
+    // Z Code
+    if providers_to_search.iter().any(|p| p == "zcode") {
+        match providers::zcode::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Z Code search failed: {e}");
             }
         }
     }
@@ -1171,10 +1236,51 @@ fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usi
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
-    for msg in messages {
+    for mut msg in messages {
         if msg.message_type != "user" {
             merged.push(msg);
             continue;
+        }
+
+        // Associate raw metadata with its source result before moving that block.
+        // Other providers own their normalized shapes and are left untouched.
+        if msg.provider.as_deref() == Some("claude") {
+            if let (Some(raw), Some(blocks)) = (
+                msg.tool_use_result.as_ref(),
+                msg.content.as_mut().and_then(Value::as_array_mut),
+            ) {
+                let indices: Vec<usize> = blocks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, block)| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                    })
+                    .map(|(index, _)| index)
+                    .collect();
+                if let Some(&index) = indices.first() {
+                    let block = blocks[index].as_object_mut().expect("typed result block");
+                    let assigned = indices.len() == 1 && !block.contains_key("toolUseResult");
+                    if assigned {
+                        block.insert("toolUseResult".into(), raw.clone());
+                    }
+                    let source = crate::models::ToolUseResultSource {
+                        message_uuid: msg.uuid.clone(),
+                        session_id: msg.session_id.clone(),
+                        content_index: index,
+                        association: if assigned {
+                            "single_result"
+                        } else {
+                            "unassigned"
+                        }
+                        .into(),
+                        result_content_indices: if assigned { None } else { Some(indices) },
+                        unassigned_tool_use_result: if assigned { None } else { Some(raw.clone()) },
+                    };
+                    block
+                        .entry("toolUseResultSource")
+                        .or_insert_with(|| serde_json::to_value(source).expect("JSON provenance"));
+                }
+            }
         }
 
         let Some(content_arr) = msg.content.as_ref().and_then(Value::as_array) else {
@@ -1253,6 +1359,19 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn load_provider_session_by_path_rejects_providers_without_a_lookup() {
+        let result = load_provider_session_by_path(
+            "codex".to_string(),
+            "/tmp".to_string(),
+            "/tmp/a.jsonl".to_string(),
+            None,
+        )
+        .await;
+
+        assert!(result.unwrap_err().contains("not supported"));
+    }
+
     #[test]
     fn select_wsl_search_providers_separates_native_and_wsl_sources() {
         let active_providers = vec!["claude".to_string(), "codex".to_string()];
@@ -1266,9 +1385,9 @@ mod tests {
             select_wsl_search_providers(&active_providers, None),
             vec!["claude"]
         );
-        assert!(
-            select_wsl_search_providers(&active_providers, Some(&["codex".to_string()]),)
-                .is_empty()
+        assert_eq!(
+            select_wsl_search_providers(&active_providers, Some(&["codex".to_string()])),
+            Vec::<String>::new()
         );
     }
 
@@ -1276,37 +1395,13 @@ mod tests {
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {
         ClaudeMessage {
             uuid: format!("{message_type}-id"),
-            parent_uuid: None,
             session_id: "session-1".to_string(),
             timestamp: "2026-02-19T12:00:00Z".to_string(),
             message_type: message_type.to_string(),
             content: Some(content),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
             role: Some(message_type.to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("claude".to_string()),
+            ..Default::default()
         }
     }
 

@@ -34,10 +34,9 @@
 //! `ompi.rs` reuses this format-aware core with the OMP store root.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
-use crate::utils::{
-    build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
-};
+use crate::utils::{build_provider_message, is_symlink, ms_to_iso};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -90,12 +89,26 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     Ok(scan_store(&PI_STORE))
 }
 
+/// [`scan_projects`], recording in `report` what it could not read.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    Ok(scan_store_reporting(&PI_STORE, report))
+}
+
 /// Load the sessions in one Pi project directory.
 pub fn load_sessions(
     project_path: &str,
     exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     load_sessions_of(&PI_STORE, project_path, exclude_sidechain)
+}
+
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_of_reporting(&PI_STORE, project_path, report)
 }
 
 /// Load all messages from one Pi session file.
@@ -122,7 +135,7 @@ pub(crate) fn detect_store(store: &PiStore) -> Option<ProviderInfo> {
     Some(ProviderInfo {
         id: store.id.to_string(),
         display_name: store.display_name.to_string(),
-        is_available: root.is_dir() && !project_dirs(&root).is_empty(),
+        is_available: root.is_dir() && !project_dirs(&root, &ScanReport::default()).is_empty(),
         base_path: root.to_string_lossy().to_string(),
     })
 }
@@ -137,10 +150,15 @@ pub(crate) fn base_path_of(store: &PiStore) -> Option<String> {
 }
 
 pub(crate) fn scan_store(store: &PiStore) -> Vec<ClaudeProject> {
+    scan_store_reporting(store, &ScanReport::default())
+}
+
+/// [`scan_store`], recording in `report` what it could not read.
+pub(crate) fn scan_store_reporting(store: &PiStore, report: &ScanReport) -> Vec<ClaudeProject> {
     let Some(root) = store.sessions_root() else {
         return vec![];
     };
-    scan_projects_in(&root, store.id)
+    scan_projects_in(&root, store.id, report)
 }
 
 pub(crate) fn load_sessions_of(
@@ -148,15 +166,25 @@ pub(crate) fn load_sessions_of(
     project_path: &str,
     _exclude_sidechain: bool, // Pi has no sidechains
 ) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_of_reporting(store, project_path, &ScanReport::default())
+}
+
+/// [`load_sessions_of`], recording in `report` the project directory and
+/// session files it could not read.
+pub(crate) fn load_sessions_of_reporting(
+    store: &PiStore,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let dir = Path::new(project_path);
-    if !dir.is_dir() {
+    if !report.is_dir(dir) {
         return Ok(vec![]);
     }
     validate_under_root(store, dir)?;
 
     let mut sessions = Vec::new();
-    for file in session_files(dir) {
-        let Ok(data) = fs::read_to_string(&file) else {
+    for file in session_files(dir, report) {
+        let Some(data) = report.read_to_string(&file) else {
             continue;
         };
         let Some(meta) = session_meta(&data) else {
@@ -236,8 +264,9 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for dir in project_dirs(&root) {
-        for file in session_files(&dir) {
+    let unreported = ScanReport::default();
+    for dir in project_dirs(&root, &unreported) {
+        for file in session_files(&dir, &unreported) {
             let Ok(data) = fs::read_to_string(&file) else {
                 continue;
             };
@@ -258,7 +287,7 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
                 let matched = msg
                     .content
                     .as_ref()
-                    .map(|c| search_json_value_case_insensitive(c, &query_lower))
+                    .map(|c| super::result_evidence::content_matches(c, &query_lower))
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some(project_name.clone());
@@ -270,25 +299,21 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
     results
 }
 
-/// Immediate subdirectories of the sessions root (each one project).
-fn project_dirs(root: &Path) -> Vec<PathBuf> {
-    WalkDir::new(root)
-        .min_depth(1)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
+/// Immediate subdirectories of the sessions root (each one project); what
+/// the listing cannot read is recorded in `report`.
+fn project_dirs(root: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    report
+        .walk(WalkDir::new(root).min_depth(1).max_depth(1))
         .filter(|e| !e.path_is_symlink() && e.file_type().is_dir())
         .map(|e| e.path().to_path_buf())
         .collect()
 }
 
-/// `.jsonl` session files directly inside a project directory.
-fn session_files(dir: &Path) -> Vec<PathBuf> {
-    WalkDir::new(dir)
-        .min_depth(1)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
+/// `.jsonl` session files directly inside a project directory; what the
+/// listing cannot read is recorded in `report`.
+fn session_files(dir: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    report
+        .walk(WalkDir::new(dir).min_depth(1).max_depth(1))
         .filter(|e| e.file_type().is_file())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .filter(|e| !is_symlink(e.path()))
@@ -299,21 +324,26 @@ fn session_files(dir: &Path) -> Vec<PathBuf> {
 /// [`scan_store`] parameterized by the sessions root, so tests can point it at
 /// a fixture store (mirrors `continue_dev::scan_projects_in`). One project per
 /// session subdirectory, real path from the header `cwd` of its session files
-/// (never the escaped directory name).
-pub(crate) fn scan_projects_in(root: &Path, provider: &'static str) -> Vec<ClaudeProject> {
-    if !root.is_dir() {
+/// (never the escaped directory name). The project directories and session
+/// files it could not read are recorded in `report`.
+pub(crate) fn scan_projects_in(
+    root: &Path,
+    provider: &'static str,
+    report: &ScanReport,
+) -> Vec<ClaudeProject> {
+    if !report.is_dir(root) {
         return vec![];
     }
 
     let mut projects = Vec::new();
-    for dir in project_dirs(root) {
+    for dir in project_dirs(root, report) {
         let mut session_count = 0usize;
         let mut message_count = 0usize;
         let mut last_modified = String::new();
         let mut actual_path: Option<String> = None;
 
-        for file in session_files(&dir) {
-            let Ok(data) = fs::read_to_string(&file) else {
+        for file in session_files(&dir, report) {
+            let Some(data) = report.read_to_string(&file) else {
                 continue;
             };
             let Some(meta) = session_meta(&data) else {
@@ -778,6 +808,17 @@ fn convert_message_record(
     out.parent_uuid = record_parent(record);
     out.subtype = subtype;
     out.compact_metadata = compact_metadata;
+    if role == "bashExecution" {
+        out.source_execution = Some(json!({
+            "messageUuid":out.uuid,"sessionId":session_id,
+            "association":"local_execution","message":message
+        }));
+    }
+    if role == "toolResult" {
+        if let Some(result) = out.content.as_mut().and_then(|c| c.get_mut(0)) {
+            super::result_evidence::attach(result, message, &out.uuid, session_id, 0);
+        }
+    }
     out.stop_reason = message
         .get("stopReason")
         .and_then(Value::as_str)
@@ -1046,10 +1087,6 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
         .get("toolCallId")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let is_error = message
-        .get("isError")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
     let blocks = content_blocks(message);
     let content = if blocks
         .iter()
@@ -1065,12 +1102,13 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
     } else {
         Value::Array(blocks)
     };
-    vec![json!({
-        "type": "tool_result",
-        "tool_use_id": tool_use_id,
-        "content": content,
-        "is_error": is_error
-    })]
+    let mut block = json!({
+        "type": "tool_result", "tool_use_id": tool_use_id, "content": content
+    });
+    // pi-mono a922830 agent-loop.ts:841-863 writes isError; absence is not false.
+    // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/agent/src/agent-loop.ts#L841-L863
+    super::result_evidence::copy_error_flag(&mut block, message, "isError");
+    vec![block]
 }
 
 fn convert_content_item(item: &Value) -> Option<Value> {
@@ -1513,7 +1551,7 @@ mod tests {
         fs::write(dir.join("2026-06-08T20-31-45-261Z_session.jsonl"), SESSION)
             .expect("write fixture session");
 
-        let projects = scan_projects_in(&root, "pi");
+        let projects = scan_projects_in(&root, "pi", &ScanReport::default());
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].actual_path, "/Users/ac/dev/herdr");
         assert_eq!(projects[0].provider.as_deref(), Some("pi"));
@@ -1589,5 +1627,30 @@ mod tests {
             load_messages(&file.to_string_lossy()).is_err(),
             "load_messages must reject a file outside the sessions root"
         );
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [
+            None,
+            Some(serde_json::json!(false)),
+            Some(serde_json::json!(true)),
+            Some(serde_json::json!(null)),
+            Some(serde_json::json!("false")),
+        ] {
+            let mut record = serde_json::json!({"toolCallId":"c","content":[{"type":"text","text":"synthetic"}]});
+            if let Some(v) = flag.clone() {
+                record["isError"] = v;
+            }
+            let block = &tool_result_blocks(&record)[0];
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.and_then(|v| v.as_bool())
+            );
+        }
     }
 }

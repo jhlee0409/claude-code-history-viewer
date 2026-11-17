@@ -1,10 +1,9 @@
 {
-  "archive.title": "归档管理器",
   "archive.description": "管理和保存您的对话历史",
   "archive.tab.overview": "概览",
   "archive.tab.browse": "浏览",
   "archive.overview.cleanupWarning.title": "自动清理已启用",
-  "archive.overview.cleanupWarning.description": "Claude Code 会在 {{days}} 天后自动删除会话。请在过期前归档重要会话。",
+  "archive.overview.cleanupWarning.description": "Claude Code 会在 {{days}} 天后自动删除会话。本应用不会删除会话——请在过期前归档重要会话以保留副本。",
   "archive.overview.cleanupWarning.notConfigured": "默认保留期限：30天",
   "archive.overview.cleanupWarning.configured": "保留期限：{{days}}天",
   "archive.overview.cleanupWarning.settingsLink": "打开 Claude 设置",
@@ -33,7 +32,7 @@
   "archive.overview.settings.cleanupDays": "清理周期",
   "archive.overview.settings.thresholdDays": "过期阈值",
   "archive.overview.settings.days": "天",
-  "archive.overview.settings.description": "清理周期是 Claude Code 自动删除会话的间隔。过期阈值设置删除前多少天显示为「即将过期」。",
+  "archive.overview.settings.description": "清理周期是 Claude Code 删除会话前保留的天数（最小 1，无上限——如需长期保留，请设置较大的值，例如 3650）。过期阈值设置删除前多少天显示为「即将过期」。",
   "archive.overview.settings.save": "应用",
   "archive.overview.settings.cancel": "取消",
   "archive.overview.settings.saved": "设置已应用",
@@ -126,6 +125,5 @@
   "archive.overview.expiring.projectSelect": "选择项目",
   "archive.create.mainSessions": "主会话 ({{count}})",
   "archive.create.subagentSessions": "子代理会话 ({{count}})",
-  "archive.settings.link": "归档管理器",
   "archive.settings.linkDescription": "在清理前管理和保存您的对话历史"
 }

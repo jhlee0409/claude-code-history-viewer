@@ -23,7 +23,8 @@ export interface SettingsSliceState {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   fontScale: number;
-  highContrast: boolean;
+  /** null = never chosen: follow the OS prefers-contrast setting. */
+  highContrast: boolean | null;
   updateSettings: UpdateSettings;
   sessionSortOrder: SessionSortOrder;
   sessionEntrypointFilter: SessionEntrypointFilter;
@@ -66,7 +67,7 @@ const initialSettingsState: SettingsSliceState = {
   excludeSidechain: true,
   showSystemMessages: false,
   fontScale: DEFAULT_FONT_SCALE,
-  highContrast: false,
+  highContrast: null,
   updateSettings: DEFAULT_UPDATE_SETTINGS,
   sessionSortOrder: "newest",
   sessionEntrypointFilter: "all",
@@ -86,13 +87,17 @@ export const createSettingsSlice: StateCreator<
 
   setExcludeSidechain: (exclude: boolean) => {
     set({ excludeSidechain: exclude });
-    // Refresh current project and session when filter changes
+    // Refresh current project and session when filter changes.
+    // `reloadProjectSessions`, not `selectProject`: the latter nulls
+    // `selectedSession`, which turns the `selectSession` below into a fresh
+    // load instead of an in-place reload — wiping the subagent stack,
+    // pagination and search index.
     const { selectedProject, selectedSession } = get();
     if (selectedProject) {
-      get().selectProject(selectedProject);
+      get().reloadProjectSessions(selectedProject);
     }
     if (selectedSession) {
-      get().selectSession(selectedSession);
+      void get().reloadCurrent("filter");
     }
   },
 
@@ -101,7 +106,7 @@ export const createSettingsSlice: StateCreator<
     // Refresh current session when filter changes
     const { selectedSession } = get();
     if (selectedSession) {
-      get().selectSession(selectedSession);
+      void get().reloadCurrent("filter");
     }
   },
 
@@ -169,7 +174,7 @@ export const createSettingsSlice: StateCreator<
       const savedHighContrast = await store.get<boolean>("highContrast");
       set({
         fontScale: normalizeFontScale(savedFontScale),
-        highContrast: savedHighContrast === true,
+        highContrast: typeof savedHighContrast === "boolean" ? savedHighContrast : null,
       });
     } catch (error) {
       console.warn("Failed to load persisted settings:", error);
