@@ -21,6 +21,7 @@ import type { ClaudeProject, ClaudeSession } from "../../types";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { favoritesMissingRef, libraryRefOf, projectListing } from "@/navigation/library";
+import type { SessionRef } from "@/navigation/place";
 
 // ============================================================================
 // State Interface
@@ -63,6 +64,13 @@ export interface MetadataSliceActions {
    * lack. Called when a project's sessions load.
    */
   backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
+  /**
+   * Carry a session's record to its new key after its file moved (Claude
+   * Code session ids are file paths). A recorded location (`ref`, starred
+   * sessions) becomes `ref`. The old record is removed only once the new one
+   * is saved; a failed save rejects and leaves the old record in place.
+   */
+  moveSessionMetadata: (fromId: string, toId: string, ref: SessionRef) => Promise<void>;
   /** Update metadata for a specific project */
   updateProjectMetadata: (
     projectPath: string,
@@ -240,6 +248,37 @@ export const createMetadataSlice: StateCreator<
       });
     }
   },
+
+  moveSessionMetadata: (fromId: string, toId: string, ref: SessionRef) =>
+    inTurn(async () => {
+      const existing = get().userMetadata.sessions[fromId];
+      if (!existing || fromId === toId) return;
+      const moved: SessionMetadata =
+        existing.ref || existing.starred ? { ...existing, ref } : existing;
+      try {
+        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+          sessionId: toId,
+          update: moved,
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        console.error("Failed to carry session metadata over:", error);
+        set({ metadataError: String(error) });
+        throw error;
+      }
+      try {
+        // An empty record removes the entry.
+        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+          sessionId: fromId,
+          update: {},
+        });
+        set({ userMetadata: updatedMetadata });
+      } catch (error) {
+        // The new record is saved; a stale old one is harmless.
+        console.error("Failed to remove the old session metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
   updateProjectMetadata: (projectPath: string, update: Partial<ProjectMetadata>) =>
     inTurn(async () => {
