@@ -6,6 +6,7 @@ export const KIND_LABEL_KEYS = {
   command: "navigator.kind.command",
   "agent-update": "navigator.kind.agentUpdate",
   context: "navigator.kind.context",
+  answer: "navigator.kind.answer",
   reply: "navigator.kind.reply",
   tool: "navigator.kind.tool",
   system: "navigator.kind.system",

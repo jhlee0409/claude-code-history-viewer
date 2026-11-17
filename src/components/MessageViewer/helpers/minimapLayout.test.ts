@@ -164,9 +164,10 @@ describe("bucketMinimapRows", () => {
 });
 
 describe("priorityForKind (Design §4 table)", () => {
-  it("ranks prompt above command above agent-update above summary above reply above tool above context above system", () => {
+  it("ranks prompt above command above answer above agent-update above summary above reply above tool above context above system", () => {
     expect(priorityForKind("prompt")).toBeGreaterThan(priorityForKind("command"));
-    expect(priorityForKind("command")).toBeGreaterThan(priorityForKind("agent-update"));
+    expect(priorityForKind("command")).toBeGreaterThan(priorityForKind("answer"));
+    expect(priorityForKind("answer")).toBeGreaterThan(priorityForKind("agent-update"));
     expect(priorityForKind("agent-update")).toBeGreaterThan(priorityForKind("summary"));
     expect(priorityForKind("summary")).toBeGreaterThan(priorityForKind("reply"));
     expect(priorityForKind("reply")).toBeGreaterThan(priorityForKind("tool"));
@@ -176,7 +177,7 @@ describe("priorityForKind (Design §4 table)", () => {
 });
 
 const ALL_KINDS: MessageKind[] = [
-  "prompt", "command", "agent-update", "summary", "reply", "tool", "context", "system",
+  "prompt", "command", "answer", "agent-update", "summary", "reply", "tool", "context", "system",
 ];
 
 describe("minimapBarRect (the prototype's bar geometry)", () => {
@@ -214,8 +215,8 @@ describe("minimapBarRect (the prototype's bar geometry)", () => {
 });
 
 describe("alphaForKind (the prototype's visual weight)", () => {
-  it("paints prompts, commands, agent updates, and summaries at full strength", () => {
-    for (const kind of ["prompt", "command", "agent-update", "summary"] as MessageKind[]) {
+  it("paints prompts, commands, answers, agent updates, and summaries at full strength", () => {
+    for (const kind of ["prompt", "command", "answer", "agent-update", "summary"] as MessageKind[]) {
       expect(alphaForKind(kind)).toBe(1);
     }
   });

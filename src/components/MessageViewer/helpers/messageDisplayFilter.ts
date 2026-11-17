@@ -10,7 +10,7 @@ import type { ClaudeMessage } from "../../../types";
 import type { MessageFilter } from "../../../store/slices/filterSlice";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { filterMessagesByCategory } from "./messageCategories";
-import { classifyMessage, isCodexHeartbeat } from "./messageKinds";
+import { classifyMessage, isCodexHeartbeat, isUserAnswer } from "./messageKinds";
 import { codexAutomatedTurns } from "../../transcript/codexTurns";
 import { turnStartKinds } from "../../transcript/isTurnStart";
 
@@ -74,6 +74,10 @@ export function applyMessageDisplayFilter(
 
   const automated = !roles.assistant ? codexAutomatedTurns(messages).uuids : new Set<string>();
   return candidates.filter((msg) => {
+    // The user's answer to an AskUserQuestion is the user's input even on the
+    // assistant row its result merged into, so the user role keeps it, and no
+    // content-type filter hides it.
+    if (roles.user && isUserAnswer(msg)) return true;
     // Role filter
     if (msg.type === "user") {
       // Owner decision: user-only means human input, not automatic producer

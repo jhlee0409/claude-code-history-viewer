@@ -9,8 +9,10 @@ import type { MessageKind } from "./messageKinds";
 
 /** Design §4's priority table, higher wins a pixel shared with a lower one. */
 export const MINIMAP_KIND_PRIORITY: Record<MessageKind, number> = {
-  prompt: 8,
-  command: 7,
+  prompt: 9,
+  command: 8,
+  // The user's input, though not a turn start: above everything but those.
+  answer: 7,
   "agent-update": 6,
   summary: 5,
   reply: 4,
@@ -34,6 +36,7 @@ export const MINIMAP_KIND_BAR_WIDTH: Record<MessageKind, number> = {
   prompt: 1,
   command: 0.7,
   "agent-update": 0.8,
+  answer: 0.85,
   summary: 0.9,
   reply: 0.7,
   tool: 0.5,
@@ -51,6 +54,7 @@ export const MINIMAP_KIND_ALPHA: Record<MessageKind, number> = {
   prompt: 1,
   command: 1,
   "agent-update": 1,
+  answer: 1,
   summary: 1,
   reply: 0.55,
   tool: 0.3,
