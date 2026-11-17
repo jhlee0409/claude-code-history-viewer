@@ -2,9 +2,20 @@ import React, { useMemo, memo } from "react";
 import { cn } from "@/lib/utils";
 import { searchRanges } from "./searchMarks";
 
-/** A search mark's look (also PathText's marks): bright for the current match, light for the others. */
+/**
+ * A search mark's look (also PathText's and DiffView's marks): bright for the
+ * current match, light for the others. The current match is also underlined
+ * in its text colour: a current-match message is painted with the same
+ * `--highlight-current` (ClaudeMessageNode), so where the mark sits on the
+ * message's own background, e.g. a tool row's head, its background and ring
+ * vanish and its text colour is about the row's own (#736). The underline
+ * stays ≥3:1 against that background in every theme
+ * (src/test/searchMark.current.contrast.test.ts). Forced colours recolour it
+ * via `[aria-current]` (index.css).
+ */
 export const searchMarkBaseClass = "rounded px-0.5 transition-colors";
-export const searchMarkCurrentClass = "bg-highlight-current text-highlight-foreground ring-2 ring-highlight-current";
+export const searchMarkCurrentClass =
+  "bg-highlight-current text-highlight-foreground ring-2 ring-highlight-current underline decoration-highlight-foreground decoration-2 underline-offset-2";
 export const searchMarkOtherClass = "bg-highlight text-highlight-foreground";
 
 interface HighlightedTextProps {
