@@ -126,6 +126,43 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
   );
 });
 
+/** "Back to parent session" bar of a subagent transcript; shown whenever a parent is on the stack. */
+const SubagentBreadcrumb = memo(function SubagentBreadcrumb({
+  sessionLabel,
+  onBack,
+}: {
+  sessionLabel: string | undefined;
+  onBack: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const label = t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" });
+
+  return (
+    <div className={cn(
+      "flex items-center gap-2 px-4 py-2 border-b",
+      "bg-primary/5 border-primary/20",
+    )}>
+      <button
+        type="button"
+        onClick={() => void onBack()}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1 text-list font-medium rounded-md",
+          "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
+        )}
+        aria-label={label}
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        {label}
+      </button>
+      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+      <span className="text-list text-muted-foreground flex items-center gap-1">
+        <Bot className="w-3.5 h-3.5" />
+        {sessionLabel}
+      </span>
+    </div>
+  );
+});
+
 export const MessageViewer: React.FC<MessageViewerProps> = ({
   messages,
   isLoading,
@@ -978,11 +1015,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // isSessionTransitioning 의존 제거: scrollReadyForSessionId는 messagesLength>0 일 때만 세팅되어
   // 빈 세션에서 영구 true가 되는 회귀를 유발.
   if (messages.length === 0) {
-    return (
+    const emptyState = (
       <LoadingState
         isLoading={false}
         isEmpty={true}
-        className="flex-1 h-full"
+        className={isInSubagent ? "flex-1 min-h-0" : "flex-1 h-full"}
         emptyComponent={
           <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
             <div className="mb-4">
@@ -997,6 +1034,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
         }
       />
+    );
+    if (!isInSubagent) return emptyState;
+    // An empty subagent transcript still offers the way back to its parent.
+    return (
+      <div className="relative flex-1 h-full flex flex-col min-h-0">
+        <SubagentBreadcrumb
+          sessionLabel={selectedSession?.summary ?? selectedSession?.actual_session_id}
+          onBack={navigateBackToParent}
+        />
+        {emptyState}
+      </div>
     );
   }
 
@@ -1249,29 +1297,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       )}
 
       {/* SubAgent: Back to parent breadcrumb */}
-      {parentSessionStack.length > 0 && (
-        <div className={cn(
-          "flex items-center gap-2 px-4 py-2 border-b",
-          "bg-primary/5 border-primary/20",
-        )}>
-          <button
-            type="button"
-            onClick={() => void navigateBackToParent()}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-list font-medium rounded-md",
-              "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
-            )}
-            aria-label={t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            {t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
-          </button>
-          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-list text-muted-foreground flex items-center gap-1">
-            <Bot className="w-3.5 h-3.5" />
-            {selectedSession?.summary ?? selectedSession?.actual_session_id}
-          </span>
-        </div>
+      {isInSubagent && (
+        <SubagentBreadcrumb
+          sessionLabel={selectedSession?.summary ?? selectedSession?.actual_session_id}
+          onBack={navigateBackToParent}
+        />
       )}
 
       {/* SubAgent sessions panel — collapsible (접힘 상태는 MessageViewer에 lift됨) */}
@@ -1293,7 +1323,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
-      {/* Mobile controls use a 4rem lane: 3rem FAB plus its 1rem inset. */}
+      {/* Mobile controls use a 4rem lane: 3rem FAB plus its 1rem inset. This
+          padding is the lane's only reservation: it keeps the scroll viewport
+          above the lane, so the viewport itself reserves nothing more (#779). */}
       <div
         className="relative flex-1 min-h-0 pb-[var(--mobile-transcript-controls-height)] md:pb-0"
         style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
@@ -1318,11 +1350,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           />
         )}
 
-        {/* Keep native centring away from the shortened mobile viewport's lower
-            clip edge, including the trailing actions of expanded tool details. */}
         <OverlayScrollbarsComponent
           ref={scrollContainerRef}
-          className="h-full [&_[data-overlayscrollbars-viewport]]:scroll-pb-[var(--mobile-transcript-controls-height)] md:[&_[data-overlayscrollbars-viewport]]:scroll-pb-0"
+          className="h-full"
           options={{
             scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
           }}
