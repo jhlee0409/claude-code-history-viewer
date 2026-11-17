@@ -486,15 +486,19 @@ const DEVELOP_ANSWERS: &[(Fixture, &[&str])] = &[
             "0 0 0 0 0 0 E", // wire.jsonl
         ],
     ),
+    // Develop could not load a Cline session by the file it lists (#707),
+    // so its project and session statistics were errors or zero whatever
+    // the store's state. They now read the session file, also with the task
+    // index locked; a session file that cannot be read is still an error.
     (
         cline,
         &[
-            "1 1 0 E E 0 E", // readable
+            "1 1 0 1 1 1 1", // readable
             "0 E 0 E E 0 E", // absent
             "0 E 0 E E 0 E", // globalStorage
             "0 0 0 0 0 0 E", // saoudrizwan.claude-dev
-            "0 0 0 0 0 0 E", // state
-            "0 0 0 0 0 0 E", // taskHistory.json
+            "0 0 0 0 0 0 1", // state
+            "0 0 0 0 0 0 1", // taskHistory.json
             "1 1 0 E E 0 E", // tasks
             "1 1 0 E E 0 E", // task-1
             "1 1 0 E E 0 E", // ui_messages.json

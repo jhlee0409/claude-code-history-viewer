@@ -606,8 +606,12 @@ pub fn render_session_html(messages: &[Value], session_name: &str) -> String {
 // ---------------------------------------------------------------------------
 
 /// Parse a `.jsonl` transcript into one [`Value`] per non-empty, well-formed line.
+/// The file is opened without following a link or blocking on a FIFO swapped
+/// in after `resolve_session_path` checked it
+/// (`session_files::open_history_file`).
 pub fn load_jsonl_messages(path: &Path) -> Result<Vec<Value>, String> {
-    let file = fs::File::open(path).map_err(|e| format!("Failed to read session file: {e}"))?;
+    let file = crate::commands::stats::session_files::open_history_file(path)
+        .map_err(|e| format!("Failed to read session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut messages = Vec::new();
     for line in reader.lines() {

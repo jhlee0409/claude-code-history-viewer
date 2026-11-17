@@ -194,22 +194,29 @@ symlink. A symlinked project directory under `projects/` is not walked either.
   never `scanned`.
 - Defense in depth: a file is opened only as a regular file whose canonical path lies inside the
   root it was found under, through its canonical path, and the opened handle must be the file
-  that was checked (same device and inode on Unix). A file swapped for a symlink after the walk
-  is not read. The contribution cache never answers a symlink with its target's entry.
+  that was checked (same device and inode on Unix, same volume and file index on Windows, read
+  from a handle with `GetFileInformationByHandle`, #712). A file swapped for a symlink after the
+  walk is not read. The contribution cache never answers a symlink with its target's entry, and
+  the per-file stats cache keys its entries by the opened file's identity, not its path: a file
+  renamed over a cached one is another entry, even with the same size and mtime (#712).
 - **The open decides, not the walk (#698).** A walk-time check and the open after it are
   separate system calls, so every history reader — the stats commands, search, the session,
-  subagent and project lists, the session loaders, recent edits and the archive copy — opens
-  through `session_files::open_session_file`: without following a symlink at the file
+  subagent and project lists, the session loaders, recent edits, the archive copy, the session
+  rename (Claude and OpenCode, #712), the CLI `--export` and the file watcher's Vibe `meta.json`
+  — opens through `session_files::open_session_file`: without following a symlink at the file
   (`O_NOFOLLOW`), without blocking on a FIFO (`O_NONBLOCK`, then the handle must be a regular
   file), inside the root resolved before the walk, and, where the system reports the opened
   handle's path (`F_GETPATH` on macOS, `/proc/self/fd` on Linux), that path inside the root as
   well. A reader handed a single file (one session's messages, its export) uses the file's own
   folder as the root (`open_history_file`). A unit test swaps a file for a symlink and for a
   FIFO right after its check, for every reader; a source guard fails on a plain open of a path
-  in the readers' production code. Windows has no `O_NOFOLLOW`: the file is opened with
-  `FILE_FLAG_OPEN_REPARSE_POINT`, so a link swapped in is opened as itself and refused by the
-  handle's metadata; a folder on the way swapped for a junction between the containment check
-  and the open is not detected there.
+  in the readers' production code, including an `OpenOptions` builder, `File::options`, and an
+  import that would hide an open from it (a renamed `std::fs`, `File` or `OpenOptions`, an open
+  function imported by name, a glob of `std::fs`). Windows has no `O_NOFOLLOW`: the file is
+  opened with `FILE_FLAG_OPEN_REPARSE_POINT`, so a link swapped in is opened as itself and
+  refused by the handle's metadata. Std reports no handle's path there, so a folder on the way
+  swapped for a junction after the containment check is not seen as such; the file reached
+  through it is another file and is refused by its identity.
 - **Hardlinks are read.** A hardlink is not a link entry but another name of the file itself: a
   regular file whose canonical path lies inside the root. A hardlink under a project directory to
   a file kept elsewhere on the same filesystem is therefore read like any other session file, by
@@ -217,6 +224,13 @@ symlink. A symlinked project directory under `projects/` is not walked either.
   that leave the root (`..`, an absolute path outside it), not hardlinks. This is inherent to
   reading history by path: making one needs write access inside the history root, and nothing in
   its path tells it apart from a session file.
+- **A file with more than one link skips the handle-path check, not the identity check.** The
+  handle's reported path is any of its names, so the check against the root after the open
+  (`opened_inside`) passes such a file. That is safe because the handle must still be the inode
+  checked before the open, whose canonical path was inside the root; the only way to get an
+  outside file there is to make a hardlink to it inside the user's own history folder, which
+  needs write access to that folder. macOS has no `protected_hardlinks`, so a hardlink to a file
+  the user can read is possible there; it reads nothing the user could not read already.
 
 **What a walk cannot read is reported.** An entry the Claude walk cannot read — a subdirectory
 or project directory it may not list, an I/O error while listing `projects/` — counts as a

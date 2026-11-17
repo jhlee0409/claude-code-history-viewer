@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - **History files are opened without following a link** (desktop and WebUI). The usage statistics, message search, session, subagent and project lists, session loading, recent edits and archives check each history file when they open it, not only when they list it: a session or subagent file replaced by a symbolic link or a named pipe after it was listed is refused instead of read or waited on. (#698)
+- **The same check covers the session rename, `--export` and the Vibe watcher, and Windows.** Renaming a Claude or OpenCode session, the CLI export and the file watcher's Vibe `meta.json` read go through it too; on Windows the opened file must be the one that was checked, and the statistics cache keys its entries by the file itself, so a file swapped in at a cached path is never answered with another file's statistics. (#712)
 
 ### Fixed
 - **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+- **Cline sessions open again** (desktop and WebUI). A Cline session, from the VS Code extension or the current session store, opens in the viewer and counts in the session, project and global statistics; it used to fail with `Invalid Cline path`. (#707)
+- **Recent edits and subagents of other providers no longer error in the WebUI.** A project or session of oh-my-pi, Pi or another file-based provider without recorded edits or subagents is answered with none instead of HTTP 500 `Path is outside the configured history directories`, and its files are never read as Claude history. (#643)
 
 ## [1.32.2] - 2026-10-20
 

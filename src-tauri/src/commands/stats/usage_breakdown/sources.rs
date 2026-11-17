@@ -782,14 +782,6 @@ fn load_provider_session(
             session.summary.clone(),
         ));
     }
-    // A Cline session lists a file (`tasks/<id>/ui_messages.json`, or
-    // `<id>.messages.json` in the SDK store), but the Cline loader takes the
-    // session's `cline://` id: the file alone does not name its store.
-    let session_path = if provider == StatsProvider::Cline {
-        &session.session_id
-    } else {
-        &session.file_path
-    };
-    let messages = load_stats_messages(provider, session_path)?;
+    let messages = load_stats_messages(provider, &session.file_path)?;
     Ok(from_messages(&messages, mode, session.summary.clone()))
 }

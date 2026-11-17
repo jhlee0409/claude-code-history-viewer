@@ -374,6 +374,15 @@ pub(super) fn load_messages_in(root: &Path, id: &str) -> Result<Vec<ClaudeMessag
     Ok(convert_transcript(&transcript, id, &started_at))
 }
 
+/// The project name of one session (the last component of its `cwd`).
+pub(super) fn project_name_of(root: &Path, id: &str) -> Option<String> {
+    if !is_valid_session_id(id) || is_symlink(&root.join(id)) {
+        return None;
+    }
+    read_manifest(&root.join(id), id, &ScanReport::default())
+        .map(|manifest| project_name(&manifest.cwd))
+}
+
 /// Append messages matching `query_lower` until `results` holds `limit`.
 pub(super) fn search_in(
     root: &Path,

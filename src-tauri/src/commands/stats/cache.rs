@@ -27,12 +27,15 @@
 //!
 //! ## Key / validation
 //!
-//! Entries are keyed by canonical path and validated against the file's
-//! `(size, mtime)` captured **before** parsing, so a concurrent append can
-//! never be cached under a newer signature (worst case: an unnecessary
-//! rebuild on the next call). Each entry holds one slot per stats mode.
-//! In-memory only; capped at [`MAX_CACHE_ENTRIES`] per cache — beyond the cap
-//! new files are computed but not stored.
+//! Each file is opened once, inside the root it was found under, and its
+//! entry keyed by the opened file's identity (device and inode, or volume
+//! and file index), not its path: a file swapped in at a path is another
+//! entry (#712). Entries are validated against the file's `(size, mtime)`
+//! captured **before** parsing, so a concurrent append can never be cached
+//! under a newer signature (worst case: an unnecessary rebuild on the next
+//! call). Each entry holds one slot per stats mode. In-memory only; capped
+//! at [`MAX_CACHE_ENTRIES`] per cache — beyond the cap new files are
+//! computed but not stored.
 //!
 //! ## Composition / fallback to full scan
 //!
@@ -53,7 +56,7 @@
 //! (non-Claude) stats paths are not cached: their session paths are virtual
 //! (`opencode://` …) and carry no `(size, mtime)` identity.
 
-use super::session_files;
+use super::session_files::{self, FileId};
 use super::{
     capture_session_title, dedup_usage_key, extract_token_usage,
     extract_token_usage_from_global_entry, full_usage_growth, merge_model_context_usage,
@@ -72,8 +75,12 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use memmap2::Mmap;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
+#[cfg(test)]
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::fs::File;
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::SystemTime;
 
@@ -170,9 +177,10 @@ struct CacheEntry {
     slots: [Option<Arc<FileAggregate>>; 2],
 }
 
-/// Process-global cache of per-file aggregates, validated by (size, mtime).
+/// Process-global cache of per-file aggregates, keyed by the file's identity
+/// and validated by (size, mtime).
 pub(super) struct StatsFileCache {
-    entries: Mutex<HashMap<PathBuf, CacheEntry>>,
+    entries: Mutex<HashMap<FileId, CacheEntry>>,
 }
 
 fn mode_slot(mode: StatsMode) -> usize {
@@ -204,34 +212,34 @@ impl StatsFileCache {
 
     /// Return the cached aggregate for `path`/`mode`, rebuilding via `build`
     /// when the entry is missing or the file's (size, mtime) changed.
+    ///
+    /// The file is opened once, inside `root`
+    /// (`session_files::open_session_file`): a symlink or a FIFO is never
+    /// answered, from the cache or otherwise. The entry is that opened
+    /// file's, keyed by its identity rather than by its path, so a file
+    /// swapped in at the path after the check is never answered with
+    /// another file's entry (#712); `build` reads the same handle.
     pub(super) fn get_or_build<F>(
         &self,
         path: &Path,
+        root: &Path,
         mode: StatsMode,
         build: F,
     ) -> Option<Arc<FileAggregate>>
     where
-        F: FnOnce() -> Option<FileAggregate>,
+        F: FnOnce(&File) -> Option<FileAggregate>,
     {
-        // Files that cannot be canonicalized or stat'ed (e.g. vanished
-        // mid-scan) are computed without caching. Nor is anything but a
-        // regular file answered from the cache: the builder refuses a
-        // symlink, which would otherwise be answered with its target's entry,
-        // and a FIFO (`session_files::open_session_file`).
-        if !fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file()) {
-            return build().map(Arc::new);
-        }
-        let Ok(key) = fs::canonicalize(path) else {
-            return build().map(Arc::new);
+        let (file, opened) = session_files::open_session_file(path, root).ok()?;
+        // A file whose identity the system does not report is computed
+        // without caching.
+        let Ok(Some(key)) = session_files::file_id(&file, &opened) else {
+            return build(&file).map(Arc::new);
         };
         // The signature is taken BEFORE parsing: a concurrent append after
         // this stat makes the stored entry look stale on the next call,
         // never the other way around.
-        let Ok(metadata) = fs::metadata(&key) else {
-            return build().map(Arc::new);
-        };
-        let size = metadata.len();
-        let mtime = metadata.modified().ok();
+        let size = opened.len();
+        let mtime = opened.modified().ok();
         let slot = mode_slot(mode);
 
         {
@@ -246,8 +254,8 @@ impl StatsFileCache {
         }
 
         #[cfg(test)]
-        note_build(&key);
-        let built = Arc::new(build()?);
+        note_build(path);
+        let built = Arc::new(build(&file)?);
 
         let mut entries = self.lock_entries();
         match entries.get_mut(&key) {
@@ -274,7 +282,7 @@ impl StatsFileCache {
 
     /// Lock the entry map, recovering from a poisoned lock — a panic in an
     /// unrelated parse must not disable stats for the rest of the process.
-    fn lock_entries(&self) -> std::sync::MutexGuard<'_, HashMap<PathBuf, CacheEntry>> {
+    fn lock_entries(&self) -> std::sync::MutexGuard<'_, HashMap<FileId, CacheEntry>> {
         match self.entries.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
@@ -283,9 +291,10 @@ impl StatsFileCache {
 }
 
 #[cfg(test)]
-fn note_build(key: &Path) {
+fn note_build(path: &Path) {
+    let key = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     if let Ok(mut counts) = build_counts().lock() {
-        *counts.entry(key.to_path_buf()).or_insert(0) += 1;
+        *counts.entry(key).or_insert(0) += 1;
     }
 }
 
@@ -460,16 +469,11 @@ fn split_into_runs(sorted: &[DateTime<Utc>]) -> Vec<(DateTime<Utc>, DateTime<Utc
 /// Mirrors `scan_session_file_for_global_stats` row handling, minus the date
 /// filter (applied at composition time).
 #[allow(unsafe_code)] // mmap read-only access, same pattern as the scan paths
-pub(super) fn build_global_file_aggregate(
-    session_path: &Path,
-    root: &Path,
-    mode: StatsMode,
-) -> Option<FileAggregate> {
-    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
+pub(super) fn build_global_file_aggregate(file: &File, mode: StatsMode) -> Option<FileAggregate> {
     // SAFETY: read-only mmap; the file handle outlives the map. Session
     // files are append-only, and concurrent growth is caught by the
     // (size, mtime) signature taken before this builder runs.
-    let mmap = unsafe { Mmap::map(&file) }.ok()?;
+    let mmap = unsafe { Mmap::map(file) }.ok()?;
 
     let mut aggregate = FileAggregate::default();
     let mut first_bucket_by_key: HashMap<String, BucketedUsage> = HashMap::new();
@@ -566,16 +570,11 @@ pub(super) fn build_global_file_aggregate(
 /// `scan_session_token_stats`, and `scan_session_file_for_comparison`, minus
 /// the date filter (applied at composition time).
 #[allow(unsafe_code)] // mmap read-only access, same pattern as the scan paths
-pub(super) fn build_message_file_aggregate(
-    session_path: &Path,
-    root: &Path,
-    mode: StatsMode,
-) -> Option<FileAggregate> {
-    let (file, _) = session_files::open_session_file(session_path, root).ok()?;
+pub(super) fn build_message_file_aggregate(file: &File, mode: StatsMode) -> Option<FileAggregate> {
     // SAFETY: read-only mmap; the file handle outlives the map. Session
     // files are append-only, and concurrent growth is caught by the
     // (size, mtime) signature taken before this builder runs.
-    let mmap = unsafe { Mmap::map(&file) }.ok()?;
+    let mmap = unsafe { Mmap::map(file) }.ok()?;
 
     let mut aggregate = FileAggregate::default();
     let mut first_bucket_by_key: HashMap<String, BucketedUsage> = HashMap::new();
@@ -1141,6 +1140,13 @@ mod tests {
         super::session_files::own_folder(file).expect("test file folder")
     }
 
+    /// A test file opened as the cache opens it.
+    fn opened(file: &Path) -> File {
+        super::session_files::open_session_file(file, &root_of(file))
+            .expect("test file opens")
+            .0
+    }
+
     /// (start, end) date-filter pair used by the equivalence tests.
     type FilterRange = (Option<DateTime<Utc>>, Option<DateTime<Utc>>);
 
@@ -1389,6 +1395,54 @@ mod tests {
         assert_eq!(third_a.total_messages, 2);
     }
 
+    /// A file swapped in at a cached path (another file renamed over it,
+    /// with the same size and mtime) is another file: it is answered with
+    /// its own aggregate, never the entry of the file it replaced (#712).
+    #[test]
+    fn a_file_swapped_in_at_a_cached_path_is_not_answered_from_its_entry() {
+        let dir = TempDir::new().expect("temp dir");
+        let a = dir.path().join("a.jsonl");
+        let b = dir.path().join("b.jsonl");
+        write_session(
+            &a,
+            &[asst_line("u1", "m1", "2025-03-01T10:00:00Z", 100, 1, "")],
+        );
+        write_session(
+            &b,
+            &[asst_line("u2", "m2", "2025-03-01T10:00:00Z", 200, 1, "")],
+        );
+        let mtime = fs::metadata(&a).unwrap().modified().unwrap();
+        File::options()
+            .write(true)
+            .open(&b)
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+        assert_eq!(
+            fs::metadata(&a).unwrap().len(),
+            fs::metadata(&b).unwrap().len()
+        );
+
+        let cache = StatsFileCache::new();
+        let root = root_of(&a);
+        let tokens = || {
+            let mode = StatsMode::BillingTotal;
+            let aggregate = cache
+                .get_or_build(&a, &root, mode, |file| {
+                    build_global_file_aggregate(file, mode)
+                })
+                .expect("aggregate");
+            aggregate
+                .days
+                .values()
+                .map(DayBucket::token_total)
+                .sum::<u64>()
+        };
+        let before = tokens();
+        fs::rename(&b, &a).unwrap();
+        assert_eq!((before, tokens()), (101, 201));
+    }
+
     #[test]
     /// The two stats modes occupy independent slots of the same entry: each
     /// mode builds once, then both are served from cache.
@@ -1462,7 +1516,7 @@ mod tests {
         let file = temp.path().join("session.jsonl");
         write_session(&file, &multi_day_fixture());
         let aggregate =
-            build_global_file_aggregate(&file, &root_of(&file), StatsMode::BillingTotal).unwrap();
+            build_global_file_aggregate(&opened(&file), StatsMode::BillingTotal).unwrap();
         for path in ["/first/projects/app", "/second/projects/app"] {
             let Composed::Ready(stats) =
                 compose_global(&aggregate, "app".into(), path.into(), None, None)
@@ -1494,8 +1548,8 @@ mod tests {
         ];
 
         for mode in [StatsMode::BillingTotal, StatsMode::ConversationOnly] {
-            let aggregate = build_global_file_aggregate(&file, &root_of(&file), mode)
-                .expect("global aggregate builds");
+            let aggregate =
+                build_global_file_aggregate(&opened(&file), mode).expect("global aggregate builds");
             for (s, e) in &filters {
                 let composed = match compose_global(
                     &aggregate,
@@ -1544,7 +1598,7 @@ mod tests {
         ];
 
         for mode in [StatsMode::BillingTotal, StatsMode::ConversationOnly] {
-            let aggregate = build_message_file_aggregate(&file, &root_of(&file), mode)
+            let aggregate = build_message_file_aggregate(&opened(&file), mode)
                 .expect("message aggregate builds");
             for (s, e) in &filters {
                 let composed_project = match compose_project(&aggregate, s.as_ref(), e.as_ref()) {
@@ -1627,8 +1681,7 @@ mod tests {
         );
         let mode = StatsMode::BillingTotal;
 
-        let global =
-            build_global_file_aggregate(&file, &root_of(&file), mode).expect("global aggregate");
+        let global = build_global_file_aggregate(&opened(&file), mode).expect("global aggregate");
         let composed_global = match compose_global(
             &global,
             claude_project_name(file.parent().unwrap()),
@@ -1653,7 +1706,7 @@ mod tests {
         assert_global_stats_eq(&composed_global, &scanned_global);
 
         let message =
-            build_message_file_aggregate(&file, &root_of(&file), mode).expect("message aggregate");
+            build_message_file_aggregate(&opened(&file), mode).expect("message aggregate");
         let composed_token = match compose_session_token(
             &message,
             claude_project_name(file.parent().unwrap()),
@@ -1682,8 +1735,7 @@ mod tests {
             scan_session_token_stats(&file, &root_of(&file), mode, None, None).expect("scan");
         assert_eq!(scanned.summary.as_deref(), Some(expected), "cold scan");
 
-        let aggregate =
-            build_message_file_aggregate(&file, &root_of(&file), mode).expect("aggregate");
+        let aggregate = build_message_file_aggregate(&opened(&file), mode).expect("aggregate");
         assert_eq!(
             aggregate.summary.as_deref(),
             Some(expected),
@@ -1738,8 +1790,7 @@ mod tests {
             ],
         );
         let mode = StatsMode::BillingTotal;
-        let aggregate =
-            build_message_file_aggregate(&file, &root_of(&file), mode).expect("aggregate");
+        let aggregate = build_message_file_aggregate(&opened(&file), mode).expect("aggregate");
         let composed = match compose_session_token(
             &aggregate,
             claude_project_name(file.parent().unwrap()),
@@ -1789,7 +1840,7 @@ mod tests {
         let mode = StatsMode::BillingTotal;
         let s = dt("2025-03-01T12:00:00Z");
         let aggregate =
-            build_message_file_aggregate(&file, &root_of(&file), mode).expect("aggregate builds");
+            build_message_file_aggregate(&opened(&file), mode).expect("aggregate builds");
         assert!(
             matches!(
                 compose_project(&aggregate, Some(&s), None),
@@ -1829,8 +1880,8 @@ mod tests {
 
         for pipeline in ["global", "message"] {
             if pipeline == "global" {
-                let aggregate = build_global_file_aggregate(&file, &root_of(&file), mode)
-                    .expect("aggregate builds");
+                let aggregate =
+                    build_global_file_aggregate(&opened(&file), mode).expect("aggregate builds");
                 assert!(matches!(
                     compose_global(
                         &aggregate,
@@ -1863,8 +1914,8 @@ mod tests {
                 .expect("scan produces stats");
                 assert_global_stats_eq(&composed, &scanned);
             } else {
-                let aggregate = build_message_file_aggregate(&file, &root_of(&file), mode)
-                    .expect("aggregate builds");
+                let aggregate =
+                    build_message_file_aggregate(&opened(&file), mode).expect("aggregate builds");
                 assert!(matches!(
                     compose_project(&aggregate, Some(&s), Some(&e)),
                     Composed::NeedsFullScan

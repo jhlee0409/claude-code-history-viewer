@@ -2195,6 +2195,13 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
         .collect()
 }
 
+/// Whether `session_path` is another provider's session file: subagent
+/// transcripts are kept beside Claude sessions only, so it is answered with
+/// no subagents and never opened (#643).
+pub(crate) fn is_other_provider_session_file(session_path: &str) -> bool {
+    !session_path.contains("://") && !crate::commands::stats::is_claude_session_path(session_path)
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
@@ -2207,6 +2214,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
 
     if session_path.starts_with("kilo://") {
         return Ok(kilo_subagents(&session_path));
+    }
+
+    if is_other_provider_session_file(&session_path) {
+        return Ok(Vec::new());
     }
 
     let path = PathBuf::from(&session_path);
@@ -2972,7 +2983,9 @@ mod tests {
     /// shows the same count after opening it. It must match what the viewer then
     /// loads, so request records are not counted here either.
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_subagent_message_count_matches_viewer() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = create_project_with_subagent_transcript();
         let session_path = temp_dir.path().join("session-1.jsonl");
 
@@ -2994,7 +3007,9 @@ mod tests {
     /// neither `sessionId` nor `timestamp`. The parser drops such lines, so the
     /// subagent count must not include them.
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_subagent_message_count_skips_lines_the_parser_drops() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = create_project_with_subagent_transcript();
         let session_path = temp_dir.path().join("session-1.jsonl");
         let agent_path = temp_dir
