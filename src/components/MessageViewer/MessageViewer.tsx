@@ -55,6 +55,7 @@ import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
 import { scrollBehavior } from "@/utils/motion";
+import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 /** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
@@ -423,6 +424,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [scrollElementReady, selectedSession?.session_id]);
 
+  // An owned wheel releases the viewport without a native scroll event. Its
+  // notification reaches the near-top autoload check declared further down
+  // (it needs the virtualizer), which publishes itself on layout commit.
+  const nearTopCheckRef = useRef<(() => void) | null>(null);
+  const handleWheelRelease = useCallback(() => nearTopCheckRef.current?.(), []);
+
   // Virtual scrolling
   const {
     virtualizer,
@@ -447,6 +454,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // height, so the height estimate must not collapse them to 0 (issue #334).
     isInSubagent: parentSessionStack.length > 0,
     scrollMargin: virtualScrollMargin,
+    onWheelRelease: handleWheelRelease,
   });
 
   // Alt+ArrowUp / Alt+ArrowDown jump between turn starts in the loaded rows.
@@ -659,15 +667,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // True while a prepend restore is converging — suppresses the near-top
   // autoload so restore-induced scroll events cannot cascade page loads.
   const anchorRestoringRef = useRef(false);
+  useFilterReadingPosition({
+    sessionPath,
+    messages: displayMessages,
+    messageFilter,
+    getScrollElement,
+    getScrollIndex,
+    virtualizer,
+    explicitTarget: targetMessageUuid ?? currentMatchUuid ?? anchorHere?.anchor?.messageUuid ?? null,
+    restoringRef: anchorRestoringRef,
+  });
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
   // The setting of the explicit target (`targetRequest`) already looked up:
   // one lookup per setting, so a target restored after A→B→A gets its own
   // even while the superseded one is still pending.
   const targetLookupRef = useRef<number | null>(null);
+  // The earlier-page load this viewer started and has not seen settle. The
+  // store sets isLoadingMore only once its queued job runs, so a second
+  // near-top signal before then must not queue a page or replace the anchor.
+  const loadEarlierInFlightRef = useRef<object | null>(null);
+  useLayoutEffect(() => () => { loadEarlierInFlightRef.current = null; }, [sessionPath]);
 
   const handleLoadEarlier = useCallback(() => {
-    if (pagination.isLoadingMore || !pagination.hasMore) return;
+    if (pagination.isLoadingMore || !pagination.hasMore || loadEarlierInFlightRef.current) return;
     const viewport = getScrollElement();
     const scrollTop = viewport?.scrollTop ?? 0;
     const firstVisible = virtualizer
@@ -685,7 +708,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             screenOffset: firstVisible.start - scrollTop,
           }
         : null;
-    void loadMoreMessages();
+    const request = {};
+    loadEarlierInFlightRef.current = request;
+    // Only this request's settle releases its own guard; a session change
+    // already released it, and must not be undone by a stale settle.
+    const release = () => {
+      if (loadEarlierInFlightRef.current === request) loadEarlierInFlightRef.current = null;
+    };
+    loadMoreMessages().then(release, (error: unknown) => {
+      release();
+      console.error("Failed to load earlier messages:", error);
+    });
   }, [pagination.isLoadingMore, pagination.hasMore, getScrollElement, virtualizer, flattenedMessages, loadMoreMessages]);
 
   useLayoutEffect(() => {
@@ -726,7 +759,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // Auto-load the previous page when the user scrolls near the top.
   // Guarded on scrollReadyForSessionId so the initial scroll-to-bottom pass
   // of a freshly opened session cannot trigger a spurious page load.
-  useEffect(() => {
+  // The same check serves native scroll events and owned wheel releases.
+  useLayoutEffect(() => {
     if (!scrollElementReady) return;
     if (scrollReadyForSessionId !== selectedSession?.session_id) return;
     const viewport = getScrollElement();
@@ -741,7 +775,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       handleLoadEarlier();
     };
     viewport.addEventListener("scroll", handleScroll, { passive: true });
-    return () => viewport.removeEventListener("scroll", handleScroll);
+    nearTopCheckRef.current = handleScroll;
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+      if (nearTopCheckRef.current === handleScroll) nearTopCheckRef.current = null;
+    };
   }, [scrollElementReady, scrollReadyForSessionId, selectedSession?.session_id, getScrollElement, handleLoadEarlier]);
 
   // Search-match navigation into an unloaded region: extend the window until
@@ -1236,8 +1274,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
+      {/* Mobile controls use a 4rem lane: 3rem FAB plus its 1rem inset. */}
       <div
-        className="relative flex-1 min-h-0"
+        className="relative flex-1 min-h-0 pb-[var(--mobile-transcript-controls-height)] md:pb-0"
         style={showMinimapStrip ? { paddingRight: MINIMAP_WIDTH_PX } : undefined}
       >
         {/* Session minimap strip — see `showMinimapStrip`. */}
@@ -1260,9 +1299,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           />
         )}
 
+        {/* Keep native centring away from the shortened mobile viewport's lower
+            clip edge, including the trailing actions of expanded tool details. */}
         <OverlayScrollbarsComponent
           ref={scrollContainerRef}
-          className="h-full"
+          className="h-full [&_[data-overlayscrollbars-viewport]]:scroll-pb-[var(--mobile-transcript-controls-height)] md:[&_[data-overlayscrollbars-viewport]]:scroll-pb-0"
           options={{
             scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
           }}
@@ -1447,7 +1488,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             of the minimap strip when it is shown. */}
         <div
           data-testid="message-scroll-buttons"
-          className="absolute bottom-4 right-4 flex flex-col gap-2 z-30"
+          className="absolute bottom-4 right-4 flex flex-row md:flex-col gap-2 z-30"
           style={showMinimapStrip ? { right: MINIMAP_WIDTH_PX + 16 } : undefined}
         >
           {/* Scroll to top */}
