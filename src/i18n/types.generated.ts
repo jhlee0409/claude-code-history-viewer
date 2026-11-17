@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T12:48:50.814Z
- * 총 키 개수: 2348
+ * 생성 시간: 2026-11-17T13:52:02.102Z
+ * 총 키 개수: 2358
  * Namespace 수: 13
  */
 
@@ -570,7 +570,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (292개)
+ * session namespace의 번역 키 (302개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -592,6 +592,15 @@ export type SessionKeys =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filter.hint.both'
+  | 'project.filter.indexError'
+  | 'project.filter.indexing'
+  | 'project.filter.matchLabel'
+  | 'project.filter.placeholder.projects'
+  | 'project.filter.placeholder.sessions'
+  | 'project.filter.searchingSessions'
+  | 'project.filter.target.projects'
+  | 'project.filter.target.sessions'
   | 'project.filterPlaceholder'
   | 'project.globalStatsDescription'
   | 'project.grouping'
@@ -623,6 +632,7 @@ export type SessionKeys =
   | 'project.select'
   | 'project.selectToView'
   | 'project.sessions.empty'
+  | 'project.sessions.filterMatches'
   | 'project.sessions.loadError'
   | 'project.sessions.showAll'
   | 'project.sessions.showFewer'
@@ -3609,6 +3619,15 @@ export type TranslationKey =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filter.hint.both'
+  | 'project.filter.indexError'
+  | 'project.filter.indexing'
+  | 'project.filter.matchLabel'
+  | 'project.filter.placeholder.projects'
+  | 'project.filter.placeholder.sessions'
+  | 'project.filter.searchingSessions'
+  | 'project.filter.target.projects'
+  | 'project.filter.target.sessions'
   | 'project.filterPlaceholder'
   | 'project.globalStatsDescription'
   | 'project.grouping'
@@ -3640,6 +3659,7 @@ export type TranslationKey =
   | 'project.select'
   | 'project.selectToView'
   | 'project.sessions.empty'
+  | 'project.sessions.filterMatches'
   | 'project.sessions.loadError'
   | 'project.sessions.showAll'
   | 'project.sessions.showFewer'

@@ -290,5 +290,17 @@
   "project.sessions.showAll": "모두 보기 · {{count}}개",
   "project.sessions.showFewer": "줄여 보기",
   "project.sessions.empty": "세션 없음",
-  "project.sessions.loadError": "세션을 불러오지 못했습니다"
+  "project.sessions.loadError": "세션을 불러오지 못했습니다",
+  "project.sessions.filterMatches_one": "필터와 일치하는 세션 {{count}}개",
+  "project.sessions.filterMatches_other": "필터와 일치하는 세션 {{count}}개",
+  "project.filter.hint.both": "프로젝트 이름 또는 세션 이름으로 필터",
+  "project.filter.placeholder.projects": "프로젝트 이름으로 필터",
+  "project.filter.placeholder.sessions": "세션 이름으로 필터",
+  "project.filter.matchLabel": "필터 대상",
+  "project.filter.target.projects": "프로젝트 이름",
+  "project.filter.target.sessions": "세션 이름",
+  "project.filter.indexing": "세션 검색 중 {{loaded}}/{{total}}",
+  "project.filter.searchingSessions": "세션 이름을 검색하는 중…",
+  "project.filter.indexError_one": "프로젝트 {{count}}개의 세션을 읽지 못했습니다. 프로젝트 이름으로만 일치합니다.",
+  "project.filter.indexError_other": "프로젝트 {{count}}개의 세션을 읽지 못했습니다. 프로젝트 이름으로만 일치합니다."
 }
