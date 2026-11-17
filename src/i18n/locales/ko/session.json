@@ -306,6 +306,7 @@
   "session.move.confirm": "이동",
   "session.move.success": "세션을 {{project}}(으)로 이동했습니다",
   "session.move.leftover": "세션을 {{project}}(으)로 이동했지만 이전 폴더를 완전히 삭제하지 못했습니다",
+  "session.move.reopenError": "세션을 {{project}}(으)로 이동했지만 그곳에서 다시 열지 못했습니다. 해당 프로젝트에서 열어 주세요.",
   "session.move.metadataError": "세션은 이동했지만 이름, 메모, 즐겨찾기를 옮기지 못했습니다",
   "session.move.error": "세션을 이동하지 못했습니다",
   "session.move.errorActive": "이 세션은 Claude Code에서 실행 중인 것으로 보입니다. 세션을 종료(CLI 종료)한 뒤 다시 시도하세요.",

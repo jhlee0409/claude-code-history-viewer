@@ -742,6 +742,52 @@ describe("SessionItem", () => {
       expect(toast.success).toHaveBeenCalled();
       expect(useAppStore.getState().sessions).toEqual([]);
     });
+
+    it("clears the open session and says so when it cannot be reopened", async () => {
+      const session = claudeSession();
+      const navigate = vi.fn().mockResolvedValue(true);
+      useAppStore.setState({
+        projects: [target],
+        sessions: [session],
+        selectedSession: session,
+        moveSessionMetadata: vi.fn().mockResolvedValue(undefined),
+        relocateRecentSession: vi.fn(),
+        scanProjects: vi.fn().mockResolvedValue(undefined),
+        navigate,
+      });
+      vi.mocked(api).mockResolvedValueOnce({
+        new_file_path: "/home/u/.claude/projects/-b/abc.jsonl",
+        target_project_path: target.path,
+        leftover_folder: null,
+      });
+      vi.mocked(findSession).mockRejectedValueOnce(new Error("scan failed"));
+
+      await moveToTarget(session);
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          { session: null },
+          expect.objectContaining({ record: false, history: "replace" })
+        )
+      );
+      // The mocked `t` echoes its options, so only the call itself is checked.
+      expect(toast.error).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not move to a project the search hides", async () => {
+      const other = { ...target, name: "-c", path: "/home/u/.claude/projects/-c", actual_path: "/c" };
+      useAppStore.setState({ projects: [target, other] });
+      const menu = openContextMenu(claudeSession());
+      fireEvent.click(menu.getByRole("menuitem", { name: "Move to project\u2026" }));
+      const dialog = await screen.findByRole("dialog");
+      const confirm = within(dialog).getByRole("button", { name: "session.move.confirm" });
+
+      fireEvent.click(within(dialog).getAllByRole("radio")[0]!);
+      expect(confirm).toBeEnabled();
+      fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "/c" } });
+      expect(within(dialog).getAllByRole("radio")).toHaveLength(1);
+      expect(confirm).toBeDisabled();
+    });
   });
 
   describe("Tool use and error indicators", () => {

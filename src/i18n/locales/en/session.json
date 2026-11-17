@@ -306,6 +306,7 @@
   "session.move.confirm": "Move",
   "session.move.success": "Session moved to {{project}}",
   "session.move.leftover": "Session moved to {{project}}, but its old folder could not be fully removed",
+  "session.move.reopenError": "Session moved to {{project}}, but it could not be reopened there. Open it from that project.",
   "session.move.metadataError": "Session moved, but its name, notes and favorite could not be carried over",
   "session.move.error": "Failed to move session",
   "session.move.errorActive": "This session looks active in Claude Code. Stop it (exit the CLI) and try again.",

@@ -306,6 +306,7 @@
   "session.move.confirm": "移動",
   "session.move.success": "已將會話移至 {{project}}",
   "session.move.leftover": "已將會話移至 {{project}}，但無法完全刪除舊資料夾",
+  "session.move.reopenError": "已將會話移至 {{project}}，但無法在該處重新開啟。請從該專案開啟。",
   "session.move.metadataError": "會話已移動，但其名稱、備註與我的最愛未能一併轉移",
   "session.move.error": "無法移動會話",
   "session.move.errorActive": "此會話似乎正在 Claude Code 中執行。請先停止會話（結束 CLI）後再試一次。",

@@ -306,6 +306,7 @@
   "session.move.confirm": "移动",
   "session.move.success": "会话已移动到 {{project}}",
   "session.move.leftover": "会话已移动到 {{project}}，但未能完全删除旧文件夹",
+  "session.move.reopenError": "会话已移动到 {{project}}，但未能在那里重新打开。请从该项目中打开。",
   "session.move.metadataError": "会话已移动，但其名称、备注和收藏未能一并迁移",
   "session.move.error": "移动会话失败",
   "session.move.errorActive": "此会话似乎正在 Claude Code 中运行。请先停止会话（退出 CLI）后重试。",

@@ -466,8 +466,15 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
           // old place is gone, so it is replaced rather than recorded.
           const epoch = beginNavigation();
           const owns = () => useAppStore.getState().navigationEpoch === epoch;
-          const found = await findSession(ref, owns);
+          const found = await findSession(ref, owns).catch((error: unknown) => {
+            console.error("[session move] reopening failed", error);
+            return null;
+          });
           if (found !== "superseded" && owns()) {
+            if (!found) {
+              // Do not leave the old, now missing file open.
+              toast.error(t("session.move.reopenError", { project: projectName }));
+            }
             await navigate(
               found
                 ? { project: found.project, session: found.session }

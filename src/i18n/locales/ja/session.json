@@ -306,6 +306,7 @@
   "session.move.confirm": "移動",
   "session.move.success": "セッションを {{project}} に移動しました",
   "session.move.leftover": "セッションを {{project}} に移動しましたが、元のフォルダーを完全には削除できませんでした",
+  "session.move.reopenError": "セッションを {{project}} に移動しましたが、移動先で開き直せませんでした。そのプロジェクトから開いてください。",
   "session.move.metadataError": "セッションは移動しましたが、名前・メモ・お気に入りを引き継げませんでした",
   "session.move.error": "セッションを移動できませんでした",
   "session.move.errorActive": "このセッションは Claude Code で使用中のようです。セッションを終了（CLI を終了）してから再試行してください。",

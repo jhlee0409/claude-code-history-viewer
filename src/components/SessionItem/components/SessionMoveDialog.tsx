@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { FolderInput, LoaderCircle, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -33,6 +33,7 @@ export const SessionMoveDialog: React.FC<SessionMoveDialogProps> = ({
 }) => {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+  const radioName = useId();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
   // Start fresh each time the dialog opens.
@@ -53,7 +54,8 @@ export const SessionMoveDialog: React.FC<SessionMoveDialogProps> = ({
     );
   }, [projects, query]);
 
-  const selected = projects.find((project) => project.path === selectedPath) ?? null;
+  // A choice the search hides is no choice: Move only acts on a visible one.
+  const selected = filtered.find((project) => project.path === selectedPath) ?? null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,6 +64,9 @@ export const SessionMoveDialog: React.FC<SessionMoveDialogProps> = ({
         showCloseButton={!isMoving}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
+        // The dialog is portaled but React events still bubble to the session
+        // row, whose Enter handler would swallow the buttons' activation.
+        onKeyDown={(e) => e.stopPropagation()}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -104,27 +109,35 @@ export const SessionMoveDialog: React.FC<SessionMoveDialogProps> = ({
           ) : (
             filtered.map((project) => {
               const isChosen = project.path === selectedPath;
+              // Native radios give the group arrow-key navigation and a
+              // single Tab stop.
               return (
-                <button
+                <label
                   key={project.path}
-                  type="button"
-                  role="radio"
-                  aria-checked={isChosen}
-                  disabled={isMoving}
-                  onClick={() => setSelectedPath(project.path)}
                   className={cn(
-                    "flex w-full flex-col items-start rounded-md px-2 py-2 text-left",
+                    "flex w-full cursor-pointer flex-col items-start rounded-md px-2 py-2 text-left",
                     "hover:bg-accent hover:text-accent-foreground transition-colors",
-                    isChosen && "bg-accent/15 ring-1 ring-accent/30"
+                    "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent",
+                    isChosen && "bg-accent/15 ring-1 ring-accent/30",
+                    isMoving && "pointer-events-none opacity-50"
                   )}
                 >
+                  <input
+                    type="radio"
+                    name={radioName}
+                    value={project.path}
+                    checked={isChosen}
+                    disabled={isMoving}
+                    onChange={() => setSelectedPath(project.path)}
+                    className="sr-only"
+                  />
                   <span className="text-list font-medium">
                     {getProjectDisplayName(project)}
                   </span>
                   <span className="break-all text-caption text-muted-foreground">
                     {project.actual_path}
                   </span>
-                </button>
+                </label>
               );
             })
           )}
