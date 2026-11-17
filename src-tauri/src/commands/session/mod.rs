@@ -8,6 +8,7 @@
 //! - `delete`: Session deletion
 //! - `move_session`: Moving a Claude Code session to another project
 
+mod api_view;
 mod chain;
 mod delete;
 mod edits;
@@ -23,6 +24,7 @@ mod swap_after_check_tests;
 mod timestamp_fill;
 
 // Re-export all commands
+pub use api_view::load_session_api_view;
 pub use chain::{resolve_session_chain, superseded_chain_paths};
 pub use delete::*;
 pub use edits::*;
