@@ -64,7 +64,7 @@ describe("FilterToolbar", () => {
     storeState.isApiViewOpen = true;
     toggleContentTypeMock.mockClear();
     try {
-      render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks />);
+      render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks apiViewAvailable />);
       const text = screen.getByRole("button", { name: "filter.content.text" });
       expect(text).toHaveAttribute("aria-disabled", "true");
       expect(text).toHaveAttribute("title", "messageViewer.apiView.filtersDisabled");
@@ -72,6 +72,21 @@ describe("FilterToolbar", () => {
       fireEvent.click(text);
       expect(toggleContentTypeMock).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "messageViewer.apiView.toggle" })).not.toHaveAttribute("aria-disabled");
+    } finally {
+      storeState.isApiViewOpen = false;
+    }
+  });
+
+  it("offers no API view for sessions it cannot read, and keeps their filters live", () => {
+    storeState.isApiViewOpen = true;
+    toggleContentTypeMock.mockClear();
+    try {
+      render(<FilterToolbar totalCount={2} filteredCount={2} hasParallelTasks />);
+      expect(screen.queryByRole("button", { name: "messageViewer.apiView.toggle" })).toBeNull();
+      const text = screen.getByRole("button", { name: "filter.content.text" });
+      expect(text).not.toHaveAttribute("aria-disabled");
+      fireEvent.click(text);
+      expect(toggleContentTypeMock).toHaveBeenCalledWith("text");
     } finally {
       storeState.isApiViewOpen = false;
     }

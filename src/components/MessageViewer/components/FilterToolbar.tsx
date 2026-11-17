@@ -41,9 +41,11 @@ interface FilterToolbarProps {
   totalCount: number;
   filteredCount: number;
   hasParallelTasks: boolean;
+  /** The session can be shown as API requests (Claude Code only). */
+  apiViewAvailable?: boolean;
 }
 
-export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: FilterToolbarProps) {
+export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks, apiViewAvailable = false }: FilterToolbarProps) {
   const { t } = useTranslation();
   const {
     messageFilter,
@@ -56,8 +58,9 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
   } = useAppStore();
 
   // The API request view ignores message filters, so they are shown inert.
-  const filtersOff = isApiViewOpen ? t("messageViewer.apiView.filtersDisabled") : undefined;
-  const isActive = !isApiViewOpen && isMessageFilterActive();
+  const apiViewShown = apiViewAvailable && isApiViewOpen;
+  const filtersOff = apiViewShown ? t("messageViewer.apiView.filtersDisabled") : undefined;
+  const isActive = !apiViewShown && isMessageFilterActive();
 
   return (
     <ChipToggleGroup
@@ -68,7 +71,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
       )}
     >
       {/* Filter icon + count */}
-      <div className={cn("flex items-center gap-1 shrink-0", isApiViewOpen && "opacity-40")} title={filtersOff}>
+      <div className={cn("flex items-center gap-1 shrink-0", apiViewShown && "opacity-40")} title={filtersOff}>
         <Funnel className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-accent" : "text-muted-foreground")} />
         <span className={cn("text-caption tabular-nums whitespace-nowrap", isActive ? "text-accent font-medium" : "text-muted-foreground")}>
           {isActive
@@ -140,13 +143,17 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
         )}
       </div>
 
-      <div className="h-3.5 w-px bg-border/40 shrink-0" />
-      <FilterToggle
-        active={isApiViewOpen}
-        onClick={toggleApiView}
-        label={t("messageViewer.apiView.toggle")}
-        icon={<Network className="w-3.5 h-3.5" />}
-      />
+      {apiViewAvailable && (
+        <>
+          <div className="h-3.5 w-px bg-border/40 shrink-0" />
+          <FilterToggle
+            active={isApiViewOpen}
+            onClick={toggleApiView}
+            label={t("messageViewer.apiView.toggle")}
+            icon={<Network className="w-3.5 h-3.5" />}
+          />
+        </>
+      )}
 
       {/* Reset button */}
       {isActive && (
