@@ -148,6 +148,14 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 
     let path = Path::new(&file_path);
 
+    if !path.is_absolute() {
+        return Err("Session path must be absolute".to_string());
+    }
+
+    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("Only .jsonl session files can be deleted".to_string());
+    }
+
     if let Some(root) = crate::providers::cursor_agent::get_base_path() {
         let root = Path::new(&root);
         if is_under(root, path) {
@@ -157,14 +165,6 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
                 path,
             );
         }
-    }
-
-    if !path.is_absolute() {
-        return Err("Session path must be absolute".to_string());
-    }
-
-    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-        return Err("Only .jsonl session files can be deleted".to_string());
     }
 
     let session_id = path
@@ -240,7 +240,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn reject_session_id_with_dots() {
+        let _home = crate::test_utils::SandboxHome::new();
         let err = delete_session(crate::test_utils::abs("tmp/a..b.jsonl"))
             .await
             .unwrap_err();
@@ -248,7 +250,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn reject_session_id_with_spaces() {
+        let _home = crate::test_utils::SandboxHome::new();
         let err = delete_session(crate::test_utils::abs("tmp/bad name.jsonl"))
             .await
             .unwrap_err();
@@ -257,7 +261,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn reject_symlink() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let real_file = dir.path().join("real.jsonl");
         fs::write(&real_file, "{}").unwrap();
@@ -272,7 +278,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn reject_directory_target() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let subdir = dir.path().join("session.jsonl");
         fs::create_dir(&subdir).unwrap();
