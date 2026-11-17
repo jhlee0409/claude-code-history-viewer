@@ -77,7 +77,7 @@ pub fn get_base_path() -> Option<String> {
 }
 
 /// Root of the Cursor Agent CLI chat metadata store: `~/.cursor/chats`.
-fn chats_root() -> Option<PathBuf> {
+pub(crate) fn chats_root() -> Option<PathBuf> {
     chats_root_in(&crate::utils::home_dir()?)
 }
 

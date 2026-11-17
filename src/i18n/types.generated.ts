@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T14:23:42.079Z
- * 총 키 개수: 2423
+ * 생성 시간: 2026-11-17T14:59:05.496Z
+ * 총 키 개수: 2431
  * Namespace 수: 13
  */
 
@@ -570,7 +570,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (323개)
+ * session namespace의 번역 키 (331개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -716,9 +716,15 @@ export type SessionKeys =
   | 'session.copySessionId'
   | 'session.count'
   | 'session.deleteConfirm'
+  | 'session.deleteConfirmCursor'
+  | 'session.deleteConfirmCursorAgent'
+  | 'session.deleteConfirmForgeCode'
   | 'session.deleteError'
   | 'session.deleteSession'
   | 'session.deleteSuccess'
+  | 'session.deleteTarget'
+  | 'session.deleteTargetCursor'
+  | 'session.deleteTargetForgeCode'
   | 'session.deleteTitle'
   | 'session.editCustomArguments'
   | 'session.export.button'
@@ -889,6 +895,8 @@ export type SessionKeys =
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'
+  | 'session.subagentMessagesLoadError'
+  | 'session.subagentsLoadError'
   | 'session.summaryNotFound'
   | 'session.syncError'
   | 'session.title'
@@ -3954,9 +3962,15 @@ export type TranslationKey =
   | 'session.copySessionId'
   | 'session.count'
   | 'session.deleteConfirm'
+  | 'session.deleteConfirmCursor'
+  | 'session.deleteConfirmCursorAgent'
+  | 'session.deleteConfirmForgeCode'
   | 'session.deleteError'
   | 'session.deleteSession'
   | 'session.deleteSuccess'
+  | 'session.deleteTarget'
+  | 'session.deleteTargetCursor'
+  | 'session.deleteTargetForgeCode'
   | 'session.deleteTitle'
   | 'session.editCustomArguments'
   | 'session.export.button'
@@ -4127,6 +4141,8 @@ export type TranslationKey =
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'
+  | 'session.subagentMessagesLoadError'
+  | 'session.subagentsLoadError'
   | 'session.summaryNotFound'
   | 'session.syncError'
   | 'session.title'
