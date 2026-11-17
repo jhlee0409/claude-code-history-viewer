@@ -34,6 +34,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     focusFind: vi.fn(),
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
+    toggleInlineTokenUsage: vi.fn(),
     openSettingsManager: vi.fn(),
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
@@ -275,13 +276,18 @@ describe("menu accelerators", () => {
 describe("menu state", () => {
   it("sends the language and each menu command's enabled and checked state", () => {
     const ctx = makeContext({ canGoBack: true, canGoForward: false });
-    const state = computeMenuState(ctx, "ko", { "view.toggleInspector": true, "view.toggleMinimap": false });
+    const state = computeMenuState(ctx, "ko", {
+      "view.toggleInspector": true,
+      "view.toggleMinimap": false,
+      "view.toggleInlineTokens": true,
+    });
     expect(state.language).toBe("ko");
     expect(Object.keys(state.items).sort()).toEqual([...MENU_COMMAND_IDS].sort());
     expect(state.items["go.back"]).toEqual({ enabled: true });
     expect(state.items["go.forward"]).toEqual({ enabled: false });
     expect(state.items["view.toggleInspector"]).toEqual({ enabled: true, checked: true });
     expect(state.items["view.toggleMinimap"]).toEqual({ enabled: true, checked: false });
+    expect(state.items["view.toggleInlineTokens"]).toEqual({ enabled: true, checked: true });
   });
 
   it("reports the tab in front, which the host stamps on every menu event (review-5 F2)", () => {
@@ -573,7 +579,7 @@ describe("View → Zoom (§9b A1)", () => {
 
   it("lists Zoom In ⌘=, Zoom Out ⌘- and Actual Size ⌘0 in the View menu, on every desktop", () => {
     const view = COMMAND_MANIFEST.filter((e) => e.menu === "view").map((e) => e.id);
-    expect(view).toEqual(["view.toggleInspector", "view.toggleMinimap", ...ZOOM_IDS]);
+    expect(view).toEqual(["view.toggleInspector", "view.toggleMinimap", "view.toggleInlineTokens", ...ZOOM_IDS]);
     const where = (id: string) => COMMAND_MANIFEST.find((e) => e.id === id);
     expect(where("view.zoomIn")).toMatchObject({ shortcut: { mac: "Cmd+=", win: "Ctrl+=", linux: "Ctrl+=" } });
     expect(where("view.zoomOut")).toMatchObject({ shortcut: { mac: "Cmd+-", win: "Ctrl+-", linux: "Ctrl+-" } });

@@ -28,6 +28,8 @@ export interface SettingsSliceState {
   updateSettings: UpdateSettings;
   sessionSortOrder: SessionSortOrder;
   sessionEntrypointFilter: SessionEntrypointFilter;
+  /** Show each assistant message's token usage inline in its header (#570). */
+  showInlineTokenUsage: boolean;
 }
 
 export interface SettingsSliceActions {
@@ -44,6 +46,8 @@ export interface SettingsSliceActions {
   postponeUpdate: () => Promise<void>;
   setSessionSortOrder: (order: SessionSortOrder) => Promise<void>;
   setSessionEntrypointFilter: (filter: SessionEntrypointFilter) => Promise<void>;
+  setShowInlineTokenUsage: (show: boolean) => Promise<void>;
+  toggleInlineTokenUsage: () => void;
 }
 
 export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
@@ -71,6 +75,7 @@ const initialSettingsState: SettingsSliceState = {
   updateSettings: DEFAULT_UPDATE_SETTINGS,
   sessionSortOrder: "newest",
   sessionEntrypointFilter: "all",
+  showInlineTokenUsage: false,
 };
 
 // ============================================================================
@@ -172,9 +177,11 @@ export const createSettingsSlice: StateCreator<
 
       const savedFontScale = await store.get<number>("fontScale");
       const savedHighContrast = await store.get<boolean>("highContrast");
+      const savedInlineTokenUsage = await store.get<boolean>("showInlineTokenUsage");
       set({
         fontScale: normalizeFontScale(savedFontScale),
         highContrast: typeof savedHighContrast === "boolean" ? savedHighContrast : null,
+        showInlineTokenUsage: savedInlineTokenUsage === true,
       });
     } catch (error) {
       console.warn("Failed to load persisted settings:", error);
@@ -246,5 +253,25 @@ export const createSettingsSlice: StateCreator<
       console.error("Failed to save session source filter:", error);
       toast.error("Failed to save session source filter");
     }
+  },
+
+  setShowInlineTokenUsage: async (show: boolean) => {
+    set({ showInlineTokenUsage: show });
+
+    try {
+      const store = await storageAdapter.load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("showInlineTokenUsage", show);
+      await store.save();
+    } catch (error) {
+      // Intentionally non-blocking: the display is already applied in-memory for this session.
+      console.warn("Failed to save inline token usage setting:", error);
+    }
+  },
+
+  toggleInlineTokenUsage: () => {
+    void get().setShowInlineTokenUsage(!get().showInlineTokenUsage);
   },
 });
