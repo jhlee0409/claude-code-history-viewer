@@ -170,13 +170,13 @@ describe.skipIf(!ENABLED)("F2a primitive states (real WebKit)", () => {
         }
         return out;
       });
-      expect(pairs.length).toBe(14);
+      expect(pairs.map((pair) => pair.ctl).sort()).toEqual(["primary", "destructive", "outline", "secondary", "ghost", "link", "sm", "lg", "icon", "icon-sm", "icon-lg"].map((name) => `button:${name}`).sort());
       for (const p of pairs) {
         expect(Math.abs(p.loading - p.idle), `${p.ctl}: ${p.idle} → ${p.loading}`).toBeLessThanOrEqual(0.5);
         expect(p.busy, p.ctl).toBe("true");
         expect(p.spinner, p.ctl).toBe(true);
       }
-      const save = page.locator('[data-ctl="button:default"][data-src="loading"]');
+      const save = page.locator('[data-ctl="button:primary"][data-src="loading"]');
       expect(await save.evaluate((el) => el.textContent)).toBe("Save");
       expect(await save.ariaSnapshot()).toContain('button "Save"');
     });
@@ -185,7 +185,7 @@ describe.skipIf(!ENABLED)("F2a primitive states (real WebKit)", () => {
   it.each(["light", "dark"])("%s: an aria-disabled Button looks like the disabled one, also when hovered", async (theme) => {
     await withGallery(webkitBrowser, { theme }, async (page) => {
       const variants = await page.$$eval('[data-ctl^="button:"][data-src="aria-disabled"]', (els) => els.map((e) => e.getAttribute("data-ctl")));
-      expect(variants.length).toBe(9);
+      expect(variants.sort()).toEqual(["primary", "destructive", "outline", "secondary", "ghost", "link"].map((name) => `button:${name}`).sort());
       for (const ctl of variants) {
         const disabled = page.locator(`[data-ctl="${ctl}"][data-src="disabled"]`);
         const aria = page.locator(`[data-ctl="${ctl}"][data-src="aria-disabled"]`);

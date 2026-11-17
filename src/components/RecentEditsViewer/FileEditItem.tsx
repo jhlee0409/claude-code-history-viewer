@@ -26,10 +26,10 @@ import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { getPathLeaf } from "@/utils/pathUtils";
 import { layout } from "@/components/renderers";
-import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { DiffWithMenu } from "../transcript/DiffViewComparison";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
-import { FilteredDiffLines } from "./FilteredDiffLines";
+import { DiffFiltered } from "../transcript/DiffViewComparison";
 import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import { useFileEditActions } from "./useFileEditActions";
 import type { FileEditItemProps, EditViewMode } from "./types";
@@ -442,18 +442,19 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-border">
-          {/* Full diff view (EnhancedDiffViewer scrolls internally).
+          {/* Full diff view: the unified DiffView (unchanged runs folded,
+              a line cap), and shared comparison modes behind its … menu.
               ExpandKeyProvider is required by useCaptureExpandState inside
-              AdvancedTextDiff, which otherwise throws outside MessageViewer. */}
+              DiffView, which otherwise throws outside
+              MessageViewer. */}
           {viewMode === "diff" && (
             <div className="p-3">
-              <ExpandKeyProvider value={`recent-edits:${edit.file_path}`}>
-                <EnhancedDiffViewer
+              <ExpandKeyProvider value={`recent-edits:${edit.session_id}:${edit.file_path}:${edit.timestamp}`}>
+                <DiffWithMenu
                   oldText={edit.original_content ?? ""}
                   newText={edit.content_after_change}
                   filePath={edit.file_path}
-                  showAdvancedDiff={true}
-                  defaultMode="visual"
+                  expandKey="diff"
                 />
               </ExpandKeyProvider>
             </div>
@@ -462,7 +463,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           {/* Added/removed-only view */}
           {(viewMode === "added" || viewMode === "removed") && (
             <div className="max-h-96 overflow-auto">
-              <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+              <DiffFiltered groups={filteredGroups} kind={viewMode} expandKey={`recent-edits-filter:${edit.session_id}:${edit.file_path}:${edit.timestamp}`} />
             </div>
           )}
 

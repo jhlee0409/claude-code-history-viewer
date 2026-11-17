@@ -16,8 +16,8 @@ vi.mock("react-i18next", () => ({
 const apiMock = vi.fn();
 vi.mock("@/services/api", () => ({ api: (...a: unknown[]) => apiMock(...a) }));
 
-vi.mock("../EnhancedDiffViewer", () => ({
-  EnhancedDiffViewer: ({ oldText }: { oldText: string }) => (
+vi.mock("../transcript/DiffViewComparison", () => ({
+  DiffWithMenu: ({ oldText }: { oldText: string }) => (
     <pre data-testid="diff">{oldText}</pre>
   ),
 }));

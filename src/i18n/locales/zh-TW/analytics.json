@@ -26,6 +26,7 @@
   "analytics.count": "{{count}}次",
   "analytics.currentSession": "目前會話",
   "analytics.currentSessionTokens": "目前會話權杖：{{count}}個",
+  "analytics.subagentShare_other": "其中子代理：{{amount}}（{{count}} 次執行）",
   "analytics.dailyActivity": "每日活動",
   "analytics.dailyAvgMessages": "日均訊息",
   "analytics.dailyAvgTokens": "日均權杖",

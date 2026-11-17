@@ -640,6 +640,8 @@ pub fn build_provider_message(
 ) -> ClaudeMessage {
     ClaudeMessage {
         uuid,
+        source_execution: None,
+        codex_evidence: None,
         parent_uuid: None,
         session_id: session_id.to_string(),
         timestamp,

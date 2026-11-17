@@ -433,8 +433,10 @@ mod raw_open_guard {
 
     /// The history readers: the stats commands and the usage breakdown, the
     /// session and subagent loaders and their chains, search, recent edits,
-    /// archives and the project list.
+    /// archives and the project list. Settings metadata reuses the same safe
+    /// regular-file opener and is held to the raw-open guard as well.
     const READERS: &[&str] = &[
+        "src/commands/claude_settings/metadata.rs",
         "src/commands/stats.rs",
         "src/commands/stats/cache.rs",
         "src/commands/stats/usage_breakdown.rs",

@@ -11,10 +11,17 @@
  * - Grep: pattern + path → search results
  * - Glob: pattern + path → file list
  * - Agent: subagent_type + description + prompt(md) → result(md)
- * - Default: primary field → result text
+ * - Workflow: name + description + script → result, the run's agents
+ * - AskUserQuestion: questions + options → answer
+ * - Default: the D-R1 name → body table (toolBodies.tsx), else honest JSON
+ *
+ * Every card is a ToolRow (TR0, TR1a) whose outcome comes from toolOutcome.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { resultSearchText } from "../transcript/resultSearchText";
+import { ResultSearchContext, useResultProvider } from "../transcript/resultProvider";
+import { searchHits } from "./unifiedCards/shared";
 import {
   BashCard,
   ReadCard,
@@ -30,34 +37,19 @@ import {
   DefaultCard,
 } from "./unifiedCards";
 import type { Props } from "./unifiedCards";
+import { canonicalToolName } from "./toolNames";
 
 export type { Props as UnifiedToolExecutionRendererProps };
 
-/**
- * Canonical card for a tool name. Claude Code uses PascalCase names; other
- * providers (oh-my-pi, Codex, OpenCode, Gemini) emit lowercase or snake_case
- * variants for the same primitives. Only names whose input shape matches the
- * target card are aliased; everything else keeps the generic DefaultCard.
- */
-const TOOL_ALIASES: Record<string, string> = {
-  bash: "Bash",
-  shell: "Bash",
-  read: "Read",
-  read_file: "Read",
-  write: "Write",
-  write_file: "Write",
-  grep: "Grep",
-  glob: "Glob",
-  websearch: "WebSearch",
-  web_search: "WebSearch",
-  webfetch: "WebFetch",
-  web_fetch: "WebFetch",
-};
+export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer(props: Props) {
+  const provider = useResultProvider();
+  const active = provider !== undefined && provider !== "claude";
+  const query = props.searchQuery?.trim() ?? "";
+  const hit = useMemo(() => active && query !== "" && searchHits(query, resultSearchText(props.toolUse), resultSearchText(props.toolResults)), [active, query, props.toolUse, props.toolResults]);
+  return <ResultSearchContext.Provider value={active ? { searchQuery: props.searchQuery, revealFor: hit ? props.searchQuery : undefined, isCurrentMatch: props.isCurrentMatch, currentMatchIndex: props.currentMatchIndex } : {}}><CardDispatcher {...props} /></ResultSearchContext.Provider>;
+});
 
-const canonicalToolName = (name: string): string =>
-  TOOL_ALIASES[name.toLowerCase()] ?? name;
-
-export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer({
+function CardDispatcher({
   toolUse,
   toolResults,
   onViewSubagent,
@@ -65,10 +57,11 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
   isCurrentMatch,
   currentMatchIndex,
 }: Props) {
+  // The canonical card for the recorded name (provider aliases: ./toolNames).
   const toolName = canonicalToolName((toolUse.name as string) || "");
 
   switch (toolName) {
-    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />;
     case "Read":      return <ReadCard toolUse={toolUse} toolResults={toolResults} />;
     case "Edit":
     case "MultiEdit": return <EditCard toolUse={toolUse} toolResults={toolResults} />;
@@ -79,7 +72,16 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
     case "WebFetch":  return <WebFetchCard toolUse={toolUse} toolResults={toolResults} />;
     case "Agent":
     case "Task":      return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
-    case "Workflow":  return <WorkflowCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Workflow":
+      return (
+        <WorkflowCard
+          toolUse={toolUse}
+          toolResults={toolResults}
+          searchQuery={searchQuery}
+          isCurrentMatch={isCurrentMatch}
+          currentMatchIndex={currentMatchIndex}
+        />
+      );
     case "AskUserQuestion":
       return (
         <AskUserQuestionCard
@@ -100,4 +102,4 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
       />
     );
   }
-});
+}

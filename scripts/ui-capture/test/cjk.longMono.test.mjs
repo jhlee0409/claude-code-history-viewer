@@ -64,8 +64,8 @@ afterAll(async () => {
 
 /**
  * Geometry of the element that shows `token` in full (a row header that
- * truncates it on purpose is skipped): its glyph lines, the nearest bordered
- * ancestor (the card) and whether any box between the token and that card
+ * truncates it on purpose is skipped): its glyph lines, its box (a tool row's
+ * wrapper, else the nearest bordered ancestor: the card) and whether any box between the token and that card
  * scrolls sideways. Horizontal scroll offsets are reset first so a scrolled
  * ancestor cannot hide an overflow.
  */
@@ -85,8 +85,10 @@ const tokenGeometry = (page, token) =>
       const cs = getComputedStyle(el);
       return parseFloat(cs.borderLeftWidth) > 0 && parseFloat(cs.borderRightWidth) > 0;
     };
-    let card = owner.parentElement;
-    while (card && !hasBorder(card)) card = card.parentElement;
+    // A tool row has no border (plan §4.3 ToolRow, TR0): its row wrapper is
+    // the box the token must stay inside. Elsewhere, the bordered card.
+    let card = owner.closest("[data-tool-row-wrapper]") ?? owner.parentElement;
+    if (!card?.matches("[data-tool-row-wrapper]")) while (card && !hasBorder(card)) card = card.parentElement;
     if (!card) return null;
     const cardBox = card.getBoundingClientRect();
     const overflowing = [];

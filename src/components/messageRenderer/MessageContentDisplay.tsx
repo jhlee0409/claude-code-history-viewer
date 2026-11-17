@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import React, { useMemo, Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import { Copy, ChevronDown } from "lucide-react";
@@ -45,6 +47,7 @@ const getTextInfo = (text: string) => {
 // Collapsible table component for markdown
 const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
   const { t } = useTranslation();
+  const contentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("table", false);
 
   // Extract thead and tbody from children
@@ -80,20 +83,20 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
 
   return (
     <div className="relative">
-      <table {...props}>
+      <table {...props} id={contentId}>
         {thead}
         {getLimitedTbody()}
       </table>
 
       {needsExpand && (
-        <button
+        <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={contentId} type="button"
           onClick={() => setIsExpanded(prev => !prev)}
-          className={cn(
+          className={cn("h-auto whitespace-normal justify-start font-normal", cn(
             "flex items-center justify-center gap-1 w-full py-1.5 mt-1",
             "text-caption text-muted-foreground hover:text-foreground",
             "border-t border-border/50",
             "transition-colors"
-          )}
+          ))}
         >
           <ChevronDown className={cn(
             "w-3.5 h-3.5 transition-transform",
@@ -104,7 +107,7 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
               ? t("messageContentDisplay.showLess")
               : t("messageContentDisplay.showMoreRows", { count: rowCount - TABLE_ROW_LIMIT })}
           </span>
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -126,6 +129,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   currentMatchIndex = 0,
 }) => {
   const { t } = useTranslation();
+  const contentId = useId();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("content", false);
 
   // Check if content needs expand (for both user and assistant)
@@ -164,32 +168,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
     }
 
     if (isImageUrl(content) || isBase64Image(content)) {
-      return <ImageRenderer imageUrl={content} />;
-    }
-
-    const imageMatch = content.match(
-      /(data:image\/[^;\s]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|svg|webp))/i
-    );
-    if (imageMatch && imageMatch[1]) {
-      const imageUrl = imageMatch[1];
-      const textWithoutImage = content.replace(imageMatch[0], "").trim();
-
-      return (
-        <>
-          <ImageRenderer imageUrl={imageUrl} />
-          {textWithoutImage && textWithoutImage.length > 0 && (
-            <div className="mt-2">
-              <MessageContentDisplay
-                content={textWithoutImage}
-                messageType={messageType}
-                searchQuery={searchQuery}
-                isCurrentMatch={isCurrentMatch}
-                currentMatchIndex={currentMatchIndex}
-              />
-            </div>
-          )}
-        </>
-      );
+      return <ImageRenderer imageUrl={content.trim()} />;
     }
   }
 
@@ -204,7 +183,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
     return (
       <div className="mb-3 flex justify-end">
         <div className="max-w-[85%] md:max-w-md lg:max-w-lg bg-accent text-accent-foreground rounded-2xl px-4 py-3 relative group shadow-sm">
-          <div className={cn(
+          <div id={contentId} className={cn(
             "whitespace-pre-wrap break-words",
             "text-body"
           )}>
@@ -222,13 +201,13 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
 
           {/* Show more / Show less button */}
           {textInfo.needsExpand && !searchQuery && (
-            <button
+            <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={contentId} type="button"
               onClick={() => setIsExpanded(prev => !prev)}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "flex items-center gap-1 mt-1.5 text-caption",
                 "text-accent-foreground/70 hover:text-accent-foreground",
                 "transition-colors"
-              )}
+              ))}
             >
               <ChevronDown className={cn(
                 "w-3.5 h-3.5 transition-transform",
@@ -239,7 +218,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                   ? t("messageContentDisplay.showLess", { defaultValue: "Show less" })
                   : t("messageContentDisplay.showMore", { defaultValue: "Show more..." })}
               </span>
-            </button>
+            </Button>
           )}
 
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -262,6 +241,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
       <div className="mb-3 flex justify-start">
         <div className="max-w-[95%] md:max-w-2xl bg-secondary text-secondary-foreground rounded-2xl px-4 py-3 relative group shadow-sm border border-border">
           {/* 검색 중일 때는 plain text로 렌더링 (성능 + 하이라이팅) */}
+          <div id={contentId}>
           {searchQuery ? (
             <div className={`whitespace-pre-wrap break-words text-body`}>
               <HighlightedText
@@ -285,16 +265,17 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               </ReactMarkdown>
             </div>
           )}
+          </div>
 
           {/* Show more / Show less button */}
           {textInfo.needsExpand && !searchQuery && (
-            <button
+            <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={contentId} type="button"
               onClick={() => setIsExpanded(prev => !prev)}
-              className={cn(
+              className={cn("h-auto whitespace-normal justify-start font-normal", cn(
                 "flex items-center gap-1 mt-2 text-caption",
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors"
-              )}
+              ))}
             >
               <ChevronDown className={cn(
                 "w-3.5 h-3.5 transition-transform",
@@ -305,7 +286,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                   ? t("messageContentDisplay.showLess", { defaultValue: "Show less" })
                   : t("messageContentDisplay.showMore", { defaultValue: "Show more..." })}
               </span>
-            </button>
+            </Button>
           )}
 
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">

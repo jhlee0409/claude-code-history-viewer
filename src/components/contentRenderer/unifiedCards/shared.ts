@@ -44,22 +44,57 @@ const SUMMARY_KEYS = [
 ] as const;
 export const SUMMARY_MAX_LEN = 120;
 
+/** Summary keys whose value is a file path: the row shows it the PathText way (relative, D1). */
+const PATH_KEYS = new Set<string>(["file_path", "path"]);
+
+/** The input field a collapsed row names as its target. */
+export interface InputSummary {
+  /** The input key it came from. */
+  key: string;
+  /** The value's first line, whole. */
+  line: string;
+  /** What the row shows: the first line, capped at `SUMMARY_MAX_LEN` with "…". */
+  text: string;
+  /** The value is a path (`file_path` / `path`). */
+  isPath: boolean;
+}
+
 /**
- * One-line preview of a tool input for the collapsed card header.
- * Picks the most informative string field, keeps its first line, and caps length.
+ * The most informative string field of a tool input, for the row's target:
+ * the first summary key with a non-empty value, its first line, capped in
+ * length (the old card header's one-line preview, same keys and order).
  */
-export const summarizeToolInput = (input: Record<string, unknown>): string | undefined => {
-  const value = strAny(input, ...SUMMARY_KEYS);
-  if (value == null) return undefined;
-  const firstLine = value.trimStart().split("\n")[0]?.trim() ?? "";
-  if (firstLine.length === 0) return undefined;
-  return firstLine.length > SUMMARY_MAX_LEN ? `${firstLine.slice(0, SUMMARY_MAX_LEN)}…` : firstLine;
+export const inputSummary = (input: Record<string, unknown>): InputSummary | undefined => {
+  const key = SUMMARY_KEYS.find((k) => (str(input, k) ?? "").length > 0);
+  if (key === undefined) return undefined;
+  const line = (str(input, key) ?? "").trimStart().split("\n")[0]?.trim() ?? "";
+  if (line.length === 0) return undefined;
+  const text = line.length > SUMMARY_MAX_LEN ? `${line.slice(0, SUMMARY_MAX_LEN)}…` : line;
+  return { key, line, text, isPath: PATH_KEYS.has(key) };
 };
 
-export const isError = (result: ToolResultLike) => {
-  if (result.is_error === true) return true;
-  const c = result.content;
-  if (typeof c === "string" && /^error\b/i.test(c)) return true;
-  if (c && typeof c === "object" && "error_code" in c) return true;
-  return false;
+/**
+ * One line of Markdown as plain words, for a row target (renderer audit NC3:
+ * no raw `**` in a preview): the first non-empty line without heading, list
+ * and quote markers, emphasis / code marks and link targets.
+ */
+export const plainPreview = (markdown: string): string => {
+  const line = markdown.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  return line
+    .replace(/^(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/, "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/\*([^*]+)\*/g, "$1")
+    // `_x_` only as emphasis, not inside snake_case words.
+    .replace(/(^|[^\w])_([^_]+)_(?=[^\w]|$)/g, "$1$2")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/~~(.+?)~~/g, "$1")
+    .trim();
+};
+
+/** Does `query` (case-insensitive, trimmed) occur in any of `texts`? An empty query never does. */
+export const searchHits = (query: string | undefined, ...texts: (string | null | undefined)[]): boolean => {
+  const q = query?.trim().toLowerCase() ?? "";
+  if (q === "") return false;
+  return texts.some((text) => typeof text === "string" && text.toLowerCase().includes(q));
 };

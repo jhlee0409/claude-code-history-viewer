@@ -18,6 +18,12 @@ export interface MessageFilterContentTypes {
 export interface MessageFilter {
     roles: MessageFilterRoles;
     contentTypes: MessageFilterContentTypes;
+    /**
+     * Keep only the prompts the user typed and, for each of them, the last
+     * assistant text reply before the next one. Narrows the role and content
+     * filters (AND); absent means off.
+     */
+    promptsAndFinalReplies?: boolean;
 }
 
 const MESSAGE_FILTER_STORAGE_KEY = "message-filter";
@@ -31,6 +37,7 @@ const defaultMessageFilter = (): MessageFilter => ({
         commands: true,
         parallelTasks: true,
     },
+    promptsAndFinalReplies: false,
 });
 
 const isBool = (value: unknown): value is boolean => typeof value === "boolean";
@@ -73,6 +80,9 @@ const loadPersistedMessageFilter = (): MessageFilter => {
                     ? contentTypes.parallelTasks
                     : fallback.contentTypes.parallelTasks,
             },
+            promptsAndFinalReplies: isBool(parsed?.promptsAndFinalReplies)
+                ? parsed?.promptsAndFinalReplies
+                : fallback.promptsAndFinalReplies,
         };
     } catch {
         return fallback;
@@ -103,6 +113,7 @@ export interface FilterSliceActions {
     toggleShowParallelTasksInNavigator: () => void;
     toggleRole: (role: keyof MessageFilterRoles) => void;
     toggleContentType: (contentType: keyof MessageFilterContentTypes) => void;
+    togglePromptsAndFinalReplies: () => void;
     resetMessageFilter: () => void;
     isMessageFilterActive: () => boolean;
 }
@@ -178,6 +189,16 @@ export const createFilterSlice: StateCreator<
         set({ messageFilter: next });
     },
 
+    togglePromptsAndFinalReplies: () => {
+        const current = get().messageFilter;
+        const next: MessageFilter = {
+            ...current,
+            promptsAndFinalReplies: !current.promptsAndFinalReplies,
+        };
+        persistMessageFilter(next);
+        set({ messageFilter: next });
+    },
+
     resetMessageFilter: () => {
         const next = defaultMessageFilter();
         persistMessageFilter(next);
@@ -187,7 +208,8 @@ export const createFilterSlice: StateCreator<
     isMessageFilterActive: () => {
         const { messageFilter } = get();
         const { roles, contentTypes } = messageFilter;
-        return !roles.user || !roles.assistant
+        return messageFilter.promptsAndFinalReplies === true
+            || !roles.user || !roles.assistant
             || !contentTypes.text || !contentTypes.thinking
             || !contentTypes.toolCalls || !contentTypes.commands
             || !contentTypes.parallelTasks;

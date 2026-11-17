@@ -4,7 +4,8 @@ use crate::models::MessageContent;
 use crate::models::{
     ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelContextStats, ModelStats,
     ProjectRanking, ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison,
-    SessionTokenStats, TokenDistribution, TokenUsage, TokenUsageRecording, ToolUsageStats,
+    SessionTokenStats, SubagentTokenStats, TokenDistribution, TokenUsage, TokenUsageRecording,
+    ToolUsageStats,
 };
 use crate::providers;
 use crate::providers::scan_report::ScanReport;
@@ -2816,6 +2817,7 @@ fn build_antigravity_session_token_stats(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
     };
 
     Ok(Some((stats, records)))
@@ -3611,6 +3613,7 @@ fn build_session_token_stats_from_messages(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
     })
 }
 
@@ -4328,7 +4331,7 @@ pub async fn get_session_token_stats(
             .ok_or_else(|| "No valid messages found in session".to_string());
         }
 
-        let messages = load_stats_messages(provider, &session_path)?;
+        let mut messages = load_stats_messages(provider, &session_path)?;
 
         let session_id = messages
             .first()
@@ -4336,7 +4339,24 @@ pub async fn get_session_token_stats(
             .unwrap_or_else(|| session_path.clone());
         let project_name = resolve_provider_project_name_from_session(provider, &session_path);
 
-        return build_session_token_stats_from_messages(
+        // Subagent runs stored as child sessions are billed sidechain usage:
+        // folded into `billing_total` only, like Claude's subagent
+        // transcripts (#577).
+        let subagent_messages = if mode.include_sidechain() {
+            load_subagent_stats_messages(provider, &session_path)
+        } else {
+            Vec::new()
+        };
+        let subagent_stats = subagent_stats_from_messages(
+            provider,
+            mode,
+            &subagent_messages,
+            s_limit.as_ref(),
+            e_limit.as_ref(),
+        );
+        messages.extend(subagent_messages);
+
+        let mut stats = build_session_token_stats_from_messages(
             SessionTokenStatsOptions {
                 provider,
                 session_id,
@@ -4355,7 +4375,9 @@ pub async fn get_session_token_stats(
                 e_limit.as_ref(),
             )
         })
-        .ok_or_else(|| "No valid messages found in session".to_string());
+        .ok_or_else(|| "No valid messages found in session".to_string())?;
+        stats.subagent_stats = subagent_stats;
+        return Ok(stats);
     }
 
     // The session opens as a regular file inside its own folder, or the
@@ -4390,6 +4412,66 @@ pub async fn get_session_token_stats(
     );
 
     Ok(stats)
+}
+
+/// Messages of the subagent runs a provider stores as separate child sessions
+/// (`OpenCode` and Kilo: `session.parent_id`), marked as sidechain. Claude
+/// subagent transcripts are folded in by `extract_session_token_stats_sync`
+/// and Z Code's by `load_stats_messages`; other providers have none.
+fn load_subagent_stats_messages(provider: StatsProvider, session_path: &str) -> Vec<ClaudeMessage> {
+    match provider {
+        StatsProvider::OpenCode => providers::opencode::load_subagent_messages(session_path),
+        StatsProvider::Kilo => providers::kilo::load_subagent_messages(session_path),
+        _ => Vec::new(),
+    }
+}
+
+/// The subagent share of a session's billing totals, using the same
+/// token-extraction and dedup rules as the session itself. `session_count`
+/// counts only the runs with a message inside the date filter, so it matches
+/// the totals shown beside it.
+fn subagent_stats_from_messages(
+    provider: StatsProvider,
+    mode: StatsMode,
+    messages: &[ClaudeMessage],
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SubagentTokenStats> {
+    let session_count = messages
+        .iter()
+        .filter(|message| {
+            is_within_date_limits(parse_timestamp_utc(&message.timestamp), s_limit, e_limit)
+                && should_include_stats_message(message, mode)
+        })
+        .map(|message| message.session_id.as_str())
+        .collect::<HashSet<_>>()
+        .len();
+    if session_count == 0 {
+        return None;
+    }
+    let stats = build_session_token_stats_from_messages(
+        SessionTokenStatsOptions {
+            provider,
+            session_id: String::new(),
+            project_name: String::new(),
+            summary: None,
+            mode,
+            start_date: s_limit.copied(),
+            end_date: e_limit.copied(),
+        },
+        messages,
+    )?;
+    Some(SubagentTokenStats {
+        session_count,
+        message_count: stats.message_count,
+        total_input_tokens: stats.total_input_tokens,
+        total_output_tokens: stats.total_output_tokens,
+        total_cache_creation_tokens: stats.total_cache_creation_tokens,
+        total_cache_read_tokens: stats.total_cache_read_tokens,
+        total_reasoning_tokens: stats.total_reasoning_tokens,
+        total_tokens: stats.total_tokens,
+        model_distribution: stats.model_distribution,
+    })
 }
 
 /// Paginated response for project token stats
@@ -4504,6 +4586,7 @@ impl SessionTokenAccum {
                 self.model_context_usage,
                 self.model_costs,
             ),
+            subagent_stats: None,
             // Unsorted, as both producers always emitted it.
             most_used_tools: self
                 .tool_usage
@@ -5436,7 +5519,8 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             message_type: log_entry.message_type.clone(),
             content: log_entry.message.map(|m| m.content).or(log_entry.content),
             tool_use: log_entry.tool_use,
-            tool_use_result: log_entry.tool_use_result,
+            // Stats retains legacy null-as-absent semantics; the load API preserves raw null.
+            tool_use_result: log_entry.tool_use_result.filter(|value| !value.is_null()),
             is_sidechain: log_entry.is_sidechain,
             usage,
             role,
@@ -5994,6 +6078,8 @@ mod tests {
     ) -> ClaudeMessage {
         ClaudeMessage {
             uuid: "test-uuid".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session-123".to_string(),
             timestamp: "2025-06-26T10:00:00Z".to_string(),
@@ -6074,6 +6160,128 @@ mod tests {
         ]));
         track_skill_and_subagent_usage(&asst, &mut skills, &mut subagents);
         assert!(skills.is_empty());
+    }
+
+    /// A subagent-run message of session `session_id`, marked as sidechain the
+    /// way `load_subagent_stats_messages` returns it.
+    fn make_subagent_message(
+        session_id: &str,
+        uuid: &str,
+        timestamp: &str,
+        input: u32,
+        output: u32,
+    ) -> ClaudeMessage {
+        let mut message = make_test_message(
+            Some("opencode"),
+            "assistant",
+            Some(TokenUsage {
+                input_tokens: Some(input),
+                output_tokens: Some(output),
+                ..Default::default()
+            }),
+        );
+        message.uuid = uuid.to_string();
+        message.session_id = session_id.to_string();
+        message.timestamp = timestamp.to_string();
+        message.is_sidechain = Some(true);
+        message
+    }
+
+    #[test]
+    /// #577: descendant sessions roll up into one aggregate, counting each run
+    /// once and summing tokens across every child.
+    fn test_subagent_stats_from_messages_aggregates_descendants() {
+        let messages = [
+            make_subagent_message("ses_child_a", "a1", "2025-06-26T10:00:00Z", 100, 50),
+            make_subagent_message("ses_child_a", "a2", "2025-06-26T10:01:00Z", 1, 1),
+            make_subagent_message("ses_child_b", "b1", "2025-06-26T10:02:00Z", 10, 5),
+        ];
+
+        let stats = subagent_stats_from_messages(
+            StatsProvider::OpenCode,
+            StatsMode::BillingTotal,
+            &messages,
+            None,
+            None,
+        )
+        .expect("aggregate should be produced");
+
+        assert_eq!(stats.session_count, 2);
+        assert_eq!(stats.message_count, 3);
+        assert_eq!(stats.total_input_tokens, 111);
+        assert_eq!(stats.total_output_tokens, 56);
+        assert_eq!(stats.total_tokens, 167);
+    }
+
+    #[test]
+    /// #577 review: under a date filter the run count covers only the runs
+    /// whose usage is inside the range, matching the filtered totals.
+    fn test_subagent_stats_session_count_follows_date_filter() {
+        let messages = [
+            make_subagent_message("ses_child_a", "a1", "2025-06-26T10:00:00Z", 100, 50),
+            make_subagent_message("ses_child_b", "b1", "2025-07-10T10:00:00Z", 10, 5),
+        ];
+        let start: DateTime<Utc> = "2025-06-01T00:00:00Z".parse().unwrap();
+        let end: DateTime<Utc> = "2025-06-30T23:59:59Z".parse().unwrap();
+
+        let stats = subagent_stats_from_messages(
+            StatsProvider::OpenCode,
+            StatsMode::BillingTotal,
+            &messages,
+            Some(&start),
+            Some(&end),
+        )
+        .expect("one run is inside the range");
+        assert_eq!(stats.session_count, 1);
+        assert_eq!(stats.message_count, 1);
+        assert_eq!(stats.total_tokens, 150);
+
+        let after: DateTime<Utc> = "2025-08-01T00:00:00Z".parse().unwrap();
+        assert!(subagent_stats_from_messages(
+            StatsProvider::OpenCode,
+            StatsMode::BillingTotal,
+            &messages,
+            Some(&after),
+            None,
+        )
+        .is_none());
+    }
+
+    #[test]
+    /// #577: subagent runs are sidechain usage, so `conversation_only` has no
+    /// subagent share.
+    fn test_subagent_stats_excluded_from_conversation_only() {
+        let messages = [make_subagent_message(
+            "ses_child_a",
+            "a1",
+            "2025-06-26T10:00:00Z",
+            100,
+            50,
+        )];
+        assert!(subagent_stats_from_messages(
+            StatsProvider::OpenCode,
+            StatsMode::ConversationOnly,
+            &messages,
+            None,
+            None,
+        )
+        .is_none());
+    }
+
+    #[test]
+    #[serial]
+    /// #577: only providers that store subagents as separate child sessions
+    /// load them here; Claude and Z Code fold theirs in elsewhere and must not
+    /// be counted twice.
+    fn test_load_subagent_stats_messages_is_opencode_core_only() {
+        let _home = crate::test_utils::SandboxHome::new();
+        assert!(
+            load_subagent_stats_messages(StatsProvider::Claude, "/tmp/session.jsonl").is_empty()
+        );
+        assert!(load_subagent_stats_messages(StatsProvider::Zcode, "zcode:///tmp#ses").is_empty());
+        assert!(
+            load_subagent_stats_messages(StatsProvider::OpenCode, "not-a-virtual-path").is_empty()
+        );
     }
 
     #[test]
@@ -6355,6 +6563,8 @@ mod tests {
     fn test_extract_token_usage_from_usage_field() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
@@ -8500,6 +8710,65 @@ mod tests {
             "provider_distribution must list kilo: {:?}",
             summary.provider_distribution
         );
+    }
+
+    #[tokio::test]
+    #[serial]
+    /// #577: a Kilo session's billing total includes its subagent child
+    /// sessions, broken back out in `subagent_stats`; `conversation_only`
+    /// counts the session alone.
+    async fn test_session_token_stats_rolls_up_kilo_subagent_sessions() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let kilo_home = temp_dir.path().join("kilo");
+        fs::create_dir_all(&kilo_home).expect("create KILO_HOME");
+        {
+            let conn = providers::kilo::test_support::create_test_db(&kilo_home);
+            providers::kilo::test_support::seed(&conn);
+            providers::kilo::test_support::seed_assistant_usage(&conn, 100, 50);
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+                 VALUES ('ses_child', 'proj1', 'Subagent run', 1700000200000, 1700000200000,
+                         'ses_001')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data)
+                 VALUES ('msg_child', 'ses_child', 1700000210000, 1700000210000,
+                         '{\"role\":\"assistant\",\"modelID\":\"kilo-test-model\",\
+                          \"time\":{\"created\":1700000210000},\
+                          \"tokens\":{\"input\":7,\"output\":3}}')",
+                [],
+            )
+            .unwrap();
+        }
+        let _kilo_home = EnvVarGuard::set("KILO_HOME", &kilo_home);
+        let session_path = "kilo://proj1/ses_001".to_string();
+
+        let billing = get_session_token_stats(
+            session_path.clone(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("billing stats");
+        assert_eq!(billing.total_tokens, 160);
+        let subagents = billing.subagent_stats.expect("subagent share");
+        assert_eq!(subagents.session_count, 1);
+        assert_eq!(subagents.total_tokens, 10);
+
+        let conversation = get_session_token_stats(
+            session_path,
+            None,
+            None,
+            Some("conversation_only".to_string()),
+        )
+        .await
+        .expect("conversation stats");
+        assert_eq!(conversation.total_tokens, 150);
+        assert!(conversation.subagent_stats.is_none());
     }
 
     /// Write a temporary `ForgeCode` database used by stats tests.

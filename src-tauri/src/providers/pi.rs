@@ -36,9 +36,7 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
-use crate::utils::{
-    build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
-};
+use crate::utils::{build_provider_message, is_symlink, ms_to_iso};
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -289,7 +287,7 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
                 let matched = msg
                     .content
                     .as_ref()
-                    .map(|c| search_json_value_case_insensitive(c, &query_lower))
+                    .map(|c| super::result_evidence::content_matches(c, &query_lower))
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some(project_name.clone());
@@ -810,6 +808,17 @@ fn convert_message_record(
     out.parent_uuid = record_parent(record);
     out.subtype = subtype;
     out.compact_metadata = compact_metadata;
+    if role == "bashExecution" {
+        out.source_execution = Some(json!({
+            "messageUuid":out.uuid,"sessionId":session_id,
+            "association":"local_execution","message":message
+        }));
+    }
+    if role == "toolResult" {
+        if let Some(result) = out.content.as_mut().and_then(|c| c.get_mut(0)) {
+            super::result_evidence::attach(result, message, &out.uuid, session_id, 0);
+        }
+    }
     out.stop_reason = message
         .get("stopReason")
         .and_then(Value::as_str)
@@ -1078,10 +1087,6 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
         .get("toolCallId")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let is_error = message
-        .get("isError")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
     let blocks = content_blocks(message);
     let content = if blocks
         .iter()
@@ -1097,12 +1102,13 @@ fn tool_result_blocks(message: &Value) -> Vec<Value> {
     } else {
         Value::Array(blocks)
     };
-    vec![json!({
-        "type": "tool_result",
-        "tool_use_id": tool_use_id,
-        "content": content,
-        "is_error": is_error
-    })]
+    let mut block = json!({
+        "type": "tool_result", "tool_use_id": tool_use_id, "content": content
+    });
+    // pi-mono a922830 agent-loop.ts:841-863 writes isError; absence is not false.
+    // https://github.com/badlogic/pi-mono/blob/a92283056d915c758799fcd904948ff0cb42628c/packages/agent/src/agent-loop.ts#L841-L863
+    super::result_evidence::copy_error_flag(&mut block, message, "isError");
+    vec![block]
 }
 
 fn convert_content_item(item: &Value) -> Option<Value> {
@@ -1621,5 +1627,30 @@ mod tests {
             load_messages(&file.to_string_lossy()).is_err(),
             "load_messages must reject a file outside the sessions root"
         );
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [
+            None,
+            Some(serde_json::json!(false)),
+            Some(serde_json::json!(true)),
+            Some(serde_json::json!(null)),
+            Some(serde_json::json!("false")),
+        ] {
+            let mut record = serde_json::json!({"toolCallId":"c","content":[{"type":"text","text":"synthetic"}]});
+            if let Some(v) = flag.clone() {
+                record["isError"] = v;
+            }
+            let block = &tool_result_blocks(&record)[0];
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.and_then(|v| v.as_bool())
+            );
+        }
     }
 }

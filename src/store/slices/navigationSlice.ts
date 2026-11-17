@@ -46,6 +46,7 @@ import {
   type AnalyticsTab,
   type Place,
   type PlaceFallback,
+  type SessionRef,
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
@@ -54,6 +55,7 @@ import {
   loadRecent,
   pushRecent,
   recentEntryOf,
+  relocateRecent,
   saveRecent,
   type RecentEntry,
 } from "@/navigation/library";
@@ -171,6 +173,11 @@ export interface NavigationSliceActions {
    * the same uuid restored in the same tab after A→B→A (plan §4.3, §9b).
    */
   lookUpTargetMessage: () => Promise<boolean>;
+  /**
+   * A session file moved (another project): its recent entries follow it to
+   * `ref`, so the library does not list a path that is gone.
+   */
+  relocateRecentSession: (fromPath: string, ref: SessionRef) => void;
 }
 
 export type NavigationSlice = NavigationSliceState & NavigationSliceActions;
@@ -440,5 +447,13 @@ export const createNavigationSlice: StateCreator<
     const found = await get().ensureMessageLoaded(uuid);
     if (!found && owns()) get().clearTargetMessage();
     return found;
+  },
+
+  relocateRecentSession: (fromPath, ref) => {
+    const current = get().recentSessions;
+    if (!current.some((e) => e.ref.filePath === fromPath)) return;
+    const recentSessions = relocateRecent(current, fromPath, ref);
+    set({ recentSessions });
+    saveRecent(recentSessions);
   },
 });

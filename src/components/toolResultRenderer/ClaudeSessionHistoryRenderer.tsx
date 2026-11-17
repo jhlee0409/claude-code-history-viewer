@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { MessageCircle, User, Bot, Wrench, X, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -11,22 +13,23 @@ import { Num } from "@/lib/format/Num";
 /** Controlled alternative to <details> for error fallback — uses local state
  *  since this only renders in the catch path where ExpandKeyProvider may be absent */
 const ErrorFallbackDetails = ({ label, content }: { label: string; content: string }) => {
+  const openContentId = useId();
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-2">
-      <button
+      <Button aria-expanded={open} aria-controls={openContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setOpen(prev => !prev)}
-        className={cn(layout.bodyText, "flex items-center gap-1 cursor-pointer")}
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(layout.bodyText, "flex items-center gap-1 cursor-pointer"))}
       >
         <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-90")} />
         {label}
-      </button>
-      {open && (
+      </Button>
+      <div id={openContentId} hidden={!open}>{open && (
         <pre className={cn("mt-2 bg-muted overflow-x-auto", layout.containerPadding, layout.rounded, layout.smallText)}>
           {content}
         </pre>
-      )}
+      )}</div>
     </div>
   );
 };

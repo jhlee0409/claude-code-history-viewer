@@ -10,6 +10,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
+import { groupTurns } from "../components/MessageNavigator/outline/groupTurns";
+import { getFilteredClassifiedMessages } from "../components/MessageNavigator/classifiedRows";
+import { buildTranscriptItems } from "../components/transcript/transcriptItems";
+import { flattened, tool, user } from "../components/transcript/transcriptItems.fixtures";
 import type {
   ClaudeMessage,
   ClaudeSession,
@@ -153,11 +157,112 @@ const installBackend = (backend: ReturnType<typeof makeBackend>) => {
   );
 };
 
+/** Hold the next page response while a newer request takes ownership. */
+const deferNextPage = () => {
+  type Page = ReturnType<ReturnType<typeof makeBackend>["page"]>;
+  let release!: (page: Page) => void;
+  const pending = new Promise<Page>((resolve) => { release = resolve; });
+  mockApi.mockImplementationOnce((cmd: string) => {
+    expect(cmd).toBe("load_provider_messages_paginated");
+    return pending;
+  });
+  return release;
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe("messageSlice — chat-style pagination", () => {
+  it("distinguishes watcher tail refresh, older-page prepend, and filter replacement", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    const kind = () => store.getState().messageUpdateKind;
+    await store.getState().selectSession(makeSession());
+    expect(kind()).toBe("replace");
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("watcher");
+    expect(kind()).toBe("tail-refresh");
+    await store.getState().loadMoreMessages();
+    expect(kind()).toBe("prepend");
+    installBackend(makeBackend(502));
+    await store.getState().reloadCurrent("filter");
+    expect(kind()).toBe("replace");
+    await store.getState().reloadCurrent("refresh");
+    expect(kind()).toBe("tail-refresh");
+    await store.getState().selectSession(makeSession({ session_id: "other", file_path: "/tmp/other.jsonl" }));
+    expect(kind()).toBe("replace");
+  });
+
+  it("rejects a stale watcher response after a newer filter replacement", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    await store.getState().selectSession(makeSession());
+
+    const release = deferNextPage();
+    const stale = store.getState().reloadCurrent("watcher");
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("filter");
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("replace");
+    expect(current.messages.at(-1)?.uuid).toBe("uuid-501");
+
+    release(makeBackend(502).page({ offset: 0, limit: MESSAGE_PAGE_SIZE }));
+    await stale;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().messageUpdateKind).toBe("replace");
+  });
+
+  it("rejects a stale older-page response after a newer tail refresh", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    await store.getState().selectSession(makeSession());
+
+    const release = deferNextPage();
+    const older = store.getState().loadMoreMessages();
+    // loadMoreMessages queues its fetch on the older-page promise chain.
+    await Promise.resolve();
+    expect(store.getState().pagination.isLoadingMore).toBe(true);
+    installBackend(makeBackend(501));
+    await store.getState().reloadCurrent("watcher");
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("tail-refresh");
+    expect(current.messages).toHaveLength(MESSAGE_PAGE_SIZE);
+    expect(current.messages.at(-1)?.uuid).toBe("uuid-501");
+
+    release(makeBackend(500).page({ offset: MESSAGE_PAGE_SIZE, limit: MESSAGE_PAGE_SIZE }));
+    await older;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().messageUpdateKind).toBe("tail-refresh");
+  });
+
+  it("rejects a stale response from a different source with the same session ID", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(500));
+    const original = makeSession();
+    await store.getState().selectSession(original);
+
+    const release = deferNextPage();
+    const stale = store.getState().reloadCurrent("watcher");
+    const other = makeSession({ file_path: "/review-other-source/session.jsonl", provider: "codex" });
+    expect(other.session_id).toBe(original.session_id);
+    installBackend(makeBackend(10));
+    await store.getState().selectSession(other);
+    const current = store.getState();
+    expect(current.messageUpdateKind).toBe("replace");
+    expect(current.messages).toHaveLength(10);
+    expect(current.selectedSession).toEqual(other);
+
+    release(makeBackend(501).page({ offset: 0, limit: MESSAGE_PAGE_SIZE }));
+    await stale;
+    expect(store.getState().messages).toBe(current.messages);
+    expect(store.getState().pagination).toEqual(current.pagination);
+    expect(store.getState().selectedSession).toEqual(other);
+    expect(store.getState().messageUpdateKind).toBe("replace");
+  });
+
   beforeEach(() => {
     mockApi.mockReset();
     mockToastError.mockReset();
@@ -190,6 +295,62 @@ describe("messageSlice — chat-style pagination", () => {
     const url = new URL(window.location.href);
     expect(url.searchParams.get("session")).toBe("session-1");
     expect(url.searchParams.get("msg")).toBe("uuid-1");
+  });
+
+  it("retains a loaded Codex start for outline/model/export while hiding its progress row", async () => {
+    const turn = { started: { type: "task_started", turn_id: "g" }, context: { turn_id: "g" } };
+    const withTurn = (message: ClaudeMessage): ClaudeMessage => ({ ...message, provider: "codex", codexEvidence: { turn } });
+    const source = [withTurn({ ...user("start"), type: "progress", role: "system", data: { type: "waiting_for_task", status: "started", taskId: "g" } }), withTurn(user("context", "<environment_context>cwd</environment_context>")), withTurn(tool("work"))];
+    const backend = makeBackend(3);backend.all.splice(0, 3, ...source);installBackend(backend);
+    const store = createTestStore();
+    await store.getState().selectSession(makeSession({provider: "codex"}));
+    const visible = store.getState().messages;
+    expect(visible.map(m => m.uuid)).toEqual(["context", "work"]);
+    expect(groupTurns(getFilteredClassifiedMessages(visible)).map(t => t.kind)).toEqual(["automated"]);
+    expect(buildTranscriptItems(flattened(visible), new Map()).turns.map(t => t.kind)).toEqual(["automated"]);
+    expect(groupTurns(getFilteredClassifiedMessages(await store.getState().fetchFullSessionMessages())).map(t => t.kind)).toEqual(["automated"]);
+    expect(groupTurns(getFilteredClassifiedMessages(visible.slice(1))).map(t => t.kind)).toEqual(["unknown"]);
+    // A new partial load cannot reuse the earlier window's hidden start.
+    backend.all.splice(0, 1);
+    await store.getState().selectSession(makeSession({provider: "codex"}));
+    expect(groupTurns(getFilteredClassifiedMessages(store.getState().messages)).map(t => t.kind)).toEqual(["unknown"]);
+  });
+  it.each([false, true])("retains a Codex start across an older-page boundary (showSystemMessages=%s)", async (showSystemMessages) => {
+    const withTurn = (message: ClaudeMessage, id: string, input = false): ClaudeMessage => ({
+      ...message,
+      provider: "codex",
+      codexEvidence: { turn: {
+        started: { type: "task_started", turn_id: id },
+        context: { turn_id: id },
+        ...(input ? { input: { type: "user_message", message: "Typed prompt" } } : {}),
+      } },
+    });
+    const start = withTurn({ ...user("boundary-start"), type: "progress", role: "system", data: { type: "waiting_for_task", status: "started", taskId: "g" } }, "g");
+    const context = withTurn(user("boundary-context", "<environment_context>cwd</environment_context>"), "g");
+    const source = [
+      withTurn(user("human", "Typed prompt"), "h", true),
+      withTurn(tool("human-work"), "h", true),
+      start,
+      context,
+      ...Array.from({ length: MESSAGE_PAGE_SIZE - 1 }, (_, i) => withTurn(tool(`auto-${i}`), "g")),
+    ];
+    const backend = makeBackend(source.length);
+    backend.all.splice(0, source.length, ...source);
+    installBackend(backend);
+    const store = createTestStore();
+    store.setState({ showSystemMessages });
+    await store.getState().selectSession(makeSession({ provider: "codex" }));
+    expect(groupTurns(getFilteredClassifiedMessages(store.getState().messages)).map(t => t.kind)).toEqual(["unknown"]);
+
+    await store.getState().loadMoreMessages();
+
+    const visible = store.getState().messages;
+    expect(groupTurns(getFilteredClassifiedMessages(visible)).map(t => t.kind)).toEqual(["human", "automated"]);
+    expect(buildTranscriptItems(flattened(visible), new Map()).turns.map(t => t.kind)).toEqual(["human", "automated"]);
+    expect(visible.some(m => m.uuid === start.uuid)).toBe(showSystemMessages);
+    if (!showSystemMessages) expect(visible.find(m => m.uuid === context.uuid)?.codexLoadedStart).toEqual(start);
+    expect(visible.map(m => m.uuid)).toEqual(source.filter(m => showSystemMessages || m.type !== "progress").map(m => m.uuid));
+    expect(store.getState().pagination).toMatchObject({ currentOffset: source.length, totalCount: source.length, hasMore: false, isLoadingMore: false });
   });
 
   it("selectSession loads only the newest window", async () => {
