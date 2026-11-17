@@ -2,6 +2,7 @@ import {
   BookOpen,
   Bot,
   Info,
+  MessageSquareReply,
   ScrollText,
   SquareSlash,
   User,
@@ -30,6 +31,9 @@ export const KIND_STYLES: Record<MessageKind, KindStyle> = {
   command: { icon: SquareSlash, iconClass: "text-info", textClass: "text-foreground/80 font-mono" },
   "agent-update": { icon: Zap, iconClass: "text-tool-task", textClass: "text-foreground/80" },
   context: { icon: BookOpen, iconClass: "text-muted-foreground", textClass: "text-muted-foreground italic" },
+  // The user's own input, so the prompt's color, with a reply icon that tells
+  // it apart from a typed prompt.
+  answer: { icon: MessageSquareReply, iconClass: "text-info", textClass: "text-foreground" },
   reply: { icon: Bot, iconClass: "text-warning", textClass: "text-foreground/80" },
   tool: { icon: Wrench, iconClass: "text-muted-foreground", textClass: "text-muted-foreground" },
   system: { icon: Info, iconClass: "text-muted-foreground", textClass: "text-muted-foreground" },

@@ -4,7 +4,7 @@
  * Clean session analytics with performance metrics and timeline.
  */
 
-import React, { useMemo } from "react";
+import React, { Fragment, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartColumn, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
@@ -25,6 +25,29 @@ interface SessionStatsViewProps {
   sessionComparison: SessionComparison;
   totalProjectSessions?: number;
   providerId?: ProviderId;
+}
+
+/**
+ * A KPI tile: two per row on a phone, four on a desktop, but never narrower
+ * than its own content. Where enlarged text needs more than the column, the
+ * tile moves onto its own row instead of running past the card's clipped
+ * edge (#719, as the token KPI tiles do since #722).
+ */
+const kpiTileClass =
+  "min-w-min flex-1 basis-[calc((100%_-_0.75rem)/2)] lg:grow-0 lg:basis-[calc((100%_-_2.25rem)/4)] p-3 rounded-md bg-muted/20";
+
+/**
+ * `text` with a line break allowed after each "/": WebKit and Blink do not
+ * break "TOKENS/MESSAGE" there, so the one word would set the tile's minimum
+ * width, wider than a phone's card at large text sizes (#719).
+ */
+function breakAfterSlashes(text: string): React.ReactNode {
+  return text.split("/").map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && <>/<wbr /></>}
+      {part}
+    </Fragment>
+  ));
 }
 
 export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
@@ -111,8 +134,8 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3 rounded-md bg-muted/20">
+          <div className="flex flex-wrap gap-3">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Zap className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
@@ -127,11 +150,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               </div>
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
-                  {t("analytics.tokensPerMessage")}
+                  {breakAfterSlashes(t("analytics.tokensPerMessage"))}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
@@ -144,7 +167,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               </div>
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Timer className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
@@ -164,7 +187,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               </div>}
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">

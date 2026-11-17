@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Session token statistics no longer stall on a named pipe.** A named pipe or folder named like the session is refused with an error instead of stalling the desktop request. (#700)
+- **The current search match is visible in a tool row's head.** The current match is now underlined in its text colour, so it stands out from the current message's highlight (which has the same colour as the match) in the light, dark and high-contrast themes, for example in a NotebookEdit path or a collapsed row's target. (#736)
+- **Session Details KPI captions are no longer cut off on phones with larger text.** "Tokens/Message" can wrap after its slash, and a tile whose caption or value needs more room moves onto its own row instead of running past the card's edge. (#719)
 
 ## [1.32.2] - 2026-10-20
 

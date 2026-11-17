@@ -528,8 +528,8 @@ const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
 
 // Keep in sync with `get_session_subagents` in
 // src-tauri/src/commands/session/load.rs: Claude `<session>/subagents/` files
-// plus the OpenCode / Kilo provider ids (#560, #643).
-const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo"];
+// plus the OpenCode / Kilo / Z Code provider ids (#560, #643, #761).
+const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo", "zcode"];
 
 // Unlike the helpers above, a missing provider counts as Claude: the backend
 // leaves `provider` unset on Claude projects and sessions.

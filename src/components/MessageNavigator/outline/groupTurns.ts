@@ -21,8 +21,8 @@ import {
  * Kinds folded into one activity child per turn (Design, "Activity summary
  * row"): every reply and tool call, plus injected context, system rows, and
  * a non-turn-start command row (local command output). `agent-update` keeps
- * becoming task rows, and `summary` (compaction recaps) stays its own
- * message child.
+ * becoming task rows, and `summary` (compaction recaps) and `answer` (the
+ * user's answer to a question) each stay their own message child.
  */
 const COLLAPSIBLE_ACTIVITY_KINDS: ReadonlySet<MessageKind> = new Set([
   "reply",
@@ -80,7 +80,7 @@ function buildChildren(childRows: ClassifiedRow[], turnKey: string): OutlineChil
   let firstCollapsedRow: ClassifiedRow | null = null;
 
   for (const row of childRows) {
-    if (row.info.kind === "summary") {
+    if (row.info.kind === "summary" || row.info.kind === "answer") {
       children.push({ type: "message", key: row.entry.uuid, entry: row.entry });
       continue;
     }
