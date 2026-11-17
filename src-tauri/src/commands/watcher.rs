@@ -223,7 +223,7 @@ pub fn prime_watch_signatures(root: &Path) {
         .filter_map(Result::ok)
     {
         let path = entry.path();
-        if extract_provider_paths(path).is_none() {
+        if classify_antigravity_path(path).is_none() && extract_provider_paths(path).is_none() {
             continue;
         }
         if let Some(signature) = file_signature(path) {
@@ -282,6 +282,11 @@ fn file_signature(path: &Path) -> Option<FileSignature> {
 
 /// Extract provider-specific project/session identifiers from changed file path.
 fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
+    // Antigravity's stores mix transcripts, databases and markdown; they are
+    // recognised by location rather than by extension alone.
+    if let Some(change) = classify_antigravity_path(path) {
+        return Some(resolve_antigravity_change(change));
+    }
     let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
         // Vibe's unified store points at the current generation through an
         // extensionless `CURRENT` file.
@@ -319,6 +324,124 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
         // broad refresh for every project in that store
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
+    }
+}
+
+/// What a changed file under an Antigravity store belongs to.
+#[derive(Debug, PartialEq, Eq)]
+enum AntigravityChange {
+    /// A file of desktop session `session_id` in the store at `root`.
+    DesktopSession { root: PathBuf, session_id: String },
+    /// `conversation_summaries.db` (or its WAL): any desktop session's title,
+    /// step count or recovered text, or a new session, may have changed.
+    DesktopSummaries,
+    /// A file of antigravity-cli conversation `session_id` in the store at `root`.
+    CliSession { root: PathBuf, session_id: String },
+}
+
+/// Classify a path under `~/.gemini/antigravity` or `~/.gemini/antigravity-cli`
+/// from its location alone — no file is read, so priming the watcher's
+/// signatures over a whole store stays cheap. Desktop session files are:
+/// - `brain/<id>/**` transcripts, labels and metadata;
+/// - `conversations/<id>.db` and its WAL;
+/// - `.token-monitor/rpc-cache/v1/<id>/{usage,steps}.jsonl`;
+///
+/// and `conversation_summaries.db` (or its WAL) at the root covers them all.
+/// CLI session files are `brain/<id>/**` transcripts.
+fn classify_antigravity_path(path: &Path) -> Option<AntigravityChange> {
+    use crate::commands::antigravity::is_valid_antigravity_session_id;
+
+    let components: Vec<_> = path.components().collect();
+    let gemini_idx = components.iter().position(|c| c.as_os_str() == ".gemini")?;
+    let name_at = |offset: usize| -> Option<&str> {
+        components.get(gemini_idx + offset)?.as_os_str().to_str()
+    };
+    let depth = components.len() - gemini_idx;
+    let store = name_at(1)?;
+    let root = || components_to_path(&components[..=gemini_idx + 1]);
+    let is_session_text = || {
+        matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("jsonl" | "json" | "md" | "txt")
+        )
+    };
+
+    match (store, name_at(2)?) {
+        ("antigravity" | "antigravity-cli", "brain") if depth >= 5 && is_session_text() => {
+            let session_id = name_at(3)?.to_string();
+            if !is_valid_antigravity_session_id(&session_id) {
+                return None;
+            }
+            Some(if store == "antigravity" {
+                AntigravityChange::DesktopSession {
+                    root: root(),
+                    session_id,
+                }
+            } else {
+                AntigravityChange::CliSession {
+                    root: root(),
+                    session_id,
+                }
+            })
+        }
+        ("antigravity", "conversations") if depth == 4 => {
+            let file_name = name_at(3)?;
+            let session_id = file_name
+                .strip_suffix(".db-wal")
+                .or_else(|| file_name.strip_suffix(".db"))?;
+            is_valid_antigravity_session_id(session_id).then(|| AntigravityChange::DesktopSession {
+                root: root(),
+                session_id: session_id.to_string(),
+            })
+        }
+        ("antigravity", ".token-monitor")
+            if depth == 7
+                && name_at(3) == Some("rpc-cache")
+                && name_at(4) == Some("v1")
+                && matches!(name_at(6), Some("usage.jsonl" | "steps.jsonl")) =>
+        {
+            let session_id = name_at(5)?;
+            is_valid_antigravity_session_id(session_id).then(|| AntigravityChange::DesktopSession {
+                root: root(),
+                session_id: session_id.to_string(),
+            })
+        }
+        ("antigravity", "conversation_summaries.db" | "conversation_summaries.db-wal")
+            if depth == 3 =>
+        {
+            Some(AntigravityChange::DesktopSummaries)
+        }
+        _ => None,
+    }
+}
+
+/// The `(project_path, session_path)` the UI holds for an Antigravity change.
+///
+/// Desktop projects are keyed by workspace (`antigravity://<workspace>`, or
+/// `antigravity://` for sessions without one), and which workspace a session
+/// belongs to is only known from `conversation_summaries.db` and the editor's
+/// state store — too costly to query per file event. The project side is the
+/// `antigravity://*` wildcard, which the frontend resolves to the selected
+/// desktop project; the session side is the session's own `file_path`
+/// (rpc-cache dir, `brain/<id>`, or `conversations/<id>.db`). A summaries
+/// database change names no session, so only the project list refreshes.
+fn resolve_antigravity_change(change: AntigravityChange) -> (String, String) {
+    let desktop_projects = format!("{}*", crate::providers::antigravity::DESKTOP_SCHEME);
+    match change {
+        AntigravityChange::DesktopSession { root, session_id } => (
+            desktop_projects,
+            crate::commands::antigravity::desktop_session_file_path(&root, &session_id)
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        AntigravityChange::DesktopSummaries => (desktop_projects.clone(), desktop_projects),
+        AntigravityChange::CliSession { root, session_id } => (
+            crate::providers::antigravity_cli::project_path_for_conversation(&root, &session_id),
+            root.join("brain")
+                .join(&session_id)
+                .to_string_lossy()
+                .into_owned(),
+        ),
     }
 }
 
@@ -1177,6 +1300,125 @@ mod tests {
             "OpenCode cache must stay bounded at 10,000 entries, got {}",
             guard.len()
         );
+    }
+
+    /// A sandboxed Antigravity layout: `<home>/.gemini/{antigravity,antigravity-cli}`.
+    /// The CLI path also runs the other providers' extractors, which resolve
+    /// the home directory.
+    fn antigravity_stores(home: &Path) -> (PathBuf, PathBuf) {
+        let gemini = home.join(".gemini");
+        let desktop = gemini.join("antigravity");
+        let cli = gemini.join("antigravity-cli");
+        std::fs::create_dir_all(&desktop).unwrap();
+        std::fs::create_dir_all(&cli).unwrap();
+        (desktop, cli)
+    }
+
+    #[test]
+    #[serial]
+    /// Desktop projects are keyed by workspace, so a desktop change refreshes
+    /// the selected desktop project through the `antigravity://*` wildcard;
+    /// the session side names the session's own `file_path`.
+    fn test_extract_antigravity_desktop_paths() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (root, _) = antigravity_stores(home.path());
+        let path_of = |path: &Path| path.to_string_lossy().into_owned();
+
+        // A brain transcript names the brain session directory.
+        let brain_session = root.join("brain").join("sess-123");
+        let logs = brain_session.join(".system_generated").join("logs");
+        std::fs::create_dir_all(&logs).unwrap();
+        let transcript = logs.join("transcript_full.jsonl");
+        assert_eq!(
+            extract_provider_paths(&transcript),
+            Some(("antigravity://*".to_string(), path_of(&brain_session)))
+        );
+        assert_eq!(
+            extract_provider_paths(&brain_session.join("task.md")),
+            Some(("antigravity://*".to_string(), path_of(&brain_session)))
+        );
+        assert_eq!(
+            extract_provider_paths(&brain_session.join("shot.png")),
+            None
+        );
+
+        // A database-only session (no brain/<id>) is listed by its `.db`.
+        let conversations = root.join("conversations");
+        std::fs::create_dir_all(&conversations).unwrap();
+        let db = conversations.join("sess-456.db");
+        std::fs::write(&db, b"").unwrap();
+        for changed in [db.clone(), conversations.join("sess-456.db-wal")] {
+            assert_eq!(
+                extract_provider_paths(&changed),
+                Some(("antigravity://*".to_string(), path_of(&db)))
+            );
+        }
+
+        // A session with rpc-cache usage is listed by its rpc-cache directory.
+        let rpc_session = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("sess-789");
+        std::fs::create_dir_all(&rpc_session).unwrap();
+        std::fs::write(rpc_session.join("usage.jsonl"), b"{}\n").unwrap();
+        std::fs::create_dir_all(root.join("brain").join("sess-789")).unwrap();
+        for changed in [
+            rpc_session.join("usage.jsonl"),
+            root.join("brain").join("sess-789").join("task.md"),
+        ] {
+            assert_eq!(
+                extract_provider_paths(&changed),
+                Some(("antigravity://*".to_string(), path_of(&rpc_session)))
+            );
+        }
+
+        // The summaries database names no single session.
+        for name in ["conversation_summaries.db", "conversation_summaries.db-wal"] {
+            assert_eq!(
+                extract_provider_paths(&root.join(name)),
+                Some(("antigravity://*".to_string(), "antigravity://*".to_string()))
+            );
+        }
+        assert_eq!(extract_provider_paths(&root.join("other.db")), None);
+        assert_eq!(
+            extract_provider_paths(&root.join("brain").join("bad id").join("task.md")),
+            None
+        );
+    }
+
+    #[test]
+    #[serial]
+    /// A CLI change names the workspace project `history.jsonl` puts the
+    /// conversation in, not the store root.
+    fn test_extract_antigravity_cli_paths() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_, cli) = antigravity_stores(home.path());
+        std::fs::write(
+            cli.join("history.jsonl"),
+            "{\"conversationId\":\"cli-789\",\"workspace\":\"/work/cli-proj\"}\n",
+        )
+        .unwrap();
+        let session = cli.join("brain").join("cli-789");
+        let transcript = session
+            .join(".system_generated")
+            .join("logs")
+            .join("transcript_full.jsonl");
+
+        assert_eq!(
+            extract_provider_paths(&transcript),
+            Some((
+                "antigravity-cli:///work/cli-proj".to_string(),
+                session.to_string_lossy().into_owned()
+            ))
+        );
+
+        let unindexed = cli.join("brain").join("cli-000").join("overview.txt");
+        assert_eq!(
+            extract_provider_paths(&unindexed).map(|(project, _)| project),
+            Some("antigravity-cli://unknown".to_string())
+        );
+        assert_eq!(extract_provider_paths(&cli.join("history.jsonl")), None);
     }
 
     /// Build a sandboxed Vibe home with one legacy and one unified session.

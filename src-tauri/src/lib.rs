@@ -1207,6 +1207,23 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    // The whole desktop store, not just `brain/` and `conversations/`:
+    // `conversation_summaries.db` lives at its root, the rpc-cache under
+    // `.token-monitor/`, and a sub-directory created after startup is covered
+    // too. Files outside the session layout are filtered by the extractor.
+    if let Some(ag_root) = commands::antigravity::resolve_antigravity_root() {
+        if std::fs::symlink_metadata(&ag_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_root);
+        }
+    }
+
+    // The CLI store root, so a `brain/` created after startup is covered.
+    if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
+        if std::fs::symlink_metadata(&ag_cli_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_cli_root);
+        }
+    }
+
     let mut seen = HashSet::new();
     paths
         .into_iter()

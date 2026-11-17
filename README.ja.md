@@ -72,14 +72,14 @@ Docker、VPS、systemdのセットアップは[サーバーモード](#サーバ
 
 AIコーディングアシスタントは数千もの会話メッセージを生成しますが、ツール間で履歴を振り返る方法を提供していません。CCHVがこの課題を解決します。
 
-**三十一のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Codeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
+**三十二のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agentのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
 
 | プロバイダー | データの場所 | 取得できる情報 |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 完全な会話履歴、ツール使用、思考プロセス、コスト |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI & Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop、VS Code Copilot Chatの履歴（読み取り専用、WSL対応） |
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/`配下の会話状態と`.token-monitor/rpc-cache/v1/`配下のトークンモニターデータ |
+| **Antigravity** | `~/.gemini/antigravity/` | ワークスペース別にグループ化された完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）を `conversation_summaries.db`、`conversations/*.db`、`brain/` から読み取り、`.token-monitor/rpc-cache/v1/` のトークンデータにも対応 |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
 | **Cline**（Roo Code 含む、旧 Kilo Code） | `~/.cline/data/sessions/`（最新の Cline）および VS Code `globalStorage/<ext>/tasks/`（旧バージョン） | Clineファミリー全体のタスクベースの履歴 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
@@ -105,12 +105,13 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | セッション単位のJSONLトランスクリプト（ツール呼び出し、思考プロセス、トークン使用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panelスレッド — SQLite + Zstd圧縮JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai の GLM コーディングエージェント — session/message/part 型 SQLite ストア（タイトル、ツール呼び出し、思考、トークン使用量） |
+| **Hermes Agent** | `HERMES_HOME` 内の `state.db`（既定は `~/.hermes`、Windows は `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research のエージェント — SQLite ストアの CLI・デスクトップ・ゲートウェイセッション（ツール呼び出し、推論、セッションのトークン使用量とコスト） |
 | **OpenHands** | `~/.openhands/sessions/` | クラシックなイベントストア形式の会話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | ワークスペース単位のチャット（icubeストア；実験的、リバースエンジニアリングによる対応） |
 
 ベンダーロックインなし。クラウド依存なし。ローカルの会話ファイルを美しくレンダリング。
 
-Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`として解決し、セッション状態を`brain/`から、usage/キャッシュ成果物を`.token-monitor/rpc-cache/v1/`から読み取ります。これは現在のランタイムレイアウトおよび`src-tauri/src/commands/antigravity.rs`のルートリゾルバと一致しています。
+Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`（および`~/.gemini/antigravity-cli`）として解決します。デスクトップセッションは`conversation_summaries.db`からワークスペースパスを自動解析してフォルダ別にグループ化されます。トランスクリプト、思考プロセス、ツール呼び出しは`.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db`、`conversations_fts`から復元され、トークンモニターやエディタ状態のフォールバックも備えています。
 
 ## 目次
 
@@ -132,7 +133,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |---------|-------------|
-| **マルチプロバイダー対応** | **31のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code — プロバイダー別フィルタリング、ツール間比較 |
+| **マルチプロバイダー対応** | **32のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent — プロバイダー別フィルタリング、ツール間比較 |
 | **会話ブラウザ** | プロジェクト/セッション別に会話を閲覧（ワークツリーグループ化対応） |
 | **グローバル検索** | 全プロバイダーの会話を瞬時に検索 |
 | **分析ダッシュボード** | デュアルモードトークン統計（課金 vs 会話）、コスト内訳、プロバイダー分布チャート |
@@ -145,7 +146,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | プロバイダー | メモ |
 |---------|-------|
-| **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+| **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。デスクトップセッションはワークスペースフォルダ別にグループ化され、`brain/` のトランスクリプト、`conversations/*.db`、`conversation_summaries.db` から完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）を復元し、トークン統計、分析、グローバル検索に対応します。サーバーモード（`--serve`）では WebUI がリアルタイムに更新します。 |
 
 ### v1.32.0の新機能
 
@@ -445,7 +446,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全31プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全32プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え

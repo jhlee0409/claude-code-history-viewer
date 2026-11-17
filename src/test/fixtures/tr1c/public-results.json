@@ -8743,5 +8743,162 @@
       "next_offset": 2,
       "total_count": 2
     }
+  },
+  "hermes": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "list the files please",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "hermes",
+        "role": "user",
+        "sessionId": "s-tools",
+        "timestamp": "2026-09-05T09:19:17.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "s-tools-1"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "I should run ls",
+            "type": "thinking"
+          },
+          {
+            "id": "call_1",
+            "input": {
+              "command": "ls"
+            },
+            "name": "terminal",
+            "type": "tool_use"
+          },
+          {
+            "content": "{\"output\":\"main.rs\",\"exit_code\":0}",
+            "is_error": false,
+            "tool_use_id": "call_1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "anthropic/claude-sonnet-4.6",
+        "parentUuid": null,
+        "provider": "hermes",
+        "role": "assistant",
+        "sessionId": "s-tools",
+        "stop_reason": "tool_use",
+        "timestamp": "2026-09-05T09:19:18.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "s-tools-2"
+      },
+      {
+        "content": [
+          {
+            "text": "There is one file: main.rs",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "anthropic/claude-sonnet-4.6",
+        "parentUuid": null,
+        "provider": "hermes",
+        "role": "assistant",
+        "sessionId": "s-tools",
+        "stop_reason": "end_turn",
+        "timestamp": "2026-09-05T09:19:20.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "s-tools-4"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "list the files please",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "hermes",
+          "role": "user",
+          "sessionId": "s-tools",
+          "timestamp": "2026-09-05T09:19:17.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "s-tools-1"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "I should run ls",
+              "type": "thinking"
+            },
+            {
+              "id": "call_1",
+              "input": {
+                "command": "ls"
+              },
+              "name": "terminal",
+              "type": "tool_use"
+            },
+            {
+              "content": "{\"output\":\"main.rs\",\"exit_code\":0}",
+              "is_error": false,
+              "tool_use_id": "call_1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "anthropic/claude-sonnet-4.6",
+          "parentUuid": null,
+          "provider": "hermes",
+          "role": "assistant",
+          "sessionId": "s-tools",
+          "stop_reason": "tool_use",
+          "timestamp": "2026-09-05T09:19:18.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "s-tools-2"
+        },
+        {
+          "content": [
+            {
+              "text": "There is one file: main.rs",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "model": "anthropic/claude-sonnet-4.6",
+          "parentUuid": null,
+          "provider": "hermes",
+          "role": "assistant",
+          "sessionId": "s-tools",
+          "stop_reason": "end_turn",
+          "timestamp": "2026-09-05T09:19:20.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "s-tools-4"
+        }
+      ],
+      "next_offset": 3,
+      "total_count": 3
+    }
   }
 }

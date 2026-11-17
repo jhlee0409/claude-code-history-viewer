@@ -47,11 +47,12 @@ const TOKEN_UNSUPPORTED_MODEL_PATTERNS: [&str; 10] = [
 
 /// `SOURCE_COST_ONLY_PROVIDER_IDS` in `calculations.ts`: providers whose
 /// usage only their own reported cost can price.
-const SOURCE_COST_ONLY_PROVIDER_IDS: [&str; 6] = [
+const SOURCE_COST_ONLY_PROVIDER_IDS: [&str; 7] = [
     "antigravity",
     "copilot",
     "cursor",
     "cursor-agent",
+    "hermes",
     "kilo",
     "opencode",
 ];
@@ -529,7 +530,7 @@ mod tests {
     #[test]
     fn source_cost_only_providers_have_no_estimate() {
         assert!(bucket_cost(&input_only(SONNET_4_5, M)).is_some());
-        for provider in ["opencode", " Cursor ", "copilot"] {
+        for provider in ["opencode", " Cursor ", "copilot", "hermes"] {
             let routed = with_provider(input_only(SONNET_4_5, M), provider);
             assert_eq!(bucket_cost(&routed), None, "{provider}");
         }

@@ -43,6 +43,7 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
         | P::ForgeCode
         | P::Gemini
         | P::Grok
+        | P::Hermes
         | P::Kilo
         | P::Kimi
         | P::Llm
@@ -657,6 +658,7 @@ fn scan_projects_reporting(
         P::ForgeCode => p::forgecode::scan_projects_reporting(report),
         P::Gemini => p::gemini::scan_projects_reporting(report),
         P::Grok => p::grok::scan_projects_reporting(report),
+        P::Hermes => p::hermes::scan_projects_reporting(report),
         P::Kilo => p::kilo::scan_projects_reporting(report),
         P::Kimi => p::kimi::scan_projects_reporting(report),
         P::Llm => p::llm::scan_projects_reporting(report),
@@ -703,6 +705,7 @@ fn load_sessions_reporting(
         P::ForgeCode => p::forgecode::load_sessions_reporting(project_path, report),
         P::Gemini => p::gemini::load_sessions_reporting(project_path, report),
         P::Grok => p::grok::load_sessions_reporting(project_path, report),
+        P::Hermes => p::hermes::load_sessions_reporting(project_path, report),
         P::Kilo => p::kilo::load_sessions_reporting(project_path, report),
         P::Kimi => p::kimi::load_sessions_reporting(project_path, report),
         P::Llm => p::llm::load_sessions_reporting(project_path, report),

@@ -120,6 +120,7 @@ const SOURCE_COST_ONLY_PROVIDER_IDS = new Set([
   "copilot",
   "cursor",
   "cursor-agent",
+  "hermes",
   "kilo",
   "opencode",
 ]);

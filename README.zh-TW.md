@@ -72,14 +72,14 @@ Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)�
 
 AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供跨工具回顧歷史的方式。CCHV 解決了這個問題。
 
-**三十一個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
+**三十二個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code 和 Hermes Agent 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
 
 | 提供者 | 資料位置 | 取得內容 |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 完整對話記錄、工具使用、思考過程、成本 |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI 與 Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop 和 VS Code Copilot Chat 歷史記錄（唯讀，支援 WSL） |
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具呼叫的對話記錄 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的對話狀態，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
+| **Antigravity** | `~/.gemini/antigravity/` | 依工作區資料夾分組的完整對話歷史（提示詞、思考過程、工具呼叫），讀取自 `conversation_summaries.db`、`conversations/*.db` 及 `brain/`，並相容 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理回應的工作階段記錄 |
 | **Cline**（含 Roo Code；舊版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（舊版） | Cline 家族的任務式對話記錄 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；遷移前的 Cline 家族資料仍歸 Cline |
@@ -105,12 +105,13 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | 逐工作階段 JSONL 逐字稿（工具呼叫、思考過程、Token 用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 執行緒 — SQLite + Zstd 壓縮 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 編程智能體 — session/message/part 三表 SQLite 儲存（標題、工具呼叫、思考過程、Token 用量） |
+| **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（預設 `~/.hermes`，Windows 為 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能體 — SQLite 儲存中的 CLI、桌面與閘道工作階段（工具呼叫、推理過程、工作階段 Token 用量與費用） |
 | **OpenHands** | `~/.openhands/sessions/` | 傳統 event-store 對話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 逐工作區聊天（icube 儲存；實驗性，逆向工程） |
 
 無供應商鎖定。無雲端依賴。本機對話檔案，精美呈現。
 
-Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/antigravity`，再從 `brain/` 讀取工作階段狀態、從 `.token-monitor/rpc-cache/v1/` 讀取 usage/快取產物；此行為與 `src-tauri/src/commands/antigravity.rs` 中目前的執行期佈局與根目錄解析器一致。
+Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/antigravity`（同時相容 `~/.gemini/antigravity-cli`）。桌面端工作階段會自動從 `conversation_summaries.db` 解析工作區路徑並按資料夾分組呈現；對話轉錄、思考過程與工具呼叫會從 `.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db` 和 `conversations_fts` 多源還原，並保留 Token 監控與編輯器狀態庫後備支援。
 
 ## 目錄
 
@@ -132,7 +133,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 功能 | 說明 |
 |---------|-------------|
-| **多提供者支援** | 統一檢視 **31 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 依提供者篩選、跨工具比較 |
+| **多提供者支援** | 統一檢視 **32 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code 和 Hermes Agent — 依提供者篩選、跨工具比較 |
 | **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
 | **全域搜尋** | 即時搜尋所有提供者的對話記錄 |
 | **分析儀表板** | 雙模式 Token 統計（帳單 vs 對話）、成本明細、提供者分佈圖表 |
@@ -145,7 +146,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 提供者 | 說明 |
 |---------|-------|
-| **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+| **Antigravity** | 透過現有統一 provider 資料流接入。桌面端工作階段依工作區資料夾分組，並從 `brain/` 轉錄、`conversations/*.db` 與 `conversation_summaries.db` 還原完整對話（提示詞、思考過程、工具呼叫），支援 Token 統計、分析儀表板與全域搜尋；在伺服器模式（`--serve`）下 WebUI 會即時更新。 |
 
 ### v1.32.0 新增
 
@@ -445,7 +446,7 @@ GET /health
 ## 使用方式
 
 1. 啟動應用程式
-2. 自動掃描所有 31 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
+2. 自動掃描所有 32 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
 3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
 4. 點擊工作階段檢視訊息
 5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板

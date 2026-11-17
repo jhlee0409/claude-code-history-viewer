@@ -59,6 +59,8 @@
   --provider-goose-surface: var(--surface-hover);
   --provider-grok: oklch(0.48 0 0);
   --provider-grok-surface: var(--surface-hover);
+  --provider-hermes: oklch(0.48 0.1 75);
+  --provider-hermes-surface: var(--surface-hover);
   --provider-kilo: oklch(0.48 0.1 210);
   --provider-kilo-surface: var(--surface-hover);
   --provider-kimi: oklch(0.48 0.1 325);
@@ -398,6 +400,7 @@
   --provider-gemini: oklch(0.78 0.1 300);
   --provider-goose: oklch(0.78 0.1 25);
   --provider-grok: oklch(0.78 0 0);
+  --provider-hermes: oklch(0.78 0.1 75);
   --provider-kilo: oklch(0.78 0.1 210);
   --provider-kimi: oklch(0.78 0.1 325);
   --provider-kiro: oklch(0.78 0.1 160);
@@ -622,6 +625,7 @@
   --provider-gemini: var(--fg);
   --provider-goose: var(--fg);
   --provider-grok: var(--fg);
+  --provider-hermes: var(--fg);
   --provider-kilo: var(--fg);
   --provider-kimi: var(--fg);
   --provider-kiro: var(--fg);
@@ -746,6 +750,7 @@
   --provider-gemini: var(--fg);
   --provider-goose: var(--fg);
   --provider-grok: var(--fg);
+  --provider-hermes: var(--fg);
   --provider-kilo: var(--fg);
   --provider-kimi: var(--fg);
   --provider-kiro: var(--fg);
@@ -983,6 +988,8 @@
   --color-provider-goose-surface: var(--provider-goose-surface);
   --color-provider-grok: var(--provider-grok);
   --color-provider-grok-surface: var(--provider-grok-surface);
+  --color-provider-hermes: var(--provider-hermes);
+  --color-provider-hermes-surface: var(--provider-hermes-surface);
   --color-provider-kilo: var(--provider-kilo);
   --color-provider-kilo-surface: var(--provider-kilo-surface);
   --color-provider-kimi: var(--provider-kimi);

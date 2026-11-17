@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
@@ -34,6 +34,7 @@ const PROVIDER_TRANSLATIONS: Record<
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
   grok: { key: "common.provider.grok", fallback: "Grok CLI" },
+  hermes: { key: "common.provider.hermes", fallback: "Hermes Agent" },
   kilo: { key: "common.provider.kilo", fallback: "Kilo Code" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
@@ -139,14 +140,17 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // `cursor://<id>` rows in Cursor's state.vscdb plus the workspace index
+    // entry; the backend refuses while Cursor is running.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   "cursor-agent": {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // The `agent-transcripts/<id>/` folder and the CLI's `chats/*/<id>/` metadata.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   forgecode: {
@@ -171,6 +175,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: false,
   },
   grok: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  hermes: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
@@ -312,6 +323,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "gemini":
     case "goose":
     case "grok":
+    case "hermes":
     case "kilo":
     case "kimi":
     case "forgecode":
@@ -554,6 +566,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "gemini": "bg-provider-gemini-surface text-provider-gemini",
   "goose": "bg-provider-goose-surface text-provider-goose",
   "grok": "bg-provider-grok-surface text-provider-grok",
+  "hermes": "bg-provider-hermes-surface text-provider-hermes",
   "kilo": "bg-provider-kilo-surface text-provider-kilo",
   "kimi": "bg-provider-kimi-surface text-provider-kimi",
   "kiro": "bg-provider-kiro-surface text-provider-kiro",

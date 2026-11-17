@@ -6,6 +6,7 @@
 
 import { api } from "@/services/api";
 import { toast } from "sonner";
+import i18n from "../../i18n";
 import type {
   ClaudeMessage,
   ClaudeSession,
@@ -16,7 +17,6 @@ import type {
   SessionComparison,
   SubagentSession,
 } from "../../types";
-import i18n from "../../i18n";
 import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
@@ -658,7 +658,12 @@ export const createMessageSlice: StateCreator<
       // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
       const message = error instanceof Error ? error.message : String(error);
       if (shouldTreatAsSubagent) {
-        toast.error(`Failed to load subagent messages: ${message}`);
+        toast.error(
+          i18n.t("session.subagentMessagesLoadError", {
+            error: message,
+            defaultValue: "Failed to load subagent messages: {{error}}",
+          })
+        );
       } else {
         // The conversation lives in a tab: its failure (a session deleted
         // or moved while open) is the tab's in-tab state, not the app's
@@ -1231,7 +1236,12 @@ export const createMessageSlice: StateCreator<
       }
       if (owner.ownsFeedback()) {
         const message = error instanceof Error ? error.message : String(error);
-        toast.warning(`Failed to load subagent sessions: ${message}`);
+        toast.warning(
+          i18n.t("session.subagentsLoadError", {
+            error: message,
+            defaultValue: "Failed to load subagent sessions: {{error}}",
+          })
+        );
       }
     }
   },

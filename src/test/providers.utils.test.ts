@@ -65,6 +65,7 @@ describe("providers utils", () => {
       "gemini",
       "goose",
       "grok",
+      "hermes",
       "kilo",
       "kimi",
       "kiro",
@@ -105,6 +106,16 @@ describe("providers utils", () => {
     expect(supportsNativeRename("codex")).toBe(true);
     expect(supportsSessionDeletion("codex")).toBe(true);
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
+  });
+
+  it("enables deletion only for providers whose delete removes the whole session", () => {
+    expect(supportsSessionDeletion("cursor")).toBe(true);
+    expect(supportsSessionDeletion("cursor-agent")).toBe(true);
+    // Index files (Continue sessions.json, Cline taskHistory.json), shared
+    // history files, and monitor-state regeneration (Antigravity) keep these off.
+    for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
+      expect(supportsSessionDeletion(provider)).toBe(false);
+    }
   });
 
   it("returns the kimi resume subcommand for kimi sessions", () => {

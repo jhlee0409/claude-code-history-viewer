@@ -916,9 +916,12 @@ handler_json!(
     delete_session,
     DeleteSessionParams,
     |p: DeleteSessionParams| async move {
-        // ForgeCode uses opaque URI scheme handled inside the command;
-        // file-path callers are constrained to the provider session roots.
-        if !p.file_path.starts_with("forgecode://") && !p.file_path.starts_with("forgecode-db://") {
+        // ForgeCode and Cursor use opaque URI schemes handled inside the
+        // command; file-path callers are constrained to the provider roots.
+        if !p.file_path.starts_with("forgecode://")
+            && !p.file_path.starts_with("forgecode-db://")
+            && !p.file_path.starts_with("cursor://")
+        {
             require_history_path(&p.file_path)?;
         }
         commands::session::delete_session(p.file_path).await
@@ -2386,6 +2389,37 @@ mod provider_uri_scope_tests {
             .await;
             assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
         }
+    }
+
+    /// Every provider the UI offers "Delete" for reaches its deleter over
+    /// `--serve`: Cursor Agent transcripts are inside the `~/.cursor` root and
+    /// `cursor://` ids pass to the Cursor deleter (which then reports its own
+    /// errors), while other URI schemes stay rejected.
+    #[tokio::test]
+    #[serial]
+    async fn delete_session_accepts_every_deletable_provider() {
+        let home = crate::test_utils::SandboxHome::new();
+        let id = "sess-webui";
+        let dir = home
+            .path()
+            .join(".cursor/projects/proj/agent-transcripts")
+            .join(id);
+        std::fs::create_dir_all(&dir).unwrap();
+        let transcript = dir.join(format!("{id}.jsonl"));
+        std::fs::write(&transcript, "{}\n").unwrap();
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: transcript.to_string_lossy().into_owned(),
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+        assert!(!dir.exists());
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: "cursor://comp-1".to_string(),
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 
     /// A project the recent-edits panel does not route to a provider is read
