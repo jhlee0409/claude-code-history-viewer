@@ -438,7 +438,7 @@ describe("Info tab", () => {
     renderInspector();
     const row = (label: string) => within(panel()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
     for (const label of ["Started", "Last activity"]) {
-      expect(row(label).textContent, label).toBe(i18n.t("common.unknown"));
+      expect(row(label).textContent, label).toBe(i18n.t("common.missingValue.notRecorded"));
       expect(row(label).textContent, label).not.toContain("Invalid Date");
       expect(row(label).querySelector("time"), label).toBeNull();
     }

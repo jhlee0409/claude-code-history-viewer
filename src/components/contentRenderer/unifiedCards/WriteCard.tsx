@@ -1,47 +1,71 @@
 import { memo } from "react";
-import { FileText } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
+import { useResultProvider } from "../../transcript/resultProvider";
+import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
+import { ToolRow } from "../../transcript/ToolRow";
+import { OutputBlock } from "../../transcript/OutputBlock";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, normalizeResult, toolFamily, toolOutcome, writeConfirmationPath } from "../../transcript/toolOutcome";
+import { useToolPathContext } from "../../transcript/pathContext";
+import { PathText } from "@/lib/format/PathText";
 import type { Props } from "./shared";
-import { str, strAny, truncate, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
+import { str, strAny } from "./shared";
 
+/**
+ * Write: path target, the written line count in the header meta (once), the
+ * written content in a file well, as the Input zone (what the agent asked to
+ * write); the Result zone holds what came back. A result that is only
+ * Claude's confirmation sentence ("File created successfully at: <absolute path>") adds nothing
+ * when it names the header's own file and is left out; naming another file,
+ * it shows that path the PathText way (relative, full path in `title`).
+ * Anything else is shown as recorded (renderer audit TC15).
+ */
 export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
+  const { t } = useTranslation();
+  const pathCtx = useToolPathContext();
+  const name = (toolUse.name as string) || "Write";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const filePath = strAny(input, "file_path", "path") ?? "";
   const content = str(input, "content");
-  const styles = getVariantStyles("success");
-
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const expandKey = `unified-${toolId}`;
+  const confirmations = toolResults.map((result) => writeConfirmationPath(result));
+  // A confirmation sentence is left out, not its result: the same result's own
+  // stdout / stderr (and any other recorded parts) still render (review round 4).
+  const otherResults = toolResults.flatMap((result, index) => {
+    if (confirmations[index] === null) return [result];
+    const n = normalizeResult(result);
+    const streamText = (n.stdout ?? "") !== "" || (n.stderr ?? "") !== "";
+    return streamText ? [{ ...result, content: "" }] : [];
+  });
+  const otherPaths = confirmations.filter((path): path is string => path !== null && path !== filePath);
 
   return (
-    <Renderer className={styles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title="Write"
-        icon={<ToolIcon toolName="Write" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={<StatusBadge results={toolResults} />}
-      />
-      <Renderer.Content>
-        <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>
-          <FileText className={cn(layout.iconSizeSmall, "text-info shrink-0")} />
-          <code className={cn(layout.monoText, "text-info break-all")}>{filePath}</code>
-        </div>
-        {content && (
-          <details>
-            <summary className={cn(layout.smallText, "cursor-pointer text-muted-foreground mb-1")}>
-              {content.split("\n").length} lines
-            </summary>
-            <pre className={cn(layout.monoText, "p-2 bg-secondary text-foreground/80 rounded overflow-auto whitespace-pre-wrap", layout.codeMaxHeight)}>
-              {truncate(content)}
-            </pre>
-          </details>
-        )}
-        <ResultBlock results={toolResults} />
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="Write" title={null} className="w-4 h-4" />}
+      verb={name}
+      target={filePath ? <PathText path={filePath} ctx={pathCtx} className="text-code text-fg" /> : undefined}
+      meta={content != null ? <span>{t("toolRow.lineCount", { count: content.split("\n").length })}</span> : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+    >
+      <DetailZone kind="input" show={content != null}>
+        <OutputBlock text={content ?? ""} source="file" showLineCount={false} expandKey={`${expandKey}-content`} />
+      </DetailZone>
+      <DetailZone kind="result" show={otherPaths.length > 0 || hasShownResults(otherResults)}>
+        {otherPaths.map((path, index) => (
+          <p key={index} className="text-list text-fg-2">
+            <PathText path={path} ctx={pathCtx} className="text-code" />
+          </p>
+        ))}
+        <ToolResultOutputs results={otherResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
+    </ToolRow>
   );
 });

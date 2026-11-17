@@ -3,6 +3,7 @@ import { Clock, Hash, Wrench, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Num } from "@/lib/format/Num";
+import { recordedTime } from "@/lib/format/missingValue";
 import {
   normalizeEntrypoint,
   ENTRYPOINT_BADGE_META,
@@ -34,7 +35,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
         <span title={t("session.item.lastModified")}>
           <Clock className="w-3.5 h-3.5" />
         </span>
-        <Num>{formatTimeAgo(session.last_modified)}</Num>
+        <Num>{recordedTime(session.last_modified, formatTimeAgo, t("common.missingValue.notRecorded"))}</Num>
       </span>
       <span
         className={cn(

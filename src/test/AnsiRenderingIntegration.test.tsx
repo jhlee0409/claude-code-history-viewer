@@ -20,7 +20,8 @@ vi.mock("react-i18next", async () => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, fallback?: string) => fallback ?? key,
+      // `t(key, "default")` returns the default; `t(key, { count })` the key.
+      t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
     }),
   };
 });
@@ -120,14 +121,13 @@ describe("CommandRenderer ANSI rendering", () => {
 describe("TerminalExecutionResultRenderer ANSI rendering", () => {
   const defaultProps = {
     toolUseId: "test-tool-id",
-    icon: <span data-testid="icon">$</span>,
-    title: "Bash Execution",
-    errorTitle: "Bash Error",
+    verb: "bash_code_execution",
+    resultType: "bash_code_execution_tool_result",
     noOutputLabel: "No output",
     errorMessages: {},
   };
 
-  /** Expand ToolResultCard to reveal content */
+  /** Open the result's ToolRow (TR1b: ResultRow, no ToolResultCard) to reveal its output */
   function expandResult(container: HTMLElement) {
     const btn = container.querySelector("button");
     if (btn) {
@@ -227,15 +227,16 @@ describe("StringRenderer ANSI rendering", () => {
     expect(monoDiv).toBeInTheDocument();
   });
 
-  it("falls through to markdown for plain text without ANSI", () => {
+  it("keeps plain text raw: no Markdown, whitespace preserved (TR0, D6)", () => {
     const { container } = render(
-      <StringRenderer result="Just plain text" />
+      <StringRenderer result={"Just plain text\n# not a heading"} />
     );
     expandRenderer(container);
-    // The AnsiText mono wrapper should NOT be present for non-ANSI text
-    // (markdown rendering path instead)
+    // Plain text is shown as recorded in the OutputBlock well; the old
+    // Markdown path (headings, merged lines) is gone.
     expect(container.textContent).toContain("Just plain text");
-    expect(container.querySelector("[class*='whitespace-pre-wrap']")).not.toBeInTheDocument();
+    expect(container.querySelector("h1")).not.toBeInTheDocument();
+    expect(container.querySelector("[class*='whitespace-pre-wrap']")?.textContent).toBe("Just plain text\n# not a heading");
   });
 
   it("renders file tree output in mono block", () => {

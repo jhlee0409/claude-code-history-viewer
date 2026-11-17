@@ -1236,10 +1236,51 @@ fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usi
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
-    for msg in messages {
+    for mut msg in messages {
         if msg.message_type != "user" {
             merged.push(msg);
             continue;
+        }
+
+        // Associate raw metadata with its source result before moving that block.
+        // Other providers own their normalized shapes and are left untouched.
+        if msg.provider.as_deref() == Some("claude") {
+            if let (Some(raw), Some(blocks)) = (
+                msg.tool_use_result.as_ref(),
+                msg.content.as_mut().and_then(Value::as_array_mut),
+            ) {
+                let indices: Vec<usize> = blocks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, block)| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                    })
+                    .map(|(index, _)| index)
+                    .collect();
+                if let Some(&index) = indices.first() {
+                    let block = blocks[index].as_object_mut().expect("typed result block");
+                    let assigned = indices.len() == 1 && !block.contains_key("toolUseResult");
+                    if assigned {
+                        block.insert("toolUseResult".into(), raw.clone());
+                    }
+                    let source = crate::models::ToolUseResultSource {
+                        message_uuid: msg.uuid.clone(),
+                        session_id: msg.session_id.clone(),
+                        content_index: index,
+                        association: if assigned {
+                            "single_result"
+                        } else {
+                            "unassigned"
+                        }
+                        .into(),
+                        result_content_indices: if assigned { None } else { Some(indices) },
+                        unassigned_tool_use_result: if assigned { None } else { Some(raw.clone()) },
+                    };
+                    block
+                        .entry("toolUseResultSource")
+                        .or_insert_with(|| serde_json::to_value(source).expect("JSON provenance"));
+                }
+            }
         }
 
         let Some(content_arr) = msg.content.as_ref().and_then(Value::as_array) else {

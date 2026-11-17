@@ -114,6 +114,7 @@ export interface AppStoreState {
 
   // Message state
   messages: ClaudeMessage[];
+  messageUpdateKind: import("./messageSlice").MessageUpdateKind;
   pagination: PaginationState;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;

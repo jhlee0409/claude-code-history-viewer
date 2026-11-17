@@ -198,6 +198,24 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
     return { file, sf, receivers: new Set(["fmt"]), functions: new Set(FORMAT_FUNCTIONS), exported: new Set() };
   });
   const byPath = new Map(states.map((s) => [s.file.path, s]));
+  // Bind only these already-parsed files (no libs/types/disk resolution).
+  // Symbols distinguish a callback parameter from unrelated same-named locals.
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [], noEmit: true, jsx: ts.JsxEmit.Preserve };
+  const sourceFor = (name: string) => byPath.get(name.replaceAll("\\", "/").replace(/^\//, ""));
+  const host: ts.CompilerHost = {
+    ...ts.createCompilerHost(options),
+    getCurrentDirectory: () => "/",
+    getSourceFile: (name) => sourceFor(name)?.sf,
+    fileExists: (name) => sourceFor(name) !== undefined,
+    readFile: (name) => sourceFor(name)?.sf.text,
+  };
+  const checker = ts.createProgram(states.map((state) => state.file.path), options, host).getTypeChecker();
+  const adapterParameters = new Set<ts.Symbol>();
+  const isAdapterParameter = (node: ts.Node): boolean => {
+    if (!ts.isIdentifier(node)) return false;
+    const symbol = checker.getSymbolAtLocation(node);
+    return symbol !== undefined && adapterParameters.has(symbol);
+  };
 
   // Formatter bindings: `const f = useFormat()`, `const { count, tokens: tk } = appFormat()`.
   for (const state of states) {
@@ -235,7 +253,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   const isFormatterText = (state: FileState, node: ts.Node): boolean => {
     if (!ts.isCallExpression(node)) return false;
     const callee = unwrap(node.expression);
-    if (ts.isIdentifier(callee)) return state.functions.has(callee.text);
+    if (ts.isIdentifier(callee)) return state.functions.has(callee.text) || isAdapterParameter(callee);
     if (isReceivedFunction(callee)) return true;
     if (!ts.isPropertyAccessExpression(callee) || !FORMATTER_METHODS.has(callee.name.text)) return false;
     const receiver = unwrap(callee.expression);
@@ -376,7 +394,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   const uncalledFormatter = (state: FileState, node: ts.Node): "function" | "formatter" | undefined => {
     if (!(ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) || !usedUncalled(node)) return undefined;
     if (ts.isIdentifier(node)) {
-      if (state.functions.has(node.text)) return "function";
+      if (state.functions.has(node.text) || isAdapterParameter(node)) return "function";
       return state.receivers.has(node.text) ? "formatter" : undefined;
     }
     if (isReceivedFunction(node)) return "function";
@@ -435,6 +453,39 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
     }
     // items.map(fmt.count): its results are formatter text.
     if (ts.isCallExpression(parent) && parent.arguments[0] === child && ["map", "flatMap"].includes(calleeName(parent))) return follow(state, parent);
+    // A resolvable adapter's positional callback is followed into its real
+    // parameter and back through its return/export, not exempted by name.
+    // Unresolved/external calls remain untracked below.
+    if (ts.isCallExpression(parent) && ts.isIdentifier(parent.expression)) {
+      let target = state;
+      let name = parent.expression.text;
+      for (const statement of state.sf.statements) {
+        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+        const bindings = statement.importClause?.namedBindings;
+        if (!bindings || !ts.isNamedImports(bindings)) continue;
+        const binding = bindings.elements.find((element) => element.name.text === name);
+        if (!binding) continue;
+        const path = resolveImport(state.file.path, statement.moduleSpecifier.text, known);
+        if (path) {
+          target = byPath.get(path)!;
+          name = (binding.propertyName ?? binding.name).text;
+        }
+        break;
+      }
+      const fn = target.sf.statements.find((statement): statement is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(statement) && statement.name?.text === name);
+      const parameter = fn?.parameters[parent.arguments.indexOf(child as ts.Expression)];
+      if (parameter && ts.isIdentifier(parameter.name)) {
+        const binding = checker.getSymbolAtLocation(parameter.name);
+        if (binding) {
+          if (!adapterParameters.has(binding)) {
+            adapterParameters.add(binding);
+            changed = true;
+          }
+          return;
+        }
+      }
+    }
     untrack();
   };
 
@@ -774,6 +825,32 @@ describe("<Num> guard: a formatter function handed on is followed to where it re
       "src/components/Probe.tsx:3: const pick = () => fmt.time;",
       "src/components/Probe.tsx:4: let later = fmt.relative;",
     ]);
+  });
+});
+
+describe("formatter callback adapters", () => {
+  it("does not taint unrelated or shadowing same-named parameters", () => {
+    const scan = scanNum([{ path: "src/components/Probe.tsx", text: `
+      export function adapt(value, format) {
+        function label(format) { return <p>{format("plain label")}</p>; }
+        return format(value);
+      }
+      function other(format) { return <p>{format("other label")}</p>; }
+      const A = () => <Num>{adapt(n, fmt.tokens)}</Num>;
+    ` }]);
+    expect(scan.untracked).toEqual([]);
+    expect(scan.bare).toEqual([]);
+  });
+  it.each([false, true])("follows a callback through a local/imported adapter (imported=%s)", (imported) => {
+    const adapter = "export function adapt(value, format) { return value == null ? '—' : format(value); }";
+    const files = imported
+      ? [{ path: "src/lib/adapter.ts", text: adapter }, { path: "src/components/Probe.tsx", text: "import { adapt as display } from '@/lib/adapter'; const A = () => <p>{display(n, fmt.tokens)}</p>;" }]
+      : [{ path: "src/components/Probe.tsx", text: adapter + " const A = () => <p>{adapt(n, fmt.tokens)}</p>;" }];
+    const scan = scanNum(files);
+    expect(scan.untracked).toEqual([]);
+    expect(scan.bare.length).toBe(1);
+    const wrapped = files.map((f) => ({ ...f, text: f.text.replace('<p>{', '<Num>{').replace('}</p>', '}</Num>') }));
+    expect(scanNum(wrapped).bare).toEqual([]);
   });
 });
 

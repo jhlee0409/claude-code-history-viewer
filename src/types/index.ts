@@ -63,6 +63,7 @@ export type {
   ContentItem,
   ToolUseContent,
   ToolResultContent,
+  ToolUseResultSource,
   ClaudeToolUseResult,
   ServerToolUseContent,
   WebSearchToolResultContent,

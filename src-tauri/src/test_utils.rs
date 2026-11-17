@@ -17,6 +17,15 @@ use tempfile::TempDir;
 pub use proptest::prelude::*;
 pub use rstest::*;
 
+/// Build a fixture path in the same native component spelling as discovery.
+/// `Path::join` preserves `/` inside a relative string on Windows; provider
+/// stats use exact session-path strings, so mixed separators miss that session.
+/// Rebuilding components also removes redundant `.` without touching file data
+/// or canonicalizing into Windows' extended-length path syntax.
+pub fn native_fixture_path(home: &Path, relative: &str) -> PathBuf {
+    home.join(relative).components().collect()
+}
+
 /// Test fixture for creating a mock Claude project structure
 pub struct MockClaudeProject {
     pub temp_dir: TempDir,

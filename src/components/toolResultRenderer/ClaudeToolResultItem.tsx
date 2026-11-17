@@ -1,378 +1,129 @@
 "use client";
 
 import { memo } from "react";
-
-/**
- * ClaudeToolResultItem - Renders tool execution results
- *
- * Handles different result types:
- * - Numbered file content (with line numbers)
- * - File search results
- * - Generic tool results (text/array/object)
- */
-
-import { Check, FileText, TriangleAlert, Folder, File, Wrench } from "lucide-react";
+import { useResultProvider } from "../transcript/resultProvider";
 import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
-import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
-import { Highlight, themes } from "prism-react-renderer";
-import { useCopyButton } from "../../hooks/useCopyButton";
-import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "@/lib/utils";
-import { useTheme } from "@/contexts/theme";
-import { HighlightedText } from "../common";
-import {
-  type IndexedRendererProps,
-  getVariantStyles,
-  hasNumberedLines,
-  extractCodeFromNumberedLines,
-  parseSystemReminders,
-  isFileSearchResult,
-  parseFilePath,
-  codeTheme,
-  safeStringify,
-  layout,
-} from "../renderers";
-import { ImageRenderer } from "../contentRenderer";
-import { getPreStyles, getLineStyles, getTokenStyles, getInlineLineNumberStyles } from "@/utils/prismStyles";
+import { ToolIcon } from "../ToolIcon";
+import { Marked, TextTarget, ToolRow, type TextHighlight } from "../transcript/ToolRow";
+import { ToolResultOutputs } from "../transcript/ToolResultOutputs";
+import { DetailZone } from "../transcript/DetailZone";
+import { hasShownResults, normalizeResult, resultContent, toolFamily, toolOutcome } from "../transcript/toolOutcome";
+import { searchHits } from "../contentRenderer/unifiedCards/shared";
+import { useAppStore } from "../../store/useAppStore";
+import type { IndexedRendererProps } from "../renderers";
 
 interface ClaudeToolResultItemProps extends IndexedRendererProps {
   toolResult: Record<string, unknown>;
+  /**
+   * The result is a block of a message's own content (the transcript's top
+   * level), where the backend pairs a result with its call per page: an
+   * unmatched result there may answer a call on an earlier page. `false`
+   * (default) for a result nested in another result's content array.
+   */
+  atPageBoundary?: boolean;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+
+/** The recorded name of the loaded `tool_use` with this id (a content block or a message's `toolUse`), else null. */
+function loadedCallName(messages: readonly unknown[], toolUseId: string): string | null {
+  if (toolUseId === "") return null;
+  for (const message of messages) {
+    if (!isRecord(message)) continue;
+    const blocks = Array.isArray(message.content) ? message.content : [];
+    for (const block of [...blocks, message.toolUse]) {
+      if (isRecord(block) && block.id === toolUseId && (block.type === "tool_use" || block.type === undefined) && typeof block.name === "string") return block.name;
+    }
+  }
+  return null;
+}
+
+/** The result texts the conversation search counts, read through the outcome adapter: text parts and recorded streams. */
+function resultTexts(result: Record<string, unknown>): string[] {
+  const streams = normalizeResult(result);
+  const parts = resultContent(result).parts.flatMap((part) => (part.kind === "text" ? [part.text] : []));
+  return [...parts, streams.stdout ?? "", streams.stderr ?? ""].filter((text) => text !== "");
+}
+
+/**
+ * A `tool_result` whose call is not in the same message (TR1b): one ToolRow,
+ * its verdict from the result alone (`toolOutcome(null, [result])`: an
+ * `is_error` result is "Failed", a recorded exit code is evidence, a result
+ * without an error signal is quiet — no success pill, no tool-colour fill).
+ *
+ * The backend pairs a result with its call per page
+ * (`merge_tool_execution_messages`), so at the transcript's top level a
+ * result whose call sits on an earlier page arrives alone. Its head says so:
+ * "Call on an earlier page" while older messages are still unloaded, or when
+ * the call is in an earlier loaded message (then the call's recorded name is
+ * the verb; without it, the verb is the zone's word "Result"). With every message loaded and no call anywhere — and for a
+ * result nested in another result's content array, which has no page — it
+ * says "Call not recorded" instead (no false page claim).
+ *
+ * Opened: the Result zone with the result as recorded (`ToolResultOutputs`,
+ * as a paired call's: text runs as output, images and other blocks through
+ * the result renderers, streams in their zones), then the meta line ending in
+ * "Copy tool ID". Search: a hit in the tool id or the result text opens the
+ * row once per query and is marked.
+ *
+ * Before TR1b: a `RendererHeader` card "Tool execution result" with a
+ * success-coloured check, and two text sniffers (numbered lines → a code card
+ * with a guessed language; "Found N files" → a file list card); the raw
+ * output shows the same text, as a paired Read / Glob does (amendment 10:
+ * deleted).
+ */
 export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
   toolResult,
-  index,
   searchQuery = "",
   isCurrentMatch = false,
   currentMatchIndex = 0,
+  atPageBoundary = false,
 }: ClaudeToolResultItemProps) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
-  const { renderCopyButton } = useCopyButton();
-  const { isDarkMode } = useTheme();
+  const toolUseId = typeof toolResult.tool_use_id === "string" ? toolResult.tool_use_id : "";
+  const callName = useAppStore((s) => (atPageBoundary ? loadedCallName(s.messages, toolUseId) : null));
+  const olderUnloaded = useAppStore((s) => atPageBoundary && s.pagination.hasMore);
+  const earlierPage = atPageBoundary && (olderUnloaded || callName !== null);
 
-  const toolUseId = (toolResult.tool_use_id as string) || "";
-  const content = toolResult.content;
-  const isError = toolResult.is_error === true;
+  const name = callName ?? "";
+  const family = toolFamily(name);
+  const results = [toolResult];
+  const outcome = toolOutcome(null, results, family, provider);
+  const expandKey = `result-${toolUseId}`;
 
-  // Get variant based on error state
-  const variant = isError ? "error" : "success";
-  const styles = getVariantStyles(variant);
+  const idHit = searchHits(searchQuery, toolUseId);
+  const contentHit = searchHits(searchQuery, ...resultTexts(toolResult));
+  const highlight: TextHighlight | undefined = idHit || contentHit ? { searchQuery, isCurrentMatch, currentMatchIndex } : undefined;
 
-  // Tool ID with search highlighting
-  const renderToolUseId = (id: string) => {
-    if (!id) return null;
-    const label = `${t("common.toolId")}: ${id}`;
-    return searchQuery ? (
-      <HighlightedText
-        text={label}
-        searchQuery={searchQuery}
-        isCurrentMatch={isCurrentMatch}
-        currentMatchIndex={currentMatchIndex}
-      />
-    ) : (
-      <>{label}</>
-    );
-  };
-
-  // Render system reminder messages
-  const renderSystemMessages = (
-    messages: Array<{ type: string; message: string }>
-  ) => {
-    if (messages.length === 0) return null;
-    const warningStyles = getVariantStyles("warning");
-
-    return (
-      <div className="mt-3 space-y-2">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={cn("p-2", layout.rounded, "border", warningStyles.container)}>
-            <div className={cn("flex items-center mb-1", layout.iconSpacing)}>
-              <TriangleAlert className={cn(layout.iconSize, warningStyles.icon)} />
-              <span className={cn(layout.titleText, warningStyles.title)}>
-                {msg.type?.replace("-", " ") || "System Message"}
-              </span>
-            </div>
-            <div className={cn(layout.bodyText, warningStyles.accent)}>
-              {msg.message}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Render file search results
-  const renderFileSearchResult = (text: string) => {
-    const lines = text.trim().split("\n");
-    const headerLine = lines[0];
-    const filePaths = lines.slice(1).filter((line) => line.trim().length > 0);
-    const infoStyles = getVariantStyles("info");
-
-    return (
-      <div className="space-y-2">
-        {/* Header */}
-        <div className={cn("flex items-center mb-1 p-2 border", layout.iconSpacing, layout.rounded, infoStyles.container)}>
-          <Folder className={cn(layout.iconSize, infoStyles.icon)} />
-          <span className={cn(layout.bodyText, infoStyles.accent)}>{headerLine}</span>
-        </div>
-
-        {/* File list */}
-        <div className="space-y-1">
-          {filePaths.map((filePath, idx) => {
-            const { directory, fileName } = parseFilePath(filePath);
-
-            return (
-              <div
-                key={idx}
-                className={cn("flex items-center p-2 bg-card border border-border", layout.iconSpacing, layout.rounded)}
-              >
-                <File className={cn(layout.iconSize, "text-muted-foreground")} />
-                <div className="flex-1 min-w-0">
-                  <div className={cn("font-mono text-foreground/80", layout.bodyText)}>
-                    {fileName}
-                  </div>
-                  {directory && (
-                    <div className={cn("font-mono text-muted-foreground", layout.smallText)}>
-                      {directory}
-                    </div>
-                  )}
-                </div>
-                {renderCopyButton(filePath, `file-path-${idx}`, t("toolResult.copyPath"))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  // === Numbered File Content ===
-  if (typeof content === "string" && hasNumberedLines(content)) {
-    const { content: cleanContent, reminders } = parseSystemReminders(content);
-    const { code, description, language } = extractCodeFromNumberedLines(cleanContent);
-
-    return (
-      <Renderer className={styles.container} hasError={isError}>
-        <Renderer.Header
-          title={t("toolResult.fileContent")}
-          icon={<FileText className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-          rightContent={
-            <div className={cn("flex items-center", layout.iconSpacing)}>
-              {renderCopyButton(code, `tool-result-code-${index}`, t("toolResult.copyCode"))}
-              {toolUseId && (
-                <code className={cn(layout.smallText, "hidden md:inline px-1 bg-secondary text-foreground/80", layout.rounded)}>
-                  {renderToolUseId(toolUseId)}
-                </code>
-              )}
-            </div>
-          }
-        />
-        <Renderer.Content>
-          {toolUseId && (
-            <code className={cn(layout.monoText, "block md:hidden mb-2 text-muted-foreground")}>
-              {t("common.toolId")}: {toolUseId}
-            </code>
-          )}
-          {/* Description */}
-          {description && (
-            <div className={cn("p-2 bg-secondary border border-border mb-2", layout.rounded)}>
-              <div className="text-foreground/80">{description}</div>
-            </div>
-          )}
-
-          {/* Code block */}
-          <div className={cn("overflow-hidden", layout.rounded)}>
-            <div className={cn("flex justify-between items-center px-3 py-1 bg-secondary border-b border-border", layout.bodyText)}>
-              <span className="text-foreground/80">{language}</span>
-              <span className="text-muted-foreground">
-                {code.split("\n").length} {t("toolResult.lines")}
-              </span>
-            </div>
-            <Highlight theme={isDarkMode ? themes.vsDark : themes.vsLight} code={code} language={language}>
-              {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                <pre
-                  className={className}
-                  style={getPreStyles(isDarkMode, style, {
-                    fontSize: "var(--text-code)",
-                    lineHeight: codeTheme.lineHeight,
-                    maxHeight: "32rem",
-                    overflow: "auto",
-                    padding: "1rem",
-                  })}
-                >
-                  {tokens.map((line, i) => {
-                    const lineProps = getLineProps({ line });
-                    return (
-                      <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
-                        <span style={getInlineLineNumberStyles()}>
-                          {i + 1}
-                        </span>
-                        {line.map((token, key) => {
-                          const tokenProps = getTokenProps({ token });
-                          return (
-                            <span
-                              key={key}
-                              {...tokenProps}
-                              style={getTokenStyles(isDarkMode, tokenProps.style)}
-                            />
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </pre>
-              )}
-            </Highlight>
-          </div>
-
-          {renderSystemMessages(reminders)}
-        </Renderer.Content>
-      </Renderer>
-    );
-  }
-
-  // === File Search Results ===
-  if (typeof content === "string" && isFileSearchResult(content)) {
-    const { content: cleanContent, reminders } = parseSystemReminders(content);
-
-    return (
-      <Renderer className={styles.container} hasError={isError}>
-        <Renderer.Header
-          title={t("toolResult.fileSearchResult")}
-          icon={<Folder className={cn(layout.iconSize, styles.icon)} />}
-          titleClassName={styles.title}
-          rightContent={
-            <div className={cn("flex items-center", layout.iconSpacing)}>
-              {renderCopyButton(cleanContent, `file-search-result-${index}`, t("toolResult.copyResult"))}
-              {toolUseId && (
-                <code className={cn(layout.smallText, "hidden md:inline px-1 bg-secondary text-foreground/80", layout.rounded)}>
-                  {renderToolUseId(toolUseId)}
-                </code>
-              )}
-            </div>
-          }
-        />
-        <Renderer.Content>
-          {toolUseId && (
-            <code className={cn(layout.monoText, "block md:hidden mb-2 text-muted-foreground")}>
-              {t("common.toolId")}: {toolUseId}
-            </code>
-          )}
-          {renderFileSearchResult(cleanContent)}
-          {renderSystemMessages(reminders)}
-        </Renderer.Content>
-      </Renderer>
-    );
-  }
-
-  // === Default Result Renderer ===
   return (
-    <Renderer className={styles.container} hasError={isError}>
-      <Renderer.Header
-        title={t("toolResult.toolExecutionResult")}
-        icon={<Check className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={
-          toolUseId && (
-            <code className={cn(layout.smallText, "hidden md:inline", isError ? "text-destructive" : styles.accent)}>
-              {renderToolUseId(toolUseId)}
-            </code>
-          )
-        }
-      />
-      <Renderer.Content>
-        {toolUseId && (
-          <code className={cn(layout.monoText, "block md:hidden mb-2 text-muted-foreground")}>
-            {t("common.toolId")}: {toolUseId}
+    <ToolRow
+      icon={<ToolIcon toolName={name} title={null} className="w-4 h-4" />}
+      verb={name || t("toolRow.resultZone")}
+      target={<TextTarget text={t(earlierPage ? "toolRow.callOnEarlierPage" : "toolRow.callNotRecorded")} />}
+      outcome={outcome}
+      family={family}
+      toolId={toolUseId}
+      expandKey={expandKey}
+      revealFor={highlight ? searchQuery : undefined}
+      detailMeta={
+        idHit ? (
+          <code data-mono="code" className="font-mono">
+            <Marked text={toolUseId} highlight={highlight} />
           </code>
-        )}
-        <div className={layout.bodyText}>
-          {typeof content === "string" ? (
-            <div className={layout.prose}>
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
-                {content}
-              </ReactMarkdown>
-            </div>
-          ) : Array.isArray(content) ? (
-            <div className="space-y-2">
-              {content.map((item: unknown, idx: number) => {
-                if (item && typeof item === "object") {
-                  const contentItem = item as Record<string, unknown>;
-
-                  // Text type
-                  if (contentItem.type === "text" && typeof contentItem.text === "string") {
-                    return (
-                      <div key={idx} className={layout.prose}>
-                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
-                          {contentItem.text}
-                        </ReactMarkdown>
-                      </div>
-                    );
-                  }
-
-                  // Image type (base64 or URL) with media type and URL scheme allowlists
-                  if (contentItem.type === "image" && contentItem.source != null && typeof contentItem.source === "object") {
-                    const source = contentItem.source as Record<string, unknown>;
-                    const ALLOWED_MEDIA_TYPES = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/;
-                    if (
-                      source.type === "base64" &&
-                      typeof source.data === "string" &&
-                      typeof source.media_type === "string" &&
-                      ALLOWED_MEDIA_TYPES.test(source.media_type)
-                    ) {
-                      return <ImageRenderer key={idx} imageUrl={`data:${source.media_type};base64,${source.data}`} />;
-                    }
-                    if (
-                      source.type === "url" &&
-                      typeof source.url === "string" &&
-                      /^https?:\/\//.test(source.url)
-                    ) {
-                      return <ImageRenderer key={idx} imageUrl={source.url} />;
-                    }
-                    // Avoid falling back to raw object rendering for image payloads
-                    return null;
-                  }
-
-                  // Tool reference type
-                  if (contentItem.type === "tool_reference" && typeof contentItem.tool_name === "string") {
-                    return (
-                      <div
-                        key={idx}
-                        className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 bg-secondary border border-border text-foreground/80", layout.rounded, layout.smallText)}
-                      >
-                        <Wrench className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="font-mono">{contentItem.tool_name}</span>
-                      </div>
-                    );
-                  }
-
-                  // Other object
-                  return (
-                    <pre
-                      key={idx}
-                      className={cn("p-2 bg-secondary text-foreground/80 overflow-x-auto", layout.rounded, layout.smallText)}
-                    >
-                      {safeStringify(item)}
-                    </pre>
-                  );
-                }
-
-                // Simple value
-                return (
-                  <div key={idx} className="text-foreground/80">
-                    {String(item)}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <pre className={cn("p-2 bg-secondary text-foreground/80 overflow-x-auto", layout.rounded, layout.smallText)}>
-              {safeStringify(content)}
-            </pre>
-          )}
-        </div>
-      </Renderer.Content>
-    </Renderer>
+        ) : undefined
+      }
+    >
+      <DetailZone kind="result" show={hasShownResults(results)}>
+        <ToolResultOutputs
+          results={results}
+          family={family}
+          expandKey={expandKey}
+          failed={outcome.verdict === "failed"}
+          searchQuery={searchQuery}
+          highlight={contentHit ? { isCurrentMatch, currentMatchIndex } : undefined}
+        />
+      </DetailZone>
+    </ToolRow>
   );
 });

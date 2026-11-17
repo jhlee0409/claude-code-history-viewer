@@ -2,7 +2,8 @@
 //
 // Real Chromium with forcedColors: "active" (WebKit cannot emulate it), the
 // real app and fixture. A selected item - the analytics sub-tab, the open
-// project in the sidebar, the pressed Edits scope button - must stay told
+// project in the sidebar, the checked Edits scope radio and a still-pressed
+// Edits diff button - must stay told
 // apart: its computed border colour is the system Highlight colour and it
 // carries a 2px Highlight underline. A keyboard-focused control gets a
 // different mark: a 2px solid CanvasText outline (box-shadow rings vanish in
@@ -17,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium } from "playwright";
 import { browserRequirement } from "./requirements.mjs";
 import { keyboardFocus, openScenario, startApp } from "./appSession.mjs";
+import { editsScope, focusScopeRadio, uncheckedScopeRadio } from "./segmentedKeyboard.mjs";
 
 /* global document, getComputedStyle */
 
@@ -78,16 +80,26 @@ async function shot(page, target, name) {
 const SELECTED = [
   { name: "analytics-subtab", scenario: "analytics--1440x900--dark", target: (page) => page.locator('[data-analytics-tab][aria-selected="true"]').first() },
   { name: "sidebar-project", scenario: "transcript--1440x900--light", target: (page) => page.locator('[data-tree-node="project"][aria-selected="true"]').first() },
-  { name: "edits-scope-pressed", scenario: "recent-edits--1440x900--light", target: (page) => page.locator('#main-content .segmented-item[aria-pressed="true"]').first() },
+  { name: "edits-scope-checked", scenario: "recent-edits--1440x900--light", target: (page) => editsScope(page).getByRole("radio", { checked: true }) },
+  { name: "edits-diff-pressed", scenario: "recent-edits--1440x900--light", target: (page) => page.locator("#main-content").getByRole("button", { name: "Show full diff", exact: true }).first(), prepare: async (session) => {
+    const diff = session.page.getByRole("button", { name: session.t("recentEdits.showDiff"), exact: true }).first();
+    await diff.click();
+    expect(await diff.getAttribute("aria-pressed"), "ordinary diff toggle stays pressed").toBe("true");
+  } },
 ];
 
 describe.skipIf(!ENABLED)("forced colours (real Chromium)", () => {
-  it.each(SELECTED)("$name: the selected item has a Highlight border and a 2px Highlight underline", async ({ name, scenario, target }) => {
+  it.each(SELECTED)("$name: the selected item has a Highlight border and a 2px Highlight underline", async ({ name, scenario, target, prepare }) => {
     const session = await openScenario(browser, app, scenario, { variant: { forcedColors: "active" } });
     try {
+      await prepare?.(session);
       const highlight = await systemColor(session.page, "Highlight");
       const el = target(session.page);
       await el.waitFor();
+      expect(await el.count(), "selected control").toBe(1);
+      const box = await el.boundingBox();
+      expect(box.width, "selected width").toBeGreaterThan(0);
+      expect(box.height, "selected height").toBeGreaterThan(0);
       const style = await markStyle(el);
       await shot(session.page, el, `${name}--selected`);
       expect(style.borderColors, JSON.stringify(style)).toEqual([highlight, highlight, highlight, highlight]);
@@ -104,12 +116,13 @@ describe.skipIf(!ENABLED)("forced colours (real Chromium)", () => {
     try {
       const canvasText = await systemColor(session.page, "CanvasText");
       const highlight = await systemColor(session.page, "Highlight");
-      // An unselected segmented item and a plain toolbar button.
-      for (const [label, el] of [
-        ["edits-scope-unselected", session.page.locator('#main-content .segmented-item[aria-pressed="false"]:not(:disabled)').first()],
-        ["settings-button", session.page.locator("#app-settings-button")],
+      // Tab enters the checked scope; an arrow focuses/selects the previously
+      // unchecked radio. A plain toolbar button still uses ordinary Tab.
+      for (const [label, el, focus] of [
+        ["edits-scope-arrow", await uncheckedScopeRadio(session.page), (target) => focusScopeRadio(session.page, target, keyboardFocus)],
+        ["settings-button", session.page.locator("#app-settings-button"), (target) => keyboardFocus(session.page, target)],
       ]) {
-        expect(await keyboardFocus(session.page, el), label).toBe(true);
+        expect(await focus(el), label).toBe(true);
         const style = await markStyle(el);
         await shot(session.page, el, `${label}--focus`);
         expect(style.focusVisible, label).toBe(true);

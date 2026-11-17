@@ -82,7 +82,7 @@ describe("segmented control contrast (selected vs unselected)", () => {
     const focus = CSS.match(/\.segmented-item:focus-visible\s*\{([^}]*)\}/);
     expect(focus, "no shared .segmented-item:focus-visible rule in index.css").not.toBeNull();
     const body = focus![1]!;
-    expect(body).toMatch(/outline:\s*2px\s+solid\s+var\(--accent\)/);
+    expect(body).toMatch(/outline:\s*2px\s+solid\s+var\(--focus-ring\)/);
     expect(body).toMatch(/outline-offset:\s*1px/);
     // An outline takes no space; anything that does would move the row.
     expect(body).not.toMatch(/\b(border|padding|margin|width|height)\s*:/);
@@ -97,7 +97,7 @@ describe("segmented control contrast (selected vs unselected)", () => {
   // palette's "Search in «project» ✕" pill, a button that clears it).
   it("the selected state is drawn from those tokens, for aria-pressed, aria-selected, aria-current and data-active", () => {
     const selected = CSS.match(
-      /\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\],\s*\.segmented-item\[aria-current="page"\],\s*\.segmented-item\[data-active="true"\]\s*\{([^}]*)\}/
+      /\.segmented-item\[aria-checked="true"\],\s*\.segmented-item\[aria-pressed="true"\],\s*\.segmented-item\[aria-selected="true"\],\s*\.segmented-item\[aria-current="page"\],\s*\.segmented-item\[data-active="true"\]\s*\{([^}]*)\}/
     );
     expect(selected, "no shared selected rule in index.css").not.toBeNull();
     const body = selected![1]!;
@@ -112,9 +112,11 @@ describe("every segmented control uses the shared style", () => {
   const selectedItem = () =>
     screen
       .queryAllByRole("button")
+      .concat(screen.queryAllByRole("radio"))
       .concat(screen.queryAllByRole("tab"))
       .filter(
         (el) =>
+          el.getAttribute("aria-checked") === "true" ||
           el.getAttribute("aria-pressed") === "true" ||
           el.getAttribute("aria-selected") === "true" ||
           el.getAttribute("aria-current") === "page"
@@ -138,7 +140,7 @@ describe("every segmented control uses the shared style", () => {
   it("Edits density, icon-only: each button is named and has a tooltip", () => {
     render(<RecentEditsDensityToggle value="compact" onChange={() => {}} />);
     expectShared();
-    for (const button of screen.getAllByRole("button")) {
+    for (const button of screen.getAllByRole("radio")) {
       const name = button.getAttribute("aria-label");
       expect(name).toBeTruthy();
       expect(button.getAttribute("title")).toBe(name);

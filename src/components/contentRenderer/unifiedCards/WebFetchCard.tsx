@@ -1,38 +1,49 @@
 import { memo } from "react";
-import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
+import { useResultProvider } from "../../transcript/resultProvider";
 import { ToolIcon } from "../../ToolIcon";
-import { getVariantStyles, layout } from "../../renderers";
+import { CodeTarget, TargetWell, ToolRow } from "../../transcript/ToolRow";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, toolFamily, toolOutcome } from "../../transcript/toolOutcome";
 import type { Props } from "./shared";
-import { str, isError, summarizeToolInput } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
+import { str } from "./shared";
 
+/**
+ * WebFetch (TR1a): the URL is the row's target; opened, the Input zone holds
+ * the prompt and the whole URL when the row cuts it, the Result zone the
+ * result as recorded. A fetch that
+ * failed with an API error code (`url_not_accessible`) says
+ * "Failed · <code>" in the row, once: the result's `{"error_code": …}` echo
+ * is left out of the detail (amendment 7, renderer audit NC1).
+ */
 export const WebFetchCard = memo(function WebFetchCard({ toolUse, toolResults }: Props) {
+  const provider = useResultProvider();
+  const name = (toolUse.name as string) || "WebFetch";
+  const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const url = str(input, "url") ?? "";
   const prompt = str(input, "prompt");
-  const styles = getVariantStyles("web");
-
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const expandKey = `unified-${toolId}`;
 
   return (
-    <Renderer className={styles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title="WebFetch"
-        icon={<ToolIcon toolName="WebFetch" className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        summary={summarizeToolInput(input)}
-        rightContent={<StatusBadge results={toolResults} />}
-      />
-      <Renderer.Content>
-        <code className={cn(layout.monoText, "block mb-2 p-2 rounded border bg-card border-border text-tool-web break-all")}>
-          {url}
-        </code>
-        {prompt && (
-          <div className={cn(layout.smallText, "text-muted-foreground mb-2")}>{prompt}</div>
-        )}
-        <ResultBlock results={toolResults} />
-      </Renderer.Content>
-    </Renderer>
+    <ToolRow
+      icon={<ToolIcon toolName="WebFetch" title={null} className="w-4 h-4" />}
+      verb={name}
+      target={url ? <CodeTarget text={url} /> : undefined}
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+    >
+      <DetailZone kind="input" show={prompt ? true : url ? "whenTargetCut" : false}>
+        {prompt && <p className="whitespace-pre-wrap text-list text-fg-2">{prompt}</p>}
+        {url && <TargetWell text={url} />}
+      </DetailZone>
+      <DetailZone kind="result" show={hasShownResults(toolResults)}>
+        <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
+      </DetailZone>
+    </ToolRow>
   );
 });

@@ -1,17 +1,20 @@
+import { Button } from "@/components/ui/button";
 import { ChevronRight, X } from "lucide-react";
 import { useToggle } from "../hooks";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { RendererDefaultsContext } from "./rendererDefaults";
 
 const ContentContext = createContext<{
+  contentId: string;
   isOpen: boolean;
   toggle: () => void;
   hasError?: boolean;
   enableToggle?: boolean;
 }>({
+  contentId: "",
   isOpen: false,
   toggle: () => {},
   hasError: false,
@@ -37,6 +40,7 @@ const ContentProvider = ({
   autoExpand,
   defaultExpanded,
 }: ContentProviderProps) => {
+  const contentId = useId();
   const ambient = useContext(RendererDefaultsContext);
   const [isOpen, toggle] = useToggle(
     expandKey ?? "renderer",
@@ -50,7 +54,7 @@ const ContentProvider = ({
   // reads) and cleanly reverts once the search term clears.
   return (
     <ContentContext.Provider
-      value={{ isOpen: isOpen || autoExpand === true, toggle, hasError, enableToggle }}
+      value={{ contentId, isOpen: isOpen || autoExpand === true, toggle, hasError, enableToggle }}
     >
       {children}
     </ContentContext.Provider>
@@ -104,6 +108,11 @@ type RendererHeaderProps = {
   title: string;
   icon: React.ReactNode;
   titleClassName?: string;
+  /**
+   * Right-hand group (badges, outcome status, copy-ID button). Its box is
+   * capped to the header row: a group wider than the card wraps inside it
+   * (the group's own `flex-wrap`) instead of being clipped by the card.
+   */
   rightContent?: React.ReactNode;
   /** One-line preview of the payload, shown only while collapsed. */
   summary?: string;
@@ -116,7 +125,7 @@ const RendererHeader = ({
   rightContent,
   summary,
 }: RendererHeaderProps) => {
-  const { isOpen, toggle, hasError, enableToggle } = useContext(ContentContext);
+  const { contentId, isOpen, toggle, hasError, enableToggle } = useContext(ContentContext);
   const { t } = useTranslation();
 
   if (!enableToggle) {
@@ -139,7 +148,7 @@ const RendererHeader = ({
             {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
           </span>
         </div>
-        <div className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}>
+        <div className={cn("flex items-center shrink-0 ml-auto max-w-full min-w-0", layout.iconGap, layout.smallText)}>
           {rightContent}
         </div>
       </div>
@@ -153,15 +162,16 @@ const RendererHeader = ({
         layout.headerHeight
       )}
     >
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         onClick={toggle}
         aria-expanded={isOpen}
-        className={cn(
+        aria-controls={contentId}
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "flex items-center text-left flex-1 min-w-[10ch]",
           layout.iconGap,
           "hover:bg-muted/50 transition-colors rounded-sm -m-1 p-1"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -196,10 +206,10 @@ const RendererHeader = ({
             {summary}
           </span>
         )}
-      </button>
+      </Button>
       {rightContent && (
         <div
-          className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}
+          className={cn("flex items-center shrink-0 ml-auto max-w-full min-w-0", layout.iconGap, layout.smallText)}
           onClick={(e) => e.stopPropagation()}
         >
           {rightContent}
@@ -214,13 +224,13 @@ type RendererContentProps = {
 };
 
 const RendererContent = ({ children }: RendererContentProps) => {
-  const { isOpen, enableToggle } = useContext(ContentContext);
+  const { contentId, isOpen, enableToggle } = useContext(ContentContext);
 
   if (!enableToggle) {
-    return <div className={layout.contentPadding}>{children}</div>;
+    return <div id={contentId} className={layout.contentPadding}>{children}</div>;
   }
 
-  return isOpen ? <div className={layout.contentPadding}>{children}</div> : null;
+  return <div id={contentId} hidden={!isOpen} className={layout.contentPadding}>{isOpen ? children : null}</div>;
 };
 
 export const Renderer = Object.assign(RendererWrapper, {

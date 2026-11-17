@@ -544,7 +544,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 onClick={handleCreateBackup}
                 disabled={isSaving || summary.totalSettings + summary.totalMcp === 0}
                 className="w-full"
-                variant={saveResult?.type === "success" ? "outline" : "default"}
+                variant={saveResult?.type === "success" ? "outline" : "primary"}
               >
                 {saveResult?.type === "success" ? (
                   <>

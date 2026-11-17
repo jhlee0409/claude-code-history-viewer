@@ -469,6 +469,7 @@ fn append_message(
                     "tool_use_id": call_id,
                     "content": output,
                     "is_error": status == "failed" || status == "error",
+                    "is_error_source": "derived",
                 }));
             }
             // step-start / step-finish are agent-loop step markers, timeline is
@@ -1339,5 +1340,28 @@ mod tests {
         assert_eq!(dir, "/a/b");
         assert_eq!(id, "sess-9");
         assert!(parse_session_path("zcode:///no-separator").is_err());
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let mut out = Vec::new();
+        append_message(
+            &mut out,
+            "s",
+            "m",
+            0,
+            &serde_json::json!({"role":"assistant"}),
+            &[
+                serde_json::json!({"type":"tool","tool":"Read","callID":"c","state":{"output":"synthetic"}}),
+            ],
+        );
+        assert_eq!(
+            out.last().unwrap().content.as_ref().unwrap()[0]["is_error_source"],
+            "derived"
+        );
     }
 }

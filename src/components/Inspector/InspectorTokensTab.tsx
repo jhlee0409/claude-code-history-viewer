@@ -26,6 +26,7 @@ import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { Num } from "@/lib/format/Num";
+import { recordedDuration, recordedTokens, tokenRecordingNote } from "@/lib/format/missingValue";
 
 const estimatedCost = (stats: SessionTokenStats | null): number | null => {
   if (!stats) return null;
@@ -92,10 +93,10 @@ export const InspectorTokensTab = () => {
   );
 
   const body = (() => {
-    if (!stats) return null;
+    if (!stats) return <p className="p-3 text-list text-muted-foreground">{t("analytics.noTokenData")}</p>;
     const total = stats.total_tokens;
-    const durationMinutes =
-      (new Date(stats.last_message_time).getTime() - new Date(stats.first_message_time).getTime()) / 60_000;
+    const missing = t("common.missingValue.notRecorded");
+    const recordingNote = tokenRecordingNote(stats);
     const breakdown = [
       { key: "input", label: t("analytics.inputTokens"), value: stats.total_input_tokens, icon: TrendingUp, color: "var(--metric-green)" },
       { key: "output", label: t("analytics.outputTokens"), value: stats.total_output_tokens, icon: Zap, color: "var(--metric-purple)" },
@@ -110,17 +111,18 @@ export const InspectorTokensTab = () => {
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" {...numberCopyBoundary}>
         <section aria-label={t("analytics.totalTokens")}>
           <p className="whitespace-nowrap font-mono text-title font-semibold tabular-nums text-foreground">
-            <Num>{fmt.tokens(total)}</Num>
+            <Num>{recordedTokens(stats, fmt.tokens, missing)}</Num>
             <span className="ml-1 font-sans text-caption font-normal text-muted-foreground">{t("analytics.tokens")}</span>
           </p>
+          {recordingNote && stats.token_usage_recording !== "absent" && (
+            <p className="text-caption text-muted-foreground break-keep break-words">{t(recordingNote)}</p>
+          )}
           <p className="flex flex-wrap gap-x-2 text-caption text-muted-foreground">
             <span className="whitespace-nowrap">
               <span className="font-mono tabular-nums"><Num>{fmt.count(stats.message_count)}</Num></span>{" "}
               {t("analytics.messages")}
             </span>
-            {Number.isFinite(durationMinutes) && durationMinutes >= 0 && (
-              <span className="whitespace-nowrap"><Num>{fmt.minutes(durationMinutes)}</Num></span>
-            )}
+            <span className="whitespace-nowrap"><Num>{recordedDuration(stats.first_message_time, stats.last_message_time, fmt.minutes, missing)}</Num></span>
           </p>
         </section>
 
@@ -161,19 +163,20 @@ export const InspectorTokensTab = () => {
           <dl className="space-y-1">
             <MetricRow
               label={t("analytics.billingTotal", "Billing Total")}
-              value={fmt.tokens(total)}
+              value={recordedTokens(stats, fmt.tokens, missing)}
               detail={costText(billingCost)}
             />
             {conversationTokens !== null && (
               <>
                 <MetricRow
                   label={t("analytics.conversationOnly", "Conversation Only")}
-                  value={fmt.tokens(conversationTokens)}
+                  value={conversationStats ? recordedTokens(conversationStats, fmt.tokens, missing) : missing}
                   detail={costText(conversationCost)}
                 />
                 <MetricRow
                   label={t("analytics.nonConversation", "Non-conversation")}
-                  value={fmt.tokens(Math.max(0, total - conversationTokens))}
+                  value={stats.token_usage_recording === "absent" || conversationStats?.token_usage_recording === "absent"
+                    ? missing : fmt.tokens(Math.max(0, total - conversationTokens))}
                   detail={
                     billingCost === null
                       ? undefined
@@ -183,6 +186,12 @@ export const InspectorTokensTab = () => {
               </>
             )}
           </dl>
+          {conversationStats && tokenRecordingNote(conversationStats) && (
+            <div className="text-caption text-muted-foreground break-keep break-words">
+              <p>{t("analytics.conversationOnly")}</p>
+              <p>{t(tokenRecordingNote(conversationStats)!)}</p>
+            </div>
+          )}
           {!supportsConversationBreakdown(providerId) && (
             <p className="text-caption text-muted-foreground break-keep">
               {t(

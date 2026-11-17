@@ -1,0 +1,964 @@
+[
+  {
+    "id": "aider",
+    "messageCount": 6,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/aider.rs",
+        "line": 549,
+        "sha256": "e28da809e532b7712899c2ce5912ec5b73e6bc0c770710e65e2b5c4739eabf21",
+        "kind": "verbatim Markdown fixture"
+      }
+    ],
+    "limitations": [
+      "Markdown text-only source format; no execution outcome fixture."
+    ],
+    "remainingReason": "Markdown history produces text only; source edit prose is not an execution result.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "ffd20ada6eccdb69798ef20c242215444be8815bd0b9a96751de3e4f6e86a5e4"
+  },
+  {
+    "id": "amazonq",
+    "messageCount": 4,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Bash"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/amazon_q.rs",
+        "line": 251,
+        "sha256": "01ab82352251b2000adf2efe8ac19b20ece8385e13de6351d7ab2ee4a98cb72a",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/amazon_q.rs",
+        "line": 244,
+        "sha256": "781e593bf3e98a2ccadd41b72ce25a4c7473377da4c5e5b71a156e93b26e9e54",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "a2e4a283036124ba34a37cc952673dd2bf14617f8fc758657e38188f8347b29b"
+  },
+  {
+    "id": "antigravity",
+    "messageCount": 3,
+    "resultCount": 0,
+    "callCount": 1,
+    "recordedNames": [
+      "SEARCH_WEB"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 645,
+        "sha256": "ee0d6c2e3615dcb87a6dd352cd95d250fc521faa868c6eb65c36b1774e84698c",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 631,
+        "sha256": "7f0a8fa5713cb17921adda1efb9f7ee041bc065a961375018f47d51c9ecfa918",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 632,
+        "sha256": "576422fb0df433afd6b837eb701d7cf1e31250b2153e0979151d4b8fb1078987",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 633,
+        "sha256": "28febabfc196b78e58cd81b343032a7ab2355b4ee5bb43f51a65ff05e3cc270c",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 634,
+        "sha256": "281481d6dba7f81c624c07cad33a21b36bd25d98e17f4c30504efcc31aad9f09",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 635,
+        "sha256": "d5e7090c8978e3149ab41062f3401a5d624da0d06e3e25d90369c06771ccf911",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/antigravity_cli.rs",
+        "line": 636,
+        "sha256": "dbd1ecff06168ea7ec9aa431d3456b4db62072b63e5a9fa9650dece82275e80a",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [
+      "CLI transcript branch, not desktop RPC/usage branch. SEARCH_WEB uses source textual display, not necessarily tool_result."
+    ],
+    "remainingReason": "Tested CLI transcript: planner/search steps produce text, not tool_result. Desktop RPC/usage branch not certified.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "3ef2f1607d8f9038ed4567d5ccb9e18a33fa2c369727abe2f89eeafb31dd67ab"
+  },
+  {
+    "id": "cline",
+    "messageCount": 5,
+    "resultCount": 1,
+    "callCount": 2,
+    "recordedNames": [
+      "Bash",
+      "Read"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 926,
+        "sha256": "59c2d8d7602d62a4c4cf001241a2f32fb92cc3b827bf23d5388e576870350c51",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 940,
+        "sha256": "123822ed4ab268c0dc68e1939cf98199c35d31675e8d66e58148e10e94c16146",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 957,
+        "sha256": "af581cfa160f4ebc75ceacbb2c7848e58bd41138e2014006b55df1d6e3adcd72",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 972,
+        "sha256": "058ff7cfaf77b8526459acaeff234117d1f0a28f65354ace2f9633fff7053dd6",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 987,
+        "sha256": "7ac492b73425539889eef17c8dcd10f1f58c50bb015ebf79fb35a4f13e47bfce",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cline.rs",
+        "line": 1180,
+        "sha256": "a4ffb3e233d69f73ebb0056ff2f7873117eece978d286003762a7a61da2353ef",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [
+      "Composed ui_messages array of independent parser test literals, not a captured upstream conversation."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "87290d3ae38aefda906dc09d5bee739fa3233810b54a1b8179028ff7f10598ca"
+  },
+  {
+    "id": "codebuddy",
+    "messageCount": 4,
+    "resultCount": 2,
+    "callCount": 1,
+    "recordedNames": [
+      "Bash"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": false,
+    "paginationDifferences": [
+      {
+        "messageIndex": 1,
+        "field": "timestamp",
+        "full": "2026-10-29T13:36:11.398384+00:00",
+        "paginated": "2026-10-29T13:36:11.399743+00:00"
+      }
+    ],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/codebuddy.rs",
+        "line": 832,
+        "sha256": "f07145d6557d383d227e337e64c640244aa366c956e4eaee971cd485beeae60a",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/codebuddy.rs",
+        "line": 885,
+        "sha256": "b22cdd0442d83ce0242c6f7d8ea7230eb2d01e063dbab1bf86f7261bb5e7ab6f",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/codebuddy.rs",
+        "line": 925,
+        "sha256": "fc9ef165572d891f5f6e958d57bd3a86214a635b256dd61664fd5407187e3743",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/codebuddy.rs",
+        "line": 944,
+        "sha256": "a82e613416d7b35a4da68cc99e17c5840cdd52c80feab8b8e690eb7451c61cf9",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/codebuddy.rs",
+        "line": 967,
+        "sha256": "e026c231195605b447d39cff6b141725b348c4dde3907a02aa7a1390dea10923",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [
+      "Independent literal parser cases composed; toolu_y is intentionally orphaned."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "62f156ca38f4501bf221257791434205977d8f078be87fa293b9c667a63c9f06"
+  },
+  {
+    "id": "continue",
+    "messageCount": 2,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/continue_dev.rs",
+        "line": 608,
+        "sha256": "c64b90aec0acdb43646cfaa1b5515f4d60f8828a983f41cc59c527be3a42e9e3",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [
+      "Shared Continue family SESSION_A. toolCallStates marks activity, but sample has no tool-result record; not tool-result coverage."
+    ],
+    "remainingReason": "SESSION_A contains toolCallStates but only user/assistant text. No raw result fixture in the sampled Continue session.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "90008a4d5c5eeac5e3bf647a0d653be7733fffc15a54d4e5dc2d811a69a801d7"
+  },
+  {
+    "id": "copilot",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "bash"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/copilot_cli.rs",
+        "line": 1347,
+        "sha256": "d6162c29783a48bbf2d7b7a2660a18b9b058c9270b7880022402e75c55cd2776",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/copilot_cli.rs",
+        "line": 1355,
+        "sha256": "20c85e8e346fd21f80e8cc265d7cd27c28dedcf3ce458eddc91b073a85bb7430",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/copilot_cli.rs",
+        "line": 1360,
+        "sha256": "c9e75e63cbf4d413e1d749a2abbadfccb0fddea1a3f7eed2a48690d190270342",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/copilot_cli.rs",
+        "line": 1374,
+        "sha256": "f5a13236f3fb3b87f44b2f5624bf8d70c056959d0b4bbfa97e40a3ada6083aff",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "d1d26240311fa8fe52530b835a287923dcc5c6d1acd5581bdd54b4f7e2bea610"
+  },
+  {
+    "id": "crush",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "view"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/crush.rs",
+        "line": 529,
+        "sha256": "44b9e8befdb1548bb8d1de06990bf0762c949ad189b3f080bfbeaa252bd322c0",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/crush.rs",
+        "line": 539,
+        "sha256": "9840c737931ce960d88edcb4a8aacdd24909dceeabd284f5707b7f39c34223c7",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/crush.rs",
+        "line": 540,
+        "sha256": "e0d4781826f1079fd9eb7eac7634beea34fe75416b1a27ed8721afa386e1b53e",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/crush.rs",
+        "line": 541,
+        "sha256": "c3e557ba21a42e4f667db441341b336e9692932f9d9d4724c677afb411669baa",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "8385f38f3bfde1f110492ab6fb5bdb235fdb848928b7b80bd922939b3fc4042a"
+  },
+  {
+    "id": "cursor",
+    "messageCount": 3,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Read"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/cursor.rs",
+        "line": 1444,
+        "sha256": "a5db243dee99b79dac946bd3f692c23d96d7fbffd3de112a2ceb286bd0392f70",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor.rs",
+        "line": 1249,
+        "sha256": "53f9cfbd9124c493c749d5c8768fd4a304919a808b25be1e0e62447b47421afc",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor.rs",
+        "line": 1294,
+        "sha256": "03c49a38cbde9575a1957aeff3054121600c78a6224bf4be0f79769aec974aaf",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor.rs",
+        "line": 1316,
+        "sha256": "eb07da6a1be1fe06e6ba13462dd3e9ea94b27e1015222e138a7fdad1593594bd",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [
+      "Unmodified independent bubble literals in native SQLite envelope; composer header references are generated storage scaffolding. Missing timestamps are not filled in."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "17912bf841def3bae46ad361802e966b0b3ff2ad00c9bb33da7f032fe7e47f32"
+  },
+  {
+    "id": "cursor-agent",
+    "messageCount": 3,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/cursor_agent.rs",
+        "line": 765,
+        "sha256": "75c9ae83687670056932d07f2eb9076eabe9e8173ac23c16b81e93ec8872860c",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor_agent.rs",
+        "line": 767,
+        "sha256": "c29203fdd0733cbf195a2c79b9a808f086a1312e506bb5da0c8655fcfd4c3a80",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor_agent.rs",
+        "line": 915,
+        "sha256": "a4062bc332cbb9824503b1d25bf9b60e40171ea71ab31e0f0beb2d6914eb0c8b",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [
+      "Tool-result case intentionally lacks tool_use_id; backend may flatten it to text. Not repaired."
+    ],
+    "remainingReason": "Raw tool_result + command_output case at cursor_agent.rs:915 is flattened by the public parser to assistant text; no tool_use_id was added.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "cecda4c1a54e65837a6c4d0aa17c31c38f835cec37a59d68616941e5259aeb08"
+  },
+  {
+    "id": "forgecode",
+    "messageCount": 5,
+    "resultCount": 1,
+    "callCount": 2,
+    "recordedNames": [
+      "Read",
+      "Write"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/forgecode.rs",
+        "line": 1886,
+        "sha256": "845f891219a7a33995850e25c5d8c2eab1a4ac2011986e8715cc23d2e1584c70",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/forgecode.rs",
+        "line": 1914,
+        "sha256": "577777957a90c73f1fb01a732b139df9bfc734b3c3ffb9f64c4a4ab99cc05e93",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/forgecode.rs",
+        "line": 1987,
+        "sha256": "a5cdbb4ed1dfe1f3445bf671e9ebf5b5e1205109929c3625b14e22a909693f55",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "f38eec04c54be7150f3712016e85d0c6f4d9407a2733fe98ef311f5e0e9e7546"
+  },
+  {
+    "id": "gemini",
+    "messageCount": 4,
+    "resultCount": 2,
+    "callCount": 2,
+    "recordedNames": [
+      "Bash",
+      "Read"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/gemini.rs",
+        "line": 1088,
+        "sha256": "0b9ac8a7f96269e1137ad354c47d70feb0eb99441683b30f20f1fa667dd38c2d",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/gemini.rs",
+        "line": 1172,
+        "sha256": "d9e056cbcd03dcbbcb80f7ccbfdf48374a7454c8261134395e18b1fbde81bcaf",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/gemini.rs",
+        "line": 1228,
+        "sha256": "53c06fdfffb2671ee690586d087e58bb002bda2a1d76855db17e089b2a5e94a6",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/gemini.rs",
+        "line": 1304,
+        "sha256": "eccf886b4ca5cd1eb75560ad180589015d42076ef8878faceb77c52540f31854",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/gemini.rs",
+        "line": 1460,
+        "sha256": "a2d97ae6b623819c08e2b76e59b67e5ac46e50b027535907381730fb41b39ed2",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [
+      "Native JSONL header plus independent success/error parser cases; no tool payload fields changed."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "eabe7de913d759b3138f1ad9bd6cc65bd2fe9e9b746954a1f39fe1b2a544c88e"
+  },
+  {
+    "id": "goose",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "developer__shell"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/goose.rs",
+        "line": 487,
+        "sha256": "6573e0a6f8d90594ed8810831de7efd3ae130745deea5046ddc7c6bd914151b1",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/goose.rs",
+        "line": 510,
+        "sha256": "eb0fe1aa73419f187772d2a0d5663ec9dababb7c6dd9ca8ec626c33447040b64",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/goose.rs",
+        "line": 511,
+        "sha256": "689c4a65c78b70a171603fb38c1f2e70fde853e2497c6664136ac0961ee6d315",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/goose.rs",
+        "line": 512,
+        "sha256": "aeff633a84d00046e96ef41efb707deb07183e0e7a1b1a9e9e212ea034c5f45a",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "f6fc0e2e41b45109617b7197b6deae28e70bd988e475792fe74242f156762160"
+  },
+  {
+    "id": "grok",
+    "messageCount": 6,
+    "resultCount": 1,
+    "callCount": 2,
+    "recordedNames": [
+      "read_file",
+      "web_search"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 917,
+        "sha256": "42bce22ece068a96b933efa4a840d4fa348831a434ffcfcb7ab00cdecd3ada7d",
+        "kind": "test macro with exact local variable binding"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 936,
+        "sha256": "136c4ee6275b98f767e4ceaae426637cec0de2ccffaa6e13db8c1333bae3878c",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 937,
+        "sha256": "2e8ac0b2702deaedbfe9de775012c81657c09a726e6f221e280ac4bc1fb8bc38",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 938,
+        "sha256": "9f283fcce5af7817f8350034938bfa01c8029ef93568d115840b4603333d3583",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 939,
+        "sha256": "b350f0f08fe3cdfc23e1df3aa46b8d3cf3aa10c87d0cd1debabf00f3d3030281",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 940,
+        "sha256": "7273c4cfe19ab05be8e852c6256ce14d4bd027217de319be1a27f71890501d63",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 941,
+        "sha256": "28d3583774076822d348b329cb0be4bd81aa2264c293c702fde406e1e2ec998a",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 942,
+        "sha256": "c6ee0554fa2f0ab3668eb30d92d68ac6f4ea8bbb0840915c7691a958c8346561",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/grok.rs",
+        "line": 948,
+        "sha256": "8336c25869cf44437a62d2f2140c722027b3dc5b2e1f3cfc634ead42e605f1dd",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "952f014218d097aff483b96ef2577b15e7907086376fb9cb850d57fdaaa5b188"
+  },
+  {
+    "id": "kimi",
+    "messageCount": 4,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Shell"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/tests/fixtures/kimi/sessions/project-hash/session-1/state.json",
+        "line": 1,
+        "sha256": "19308b3c5f5fa9c0a774e43f91f04948a0f6cf3075b519ba9c4602d048fdf906",
+        "kind": "committed raw fixture file"
+      },
+      {
+        "file": "src-tauri/tests/fixtures/kimi/sessions/project-hash/session-1/wire.jsonl",
+        "line": 1,
+        "sha256": "182e0af230319af3ed1073b8dd319ae284535c58358bd61792225468352a0184",
+        "kind": "committed raw fixture file"
+      },
+      {
+        "file": "src-tauri/tests/fixtures/kimi/sessions/project-hash/session-1/context.jsonl",
+        "line": 1,
+        "sha256": "4181dde256ad9ec07e0a0bec50d1b2159326f10e3008648f3f3935f63e77a3b6",
+        "kind": "committed raw fixture file"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "df7fb852e5504b017dd97d6d9ff686ed0c82284669739a7bf6a9167eb8235f63"
+  },
+  {
+    "id": "kiro",
+    "messageCount": 4,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Bash"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/amazon_q.rs",
+        "line": 251,
+        "sha256": "01ab82352251b2000adf2efe8ac19b20ece8385e13de6351d7ab2ee4a98cb72a",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/kiro.rs",
+        "line": 161,
+        "sha256": "e73a066f8b65bef04a59a39d46e680436565a5a2949c3829847f24db8dbdd3a5",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [
+      "Amazon Q shared q_conversation raw fixture reused in native Kiro schema read by public loader; storage-only identifiers/times are scaffolding, not independent upstream Kiro capture."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "8cdbb0aaf57929de12794ba7f9b5c77b1d7711622ddba8aa08170690c0d4b0ec"
+  },
+  {
+    "id": "llm",
+    "messageCount": 4,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/llm.rs",
+        "line": 441,
+        "sha256": "3337e2a5156a7a502642de7d634da26afeb2dc86a41453feb68bbbdb08710700",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [
+      "Repository SQL prompt/response fixture has no tool-result representation."
+    ],
+    "remainingReason": "Repository responses SQL fixture yields prompt/answer text; no tool result in this native fixture.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "d83e370415dcd08504e76c6dd0cfc97e9678a0c02f6b4a0925a892c496537eb6"
+  },
+  {
+    "id": "pearai",
+    "messageCount": 2,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/continue_dev.rs",
+        "line": 608,
+        "sha256": "c64b90aec0acdb43646cfaa1b5515f4d60f8828a983f41cc59c527be3a42e9e3",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [
+      "Shared Continue family SESSION_A. toolCallStates marks activity, but sample has no tool-result record; not tool-result coverage."
+    ],
+    "remainingReason": "Continue-family SESSION_A reused under PearAI root; same no-result limitation, not independent upstream capture.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "8ecc29c6cd6c213faecc5c6e329cb4505768f996a8d1b82c47f42e17bf91ecec"
+  },
+  {
+    "id": "qwen",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "run_shell_command"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/qwen.rs",
+        "line": 581,
+        "sha256": "f8d47ae847f64d693232567fa31d33ae25ba0cd7bb8d38d483eafb849fc8fd28",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/qwen.rs",
+        "line": 583,
+        "sha256": "187bddc0c318df95cbd901a9451f2ccc3862323013bdaaef9177864294381620",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/qwen.rs",
+        "line": 585,
+        "sha256": "1cb2ff4864a937de19f10b08698b63f5f4601cd83ba6b9e9b1ec17fe04af0e62",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/qwen.rs",
+        "line": 587,
+        "sha256": "fe53ef4a26d974b99f1443b2768ee04184767bde76d032aced14517029540a23",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "e6f796491b108af33e3b6e11d178af1eebf34da644c38d03d87199170c12fc00"
+  },
+  {
+    "id": "trae",
+    "messageCount": 2,
+    "resultCount": 0,
+    "callCount": 0,
+    "recordedNames": [],
+    "rawMessagePositive": true,
+    "toolResultPositive": false,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/trae.rs",
+        "line": 623,
+        "sha256": "03a574585566ce8db265ecebc39821273e8e8d666c6bb4ddc3acf7e92f1479a6",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/trae.rs",
+        "line": 529,
+        "sha256": "429d901f222561de249e79722a2c2fc25db4fd3b2054c61d9c416f05738be5bb",
+        "kind": "json! Rust literal"
+      }
+    ],
+    "limitations": [
+      "Existing session-list fixture only; agentTaskContent conversion test is not injected into unrelated native session."
+    ],
+    "remainingReason": "Native session-list fixture contains ordinary chat only. Tool-plan helper case was not fabricated into session storage.",
+    "fallback": "observed text / no-result call only",
+    "responseSha256": "668990c0487ca2b46405ee4e10b36c81ead5e143a20d2a5d4b0b8df289dca8c1"
+  },
+  {
+    "id": "vibe",
+    "messageCount": 3,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "read_file"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/vibe.rs",
+        "line": 703,
+        "sha256": "b40d5966395f3736b27167859a1fa8c30dd30122b33fb5f54ae887985913c713",
+        "kind": "test macro with exact local variable binding"
+      },
+      {
+        "file": "src-tauri/src/providers/vibe.rs",
+        "line": 722,
+        "sha256": "f0418ed97e40c34f6e041ec7dc46c7f93169fa09eae9d7bf4cc9c53bb7ef5d54",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/vibe.rs",
+        "line": 727,
+        "sha256": "9d0dd04a2f26605cd3ca489b48a163462d59b1c038bfbff3d80648752dfdcde7",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/vibe.rs",
+        "line": 741,
+        "sha256": "789ce5a029bbea4a37cc5f35c3efcd5cb8c683ae5c1bf1b4b7bc12e0ab034ce8",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/vibe.rs",
+        "line": 698,
+        "sha256": "22f994e721c518aa052e57d64a955a7a5171ddece47b919c3736544c111c21d0",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "f890c65cedf498735c5bbf0f8775c414652dd18c10e9d975bf79f304f63cff65"
+  },
+  {
+    "id": "zcode",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Read"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 693,
+        "sha256": "1027d69e2666ff79ade382f4288e511f659db306eb4a23c9e5ff7172eebbc14c",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 800,
+        "sha256": "075cd9027f818d88293deaa4fcbc531279c61c307f5b937328101dff23bbaa79",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 816,
+        "sha256": "f1e50a494935ccd099e3694f29d760f4d914ebcbeadc7fbc5f831a42c117dc31",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 808,
+        "sha256": "6047a43dcec1eacfb7657fd4410d7e24252332f58d0ff0e54add740e2765588a",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 821,
+        "sha256": "aa266b3209315cdfb3f6436a97b3a0c2c0376012322d669e672ea07d8a9304ae",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 828,
+        "sha256": "9aed3cc87e3726357d4364f90bf48d6411fc732c0e216bdf02fc053e8c82e539",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 836,
+        "sha256": "fd27b15e7d673e15faa5fbba3c29c7171e13fabd57eadc3d525c243350b0b0f8",
+        "kind": "raw-string"
+      },
+      {
+        "file": "src-tauri/src/providers/zcode.rs",
+        "line": 838,
+        "sha256": "9f917e2b43e2a8bf71c6f47449f7a37901ab79ed91392c66be9b8b24102d7d65",
+        "kind": "raw-string"
+      }
+    ],
+    "limitations": [],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "5b5b539b10d9aebacf6adcc12d15b3a9aa127175aaa778288dd3dc4cc5ba5e7f"
+  },
+  {
+    "id": "zed",
+    "messageCount": 2,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "grep"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/zed.rs",
+        "line": 546,
+        "sha256": "5dbc395314d42d1a9737d2efaa74dd303d0caa91c0aa371e84ee634caa8526d3",
+        "kind": "json! Rust literal"
+      },
+      {
+        "file": "src-tauri/src/providers/zed.rs",
+        "line": 685,
+        "sha256": "c4c26f59661bd5f470ee29d303610e3d5c4b1d3e45e3ff4915e25fb6cb83906b",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [
+      "Current thread parser fixture in test-supported five-column JSON (not zstd) database layout."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "8769d3fc40bd9bd764e385249b647ba3b10e8490b650acec686ae486e44fefa7"
+  }
+]

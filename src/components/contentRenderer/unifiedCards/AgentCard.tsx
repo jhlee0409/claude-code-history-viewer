@@ -1,169 +1,174 @@
-import { memo, useState } from "react";
-import {
-  CircleCheck,
-  Bot,
-  ChevronDown,
-  ChevronRight,
-  CirclePlay,
-  Timer,
-  Cpu,
-  Hammer,
-  ExternalLink,
-} from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Renderer } from "@/shared/RendererHeader";
-import { getVariantStyles, layout } from "../../renderers";
-import { Markdown } from "../../common/Markdown";
-import { getSubagentStyle } from "@/utils/agentStyles";
-import type { ToolResultLike, Props } from "./shared";
-import { str, isError } from "./shared";
-import { StatusBadge } from "./StatusBadge";
-import { ResultBlock } from "./ResultBlock";
-import { ToolIdBadge } from "./ToolIdBadge";
+import { Button } from "@/components/ui/button";
+import { memo } from "react";
+import { useResultProvider } from "../../transcript/resultProvider";
+import { Bot, Cpu, ExternalLink, Hammer, Timer } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { TextTarget, ToolRow, WhenTargetCut } from "../../transcript/ToolRow";
+import { ProseBlock } from "../../transcript/ProseBlock";
+import { ToolResultOutputs } from "../../transcript/ToolResultOutputs";
+import { DetailZone } from "../../transcript/DetailZone";
+import { hasShownResults, splitLeadingResultText, recordedAgentStats, toolFamily, toolOutcome, withoutErrorCodeEcho } from "../../transcript/toolOutcome";
+import type { Props } from "./shared";
+import { plainPreview, str } from "./shared";
+import { isNonEmptyString, shownIf, unshown } from "./recordShape";
+import { OtherRecordedFields } from "./toolBodyParts";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { Num } from "@/lib/format/Num";
 
-function extractAgentResultText(results: ToolResultLike[]): string | null {
-  for (const r of results) {
-    const c = r.content;
-    if (typeof c === "string") return c;
-    if (Array.isArray(c)) {
-      for (const item of c) {
-        if (typeof item === "object" && item != null &&
-          (item as Record<string, unknown>).type === "text" &&
-          "text" in item
-        ) return String((item as Record<string, unknown>).text);
-      }
-    }
-  }
-  return null;
-}
-
-
-export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
+/**
+ * Agent / Task (TR1a, renderer audit NC3): one ToolRow.
+ *
+ * Row: the recorded tool name · the task description (or the prompt's first
+ * line as plain words: no raw `**`) · the subagent type and the background
+ * flag as plain caption text (no pill, no uppercase) · the outcome from
+ * `toolOutcome` only. Opened: the whole description when the row cuts it,
+ * the model and isolation in the meta line, then the Input zone (the
+ * prompt) and the Result zone (its duration, tokens and tool count on the
+ * label's line) as prose blocks — no nested folds, no fill, no green check —
+ * and "View Conversation", an aside outside both zones (it leaves for the
+ * subagent's own transcript).
+ *
+ * The Result zone keeps the recorded order: the result's text is prose only
+ * when it is the first part recorded, and every part after it follows as
+ * output; a result that starts with anything else (an image …) is output
+ * from its first part on.
+ */
+export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent, searchQuery, isCurrentMatch, currentMatchIndex }: Props) {
+  const provider = useResultProvider();
   const { t } = useTranslation();
   const fmt = useFormat();
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
-  const [isResultOpen, setIsResultOpen] = useState(false);
-
+  const name = (toolUse.name as string) || "Agent";
   const toolId = (toolUse.id as string) || "";
   const input = (toolUse.input as Record<string, unknown>) ?? {};
   const description = str(input, "description") ?? "";
   const prompt = str(input, "prompt") ?? "";
-  const subagentType = str(input, "subagent_type") ?? undefined;
+  const subagentType = str(input, "subagent_type");
   const runInBackground = input.run_in_background === true;
   const model = str(input, "model");
   const isolation = str(input, "isolation");
+  const family = toolFamily(name);
+  const outcome = toolOutcome(toolUse, toolResults, family, provider);
+  const expandKey = `unified-${toolId}`;
+  const rest = unshown(input, {
+    description: shownIf(isNonEmptyString),
+    prompt: shownIf(isNonEmptyString),
+    subagent_type: shownIf(isNonEmptyString),
+    run_in_background: shownIf((v) => v === true),
+    model: shownIf(isNonEmptyString),
+    isolation: shownIf(isNonEmptyString),
+  });
+  const hasRest = Object.keys(rest).length > 0;
 
-  const badge = getSubagentStyle(subagentType);
-  const SubIcon = badge.icon;
-  const taskStyles = getVariantStyles("task");
+  // The prose takes the result's text only when it is the first part recorded;
+  // everything after it (a second text block such as Claude's agentId / usage
+  // note, images, other results) follows, in order. A result that starts with
+  // an image keeps the image first (review rounds 1 and 2 of PR #746, F1 and
+  // R2-F1).
+  const { text: resultText, rest: restResults } = splitLeadingResultText(withoutErrorCodeEcho(toolResults));
+  const stats = recordedAgentStats(toolResults);
 
-  const hasResult = toolResults.length > 0;
-  const resultText = hasResult ? extractAgentResultText(toolResults) : null;
-  const first = toolResults[0];
-  const totalDurationMs = first?.totalDurationMs as number | undefined;
-  const totalTokens = first?.totalTokens as number | undefined;
-  const totalToolUseCount = first?.totalToolUseCount as number | undefined;
+  const promptPreview = description ? "" : plainPreview(prompt);
+  const target = description ? <TextTarget text={description} /> : promptPreview ? <TextTarget text={promptPreview} /> : undefined;
+  const viewLabel = t("renderers.agentTool.viewConversation", { defaultValue: "View Conversation" });
 
   return (
-    <Renderer className={taskStyles.container} hasError={toolResults.length > 0 && toolResults.some(isError)} expandKey={`unified-${(toolUse.id as string) || ""}`}>
-      <Renderer.Header
-        title={t("renderers.agentTool.title", { defaultValue: "Agent" })}
-        icon={<Bot className={cn(layout.iconSize, taskStyles.icon)} />}
-        titleClassName={taskStyles.title}
-        rightContent={
-          <div className={cn("flex items-center gap-2", layout.smallText)}>
-            {subagentType && (
-              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-caption uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
-                <SubIcon className="w-3.5 h-3.5" />{subagentType}
-              </span>
-            )}
-            {runInBackground && (
-              <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30")}>
-                {t("renderers.agentTool.background", { defaultValue: "background" })}
-              </span>
-            )}
-            <StatusBadge results={toolResults} />
-            <ToolIdBadge toolId={toolId} badgeClassName={taskStyles.badge} badgeTextClassName={taskStyles.badgeText} />
-          </div>
-        }
-      />
-      <Renderer.Content>
-        {/* Description */}
+    <ToolRow
+      icon={<Bot className="w-4 h-4" />}
+      verb={name}
+      target={target}
+      meta={
+        <>
+          {subagentType && <span>{subagentType}</span>}
+          {runInBackground && <span>{t("renderers.agentTool.background", { defaultValue: "background" })}</span>}
+        </>
+      }
+      outcome={outcome}
+      family={family}
+      toolId={toolId}
+      expandKey={expandKey}
+      detailMeta={
+        <>
+          {model && (
+            <span className="inline-flex items-center gap-1">
+              <Cpu aria-hidden="true" className="w-3.5 h-3.5" />
+              <code data-mono="code" className="font-mono">
+                {model}
+              </code>
+            </span>
+          )}
+          {isolation && (
+            <span>
+              {t("renderers.agentTool.isolation", { defaultValue: "Isolation" })}:{" "}
+              <code data-mono="code" className="font-mono">
+                {isolation}
+              </code>
+            </span>
+          )}
+        </>
+      }
+    >
+      <DetailZone kind="input" show={prompt || hasRest ? true : description ? "whenTargetCut" : false}>
         {description && (
-          <div className={cn("flex items-start gap-2 p-2.5 mb-3 border", layout.rounded, taskStyles.badge, "border-tool-task/30")}>
-            <SubIcon className={cn("w-4 h-4 shrink-0 mt-0.5", badge.text)} />
-            <span className={cn(layout.bodyText, "text-foreground font-medium")}>{description}</span>
-          </div>
+          <WhenTargetCut>
+            <p className="whitespace-pre-wrap text-list text-fg-2">{description}</p>
+          </WhenTargetCut>
         )}
-
-        {/* Meta */}
-        {(model || isolation) && (
-          <div className={cn("mb-3 flex items-center gap-3 flex-wrap", layout.smallText)}>
-            {model && <span className="flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" /><code className={layout.monoText}>{model}</code></span>}
-            {isolation && <span className="text-muted-foreground">{t("renderers.agentTool.isolation", { defaultValue: "Isolation" })}: <code className={cn("px-1.5 py-0.5", layout.rounded, "bg-muted/50 border border-border")}>{isolation}</code></span>}
-          </div>
-        )}
-
-        {/* Prompt — collapsible markdown */}
-        {prompt && (
-          <div className={cn("border mb-3", layout.rounded, "border-border overflow-hidden")}>
-            <button type="button" onClick={() => setIsPromptOpen(p => !p)}
-              className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors bg-muted/20")}
-              aria-label={t("renderers.agentTool.togglePrompt", { defaultValue: "Toggle prompt" })}>
-              {isPromptOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <CirclePlay className={cn("w-3.5 h-3.5", taskStyles.icon)} />
-              <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.prompt", { defaultValue: "Prompt" })}</span>
-              {!isPromptOpen && <span className={cn(layout.smallText, "text-muted-foreground truncate flex-1")}>— {prompt.split("\n")[0]?.slice(0, 80)}{(prompt.split("\n")[0]?.length ?? 0) > 80 ? "…" : ""}</span>}
-            </button>
-            {isPromptOpen && <div className="px-3 py-2 border-t border-border max-h-96 overflow-y-auto"><Markdown className="text-foreground/90">{prompt}</Markdown></div>}
-          </div>
-        )}
-
-        {/* Result — collapsible markdown with stats */}
-        {hasResult && resultText ? (
-          <div className={cn("border", layout.rounded, "border-border overflow-hidden")}>
-            <button type="button" onClick={() => setIsResultOpen(p => !p)}
-              className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors bg-muted/20")}
-              aria-label={t("renderers.agentTool.toggleResult", { defaultValue: "Toggle result" })}>
-              {isResultOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <CircleCheck className="w-3.5 h-3.5 text-success" />
-              <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
-              <div className={cn("flex items-center gap-2 ml-auto", layout.smallText)}>
-                {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3.5 h-3.5" /><Num>{fmt.duration(totalDurationMs)}</Num></span>}
-                {totalTokens != null && <span {...numberCopyBoundary} className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" /><Num>{fmt.tokens(totalTokens)}</Num></span>}
-                {totalToolUseCount != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Hammer className="w-3.5 h-3.5" />{totalToolUseCount}</span>}
-              </div>
-            </button>
-            {isResultOpen && <div className="px-3 py-2 border-t border-border max-h-[32rem] overflow-y-auto"><Markdown className="text-foreground/90">{resultText}</Markdown></div>}
-          </div>
-        ) : (
-          <ResultBlock results={toolResults} />
-        )}
-
-        {/* View SubAgent conversation */}
-        {onViewSubagent && (
-          <button
-            type="button"
-            onClick={() => {
-              onViewSubagent(toolId);
-            }}
-            className={cn(
-              "mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-list font-medium",
-              layout.rounded,
-              "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
-              "border border-primary/20",
+        {prompt && <ProseBlock text={prompt} expandKey={`${expandKey}-prompt`} />}
+        <OtherRecordedFields rest={rest} expandKey={expandKey} searchQuery={searchQuery} isCurrentMatch={isCurrentMatch} currentMatchIndex={currentMatchIndex} />
+      </DetailZone>
+      <DetailZone
+        kind="result"
+        show={resultText ? true : hasShownResults(toolResults)}
+        meta={
+          <>
+            {stats.totalDurationMs != null && (
+              <span className="inline-flex items-center gap-1">
+                <Timer aria-hidden="true" className="w-3.5 h-3.5" />
+                <Num>{fmt.duration(stats.totalDurationMs)}</Num>
+              </span>
             )}
-            aria-label={t("renderers.agentTool.viewConversation", { defaultValue: "View Conversation" })}
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            {t("renderers.agentTool.viewConversation", { defaultValue: "View Conversation" })}
-          </button>
+            {stats.totalTokens != null && (
+              <span {...numberCopyBoundary} className="inline-flex items-center gap-1">
+                <Cpu aria-hidden="true" className="w-3.5 h-3.5" />
+                <Num>{fmt.tokens(stats.totalTokens)}</Num>
+              </span>
+            )}
+            {stats.totalToolUseCount != null && (
+              <span className="inline-flex items-center gap-1">
+                <Hammer aria-hidden="true" className="w-3.5 h-3.5" />
+                {stats.totalToolUseCount}
+              </span>
+            )}
+          </>
+        }
+      >
+        {resultText ? (
+          <>
+            <ProseBlock text={resultText} expandKey={`${expandKey}-result`} />
+            {restResults.length > 0 && (
+              <ToolResultOutputs results={restResults} family={family} expandKey={`${expandKey}-rest`} failed={outcome.verdict === "failed"} />
+            )}
+          </>
+        ) : (
+          <ToolResultOutputs results={toolResults} family={family} expandKey={expandKey} failed={outcome.verdict === "failed"} />
         )}
-      </Renderer.Content>
-    </Renderer>
+      </DetailZone>
+      {onViewSubagent && (
+        <Button variant="ghost" size="sm"
+          data-detail-aside=""
+          type="button"
+          onClick={() => {
+            onViewSubagent(toolId);
+          }}
+          className={cn("h-auto whitespace-normal justify-start font-normal", "inline-flex min-h-6 items-center gap-1.5 rounded-row px-1 text-list text-fg-2 hover:bg-surface-hover hover:text-fg")}
+          aria-label={viewLabel}
+        >
+          <ExternalLink aria-hidden="true" className="w-3.5 h-3.5" />
+          {viewLabel}
+        </Button>
+      )}
+    </ToolRow>
   );
 });
