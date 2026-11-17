@@ -260,6 +260,17 @@ pub struct ToolUseResultSource {
     pub unassigned_tool_use_result: Option<serde_json::Value>,
 }
 
+/// A chat-style page of messages (offset 0 = newest).
+///
+/// `total_count`, `next_offset` and the request `offset` share one index
+/// space. For Claude it is classified lines: lines the fast classifier marks
+/// viewer-visible, before tool-result merging. A classified line that fails
+/// the full parse is consumed without producing a message, so a page may
+/// return fewer messages than it consumed (even none) and `total_count` is an
+/// upper bound on loadable messages. `next_offset` always advances past every
+/// consumed line, and `has_more` is `next_offset < total_count`, so walking
+/// pages until `has_more` is false terminates and visits each line once
+/// (#771). Other providers use the post-merge message index space.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessagePage {
     pub messages: Vec<ClaudeMessage>,
