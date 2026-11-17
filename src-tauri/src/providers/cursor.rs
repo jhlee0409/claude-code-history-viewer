@@ -2,7 +2,7 @@ use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -632,6 +632,205 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     attach_composer_token_usage(&composer, &mut messages);
 
     Ok(messages)
+}
+
+/// Delete one Cursor composer: its `composerData:<id>` row, every per-composer
+/// row keyed `<kind>:<id>:…` (bubbles, header chunks, checkpoints, …), and its
+/// entry in the owning workspace's `composer.composerData` index.
+///
+/// Cursor rewrites `state.vscdb` while it runs and would put the rows back (or
+/// race the index edit), so the delete is refused while Cursor is open. All
+/// writes happen in one transaction across the global and workspace databases,
+/// and deletes are serialized so two concurrent requests cannot interleave
+/// their index read-modify-write.
+pub fn delete_session(session_path: &str) -> Result<(), String> {
+    let base = get_base_path().ok_or("Cursor not found")?;
+    delete_session_in(&base, session_path, cursor_is_running)
+}
+
+static DELETE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn delete_session_in(
+    base: &Path,
+    session_path: &str,
+    is_running: impl Fn() -> Result<bool, String>,
+) -> Result<(), String> {
+    let composer_id = session_path
+        .strip_prefix("cursor://")
+        .ok_or_else(|| format!("Invalid Cursor session path: {session_path}"))?;
+    if !crate::utils::is_safe_storage_id(composer_id) {
+        return Err(format!("Invalid Cursor session path: {session_path}"));
+    }
+
+    let _guard = DELETE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    if is_running()? {
+        return Err(
+            "Cursor is running. Quit Cursor completely, then delete the conversation again."
+                .to_string(),
+        );
+    }
+
+    let db_path = base.join("globalStorage").join("state.vscdb");
+    if !db_path.is_file() {
+        return Err("Cursor database not found".to_string());
+    }
+
+    let mut conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
+        .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
+
+    let composer_key = format!("composerData:{composer_id}");
+    let composer_json: Option<String> = conn
+        .query_row(
+            "SELECT value FROM cursorDiskKV WHERE key = ?1",
+            [&composer_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Query failed: {e}"))?;
+    let composer_json =
+        composer_json.ok_or_else(|| format!("Cursor conversation not found: {session_path}"))?;
+    let composer = parse_cursor_json(&composer_json)?;
+
+    // The workspace whose index lists this composer: its own stamp, else the
+    // legacy listing that ties pre-stamp composers to a folder (the same
+    // resolution the project scan uses).
+    let ws_root = base.join("workspaceStorage");
+    let (workspace_id, _) = resolve_composer_workspace(
+        &composer,
+        composer_id,
+        &legacy_composer_workspaces(&ws_root, &ScanReport::default()),
+    );
+    let ws_db = (!is_orphan_workspace_id(&workspace_id)
+        && crate::utils::is_safe_storage_id(&workspace_id))
+    .then(|| ws_root.join(&workspace_id).join("state.vscdb"))
+    .filter(|path| path.is_file() && !crate::utils::is_symlink(path));
+    if let Some(ws_db) = &ws_db {
+        conn.execute(
+            "ATTACH DATABASE ?1 AS ws",
+            [ws_db.to_string_lossy().as_ref()],
+        )
+        .map_err(|e| format!("Failed to open Cursor workspace DB: {e}"))?;
+    }
+
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("Failed to lock Cursor DB: {e}"))?;
+
+    tx.execute("DELETE FROM cursorDiskKV WHERE key = ?1", [&composer_key])
+        .map_err(|e| format!("Failed to delete Cursor conversation: {e}"))?;
+    // `LIKE` treats `%` and `_` as wildcards; escape them so one id can never
+    // match another composer's rows.
+    let pattern = format!("%:{}:%", escape_like(composer_id));
+    tx.execute(
+        "DELETE FROM cursorDiskKV WHERE key LIKE ?1 ESCAPE '\\'",
+        [pattern],
+    )
+    .map_err(|e| format!("Failed to delete Cursor messages: {e}"))?;
+
+    if ws_db.is_some() {
+        remove_composer_from_workspace_index(&tx, composer_id)?;
+    }
+
+    tx.commit()
+        .map_err(|e| format!("Failed to commit Cursor delete: {e}"))
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+/// Drop `composer_id` from the attached workspace's `composer.composerData`
+/// (`allComposers` and `selectedComposerIds`) inside the caller's transaction.
+fn remove_composer_from_workspace_index(
+    tx: &rusqlite::Transaction<'_>,
+    composer_id: &str,
+) -> Result<(), String> {
+    let data: Option<String> = tx
+        .query_row(
+            "SELECT value FROM ws.ItemTable WHERE key = 'composer.composerData'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to read Cursor workspace index: {e}"))?;
+    let Some(data) = data else {
+        return Ok(());
+    };
+
+    let mut json = parse_cursor_json(&data)?;
+    let Some(object) = json.as_object_mut() else {
+        return Err("Cursor workspace index is not an object".to_string());
+    };
+
+    let mut changed = false;
+    if let Some(list) = object.get_mut("allComposers").and_then(Value::as_array_mut) {
+        let before = list.len();
+        list.retain(|composer| {
+            composer.get("composerId").and_then(Value::as_str) != Some(composer_id)
+        });
+        changed |= list.len() != before;
+    }
+    if let Some(list) = object
+        .get_mut("selectedComposerIds")
+        .and_then(Value::as_array_mut)
+    {
+        let before = list.len();
+        list.retain(|id| id.as_str() != Some(composer_id));
+        changed |= list.len() != before;
+    }
+
+    if changed {
+        tx.execute(
+            "UPDATE ws.ItemTable SET value = ?1 WHERE key = 'composer.composerData'",
+            [json.to_string()],
+        )
+        .map_err(|e| format!("Failed to update Cursor workspace index: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Whether the Cursor desktop app is running. A check that cannot run is an
+/// error: guessing "not running" could let Cursor overwrite the delete.
+#[cfg(windows)]
+fn cursor_is_running() -> Result<bool, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let out = std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq Cursor.exe", "/NH", "/FO", "CSV"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Could not check whether Cursor is running: {e}"))?;
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .to_ascii_lowercase()
+        .contains("\"cursor.exe\""))
+}
+
+/// Whether the Cursor desktop app is running (`Cursor` on macOS, `cursor` on
+/// Linux). A check that cannot run is an error: guessing "not running" could
+/// let Cursor overwrite the delete.
+#[cfg(not(windows))]
+fn cursor_is_running() -> Result<bool, String> {
+    let status = std::process::Command::new("pgrep")
+        .args(["-x", "-i", "cursor"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| format!("Could not check whether Cursor is running: {e}"))?;
+    match status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(format!(
+            "Could not check whether Cursor is running (pgrep exited with {status})"
+        )),
+    }
 }
 
 fn attach_composer_token_usage(composer: &Value, messages: &mut [ClaudeMessage]) {
@@ -1633,6 +1832,179 @@ mod tests {
                     .and_then(|u| u.input_tokens)
                     .is_some_and(|tokens| tokens == 9001)
         }));
+    }
+
+    /// Global DB with `comp-delete` (bubble + header chunk) and `comp-keep`,
+    /// and workspace `hash-delete` whose index lists both. `stamped` decides
+    /// whether `comp-delete` names its workspace or relies on that listing.
+    fn delete_fixture(stamped: bool) -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path().join("User");
+        let ws_hash = "hash-delete";
+        let ws_dir = user_dir.join("workspaceStorage").join(ws_hash);
+        fs::create_dir_all(&ws_dir).unwrap();
+        let ws_db = ws_dir.join("state.vscdb");
+
+        let ws_conn = Connection::open(&ws_db).unwrap();
+        ws_conn
+            .execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        ws_conn
+            .execute(
+                "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+                [json!({
+                    "allComposers": [
+                        { "composerId": "comp-delete" },
+                        { "composerId": "comp-keep" }
+                    ],
+                    "selectedComposerIds": ["comp-delete", "comp-keep"]
+                })
+                .to_string()],
+            )
+            .unwrap();
+
+        let composer = if stamped {
+            json!({ "composerId": "comp-delete", "workspaceIdentifier": { "id": ws_hash } })
+        } else {
+            json!({ "composerId": "comp-delete" })
+        };
+        let global_conn = create_global_db(&user_dir);
+        put_kv(&global_conn, "composerData:comp-delete", &composer);
+        put_kv(
+            &global_conn,
+            "bubbleId:comp-delete:b1",
+            &json!({ "bubbleId": "b1", "text": "delete me" }),
+        );
+        put_kv(
+            &global_conn,
+            "composerConvHeaders:comp-delete:000000",
+            &json!([{ "bubbleId": "b1", "type": 1 }]),
+        );
+        put_kv(
+            &global_conn,
+            "composerData:comp-keep",
+            &json!({ "composerId": "comp-keep" }),
+        );
+        put_kv(
+            &global_conn,
+            "bubbleId:comp-keep:b1",
+            &json!({ "bubbleId": "b1", "text": "keep me" }),
+        );
+        (temp, user_dir, ws_db)
+    }
+
+    fn global_keys(user_dir: &Path) -> Vec<String> {
+        let conn = Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        let mut stmt = conn
+            .prepare("SELECT key FROM cursorDiskKV ORDER BY key")
+            .unwrap();
+        let keys = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect();
+        keys
+    }
+
+    fn workspace_index(ws_db: &Path) -> Value {
+        let conn = Connection::open(ws_db).unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        parse_cursor_json(&raw).unwrap()
+    }
+
+    #[test]
+    fn delete_session_removes_composer_rows_and_workspace_index() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap();
+
+        assert_eq!(
+            global_keys(&user_dir),
+            ["bubbleId:comp-keep:b1", "composerData:comp-keep"]
+        );
+        let index = workspace_index(&ws_db);
+        assert_eq!(
+            index["allComposers"],
+            json!([{ "composerId": "comp-keep" }])
+        );
+        assert_eq!(index["selectedComposerIds"], json!(["comp-keep"]));
+    }
+
+    /// A composer from before Cursor stamped `workspaceIdentifier` is tied to
+    /// its workspace only by that workspace's listing, which must still be
+    /// cleaned or the scan would resurrect it.
+    #[test]
+    fn delete_session_cleans_legacy_listing_of_unstamped_composer() {
+        let (_temp, user_dir, ws_db) = delete_fixture(false);
+        delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap();
+
+        assert_eq!(
+            global_keys(&user_dir),
+            ["bubbleId:comp-keep:b1", "composerData:comp-keep"]
+        );
+        assert_eq!(
+            workspace_index(&ws_db)["allComposers"],
+            json!([{ "composerId": "comp-keep" }])
+        );
+    }
+
+    #[test]
+    fn delete_session_refuses_while_cursor_runs_or_cannot_be_checked() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        let before = global_keys(&user_dir);
+
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || Ok(true)).unwrap_err();
+        assert!(err.starts_with("Cursor is running"), "{err}");
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || {
+            Err("Could not check whether Cursor is running".to_string())
+        })
+        .unwrap_err();
+        assert!(err.starts_with("Could not check"), "{err}");
+
+        assert_eq!(global_keys(&user_dir), before);
+        assert_eq!(
+            workspace_index(&ws_db)["selectedComposerIds"],
+            json!(["comp-delete", "comp-keep"])
+        );
+    }
+
+    /// A workspace index that cannot be rewritten rolls the row deletes back:
+    /// the conversation is either fully gone or untouched.
+    #[test]
+    fn delete_session_is_atomic_across_global_and_workspace_dbs() {
+        let (_temp, user_dir, ws_db) = delete_fixture(true);
+        Connection::open(&ws_db)
+            .unwrap()
+            .execute(
+                "UPDATE ItemTable SET value = '[]' WHERE key = 'composer.composerData'",
+                [],
+            )
+            .unwrap();
+        let before = global_keys(&user_dir);
+
+        let err = delete_session_in(&user_dir, "cursor://comp-delete", || Ok(false)).unwrap_err();
+        assert_eq!(err, "Cursor workspace index is not an object");
+        assert_eq!(global_keys(&user_dir), before);
+    }
+
+    #[test]
+    fn delete_session_rejects_ids_that_are_not_cursor_uris() {
+        let (_temp, user_dir, _) = delete_fixture(true);
+        for bad in ["comp-delete", "cursor://../x", "cursor://a%b", "cursor://"] {
+            assert!(
+                delete_session_in(&user_dir, bad, || Ok(false)).is_err(),
+                "{bad}"
+            );
+        }
+        assert_eq!(global_keys(&user_dir).len(), 5);
     }
 
     fn create_global_db(user_dir: &Path) -> Connection {

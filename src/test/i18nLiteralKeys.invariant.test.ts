@@ -29,8 +29,6 @@ const KNOWN_MISSING = new Set([
   "feedback.description",
   "session.actions",
   "session.copyResumeCommandError",
-  "session.deleteConfirmForgeCode",
-  "session.deleteTarget",
 ]);
 
 function localeKeys(locale: string): Set<string> {

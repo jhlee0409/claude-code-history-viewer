@@ -93,10 +93,26 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
           "session.deleteConfirmForgeCode",
           "This will permanently delete the ForgeCode conversation from the Forge database."
         )
-      : t(
-          "session.deleteConfirm",
-          "This will move the session file and associated data (subagents, tool results) to your system Trash."
-        );
+      : providerId === "cursor"
+        ? t(
+            "session.deleteConfirmCursor",
+            "This will permanently delete the Cursor conversation and its messages from Cursor's local storage. Quit Cursor first."
+          )
+        : providerId === "cursor-agent"
+          ? t(
+              "session.deleteConfirmCursorAgent",
+              "This will move the Cursor Agent transcript and its chat data to your system Trash."
+            )
+          : t(
+              "session.deleteConfirm",
+              "This will move the session file and associated data (subagents, tool results) to your system Trash."
+            );
+  const deleteDialogTargetLabel =
+    providerId === "forgecode"
+      ? t("session.deleteTargetForgeCode", "ForgeCode conversation")
+      : providerId === "cursor"
+        ? t("session.deleteTargetCursor", "Cursor conversation")
+        : t("session.deleteTarget", "Session file");
 
   // Sync localSummary when session.summary prop changes
   useEffect(() => {
@@ -572,6 +588,7 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
     isServerReadOnly,
     deleteDialogTitle,
     deleteDialogDescription,
+    deleteDialogTargetLabel,
     inputRef,
     ignoreBlurRef,
 

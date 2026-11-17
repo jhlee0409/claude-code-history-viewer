@@ -140,14 +140,17 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // `cursor://<id>` rows in Cursor's state.vscdb plus the workspace index
+    // entry; the backend refuses while Cursor is running.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   "cursor-agent": {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
-    supportsSessionDeletion: false,
+    // The `agent-transcripts/<id>/` folder and the CLI's `chats/*/<id>/` metadata.
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   forgecode: {
