@@ -2981,10 +2981,10 @@ mod tests {
         assert!(page.has_more);
     }
 
-    fn create_sample_undated_blob(session_id: &str) -> String {
-        format!(
-            r#"{{"type":"api-request-blob","sessionId":"{session_id}","hash":"h","message":{{"role":"user","content":"blob"}}}}"#
-        )
+    /// An undated record the viewer still shows (`mode` carries no `timestamp`).
+    /// Not `api-request-blob`: #768 excludes the request records from the viewer.
+    fn create_sample_undated_record(session_id: &str) -> String {
+        format!(r#"{{"type":"mode","sessionId":"{session_id}","mode":"normal"}}"#)
     }
 
     #[tokio::test]
@@ -2993,7 +2993,7 @@ mod tests {
         let content = format!(
             "{}\n{}\n{}\n",
             create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
-            create_sample_undated_blob("s1"),
+            create_sample_undated_record("s1"),
             create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
         );
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
@@ -3018,7 +3018,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let content = format!(
             "{}\n{}\n",
-            create_sample_undated_blob("s1"),
+            create_sample_undated_record("s1"),
             create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
         );
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
@@ -3036,7 +3036,7 @@ mod tests {
         let content = format!(
             "{}\n{}\n{}\n",
             create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
-            create_sample_undated_blob("s1"),
+            create_sample_undated_record("s1"),
             create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
         );
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
@@ -3048,7 +3048,7 @@ mod tests {
                 .unwrap();
 
         assert_eq!(page.messages.len(), 1);
-        assert_eq!(page.messages[0].message_type, "api-request-blob");
+        assert_eq!(page.messages[0].message_type, "mode");
         assert_eq!(page.messages[0].timestamp, "2025-06-26T10:00:00Z");
     }
 
