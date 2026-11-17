@@ -422,9 +422,15 @@ pub fn load_stats_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, Str
     ))
 }
 
-/// One-pass global stats source: open the Cursor DB once and emit
-/// `(project_display_name, stats_messages)` for every active composer.
-pub fn collect_global_stats_sessions() -> Result<Vec<(String, Vec<ClaudeMessage>)>, String> {
+pub(crate) struct GlobalStatsSession {
+    pub project_name: String,
+    pub project_path: String,
+    pub messages: Vec<ClaudeMessage>,
+}
+
+/// One-pass global stats source: open the Cursor DB once and retain the
+/// project identity with every active composer's lightweight messages.
+pub(crate) fn collect_global_stats_sessions() -> Result<Vec<GlobalStatsSession>, String> {
     let base = get_base_path().ok_or("Cursor not found")?;
     let global_db = base.join("globalStorage/state.vscdb");
     if !global_db.is_file() {
@@ -465,10 +471,22 @@ pub fn collect_global_stats_sessions() -> Result<Vec<(String, Vec<ClaudeMessage>
             resolve_composer_workspace(&composer, composer_id, &legacy);
         let project_name = resolve_project_display_name(&ws_root, &workspace_id, &folder_path);
         let project_display_name = format!("{project_name} [cursor]");
+        let ws_path = ws_root.join(&workspace_id);
+        let project_path = if is_orphan_workspace_id(&workspace_id) {
+            "cursor://workspace/unassigned".to_string()
+        } else if ws_path.is_dir() {
+            format!("cursor://{}", ws_path.to_string_lossy())
+        } else {
+            format!("cursor://workspace/{workspace_id}")
+        };
         let headers = conversation_headers(&conn, composer_id, &composer);
         let messages = stats_messages_from_composer(composer_id, &composer, &headers);
         if !messages.is_empty() {
-            sessions.push((project_display_name, messages));
+            sessions.push(GlobalStatsSession {
+                project_name: project_display_name,
+                project_path,
+                messages,
+            });
         }
     }
 
@@ -1527,6 +1545,67 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn global_stats_preserve_workspace_paths_for_same_named_projects() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path();
+        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+        // Match the canonical configured root, including macOS temp aliases.
+        let existing = user_dir
+            .canonicalize()
+            .unwrap()
+            .join("workspaceStorage/first");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(
+            existing.join("workspace.json"),
+            json!({"folder": "file:///client-a/app"}).to_string(),
+        )
+        .unwrap();
+        let conn = Connection::open(user_dir.join("globalStorage/state.vscdb")).unwrap();
+        conn.execute(
+            "CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value TEXT)",
+            [],
+        )
+        .unwrap();
+        for (id, folder) in [
+            ("first", "/client-a/app"),
+            ("second", "/client-b/app"),
+            ("unassigned", ""),
+        ] {
+            let composer = json!({
+                "workspaceIdentifier": {"id": id, "uri": {"fsPath": folder}},
+                "createdAt": 1_700_000_000_000u64,
+                "promptTokenBreakdown": {"totalUsedTokens": 10}
+            });
+            conn.execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![format!("composerData:{id}"), composer.to_string()],
+            )
+            .unwrap();
+        }
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", user_dir);
+        let projects = scan_projects().unwrap();
+        let rows = collect_global_stats_sessions().unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.project_name == "app [cursor]")
+                .count(),
+            2
+        );
+        let actual: std::collections::HashSet<_> =
+            rows.iter().map(|row| row.project_path.as_str()).collect();
+        let expected: std::collections::HashSet<_> = projects
+            .iter()
+            .map(|project| project.path.as_str())
+            .collect();
+        assert_eq!(actual, expected);
+        assert!(actual.contains("cursor://workspace/second"));
+        assert!(actual.contains("cursor://workspace/unassigned"));
+        assert!(actual.contains(format!("cursor://{}", existing.to_string_lossy()).as_str()));
+    }
+
+    #[test]
     fn test_percent_decode_basic() {
         assert_eq!(percent_decode("a%20b"), "a b");
         assert_eq!(percent_decode("%2F%2Fx"), "//x");
@@ -2173,13 +2252,21 @@ mod tests {
         let names: Vec<_> = orphan_sessions.iter().map(|s| s.summary.clone()).collect();
         assert_eq!(names, vec![Some("Orphan chat".to_string())]);
 
-        let mut stats_projects: Vec<String> = collect_global_stats_sessions()
+        // Stats rows carry the same identity as the project list, including
+        // a composer mapped to its workspace only by the legacy listing.
+        let mut stats_projects: Vec<(String, String)> = collect_global_stats_sessions()
             .unwrap()
             .into_iter()
-            .map(|(project, _)| project)
+            .map(|session| (session.project_name, session.project_path))
             .collect();
         stats_projects.sort();
-        assert_eq!(stats_projects, vec!["Cursor [cursor]", "old-proj [cursor]"]);
+        assert_eq!(
+            stats_projects,
+            vec![
+                ("Cursor [cursor]".to_string(), orphan.path.clone()),
+                ("old-proj [cursor]".to_string(), old.path.clone()),
+            ]
+        );
     }
 
     /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`

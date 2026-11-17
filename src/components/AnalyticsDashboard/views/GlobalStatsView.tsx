@@ -38,7 +38,9 @@ import {
   getRankMedal,
   hasMedal,
 } from "../utils";
-import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
+import { calculateConversationBreakdownCoverage, getProviderLabel } from "../../../utils/providers";
+import { collisionHints } from "@/utils/projectIdentity";
+import { useAppStore } from "@/store/useAppStore";
 import { ModelLifecycleBadge } from "../../ModelLifecycleBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { Num } from "@/lib/format/Num";
@@ -92,6 +94,34 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       calculateConversationBreakdownCoverage(globalSummary.provider_distribution),
     [globalSummary.provider_distribution]
   );
+
+  // Top projects keep their short names; a second line tells apart rows
+  // whose names collide, by the project's real folder when it is loaded,
+  // then by provider, and only then by the stored identity.
+  const projects = useAppStore((state) => state.projects);
+  const topProjects = useMemo(() => {
+    const rows = globalSummary.top_projects.slice(0, 8);
+    const hints = collisionHints(
+      rows.map((row) => {
+        const project = row.project_path
+          ? projects.find(
+              (candidate) =>
+                candidate.path === row.project_path &&
+                (!row.provider_id || (candidate.provider ?? "claude") === row.provider_id)
+            )
+          : undefined;
+        const readable = project?.actual_path || row.project_path;
+        const provider = row.provider_id
+          ? getProviderLabel((key, fallback) => t(key, fallback), row.provider_id)
+          : undefined;
+        return {
+          label: row.project_name,
+          hints: [readable, provider && readable ? `${provider} · ${readable}` : readable, row.project_path],
+        };
+      })
+    );
+    return rows.map((row, index) => ({ row, hint: hints[index] }));
+  }, [globalSummary.top_projects, projects, t]);
 
   const lastUpdated = useMemo(() => {
     const raw = globalSummary.date_range.last_message;
@@ -397,11 +427,11 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         {globalSummary.top_projects.length > 0 && (
           <SectionCard title={t("analytics.topProjects")} icon={ChartColumn} colorVariant="purple">
             <div className="space-y-2">
-              {globalSummary.top_projects.slice(0, 8).map((project, index) => {
+              {topProjects.map(({ row: project, hint }, index) => {
                 const medal = getRankMedal(index);
                 return (
                   <div
-                    key={project.project_name}
+                    key={JSON.stringify([project.provider_id, project.project_path || project.project_name])}
                     className={cn(
                       "flex items-center justify-between p-2.5 rounded-lg",
                       "bg-muted/30 hover:bg-muted/50 transition-colors"
@@ -427,9 +457,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {project.project_name}
+                            {project.project_path || project.project_name}
                           </TooltipContent>
                         </Tooltip>
+                        {hint && (
+                          <p className="text-caption text-muted-foreground truncate" title={hint}>
+                            {hint}
+                          </p>
+                        )}
                         <p className="text-caption text-muted-foreground">
                           <Num>{t(
                             "analytics.topProjectMeta",
