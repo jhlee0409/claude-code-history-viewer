@@ -71,12 +71,12 @@ const INTERACTIONS = [
  *
  * Two signals per run: the scroll the app asks for (`behavior` of every
  * scrollTo / scrollBy / scrollIntoView call, recorded by a wrapper) and how
- * the page moved (consecutive frames with a scroll event). How many frames a
- * smooth scroll spreads over depends on the engine build: macOS WebKit
- * glides over many, while the Linux CI runner's WebKit showed at most 2 for
- * the same jumps. So "the test can see it" rests on the request, which every
- * build reports the same way, and the frame runs are an extra check where
- * the engine glides.
+ * the page moved (per-scroller scrollTop traces). Instant virtualizer height
+ * corrections may land on consecutive frames too, so the position verdict
+ * checks distributed monotone movement, not event count (lib/motion.mjs).
+ * Engine builds can finish short smooth scrolls in only two frames; the
+ * smooth-request guard independently catches those. A real CSS smooth scroll
+ * in liveMode.test.mjs and synthetic traces exercise the position verdict.
  */
 const SEARCH_PRESSES = 8;
 async function searchScrolls(motion) {
@@ -104,7 +104,12 @@ async function searchScrolls(motion) {
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
     const requests = await session.page.evaluate(() => window.__scrollRequests);
-    return { runs, requests };
+    // CSS can animate an `auto` request too: record every scroller's computed
+    // scroll-behavior so a stylesheet glide is caught without frame timing.
+    const behaviors = await session.page.evaluate(() => [document.scrollingElement, ...document.querySelectorAll("*")]
+      .filter((el) => el && el.scrollHeight > el.clientHeight)
+      .map((el) => getComputedStyle(el).scrollBehavior));
+    return { runs, requests, behaviors };
   } finally {
     await session.close();
   }
@@ -134,13 +139,17 @@ describe.skipIf(!ENABLED)("reduced motion in the running app (real WebKit, --liv
   }, 180_000);
 
   it("search: under prefers-reduced-motion: reduce, every jump to a match is instant", async () => {
-    const { runs, requests } = await searchScrolls("reduce");
-    const detail = JSON.stringify({ requests, frames: runs.map((m) => [m.scrollFrames, m.scrollRun]) });
+    const { runs, requests, behaviors } = await searchScrolls("reduce");
+    const detail = JSON.stringify({ requests, behaviors, runs });
     // The app asks for scrolls (the jumps happen) but never a smooth one ...
     expect(requests.length, detail).toBeGreaterThan(0);
     expect(requests.filter((b) => b === "smooth"), detail).toEqual([]);
-    // ... and the page does not glide (CSS scroll-behavior is off too).
-    expect(runs.map((m) => m.scrollRun).filter((run) => run > 2), detail).toEqual([]);
+    // ... and no scroller lets CSS turn an `auto` request into a glide. The
+    // cause is checked, not the position trace: on a slow runner a real smooth
+    // scroll lands in three frames (0 → 1363 → 1498 → 1500), the same shape as
+    // an instant jump followed by virtualizer measurement corrections.
+    expect(behaviors.length, detail).toBeGreaterThan(0);
+    expect(behaviors.filter((b) => b !== "auto"), detail).toEqual([]);
     for (const m of runs) expect(m.animationsAt).toEqual([0, 0, 0]);
   }, 180_000);
 

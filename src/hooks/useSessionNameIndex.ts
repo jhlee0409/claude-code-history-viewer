@@ -5,12 +5,15 @@
  * match session names across projects, not only inside the open one.
  *
  * Only runs while `enabled` (the filter has a query and session matching is
- * on), so an unused filter costs nothing. Results are cached per project
- * version (path + last_modified) for the app's lifetime; the backend keeps
- * its own on-disk session cache, so even a cold sweep is mostly cache reads.
+ * on), so an unused filter costs nothing. One session list is cached per
+ * project for the app's lifetime, tagged with the project version it was read
+ * at (`last_modified` plus the file watcher's last update for that project).
+ * When the version moves on, the old list keeps matching while the project is
+ * re-read in the background; the backend keeps its own on-disk session cache,
+ * so even a cold sweep is mostly cache reads.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { api } from "@/services/api";
@@ -19,16 +22,26 @@ import type { ClaudeProject, ClaudeSession } from "@/types";
 
 const FETCH_CONCURRENCY = 4;
 
-const sessionListCache = new Map<string, ClaudeSession[]>();
-/**
- * Project versions whose session list could not be read. Not retried until
- * the project changes (a new `last_modified` is a new key), so a broken
- * project is reported once instead of on every keystroke.
- */
-const failedKeys = new Set<string>();
+interface CachedSessionList {
+  version: string;
+  sessions: ClaudeSession[];
+}
 
-const cacheKey = (project: ClaudeProject, excludeSidechain: boolean) =>
-  `${project.provider ?? "claude"}::${project.path}@${project.last_modified}::${excludeSidechain}`;
+const sessionListCache = new Map<string, CachedSessionList>();
+/**
+ * Project versions whose session list could not be read during the current
+ * search session. They count as done (no retry on every keystroke) and are
+ * retried when a new search session starts or the project changes.
+ */
+const failedVersions = new Map<string, string>();
+/** Project versions already reported in a toast, so a failure is told once. */
+const reportedFailures = new Map<string, string>();
+
+const entryId = (project: ClaudeProject, excludeSidechain: boolean) =>
+  `${project.provider ?? "claude"}::${project.path}::${excludeSidechain}`;
+
+const versionOf = (project: ClaudeProject, lastUpdateTime: Record<string, number>) =>
+  `${project.last_modified}@${lastUpdateTime[project.path] ?? 0}`;
 
 const loadProjectSessions = async (
   project: ClaudeProject,
@@ -56,16 +69,18 @@ export interface SessionNameIndex {
   isIndexing: boolean;
 }
 
+/** Latest known session list per project, current or not yet refreshed. */
 const buildFromCache = (projects: readonly ClaudeProject[], excludeSidechain: boolean) => {
   const map = new Map<string, ClaudeSession[]>();
   for (const project of projects) {
-    const hit = sessionListCache.get(cacheKey(project, excludeSidechain));
-    if (hit) map.set(project.path, hit);
+    const hit = sessionListCache.get(entryId(project, excludeSidechain));
+    if (hit) map.set(project.path, hit.sessions);
   }
   return map;
 };
 
-const isDone = (key: string) => sessionListCache.has(key) || failedKeys.has(key);
+const isDone = (id: string, version: string) =>
+  sessionListCache.get(id)?.version === version || failedVersions.get(id) === version;
 
 export function useSessionNameIndex(
   projects: readonly ClaudeProject[],
@@ -73,37 +88,56 @@ export function useSessionNameIndex(
 ): SessionNameIndex {
   const { t } = useTranslation();
   const excludeSidechain = useAppStore((state) => state.excludeSidechain);
+  // Projects whose working directory is gone ("unavailable") still have
+  // readable session files, so they are indexed too. A stable string key
+  // keeps the effect from re-running on every render of an equal-but-new
+  // project array; it only follows watcher updates while enabled.
+  const projectsKey = useAppStore((state) =>
+    enabled
+      ? projects
+          .map((p) => `${entryId(p, excludeSidechain)}@${versionOf(p, state.lastUpdateTime)}`)
+          .join("\n")
+      : ""
+  );
   const [sessionsByProject, setSessionsByProject] = useState<Map<string, ClaudeSession[]>>(
     () => new Map()
   );
   const [isIndexing, setIsIndexing] = useState(false);
-
-  // Projects whose working directory is gone ("unavailable") still have
-  // readable session files, so they are indexed too.
-  const indexable = enabled ? projects : [];
-  // A stable string key keeps the effect from re-running on every render of
-  // an equal-but-new project array.
-  const projectsKey = indexable.map((p) => cacheKey(p, excludeSidechain)).join("\n");
+  const wasEnabled = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
+      wasEnabled.current = false;
       setIsIndexing(false);
       return;
+    }
+    // A new search session gives projects that failed last time another try.
+    if (!wasEnabled.current) {
+      wasEnabled.current = true;
+      failedVersions.clear();
     }
 
     let cancelled = false;
     const targets = projects;
+    const { lastUpdateTime } = useAppStore.getState();
     setSessionsByProject(buildFromCache(targets, excludeSidechain));
 
-    const pending = targets.filter((project) => !isDone(cacheKey(project, excludeSidechain)));
+    const pending = targets.filter(
+      (project) =>
+        !isDone(entryId(project, excludeSidechain), versionOf(project, lastUpdateTime))
+    );
     if (pending.length === 0) {
       setIsIndexing(false);
       return;
     }
 
-    setIsIndexing(true);
+    // Re-reading a project that already has a (older) list is a silent
+    // refresh; only projects with nothing to match yet show progress.
+    setIsIndexing(
+      pending.some((project) => !sessionListCache.has(entryId(project, excludeSidechain)))
+    );
     void (async () => {
-      let failed = 0;
+      let newlyFailed = 0;
       for (let i = 0; i < pending.length; i += FETCH_CONCURRENCY) {
         if (cancelled) return;
         const batch = pending.slice(i, i + FETCH_CONCURRENCY);
@@ -113,23 +147,32 @@ export function useSessionNameIndex(
         if (cancelled) return;
         settled.forEach((outcome, idx) => {
           const project = batch[idx]!;
-          const key = cacheKey(project, excludeSidechain);
+          const id = entryId(project, excludeSidechain);
+          const version = versionOf(project, lastUpdateTime);
           if (outcome.status === "fulfilled") {
-            sessionListCache.set(key, Array.isArray(outcome.value) ? outcome.value : []);
+            sessionListCache.set(id, {
+              version,
+              sessions: Array.isArray(outcome.value) ? outcome.value : [],
+            });
+            failedVersions.delete(id);
+            reportedFailures.delete(id);
           } else {
             // One unreadable project must not break the filter for the rest;
             // it can still match by its name.
             console.error(`Failed to index sessions for ${project.name}:`, outcome.reason);
-            failedKeys.add(key);
-            failed += 1;
+            failedVersions.set(id, version);
+            if (reportedFailures.get(id) !== version) {
+              reportedFailures.set(id, version);
+              newlyFailed += 1;
+            }
           }
         });
         setSessionsByProject(buildFromCache(targets, excludeSidechain));
       }
       if (cancelled) return;
       setIsIndexing(false);
-      if (failed > 0) {
-        toast.error(t("project.filter.indexError", { count: failed }));
+      if (newlyFailed > 0) {
+        toast.error(t("project.filter.indexError", { count: newlyFailed }));
       }
     })();
 
@@ -143,11 +186,11 @@ export function useSessionNameIndex(
   return {
     sessionsByProject,
     loadedCount: enabled
-      ? indexable.filter(
-          (p) => sessionsByProject.has(p.path) || failedKeys.has(cacheKey(p, excludeSidechain))
+      ? projects.filter(
+          (p) => sessionsByProject.has(p.path) || failedVersions.has(entryId(p, excludeSidechain))
         ).length
       : 0,
-    totalCount: indexable.length,
+    totalCount: enabled ? projects.length : 0,
     isIndexing: enabled && isIndexing,
   };
 }
@@ -155,5 +198,6 @@ export function useSessionNameIndex(
 /** Test-only: forget cached session lists and failures. */
 export const clearSessionNameIndexCache = () => {
   sessionListCache.clear();
-  failedKeys.clear();
+  failedVersions.clear();
+  reportedFailures.clear();
 };
