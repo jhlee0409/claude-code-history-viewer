@@ -36,6 +36,28 @@ const sessionListCache = new Map<string, CachedSessionList>();
 const failedVersions = new Map<string, string>();
 /** Project versions already reported in a toast, so a failure is told once. */
 const reportedFailures = new Map<string, string>();
+/** The newest version asked for per project; older answers are dropped. */
+const latestRequested = new Map<string, string>();
+/** Reads in progress by `id@version`, shared by every effect run. */
+const inFlight = new Map<string, Promise<void>>();
+
+// One concurrency limit for every effect run: a run superseded by a watcher
+// update keeps its reads going, so a per-run limit would stack up.
+let activeFetches = 0;
+const waitingForSlot: Array<() => void> = [];
+
+async function withFetchSlot<T>(run: () => Promise<T>): Promise<T> {
+  while (activeFetches >= FETCH_CONCURRENCY) {
+    await new Promise<void>((resolve) => waitingForSlot.push(resolve));
+  }
+  activeFetches += 1;
+  try {
+    return await run();
+  } finally {
+    activeFetches -= 1;
+    waitingForSlot.shift()?.();
+  }
+}
 
 const entryId = (project: ClaudeProject, excludeSidechain: boolean) =>
   `${project.provider ?? "claude"}::${project.path}::${excludeSidechain}`;
@@ -58,6 +80,45 @@ const loadProjectSessions = async (
         projectPath: project.path,
         excludeSidechain,
       });
+};
+
+/**
+ * Reads `project`'s session list at `version` into the cache (or marks it
+ * failed). Never rejects. A read already in progress for the same version is
+ * reused, and one whose version was superseded before it started is skipped.
+ */
+const indexProject = (
+  project: ClaudeProject,
+  excludeSidechain: boolean,
+  version: string
+): Promise<void> => {
+  const id = entryId(project, excludeSidechain);
+  const key = `${id}@${version}`;
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+
+  latestRequested.set(id, version);
+  const isCurrent = () => latestRequested.get(id) === version;
+  const task = withFetchSlot(() =>
+    isCurrent() ? loadProjectSessions(project, excludeSidechain) : Promise.resolve(null)
+  )
+    .then(
+      (sessions) => {
+        if (sessions === null || !isCurrent()) return;
+        sessionListCache.set(id, { version, sessions: Array.isArray(sessions) ? sessions : [] });
+        failedVersions.delete(id);
+        reportedFailures.delete(id);
+      },
+      (reason: unknown) => {
+        // One unreadable project must not break the filter for the rest;
+        // it can still match by its name.
+        console.error(`Failed to index sessions for ${project.name}:`, reason);
+        if (isCurrent()) failedVersions.set(id, version);
+      }
+    )
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, task);
+  return task;
 };
 
 export interface SessionNameIndex {
@@ -122,12 +183,28 @@ export function useSessionNameIndex(
     const { lastUpdateTime } = useAppStore.getState();
     setSessionsByProject(buildFromCache(targets, excludeSidechain));
 
+    // Failures are marked reported only once a toast actually said so: a run
+    // cancelled before its toast leaves them to the next run.
+    const reportFailures = () => {
+      const unreported = targets.filter((project) => {
+        const id = entryId(project, excludeSidechain);
+        const version = versionOf(project, lastUpdateTime);
+        return failedVersions.get(id) === version && reportedFailures.get(id) !== version;
+      });
+      if (unreported.length === 0) return;
+      toast.error(t("project.filter.indexError", { count: unreported.length }));
+      for (const project of unreported) {
+        reportedFailures.set(entryId(project, excludeSidechain), versionOf(project, lastUpdateTime));
+      }
+    };
+
     const pending = targets.filter(
       (project) =>
         !isDone(entryId(project, excludeSidechain), versionOf(project, lastUpdateTime))
     );
     if (pending.length === 0) {
       setIsIndexing(false);
+      reportFailures();
       return;
     }
 
@@ -137,43 +214,16 @@ export function useSessionNameIndex(
       pending.some((project) => !sessionListCache.has(entryId(project, excludeSidechain)))
     );
     void (async () => {
-      let newlyFailed = 0;
-      for (let i = 0; i < pending.length; i += FETCH_CONCURRENCY) {
-        if (cancelled) return;
-        const batch = pending.slice(i, i + FETCH_CONCURRENCY);
-        const settled = await Promise.allSettled(
-          batch.map((project) => loadProjectSessions(project, excludeSidechain))
-        );
-        if (cancelled) return;
-        settled.forEach((outcome, idx) => {
-          const project = batch[idx]!;
-          const id = entryId(project, excludeSidechain);
-          const version = versionOf(project, lastUpdateTime);
-          if (outcome.status === "fulfilled") {
-            sessionListCache.set(id, {
-              version,
-              sessions: Array.isArray(outcome.value) ? outcome.value : [],
-            });
-            failedVersions.delete(id);
-            reportedFailures.delete(id);
-          } else {
-            // One unreadable project must not break the filter for the rest;
-            // it can still match by its name.
-            console.error(`Failed to index sessions for ${project.name}:`, outcome.reason);
-            failedVersions.set(id, version);
-            if (reportedFailures.get(id) !== version) {
-              reportedFailures.set(id, version);
-              newlyFailed += 1;
-            }
-          }
-        });
-        setSessionsByProject(buildFromCache(targets, excludeSidechain));
-      }
+      await Promise.all(
+        pending.map((project) =>
+          indexProject(project, excludeSidechain, versionOf(project, lastUpdateTime)).then(() => {
+            if (!cancelled) setSessionsByProject(buildFromCache(targets, excludeSidechain));
+          })
+        )
+      );
       if (cancelled) return;
       setIsIndexing(false);
-      if (newlyFailed > 0) {
-        toast.error(t("project.filter.indexError", { count: newlyFailed }));
-      }
+      reportFailures();
     })();
 
     return () => {
@@ -200,4 +250,6 @@ export const clearSessionNameIndexCache = () => {
   sessionListCache.clear();
   failedVersions.clear();
   reportedFailures.clear();
+  latestRequested.clear();
+  inFlight.clear();
 };

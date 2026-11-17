@@ -23,6 +23,7 @@ describe("useSessionNameIndex", () => {
     clearSessionNameIndexCache();
     useAppStore.setState({ lastUpdateTime: {} });
     vi.mocked(api).mockReset();
+    vi.mocked(toast.error).mockReset();
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(api).mockImplementation(async (_command, args) => {
       const { projectPath } = args as { projectPath: string };
@@ -39,7 +40,7 @@ describe("useSessionNameIndex", () => {
   });
 
   it("counts a failed project as done and reports it once, retrying it in a new search", async () => {
-    const { result, rerender } = renderHook(
+    const { result, rerender, unmount } = renderHook(
       ({ enabled }) => useSessionNameIndex([good, broken], enabled),
       { initialProps: { enabled: true } }
     );
@@ -60,8 +61,11 @@ describe("useSessionNameIndex", () => {
     rerender({ enabled: false });
     rerender({ enabled: true });
     await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    // The retry has settled once its failure is logged.
+    await waitFor(() => expect(console.error).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(result.current.isIndexing).toBe(false));
     expect(toast.error).toHaveBeenCalledTimes(1);
+    unmount();
   });
 
   it("re-reads a project after a watcher update, keeping its old list meanwhile", async () => {
@@ -75,5 +79,57 @@ describe("useSessionNameIndex", () => {
     expect(result.current.sessionsByProject.get(good.path)).toEqual(goodSessions);
     await waitFor(() => expect(result.current.sessionsByProject.get(good.path)).toEqual(renamed));
     expect(api).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps one concurrency limit across runs superseded by watcher updates", async () => {
+    const many = Array.from({ length: 6 }, (_, i) => project(`p${i}`));
+    let active = 0;
+    let peak = 0;
+    const releases: Array<() => void> = [];
+    vi.mocked(api).mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      active -= 1;
+      return goodSessions;
+    });
+
+    const { result } = renderHook(() => useSessionNameIndex(many, true));
+    await waitFor(() => expect(releases).toHaveLength(4));
+    act(() => useAppStore.getState().markProjectUpdated(many[0]!.path));
+    act(() => useAppStore.getState().markProjectUpdated(many[5]!.path));
+
+    while (result.current.isIndexing || releases.length > 0) {
+      await act(async () => {
+        releases.splice(0).forEach((release) => release());
+        await Promise.resolve();
+      });
+    }
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(result.current.loadedCount).toBe(6);
+  });
+
+  it("still reports a failure when the run that saw it was superseded", async () => {
+    const slow = project("slow");
+    const releases: Array<() => void> = [];
+    vi.mocked(api).mockImplementation(async (_command, args) => {
+      const { projectPath } = args as { projectPath: string };
+      if (projectPath === broken.path) throw new Error("unreadable");
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return goodSessions;
+    });
+
+    const { result } = renderHook(() => useSessionNameIndex([broken, slow], true));
+    await waitFor(() => expect(releases).toHaveLength(1));
+    // The first run saw `broken` fail but is cancelled before its toast.
+    act(() => useAppStore.getState().markProjectUpdated(slow.path));
+    await waitFor(() => expect(releases).toHaveLength(2));
+    await act(async () => {
+      releases.forEach((release) => release());
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.isIndexing).toBe(false));
+    expect(toast.error).toHaveBeenCalledTimes(1);
   });
 });
