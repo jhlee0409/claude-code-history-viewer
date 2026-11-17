@@ -34,7 +34,7 @@ The wrapper fallback is deliberately bounded: only complete registered wrappers 
 - **Attachment-only mid-turn prompts are uncovered:** five `attachment/queued_command` human prompts (`commandMode:"prompt"`, `humanTurn:true`, `origin.kind:"human"`), four stored only as attachments, are excluded by the user-type check. This patch does not invent placement/membership rules for them.
 - **Claude `isMeta` is dead at this frontend boundary:** the backend drops the audited 59 meta records before projection. The defensive predicate branch is not evidence that flags survive. `isCompactSummary` is also dropped; the text-prefix heuristic matched only one audited summary. Forwarding flags is future work.
 
-### Codex goal continuation (P2-C): identity delivered, grouping follow-up ②a2
+### Codex goal continuation (P2-C): identity and grouping delivered
 
 The owner decided that goal-continuation producer turns are separate automated
 turns. Backend item ②a now delivers `codexEvidence.turn.started` and `.context`
@@ -47,7 +47,7 @@ legacy fallback, partial-window policy and verification boundary. Round-4
 measured 278 tasks / 646 tools in full windows (722 including partial windows).
 A context tag without matching producer identity still creates no new cycle.
 
-Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emitter**, not just current-reader compatibility. History search found replacement commit `740d942f901a5a63421298c74dafbeb4255e946d`; its parent `522f549922f6e7b8edbd5e9be3fc720ddb9b256a` defines the user-role wrapper in [goal_context.rs L20–36](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36), emits it from [goals.rs L1599–1601](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601), and uses it for extension steering in [steering.rs L1–12](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/ext/goal/src/steering.rs#L1-L12). Complete wrappers without typed residue classify as context/no turn start; malformed wrappers and mixed human text remain prompts (`legacyGoalContext.test.ts`, AssertionError RED saved). The original audit contained zero local legacy records. This classification correction does **not** implement the still-unwired goal-continuation cycle ownership policy above.
+Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emitter**, not just current-reader compatibility. History search found replacement commit `740d942f901a5a63421298c74dafbeb4255e946d`; its parent `522f549922f6e7b8edbd5e9be3fc720ddb9b256a` defines the user-role wrapper in [goal_context.rs L20–36](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/context/goal_context.rs#L20-L36), emits it from [goals.rs L1599–1601](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/core/src/goals.rs#L1599-L1601), and uses it for extension steering in [steering.rs L1–12](https://github.com/openai/codex/blob/522f549922f6e7b8edbd5e9be3fc720ddb9b256a/codex-rs/ext/goal/src/steering.rs#L1-L12). Complete wrappers without typed residue classify as context/no turn start; malformed wrappers and mixed human text remain prompts (`legacyGoalContext.test.ts`, AssertionError RED saved). The original audit contained zero local legacy records. This classification correction is separate from the already-delivered goal-continuation cycle ownership policy above. The transcript item virtualizer/ledger remains unwired.
 
 ### Shared-classifier consumer inventory
 
@@ -63,7 +63,7 @@ Legacy `<goal_context>…</goal_context>` is now grounded in a **historical emit
 
 A fragment has at most 24 display blocks; with `viewportHeight` and `estimateBlockHeight` it also splits before a block that would exceed three viewports. An individually oversized block remains indivisible. The first fragment owns `turnStart`; every fragment has part/parts and loaded-feed `posinset`. `setsize` is fragment count only when `complete` is explicitly true, otherwise -1. These fields are **not DOM/a11y integration**.
 
-Only consecutive read/search calls whose adapter returns completed/succeeded fold, and only within one fragment of one turn. All other blocks break the run. The call ID is its original `${uuid}#${contentIndex}`; a run is `run:<first-block-id>`; a fragment is `<turn-id>:<first-block-id>`. Paired-result IDs also resolve to their call.
+Only consecutive visible read/search calls whose adapter returns completed/succeeded fold, within one source-ordered segment of one logical turn. Folding and reveal happen before partitioning. A collapsed run counts as one display entry; an expanded run contributes its actual members and keeps one run identity across fragments. Visible noneligible blocks and date/capture separators break runs; renderer-hidden rows do not. The call ID is its original `${uuid}#${contentIndex}`; a run is `run:<first-block-id>`; a fragment is `<turn-id>:<first-block-id>`. Paired-result IDs also resolve to their call.
 
 ## Targets and expansion
 

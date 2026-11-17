@@ -125,6 +125,8 @@
   "filter.content.toolCalls": "도구 호출",
   "filter.content.commands": "명령어",
   "filter.content.parallelTasks": "병렬 작업",
+  "filter.promptsAndFinalReplies": "프롬프트와 최종 응답",
+  "filter.promptsAndFinalRepliesHint": "내 프롬프트와 다음 프롬프트 직전의 마지막 응답만 표시",
   "filter.reset": "필터 초기화",
   "filter.active": "필터 활성",
   "filter.showing": "{{filtered}} / {{total}}",

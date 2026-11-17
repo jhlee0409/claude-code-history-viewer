@@ -125,6 +125,8 @@
   "filter.content.toolCalls": "工具调用",
   "filter.content.commands": "命令",
   "filter.content.parallelTasks": "并行任务",
+  "filter.promptsAndFinalReplies": "提示与最终回复",
+  "filter.promptsAndFinalRepliesHint": "仅显示我的提示，以及下一条提示之前的最后一条回复",
   "filter.reset": "重置筛选",
   "filter.active": "筛选已启用",
   "filter.showing": "{{filtered}} / {{total}}",

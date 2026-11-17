@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-01T04:18:54.294Z
- * 총 키 개수: 2347
+ * 생성 시간: 2026-11-17T14:21:35.979Z
+ * 총 키 개수: 2383
  * Namespace 수: 13
  */
 
@@ -357,7 +357,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (206개)
+ * analytics namespace의 번역 키 (207개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -494,6 +494,7 @@ export type AnalyticsKeys =
   | 'analytics.subTab.label'
   | 'analytics.subTab.overview'
   | 'analytics.subTab.tokens'
+  | 'analytics.subagentShare'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -569,7 +570,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (292개)
+ * session namespace의 번역 키 (323개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -591,6 +592,15 @@ export type SessionKeys =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filter.hint.both'
+  | 'project.filter.indexError'
+  | 'project.filter.indexing'
+  | 'project.filter.matchLabel'
+  | 'project.filter.placeholder.projects'
+  | 'project.filter.placeholder.sessions'
+  | 'project.filter.searchingSessions'
+  | 'project.filter.target.projects'
+  | 'project.filter.target.sessions'
   | 'project.filterPlaceholder'
   | 'project.globalStatsDescription'
   | 'project.grouping'
@@ -622,6 +632,7 @@ export type SessionKeys =
   | 'project.select'
   | 'project.selectToView'
   | 'project.sessions.empty'
+  | 'project.sessions.filterMatches'
   | 'project.sessions.loadError'
   | 'project.sessions.showAll'
   | 'project.sessions.showFewer'
@@ -777,6 +788,22 @@ export type SessionKeys =
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
+  | 'session.move.confirm'
+  | 'session.move.description'
+  | 'session.move.error'
+  | 'session.move.errorActive'
+  | 'session.move.errorExists'
+  | 'session.move.errorRecent'
+  | 'session.move.leftover'
+  | 'session.move.menuItem'
+  | 'session.move.metadataError'
+  | 'session.move.noProjects'
+  | 'session.move.reopenError'
+  | 'session.move.resumeNote'
+  | 'session.move.searchLabel'
+  | 'session.move.searchPlaceholder'
+  | 'session.move.success'
+  | 'session.move.title'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.descriptionCodex'
@@ -797,6 +824,10 @@ export type SessionKeys =
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.tooltip'
+  | 'session.nativeRename.tooltipCodex'
+  | 'session.nativeRename.tooltipForgeCode'
+  | 'session.nativeRename.tooltipOpenCode'
   | 'session.nativeRename.warning'
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
@@ -814,6 +845,7 @@ export type SessionKeys =
   | 'session.renameHint'
   | 'session.renameMenuItem'
   | 'session.renamePlaceholder'
+  | 'session.renameTooltip'
   | 'session.resetError'
   | 'session.resetName'
   | 'session.resumeUnavailableLocation'
@@ -1554,7 +1586,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (124개)
+ * message namespace의 번역 키 (126개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1565,6 +1597,8 @@ export type MessageKeys =
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
   | 'filter.contentTypes'
+  | 'filter.promptsAndFinalReplies'
+  | 'filter.promptsAndFinalRepliesHint'
   | 'filter.reset'
   | 'filter.role.assistant'
   | 'filter.role.user'
@@ -1684,7 +1718,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (442개)
+ * renderers namespace의 번역 키 (444개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1924,6 +1958,8 @@ export type RenderersKeys =
   | 'globalSearch.scope.pinnedAria'
   | 'globalSearch.scope.project'
   | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.sidebar'
+  | 'globalSearch.scope.sidebarHint'
   | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
@@ -2634,6 +2670,7 @@ export type TranslationKey =
   | 'analytics.subTab.label'
   | 'analytics.subTab.overview'
   | 'analytics.subTab.tokens'
+  | 'analytics.subagentShare'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -3370,6 +3407,8 @@ export type TranslationKey =
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
   | 'filter.contentTypes'
+  | 'filter.promptsAndFinalReplies'
+  | 'filter.promptsAndFinalRepliesHint'
   | 'filter.reset'
   | 'filter.role.assistant'
   | 'filter.role.user'
@@ -3436,6 +3475,8 @@ export type TranslationKey =
   | 'globalSearch.scope.pinnedAria'
   | 'globalSearch.scope.project'
   | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.sidebar'
+  | 'globalSearch.scope.sidebarHint'
   | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
@@ -3607,6 +3648,15 @@ export type TranslationKey =
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
+  | 'project.filter.hint.both'
+  | 'project.filter.indexError'
+  | 'project.filter.indexing'
+  | 'project.filter.matchLabel'
+  | 'project.filter.placeholder.projects'
+  | 'project.filter.placeholder.sessions'
+  | 'project.filter.searchingSessions'
+  | 'project.filter.target.projects'
+  | 'project.filter.target.sessions'
   | 'project.filterPlaceholder'
   | 'project.globalStatsDescription'
   | 'project.grouping'
@@ -3638,6 +3688,7 @@ export type TranslationKey =
   | 'project.select'
   | 'project.selectToView'
   | 'project.sessions.empty'
+  | 'project.sessions.filterMatches'
   | 'project.sessions.loadError'
   | 'project.sessions.showAll'
   | 'project.sessions.showFewer'
@@ -3895,6 +3946,22 @@ export type TranslationKey =
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
+  | 'session.move.confirm'
+  | 'session.move.description'
+  | 'session.move.error'
+  | 'session.move.errorActive'
+  | 'session.move.errorExists'
+  | 'session.move.errorRecent'
+  | 'session.move.leftover'
+  | 'session.move.menuItem'
+  | 'session.move.metadataError'
+  | 'session.move.noProjects'
+  | 'session.move.reopenError'
+  | 'session.move.resumeNote'
+  | 'session.move.searchLabel'
+  | 'session.move.searchPlaceholder'
+  | 'session.move.success'
+  | 'session.move.title'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.descriptionCodex'
@@ -3915,6 +3982,10 @@ export type TranslationKey =
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.tooltip'
+  | 'session.nativeRename.tooltipCodex'
+  | 'session.nativeRename.tooltipForgeCode'
+  | 'session.nativeRename.tooltipOpenCode'
   | 'session.nativeRename.warning'
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
@@ -3932,6 +4003,7 @@ export type TranslationKey =
   | 'session.renameHint'
   | 'session.renameMenuItem'
   | 'session.renamePlaceholder'
+  | 'session.renameTooltip'
   | 'session.resetError'
   | 'session.resetName'
   | 'session.resumeUnavailableLocation'

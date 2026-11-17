@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use super::timestamp_fill::fill_missing_timestamps;
 use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
@@ -64,7 +65,9 @@ struct SessionMetadataCache {
 // stale caches must be invalidated to recompute project_name.
 // Bumped 11 -> 12: Claude Code `ai-title` records now set the session title
 // (and are no longer counted as messages); stale caches must be invalidated.
-const CACHE_VERSION: u32 = 12;
+// Bumped 12 -> 13: Claude Code `api-request*` records are no longer counted as
+// messages, so a cached count could keep a subagent transcript listed (#735).
+const CACHE_VERSION: u32 = 13;
 const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
 const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
@@ -183,6 +186,10 @@ struct LineClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    // Presence only (no allocation): the parser drops a line with neither.
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
 }
 
 /// Minimal struct for extracting session metadata without full message parsing
@@ -711,7 +718,7 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 10] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
@@ -722,6 +729,17 @@ const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
     "agent-name",
     // Claude Code's auto-generated session title; used as the session name, not a message.
     "ai-title",
+    // Claude Code's record of each API request it sent (2.1.302 and later): the
+    // request, its content-addressed message blobs, and its prompt shape. A blob's
+    // `message` repeats a conversation message, and none of these records carries
+    // `isSidechain`, so counting them listed every subagent transcript as a
+    // session of its own (#735). Real-record counts, keys only: the 60 newest
+    // local transcripts on 2026-11-07 (Claude Code 2.1.317 to 2.1.319) held
+    // 1,541 `api-request`, 1,749 `api-request-blob` and 89 `api-request-shape`
+    // records, and no record of the three types had an `isSidechain` key.
+    "api-request",
+    "api-request-blob",
+    "api-request-shape",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -1894,9 +1912,7 @@ fn parse_line_simd(
             session_id: log_entry
                 .session_id
                 .unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry
-                .timestamp
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
             ..Default::default()
@@ -1943,9 +1959,7 @@ fn parse_line_simd(
         session_id: log_entry
             .session_id
             .unwrap_or_else(|| "unknown-session".to_string()),
-        timestamp: log_entry
-            .timestamp
-            .unwrap_or_else(|| Utc::now().to_rfc3339()),
+        timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
         tool_use: log_entry.tool_use.or(extracted_tool_use),
@@ -2067,6 +2081,11 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
 
     // Sort by line number to maintain original order
     messages.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let end = line_starts.get(i + 1).map_or(mmap.len(), |&e| e - 1);
+        &mmap[line_starts[i]..end]
+    };
+    fill_missing_timestamps(line_starts.len(), line_at, &mut messages);
     Ok(messages.into_iter().map(|(_, msg)| msg).collect())
 }
 
@@ -2273,7 +2292,10 @@ fn read_subagent_tool_use_id(meta_path: &Path, root: &Path) -> Option<String> {
 /// Metadata extraction from a subagent JSONL file, read inside `root`.
 ///
 /// Scans all lines to count messages, extract first/last timestamps, and find
-/// the first user message content as a summary. The size is the opened
+/// the first user message content as a summary. Only lines the viewer shows
+/// count (`is_viewer_visible_line`, sidechain lines included, since every
+/// conversation line of a subagent transcript is one), so the "N messages"
+/// label matches what opening the transcript loads. The size is the opened
 /// file's own; a file that cannot be opened lists as empty.
 fn extract_subagent_metadata(
     path: &PathBuf,
@@ -2283,7 +2305,7 @@ fn extract_subagent_metadata(
         return (0, 0, None, None, None);
     };
     let reader = std::io::BufReader::new(file);
-    let mut line_count: usize = 0;
+    let mut message_count: usize = 0;
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
@@ -2292,14 +2314,20 @@ fn extract_subagent_metadata(
         if line.trim().is_empty() {
             continue;
         }
-        line_count += 1;
 
         // Parse only the fields we need with a minimal struct
         #[derive(serde::Deserialize)]
         struct MinimalEntry {
             timestamp: Option<String>,
+            #[serde(rename = "sessionId")]
+            session_id: Option<String>,
             #[serde(rename = "type")]
             msg_type: Option<String>,
+            subtype: Option<String>,
+            #[serde(rename = "isSidechain")]
+            is_sidechain: Option<bool>,
+            #[serde(rename = "isMeta")]
+            is_meta: Option<bool>,
             message: Option<MinimalMessage>,
         }
         #[derive(serde::Deserialize)]
@@ -2309,6 +2337,21 @@ fn extract_subagent_metadata(
         }
 
         if let Ok(entry) = serde_json::from_str::<MinimalEntry>(&line) {
+            let visible = entry.msg_type.as_deref().is_some_and(|msg_type| {
+                is_viewer_visible_line(
+                    msg_type,
+                    entry.subtype.as_deref(),
+                    entry.is_sidechain,
+                    entry.is_meta,
+                    entry.session_id.is_some() || entry.timestamp.is_some(),
+                    false,
+                )
+            });
+            if !visible {
+                continue;
+            }
+            message_count += 1;
+
             if let Some(ref ts) = entry.timestamp {
                 if first_time.is_none() {
                     first_time = Some(ts.clone());
@@ -2337,18 +2380,33 @@ fn extract_subagent_metadata(
         }
     }
 
-    (metadata.len(), line_count, first_time, last_time, summary)
+    (
+        metadata.len(),
+        message_count,
+        first_time,
+        last_time,
+        summary,
+    )
 }
 
 /// Shared viewer-visibility rules for a classified JSONL line.
 /// Must stay in sync with the filtering in `load_session_messages`.
+///
+/// `has_session_or_timestamp`: whether the line carries `sessionId` or
+/// `timestamp`. The parser drops a line with neither (a forked agent's
+/// `fork-context-ref`, for one), so counting it would leave a total that no
+/// page can reach, and `has_more` would stay true (#768).
 fn is_viewer_visible_line(
     message_type: &str,
     subtype: Option<&str>,
     is_sidechain: Option<bool>,
     is_meta: Option<bool>,
+    has_session_or_timestamp: bool,
     exclude_sidechain: bool,
 ) -> bool {
+    if !has_session_or_timestamp {
+        return false;
+    }
     if message_type == "summary" {
         return false;
     }
@@ -2384,6 +2442,7 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude_sidechain,
         );
     }
@@ -2403,6 +2462,9 @@ struct LineUuidClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
     uuid: Option<String>,
 }
 
@@ -2451,6 +2513,7 @@ pub fn get_session_message_offset(
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude,
         ) {
             continue;
@@ -2519,6 +2582,11 @@ fn load_message_window_from_file(
         .collect();
 
     parsed.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let (start, end) = line_ranges[i];
+        &mmap[start..end]
+    };
+    fill_missing_timestamps(line_ranges.len(), line_at, &mut parsed);
     let messages: Vec<ClaudeMessage> = parsed.into_iter().map(|(_, msg)| msg).collect();
 
     Ok((messages, total_count, start_idx == 0))
@@ -2734,6 +2802,243 @@ mod tests {
             .unwrap();
         let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
         assert_eq!(types, vec!["user", "assistant"]);
+    }
+
+    /// Claude Code (2.1.302 and later) request bookkeeping: one `api-request-shape`,
+    /// two `api-request-blob` and one `api-request` record. The key sets match real
+    /// transcripts. None of the records carries `isSidechain`, not even in a subagent
+    /// transcript, and a blob's `message` has the shape of a conversation message.
+    fn create_sample_api_request_records(session_id: &str, agent_id: Option<&str>) -> String {
+        let agent = agent_id.map_or(String::new(), |id| format!(r#","agentId":"{id}""#));
+        [
+            format!(
+                r#"{{"type":"api-request-shape","sessionId":"{session_id}"{agent},"shapeHash":"s1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","shape":{{"system":[]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h1","message":{{"role":"user","content":"Hello"}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h2","message":{{"role":"assistant","content":[{{"type":"text","text":"Hi!"}}]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request","sessionId":"{session_id}"{agent},"id":"req-1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","querySource":"repl_main_thread","shapeHash":"s1","params":{{}},"keep":0,"tail":["h1","h2"],"cacheControl":{{}},"requestDigest":"d1"}}"#
+            ),
+        ]
+        .join("\n")
+    }
+
+    /// A subagent transcript as Claude Code writes it: every conversation line is a
+    /// sidechain line, and the request records interleave with them.
+    fn create_sample_subagent_transcript(session_id: &str, agent_id: &str) -> String {
+        format!(
+            r#"{{"uuid":"sub-1","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:02:00Z","type":"user","isSidechain":true,"message":{{"role":"user","content":"Subtask"}}}}
+{records}
+{{"uuid":"sub-2","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:03:00Z","type":"assistant","isSidechain":true,"message":{{"role":"assistant","content":[{{"type":"text","text":"Done"}}],"id":"msg_sub","model":"claude-opus-4-20250514","usage":{{"input_tokens":10,"output_tokens":5}}}}}}
+"#,
+            records = create_sample_api_request_records(session_id, Some(agent_id)),
+        )
+    }
+
+    fn create_sample_session_with_api_requests(session_id: &str) -> String {
+        format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", session_id, "Hello"),
+            create_sample_api_request_records(session_id, None),
+            create_sample_assistant_message("uuid-2", session_id, "Hi!"),
+        )
+    }
+
+    /// A project folder holding one session and one of its subagent transcripts at
+    /// `<session>/subagents/agent-<id>.jsonl`, the layout Claude Code writes.
+    fn create_project_with_subagent_transcript() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(
+            temp_dir.path().join("session-1.jsonl"),
+            create_sample_session_with_api_requests("session-1"),
+        )
+        .unwrap();
+        let subagents = temp_dir.path().join("session-1").join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-a1.jsonl"),
+            create_sample_subagent_transcript("session-1", "a1"),
+        )
+        .unwrap();
+        temp_dir
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_viewer_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(
+            &temp_dir,
+            "test.jsonl",
+            &create_sample_session_with_api_requests("session-1"),
+        );
+        let file_path = file_path.to_string_lossy().to_string();
+
+        let messages = load_session_messages(file_path.clone()).await.unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(types, vec!["user", "assistant"]);
+
+        let page = load_session_messages_paginated(file_path, 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_counted() {
+        let content = create_sample_session_with_api_requests("session-1");
+        let session = load_single_session(&content).await;
+        assert_eq!(session.message_count, 2);
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let count = get_session_message_count(file_path.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    /// #735: with the sidechain filter on, a subagent transcript must not be listed
+    /// as a session of its own just because its request records lack `isSidechain`.
+    #[tokio::test]
+    async fn test_sidechain_filter_hides_subagent_transcript_with_api_request_records() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+
+        // The fixture is reachable: without the filter both files are listed.
+        let all = load_project_sessions(project_path.clone(), None)
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 2);
+
+        let filtered = load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+        assert_eq!(filtered[0].message_count, 2);
+
+        let page = load_project_sessions_page(project_path, Some(true), Some(0), Some(10))
+            .await
+            .unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.sessions.len(), 1);
+    }
+
+    /// A metadata cache written before request records were excluded holds their
+    /// counts. It must be reparsed rather than trusted, or every subagent transcript
+    /// it lists stays listed until the file changes.
+    #[tokio::test]
+    async fn test_cache_from_before_api_request_exclusion_is_reparsed() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+
+        // Rewrite the cache as the previous version left it: version 12, and the
+        // subagent transcript's count including its four request records.
+        let cache_path = temp_dir.path().join(".session_cache.json");
+        let mut cache: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cache_path).unwrap()).unwrap();
+        cache["version"] = serde_json::json!(12);
+        let entries = cache["entries"].as_object_mut().unwrap();
+        let (_, subagent_entry) = entries
+            .iter_mut()
+            .find(|(path, _)| path.contains("agent-a1.jsonl"))
+            .expect("the subagent transcript is cached");
+        let count = subagent_entry["session"]["message_count"].as_u64().unwrap();
+        subagent_entry["session"]["message_count"] = serde_json::json!(count + 4);
+        std::fs::write(&cache_path, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let filtered = load_project_sessions(project_path, Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+    }
+
+    /// The subagent list labels each transcript "N messages", and the Inspector
+    /// shows the same count after opening it. It must match what the viewer then
+    /// loads, so request records are not counted here either.
+    #[tokio::test]
+    async fn test_subagent_message_count_matches_viewer() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(subagents.len(), 1);
+
+        // Every line of a subagent transcript is a sidechain line, so the viewer
+        // opens it with the sidechain filter off.
+        let page = load_session_messages_paginated(subagents[0].file_path.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+        assert_eq!(subagents[0].message_count, page.total_count);
+    }
+
+    /// A forked agent's transcript opens with a `fork-context-ref` record, which has
+    /// neither `sessionId` nor `timestamp`. The parser drops such lines, so the
+    /// subagent count must not include them.
+    #[tokio::test]
+    async fn test_subagent_message_count_skips_lines_the_parser_drops() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+        let agent_path = temp_dir
+            .path()
+            .join("session-1")
+            .join("subagents")
+            .join("agent-a1.jsonl");
+        // Key set copied from real forked-agent transcripts; values are invented.
+        let fork_ref = r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"session-1","parentLastUuid":"uuid-2","contextLength":2}"#;
+        let transcript = std::fs::read_to_string(&agent_path).unwrap();
+        std::fs::write(&agent_path, format!("{fork_ref}\n{transcript}")).unwrap();
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        let loaded = load_session_messages(agent_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(subagents[0].message_count, loaded.len());
+
+        // The paginated loader and the count API must agree. A total that counts
+        // the dropped line left `has_more` true forever: each "load earlier" page
+        // read only that line, parsed nothing, and kept the same offset.
+        let agent = agent_path.to_string_lossy().to_string();
+        let page = load_session_messages_paginated(agent.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.messages.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert!(!page.has_more);
+        assert_eq!(get_session_message_count(agent, None).await.unwrap(), 2);
+    }
+
+    /// The fast classifier checks only that `sessionId` or `timestamp` is present.
+    /// A JSON `null` must read as absent, as it does for the parser's
+    /// `Option<String>`, or such a line would be counted but never load.
+    #[test]
+    fn test_classify_line_fast_requires_session_id_or_timestamp() {
+        let fast = |line: &str| classify_line_fast(line.as_bytes(), false);
+        assert!(fast(r#"{"type":"user","sessionId":"s"}"#));
+        assert!(fast(
+            r#"{"type":"user","timestamp":"2025-06-26T10:00:00Z"}"#
+        ));
+        assert!(!fast(r#"{"type":"user"}"#));
+        assert!(!fast(
+            r#"{"type":"user","sessionId":null,"timestamp":null}"#
+        ));
+        assert!(!fast(
+            r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"s","parentLastUuid":"u","contextLength":2}"#
+        ));
     }
 
     #[tokio::test]
@@ -2972,6 +3277,77 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 3);
         assert!(page.has_more);
+    }
+
+    /// An undated record the viewer still shows (`mode` carries no `timestamp`).
+    /// Not `api-request-blob`: #768 excludes the request records from the viewer.
+    fn create_sample_undated_record(session_id: &str) -> String {
+        format!(r#"{{"type":"mode","sessionId":"{session_id}","mode":"normal"}}"#)
+    }
+
+    #[tokio::test]
+    async fn test_undated_message_inherits_previous_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        let timestamps: Vec<&str> = messages.iter().map(|m| m.timestamp.as_str()).collect();
+        assert_eq!(
+            timestamps,
+            [
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T11:00:00Z"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leading_undated_message_takes_next_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(messages[0].timestamp, "2025-06-26T10:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn test_paginated_undated_message_looks_before_its_page() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        // offset counts from the end: skip "second", take only the blob.
+        let page =
+            load_session_messages_paginated(file_path.to_string_lossy().to_string(), 1, 1, None)
+                .await
+                .unwrap();
+
+        assert_eq!(page.messages.len(), 1);
+        assert_eq!(page.messages[0].message_type, "mode");
+        assert_eq!(page.messages[0].timestamp, "2025-06-26T10:00:00Z");
     }
 
     #[tokio::test]

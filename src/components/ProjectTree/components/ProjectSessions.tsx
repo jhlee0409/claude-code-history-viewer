@@ -13,6 +13,9 @@ import type { SessionSelectHandler } from "../types";
 /** Sessions an expanded project shows before "Show all" (plan T7). */
 export const SESSION_PREVIEW_COUNT = 5;
 
+const byNewest = (a: ClaudeSession, b: ClaudeSession) =>
+  new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime();
+
 interface SessionPage {
   sessions: ClaudeSession[];
   total: number;
@@ -90,6 +93,10 @@ interface ProjectSessionsProps {
  * offers "Show all" whenever the list has those controls, even when the
  * preview already shows every session: it is their only route outside the
  * selection mode.
+ *
+ * When the sidebar filter shows this project only because some of its
+ * sessions matched by name, both the preview and the full list hold just
+ * those sessions.
  */
 export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   project,
@@ -111,25 +118,45 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
   const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
   const handleSessionSelectionClick = useAppStore((s) => s.handleSessionSelectionClick);
-  const preview = useSessionPreview(project, !isOpen);
-
-  const newest = useMemo(
-    () =>
-      [...sessions]
-        .sort((a, b) => new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime())
-        .slice(0, SESSION_PREVIEW_COUNT),
-    [sessions]
+  const filterMatches = useAppStore(
+    (s) => s.sidebarFilterResult?.sessionMatchesByProject[project.path]
   );
+  // The matches come from a full session list, so paging is moot. The open
+  // project's own copy of a session is preferred: the file watcher keeps it
+  // fresh.
+  const matched = useMemo(() => {
+    if (!filterMatches) return null;
+    const loadedById = new Map(
+      (isOpen ? sessions : []).map((session) => [session.session_id, session])
+    );
+    return filterMatches
+      .map((session) => loadedById.get(session.session_id) ?? session)
+      .sort(byNewest);
+  }, [filterMatches, isOpen, sessions]);
+  const preview = useSessionPreview(project, !isOpen && !matched);
+
+  const listed = matched ?? sessions;
+  const newest = useMemo(
+    () => [...listed].sort(byNewest).slice(0, SESSION_PREVIEW_COUNT),
+    [listed]
+  );
+
+  const matchesHint = matched ? (
+    <div role="status" className="h-6 flex items-center pl-8 pr-2 text-caption text-muted-foreground">
+      <span className="truncate">{t("project.sessions.filterMatches", { count: matched.length })}</span>
+    </div>
+  ) : null;
 
   if (isOpen && (showAll || isSelectionMode)) {
     return (
       <div role="group">
+        {matchesHint}
         <SessionList
-          sessions={sessions}
-          sessionsTotal={sessionsTotal}
-          hasMoreSessions={hasMoreSessions}
+          sessions={listed}
+          sessionsTotal={matched ? matched.length : sessionsTotal}
+          hasMoreSessions={matched ? false : hasMoreSessions}
           selectedSession={selectedSession}
-          isLoading={isLoading}
+          isLoading={matched ? false : isLoading}
           isLoadingMoreSessions={isLoadingMoreSessions}
           onSessionSelect={(session) => onSessionSelect(session, project)}
           onSessionHover={onSessionHover}
@@ -144,9 +171,17 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
     );
   }
 
-  const rows = isOpen ? newest : (preview.page?.sessions ?? []);
-  const total = isOpen ? sessionsTotal : (preview.page?.total ?? project.session_count);
-  const loading = isOpen ? isLoading && sessions.length === 0 : preview.page === null && !preview.failed;
+  const rows = isOpen || matched ? newest : (preview.page?.sessions ?? []);
+  const total = matched
+    ? matched.length
+    : isOpen
+      ? sessionsTotal
+      : (preview.page?.total ?? project.session_count);
+  const loading = matched
+    ? false
+    : isOpen
+      ? isLoading && sessions.length === 0
+      : preview.page === null && !preview.failed;
 
   if (loading) {
     return <LoadingRows label={t("common.loadingSessions")} compact className="pl-7 py-2" />;
@@ -162,7 +197,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
 
   // A Shift+click in the open project's preview starts a selection over its
   // full list (the preview is part of it). Elsewhere it opens the session.
-  const orderedIds = sessions.map((s) => s.session_id);
+  const orderedIds = listed.map((s) => s.session_id);
   const startSelection = (session: ClaudeSession) => {
     enterSessionSelectionMode();
     if (selectedSession && selectedSession.session_id !== session.session_id && orderedIds.includes(selectedSession.session_id)) {
@@ -173,6 +208,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
 
   return (
     <div role="group">
+      {matchesHint}
       {rows.map((session) => (
         <SessionItem
           key={session.file_path}

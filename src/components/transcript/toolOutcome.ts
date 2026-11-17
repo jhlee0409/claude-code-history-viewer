@@ -253,6 +253,20 @@ export function normalizeResult(
     if (error === true || (typeof error === "string" && error.length > 0) || isPlainObject(error)) out.isError = true;
   }
   if (core && own) {
+    // OpenCode 2.x user-run commands (`!cmd`) are their own `shell` rows with
+    // the Shell.Info status enum. The agent's tool is also named `shell`, so
+    // the status tells them apart: tool states are only streaming, running,
+    // completed or error. `exited` carries the exit code; `timeout` and
+    // `killed` mean the command was stopped.
+    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/shell.ts#L25
+    // https://github.com/anomalyco/opencode/blob/a3d6e54b3dff0975d01a7307464ef7be9fa6b1ee/packages/schema/src/session-message.ts#L120-L166
+    if (options.provider === "opencode" && options.rawToolName === "shell" && options.bareCodeIsExitCode) {
+      if (own.status === "exited") {
+        const exit = recordedInteger(own.exit);
+        if (exit !== undefined) out.exitCode = exit;
+      }
+      if (own.status === "timeout" || own.status === "killed") out.interrupted = true;
+    }
     // For non-process tools a normal return is completed; throws become error.
     // https://github.com/anomalyco/opencode/blob/b9a39b816c92592e824c68cdc9a48acf7717e2a2/packages/opencode/src/session/prompt.ts#L1115-L1160
     // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
@@ -671,9 +685,25 @@ export function recordedResultFields(result: ToolResultLike, provider?: string):
   const pi = provider === "pi" || provider === "ompi";
   const core = provider === "opencode" || provider === "kilo";
   const execution = codex || provider === "openhands";
+  const shown = JSON.stringify(result.content);
+  // OpenCode 2.x keeps the output as `content: [{type:"text"}, ...]` and the
+  // error as `{type, message}`; the backend shows the text, so these echo it.
+  const coreV2Echo = (key: string, v: unknown): boolean => {
+    if (key !== "content" || !Array.isArray(v)) return false;
+    if (JSON.stringify(v) === shown) return true;
+    const texts = v.map(item => isPlainObject(item) && item.type === "text" && typeof item.text === "string" ? item.text : undefined);
+    return texts.every(text => text !== undefined) && JSON.stringify(texts.join("\n")) === shown;
+  };
   const remaining = (value: Record<string, unknown>, nested = false): Record<string, unknown> => Object.fromEntries(Object.entries(value).flatMap(([key, v]) => {
     const executionLevel = codex || (provider === "openhands" && nested);
-    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === JSON.stringify(result.content) && v !== null) return [];
+    if (!nested && core && coreV2Echo(key, v)) return [];
+    // Only the shown `message` is an echo; the error's other fields (its
+    // `type`, for one) are still recorded data.
+    if (!nested && core && key === "error" && isPlainObject(v) && JSON.stringify(v.message) === shown) {
+      const rest = Object.fromEntries(Object.entries(v).filter(([field]) => field !== "message"));
+      return Object.keys(rest).length > 0 ? [[key, rest]] : [];
+    }
+    if (!nested && (((codex || core) && (key === "output" || key === "error")) || (pi && key === "content")) && JSON.stringify(v) === shown && v !== null) return [];
     if (!nested && key === "error_code" && v === n.errorCode) return [];
     if (executionLevel && EXIT_CODE_KEYS.includes(key as typeof EXIT_CODE_KEYS[number]) && typeof v === "number" && v === n.exitCode && !n.exitCodeConflict) return [];
     if (executionLevel && key === "interrupted" && v === true && n.interrupted === true) return [];

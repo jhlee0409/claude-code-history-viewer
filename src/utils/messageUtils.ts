@@ -115,24 +115,40 @@ export const formatClaudeErrorOutput = (error: string) => {
 export const isImageUrl = (url: string): boolean => {
   if (!url || typeof url !== "string") return false;
 
-  // data URL 형태의 이미지
-  if (url.startsWith("data:image/")) return true;
+  const value = url.trim();
+  // URL parsing normalizes some whitespace, so reject it before parsing. A
+  // filename or a sentence containing a URL must remain ordinary message text.
+  if (!/^https?:\/\//i.test(value) || /\s/.test(value)) return false;
 
-  // 파일 확장자로 이미지 판단
-  const imageExtensions = /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)(\?.*)?$/i;
-  return imageExtensions.test(url);
+  try {
+    const parsed = new URL(value);
+    return /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 };
 
 export const isBase64Image = (data: string): boolean => {
   if (!data || typeof data !== "string") return false;
-  return data.startsWith("data:image/");
+
+  const match = /^data:image\/[a-z0-9.+-]+(?:;[a-z0-9!#$%&'*+.^_`|~-]+=[^;,\s]+)*;base64,([a-z0-9+/]+={0,2})$/i.exec(data.trim());
+  const payload = match?.[1];
+  if (!payload) return false;
+
+  // MIME parameters may precede ;base64. Keep the whole-value rule above so
+  // prose and code stay text. Browser Base64 decoding permits omitted padding,
+  // but a padded value must have complete quartets and one leftover character
+  // can never form a byte. This checks encoding syntax, not the image's bytes.
+  return payload.includes("=")
+    ? payload.length % 4 === 0
+    : payload.length % 4 !== 1;
 };
 
 export const extractImageFromContent = (content: unknown): string | null => {
   // 직접 이미지 URL이나 base64인 경우
   if (typeof content === "string") {
     if (isImageUrl(content) || isBase64Image(content)) {
-      return content;
+      return content.trim();
     }
   }
 
@@ -146,14 +162,13 @@ export const extractImageFromContent = (content: unknown): string | null => {
         }
       }
 
-      // 텍스트 안에 이미지 URL이 있는 경우
-      if (item.type === "text" && item.text) {
-        const imageMatch = item.text.match(
-          /(data:image\/[^;\s]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|svg|webp))/i
-        );
-        if (imageMatch) {
-          return imageMatch[1];
-        }
+      // Text blocks use the same whole-value rule as string content.
+      if (
+        item.type === "text" &&
+        typeof item.text === "string" &&
+        (isImageUrl(item.text) || isBase64Image(item.text))
+      ) {
+        return item.text.trim();
       }
     }
   }

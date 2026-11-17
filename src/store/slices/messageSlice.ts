@@ -579,6 +579,9 @@ export const createMessageSlice: StateCreator<
       return;
     }
 
+    // An in-place reload takes over an older page's loading flag. Keep the
+    // exact pagination it inherited so cleanup cannot stop a successor page.
+    const ownedPagination = get().pagination;
     try {
       const sessionPath = session.file_path;
       const start = performance.now();
@@ -668,6 +671,13 @@ export const createMessageSlice: StateCreator<
       // and nothing else would. A newer load of a session has taken it over.
       if (owner.ownsSpinner() && get().isLoadingMessages) {
         set({ isLoadingMessages: false });
+      }
+      if (
+        owner.ownsSpinner() &&
+        get().pagination === ownedPagination &&
+        ownedPagination.isLoadingMore
+      ) {
+        set({ pagination: { ...ownedPagination, isLoadingMore: false } });
       }
     }
   },

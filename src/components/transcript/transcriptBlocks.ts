@@ -3,20 +3,23 @@ import { contentEntries } from "../contentRenderer/contentEntries";
 import { getMessageKind } from "../MessageViewer/helpers/messageKinds";
 import { legacyToolCallOutcome, toolFamily, toolOutcome } from "./toolOutcome";
 import type { TranscriptBlock } from "./transcriptItems";
+import { sourceRoute } from "./sourceEnvelope";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /** Reuse the existing content pairing. This layer never walks trees or parses result evidence. */
 export function transcriptBlocks(source: FlattenedMessageItem): TranscriptBlock[] {
   const message = source.message;
+  const route = sourceRoute(source);
   const rendererSource = { ...source };
   Reflect.deleteProperty(rendererSource, "originalIndex");
   const grouped = source.isGroupLeader || source.isGroupMember || source.isProgressGroupLeader || source.isProgressGroupMember || source.isTaskOperationGroupLeader || source.isTaskOperationGroupMember;
   const arrayContent = Array.isArray(message.content) && message.content.length > 0;
   const legacyUse = message.type === "assistant" && !arrayContent ? message.toolUse : undefined;
   const content: unknown[] = arrayContent ? message.content as unknown[] : [legacyUse ?? message.content];
-  const entries = grouped ? [{ kind: "item" as const, key: "group", index: 0, item: message.content }] : contentEntries(content);
-  return entries.map(entry => {
+  const sourceOwned = grouped || route !== "default" || !arrayContent;
+  const entries = sourceOwned ? [{ kind: "item" as const, key: "source", index: 0, item: legacyUse ?? message.content }] : contentEntries(content);
+  return entries.map((entry, position) => {
     const paired = entry.kind !== "item";
     const value = paired ? entry.toolUse : entry.item;
     const index = paired ? content.indexOf(entry.toolUse) : entry.index;
@@ -34,6 +37,7 @@ export function transcriptBlocks(source: FlattenedMessageItem): TranscriptBlock[
       id: `${message.uuid}#${index}`, messageUuid: message.uuid, contentIndex: index,
       sourceBlockIds: [index, ...results.map(result => content.indexOf(result))].map(i => `${message.uuid}#${i}`),
       kind, source: rendererSource, value, outcome,
+      render: sourceOwned ? { kind: "source", route } : { kind: "content", entry, first: position === 0, last: position === entries.length - 1 },
       foldable: family === "read-search" && outcome?.lifecycle === "completed" && outcome.verdict === "succeeded",
       file: typeof path === "string" ? path : undefined,
     };
