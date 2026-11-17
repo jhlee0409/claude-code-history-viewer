@@ -621,9 +621,11 @@ pub fn export_reading_document(document_id: String, capability: String) -> Resul
             .collect::<Vec<_>>()
             .join(" ")
     );
-    Ok(document.standalone.replace(
+    // Only the document's own head: a script body may contain the same text.
+    Ok(document.standalone.replacen(
         "<head>",
         &format!("<head><meta http-equiv=\"Content-Security-Policy\" content=\"{policy}\">"),
+        1,
     ))
 }
 

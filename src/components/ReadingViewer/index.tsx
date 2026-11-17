@@ -81,7 +81,11 @@ export function ReadingViewer({ session }: { session: ClaudeSession }) {
       if (event.data == null || typeof event.data !== "object") return;
       const data = event.data as Record<string, unknown>;
       if (data.channel !== "cchv-reading" || data.version !== 1 || data.nonce !== current.bridge_nonce) return;
-      if (data.type === "ready") setReady(true);
+      if (data.type === "ready") {
+        setReady(true);
+        // A late ready supersedes the frame timeout; prepare errors were cleared already.
+        setError(null);
+      }
       if (data.type === "anchor" && typeof data.uuid === "string" && data.uuid.length <= 200) {
         anchor.current = data.uuid;
       }

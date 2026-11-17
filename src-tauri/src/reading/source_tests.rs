@@ -198,7 +198,9 @@ fn modern_agent_and_metadata_bytes_are_counted_once() {
 
 #[test]
 fn real_renderer_retains_legacy_meta_agents_and_snapshot_only_workflows() {
-    let Ok(renderer) = executable() else { return };
+    let Some(renderer) = super::tests::configured_renderer() else {
+        return;
+    };
     let source = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
     let root = source.path().canonicalize().unwrap();

@@ -1,5 +1,14 @@
 use super::*;
 
+/// The renderer for the real-renderer tests, only when one is configured.
+/// `executable()` also looks under the home directory, which tests must not
+/// resolve (`utils::home_dir` panics without `CCHV_TEST_HOME`).
+pub(super) fn configured_renderer() -> Option<PathBuf> {
+    std::env::var_os("CCHV_READING_RENDERER")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute() && path.is_file())
+}
+
 #[test]
 fn preparations_wait_for_the_active_render_instead_of_failing_busy() {
     let active = RENDER_LOCK.lock().unwrap();
@@ -102,7 +111,9 @@ fn snapshot_disables_polling_without_changing_conversation_text() {
 
 #[test]
 fn real_renderer_produces_a_script_verified_document() {
-    let Ok(renderer) = executable() else { return };
+    let Some(renderer) = configured_renderer() else {
+        return;
+    };
     let temp = tempfile::tempdir().unwrap();
     let input = temp.path().join("session.jsonl");
     fs::write(&input, r#"{"type":"user","uuid":"11111111-1111-1111-1111-111111111111","sessionId":"22222222-2222-2222-2222-222222222222","timestamp":"2026-01-01T00:00:00Z","parentUuid":null,"isSidechain":false,"userType":"external","cwd":"/nonexistent-reading-fixture","version":"2.1.0","message":{"role":"user","content":"Reading smoke test"}}"#).unwrap();

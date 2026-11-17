@@ -220,7 +220,7 @@ mod platform {
     };
     use windows_sys::Win32::System::Pipes::PeekNamedPipe;
     use windows_sys::Win32::System::Threading::{
-        OpenThread, ResumeThread, CREATE_SUSPENDED, THREAD_SUSPEND_RESUME,
+        OpenThread, ResumeThread, CREATE_NO_WINDOW, CREATE_SUSPENDED, THREAD_SUSPEND_RESUME,
     };
 
     pub trait Pipe: Read + AsRawHandle {}
@@ -228,7 +228,9 @@ mod platform {
 
     pub fn configure(command: &mut Command) {
         // Assign the job before any renderer code can spawn descendants.
-        command.creation_flags(CREATE_SUSPENDED);
+        // The renderer is a console program; the GUI app must not flash a
+        // console window for each of its runs.
+        command.creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
     }
 
     #[allow(unsafe_code)]

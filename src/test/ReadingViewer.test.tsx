@@ -68,6 +68,19 @@ describe("ReadingViewer", () => {
       type: "appearance", isDark: true, fontScale: 110, nonce: doc.bridge_nonce,
     }), "*"));
   });
+  it("clears the frame timeout warning when ready arrives late", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<ReadingViewer session={session} />);
+      await screen.findByTitle("reading.frameTitle");
+      act(() => { vi.advanceTimersByTime(15000); });
+      expect(screen.getByRole("alert")).toHaveTextContent("reading.frameFailed");
+      ready();
+      expect(screen.queryByRole("alert")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("sends the upstream effective system contrast to the document", async () => {
     state.highContrast = null;
     vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
