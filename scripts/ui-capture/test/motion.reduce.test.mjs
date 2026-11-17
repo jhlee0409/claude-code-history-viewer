@@ -71,12 +71,12 @@ const INTERACTIONS = [
  *
  * Two signals per run: the scroll the app asks for (`behavior` of every
  * scrollTo / scrollBy / scrollIntoView call, recorded by a wrapper) and how
- * the page moved (consecutive frames with a scroll event). How many frames a
- * smooth scroll spreads over depends on the engine build: macOS WebKit
- * glides over many, while the Linux CI runner's WebKit showed at most 2 for
- * the same jumps. So "the test can see it" rests on the request, which every
- * build reports the same way, and the frame runs are an extra check where
- * the engine glides.
+ * the page moved (per-scroller scrollTop traces). Instant virtualizer height
+ * corrections may land on consecutive frames too, so the position verdict
+ * checks distributed monotone movement, not event count (lib/motion.mjs).
+ * Engine builds can finish short smooth scrolls in only two frames; the
+ * smooth-request guard independently catches those. A real CSS smooth scroll
+ * in liveMode.test.mjs and synthetic traces exercise the position verdict.
  */
 const SEARCH_PRESSES = 8;
 async function searchScrolls(motion) {
@@ -135,12 +135,13 @@ describe.skipIf(!ENABLED)("reduced motion in the running app (real WebKit, --liv
 
   it("search: under prefers-reduced-motion: reduce, every jump to a match is instant", async () => {
     const { runs, requests } = await searchScrolls("reduce");
-    const detail = JSON.stringify({ requests, frames: runs.map((m) => [m.scrollFrames, m.scrollRun]) });
+    const detail = JSON.stringify({ requests, runs });
     // The app asks for scrolls (the jumps happen) but never a smooth one ...
     expect(requests.length, detail).toBeGreaterThan(0);
     expect(requests.filter((b) => b === "smooth"), detail).toEqual([]);
-    // ... and the page does not glide (CSS scroll-behavior is off too).
-    expect(runs.map((m) => m.scrollRun).filter((run) => run > 2), detail).toEqual([]);
+    // ... and positions do not form a distributed monotone glide. Consecutive
+    // instant virtualizer corrections alone are not evidence of animation.
+    expect(runs.filter((m) => m.scrollGlide), detail).toEqual([]);
     for (const m of runs) expect(m.animationsAt).toEqual([0, 0, 0]);
   }, 180_000);
 

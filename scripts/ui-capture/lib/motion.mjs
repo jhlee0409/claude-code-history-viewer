@@ -2,8 +2,9 @@
 // is anything moving? Sampled right after the interaction at 0, 16 and 100 ms:
 // `document.getAnimations()` (CSS transitions and animations, Web Animations),
 // `transitionstart` / `animationstart` events, and how many animation frames a
-// scroll keeps firing `scroll` events on (a smooth scroll spreads over many
-// frames; an instant one fires in one).
+// scroll keeps firing `scroll` events on, plus per-scroller scrollTop traces.
+// Consecutive frames alone cannot distinguish smooth motion from instant
+// virtualizer measurement corrections.
 //
 // Only meaningful in `--live` mode: the deterministic capture suppresses CSS
 // motion and freezes the clock, so the probe reports `applicable: false` there
@@ -13,13 +14,34 @@
 
 const INSTALL = `(() => {
   if (window.__uiMotion) { window.__uiMotion.reset(); return; }
-  const state = { transitions: 0, animations: 0, scrollFrames: new Set(), frame: 0 };
+  const state = { transitions: 0, animations: 0, scrollFrames: new Set(), scrollTrace: [], frame: 0 };
+  let origins;
+  let targets;
+  let nextTarget;
+  const resetPositions = () => {
+    origins = new WeakMap([...document.querySelectorAll("*")].map((el) => [el, el.scrollTop]));
+    targets = new WeakMap();
+    nextTarget = 0;
+    state.scrollTrace = [];
+  };
+  resetPositions();
   const tick = () => { state.frame += 1; requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   document.addEventListener("transitionstart", () => { state.transitions += 1; }, true);
   document.addEventListener("animationstart", () => { state.animations += 1; }, true);
-  document.addEventListener("scroll", () => { state.scrollFrames.add(state.frame); }, true);
-  state.reset = () => { state.transitions = 0; state.animations = 0; state.scrollFrames = new Set(); };
+  document.addEventListener("scroll", (event) => {
+    state.scrollFrames.add(state.frame);
+    const el = event.target === document ? document.scrollingElement : event.target;
+    if (!el || typeof el.scrollTop !== "number") return;
+    if (!targets.has(el)) {
+      targets.set(el, ++nextTarget);
+      // Preserve the pre-interaction position so a large instant landing
+      // is not mistaken for the first small step of a glide.
+      state.scrollTrace.push({ target: nextTarget, frame: state.frame - 1, top: origins.get(el) ?? el.scrollTop });
+    }
+    state.scrollTrace.push({ target: targets.get(el), frame: state.frame, top: el.scrollTop });
+  }, true);
+  state.reset = () => { state.transitions = 0; state.animations = 0; state.scrollFrames = new Set(); resetPositions(); };
   window.__uiMotion = state;
 })()`;
 
@@ -34,9 +56,9 @@ const READ = `(() => {
     transitionEvents: s.transitions,
     animationEvents: s.animations,
     scrollFrames: s.scrollFrames.size,
-    // Longest run of consecutive frames with a scroll event: a smooth scroll
-    // glides over many frames in a row; instant jumps (a virtual list
-    // correcting its offset) land on separate frames.
+    scrollTrace: s.scrollTrace,
+    // Legacy activity diagnostic, not a glide verdict: virtualizer offset
+    // corrections can also fire on consecutive frames.
     scrollRun: (() => {
       const frames = [...s.scrollFrames].sort((a, b) => a - b);
       let best = 0;
@@ -46,6 +68,39 @@ const READ = `(() => {
     })(),
   };
 })()`;
+
+/**
+ * Detect distributed monotone motion, not merely consecutive scroll events.
+ * Four moving frames are the minimum witness: an instant landing plus up to
+ * three measurement corrections must not by itself imply an animation.
+ * Within a witness no step may exceed half its travel (a majority-position
+ * jump is a landing, not small distributed increments). Inspect suffixes too
+ * so a genuine glide following a landing is still caught.
+ * These are shape-based heuristics, not an engine-independent animation
+ * duration guarantee; short glides remain covered by the smooth-request guard.
+ */
+export function hasScrollGlide(trace) {
+  const targets = new Map();
+  for (const point of trace) {
+    if (!targets.has(point.target)) targets.set(point.target, new Map());
+    targets.get(point.target).set(point.frame, point.top);
+  }
+  for (const frames of targets.values()) {
+    const points = [...frames].sort(([a], [b]) => a - b);
+    let deltas = [];
+    for (let i = 1; i < points.length; i += 1) {
+      const delta = points[i][1] - points[i - 1][1];
+      if (points[i][0] !== points[i - 1][0] + 1 || delta === 0 || (deltas.length && Math.sign(delta) !== Math.sign(deltas.at(-1)))) deltas = [];
+      if (points[i][0] !== points[i - 1][0] + 1 || delta === 0) continue;
+      deltas.push(delta);
+      for (let start = 0; start <= deltas.length - 4; start += 1) {
+        const steps = deltas.slice(start).map(Math.abs);
+        if (Math.max(...steps) <= steps.reduce((sum, step) => sum + step, 0) / 2) return true;
+      }
+    }
+  }
+  return false;
+}
 
 export const MOTION_SAMPLE_MS = [0, 16, 100];
 
@@ -77,6 +132,8 @@ export async function measureMotion(page, interact, { realClock = true } = {}) {
     animationEvents: end.animationEvents,
     scrollFrames: end.scrollFrames,
     scrollRun: end.scrollRun,
+    scrollTrace: end.scrollTrace,
+    scrollGlide: hasScrollGlide(end.scrollTrace),
   };
   result.observed = animationsAt.some((n) => n > 0) || result.transitionEvents > 0 || result.animationEvents > 0 || result.scrollFrames > 1;
   return result;
