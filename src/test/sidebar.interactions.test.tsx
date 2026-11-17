@@ -10,10 +10,11 @@
  * - Shift+click and the "Select" button enter the existing multi-select
  *   mode; further clicks toggle rows; the batch bar offers its actions.
  * - The row menu (right-click or the ContextMenu key) stars a session.
- * - The filter narrows the project list.
+ * - The filter narrows the project list, by project or session names; a
+ *   project shown for its sessions lists only those.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
 vi.mock("@/services/api", () => ({ api: vi.fn(async () => null) }));
@@ -35,6 +36,8 @@ vi.mock("react-i18next", async (importOriginal) => {
 import { useAppStore } from "@/store/useAppStore";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProjectTree } from "@/components/ProjectTree";
+import { api } from "@/services/api";
+import { clearSessionNameIndexCache } from "@/hooks/useSessionNameIndex";
 
 const project = (name: string, last: string): ClaudeProject => ({
   name,
@@ -223,6 +226,41 @@ describe("project list (plan T7)", () => {
       fireEvent.click(screen.getByRole("button", { name: "common.clear" }));
     });
     expect(names()).toHaveLength(3);
+  });
+
+  it("also matches session names; such a project lists only the matching sessions", async () => {
+    clearSessionNameIndexCache();
+    const loginSession: ClaudeSession = {
+      ...session(1),
+      session_id: "/p/beta/b1.jsonl",
+      file_path: "/p/beta/b1.jsonl",
+      project_name: "beta",
+      summary: "Fix login bug",
+    };
+    vi.mocked(api).mockImplementation(async (command, args) => {
+      if (command !== "load_project_sessions") return null;
+      const { projectPath } = args as { projectPath: string };
+      return projectPath === BETA.path ? [loginSession, { ...loginSession, session_id: "b2", file_path: "b2", summary: "Other" }] : [];
+    });
+    try {
+      renderSidebar();
+      const names = () =>
+        Array.from(document.querySelectorAll<HTMLElement>('[data-row="project"]')).map((row) =>
+          row.getAttribute("data-project-path")
+        );
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("project.filterPlaceholder"), { target: { value: "login" } });
+      });
+      await waitFor(() => expect(names()).toEqual([BETA.path]));
+
+      fireEvent.click(projectRow(BETA)!);
+      expect(await screen.findByText("Fix login bug")).toBeTruthy();
+      expect(screen.queryByText("Other")).toBeNull();
+      expect(screen.getByText("project.sessions.filterMatches:1")).toBeTruthy();
+    } finally {
+      vi.mocked(api).mockImplementation(async () => null);
+      clearSessionNameIndexCache();
+    }
   });
 
   it("re-clicking the open project only collapses it; it is never left", () => {

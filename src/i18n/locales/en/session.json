@@ -290,5 +290,17 @@
   "project.sessions.showAll": "Show all · {{count}}",
   "project.sessions.showFewer": "Show fewer",
   "project.sessions.empty": "No sessions",
-  "project.sessions.loadError": "Couldn't load sessions"
+  "project.sessions.loadError": "Couldn't load sessions",
+  "project.sessions.filterMatches_one": "{{count}} session matches the filter",
+  "project.sessions.filterMatches_other": "{{count}} sessions match the filter",
+  "project.filter.hint.both": "Filter by project or session name",
+  "project.filter.placeholder.projects": "Filter by project name",
+  "project.filter.placeholder.sessions": "Filter by session name",
+  "project.filter.matchLabel": "Filter matches",
+  "project.filter.target.projects": "Project names",
+  "project.filter.target.sessions": "Session names",
+  "project.filter.indexing": "Scanning sessions {{loaded}}/{{total}}",
+  "project.filter.searchingSessions": "Searching session names…",
+  "project.filter.indexError_one": "Couldn't read the sessions of {{count}} project. It can only match by project name.",
+  "project.filter.indexError_other": "Couldn't read the sessions of {{count}} projects. They can only match by project name."
 }
