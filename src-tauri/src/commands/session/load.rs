@@ -2195,6 +2195,34 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
         .collect()
 }
 
+/// Subagent rows for a `zcode://<directory>#<session_id>` parent: the
+/// `subagent_child` sessions Z Code keeps in its SQLite store (#761), each
+/// addressed by its own `zcode://` id so the panel opens it through the same
+/// reader as any Z Code session. A path without a session id has none.
+fn zcode_subagents(session_path: &str) -> Result<Vec<SubagentSession>, String> {
+    let Some((directory, _)) = session_path
+        .strip_prefix("zcode://")
+        .and_then(|rest| rest.rsplit_once('#'))
+    else {
+        return Ok(Vec::new());
+    };
+
+    Ok(crate::providers::zcode::load_child_sessions(session_path)?
+        .into_iter()
+        .map(|child| SubagentSession {
+            file_path: format!("zcode://{directory}#{}", child.id),
+            agent_id: child.id,
+            message_count: child.message_count,
+            file_size: 0,
+            first_message_time: Some(child.created_at),
+            last_message_time: Some(child.updated_at),
+            summary: (!child.title.trim().is_empty()).then_some(child.title),
+            tool_use_id: None,
+            workflow_run_id: None,
+        })
+        .collect())
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
@@ -2207,6 +2235,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
 
     if session_path.starts_with("kilo://") {
         return Ok(kilo_subagents(&session_path));
+    }
+
+    if session_path.starts_with("zcode://") {
+        return zcode_subagents(&session_path);
     }
 
     let path = PathBuf::from(&session_path);
@@ -2456,6 +2488,16 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
     false
 }
 
+/// Whether one raw JSONL line is a message the viewer shows, by the same
+/// classifier the paginated loader counts with. Shared with the archive
+/// counts so an archived session or subagent reports the messages opening it
+/// would show (#773). `exclude_sidechain` mirrors the viewer's sidechain
+/// filter: a main session hides sidechain lines by default, while every
+/// conversation line of a subagent transcript is one and must count.
+pub(crate) fn is_viewer_visible_jsonl_line(line: &str, exclude_sidechain: bool) -> bool {
+    classify_line_fast(line.as_bytes(), exclude_sidechain)
+}
+
 /// Minimal classifier that also captures the message uuid.
 /// Used only by `get_session_message_offset` — keeping it separate from
 /// `LineClassifier` avoids a per-line String allocation on the hot
@@ -2536,19 +2578,23 @@ pub fn get_session_message_offset(
 }
 
 /// Load a chat-style window of messages from a SINGLE file (the pre-chain
-/// pagination algorithm, unchanged). `offset_from_end` counts messages
-/// already consumed from the newest end of this file.
+/// pagination algorithm). `offset_from_end` counts classified lines already
+/// consumed from the newest end of this file.
 ///
 /// Returns the window's messages (oldest-to-newest), this file's own total
-/// viewer-visible message count, and whether the window reached line 0 of
-/// the file (i.e. there is nothing older left to read from this file).
+/// count of classified (viewer-visible) lines, and how many classified lines
+/// the window consumed. A classified line that then fails the full parse
+/// (a numeric `sessionId`, a malformed field) is consumed but yields no
+/// message, so the consumed count can exceed `messages.len()`; callers must
+/// advance their offset by it, or a page of such lines would repeat forever
+/// (#771).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_message_window_from_file(
     session_path: &Path,
     offset_from_end: usize,
     limit: usize,
     exclude: bool,
-) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
+) -> Result<(Vec<ClaudeMessage>, usize, usize), String> {
     let file = session_files::open_history_file(session_path)
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
@@ -2569,7 +2615,7 @@ fn load_message_window_from_file(
 
     let total_count = valid_indices.len();
     if total_count == 0 || offset_from_end >= total_count {
-        return Ok((vec![], total_count, offset_from_end >= total_count));
+        return Ok((vec![], total_count, 0));
     }
 
     let remaining_messages = total_count - offset_from_end;
@@ -2596,7 +2642,7 @@ fn load_message_window_from_file(
     fill_missing_timestamps(line_ranges.len(), line_at, &mut parsed);
     let messages: Vec<ClaudeMessage> = parsed.into_iter().map(|(_, msg)| msg).collect();
 
-    Ok((messages, total_count, start_idx == 0))
+    Ok((messages, total_count, messages_to_load))
 }
 
 /// Count viewer-visible messages in a single file (the pre-chain algorithm).
@@ -2632,12 +2678,17 @@ pub async fn load_session_messages_paginated(
     let exclude = exclude_sidechain.unwrap_or(false);
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 
+    // `offset`, `next_offset` and `total_count` all count classified lines
+    // (see `MessagePage`). `next_offset` advances by the lines a page
+    // consumed, not the messages it returned: a line that passes the fast
+    // classifier but fails the full parse still moves the cursor, so paging
+    // always terminates and never repeats a window (#771).
     let page = if chain.len() <= 1 {
         // Common case: no cross-file continuation. Same algorithm and
         // performance characteristics as before this feature existed.
-        let (messages, total_count, _) =
+        let (messages, total_count, consumed) =
             load_message_window_from_file(Path::new(&session_path), offset, limit, exclude)?;
-        let next_offset = offset + messages.len();
+        let next_offset = offset + consumed;
         MessagePage {
             messages,
             total_count,
@@ -2649,6 +2700,7 @@ pub async fn load_session_messages_paginated(
         // requested chat-style window, then present them oldest -> newest.
         let mut skip = offset;
         let mut remaining = limit;
+        let mut consumed_total = 0usize;
         let mut chunks: Vec<Vec<ClaudeMessage>> = Vec::new();
         let mut total_count = 0usize;
 
@@ -2665,7 +2717,7 @@ pub async fn load_session_messages_paginated(
                 requested_limit,
                 exclude,
             );
-            let (messages, file_total, _) = match result {
+            let (messages, file_total, consumed) = match result {
                 Ok(result) => result,
                 Err(error) if is_leaf => return Err(error),
                 Err(error) => {
@@ -2685,14 +2737,15 @@ pub async fn load_session_messages_paginated(
                 skip -= file_total;
                 continue;
             }
-            remaining -= messages.len();
+            remaining -= consumed;
+            consumed_total += consumed;
             chunks.push(messages);
             skip = 0;
         }
 
         chunks.reverse();
         let messages: Vec<ClaudeMessage> = chunks.into_iter().flatten().collect();
-        let next_offset = offset + messages.len();
+        let next_offset = offset + consumed_total;
         MessagePage {
             messages,
             total_count,
@@ -3429,6 +3482,115 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 2); // Only 2 remaining
         assert!(!page.has_more);
+    }
+
+    /// Lines that pass the fast classifier (type plus a present `sessionId` or
+    /// `timestamp`) but fail the full `RawLogEntry` parse: a numeric
+    /// `sessionId`, a numeric `timestamp`, and a numeric `cwd`.
+    fn create_unparseable_classified_lines(tag: &str) -> String {
+        [
+            format!(
+                r#"{{"uuid":"{tag}-bad-sid","sessionId":42,"timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"x"}}}}"#
+            ),
+            format!(
+                r#"{{"uuid":"{tag}-bad-ts","sessionId":"s","timestamp":1750932000,"type":"user","message":{{"role":"user","content":"x"}}}}"#
+            ),
+            format!(
+                r#"{{"uuid":"{tag}-bad-cwd","sessionId":"s","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":7,"message":{{"role":"user","content":"x"}}}}"#
+            ),
+        ]
+        .join("\n")
+    }
+
+    /// Walk every page from the newest end, as the frontend does, and return
+    /// the loaded uuids oldest-to-newest plus the pages seen. Panics if paging
+    /// does not terminate.
+    async fn walk_all_pages(path: &str, limit: usize) -> (Vec<String>, Vec<MessagePage>) {
+        let mut offset = 0;
+        let mut pages = Vec::new();
+        let mut uuids: Vec<String> = Vec::new();
+        for _ in 0..50 {
+            let page = load_session_messages_paginated(path.to_string(), offset, limit, None)
+                .await
+                .unwrap();
+            assert!(
+                page.next_offset > offset || !page.has_more,
+                "page at offset {offset} did not advance: {page:?}"
+            );
+            let mut older: Vec<String> = page.messages.iter().map(|m| m.uuid.clone()).collect();
+            older.extend(uuids);
+            uuids = older;
+            offset = page.next_offset;
+            let done = !page.has_more;
+            pages.push(page);
+            if done {
+                return (uuids, pages);
+            }
+        }
+        panic!("pagination did not terminate");
+    }
+
+    #[tokio::test]
+    async fn test_paginated_advances_past_unparseable_classified_lines() {
+        let temp_dir = TempDir::new().unwrap();
+        // Oldest valid message, then a full page of lines that classify but
+        // do not parse, then two newer valid messages.
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Oldest"),
+            create_unparseable_classified_lines("a"),
+            create_sample_user_message("uuid-2", "session-1", "Middle"),
+            create_sample_assistant_message("uuid-3", "session-1", "Newest"),
+        );
+        let path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let path = path.to_string_lossy().to_string();
+
+        let (uuids, pages) = walk_all_pages(&path, 2).await;
+        assert_eq!(uuids, vec!["uuid-1", "uuid-2", "uuid-3"]);
+
+        // total_count counts classified lines; next_offset advances by the
+        // lines consumed, including ones that produced no message.
+        let offsets: Vec<(usize, usize, bool, usize)> = pages
+            .iter()
+            .map(|p| (p.messages.len(), p.next_offset, p.has_more, p.total_count))
+            .collect();
+        assert_eq!(
+            offsets,
+            vec![(2, 2, true, 6), (0, 4, true, 6), (1, 6, false, 6)]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_paginated_chain_advances_past_unparseable_classified_lines() {
+        let temp_dir = TempDir::new().unwrap();
+        let older_content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Before"),
+            create_unparseable_classified_lines("old"),
+            create_sample_assistant_message("tail-uuid", "session-1", "Earlier reply")
+        );
+        create_test_jsonl_file(&temp_dir, "older.jsonl", &older_content);
+
+        let newer_content = format!(
+            "{{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",\"logicalParentUuid\":\"tail-uuid\",\"sessionId\":\"session-2\",\"timestamp\":\"2025-06-26T10:02:00Z\"}}\n{}\n{}\n{}\n",
+            create_unparseable_classified_lines("new"),
+            create_sample_user_message("uuid-3", "session-2", "After"),
+            create_sample_assistant_message("uuid-4", "session-2", "Latest reply")
+        );
+        let newer_path = create_test_jsonl_file(&temp_dir, "newer.jsonl", &newer_content);
+        let newer_path = newer_path.to_string_lossy().to_string();
+
+        for limit in 1..=4 {
+            let (uuids, pages) = walk_all_pages(&newer_path, limit).await;
+            assert_eq!(
+                uuids,
+                vec!["uuid-1", "tail-uuid", "boundary-1", "uuid-3", "uuid-4"],
+                "limit {limit}"
+            );
+            let last = pages.last().unwrap();
+            assert_eq!(last.total_count, 11, "limit {limit}");
+            assert_eq!(last.next_offset, 11, "limit {limit}");
+        }
     }
 
     #[tokio::test]
