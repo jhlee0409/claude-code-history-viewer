@@ -86,3 +86,9 @@
 ## 2026-10-01 update (pricing watch #596)
 
 - **`minimax-m2.5`: unchanged.** https://platform.minimax.io/docs/guides/pricing-paygo, "Legacy Models": `| MiniMax-M2.5 | $0.3 / M tokens | $1.2 / M tokens | $0.03 / M tokens | $0.375 / M tokens |`. OpenRouter's $0.27/$1.08 is a flat 10% below the official rate. `minimax-m2.5-highspeed` (0.6 / 2.4 / 0.03 / 0.375) re-confirmed.
+
+## 2026-11-18 update (pricing watch #647)
+
+- **M2.x retirement.** https://platform.minimax.io/docs/faq/models, "MiniMax M2.5 and M2.7 Model Retirement Notice": no new users from 2026-10-19, retired on **2026-11-18**; M Plan / Token Plan requests are routed to **M3.1 Flash**. The page's "Retired Models" table lists MiniMax-M2.7, -M2.7-highspeed, -M2.5, -M2.5-highspeed, -M2.1, -M2.1-highspeed and -M2. `minimax-m2.7*` and `minimax-m2.5*` now carry `deprecatedAt: 2026-11-18`; rates are the last published ones. No `replacedBy`: M3.1 Flash is not in the table yet. M2.1/M2 have no published retirement date, so they get no `deprecatedAt`.
+- **`minimax-m2.5` rates: unchanged ($0.3 / $1.2 / $0.03 / $0.375).** The watch run of 2026-11-16 saw OpenRouter output $0.95; on 2026-11-18 OpenRouter reports $0.295 / $1.2 / cache read $0.06. The official pricing page no longer lists M2.x rows (its LLM section shows only M3.1-Flash and M3), so there is no newer official rate than the 2026-10-01 entry above. The $0.06 cache read is recorded as a known feed difference.
+- **`minimax-m3.1-flash` (not added).** https://platform.minimax.io/docs/guides/pricing-paygo, LLM: `MiniMax-M3.1-Flash $0.15 $0.60 $0.015` (input / output / cache read), no cache-write column, no Priority row. OpenRouter lists $0.075 / $0.3 / $0.0075 for 15:00–01:00 UTC and the official rate otherwise; the official page publishes no off-peak price. Adding it needs the next full audit (entries cannot be verified after `auditedAt`).
