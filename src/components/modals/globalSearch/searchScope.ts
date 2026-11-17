@@ -15,6 +15,7 @@ import type { ClaudeMessage, ClaudeProject } from "@/types";
 import type { SidebarFilterResult } from "@/store/slices/sidebarFilterSlice";
 import type { SessionRef } from "@/navigation/place";
 import { getPathLeaf } from "@/utils/pathUtils";
+import { projectForSearchResult } from "@/utils/projectIdentity";
 
 export interface SidebarSearchScope {
   /** The projects the sidebar shows. */
@@ -62,33 +63,19 @@ export const buildSidebarSearchScope = (
   };
 };
 
-/** The project a result belongs to, by the rule the Messages group groups on. */
-export const findResultProject = (
-  result: ClaudeMessage,
-  projects: readonly ClaudeProject[]
-): ClaudeProject | undefined => {
-  const projectName = result.projectName;
-  if (!projectName) return undefined;
-  const provider = providerOf(result);
-  return projects.find(
-    (project) =>
-      providerOf(project) === provider &&
-      (project.name === projectName || getPathLeaf(project.path) === projectName)
-  );
-};
-
 /**
  * Whether a message result is in the scope. Its project is resolved against
- * `allProjects`; a result whose project can't be resolved (some providers
- * label results loosely) is judged by the session id list alone, or kept
- * when there is none.
+ * `allProjects` by the rule the Messages group groups on (exact path when the
+ * result carries one, else an unambiguous name); a result whose project can't
+ * be resolved (some providers label results loosely) is judged by the
+ * session id list alone, or kept when there is none.
  */
 export const isResultInScope = (
   result: ClaudeMessage,
   scope: SidebarSearchScope,
   allProjects: readonly ClaudeProject[]
 ): boolean => {
-  const owner = findResultProject(result, allProjects);
+  const owner = projectForSearchResult(result, allProjects);
   if (!owner) return scope.sessionIdSet ? scope.sessionIdSet.has(result.sessionId) : true;
   if (!scope.projects.some((project) => project.path === owner.path)) return false;
   const matched = scope.sessionIdsByProject.get(owner.path);

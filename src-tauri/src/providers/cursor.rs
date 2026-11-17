@@ -1880,13 +1880,21 @@ mod tests {
         let names: Vec<_> = orphan_sessions.iter().map(|s| s.summary.clone()).collect();
         assert_eq!(names, vec![Some("Orphan chat".to_string())]);
 
-        let mut stats_projects: Vec<String> = collect_global_stats_sessions()
+        // Stats rows carry the same identity as the project list, including
+        // a composer mapped to its workspace only by the legacy listing.
+        let mut stats_projects: Vec<(String, String)> = collect_global_stats_sessions()
             .unwrap()
             .into_iter()
-            .map(|(project, _)| project)
+            .map(|session| (session.project_name, session.project_path))
             .collect();
         stats_projects.sort();
-        assert_eq!(stats_projects, vec!["Cursor [cursor]", "old-proj [cursor]"]);
+        assert_eq!(
+            stats_projects,
+            vec![
+                ("Cursor [cursor]".to_string(), orphan.path.clone()),
+                ("old-proj [cursor]".to_string(), old.path.clone()),
+            ]
+        );
     }
 
     /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`

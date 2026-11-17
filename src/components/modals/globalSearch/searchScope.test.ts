@@ -60,6 +60,20 @@ describe("isResultInScope", () => {
     expect(isResultInScope(result("elsewhere", "x"), withIds, ALL)).toBe(false);
     expect(isResultInScope(result("elsewhere", "w1"), withIds, ALL)).toBe(true);
   });
+
+  it("resolves a path-qualified result to its own project, not a same-named one", () => {
+    const inView = { ...project("app"), path: "/store-a/app" };
+    const hidden = { ...project("app"), path: "/store-b/app" };
+    const projects = [inView, hidden];
+    const scope = buildSidebarSearchScope(projects, {
+      projectPaths: [inView.path],
+      sessionMatchesByProject: {},
+      sessionIds: null,
+    })!;
+    const at = (projectPath: string) => ({ ...result("app", "s1"), projectPath }) as ClaudeMessage;
+    expect(isResultInScope(at(inView.path), scope, projects)).toBe(true);
+    expect(isResultInScope(at(hidden.path), scope, projects)).toBe(false);
+  });
 });
 
 describe("isSessionRefInScope", () => {
@@ -92,6 +106,6 @@ describe("buildMessageSearchRequest with the sidebar scope", () => {
   it("is ignored under the project scope", () => {
     const restrict = buildSidebarSearchScope(ALL, filterResult(["w1"]))!;
     const request = buildMessageSearchRequest({ ...base, scope: "project", project: notes, restrict }, config)!;
-    expect(request.args.filters).toEqual({ projects: ["notes"] });
+    expect(request.args.filters).toEqual({ projectPaths: [notes.path] });
   });
 });

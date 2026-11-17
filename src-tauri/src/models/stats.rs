@@ -241,8 +241,8 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(ranking.project_name, "app");
-        assert!(ranking.project_path.is_empty());
-        assert!(ranking.provider_id.is_empty());
+        assert_eq!(ranking.project_path, "");
+        assert_eq!(ranking.provider_id, "");
     }
 
     #[test]

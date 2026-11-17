@@ -416,9 +416,9 @@ pub(crate) fn validate_search_filters(filters: &serde_json::Value) -> Result<(),
     Ok(())
 }
 
-/// String members of a filter array (`projects`, `sessionIds`), or `None`
-/// when the key is absent or selects nothing — an empty selection means
-/// "no restriction", not "match nothing".
+/// String members of a filter array (`projects`, `projectPaths`,
+/// `sessionIds`), or `None` when the key is absent or selects nothing — an
+/// empty selection means "no restriction", not "match nothing".
 fn selected_strings<'a>(
     obj: &'a serde_json::Map<String, serde_json::Value>,
     key: &str,
@@ -577,7 +577,7 @@ pub fn apply_search_filters(
 
 /// Which part of `<claude_path>/projects` a search walks.
 enum WalkScope {
-    /// Every project directory (no `projects` filter).
+    /// Every project directory (no `projects` or `projectPaths` filter).
     All,
     /// Only these project directories, in the same order the full walk would
     /// visit them.
@@ -590,31 +590,33 @@ fn is_valid_project_dir_name(name: &str) -> bool {
     !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\'])
 }
 
-/// Resolve the walk scope from the `projects` filter.
+/// Resolve the walk scope from the `projects` and `projectPaths` filters.
 ///
-/// Every message's `project_name` is its file's parent directory name, so a
-/// file outside `projects/<selected>/` could only pass the filter if it sat
-/// in a nested directory that happens to share a selected project's name.
-/// Selected names come from the top-level project list, so walking just
-/// those directories yields the same results; nested files that are walked
-/// (e.g. `<session>/subagents/*.jsonl`, project name "subagents") are still
-/// dropped by the serve-time filter exactly as before.
+/// Every message's `project_name`/`project_path` is the top-level
+/// `projects/<dir>` its file sits under (nested files such as
+/// `<session>/subagents/*.jsonl` included), so only files under a selected
+/// directory can pass either filter: walking just those directories yields
+/// the same results. A path is matched exactly as `search_in_file` derives
+/// it (`projects_path.join(<dir>)`); when both filters are present a
+/// directory must satisfy both, as the serve-time filter requires.
 ///
 /// Project directories are taken from `read_dir` order (the order `WalkDir`
 /// itself uses), so the scoped file list is an in-order subsequence of the
 /// full walk. Symlinked entries are skipped because the full walk does not
 /// follow them either.
 fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> WalkScope {
-    let Some(selected) = filters
-        .as_object()
-        .and_then(|obj| selected_strings(obj, "projects"))
-    else {
+    let obj = filters.as_object();
+    let names = obj.and_then(|obj| selected_strings(obj, "projects"));
+    let paths = obj.and_then(|obj| selected_strings(obj, "projectPaths"));
+    if names.is_none() && paths.is_none() {
         return WalkScope::All;
-    };
-    let selected: HashSet<&str> = selected
-        .into_iter()
-        .filter(|name| is_valid_project_dir_name(name))
-        .collect();
+    }
+    let names: Option<HashSet<&str>> = names.map(|names| {
+        names
+            .into_iter()
+            .filter(|name| is_valid_project_dir_name(name))
+            .collect()
+    });
 
     let roots = fs::read_dir(projects_path)
         .map(|entries| {
@@ -622,12 +624,19 @@ fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> Walk
                 .filter_map(std::result::Result::ok)
                 .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
                 .filter(|entry| {
-                    entry
-                        .file_name()
-                        .to_str()
-                        .is_some_and(|name| selected.contains(name))
+                    names.as_ref().map_or(true, |names| {
+                        entry
+                            .file_name()
+                            .to_str()
+                            .is_some_and(|name| names.contains(name))
+                    })
                 })
                 .map(|entry| entry.path())
+                .filter(|path| {
+                    paths.as_ref().map_or(true, |paths| {
+                        paths.contains(path.to_string_lossy().as_ref())
+                    })
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -958,11 +967,14 @@ mod tests {
                 }
             }
         }
+        // The second root's same-named directory is another identity, so the
+        // path-scoped search never walks it; the first is scanned once and
+        // then served from cache.
+        let scan_count =
+            |root: &Path| test_scan_count(&root.join("projects/same-project/session.jsonl"));
+        assert_eq!(scan_count(first.path()), 1);
+        assert_eq!(scan_count(second.path()), 0);
         for root in [first.path(), second.path()] {
-            assert_eq!(
-                test_scan_count(&root.join("projects/same-project/session.jsonl")),
-                1
-            );
             let legacy = search_messages(
                 root.to_string_lossy().to_string(),
                 "needle".into(),
@@ -972,6 +984,7 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(legacy.len(), 1);
+            assert_eq!(scan_count(root), 1);
         }
     }
 
@@ -1522,9 +1535,14 @@ mod tests {
         std::fs::write(&file_path, lines.join("\n")).unwrap();
         let root = std::fs::canonicalize(temp_dir.path()).unwrap();
         let matcher = build_matcher(query);
-        let prefiltered =
-            search_in_file(&file_path, &root, &matcher, raw_prefilter_is_sound(query));
-        let unfiltered = search_in_file(&file_path, &root, &matcher, false);
+        let prefiltered = search_in_file(
+            &file_path,
+            &root,
+            temp_dir.path(),
+            &matcher,
+            raw_prefilter_is_sound(query),
+        );
+        let unfiltered = search_in_file(&file_path, &root, temp_dir.path(), &matcher, false);
         (prefiltered, unfiltered)
     }
 
@@ -1831,8 +1849,8 @@ mod tests {
             );
         }
 
-        // Subagent files are walked under their project but keep project name
-        // "subagents", so the project filter still drops them.
+        // Subagent files are walked under their project and belong to it,
+        // so the project filter keeps them.
         let alpha = run_filtered(
             &temp_dir,
             "scopeProbe1",
@@ -1840,7 +1858,51 @@ mod tests {
             None,
         )
         .await;
-        assert_eq!(uuids(&alpha), ["a1-1", "a1-2", "a2-1"]);
+        assert_eq!(uuids(&alpha), ["a1-1", "a1-2", "a2-1", "sub-1"]);
+    }
+
+    #[tokio::test]
+    async fn test_project_paths_scope_the_walk_exactly() {
+        let (temp_dir, files) = three_project_fixture("scopePaths5");
+        let projects = temp_dir.path().join("projects");
+        let path_of = |name: &str| projects.join(name).to_string_lossy().to_string();
+
+        let alpha = run_filtered(
+            &temp_dir,
+            "scopePaths5",
+            serde_json::json!({ "projectPaths": [path_of("alpha")] }),
+            None,
+        )
+        .await;
+        assert_eq!(uuids(&alpha), ["a1-1", "a1-2", "a2-1", "sub-1"]);
+        assert!(alpha
+            .iter()
+            .all(|m| m.project_path.as_deref() == Some(path_of("alpha").as_str())));
+        for name in ["beta-1", "gamma-1"] {
+            assert_eq!(test_scan_count(&files[name]), 0, "{name} is never walked");
+        }
+
+        // Both filters must hold: a name and a path of different projects
+        // select nothing; a path outside this root walks nothing.
+        let mismatched = run_filtered(
+            &temp_dir,
+            "scopePaths5",
+            serde_json::json!({ "projects": ["beta"], "projectPaths": [path_of("alpha")] }),
+            None,
+        )
+        .await;
+        assert!(mismatched.is_empty());
+        let foreign = run_filtered(
+            &temp_dir,
+            "scopePaths5",
+            serde_json::json!({ "projectPaths": ["codex:///work/alpha"] }),
+            None,
+        )
+        .await;
+        assert!(foreign.is_empty());
+        for name in ["beta-1", "gamma-1"] {
+            assert_eq!(test_scan_count(&files[name]), 0, "{name} is never walked");
+        }
     }
 
     #[tokio::test]
@@ -1854,7 +1916,7 @@ mod tests {
             None,
         )
         .await;
-        assert_eq!(uuids(&messy), ["a1-1", "a1-2", "a2-1"]);
+        assert_eq!(uuids(&messy), ["a1-1", "a1-2", "a2-1", "sub-1"]);
 
         let only_invalid = run_filtered(
             &temp_dir,
@@ -1924,7 +1986,11 @@ mod tests {
             None,
         )
         .await;
-        assert_eq!(uuids(&alpha), ["a1-1", "a1-2"], "deleted file drops out");
+        assert_eq!(
+            uuids(&alpha),
+            ["a1-1", "a1-2", "sub-1"],
+            "deleted file drops out"
+        );
 
         let all = run_search(&temp_dir, "scopePrune4").await;
         assert_eq!(
@@ -1979,7 +2045,7 @@ mod tests {
             None,
         )
         .await;
-        assert_eq!(uuids(&combined), ["a1-1", "a1-2"]);
+        assert_eq!(uuids(&combined), ["a1-1", "a1-2", "sub-1"]);
 
         let empty = run_filtered(
             &temp_dir,
