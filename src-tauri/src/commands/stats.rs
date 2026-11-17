@@ -8486,7 +8486,8 @@ mod tests {
         write_claude_session(temp.path(), "app/session/subagents", 20, 2);
         let expected_path = temp
             .path()
-            .join("projects/app")
+            .join("projects")
+            .join("app")
             .to_string_lossy()
             .to_string();
         for _ in 0..2 {

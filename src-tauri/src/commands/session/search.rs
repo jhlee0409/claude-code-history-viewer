@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use lru::LruCache;
 use memmap2::Mmap;
 use rayon::prelude::*;
+use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -432,6 +433,41 @@ fn selected_strings<'a>(
     (!selected.is_empty()).then_some(selected)
 }
 
+/// Comparison key for a `projectPaths` entry or a message's `project_path`.
+///
+/// The identity stays opaque (a path or a provider URI such as `codex:///…`),
+/// but on Windows one directory has several spellings: `\` and `/` both
+/// separate components, letter case is not significant, and a canonicalized
+/// path carries a `\\?\` (or `\\?\UNC\`) verbatim prefix. The key folds those
+/// so a selected path matches however it was spelled. Elsewhere `\` is an
+/// ordinary filename character and case is significant, so the identity is
+/// its own key.
+pub(crate) fn project_path_key(path: &str) -> Cow<'_, str> {
+    project_path_key_for(path, cfg!(windows))
+}
+
+fn project_path_key_for(path: &str, windows: bool) -> Cow<'_, str> {
+    if !windows {
+        return Cow::Borrowed(path);
+    }
+    let (prefix, rest) = match path.strip_prefix(r"\\?\UNC\") {
+        Some(unc) => ("//", unc),
+        None => ("", path.strip_prefix(r"\\?\").unwrap_or(path)),
+    };
+    Cow::Owned(format!(
+        "{prefix}{}",
+        rest.replace('\\', "/").to_lowercase()
+    ))
+}
+
+/// The `projectPaths` filter as comparison keys (`project_path_key`).
+fn selected_project_path_keys(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Option<HashSet<Cow<'_, str>>> {
+    selected_strings(obj, "projectPaths")
+        .map(|paths| paths.into_iter().map(project_path_key).collect())
+}
+
 /// The `dateRange` filter: absent (or not a two-item array, which validation
 /// rejects), a parsed range, or a two-item range that does not parse — which
 /// rejects every message.
@@ -446,7 +482,7 @@ enum DateRangeFilter {
 struct SearchFilters<'a> {
     message_type: Option<&'a str>,
     projects: Option<HashSet<&'a str>>,
-    project_paths: Option<HashSet<&'a str>>,
+    project_paths: Option<HashSet<Cow<'a, str>>>,
     session_ids: Option<HashSet<&'a str>>,
     has_tool_calls: Option<bool>,
     has_errors: Option<bool>,
@@ -476,7 +512,7 @@ impl<'a> SearchFilters<'a> {
                 .and_then(serde_json::Value::as_str)
                 .filter(|message_type| *message_type != "all"),
             projects: selected_strings(obj, "projects"),
-            project_paths: selected_strings(obj, "projectPaths"),
+            project_paths: selected_project_path_keys(obj),
             session_ids: selected_strings(obj, "sessionIds"),
             has_tool_calls: flag("hasToolCalls"),
             has_errors: flag("hasErrors"),
@@ -501,13 +537,14 @@ impl<'a> SearchFilters<'a> {
             }
         }
 
-        // Path filters are exact; the legacy name filter below keeps its
-        // old semantics. A message without a path never matches a path.
+        // Path filters are exact up to the platform's spelling of a path
+        // (`project_path_key`); the legacy name filter below keeps its old
+        // semantics. A message without a path never matches a path.
         if let Some(project_paths) = &self.project_paths {
             if !message
                 .project_path
                 .as_deref()
-                .is_some_and(|path| project_paths.contains(path))
+                .is_some_and(|path| project_paths.contains(project_path_key(path).as_ref()))
             {
                 return false;
             }
@@ -596,9 +633,10 @@ fn is_valid_project_dir_name(name: &str) -> bool {
 /// `projects/<dir>` its file sits under (nested files such as
 /// `<session>/subagents/*.jsonl` included), so only files under a selected
 /// directory can pass either filter: walking just those directories yields
-/// the same results. A path is matched exactly as `search_in_file` derives
-/// it (`projects_path.join(<dir>)`); when both filters are present a
-/// directory must satisfy both, as the serve-time filter requires.
+/// the same results. A path is matched as `search_in_file` derives it
+/// (`projects_path.join(<dir>)`), compared by `project_path_key`; when both
+/// filters are present a directory must satisfy both, as the serve-time
+/// filter requires.
 ///
 /// Project directories are taken from `read_dir` order (the order `WalkDir`
 /// itself uses), so the scoped file list is an in-order subsequence of the
@@ -607,7 +645,7 @@ fn is_valid_project_dir_name(name: &str) -> bool {
 fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> WalkScope {
     let obj = filters.as_object();
     let names = obj.and_then(|obj| selected_strings(obj, "projects"));
-    let paths = obj.and_then(|obj| selected_strings(obj, "projectPaths"));
+    let paths = obj.and_then(selected_project_path_keys);
     if names.is_none() && paths.is_none() {
         return WalkScope::All;
     }
@@ -634,7 +672,7 @@ fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> Walk
                 .map(|entry| entry.path())
                 .filter(|path| {
                     paths.as_ref().map_or(true, |paths| {
-                        paths.contains(path.to_string_lossy().as_ref())
+                        paths.contains(project_path_key(&path.to_string_lossy()).as_ref())
                     })
                 })
                 .collect()
@@ -944,11 +982,15 @@ mod tests {
             )
             .unwrap();
         }
-        let selected_path = first
+        // The emitted identity is the native spelling; the filter spells it
+        // with `/` (mixed separators on Windows), which must still match.
+        let emitted_path = first
             .path()
-            .join("projects/same-project")
+            .join("projects")
+            .join("same-project")
             .to_string_lossy()
             .to_string();
+        let selected_path = format!("{}/projects/same-project", first.path().to_string_lossy());
         for _ in 0..2 {
             for (root, expected) in [(first.path(), 1), (second.path(), 0)] {
                 let results = search_messages(
@@ -962,7 +1004,7 @@ mod tests {
                 assert_eq!(results.len(), expected);
                 if let Some(hit) = results.first() {
                     let value = serde_json::to_value(hit).unwrap();
-                    assert_eq!(value["projectPath"], selected_path);
+                    assert_eq!(value["projectPath"], emitted_path);
                     assert_eq!(value["projectName"], "same-project");
                 }
             }
@@ -970,8 +1012,14 @@ mod tests {
         // The second root's same-named directory is another identity, so the
         // path-scoped search never walks it; the first is scanned once and
         // then served from cache.
-        let scan_count =
-            |root: &Path| test_scan_count(&root.join("projects/same-project/session.jsonl"));
+        let scan_count = |root: &Path| {
+            test_scan_count(
+                &root
+                    .join("projects")
+                    .join("same-project")
+                    .join("session.jsonl"),
+            )
+        };
         assert_eq!(scan_count(first.path()), 1);
         assert_eq!(scan_count(second.path()), 0);
         for root in [first.path(), second.path()] {
@@ -991,8 +1039,8 @@ mod tests {
     #[tokio::test]
     async fn test_search_nested_session_keeps_project_path() {
         let temp = TempDir::new().unwrap();
-        let project = temp.path().join("projects/app");
-        let nested = project.join("session/subagents");
+        let project = temp.path().join("projects").join("app");
+        let nested = project.join("session").join("subagents");
         fs::create_dir_all(&nested).unwrap();
         fs::write(
             nested.join("agent-a.jsonl"),
@@ -1002,7 +1050,8 @@ mod tests {
         let hits = search_messages(
             temp.path().to_string_lossy().to_string(),
             "needle".into(),
-            serde_json::json!({"projectPaths": [project.to_string_lossy()]}),
+            // Spelled with `/`: mixed separators on Windows.
+            serde_json::json!({"projectPaths": [format!("{}/projects/app", temp.path().to_string_lossy())]}),
             None,
         )
         .await
@@ -1010,6 +1059,69 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].project_name.as_deref(), Some("app"));
         assert_eq!(hits[0].project_path.as_deref(), project.to_str());
+    }
+
+    #[test]
+    fn test_project_path_key_folds_windows_spellings() {
+        let key = |path: &str| project_path_key_for(path, true).into_owned();
+        let expected = "c:/users/me/.claude/projects/-work-app";
+        for spelling in [
+            r"C:\Users\me\.claude\projects\-work-app",
+            "C:/Users/me/.claude/projects/-work-app",
+            r"C:\Users\me\.claude\projects/-work-app",
+            r"c:\USERS\me/.claude\projects/-work-app",
+            r"\\?\C:\Users\me\.claude\projects\-work-app",
+        ] {
+            assert_eq!(key(spelling), expected, "{spelling}");
+        }
+        for spelling in [
+            r"\\wsl.localhost\Ubuntu\home\me\.claude\projects\-work-app",
+            "//wsl.localhost/Ubuntu/home/me/.claude/projects/-work-app",
+            r"\\wsl.localhost\Ubuntu/home\me/.claude/projects\-work-app",
+            r"\\?\UNC\wsl.localhost\Ubuntu\home\me\.claude\projects\-work-app",
+        ] {
+            assert_eq!(
+                key(spelling),
+                "//wsl.localhost/ubuntu/home/me/.claude/projects/-work-app",
+                "{spelling}"
+            );
+        }
+        assert_eq!(key(r"codex:///C:\work\app"), key("codex:///c:/work/app"));
+        assert_ne!(key(r"C:\work\app"), key(r"C:\work\app2"));
+    }
+
+    #[test]
+    fn test_project_path_key_keeps_posix_paths_exact() {
+        let key = |path| project_path_key_for(path, false);
+        assert_eq!(key("/work/app"), "/work/app");
+        // `\` is a filename character and case is significant off Windows.
+        assert_ne!(key(r"/work\app"), key("/work/app"));
+        assert_ne!(key("/Work/app"), key("/work/app"));
+        assert!(matches!(key("/work/app"), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn test_path_filter_matches_the_platform_spellings_of_a_path() {
+        let message = |path: &str| -> ClaudeMessage {
+            serde_json::from_value(serde_json::json!({
+                "uuid": "u", "sessionId": "s", "timestamp": "", "type": "user",
+                "projectName": "app", "projectPath": path, "content": "needle"
+            }))
+            .unwrap()
+        };
+        let kept = |stored: &str, selected: &str| {
+            apply_search_filters(
+                vec![message(stored)],
+                &serde_json::json!({ "projectPaths": [selected] }),
+            )
+            .len()
+        };
+        assert_eq!(kept("/work/app", "/work/app"), 1);
+        assert_eq!(kept("/work/app", "/work/other"), 0);
+        let on_windows = usize::from(cfg!(windows));
+        assert_eq!(kept(r"C:\work\app", "C:/work/app"), on_windows);
+        assert_eq!(kept(r"C:\work\app", r"c:\work/app"), on_windows);
+        assert_eq!(kept(r"C:\work\app", r"C:\work\app"), 1);
     }
 
     #[test]
