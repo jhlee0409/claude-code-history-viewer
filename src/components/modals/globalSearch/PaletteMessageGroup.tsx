@@ -19,7 +19,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeProject, ClaudeSession, ContentItem } from "@/types";
 import { getProviderLabel } from "@/utils/providers";
 import { getProjectDisplayName } from "@/utils/pathUtils";
-import { projectForSearchResult, projectIdentityKey } from "@/utils/projectIdentity";
+import { collisionHints, projectForSearchResult, projectIdentityKey } from "@/utils/projectIdentity";
 import { MESSAGE_PREVIEW_LIMIT, MORE_MESSAGES_VALUE, RETRY_MESSAGES_VALUE } from "@/commands/paletteSources";
 import { messageItemValue } from "./paletteMessageValues";
 import { FailedLoad, PALETTE_GROUP_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
@@ -91,7 +91,10 @@ interface ResultGroup {
   label: string;
   provider?: string;
   pathUnavailable: boolean;
+  /** The project's opaque identity (path or provider URI), when known. */
   path?: string;
+  /** Readable location, shown only when another group has the same label. */
+  hint?: string;
   project?: ClaudeProject;
   items: Array<{ result: ClaudeMessage; index: number }>;
 }
@@ -150,6 +153,15 @@ export function PaletteMessageGroup({
         });
       }
       out.get(key)!.items.push({ result, index });
+    });
+    const list = Array.from(out.values());
+    collisionHints(
+      list.map((group) => ({
+        label: group.label,
+        hints: [group.project?.actual_path || group.path, group.path ?? group.project?.actual_path],
+      })),
+    ).forEach((hint, index) => {
+      list[index]!.hint = hint;
     });
     return out;
   }, [projects, results, expanded, t, providerName]);
@@ -314,9 +326,9 @@ export function PaletteMessageGroup({
                 {t("project.pathUnavailable", "Location unavailable")}
               </Badge>
             )}
-            <span className="min-w-0">
+            <span className="min-w-0" title={group.path}>
               <span className="block truncate">{group.label}</span>
-              {group.path && <span className="block truncate text-caption font-normal" title={group.path}>{group.path}</span>}
+              {group.hint && <span className="block truncate text-caption font-normal">{group.hint}</span>}
             </span>
           </div>
           {group.items.map(({ result, index }) => {

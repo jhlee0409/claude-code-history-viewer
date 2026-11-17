@@ -16,8 +16,8 @@ vi.mock("react-i18next", () => {
 });
 vi.mock("@/lib/format/useFormat", () => ({ useFormat: () => ({ count: String, dateTime: () => "date" }) }));
 
-const project = (path: string, provider = "codex"): ClaudeProject => ({
-  path, provider, name: "app", actual_path: path, session_count: 1, message_count: 1,
+const project = (path: string, provider = "codex", actualPath = path.replace(/^codex:\/\//, "")): ClaudeProject => ({
+  path, provider, name: "app", actual_path: actualPath, session_count: 1, message_count: 1,
   last_modified: "2026-08-13T00:00:00Z",
 });
 const hit = (uuid: string, projectPath?: string, provider = "codex"): ClaudeMessage => ({
@@ -45,10 +45,36 @@ describe("palette message project identity", () => {
     expect(await screen.findByText("First project title")).toBeInTheDocument();
     expect(await screen.findByText("Second project title")).toBeInTheDocument();
     expect(screen.getAllByText("app (Codex CLI)")).toHaveLength(2);
-    expect(screen.getByText(first.path)).toBeInTheDocument();
-    expect(screen.getByText(second.path)).toBeInTheDocument();
+    // Colliding labels are told apart by the readable folder, not the URI.
+    expect(screen.getByText("/client-a/app")).toBeInTheDocument();
+    expect(screen.getByText("/client-b/app")).toBeInTheDocument();
+    expect(screen.queryByText(first.path)).not.toBeInTheDocument();
+    expect(screen.queryByText(second.path)).not.toBeInTheDocument();
     expect(mockApi).toHaveBeenCalledWith("load_provider_sessions", { provider: "codex", projectPath: first.path, excludeSidechain: false });
     expect(mockApi).toHaveBeenCalledWith("load_provider_sessions", { provider: "codex", projectPath: second.path, excludeSidechain: false });
+  });
+
+  it("shows no location under a group whose label is unique", async () => {
+    const store = "/Users/me/.claude/projects/-work-app";
+    state.projects = [project(store, "claude", "/work/app")];
+    mockApi.mockResolvedValue([]);
+    show([hit("only", store, "claude")]);
+    await waitFor(() => expect(screen.getByRole("option")).toHaveTextContent("needle only"));
+    expect(screen.getByText("app (Claude Code)").parentElement).toHaveAttribute("title", store);
+    expect(screen.queryByText(store)).not.toBeInTheDocument();
+    expect(screen.queryByText("/work/app")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the identity when the readable folders collide too", async () => {
+    const first = "/Users/me/.claude/projects/-work-app";
+    const second = "/Volumes/backup/.claude/projects/-work-app";
+    state.projects = [project(first, "claude", "/work/app"), project(second, "claude", "/work/app")];
+    mockApi.mockResolvedValue([]);
+    show([hit("one", first, "claude"), hit("two", second, "claude")]);
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+    expect(screen.getAllByText("app (Claude Code)")).toHaveLength(2);
+    expect(screen.getByText(first)).toBeInTheDocument();
+    expect(screen.getByText(second)).toBeInTheDocument();
   });
 
   it("qualifies title caches by provider even when paths and session IDs match", async () => {
