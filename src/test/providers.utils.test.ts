@@ -326,10 +326,10 @@ describe("providers utils", () => {
 
   // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
   it("allows subagent lookups only for providers the backend reads", () => {
-    for (const id of ["claude", "opencode", "kilo"]) {
+    for (const id of ["claude", "opencode", "kilo", "zcode"]) {
       expect(supportsSubagents(id)).toBe(true);
     }
-    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode", "zcode"]) {
+    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode"]) {
       expect(supportsSubagents(id)).toBe(false);
     }
     expect(supportsSubagents(undefined)).toBe(true);

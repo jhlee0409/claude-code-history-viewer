@@ -25,6 +25,7 @@
 //! `conversation_only` does not.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::opencode::ChildSession;
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
@@ -358,6 +359,53 @@ fn session_has_parent_id(conn: &Connection) -> Result<bool, String> {
         .prepare("SELECT 1 FROM pragma_table_info('session') WHERE name = 'parent_id'")
         .map_err(|e| e.to_string())?;
     stmt.exists([]).map_err(|e| e.to_string())
+}
+
+/// The subagent runs `session_path` (`zcode://<directory>#<session_id>`)
+/// spawned directly: `subagent_child` rows whose `parent_id` is the session,
+/// oldest first. Z Code keeps them in its database rather than as sidechain
+/// files, so the `SubAgent` panel reads them from there, as it does for
+/// `OpenCode` (#761). A deeper run is listed by its own parent. Empty when
+/// there is no store or it predates `parent_id`; a failing query is an error.
+pub fn load_child_sessions(session_path: &str) -> Result<Vec<ChildSession>, String> {
+    let (_, session_id) = parse_session_path(session_path)?;
+    let Some(path) = db_path() else {
+        return Ok(Vec::new());
+    };
+    let conn = open_db(&path)?;
+    load_child_sessions_conn(&conn, &session_id)
+}
+
+fn load_child_sessions_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Vec<ChildSession>, String> {
+    if !session_has_parent_id(conn)? {
+        return Ok(Vec::new());
+    }
+    // Counted like the session list counts a session's messages.
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id, s.title, s.time_created, s.time_updated, \
+                    (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) \
+             FROM session s \
+             WHERE s.parent_id = ?1 AND s.task_type = 'subagent_child' AND s.id != ?1 \
+             ORDER BY s.time_created, s.id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([session_id], |row| {
+            Ok(ChildSession {
+                id: row.get(0)?,
+                title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                created_at: ms_to_iso(row.get::<_, i64>(2)?.max(0) as u64),
+                updated_at: ms_to_iso(row.get::<_, i64>(3)?.max(0) as u64),
+                message_count: row.get::<_, i64>(4)?.max(0) as usize,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 /// Split `zcode://<directory>#<session_id>` into its two parts.
@@ -1155,6 +1203,81 @@ mod tests {
         conn.execute_batch("ALTER TABLE session RENAME COLUMN task_type TO kind")
             .unwrap();
         assert!(descendant_subagent_ids(&conn, "parent").is_err());
+    }
+
+    #[test]
+    fn child_sessions_list_direct_subagent_runs_only() {
+        // #761: the SubAgent panel lists the `subagent_child` rows a session
+        // spawned. The grandchild belongs to `child`, and the interactive
+        // fork is a session of its own.
+        let conn = test_db();
+        seed_subagent_tree(&conn);
+        insert_child_session(&conn, "child-2", "parent", "subagent_child");
+        conn.execute(
+            "UPDATE session SET time_created = 1788599956000, title = '' WHERE id = 'child-2'",
+            [],
+        )
+        .unwrap();
+
+        let children = load_child_sessions_conn(&conn, "parent").unwrap();
+        let ids: Vec<_> = children.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["child-2", "child"], "oldest first");
+        assert_eq!(children[1].title, "child");
+        assert_eq!(children[1].message_count, 1);
+        assert_eq!(children[0].message_count, 0);
+
+        let grandchildren = load_child_sessions_conn(&conn, "child").unwrap();
+        let ids: Vec<_> = grandchildren.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["grandchild"]);
+    }
+
+    #[test]
+    fn store_without_parent_id_has_no_child_sessions() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&TEST_SCHEMA.replace(" parent_id text,", ""))
+            .unwrap();
+        insert_session(&conn, "parent", "/Users/jack/proj", "main", "interactive");
+        assert!(load_child_sessions_conn(&conn, "parent")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn session_subagents_command_lists_zcode_children() {
+        let (_temp, conn, original) = temp_zcode_home();
+        seed_subagent_tree(&conn);
+        let subagents = crate::commands::session::get_session_subagents(
+            "zcode:///Users/jack/proj#parent".to_string(),
+        )
+        .await;
+        let missing = crate::commands::session::get_session_subagents(
+            "zcode:///Users/jack/proj#no-such-session".to_string(),
+        )
+        .await;
+        // The listed path opens through the Z Code reader.
+        let child_messages = subagents
+            .as_ref()
+            .ok()
+            .and_then(|s| s.first())
+            .map(|s| load_messages(&s.file_path));
+        restore_zcode_home(original);
+
+        let subagents = subagents.expect("Z Code subagents load");
+        assert_eq!(subagents.len(), 1);
+        assert_eq!(subagents[0].agent_id, "child");
+        assert_eq!(subagents[0].file_path, "zcode:///Users/jack/proj#child");
+        assert_eq!(subagents[0].message_count, 1);
+        assert_eq!(subagents[0].summary.as_deref(), Some("child"));
+        assert!(missing.expect("unknown session").is_empty());
+
+        let ids: Vec<_> = child_messages
+            .expect("a child is listed")
+            .expect("child messages")
+            .into_iter()
+            .map(|m| m.uuid)
+            .collect();
+        assert_eq!(ids, vec!["m-child".to_string()]);
     }
 
     #[tokio::test]

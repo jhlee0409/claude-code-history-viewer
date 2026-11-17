@@ -791,7 +791,7 @@ handler_json!(
     get_session_subagents,
     SessionPathParam,
     |p: SessionPathParam| async move {
-        // OpenCode / Kilo subagents are read by provider id. Another
+        // OpenCode / Kilo / Z Code subagents are read by provider id. Another
         // provider's session file is answered with no subagents and never
         // opened, so it needs no history root (#643).
         if !commands::session::is_other_provider_session_file(&p.session_path) {
@@ -2554,7 +2554,11 @@ mod provider_uri_scope_tests {
     #[serial]
     async fn provider_uri_handlers_still_accept_provider_ids() {
         let _home = crate::test_utils::SandboxHome::new();
-        for value in ["opencode://proj-1/ses_abc123", "kilo://proj-1/ses_abc123"] {
+        for value in [
+            "opencode://proj-1/ses_abc123",
+            "kilo://proj-1/ses_abc123",
+            "zcode:///Users/jack/proj#ses_abc123",
+        ] {
             let res = get_session_subagents(Json(SessionPathParam {
                 session_path: value.to_string(),
             }))
