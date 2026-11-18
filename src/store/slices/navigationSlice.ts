@@ -50,6 +50,7 @@ import {
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import { selectionsShowing } from "@/utils/conversationBranches";
 import type { PendingAnchor } from "./documentSlice";
 import {
   loadRecent,
@@ -413,12 +414,14 @@ export const createNavigationSlice: StateCreator<
   },
 
   navigateToMessage: (uuid, options) => {
-    // An explicit target outranks a saved scroll position (plan §4.3).
+    // An explicit target outranks a saved scroll position (plan §4.3), and
+    // a message in an alternative not shown at a fork switches it in (#782).
     set({
       targetMessageUuid: uuid,
       shouldHighlightTarget: true,
       targetRequest: get().targetRequest + 1,
       pendingAnchor: null,
+      branchSelections: selectionsShowing(uuid, get().conversationBranches, get().branchSelections),
     });
 
     const session = get().selectedSession;

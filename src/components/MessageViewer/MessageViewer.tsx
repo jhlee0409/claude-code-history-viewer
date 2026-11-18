@@ -58,6 +58,10 @@ import { useFindTarget } from "@/commands/findTarget";
 import { scrollBehavior } from "@/utils/motion";
 import { supportsApiRequestView } from "@/utils/providers";
 import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
+import { isZeroHeightMessageRow } from "./helpers/heightEstimation";
+import { branchSwitchesByMessage, type BranchSwitch } from "@/utils/conversationBranches";
+
+const NO_BRANCH_SWITCHES: ReadonlyMap<string, BranchSwitch[]> = new Map();
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 /** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
@@ -539,6 +543,33 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         )
         .map((item) => item.message.uuid),
     [flattenedMessages],
+  );
+
+  // Conversation forks (#782): each one's switcher, on the rows shown.
+  const conversationBranches = useAppStore((s) => s.conversationBranches);
+  const branchSelections = useAppStore((s) => s.branchSelections);
+  const selectConversationBranch = useAppStore((s) => s.selectConversationBranch);
+  const branchSwitches = useMemo(() => {
+    if (!conversationBranches || conversationBranches.points.length === 0) return NO_BRANCH_SWITCHES;
+    const rowUuids: string[] = [];
+    for (const item of flattenedMessages) {
+      if (
+        item.type === "message" &&
+        !item.isGroupMember &&
+        !item.isProgressGroupMember &&
+        !item.isTaskOperationGroupMember &&
+        !isZeroHeightMessageRow(item, isInSubagent)
+      ) {
+        rowUuids.push(item.message.uuid);
+      }
+    }
+    return branchSwitchesByMessage(rowUuids, conversationBranches, branchSelections);
+  }, [flattenedMessages, conversationBranches, branchSelections, isInSubagent]);
+  const handleSelectBranch = useCallback(
+    (parentUuid: string, headUuid: string) => {
+      void selectConversationBranch(parentUuid, headUuid);
+    },
+    [selectConversationBranch],
   );
 
   // Stable selection handler (avoids creating new function per row in render loop)
@@ -1525,6 +1556,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   isSelected={itemIsSelected}
                   onRangeSelect={isCaptureMode ? handleRangeSelect : undefined}
                   isInSubagent={isInSubagent}
+                  branchSwitches={isMessage ? branchSwitches.get(item.message.uuid) : undefined}
+                  onSelectBranch={handleSelectBranch}
                 />
               );
             })}

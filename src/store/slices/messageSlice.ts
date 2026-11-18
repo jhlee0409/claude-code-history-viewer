@@ -10,6 +10,7 @@ import i18n from "../../i18n";
 import type {
   ClaudeMessage,
   ClaudeSession,
+  ConversationBranches,
   MessagePage,
   PaginationState,
   SessionTokenStats,
@@ -20,6 +21,12 @@ import type {
 import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
+import {
+  type BranchSelections,
+  createShownPathFilter,
+  NO_BRANCH_SELECTIONS,
+  selectionsShowing,
+} from "../../utils/conversationBranches";
 import type { FullAppStore } from "./types";
 import { ownWork } from "@/navigation/ownership";
 import {
@@ -35,7 +42,11 @@ import {
   getNextOffset,
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
-import { supportsConversationBreakdown, supportsSubagents } from "../../utils/providers";
+import {
+  supportsConversationBranches,
+  supportsConversationBreakdown,
+  supportsSubagents,
+} from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
 import { retainLoadedCodexStarts } from "../../components/transcript/codexTurns";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
@@ -82,6 +93,17 @@ export interface MessageSliceState {
   parentSessionStack: ClaudeSession[];
   /** parentToolUseID → subagent file_path 매핑 (progress 메시지 기반, file_path는 유일 식별자) */
   toolUseToSubagentMap: Map<string, string>;
+  /**
+   * Where the open session's conversation forks (#782), read from the whole
+   * session. Null while unknown, for a subagent transcript, and for
+   * providers whose records cannot fork.
+   */
+  conversationBranches: ConversationBranches | null;
+  /**
+   * The alternative the user chose at a fork (fork entry uuid → alternative
+   * head uuid). A fork without a choice shows the one Claude Code resumes.
+   */
+  branchSelections: BranchSelections;
 }
 
 /**
@@ -137,12 +159,18 @@ export interface MessageSliceActions {
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
   /**
    * Fetch the COMPLETE message list of the current session (same sidechain /
-   * system-message filtering as the loaded window). Used by consumers that
-   * must operate on the full session (export, in-session search) while the
-   * store only holds a window. Result is cached per session until the next
-   * selectSession call.
+   * system-message filtering as the loaded window, on the shown branch
+   * path). Used by consumers that must operate on the full session (export,
+   * in-session search) while the store only holds a window. The fetch is
+   * cached per session until the next selectSession call.
    */
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
+  /**
+   * Show another alternative at a fork: what follows the fork entry becomes
+   * that alternative, for the transcript, search and export alike. Pages it
+   * in when it is older than the loaded window.
+   */
+  selectConversationBranch: (parentUuid: string, headUuid: string) => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
@@ -246,7 +274,21 @@ const initialMessageState: MessageSliceState = {
   subagentSessions: [],
   parentSessionStack: [],
   toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+  conversationBranches: null,
+  branchSelections: NO_BRANCH_SELECTIONS,
 };
+
+const shownWindow = createShownPathFilter();
+
+/**
+ * The loaded messages on the path being read: the window without the
+ * alternatives not shown at each fork. What the transcript, the navigator
+ * and export read; the raw window (`messages`) stays the pagination's.
+ */
+export const selectDisplayedMessages = (
+  state: Pick<MessageSliceState, "messages" | "conversationBranches" | "branchSelections">,
+): ClaudeMessage[] =>
+  shownWindow(state.messages, state.conversationBranches, state.branchSelections);
 
 // ============================================================================
 // Slice Creator
@@ -308,6 +350,9 @@ export const createMessageSlice: StateCreator<
     key: string;
     promise: Promise<ClaudeMessage[]>;
   } | null = null;
+  // The cached full session on the shown branch path: one array per
+  // (fetch, forks, choices), which the search index keys on.
+  const shownFullSession = createShownPathFilter();
 
   // Serializes older-page loads (button, near-top autoload, ensureMessageLoaded)
   // so concurrent callers can't fetch the same offset twice.
@@ -533,6 +578,8 @@ export const createMessageSlice: StateCreator<
         isLoadingMessages: true,
         subagentSessions: [],
         toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        conversationBranches: null,
+        branchSelections: NO_BRANCH_SELECTIONS,
         ...(preserveStack || explicitStack ? {} : { parentSessionStack: [] }),
       });
 
@@ -559,6 +606,42 @@ export const createMessageSlice: StateCreator<
     // full-session fetch is no longer trustworthy either way.
     fullSessionCache = null;
 
+    // Forks come from the whole session file, so they are fetched alongside
+    // any window. A subagent transcript is all sidechain: no forks. A failed
+    // fetch keeps what an in-place reload already had (`undefined`).
+    const provider = session.provider ?? "claude";
+    const fetchBranches = async (): Promise<ConversationBranches | null | undefined> => {
+      if (shouldTreatAsSubagent || !supportsConversationBranches(provider)) return null;
+      try {
+        return await api<ConversationBranches>("get_conversation_branches", {
+          provider,
+          sessionPath: session.file_path,
+        });
+      } catch (error) {
+        console.error("Failed to load conversation branches:", error);
+        return isInPlaceReload ? undefined : null;
+      }
+    };
+    // A reload answering the same forks keeps the object: the shown path
+    // (and every view derived from it) is not recomputed for nothing. A
+    // message target set before the forks were known is switched in now.
+    const branchesUpdate = (
+      branches: ConversationBranches | null | undefined,
+    ): Pick<MessageSliceState, "conversationBranches" | "branchSelections"> => {
+      const current = get().conversationBranches;
+      const next =
+        branches === undefined ||
+        (branches !== null && current !== null && JSON.stringify(branches) === JSON.stringify(current))
+          ? current
+          : branches;
+      const selections = get().branchSelections;
+      const target = get().targetMessageUuid;
+      return {
+        conversationBranches: next,
+        branchSelections: target ? selectionsShowing(target, next, selections) : selections,
+      };
+    };
+
     const cached = options?.cachedMessages;
     if (cached) {
       // Already the whole session: the window is all of it.
@@ -576,6 +659,11 @@ export const createMessageSlice: StateCreator<
         },
       });
       void get().loadSubagents(session.file_path, cached);
+      void fetchBranches().then((branches) => {
+        if (!owner.ownsData()) return;
+        const { conversationBranches, branchSelections } = branchesUpdate(branches);
+        set({ conversationBranches, branchSelections });
+      });
       return;
     }
 
@@ -586,8 +674,6 @@ export const createMessageSlice: StateCreator<
       const sessionPath = session.file_path;
       const start = performance.now();
 
-      const provider = session.provider ?? "claude";
-
       // Window span: initial open loads the newest page; an in-place reload
       // (filter toggle, watcher refresh) preserves the window the user has
       // already paged in so their scroll position's content doesn't vanish.
@@ -597,12 +683,15 @@ export const createMessageSlice: StateCreator<
 
       // Sidechain filtering happens server-side at classification stage —
       // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
-      const { messages: windowMessages, page } = await fetchWindow(
-        provider,
-        sessionPath,
-        span,
-        shouldExcludeSidechain(shouldTreatAsSubagent)
-      );
+      const [{ messages: windowMessages, page }, branches] = await Promise.all([
+        fetchWindow(
+          provider,
+          sessionPath,
+          span,
+          shouldExcludeSidechain(shouldTreatAsSubagent)
+        ),
+        fetchBranches(),
+      ]);
 
       // Stale response guard: 다른 세션으로 이동했거나(경로), 같은 세션의 더
       // 새로운 reload가 시작되었으면(epoch) 중단.
@@ -629,9 +718,16 @@ export const createMessageSlice: StateCreator<
         hasMore: page.has_more,
         isLoadingMore: false,
       };
+      const { conversationBranches, branchSelections } = branchesUpdate(branches);
 
       if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
-        set({ isLoadingMessages: false, pagination: nextPagination, messageUpdateKind });
+        set({
+          isLoadingMessages: false,
+          pagination: nextPagination,
+          messageUpdateKind,
+          conversationBranches,
+          branchSelections,
+        });
         return;
       }
 
@@ -641,6 +737,8 @@ export const createMessageSlice: StateCreator<
         messageUpdateKind,
         pagination: nextPagination,
         isLoadingMessages: false,
+        conversationBranches,
+        branchSelections,
       });
 
       // Load subagent sessions (non-blocking). windowMessages는 시스템 메시지 필터
@@ -754,15 +852,19 @@ export const createMessageSlice: StateCreator<
     if (!session) return [];
 
     // Loaded window already covers the whole session — reuse it.
-    if (!get().pagination.hasMore) return get().messages;
+    if (!get().pagination.hasMore) return selectDisplayedMessages(get());
 
     const inSubagent = get().parentSessionStack.length > 0;
     const excludeSidechain = shouldExcludeSidechain(inSubagent);
     const showSystem = get().showSystemMessages;
     const key = `${session.file_path}|${excludeSidechain}|${showSystem}`;
+    const onShownPath = (all: ClaudeMessage[]) => {
+      const { conversationBranches, branchSelections } = get();
+      return shownFullSession(all, conversationBranches, branchSelections);
+    };
 
     if (fullSessionCache?.key === key) {
-      return fullSessionCache.promise;
+      return onShownPath(await fullSessionCache.promise);
     }
 
     const provider = session.provider ?? "claude";
@@ -789,7 +891,26 @@ export const createMessageSlice: StateCreator<
         fullSessionCache = null;
       }
     });
-    return promise;
+    return onShownPath(await promise);
+  },
+
+  selectConversationBranch: async (parentUuid, headUuid) => {
+    const branches = get().conversationBranches;
+    const point = branches?.points.find((candidate) => candidate.parentUuid === parentUuid);
+    const option = point?.optionIds
+      .map((id) => branches?.options[id])
+      .find((candidate) => candidate?.headUuid === headUuid);
+    if (!option) return;
+    set({ branchSelections: { ...get().branchSelections, [parentUuid]: headUuid } });
+
+    // Matches index the path that was shown: search the new one.
+    clearSearchIndex();
+    const query = get().sessionSearch.query;
+    if (query.trim()) void get().setSessionSearchQuery(query);
+
+    // An older alternative can sit before the loaded window: page back to
+    // its first message (everything after it in the file is then loaded).
+    if (option.anchorUuid) await get().ensureMessageLoaded(option.anchorUuid);
   },
 
   loadSessionTokenStats: async (sessionPath: string) => {

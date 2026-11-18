@@ -520,6 +520,7 @@ mod raw_open_guard {
         "src/commands/stats/usage_breakdown/contribution_cache.rs",
         "src/commands/stats/usage_breakdown/ranking.rs",
         "src/commands/stats/usage_breakdown/sources.rs",
+        "src/commands/session/branches.rs",
         "src/commands/session/chain.rs",
         "src/commands/session/edits.rs",
         "src/commands/session/load.rs",

@@ -59,6 +59,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_archive_sessions",
     "/get_claude_folder_path",
     "/get_claude_json_config",
+    "/get_conversation_branches",
     "/get_expiring_sessions",
     "/get_git_log",
     "/get_global_stats_summary",
@@ -326,6 +327,10 @@ pub fn build_router(
         .route(
             "/get_provider_message_offset",
             post(h::get_provider_message_offset),
+        )
+        .route(
+            "/get_conversation_branches",
+            post(h::get_conversation_branches),
         )
         .route("/search_all_providers", post(h::search_all_providers))
         // Archive commands
@@ -1823,6 +1828,10 @@ mod tests {
                 }),
             ),
             (
+                "get_conversation_branches",
+                serde_json::json!({ "provider": "claude", "sessionPath": fifo_path }),
+            ),
+            (
                 "get_session_token_stats",
                 serde_json::json!({ "sessionPath": fifo_path }),
             ),
@@ -1862,6 +1871,7 @@ mod tests {
                 ("load_provider_messages", refused.clone()),
                 ("load_provider_messages_paginated", refused.clone()),
                 ("get_provider_message_offset", refused.clone()),
+                ("get_conversation_branches", refused.clone()),
                 ("get_session_token_stats", refused.clone()),
                 ("get_recent_edits", refused),
             ]

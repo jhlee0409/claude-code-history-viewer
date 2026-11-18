@@ -6,6 +6,7 @@ import { useAnalytics } from "./hooks/useAnalytics";
 import { useUpdater } from "./hooks/useUpdater";
 import { useResizablePanel } from "./hooks/useResizablePanel";
 import { INSPECTOR_WIDTH } from "./store/slices/inspectorSlice";
+import { selectDisplayedMessages } from "./store/slices/messageSlice";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useLiveStatusMessage } from "./hooks/useLiveStatusMessage";
@@ -86,7 +87,6 @@ function App() {
     hasMoreSessions,
     selectedProject,
     selectedSession,
-    messages,
     isLoading,
     isLoadingProjects,
     projectsScanned,
@@ -111,6 +111,8 @@ function App() {
     setInspectorWidth,
     activeProviders,
   } = useAppStore();
+  // The navigator and outline read the branch path the transcript shows.
+  const messages = useAppStore(selectDisplayedMessages);
 
   const {
     state: analyticsState,
