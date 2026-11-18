@@ -121,6 +121,7 @@ async fn an_unreadable_part_of_a_file_store_is_never_a_scanned_zero() {
         openinterpreter,
         gemini,
         qwen,
+        qoder,
         pi,
         ompi,
         grok,
@@ -715,6 +716,33 @@ fn claude(home: &Path) -> Store {
     Store::new(
         "claude",
         vec![home.join(".claude"), projects, project, session],
+    )
+}
+
+/// `~/.qoder/projects/<dir>/<session>.jsonl`: Qoder's Claude Code-format
+/// transcript (the shape of `tests/fixtures/qoder/cli-session-1.1.84.jsonl`).
+fn qoder(home: &Path) -> Store {
+    let qoder = home.join(".qoder");
+    let project = qoder.join("projects/-work-app");
+    let session = project.join("sess-qd1.jsonl");
+    write_lines(
+        &session,
+        &[
+            json!({"type": "user", "uuid": "u1", "sessionId": "sess-qd1",
+                   "timestamp": "2026-10-16T09:00:00Z", "cwd": "/work/app",
+                   "message": {"role": "user", "content": "hi"}}),
+            json!({"type": "assistant", "uuid": "a1", "parentUuid": "u1",
+                   "sessionId": "sess-qd1", "timestamp": "2026-10-16T09:00:01Z",
+                   "cwd": "/work/app",
+                   "message": {"id": "msg-qd1", "type": "message", "role": "assistant",
+                               "model": "gfmodel",
+                               "content": [{"type": "text", "text": "ok"}],
+                               "usage": {"input_tokens": 12, "output_tokens": 34}}}),
+        ],
+    );
+    Store::new(
+        "qoder",
+        vec![qoder.clone(), qoder.join("projects"), project, session],
     )
 }
 

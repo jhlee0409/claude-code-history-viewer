@@ -78,6 +78,9 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   isLoadingMessages: "reloaded",
   subagentSessions: "reloaded",
   toolUseToSubagentMap: "reloaded",
+  // Its forks, and the alternative chosen at each: loaded and reset with it.
+  conversationBranches: "reloaded",
+  branchSelections: "reloaded",
   sessions: "reloaded",
   sessionsTotal: "reloaded",
   sessionsOffset: "reloaded",

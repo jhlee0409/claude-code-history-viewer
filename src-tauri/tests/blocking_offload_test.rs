@@ -113,6 +113,22 @@ async fn search_messages_leaves_the_runtime_free() {
     );
 }
 
+#[tokio::test]
+async fn get_conversation_branches_leaves_the_runtime_free() {
+    let root = empty_root();
+    let path = root.path().join("session.jsonl");
+    std::fs::write(&path, "").expect("empty session");
+
+    assert!(
+        yielded_during(commands::multi_provider::get_conversation_branches(
+            "claude".to_string(),
+            path.to_string_lossy().to_string(),
+        ))
+        .await,
+        "get_conversation_branches held the runtime thread for the whole file scan"
+    );
+}
+
 /// The control. `get_claude_folder_path` is deliberately *not* offloaded — two
 /// stat calls on the home directory, where a task spawn would cost more than it
 /// saves. If someone later wraps it, this test says so rather than letting the

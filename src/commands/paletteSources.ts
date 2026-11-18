@@ -267,6 +267,7 @@ export const MESSAGE_SEARCH_PROVIDERS: readonly ProviderId[] = [
   "openinterpreter",
   "pearai",
   "pi",
+  "qoder",
   "qwen",
   "trae",
   "vibe",

@@ -207,6 +207,18 @@ exports[`TR1c added public provider result/fallback preservation > pearai: prese
 ]
 `;
 
+exports[`TR1c added public provider result/fallback preservation > qoder: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Run the test suite and tell me what fails",
+  "ThoughtsI should run the tests before reading any code.",
+  "Running the test suite first.",
+  "Bashpnpm testFailedInputRun the test suiteResult2 linesFAIL src/math.test.ts > adds
+1 failed, 41 passedCopy tool ID",
+  "One test fails: adds in src/math.test.ts. The other 41 pass.",
+  "Checkpoint saved",
+]
+`;
+
 exports[`TR1c added public provider result/fallback preservation > qwen: preserves real result values/order and never guesses process exit 1`] = `
 [
   "why does LOGIN fail?",

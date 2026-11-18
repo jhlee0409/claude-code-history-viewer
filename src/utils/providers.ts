@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "claude-ai", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-acp", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "claude-ai", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-acp", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qoder", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 /** claude.ai account exports registered in Settings (`claudeAiExports`). */
 export const CLAUDE_AI_PROVIDER_ID: ProviderId = "claude-ai";
@@ -49,6 +49,7 @@ const PROVIDER_TRANSLATIONS: Record<
   openinterpreter: { key: "common.provider.openinterpreter", fallback: "Open Interpreter" },
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
   pi: { key: "common.provider.pi", fallback: "Pi" },
+  qoder: { key: "common.provider.qoder", fallback: "Qoder" },
   qwen: { key: "common.provider.qwen", fallback: "Qwen Code" },
   trae: { key: "common.provider.trae", fallback: "Trae" },
   vibe: { key: "common.provider.vibe", fallback: "Mistral Vibe" },
@@ -280,6 +281,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  qoder: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   qwen: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -359,6 +367,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "ompi":
     case "pi":
     case "pearai":
+    case "qoder":
     case "qwen":
     case "trae":
     case "vibe":
@@ -553,9 +562,9 @@ const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
 ];
 
 // Keep in sync with `get_session_subagents` in
-// src-tauri/src/commands/session/load.rs: Claude `<session>/subagents/` files
-// plus the OpenCode / Kilo / Z Code provider ids (#560, #643, #761).
-const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo", "zcode"];
+// src-tauri/src/commands/session/load.rs: Claude and Qoder `<session>/subagents/`
+// files plus the OpenCode / Kilo / Z Code provider ids (#560, #643, #761).
+const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "qoder", "opencode", "kilo", "zcode"];
 
 // Unlike the helpers above, a missing provider counts as Claude: the backend
 // leaves `provider` unset on Claude projects and sessions.
@@ -572,10 +581,30 @@ export function supportsSubagents(provider?: ProviderId | string): boolean {
   return isAllowedProvider(SUBAGENT_PROVIDER_IDS, provider);
 }
 
+// Keep in sync with `BRANCHING_PROVIDER_IDS` in
+// src-tauri/src/commands/multi_provider.rs: the providers whose records link
+// to their predecessor, so a session can fork (#782).
+const CONVERSATION_BRANCH_PROVIDER_IDS: readonly ProviderId[] = ["claude", "pi", "ompi"];
+
+export function supportsConversationBranches(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(CONVERSATION_BRANCH_PROVIDER_IDS, provider);
+}
+
 // `load_session_api_view` reads Claude Code's `api-request` records and
 // `requestId` / `requestRef` lines; other providers' files have neither.
 export function supportsApiRequestView(provider?: ProviderId | string): boolean {
   return isAllowedProvider(["claude"], provider);
+}
+
+// Providers whose sessions the unavailable-location cleanup moves to the
+// system trash. Keep in sync with `is_trash_cleanup_provider` in
+// src-tauri/src/commands/session/clear_unavailable.rs. Cursor and ForgeCode
+// delete database rows permanently, so they stay out even though they offer
+// per-session delete (#780).
+const TRASH_CLEANUP_PROVIDER_IDS: readonly ProviderId[] = ["claude", "codex", "cursor-agent"];
+
+export function supportsTrashCleanup(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(TRASH_CLEANUP_PROVIDER_IDS, provider);
 }
 
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
@@ -605,6 +634,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "openhands": "bg-provider-openhands-surface text-provider-openhands",
   "pearai": "bg-provider-pearai-surface text-provider-pearai",
   "pi": "bg-provider-pi-surface text-provider-pi",
+  "qoder": "bg-provider-qoder-surface text-provider-qoder",
   "qwen": "bg-provider-qwen-surface text-provider-qwen",
   "zcode": "bg-provider-zcode-surface text-provider-zcode",
   "trae": "bg-provider-trae-surface text-provider-trae",
