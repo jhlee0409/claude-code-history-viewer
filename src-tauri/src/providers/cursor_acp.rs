@@ -1565,6 +1565,7 @@ pub(crate) mod tests {
 
     /// A seeded session (see [`seed_tool_session`]) under `home`; returns its
     /// session path. For the `WebUI` handler tests.
+    #[cfg(feature = "webui-server")]
     pub(crate) fn seed_session(home: &Path, id: &str, cwd: &str, query: &str) -> String {
         seed_tool_session(&new_session(home, id, Some(cwd), None), query);
         session_uri(cwd, id)
