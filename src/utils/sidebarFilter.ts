@@ -5,9 +5,18 @@
  * both (OR). This module holds the pure matching rules so the tree, the
  * session list and anything else that needs to know "what is the sidebar
  * showing right now" agree on one definition.
+ *
+ * Names (project name, custom session name, summary) match when they contain
+ * the query, or fuzzily (abbreviations, one typo; see `fuzzyTitleMatch`).
+ * Paths and session ids match by substring only.
  */
 
 import type { ClaudeProject, ClaudeSession } from "@/types";
+import {
+  compileFuzzyTitleQuery,
+  fuzzyTitleMatches,
+  type FuzzyTitleQuery,
+} from "./fuzzyTitleMatch";
 
 export interface SidebarFilterScope {
   /** Match the project name / path. */
@@ -30,37 +39,51 @@ export interface SidebarFilterMatches {
 export const normalizeSidebarQuery = (query: string): string =>
   query.trim().toLowerCase();
 
+/** A normalized query prepared for matching. */
+export interface SidebarQuery {
+  text: string;
+  /** Null when the query is too short for fuzzy matching. */
+  fuzzy: FuzzyTitleQuery | null;
+}
+
 /** `query` must already be normalized. */
-export const projectMatchesQuery = (project: ClaudeProject, query: string): boolean => {
-  if (!query) return true;
-  const name = (project.name ?? "").toLowerCase();
+export const compileSidebarQuery = (query: string): SidebarQuery => ({
+  text: query,
+  fuzzy: compileFuzzyTitleQuery(query),
+});
+
+const nameMatches = (name: string | null | undefined, query: SidebarQuery): boolean =>
+  !!name &&
+  (name.toLowerCase().includes(query.text) ||
+    (query.fuzzy !== null && fuzzyTitleMatches(query.fuzzy, name)));
+
+export const projectMatchesQuery = (project: ClaudeProject, query: SidebarQuery): boolean => {
+  if (!query.text) return true;
   const path = (project.actual_path ?? project.path ?? "").toLowerCase();
-  return name.includes(query) || path.includes(query);
+  return path.includes(query.text) || nameMatches(project.name, query);
 };
 
 /**
- * `query` must already be normalized. `customNames` maps session id to the
- * user's app-only name, which wins over the summary in the UI, so both are
- * searched.
+ * `customNames` maps session id to the user's app-only name, which wins over
+ * the summary in the UI, so both are searched.
  */
 export const sessionMatchesQuery = (
   session: ClaudeSession,
-  query: string,
+  query: SidebarQuery,
   customNames: Record<string, { customName?: string } | undefined>
 ): boolean => {
-  if (!query) return true;
-  const customName = customNames[session.session_id]?.customName;
+  if (!query.text) return true;
   return (
-    (customName?.toLowerCase().includes(query) ?? false) ||
-    (session.summary?.toLowerCase().includes(query) ?? false) ||
-    session.session_id.toLowerCase().includes(query)
+    session.session_id.toLowerCase().includes(query.text) ||
+    nameMatches(customNames[session.session_id]?.customName, query) ||
+    nameMatches(session.summary, query)
   );
 };
 
 /**
- * Apply the filter to `projects`. `sessionsByProject` only needs entries for
- * projects whose sessions are known; a project without an entry can only
- * match by name.
+ * Apply the filter to `projects`. `query` must already be normalized.
+ * `sessionsByProject` only needs entries for projects whose sessions are
+ * known; a project without an entry can only match by name.
  */
 export const computeSidebarMatches = (
   projects: readonly ClaudeProject[],
@@ -71,16 +94,17 @@ export const computeSidebarMatches = (
 ): SidebarFilterMatches => {
   const projectPaths = new Set<string>();
   const sessionMatchesByProject = new Map<string, ClaudeSession[]>();
+  const compiled = compileSidebarQuery(query);
 
   for (const project of projects) {
-    if (!query || (scope.matchProjects && projectMatchesQuery(project, query))) {
+    if (!query || (scope.matchProjects && projectMatchesQuery(project, compiled))) {
       projectPaths.add(project.path);
       continue;
     }
     if (!scope.matchSessions) continue;
 
     const matching = (sessionsByProject.get(project.path) ?? []).filter((session) =>
-      sessionMatchesQuery(session, query, customNames)
+      sessionMatchesQuery(session, compiled, customNames)
     );
     if (matching.length > 0) {
       projectPaths.add(project.path);
