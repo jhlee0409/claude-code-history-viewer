@@ -137,6 +137,7 @@
   "navigator.kind.summary": "摘要",
   "navigator.userOnly": "僅顯示我的提示和回答",
   "navigator.promptJumpHint": "按 {{keys}} 跳至上一個或下一個提示。",
+  "navigator.stepJumpHint": "按 {{keys}} 在本輪中跳至上一步或下一步（回覆或工具呼叫）。",
   "navigator.showParallelTasks": "顯示並行任務",
   "navigator.noMessages": "此會話沒有訊息",
   "navigator.close": "關閉導覽器",
