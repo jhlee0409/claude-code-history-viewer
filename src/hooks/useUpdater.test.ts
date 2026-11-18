@@ -16,11 +16,12 @@ afterAll(() => {
 });
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
-const { mockCheck, mockRelaunch, mockGetVersion, mockInvoke } = vi.hoisted(() => ({
+const { mockCheck, mockRelaunch, mockGetVersion, mockInvoke, mockOpenUrl } = vi.hoisted(() => ({
   mockCheck: vi.fn(),
   mockRelaunch: vi.fn(),
   mockGetVersion: vi.fn(),
   mockInvoke: vi.fn(),
+  mockOpenUrl: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/plugin-updater', () => ({
@@ -37,6 +38,10 @@ vi.mock('@tauri-apps/api/app', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: mockInvoke,
+}));
+
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: mockOpenUrl,
 }));
 
 import { useUpdater } from './useUpdater';
@@ -69,6 +74,7 @@ describe('useUpdater', () => {
       expect(result.current.state.downloadProgress).toBe(0);
       expect(result.current.state.error).toBeNull();
       expect(result.current.state.requiresManualRestart).toBe(false);
+      expect(result.current.state.isFlatpak).toBe(false);
 
       await waitFor(() => {
         expect(result.current.state.currentVersion).toBe('1.0.0');
@@ -595,9 +601,67 @@ describe('useUpdater', () => {
       });
 
       // Download did not complete, so the fallback must not run.
-      expect(mockInvoke).not.toHaveBeenCalled();
+      expect(mockInvoke).not.toHaveBeenCalledWith('force_quit_and_relaunch');
       expect(result.current.state.requiresManualRestart).toBe(false);
       expect(result.current.state.error).toBe('Download failed');
+    });
+  });
+
+  describe('Flatpak', () => {
+    it('opens the release page instead of downloading the update', async () => {
+      mockInvoke.mockImplementation((command: string) =>
+        command === 'is_flatpak'
+          ? Promise.resolve(true)
+          : Promise.reject(new Error(`unexpected ${command}`))
+      );
+      mockOpenUrl.mockResolvedValue(undefined);
+      const mockDownloadAndInstall = vi.fn();
+      mockCheck.mockResolvedValue({
+        version: '2.0.0',
+        downloadAndInstall: mockDownloadAndInstall,
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await waitFor(() => {
+        expect(result.current.state.isFlatpak).toBe(true);
+      });
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockOpenUrl).toHaveBeenCalledWith(
+        'https://github.com/jhlee0409/claude-code-history-viewer/releases/tag/v2.0.0'
+      );
+      expect(mockDownloadAndInstall).not.toHaveBeenCalled();
+      expect(mockRelaunch).not.toHaveBeenCalled();
+      expect(result.current.state.isDownloading).toBe(false);
+      expect(result.current.state.error).toBeNull();
+    });
+
+    it('reports a release page that cannot be opened', async () => {
+      mockInvoke.mockImplementation((command: string) =>
+        command === 'is_flatpak' ? Promise.resolve(true) : Promise.reject(new Error('no'))
+      );
+      mockOpenUrl.mockRejectedValue(new Error('No browser available'));
+      mockCheck.mockResolvedValue({ version: '2.0.0', downloadAndInstall: vi.fn() });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await waitFor(() => {
+        expect(result.current.state.isFlatpak).toBe(true);
+      });
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(result.current.state.error).toBe('No browser available');
     });
   });
 

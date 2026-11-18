@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Omnilogue
+GenericName=AI Coding History Viewer
+Comment=Browse and search the history of your AI coding assistants
+Exec=omnilogue
+Icon=io.github.jhlee0409.Omnilogue
+Terminal=false
+Categories=Development;
+Keywords=Claude;Codex;Gemini;Cursor;AI;history;transcript;
+StartupNotify=true
+StartupWMClass=claude-code-history-viewer

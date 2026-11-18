@@ -2,13 +2,34 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tauri::command;
 
+/// Moves `path` to the desktop trash.
+///
+/// Inside a Flatpak sandbox every granted directory (`~/.claude`, `~/.codex`,
+/// …) is its own bind mount, so the `trash` crate sees it as a separate
+/// "volume": it cannot rename into the home trash across the mount and would
+/// instead create a `.Trash-<uid>` folder inside the provider's store, where no
+/// file manager looks. GIO hands the file to the Trash portal instead
+/// (`g_file_trash` uses `org.freedesktop.portal.Trash` whenever
+/// `/.flatpak-info` exists), which trashes it on the host into the real trash.
+/// The portal only accepts files the sandbox may write.
+fn move_to_trash(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    if crate::utils::is_flatpak() {
+        use gio::prelude::FileExt;
+        return gio::File::for_path(path)
+            .trash(gio::Cancellable::NONE)
+            .map_err(|e| e.to_string());
+    }
+    trash::delete(path).map_err(|e| e.to_string())
+}
+
 /// Removes a file or directory: tries the system trash first, falls back to permanent deletion.
 ///
 /// `trash::delete` can fail on Windows when the Recycle Bin is disabled, on network drives,
 /// or when the file is locked. In those cases we permanently delete rather than surfacing an
 /// opaque "delete session failed" to the user (issue #256).
 fn remove_path(path: &Path) -> Result<(), String> {
-    if let Err(trash_err) = trash::delete(path) {
+    if let Err(trash_err) = move_to_trash(path) {
         if path.is_dir() {
             fs::remove_dir_all(path).map_err(|e| {
                 format!("Trash failed: {trash_err}; permanent delete also failed: {e}")
@@ -26,7 +47,7 @@ fn remove_path(path: &Path) -> Result<(), String> {
 /// provider stores other than Claude's a failed trash is an error the user
 /// sees, never a silent irreversible delete.
 fn trash_only(path: &Path) -> Result<(), String> {
-    trash::delete(path).map_err(|e| format!("Could not move to the trash: {e}"))
+    move_to_trash(path).map_err(|e| format!("Could not move to the trash: {e}"))
 }
 
 /// True if `path` names something under `root` (lexically, or once both are

@@ -1,0 +1,125 @@
+# Flatpak manifest for Omnilogue (formerly Claude Code History Viewer).
+#
+# The app is built by Tauri as a .deb; this manifest repackages the binary
+# from it onto the GNOME runtime, which provides WebKitGTK 4.1 and the rest of
+# Tauri's Linux stack (https://v2.tauri.app/distribute/flatpak/). Put the .deb
+# next to this file as `claude-code-history-viewer.deb` before building; the
+# Flatpak workflow (.github/workflows/flatpak.yml) and LINUX_BUILD.md do that.
+#
+# The Flatpak app id is not the Tauri bundle identifier on purpose: Flathub
+# requires an id under a domain the developer controls, and
+# io.github.jhlee0409.* is verifiable through the GitHub account. The Tauri
+# identifier (com.claude.history-viewer) is unchanged, so desktop installs and
+# the app's settings folders keep their names.
+id: io.github.jhlee0409.Omnilogue
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: omnilogue
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Update check against GitHub releases (src/hooks/useUpdater.ts).
+  - --share=network
+  # tauri-plugin-single-instance registers "<tauri identifier>.SingleInstance"
+  # on the session bus so a second launch focuses the running window.
+  - --own-name=com.claude.history-viewer.SingleInstance
+
+  # Read access to the home folder. Explicit per-provider paths are not
+  # enough, because the app also reads outside the assistants' stores:
+  # - every session records the project folder it ran in, and a project whose
+  #   folder cannot be seen is listed as unavailable, with its resume command
+  #   disabled (src-tauri/src/models/session.rs, project_path_status);
+  # - Aider and Crush are found by scanning ~ and code folders under it for
+  #   their per-project history files (providers/aider.rs get_search_dirs,
+  #   providers/crush.rs search_dirs);
+  # - Claude Code's project settings and .mcp.json are read from the project
+  #   folders (commands/claude_settings.rs get_all_settings,
+  #   get_all_mcp_servers).
+  # (The project git log, commands/project.rs get_git_log, needs a `git`
+  # binary, which the GNOME runtime does not ship, so it is empty here.)
+  - --filesystem=home:ro
+
+  # Read-write only where the app writes. Each entry names the code that
+  # writes there; anything else in the home folder stays read-only.
+  #
+  # Claude Code: session rename, delete and move (commands/session/rename.rs
+  # rename_session_native, commands/session/delete.rs delete_session,
+  # commands/session/move_session.rs move_session_to_project) and the settings
+  # editor (commands/claude_settings.rs save_settings, save_mcp_servers ->
+  # write_settings_file for ~/.claude/settings.json and ~/.claude/.mcp.json).
+  - --filesystem=~/.claude
+  # Codex CLI: rename and delete update state_5.sqlite
+  # (providers/codex.rs rename_session_title, delete_session_title) and a
+  # deleted rollout goes to the trash (commands/session/delete.rs).
+  - --filesystem=~/.codex
+  # Cursor Agent CLI: delete moves the transcript and its chat metadata to the
+  # trash (commands/session/delete.rs delete_cursor_agent_session).
+  - --filesystem=~/.cursor
+  # ForgeCode: rename and delete write .forge.db
+  # (providers/forgecode.rs rename_session_title, delete_conversation).
+  - --filesystem=~/.forge
+  # OpenCode: rename writes the session title
+  # (commands/session/rename.rs rename_opencode_session_title).
+  - --filesystem=xdg-data/opencode
+  # The app's own data: session and project metadata (commands/metadata.rs
+  # save_user_metadata), archives (commands/archive.rs) and presets
+  # (commands/settings.rs, commands/mcp_presets.rs, commands/unified_presets.rs).
+  - --filesystem=~/.claude-history-viewer:create
+  # The app's settings, window state and logs. omnilogue.sh points the XDG
+  # base directories at the host, so Tauri keeps them where the other Linux
+  # builds do: settings.json (tauri-plugin-store, app data dir) and the
+  # window state (src-tauri/src/window_state.rs, app config dir).
+  - --filesystem=xdg-config/com.claude.history-viewer:create
+  - --filesystem=xdg-data/com.claude.history-viewer:create
+  # Exports and screenshots go where the save dialog points
+  # (commands/claude_settings.rs write_text_file, save_screenshot); the home
+  # folder itself is read-only, so Downloads is the writable target.
+  - --filesystem=xdg-download
+
+  # Not writable on purpose: Cursor's database (~/.config/Cursor). Deleting a
+  # Cursor conversation must wait for Cursor to quit, and the sandbox's own
+  # process namespace hides a running Cursor, so the app refuses that delete
+  # in the Flatpak (providers/cursor.rs delete_session).
+
+modules:
+  - name: omnilogue
+    buildsystem: simple
+    sources:
+      - type: file
+        path: claude-code-history-viewer.deb
+      - type: file
+        path: omnilogue.sh
+      - type: file
+        path: io.github.jhlee0409.Omnilogue.desktop
+      - type: file
+        path: io.github.jhlee0409.Omnilogue.metainfo.xml
+      - type: file
+        path: ../../src-tauri/icons/32x32.png
+        dest-filename: icon-32.png
+      - type: file
+        path: ../../src-tauri/icons/64x64.png
+        dest-filename: icon-64.png
+      - type: file
+        path: ../../src-tauri/icons/128x128.png
+        dest-filename: icon-128.png
+      - type: file
+        path: ../../src-tauri/icons/128x128@2x.png
+        dest-filename: icon-256.png
+      - type: file
+        path: ../../src-tauri/icons/icon.png
+        dest-filename: icon-512.png
+    build-commands:
+      - ar x claude-code-history-viewer.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/claude-code-history-viewer /app/bin/claude-code-history-viewer
+      - install -Dm755 omnilogue.sh /app/bin/omnilogue
+      - install -Dm644 io.github.jhlee0409.Omnilogue.desktop /app/share/applications/io.github.jhlee0409.Omnilogue.desktop
+      - install -Dm644 io.github.jhlee0409.Omnilogue.metainfo.xml /app/share/metainfo/io.github.jhlee0409.Omnilogue.metainfo.xml
+      - |
+        for size in 32 64 128 256 512; do
+          install -Dm644 "icon-${size}.png" "/app/share/icons/hicolor/${size}x${size}/apps/io.github.jhlee0409.Omnilogue.png"
+        done

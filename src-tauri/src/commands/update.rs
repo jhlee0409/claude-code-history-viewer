@@ -10,6 +10,14 @@ const DETACHED_PROCESS: u32 = 0x0000_0008;
 #[cfg(target_os = "windows")]
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
+/// Whether the app runs inside the Flatpak sandbox. The in-app updater cannot
+/// replace a Flatpak's read-only `/app`, so the update dialog sends the user to
+/// the release page for the new `.flatpak` bundle instead.
+#[tauri::command]
+pub fn is_flatpak() -> bool {
+    crate::utils::is_flatpak()
+}
+
 /// Force-quits the current app process and spawns a detached helper that
 /// re-launches the app after the current process exits.
 ///
