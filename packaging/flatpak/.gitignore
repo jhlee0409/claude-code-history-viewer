@@ -1,0 +1,6 @@
+# The .deb the manifest repackages, and flatpak-builder's output
+/claude-code-history-viewer.deb
+/.flatpak-builder/
+/build-dir/
+/repo/
+*.flatpak

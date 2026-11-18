@@ -378,6 +378,21 @@ fn scan_projects_in(
     Ok(projects)
 }
 
+/// Sub-project identity for a workspace-storage dir — shared by scan and
+/// search so the unified Copilot search can map hits onto merged projects
+/// (#672).
+fn project_path_for(ws_path: &Path) -> String {
+    format!("vscode://{}", ws_path.to_string_lossy())
+}
+
+/// Display name for a workspace folder (its leaf, else the folder itself).
+fn project_name_for(folder: &str) -> String {
+    PathBuf::from(folder)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| folder.to_string())
+}
+
 /// One workspace dir → one project (`Ok(None)` = no usable chat sessions,
 /// `Err` = the chatSessions dir exists but cannot be read).
 fn scan_workspace(
@@ -423,14 +438,11 @@ fn scan_workspace(
         return Ok(None);
     }
 
-    let name = PathBuf::from(&folder)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| folder.clone());
+    let name = project_name_for(&folder);
 
     Ok(Some(ClaudeProject {
         name,
-        path: format!("vscode://{}", ws_path.to_string_lossy()),
+        path: project_path_for(ws_path),
         actual_path: folder,
         session_count,
         message_count,
@@ -578,15 +590,24 @@ fn search_workspace_storage(
         if !chat_dir.is_dir() {
             continue;
         }
+        // The scan skips a workspace without a folder, so its hits belong to
+        // no scanned project and keep `project_path: None`.
+        let workspace_json = ws_path.join("workspace.json");
+        let project = read_workspace_folder(&workspace_json, &ScanReport::default())
+            .map(|folder| (project_name_for(&folder), project_path_for(&ws_path)));
 
         for session_path in chat_session_files(&chat_dir, &ScanReport::default())? {
             if let Ok(messages) = load_messages(&session_path.to_string_lossy()) {
-                for msg in messages {
+                for mut msg in messages {
                     if results.len() >= limit {
                         return Ok(());
                     }
                     if let Some(content) = &msg.content {
                         if search_json_value_case_insensitive(content, query_lower) {
+                            if let Some((name, path)) = &project {
+                                msg.project_name = Some(name.clone());
+                                msg.project_path = Some(path.clone());
+                            }
                             results.push(msg);
                         }
                     }
@@ -1446,6 +1467,70 @@ mod tests {
             used.session_count, 1,
             "session count must exclude the empty panel",
         );
+    }
+
+    /// `<UserData>` of stable VS Code under `home`, as [`user_data_roots`]
+    /// resolves it on this OS.
+    fn native_user_data(home: &Path) -> PathBuf {
+        if cfg!(target_os = "macos") {
+            home.join("Library/Application Support/Code/User")
+        } else if cfg!(target_os = "windows") {
+            home.join("AppData/Roaming/Code/User")
+        } else {
+            home.join(".config/Code/User")
+        }
+    }
+
+    /// One workspace whose single session's user prompt is `text`.
+    fn write_workspace(ws_root: &Path, hash: &str, folder: &str, text: &str) {
+        let chat = ws_root.join(hash).join("chatSessions");
+        fs::create_dir_all(&chat).unwrap();
+        fs::write(
+            ws_root.join(hash).join("workspace.json"),
+            json!({ "folder": format!("file://{folder}") }).to_string(),
+        )
+        .unwrap();
+        let session_id = format!("{hash}-1111-1111-1111-111111111111");
+        fs::write(
+            chat.join(format!("{session_id}.jsonl")),
+            json!({"kind": 0, "v": {
+                "sessionId": session_id,
+                "creationDate": 1779490058917u64,
+                "requests": [{ "message": {"text": text}, "response": [] }]
+            }})
+            .to_string(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_folders() {
+        let home = crate::test_utils::SandboxHome::new();
+        let ws_root = native_user_data(home.path()).join("workspaceStorage");
+        write_workspace(&ws_root, "hash-a", "/work/client-a/app", "needle a");
+        write_workspace(&ws_root, "hash-b", "/work/client-b/app", "needle b");
+
+        let projects = scan_projects().unwrap();
+        let path_of = |folder: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == folder)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let text = hit.content.as_ref().unwrap().to_string();
+            let expected = if text.contains("needle a") { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 
     #[test]

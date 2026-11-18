@@ -17,6 +17,7 @@ import { openNewWindow } from "@/navigation/windows";
 import { toggleInspector } from "@/components/Inspector/inspectorFocus";
 import { MANUAL_UPDATE_CHECK_EVENT, OPEN_PREFERENCES_EVENT } from "./appEvents";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
+import { hasStepTarget, stepInTurn } from "./stepTarget";
 import { appZoom } from "./zoom";
 import type { CommandActions, CommandContext } from "./registry";
 
@@ -38,6 +39,7 @@ export function useCommandContext(): () => CommandContext {
     focusFind: () => {
       focusFindTarget();
     },
+    stepInTurn,
     // Moves focus into the panel it opens, and back to the toolbar button
     // when it closes the panel that held focus (`inspectorFocus.ts`).
     toggleInspector,
@@ -69,6 +71,7 @@ export function useCommandContext(): () => CommandContext {
       canGoBack: state.placeHistory.back.length > 0,
       canGoForward: state.placeHistory.forward.length > 0,
       hasFindTarget: hasFindTarget(),
+      hasStepTarget: hasStepTarget(),
       tabs: { activeId: state.activeDocumentId, ids: state.documents.map((doc) => doc.id) },
       ownPlace: () => ownPlace(useAppStore.getState),
       actions: current,

@@ -20,8 +20,10 @@ import {
   AppWindow,
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Coins,
   Map as MinimapGlyph,
   MessageSquare,
@@ -49,6 +51,7 @@ import { engineOwnsZoomInput, type ZoomStep } from "./zoom";
 import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import { idAtPosition } from "@/navigation/documents";
 import { APP_TARGET, menuIssuedTabs, targetTab, type CommandTarget, type TabsSnapshot } from "./commandTarget";
+import type { StepDirection } from "./stepTarget";
 
 /** What a command needs to know and do. Built per use by `useCommandContext`. */
 export interface CommandContext {
@@ -59,6 +62,8 @@ export interface CommandContext {
   canGoForward: boolean;
   /** A conversation screen with its find field is mounted (`findTarget.ts`). */
   hasFindTarget: boolean;
+  /** A message list that can step through a turn is mounted (`stepTarget.ts`). */
+  hasStepTarget: boolean;
   /** The open conversation tabs (T8): the one in front, and their order. */
   tabs: TabsSnapshot;
   /**
@@ -76,6 +81,8 @@ export interface CommandActions {
   goBack: () => unknown;
   goForward: () => unknown;
   focusFind: () => void;
+  /** Move the message list to the previous / next step of the turn in view (`stepTarget.ts`). */
+  stepInTurn: (direction: StepDirection) => unknown;
   toggleInspector: () => void;
   toggleMinimap: () => void;
   toggleInlineTokenUsage: () => void;
@@ -157,6 +164,21 @@ const goToTab = (position: number): CommandHandler => ({
 });
 
 /**
+ * Step through the turn in view: an assistant reply or a tool call with its
+ * result. Enabled while a conversation's message list is mounted; a step
+ * past the turn's first or last one does nothing - whether there is one
+ * depends on the scroll position, which the native menu's state does not
+ * follow. Like the prompt jump (Alt+↑/↓), its keys are left alone in a text
+ * field and behind a dialog.
+ */
+const stepCommand = (icon: LucideIcon, direction: StepDirection): CommandHandler => ({
+  icon,
+  enabled: (ctx) => ctx.place.view === "conversation" && ctx.place.session != null && ctx.hasStepTarget,
+  target: SHOWN,
+  run: (ctx) => ctx.actions.stepInTurn(direction),
+});
+
+/**
  * One handler per manifest id. Typed as a total record, so a manifest
  * command without a handler does not compile.
  */
@@ -179,6 +201,8 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     target: SHOWN,
     run: (ctx) => ctx.actions.goForward(),
   },
+  "go.previousStep": stepCommand(ChevronUp, "previous"),
+  "go.nextStep": stepCommand(ChevronDown, "next"),
   "edit.find": {
     icon: TextSearch,
     enabled: (ctx) => ctx.place.view === "conversation" && ctx.place.session != null && ctx.hasFindTarget,

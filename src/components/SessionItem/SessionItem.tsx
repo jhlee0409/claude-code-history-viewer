@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Check, Ellipsis, Star } from "lucide-react";
+import { Check, Ellipsis, RotateCcwClock, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Num } from "@/lib/format/Num";
@@ -18,6 +18,7 @@ import { useOpenSessionInNewTab } from "@/contexts/openInNewTab";
 import { isActionModifier } from "@/utils/platform";
 import { canOpenWindows, openInNewWindow, sessionWindowTarget } from "@/navigation/windows";
 import type { Boundary } from "@/utils/contextMenu";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 
 type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; anchor?: HTMLElement | null };
 
@@ -123,11 +124,12 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         <SessionContextMenu
           position={contextMenu}
           hasCustomName={editing.hasCustomName}
-          readOnly={editing.isServerReadOnly}
+          readOnly={editing.isReadOnly}
           supportsNativeRename={editing.supportsNativeRename}
           supportsResumeCommand={editing.supportsResumeCommand}
           supportsSessionDeletion={editing.supportsSessionDeletion}
           supportsRevealInFinder={editing.supportsRevealInFinder}
+          supportsCopyFilePath={editing.supportsCopyFilePath}
           supportsSessionMove={editing.supportsSessionMove}
           providerId={editing.providerId}
           onClose={handleContextMenuClose}
@@ -185,6 +187,15 @@ export const SessionItem: React.FC<SessionItemProps> = ({
     <span title={t("session.favorite.starred")} className="shrink-0 text-warning">
       <Star className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
       <span className="sr-only">{t("session.favorite.starred")}</span>
+    </span>
+  );
+
+  // Only the prompts of this session survive (#764): said on the row, as
+  // the full row says it in its meta line.
+  const promptHistoryMark = isPromptHistorySession(session) && (
+    <span title={t("session.promptHistory.label")} className="shrink-0 text-muted-foreground">
+      <RotateCcwClock className="w-3.5 h-3.5" aria-hidden="true" />
+      <span className="sr-only">{t("session.promptHistory.label")}</span>
     </span>
   );
 
@@ -248,12 +259,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             isNamed={editing.isNamed}
             isSelected={isSelected}
             isContextMenuOpen={false}
-            readOnly={editing.isServerReadOnly}
+            readOnly={editing.isReadOnly}
             providerId={editing.providerId}
             supportsNativeRename={editing.supportsNativeRename}
             supportsResumeCommand={editing.supportsResumeCommand}
             supportsSessionDeletion={editing.supportsSessionDeletion}
             supportsRevealInFinder={editing.supportsRevealInFinder}
+            supportsCopyFilePath={editing.supportsCopyFilePath}
             supportsSessionMove={editing.supportsSessionMove}
             inputRef={editing.inputRef}
             ignoreBlurRef={editing.ignoreBlurRef}
@@ -276,11 +288,12 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         ) : (
           <span
             className={cn("min-w-0 flex-1 truncate", editing.isNamed && "font-semibold", isSelected && "font-medium")}
-            onDoubleClick={editing.isServerReadOnly || isSelectionMode ? undefined : editing.handleDoubleClick}
+            onDoubleClick={editing.isReadOnly || isSelectionMode ? undefined : editing.handleDoubleClick}
           >
             {name}
           </span>
         )}
+        {promptHistoryMark}
         {favoriteMark}
         <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
           <Num>{recordedTime(session.last_modified, formatTimeAgo, t("common.missingValue.notRecorded"))}</Num>
@@ -396,12 +409,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             isNamed={editing.isNamed}
             isSelected={isSelected}
             isContextMenuOpen={editing.isContextMenuOpen}
-            readOnly={editing.isServerReadOnly}
+            readOnly={editing.isReadOnly}
             providerId={editing.providerId}
             supportsNativeRename={editing.supportsNativeRename}
             supportsResumeCommand={editing.supportsResumeCommand}
             supportsSessionDeletion={editing.supportsSessionDeletion}
             supportsRevealInFinder={editing.supportsRevealInFinder}
+            supportsCopyFilePath={editing.supportsCopyFilePath}
             supportsSessionMove={editing.supportsSessionMove}
             inputRef={editing.inputRef}
             ignoreBlurRef={editing.ignoreBlurRef}

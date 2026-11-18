@@ -32,6 +32,8 @@ interface SessionContextMenuProps {
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
   supportsRevealInFinder: boolean;
+  /** The session is a file whose path can be copied (default: it is). */
+  supportsCopyFilePath?: boolean;
   supportsSessionMove: boolean;
   providerId: string;
   onClose: () => void;
@@ -75,6 +77,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsCopyFilePath = true,
   supportsSessionMove,
   providerId,
   onClose,
@@ -294,10 +297,12 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           </button>
         )}
 
-        <button type="button" role="menuitem" onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
-          <FileText className="w-3.5 h-3.5" />
-          <span>{t("session.copyFilePath", "Copy File Path")}</span>
-        </button>
+        {supportsCopyFilePath && (
+          <button type="button" role="menuitem" onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
+            <FileText className="w-3.5 h-3.5" />
+            <span>{t("session.copyFilePath", "Copy File Path")}</span>
+          </button>
+        )}
 
         {supportsRevealInFinder && (
           <button type="button" role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>

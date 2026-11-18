@@ -18,6 +18,7 @@ import {
   supportsSessionDeletion,
 } from "@/utils/providers";
 import { hasDangerousFlag, NO_RESUME_ARGS } from "@/utils/resumeArgs";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 import type { ClaudeSession } from "@/types";
 import { useSessionBatchActions } from "../hooks/useSessionBatchActions";
 import { SessionMultiDeleteDialog } from "./SessionMultiDeleteDialog";
@@ -79,7 +80,10 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
     () =>
       isServerReadOnly
         ? []
-        : selectedSessions.filter((s) => supportsSessionDeletion(s.provider ?? "claude")),
+        : selectedSessions.filter(
+            // A prompt-history session (#764) has no file to delete.
+            (s) => !isPromptHistorySession(s) && supportsSessionDeletion(s.provider ?? "claude")
+          ),
     [isServerReadOnly, selectedSessions]
   );
   const resumableSessions = useMemo(
@@ -87,6 +91,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
       selectedProject?.path_status === "unavailable"
         ? []
         : selectedSessions.filter((s) =>
+            !isPromptHistorySession(s) &&
             supportsResumeCommandForSession(s.provider ?? "claude", s.entrypoint)
           ),
     [selectedProject?.path_status, selectedSessions]

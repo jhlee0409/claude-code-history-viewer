@@ -106,6 +106,7 @@ function setUpPalette() {
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),
+        stepInTurn: vi.fn(),
         toggleInspector: vi.fn(),
         toggleMinimap: vi.fn(),
         openSettingsManager: vi.fn(),
@@ -125,6 +126,7 @@ function setUpPalette() {
         canGoBack: true,
         canGoForward: false,
         hasFindTarget: true,
+        hasStepTarget: true,
         tabs: { activeId: "t1", ids: ["t1"] },
         ownPlace: () => () => true,
     };
