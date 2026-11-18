@@ -15,7 +15,8 @@ import { ModelLifecycleBadge } from "@/components/ModelLifecycleBadge";
 import { getToolName } from "../../../utils/toolUtils";
 import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
-import type { ClaudeAssistantMessage } from "../../../types";
+import type { ClaudeAssistantMessage, ProviderId } from "../../../types";
+import { PROVIDER_IDS, getProviderLabel } from "@/utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
 import { useAppStore } from "@/store/useAppStore";
@@ -72,7 +73,9 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 ? t("messageViewer.user")
                 : message.type === "assistant"
                   ? (message.provider && message.provider !== "claude"
-                    ? t(`common.provider.${message.provider}`, message.provider)
+                    ? (PROVIDER_IDS.includes(message.provider as ProviderId)
+                      ? getProviderLabel(t, message.provider)
+                      : message.provider)
                     : t("messageViewer.claude"))
                   : t("messageViewer.system")}
         </span>
