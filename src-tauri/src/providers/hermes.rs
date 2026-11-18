@@ -1183,6 +1183,7 @@ fn search_store(
             break;
         }
         let project_name = project_display_name(&store.key, &group);
+        let project_path = project_path(&store.key, &group);
         for mut message in load_messages_conn(&conn, &schema, &session_id)? {
             if results.len() >= limit {
                 break;
@@ -1193,6 +1194,7 @@ fn search_store(
                 .is_some_and(|c| search_json_value_case_insensitive(c, &query_lower));
             if matched {
                 message.project_name = Some(project_name.clone());
+                message.project_path = Some(project_path.clone());
                 results.push(message);
             }
         }
@@ -1951,6 +1953,39 @@ mod tests {
         // LIKE wildcards are literal, and the limit is honoured.
         assert!(search("%", 10).unwrap().is_empty());
         assert_eq!(search("s", 1).unwrap().len(), 1);
+    }
+
+    /// #672: hits carry the scanned project's path, so two workspaces whose
+    /// leaf is `app` (and a source bucket) stay apart in search.
+    #[test]
+    fn search_hits_carry_scanned_project_path() {
+        let home = HermesHome::new();
+        let conn = home.root_db(MODERN_SCHEMA);
+        insert_session(&conn, "s-a", "cli", Some("/work/client-a/app"));
+        insert_session(&conn, "s-b", "cli", Some("/work/client-b/app"));
+        insert_session(&conn, "s-tg", "telegram", None);
+        for id in ["s-a", "s-b", "s-tg"] {
+            insert_message(&conn, id, "user", Some("needle"), 10.0, &[]);
+        }
+
+        let projects = scan_projects().unwrap();
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), 3);
+        for project in &projects {
+            let sessions = load_sessions(&project.path, false).unwrap();
+            assert_eq!(sessions.len(), 1);
+            let hit = hits
+                .iter()
+                .find(|m| m.session_id == sessions[0].actual_session_id)
+                .unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        let app_paths: HashSet<_> = projects
+            .iter()
+            .filter(|p| p.name == "app")
+            .map(|p| p.path.as_str())
+            .collect();
+        assert_eq!(app_paths.len(), 2);
     }
 
     #[test]

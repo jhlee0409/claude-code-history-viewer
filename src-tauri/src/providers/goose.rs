@@ -117,17 +117,10 @@ fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
         .map_err(|e| e.to_string())?
         .flatten()
         .map(|(working_dir, sess_cnt, msg_cnt, last_upd)| {
-            let cwd = working_dir
-                .filter(|w| !w.is_empty())
-                .unwrap_or_else(|| "unknown".to_string());
-            let name = PathBuf::from(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| cwd.clone());
+            let cwd = working_dir_key(working_dir);
             ClaudeProject {
-                name,
-                path: format!("{SCHEME}{cwd}"),
+                name: project_name_for(&cwd),
+                path: project_path_for(&cwd),
                 actual_path: cwd,
                 session_count: sess_cnt,
                 message_count: msg_cnt,
@@ -315,22 +308,38 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         if !matched {
             continue;
         }
-        let project_name = working_dir
-            .as_deref()
-            .map(|w| {
-                PathBuf::from(w)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| w.to_string())
-            })
-            .unwrap_or_default();
-        msg.project_name = Some(project_name);
+        // Same `unknown` fallback, name and path as `scan_in_conn`.
+        let cwd = working_dir_key(working_dir);
+        msg.project_name = Some(project_name_for(&cwd));
+        msg.project_path = Some(project_path_for(&cwd));
         results.push(msg);
         if results.len() >= limit {
             break;
         }
     }
     Ok(results)
+}
+
+/// The project key a session's `working_dir` is grouped under (`unknown` when
+/// empty), matching the SQL `COALESCE(NULLIF(working_dir, ''), 'unknown')`.
+fn working_dir_key(working_dir: Option<String>) -> String {
+    working_dir
+        .filter(|w| !w.is_empty())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Display name of a project key, shared by scan and search.
+fn project_name_for(cwd: &str) -> String {
+    PathBuf::from(cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
+/// Opaque project identity of a project key, shared by scan and search.
+fn project_path_for(cwd: &str) -> String {
+    format!("{SCHEME}{cwd}")
 }
 
 // ============================================================================
@@ -652,6 +661,55 @@ mod tests {
         let sessions = load_sessions_conn(&conn, "unknown").unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "s1");
+
+        let hits = search_conn(&conn, "hi", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].project_path.as_deref(), Some("goose://unknown"));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sessions (id TEXT PRIMARY KEY, name TEXT, description TEXT, \
+                 working_dir TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+             CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT, \
+                 session_id TEXT NOT NULL, role TEXT NOT NULL, content_json TEXT NOT NULL, \
+                 created_timestamp INTEGER NOT NULL);",
+        )
+        .unwrap();
+        for (id, cwd) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            conn.execute(
+                "INSERT INTO sessions VALUES (?1,NULL,NULL,?2,'2026-06-20 09:00:00','2026-06-20 09:30:00')",
+                [id, cwd],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO messages (message_id,session_id,role,content_json,created_timestamp) VALUES (?1,?1,'user',?2,1750500000)",
+                [id, r#"[{"type":"text","text":"shared needle"}]"#],
+            )
+            .unwrap();
+        }
+
+        let projects = scan_in_conn(&conn).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_conn(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| {
+                    load_sessions_conn(&conn, &p.actual_path)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.actual_session_id == hit.session_id)
+                })
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
     }
 
     /// A NULL `message_id` must get the same UUID from load and search (stable

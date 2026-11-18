@@ -77,14 +77,9 @@ fn scan_db(db_path: &Path) -> Option<ClaudeProject> {
     if session_count == 0 {
         return None;
     }
-    let name = Path::new(&project_dir)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| project_dir.clone());
     Some(ClaudeProject {
-        name,
-        path: format!("{SCHEME}{project_dir}"),
+        name: project_name_for(&project_dir),
+        path: project_path_for(&project_dir),
         actual_path: project_dir,
         session_count,
         message_count,
@@ -210,10 +205,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         let Some(project_dir) = project_dir_of(&db_path) else {
             continue;
         };
-        let project_name = Path::new(&project_dir)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let project_name = project_name_for(&project_dir);
+        let project_path = project_path_for(&project_dir);
         let Ok(conn) = open_db(&db_path) else {
             continue;
         };
@@ -222,6 +215,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             &pattern,
             &query_lower,
             &project_name,
+            &project_path,
             limit,
             &mut results,
         );
@@ -234,6 +228,7 @@ fn search_one_db(
     pattern: &str,
     query_lower: &str,
     project_name: &str,
+    project_path: &str,
     limit: usize,
     results: &mut Vec<ClaudeMessage>,
 ) {
@@ -257,7 +252,7 @@ fn search_one_db(
             return;
         }
         // Use the real session id (matching load_messages) so a search hit
-        // resolves back to its session; project_name is set separately below.
+        // resolves back to its session; the project identity is set below.
         let (id, session_id, role, parts, created) = row;
         let Some(mut msg) = build_message(&session_id, &id, &role, &parts, created.unwrap_or(0))
         else {
@@ -270,6 +265,7 @@ fn search_one_db(
             .unwrap_or(false);
         if matched {
             msg.project_name = Some(project_name.to_string());
+            msg.project_path = Some(project_path.to_string());
             results.push(msg);
         }
     }
@@ -350,6 +346,20 @@ fn project_dir_of(db_path: &Path) -> Option<String> {
         .parent()
         .and_then(|p| p.parent())
         .map(|p| p.to_string_lossy().to_string())
+}
+
+/// Display name of a project dir, shared by scan and search.
+fn project_name_for(project_dir: &str) -> String {
+    Path::new(project_dir)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| project_dir.to_string())
+}
+
+/// Opaque project identity of a project dir, shared by scan and search.
+fn project_path_for(project_dir: &str) -> String {
+    format!("{SCHEME}{project_dir}")
 }
 
 fn db_path_for(project_dir: &str) -> Result<PathBuf, String> {
@@ -596,9 +606,21 @@ mod tests {
     fn search_matches_and_tags_project() {
         let conn = fixture_db();
         let mut results = Vec::new();
-        search_one_db(&conn, "%LOGIN%", "login", "proj", 10, &mut results);
+        search_one_db(
+            &conn,
+            "%LOGIN%",
+            "login",
+            "proj",
+            "crush:///Users/jack/proj",
+            10,
+            &mut results,
+        );
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].project_name.as_deref(), Some("proj"));
+        assert_eq!(
+            results[0].project_path.as_deref(),
+            Some("crush:///Users/jack/proj")
+        );
         // session id is the real session (matches load_messages), not the project name.
         assert_eq!(results[0].session_id, "sess1");
     }
@@ -624,6 +646,58 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert!(found[0].ends_with(".crush/crush.db"));
         assert_eq!(project_dir_of(&found[0]).as_deref(), proj.to_str());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        for (dir, session) in [
+            ("client/client-a/app", "sess-a"),
+            ("work/client-b/app", "sess-b"),
+        ] {
+            let crush_dir = home.path().join(dir).join(".crush");
+            fs::create_dir_all(&crush_dir).unwrap();
+            let conn = Connection::open(crush_dir.join("crush.db")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER, updated_at INTEGER);
+                 CREATE TABLE messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, role TEXT NOT NULL, parts TEXT NOT NULL DEFAULT '[]', created_at INTEGER);",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO sessions VALUES (?1, 't', 1750000000, 1750000000)",
+                [session],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO messages VALUES (?1, ?1, 'user', ?2, 1750000000)",
+                [
+                    session,
+                    r#"[{"type":"text","data":{"text":"shared needle"}}]"#,
+                ],
+            )
+            .unwrap();
+        }
+
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| {
+                    load_sessions(&p.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.actual_session_id == hit.session_id)
+                })
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
     }
 
     #[test]

@@ -8,6 +8,7 @@ import {
   normalizeEntrypoint,
   ENTRYPOINT_BADGE_META,
 } from "@/utils/entrypoint";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 import type { SessionMetaProps } from "../types";
 
 export const SessionMeta: React.FC<SessionMetaProps> = ({
@@ -56,6 +57,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
               ? "text-accent/80 bg-accent/10"
               : "text-muted-foreground bg-muted/50"
           )}
+          title={isPromptHistorySession(session) ? t("session.promptHistory.label") : undefined}
         >
           {t(`session.item.storageType.${session.storage_type}`)}
         </span>
