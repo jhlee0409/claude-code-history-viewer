@@ -185,12 +185,9 @@ fn scan_projects_from_global(
     let mut projects = Vec::with_capacity(by_workspace.len());
     for (workspace_id, acc) in by_workspace {
         let ws_path = ws_root.join(&workspace_id);
-        let (path, actual_path, name) = if is_orphan_workspace_id(&workspace_id) {
-            (
-                "cursor://workspace/unassigned".to_string(),
-                String::new(),
-                "Cursor".to_string(),
-            )
+        let path = workspace_project_path(&ws_root, &workspace_id);
+        let (actual_path, name) = if is_orphan_workspace_id(&workspace_id) {
+            (String::new(), "Cursor".to_string())
         } else if ws_path.is_dir() {
             let folder = read_workspace_folder(&ws_path.join("workspace.json"), report)
                 .unwrap_or_else(|| acc.folder_path.clone());
@@ -204,22 +201,14 @@ fn scan_projects_from_global(
                         .map(|n| n.to_string_lossy().to_string())
                 })
                 .unwrap_or_else(|| workspace_id.clone());
-            (
-                format!("cursor://{}", ws_path.to_string_lossy()),
-                folder,
-                name,
-            )
+            (folder, name)
         } else {
             let name = PathBuf::from(&acc.folder_path)
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .filter(|n| !n.is_empty())
                 .unwrap_or_else(|| workspace_id.clone());
-            (
-                format!("cursor://workspace/{workspace_id}"),
-                acc.folder_path.clone(),
-                name,
-            )
+            (acc.folder_path.clone(), name)
         };
 
         projects.push(ClaudeProject {
@@ -287,7 +276,7 @@ fn scan_workspace(ws_path: &Path, report: &ScanReport) -> Option<ClaudeProject> 
 
     Some(ClaudeProject {
         name: project_name,
-        path: format!("cursor://{}", ws_path.to_string_lossy()),
+        path: workspace_dir_project_path(ws_path),
         actual_path: project_folder,
         session_count,
         message_count: 0, // Loaded on demand
@@ -471,14 +460,7 @@ pub(crate) fn collect_global_stats_sessions() -> Result<Vec<GlobalStatsSession>,
             resolve_composer_workspace(&composer, composer_id, &legacy);
         let project_name = resolve_project_display_name(&ws_root, &workspace_id, &folder_path);
         let project_display_name = format!("{project_name} [cursor]");
-        let ws_path = ws_root.join(&workspace_id);
-        let project_path = if is_orphan_workspace_id(&workspace_id) {
-            "cursor://workspace/unassigned".to_string()
-        } else if ws_path.is_dir() {
-            format!("cursor://{}", ws_path.to_string_lossy())
-        } else {
-            format!("cursor://workspace/{workspace_id}")
-        };
+        let project_path = workspace_project_path(&ws_root, &workspace_id);
         let headers = conversation_headers(&conn, composer_id, &composer);
         let messages = stats_messages_from_composer(composer_id, &composer, &headers);
         if !messages.is_empty() {
@@ -945,20 +927,74 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
         let bubble_type = bubble.get("type").and_then(Value::as_u64).unwrap_or(0);
 
-        if let Some(mut msg) = convert_cursor_bubble(&bubble, bubble_type, composer_id) {
-            if let Some(ref c) = msg.content {
+        if let Some(msg) = convert_cursor_bubble(&bubble, bubble_type, composer_id) {
+            if let Some(c) = &msg.content {
                 if search_json_value_case_insensitive(c, &query_lower) {
-                    msg.project_name = Some("Cursor".to_string());
                     results.push(msg);
                     if results.len() >= limit {
-                        return Ok(results);
+                        break;
                     }
                 }
             }
         }
     }
 
+    tag_composer_projects(&conn, &base.join("workspaceStorage"), &mut results);
     Ok(results)
+}
+
+/// Tag each hit with the project scan lists its composer under, and that
+/// project's name, resolved the way [`scan_projects_from_global`] and
+/// [`collect_global_stats_sessions`] resolve it. A composer scan does not list
+/// (archived, no conversation, unreadable record) keeps `project_path` unset
+/// and the generic `Cursor` name.
+fn tag_composer_projects(conn: &Connection, ws_root: &Path, results: &mut [ClaudeMessage]) {
+    // Opening every workspace DB is only needed for composers that predate
+    // `workspaceIdentifier`, so the legacy index is built on first need.
+    let mut legacy: Option<std::collections::HashMap<String, String>> = None;
+    let no_legacy: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut by_composer: std::collections::HashMap<String, Option<(String, String)>> =
+        std::collections::HashMap::new();
+
+    for msg in results.iter_mut() {
+        let composer_id = msg.session_id.clone();
+        let identity = by_composer
+            .entry(composer_id)
+            .or_insert_with_key(|composer_id| {
+                let value: String = conn
+                    .query_row(
+                        "SELECT value FROM cursorDiskKV WHERE key = ?1",
+                        [format!("composerData:{composer_id}")],
+                        |row| row.get(0),
+                    )
+                    .ok()?;
+                let composer = parse_cursor_json(&value).ok()?;
+                if composer_is_archived(&composer) || !composer_has_conversation(&composer) {
+                    return None;
+                }
+                let (stamped_id, _) = workspace_identity_from_composer(&composer);
+                let index = if is_orphan_workspace_id(&stamped_id) {
+                    &*legacy.get_or_insert_with(|| {
+                        legacy_composer_workspaces(ws_root, &ScanReport::default())
+                    })
+                } else {
+                    &no_legacy
+                };
+                let (workspace_id, folder_path) =
+                    resolve_composer_workspace(&composer, composer_id, index);
+                Some((
+                    workspace_project_path(ws_root, &workspace_id),
+                    resolve_project_display_name(ws_root, &workspace_id, &folder_path),
+                ))
+            });
+        match identity {
+            Some((project_path, project_name)) => {
+                msg.project_path = Some(project_path.clone());
+                msg.project_name = Some(project_name.clone());
+            }
+            None => msg.project_name = Some("Cursor".to_string()),
+        }
+    }
 }
 
 // ============================================================================
@@ -1249,6 +1285,25 @@ fn workspace_identity_from_composer(composer: &Value) -> (String, String) {
 
 fn is_orphan_workspace_id(workspace_id: &str) -> bool {
     workspace_id.is_empty() || workspace_id == "unassigned" || workspace_id == "empty-window"
+}
+
+/// The `ClaudeProject.path` of a workspace bucket: scan, global stats and
+/// search all resolve a composer's project through this.
+fn workspace_project_path(ws_root: &Path, workspace_id: &str) -> String {
+    if is_orphan_workspace_id(workspace_id) {
+        return "cursor://workspace/unassigned".to_string();
+    }
+    let ws_path = ws_root.join(workspace_id);
+    if ws_path.is_dir() {
+        workspace_dir_project_path(&ws_path)
+    } else {
+        format!("cursor://workspace/{workspace_id}")
+    }
+}
+
+/// The `ClaudeProject.path` of a `workspaceStorage/<hash>` directory.
+fn workspace_dir_project_path(ws_path: &Path) -> String {
+    format!("cursor://{}", ws_path.to_string_lossy())
 }
 
 fn normalize_workspace_bucket_id(workspace_id: &str) -> String {
@@ -1614,6 +1669,73 @@ mod tests {
         assert!(actual.contains("cursor://workspace/second"));
         assert!(actual.contains("cursor://workspace/unassigned"));
         assert!(actual.contains(format!("cursor://{}", existing.to_string_lossy()).as_str()));
+    }
+
+    /// #672: each hit carries the path (and name) of the scanned project
+    /// whose session list holds its composer — stamped workspace dirs, missing
+    /// workspace dirs, legacy-listed composers and the unassigned bucket alike.
+    #[test]
+    #[serial]
+    fn search_hits_carry_scanned_project_path() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let user_dir = temp.path();
+        let ws_root = user_dir.canonicalize().unwrap().join("workspaceStorage");
+        write_workspace_listing(&ws_root.join("first"), "/client-a/app", &[]);
+        write_workspace_listing(&ws_root.join("third"), "/client-c/app", &["legacy"]);
+        let conn = create_global_db(user_dir);
+        for (composer, id, folder) in [
+            ("c-first", "first", "/client-a/app"),
+            ("c-second", "second", "/client-b/app"),
+            ("c-orphan", "unassigned", ""),
+        ] {
+            put_kv(
+                &conn,
+                &format!("composerData:{composer}"),
+                &json!({
+                    "workspaceIdentifier": {"id": id, "uri": {"fsPath": folder}},
+                    "createdAt": 1_700_000_000_000u64,
+                    "promptTokenBreakdown": {"totalUsedTokens": 10}
+                }),
+            );
+        }
+        put_kv(
+            &conn,
+            "composerData:legacy",
+            &json!({
+                "createdAt": 1_700_000_000_000u64,
+                "promptTokenBreakdown": {"totalUsedTokens": 10}
+            }),
+        );
+        let composers = ["c-first", "c-second", "c-orphan", "legacy"];
+        for composer in composers {
+            put_bubble(&conn, composer, "b1", 1, "needle here");
+        }
+        drop(conn);
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", user_dir);
+
+        let projects = scan_projects().unwrap();
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), composers.len());
+        for composer in composers {
+            let project = projects
+                .iter()
+                .find(|project| {
+                    load_sessions(&project.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|session| session.session_id == format!("cursor://{composer}"))
+                })
+                .unwrap_or_else(|| panic!("{composer} is listed by a scanned project"));
+            let hit = hits.iter().find(|m| m.session_id == composer).unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+            assert_eq!(hit.project_name.as_deref(), Some(project.name.as_str()));
+        }
+        let app_paths: std::collections::HashSet<_> = projects
+            .iter()
+            .filter(|project| project.name == "app")
+            .map(|project| project.path.as_str())
+            .collect();
+        assert_eq!(app_paths.len(), 3);
     }
 
     #[test]

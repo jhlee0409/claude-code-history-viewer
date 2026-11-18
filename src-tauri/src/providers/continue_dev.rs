@@ -181,11 +181,7 @@ pub(crate) fn scan_in_for(f: &Family, base: &Path) -> Result<Vec<ClaudeProject>,
         if doc.messages.is_empty() {
             continue;
         }
-        let workspace = doc
-            .workspace_directory
-            .clone()
-            .filter(|w| !w.is_empty())
-            .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string());
+        let workspace = workspace_key(&doc);
 
         let entry = by_workspace.entry(workspace).or_insert_with(|| Agg {
             session_count: 0,
@@ -201,25 +197,17 @@ pub(crate) fn scan_in_for(f: &Family, base: &Path) -> Result<Vec<ClaudeProject>,
 
     let mut projects: Vec<ClaudeProject> = by_workspace
         .into_iter()
-        .map(|(workspace, agg)| {
-            let name = Path::new(&workspace)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| workspace.clone());
-
-            ClaudeProject {
-                name,
-                path: format!("{}{workspace}", f.scheme),
-                actual_path: workspace,
-                session_count: agg.session_count,
-                message_count: agg.message_count,
-                last_modified: agg.last_modified,
-                git_info: None,
-                provider: Some(f.provider_id.to_string()),
-                storage_type: Some("json".to_string()),
-                custom_directory_label: None,
-            }
+        .map(|(workspace, agg)| ClaudeProject {
+            name: project_name_for(&workspace),
+            path: project_path_for(f, &workspace),
+            actual_path: workspace,
+            session_count: agg.session_count,
+            message_count: agg.message_count,
+            last_modified: agg.last_modified,
+            git_info: None,
+            provider: Some(f.provider_id.to_string()),
+            storage_type: Some("json".to_string()),
+            custom_directory_label: None,
         })
         .collect();
 
@@ -248,11 +236,7 @@ pub(crate) fn load_sessions_for(
         if doc.messages.is_empty() {
             continue;
         }
-        let workspace = doc
-            .workspace_directory
-            .clone()
-            .filter(|w| !w.is_empty())
-            .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string());
+        let workspace = workspace_key(&doc);
         if workspace != target {
             continue;
         }
@@ -324,10 +308,15 @@ pub(crate) fn search_for(
     let Some(base) = base_path_for(f) else {
         return Ok(vec![]);
     };
+    Ok(search_in_for(f, Path::new(&base), query, limit))
+}
+
+/// [`search_for`] parameterized by the sessions root (for tests).
+fn search_in_for(f: &Family, base: &Path, query: &str, limit: usize) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for file in session_files(Path::new(&base)) {
+    for file in session_files(base) {
         let Ok(data) = fs::read_to_string(&file) else {
             continue;
         };
@@ -335,16 +324,10 @@ pub(crate) fn search_for(
         let Some(doc) = parse_session_doc(&data, f.provider_id, &file_stem(&file), &mtime) else {
             continue;
         };
-        let project_name = doc
-            .workspace_directory
-            .as_deref()
-            .map(|w| {
-                Path::new(w)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| w.to_string())
-            })
-            .unwrap_or_default();
+        // Same workspace bucket, name and path as `scan_in_for`.
+        let workspace = workspace_key(&doc);
+        let project_name = project_name_for(&workspace);
+        let project_path = project_path_for(f, &workspace);
 
         // Reuse the exact messages (and their deterministic UUIDs) produced by
         // load_messages so global-search navigation resolves back correctly.
@@ -358,19 +341,42 @@ pub(crate) fn search_for(
                 continue;
             }
             msg.project_name = Some(project_name.clone());
+            msg.project_path = Some(project_path.clone());
             results.push(msg);
             if results.len() >= limit {
-                return Ok(results);
+                return results;
             }
         }
     }
 
-    Ok(results)
+    results
 }
 
 // ============================================================================
 // Shared helpers
 // ============================================================================
+
+/// The workspace a session is grouped under (`unknown` when it records none).
+fn workspace_key(doc: &SessionDoc) -> String {
+    doc.workspace_directory
+        .clone()
+        .filter(|w| !w.is_empty())
+        .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string())
+}
+
+/// Display name of a workspace project, shared by scan and search.
+fn project_name_for(workspace: &str) -> String {
+    Path::new(workspace)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| workspace.to_string())
+}
+
+/// Opaque project identity of a workspace, shared by scan and search.
+fn project_path_for(f: &Family, workspace: &str) -> String {
+    format!("{}{workspace}", f.scheme)
+}
 
 /// True if at least one `<sessionId>.json` (excluding the index) exists.
 fn has_any_session(base: &Path) -> bool {
@@ -789,5 +795,45 @@ mod tests {
         let s = summarize(&long);
         assert!(s.chars().count() <= SUMMARY_MAX_CHARS + 1);
         assert!(s.ends_with('…'));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        for family in [&CONTINUE, &super::super::pearai::PEARAI] {
+            let tmp = TempDir::new().unwrap();
+            let base = tmp.path();
+            for (id, workspace) in [
+                ("sess-a", "/work/client-a/app"),
+                ("sess-b", "/work/client-b/app"),
+            ] {
+                let body = serde_json::json!({
+                    "sessionId": id,
+                    "workspaceDirectory": workspace,
+                    "history": [{ "message": { "role": "user", "content": "shared needle" } }]
+                });
+                write_session(base, &format!("{id}.json"), &body.to_string());
+            }
+
+            let projects = scan_in_for(family, base).unwrap();
+            assert_eq!(projects.len(), 2);
+            assert!(projects.iter().all(|p| p.name == "app"));
+            assert_ne!(projects[0].path, projects[1].path);
+
+            let hits = search_in_for(family, base, "needle", 10);
+            assert_eq!(hits.len(), 2);
+            for hit in &hits {
+                let workspace = if hit.session_id == "sess-a" {
+                    "/work/client-a/app"
+                } else {
+                    "/work/client-b/app"
+                };
+                let project = projects
+                    .iter()
+                    .find(|p| p.actual_path == workspace)
+                    .expect("hit session belongs to a scanned project");
+                assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+                assert_eq!(hit.project_name.as_deref(), Some("app"));
+            }
+        }
     }
 }
