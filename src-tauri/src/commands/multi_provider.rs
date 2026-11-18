@@ -100,6 +100,7 @@ pub async fn scan_all_projects(
             "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
+            "cursor-acp".to_string(),
             "aider".to_string(),
             "amazonq".to_string(),
             "antigravity".to_string(),
@@ -195,6 +196,7 @@ pub async fn scan_all_projects(
         ("cursor", providers::cursor::scan_projects),
         ("crush", providers::crush::scan_projects),
         ("cursor-agent", providers::cursor_agent::scan_projects),
+        ("cursor-acp", providers::cursor_acp::scan_projects),
         ("aider", providers::aider::scan_projects),
         ("amazonq", providers::amazon_q::scan_projects),
         ("antigravity", providers::antigravity::scan_projects),
@@ -390,6 +392,7 @@ pub async fn load_provider_sessions(
         "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
         "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
+        "cursor-acp" => providers::cursor_acp::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "amazonq" => providers::amazon_q::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
@@ -541,6 +544,7 @@ fn load_non_claude_messages(
         "crush" => providers::crush::load_messages(session_path),
         "cursor" => providers::cursor::load_messages(session_path),
         "cursor-agent" => providers::cursor_agent::load_messages(session_path),
+        "cursor-acp" => providers::cursor_acp::load_messages(session_path),
         "aider" => providers::aider::load_messages(session_path),
         "amazonq" => providers::amazon_q::load_messages(session_path),
         "antigravity" => providers::antigravity::load_messages(session_path),
@@ -752,6 +756,7 @@ pub async fn search_all_providers(
             "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
+            "cursor-acp".to_string(),
             "aider".to_string(),
             "amazonq".to_string(),
             "antigravity".to_string(),
@@ -1037,6 +1042,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cursor Agent search failed: {e}");
+            }
+        }
+    }
+
+    // Cursor ACP (JetBrains IDEs)
+    if providers_to_search.iter().any(|p| p == "cursor-acp") {
+        match providers::cursor_acp::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Cursor ACP search failed: {e}");
             }
         }
     }

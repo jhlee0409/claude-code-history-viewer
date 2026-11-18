@@ -85,6 +85,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；迁移前的 Cline 系列数据仍归 Cline |
 | **Cursor** | `~/.cursor/` | Composer 和聊天对话 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent 会话记录，独立于 Cursor IDE 数据源 |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/`（Windows 为 `%USERPROFILE%\.cursor\acp-sessions`） | 在 JetBrains IDE（GoLand、IntelliJ IDEA 等）中通过 Agent Client Protocol 桥接使用的 Cursor — 只读，按工作区展示提示词、回复、推理过程和工具调用 |
 | **Aider** | 项目目录 | 聊天记录和编辑日志 |
 | **OpenCode** | `~/.local/share/opencode/` | 对话会话和工具结果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 数据库中的对话记录 |

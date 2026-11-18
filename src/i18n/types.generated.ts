@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T08:41:40.378Z
- * 총 키 개수: 2454
+ * 생성 시간: 2026-11-18T09:05:24.017Z
+ * 총 키 개수: 2457
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (313개)
+ * common namespace의 번역 키 (314개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -226,6 +226,7 @@ export type CommonKeys =
   | 'common.provider.copilot'
   | 'common.provider.crush'
   | 'common.provider.cursor'
+  | 'common.provider.cursorAcp'
   | 'common.provider.cursorAgent'
   | 'common.provider.detectError'
   | 'common.provider.forgecode'
@@ -1787,7 +1788,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (444개)
+ * renderers namespace의 번역 키 (446개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -2142,8 +2143,10 @@ export type RenderersKeys =
   | 'systemMessageRenderer.subtypes.stopHook'
   | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
+  | 'systemMessageRenderer.subtypes.undecodedRecords'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'
+  | 'systemMessageRenderer.undecodedRecords'
   | 'taskNotification.agentTask'
   | 'taskNotification.agentTasks'
   | 'taskNotification.details'
@@ -3210,6 +3213,7 @@ export type TranslationKey =
   | 'common.provider.copilot'
   | 'common.provider.crush'
   | 'common.provider.cursor'
+  | 'common.provider.cursorAcp'
   | 'common.provider.cursorAgent'
   | 'common.provider.detectError'
   | 'common.provider.forgecode'
@@ -4822,8 +4826,10 @@ export type TranslationKey =
   | 'systemMessageRenderer.subtypes.stopHook'
   | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
+  | 'systemMessageRenderer.subtypes.undecodedRecords'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'
+  | 'systemMessageRenderer.undecodedRecords'
   | 'taskNotification.agentTask'
   | 'taskNotification.agentTasks'
   | 'taskNotification.details'

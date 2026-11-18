@@ -83,6 +83,7 @@
   "common.provider.copilot": "Copilot",
   "common.provider.crush": "Crush",
   "common.provider.cursor": "Cursor",
+  "common.provider.cursorAcp": "Cursor ACP",
   "common.provider.cursorAgent": "Cursor Agent",
   "common.provider.detectError": "Failed to detect providers. Keeping the previous provider settings.",
   "common.provider.forgecode": "ForgeCode",

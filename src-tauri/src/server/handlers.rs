@@ -2590,4 +2590,53 @@ mod provider_uri_scope_tests {
         .await;
         assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
     }
+
+    /// Cursor ACP sessions are `cursor-acp://<cwd>#<id>` ids the provider
+    /// resolves under `~/.cursor/acp-sessions` itself: served over `--serve`
+    /// (full and paginated), while an id naming anything but a session
+    /// folder there is refused.
+    #[tokio::test]
+    #[serial]
+    async fn cursor_acp_sessions_are_served_and_confined_to_their_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let session_path = crate::providers::cursor_acp::tests::seed_session(
+            home.path(),
+            "00000000-0000-4000-8000-00000000000a",
+            "E:\\P4\\testgo",
+            "List the files",
+        );
+
+        let full = load_provider_messages(Json(ProviderMessagesParams {
+            provider: "cursor-acp".to_string(),
+            session_path: session_path.clone(),
+        }))
+        .await
+        .unwrap_or_else(|e| panic!("{}", e.0));
+        // Five stored messages; the public loader folds the tool result into
+        // the assistant message that made the call.
+        assert_eq!(full.0.as_array().map(Vec::len), Some(4));
+        let page = load_provider_messages_paginated(Json(ProviderMessagesPaginatedParams {
+            provider: "cursor-acp".to_string(),
+            session_path,
+            offset: None,
+            limit: None,
+            exclude_sidechain: None,
+        }))
+        .await
+        .unwrap_or_else(|e| panic!("{}", e.0));
+        assert_eq!(page.0["total_count"], 4);
+
+        for session_path in [
+            "cursor-acp://E:\\P4\\testgo#..",
+            "cursor-acp:///etc#../../passwd",
+            "cursor-acp:///work#00000000-0000-4000-8000-000000000999",
+        ] {
+            let res = load_provider_messages(Json(ProviderMessagesParams {
+                provider: "cursor-acp".to_string(),
+                session_path: session_path.to_string(),
+            }))
+            .await;
+            assert!(res.is_err(), "{session_path}");
+        }
+    }
 }

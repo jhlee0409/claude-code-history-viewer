@@ -325,6 +325,8 @@ struct BranchLine {
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
     message: Option<BranchLineMessage>,
+    #[serde(rename = "toolUseResult")]
+    tool_use_result: Option<serde::de::IgnoredAny>,
     /// `last-prompt` only.
     #[serde(rename = "leafUuid", default)]
     leaf_uuid: LeafField,
@@ -435,7 +437,10 @@ fn parse_branch_line(line: &[u8]) -> Option<ScanItem> {
     let (kind, response_id) = match line.entry_type.as_str() {
         "assistant" => (NodeKind::Assistant, line.message.and_then(|m| m.id)),
         "user" if line.is_meta.unwrap_or(false) => (NodeKind::Other, None),
-        "user" if line.message.as_ref().is_some_and(|m| m.content.0) => {
+        "user"
+            if line.tool_use_result.is_some()
+                || line.message.as_ref().is_some_and(|m| m.content.0) =>
+        {
             (NodeKind::ToolResult, None)
         }
         "user" => (NodeKind::Prompt, None),
@@ -706,6 +711,16 @@ mod tests {
             assistant("a1", "u1", "m1", None),
             user("u2", Some("a1"), "next"),
             assistant("a2", "u2", "m2", None),
+        ]);
+        assert_eq!(branches, ConversationBranches::default());
+    }
+
+    #[test]
+    fn standalone_tool_results_with_a_shared_parent_do_not_fork() {
+        let branches = analyze(&[
+            user("prompt", None, "hi"),
+            r#"{"type":"user","uuid":"read-result","parentUuid":"prompt","message":{"role":"user","content":""},"toolUseResult":{"result":0}}"#.into(),
+            r#"{"type":"user","uuid":"terminal-result","parentUuid":"prompt","message":{"role":"user","content":""},"toolUseResult":{"stdout":"ok"}}"#.into(),
         ]);
         assert_eq!(branches, ConversationBranches::default());
     }
