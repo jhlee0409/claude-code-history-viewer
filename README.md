@@ -85,6 +85,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/` (`%USERPROFILE%\.cursor\acp-sessions` on Windows) | Cursor in JetBrains IDEs (GoLand, IntelliJ IDEA, …) through the Agent Client Protocol bridge — read-only; prompts, replies, reasoning and tool calls, grouped by workspace |
 | **Aider** | Project directories | Chat history and edit logs |
 | **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
 | **ForgeCode** | `~/.forge/.forge.db` | Conversation history from SQLite database |

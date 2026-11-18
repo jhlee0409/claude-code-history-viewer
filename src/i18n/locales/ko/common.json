@@ -83,6 +83,7 @@
   "common.provider.copilot": "Copilot",
   "common.provider.crush": "Crush",
   "common.provider.cursor": "Cursor",
+  "common.provider.cursorAcp": "Cursor ACP",
   "common.provider.cursorAgent": "Cursor Agent",
   "common.provider.detectError": "프로바이더 감지에 실패했습니다. 기존 프로바이더 설정을 유지합니다.",
   "common.provider.forgecode": "ForgeCode",

@@ -37,7 +37,8 @@ type SystemSubtype =
   | "compact_boundary"
   | "microcompact_boundary"
   | "local_command"
-  | "system_prompt";
+  | "system_prompt"
+  | "undecoded_records";
 
 type Props = {
   content?: string | unknown[];
@@ -127,6 +128,7 @@ const SUBTYPE_CONFIG: Record<
     bgColor: "bg-muted/50",
     borderColor: "border-border",
   },
+  undecoded_records: LEVEL_CONFIG.warning,
 };
 
 const countTextMatches = (text: string | undefined, query: string): number => {
@@ -164,6 +166,12 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
   const structuredContent = Array.isArray(content) ? content : undefined;
   const hasRenderableContent =
     (textContent?.length ?? 0) > 0 || (structuredContent?.length ?? 0) > 0;
+  // Content a provider stored but could not decode (Cursor ACP): the text
+  // starts with the count (`cursor_acp::undecoded_note`), shown localized.
+  const undecodedCount =
+    subtype === "undecoded_records"
+      ? Number.parseInt(textContent ?? "", 10)
+      : Number.NaN;
   const renderedContent =
     structuredContent && structuredContent.length > 0 ? (
       <ClaudeContentArrayRenderer
@@ -174,7 +182,9 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
       />
     ) : textContent ? (
       <div className="text-foreground whitespace-pre-wrap break-words">
-        {textContent}
+        {Number.isFinite(undecodedCount)
+          ? t("systemMessageRenderer.undecodedRecords", { count: undecodedCount })
+          : textContent}
       </div>
     ) : null;
 
@@ -205,6 +215,9 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
       }),
       system_prompt: t("systemMessageRenderer.subtypes.systemPrompt", {
         defaultValue: "System Prompt",
+      }),
+      undecoded_records: t("systemMessageRenderer.subtypes.undecodedRecords", {
+        defaultValue: "Some content not shown",
       }),
     };
     return labels[sub] || sub;

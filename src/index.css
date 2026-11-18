@@ -49,6 +49,8 @@
   --provider-crush-surface: var(--surface-hover);
   --provider-cursor: oklch(0.48 0.1 40);
   --provider-cursor-surface: var(--surface-hover);
+  --provider-cursor-acp: oklch(0.48 0.1 15);
+  --provider-cursor-acp-surface: var(--surface-hover);
   --provider-cursor-agent: oklch(0.48 0.1 285);
   --provider-cursor-agent-surface: var(--surface-hover);
   --provider-forgecode: oklch(0.48 0.1 55);
@@ -397,6 +399,7 @@
   --provider-cline: oklch(0.78 0.1 180);
   --provider-crush: oklch(0.78 0.1 350);
   --provider-cursor: oklch(0.78 0.1 40);
+  --provider-cursor-acp: oklch(0.78 0.1 15);
   --provider-cursor-agent: oklch(0.78 0.1 285);
   --provider-forgecode: oklch(0.78 0.1 55);
   --provider-gemini: oklch(0.78 0.1 300);
@@ -623,6 +626,7 @@
   --provider-cline: var(--fg);
   --provider-crush: var(--fg);
   --provider-cursor: var(--fg);
+  --provider-cursor-acp: var(--fg);
   --provider-cursor-agent: var(--fg);
   --provider-forgecode: var(--fg);
   --provider-gemini: var(--fg);
@@ -749,6 +753,7 @@
   --provider-cline: var(--fg);
   --provider-crush: var(--fg);
   --provider-cursor: var(--fg);
+  --provider-cursor-acp: var(--fg);
   --provider-cursor-agent: var(--fg);
   --provider-forgecode: var(--fg);
   --provider-gemini: var(--fg);
@@ -983,6 +988,8 @@
   --color-provider-crush-surface: var(--provider-crush-surface);
   --color-provider-cursor: var(--provider-cursor);
   --color-provider-cursor-surface: var(--provider-cursor-surface);
+  --color-provider-cursor-acp: var(--provider-cursor-acp);
+  --color-provider-cursor-acp-surface: var(--provider-cursor-acp-surface);
   --color-provider-cursor-agent: var(--provider-cursor-agent);
   --color-provider-cursor-agent-surface: var(--provider-cursor-agent-surface);
   --color-provider-forgecode: var(--provider-forgecode);

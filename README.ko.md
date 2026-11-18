@@ -85,6 +85,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | 2026년 5월부터 OpenCode 코어. 마이그레이션 전 Cline 계열 데이터는 Cline에 유지 |
 | **Cursor** | `~/.cursor/` | Composer 및 채팅 대화 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | 에이전트 트랜스크립트 (Cursor IDE 소스와 별개) |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/` (Windows는 `%USERPROFILE%\.cursor\acp-sessions`) | JetBrains IDE(GoLand, IntelliJ IDEA 등)에서 Agent Client Protocol 브리지로 쓰는 Cursor — 읽기 전용, 프롬프트·응답·추론·도구 호출, 워크스페이스별 그룹 |
 | **Aider** | 프로젝트 디렉토리 | 채팅 기록 및 편집 로그 |
 | **OpenCode** | `~/.local/share/opencode/` | 대화 세션 및 도구 결과 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 데이터베이스의 대화 기록 |

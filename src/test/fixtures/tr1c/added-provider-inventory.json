@@ -1036,5 +1036,49 @@
     ],
     "fallback": "shared tool row / opaque JSON",
     "responseSha256": "0a505005cc5334ef688f0fa746961aa705cef30d020412402122d6378dbe7c87"
+  },
+  {
+    "id": "cursor-acp",
+    "messageCount": 4,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Glob"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/src/providers/cursor_acp.rs",
+        "line": 1412,
+        "sha256": "60e0833605199dc73c1309cdc62fb6be3551e3c49a89dc652540029f2e240a07",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor_acp.rs",
+        "line": 1428,
+        "sha256": "b812e1d6ec9339c5a6379985d15114a1901d3e6b47a528faca66905e0598afec",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor_acp.rs",
+        "line": 1456,
+        "sha256": "8804915b486bcf29a9a7ab0f0cbd7305f535182f6520346aff531e4fac66cfd9",
+        "kind": "native layout/test seed"
+      },
+      {
+        "file": "src-tauri/src/providers/cursor_acp.rs",
+        "line": 1480,
+        "sha256": "5ada6c096cdc4a31e4fc0b4faab06248d0b613702a6146267539df7875cb15ec",
+        "kind": "native layout/test seed"
+      }
+    ],
+    "limitations": [
+      "Repository-authored store.db seed (providers/cursor_acp.rs seed_tool_session, rebuilt byte-for-byte by a Python mirror), not a live Cursor ACP capture. The tool result carries isError=false and no exit code, so the process verdict is unknown."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "ad6fa92c825611f8c80d9469dd4d4f5252d9615a3a49bd63e90647ff1f1b349b"
   }
 ]

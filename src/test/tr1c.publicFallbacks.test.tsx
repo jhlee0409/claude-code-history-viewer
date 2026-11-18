@@ -12,12 +12,12 @@ import publicResults from './fixtures/tr1c/public-results.json';
 
 type Message = { uuid: string; content: string | Record<string, unknown>[] };
 const samples = publicResults as unknown as Record<string, { load_provider_messages: Message[] }>;
-const resultProviders = ['amazonq', 'cline', 'codebuddy', 'copilot', 'crush', 'cursor', 'forgecode', 'gemini', 'goose', 'grok', 'hermes', 'kimi', 'kiro', 'qoder', 'qwen', 'vibe', 'zcode', 'zed'];
+const resultProviders = ['amazonq', 'cline', 'codebuddy', 'copilot', 'crush', 'cursor', 'cursor-acp', 'forgecode', 'gemini', 'goose', 'grok', 'hermes', 'kimi', 'kiro', 'qoder', 'qwen', 'vibe', 'zcode', 'zed'];
 const textProviders = ['aider', 'antigravity', 'continue', 'cursor-agent', 'llm', 'pearai', 'trae'];
 // Independent expectations: process success is NOT supplied by these result fixtures.
 const processVerdicts: Record<string, string[]> = {
   amazonq: ['unknown'], cline: ['unknown'], codebuddy: ['unknown', 'failed'],
-  copilot: ['unknown'], crush: ['unknown'], cursor: ['unknown'], forgecode: ['unknown'],
+  copilot: ['unknown'], crush: ['unknown'], cursor: ['unknown'], 'cursor-acp': ['unknown'], forgecode: ['unknown'],
   gemini: ['unknown', 'failed'], goose: ['unknown'], grok: ['unknown'], hermes: ['unknown'], kimi: ['unknown'],
   kiro: ['unknown'], qoder: ['failed'], qwen: ['unknown'], vibe: ['unknown'], zcode: ['unknown'], zed: ['unknown'],
 };

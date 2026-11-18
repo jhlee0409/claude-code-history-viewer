@@ -180,6 +180,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       "copilot": 0,
       crush: 0,
       cursor: 0,
+      "cursor-acp": 0,
       "cursor-agent": 0,
       forgecode: 0,
       gemini: 0,
