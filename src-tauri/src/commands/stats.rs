@@ -65,6 +65,7 @@ enum StatsProvider {
     Cursor,
     Zcode,
     Hermes,
+    CursorAcp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,6 +128,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Cursor => "cursor",
         StatsProvider::Zcode => "zcode",
         StatsProvider::Hermes => "hermes",
+        StatsProvider::CursorAcp => "cursor-acp",
     }
 }
 
@@ -337,6 +339,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Cursor,
         StatsProvider::Zcode,
         StatsProvider::Hermes,
+        StatsProvider::CursorAcp,
     ]
     .into_iter()
     .collect()
@@ -368,6 +371,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "qwen" => Some(StatsProvider::Qwen),
             "zcode" => Some(StatsProvider::Zcode),
             "hermes" => Some(StatsProvider::Hermes),
+            "cursor-acp" => Some(StatsProvider::CursorAcp),
             "trae" => Some(StatsProvider::Trae),
             "vibe" => Some(StatsProvider::Vibe),
             "zed" => Some(StatsProvider::Zed),
@@ -437,6 +441,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Zcode
     } else if project_path.starts_with("hermes://") {
         StatsProvider::Hermes
+    } else if project_path.starts_with("cursor-acp://") {
+        StatsProvider::CursorAcp
     } else if project_path.starts_with("codex://") {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
@@ -546,6 +552,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("hermes://") {
         return StatsProvider::Hermes;
+    }
+    if session_path.starts_with("cursor-acp://") {
+        return StatsProvider::CursorAcp;
     }
     if path_under_root(session_path, providers::cursor_agent::get_base_path()) {
         return StatsProvider::CursorAgent;
@@ -1623,6 +1632,7 @@ fn scan_stats_projects(
         StatsProvider::Qwen => providers::qwen::scan_projects(),
         StatsProvider::Zcode => providers::zcode::scan_projects(),
         StatsProvider::Hermes => providers::hermes::scan_projects(),
+        StatsProvider::CursorAcp => providers::cursor_acp::scan_projects(),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
         StatsProvider::Zed => providers::zed::scan_projects(),
@@ -1665,6 +1675,7 @@ fn load_stats_sessions(
         StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
         StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
         StatsProvider::Hermes => providers::hermes::load_sessions(project_path, false),
+        StatsProvider::CursorAcp => providers::cursor_acp::load_sessions(project_path, false),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
         StatsProvider::Zed => providers::zed::load_sessions(project_path, false),
@@ -1716,6 +1727,7 @@ fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderIn
         StatsProvider::Llm => providers::llm::detect(),
         StatsProvider::Grok => providers::grok::detect(),
         StatsProvider::Hermes => providers::hermes::detect(),
+        StatsProvider::CursorAcp => providers::cursor_acp::detect(),
         StatsProvider::Kimi => providers::kimi::detect(),
         StatsProvider::Antigravity => providers::antigravity::detect(),
         StatsProvider::Copilot => providers::copilot::detect(),
@@ -1748,6 +1760,7 @@ fn load_stats_messages(
         // Rolls subagent runs into their parent as sidechain usage (#577).
         StatsProvider::Zcode => providers::zcode::load_messages_with_subagents(session_path),
         StatsProvider::Hermes => providers::hermes::load_messages(session_path),
+        StatsProvider::CursorAcp => providers::cursor_acp::load_messages(session_path),
         StatsProvider::Trae => providers::trae::load_messages(session_path),
         StatsProvider::Vibe => providers::vibe::load_messages(session_path),
         StatsProvider::Zed => providers::zed::load_messages(session_path),
@@ -3293,6 +3306,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, project_path),
         StatsProvider::Hermes => providers::hermes::project_name(project_path),
+        StatsProvider::CursorAcp => providers::cursor_acp::project_name(project_path),
     }
 }
 
@@ -3472,6 +3486,7 @@ fn resolve_provider_project_name_from_session(
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, session_path),
         StatsProvider::Hermes => providers::hermes::project_name_for_session(session_path),
+        StatsProvider::CursorAcp => providers::cursor_acp::project_name_for_session(session_path),
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -5838,6 +5853,7 @@ pub async fn get_global_stats_summary(
         StatsProvider::Zed,
         StatsProvider::Zcode,
         StatsProvider::Hermes,
+        StatsProvider::CursorAcp,
     ] {
         if providers_to_include.contains(&provider) {
             let (provider_stats, provider_projects) =
@@ -6976,7 +6992,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 32);
+        assert_eq!(supported.len(), 33);
     }
 
     #[test]
@@ -9879,6 +9895,17 @@ mod tests {
             detect_project_provider("hermes://profile.coder::source:telegram"),
             StatsProvider::Hermes
         );
+        // Cursor ACP pseudo-paths too, Windows workspaces included.
+        assert_eq!(
+            detect_session_provider(
+                "cursor-acp://E:\\P4\\testgo#00000000-0000-4000-8000-00000000000a"
+            ),
+            StatsProvider::CursorAcp
+        );
+        assert_eq!(
+            detect_project_provider("cursor-acp:///home/jack/proj"),
+            StatsProvider::CursorAcp
+        );
         // Claude files still route to Claude.
         assert_eq!(
             detect_session_provider(&format!("{home}/.claude/projects/-u/s.jsonl")),
@@ -9920,6 +9947,21 @@ mod tests {
                 "hermes://profile.coder::source:telegram"
             ),
             "Hermes (telegram) (coder)"
+        );
+    }
+
+    #[test]
+    fn cursor_acp_project_names_come_from_the_workspace_folder() {
+        assert_eq!(
+            resolve_provider_project_name_from_session(
+                StatsProvider::CursorAcp,
+                "cursor-acp://E:\\P4\\testgo#00000000-0000-4000-8000-00000000000a"
+            ),
+            "testgo"
+        );
+        assert_eq!(
+            resolve_provider_project_name(StatsProvider::CursorAcp, "cursor-acp:///home/jack/proj"),
+            "proj"
         );
     }
 
