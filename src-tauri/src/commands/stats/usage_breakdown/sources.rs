@@ -59,6 +59,7 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
         | P::Continue
         | P::Crush
         | P::CursorAgent
+        | P::CursorAcp
         | P::Goose
         | P::Kiro
         | P::OpenHands
@@ -676,6 +677,7 @@ fn scan_projects_reporting(
         | P::Continue
         | P::Crush
         | P::CursorAgent
+        | P::CursorAcp
         | P::Goose
         | P::Kiro
         | P::OpenHands
@@ -722,6 +724,7 @@ fn load_sessions_reporting(
         | P::Continue
         | P::Crush
         | P::CursorAgent
+        | P::CursorAcp
         | P::Goose
         | P::Kiro
         | P::OpenHands

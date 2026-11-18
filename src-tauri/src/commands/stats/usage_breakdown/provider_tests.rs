@@ -137,6 +137,7 @@ fn every_provider_is_classified_and_the_unsupported_set_is_pinned() {
             "codebuddy",
             "continue",
             "crush",
+            "cursor-acp",
             "cursor-agent",
             "goose",
             "kiro",

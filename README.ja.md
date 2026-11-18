@@ -85,6 +85,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
 | **Cursor** | `~/.cursor/` | Composerとチャットの会話 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | エージェントトランスクリプト（Cursor IDEソースとは別系統） |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/`（Windows は `%USERPROFILE%\.cursor\acp-sessions`） | JetBrains IDE（GoLand、IntelliJ IDEA など）から Agent Client Protocol ブリッジ経由で使う Cursor — 読み取り専用、プロンプト・応答・推論・ツール呼び出しをワークスペース別に表示 |
 | **Aider** | プロジェクトディレクトリ | チャット履歴と編集ログ |
 | **OpenCode** | `~/.local/share/opencode/` | 会話セッションとツール結果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLiteデータベースの会話履歴 |
