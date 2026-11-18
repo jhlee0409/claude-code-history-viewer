@@ -22,6 +22,7 @@ Current analytics paths use different filtering and parsing rules, causing user-
 ## Canonical accounting policy (recommended)
 - Metric mode `billing_total` (default for analytics): include sidechain usage because it is billed usage.
 - Metric mode `conversation_only` (optional UI mode): exclude sidechain to reflect only main-thread context.
+- Subagent runs count under the session that spawned them, at every level: Claude `subagents/*.jsonl` transcripts, Z Code `subagent_child` tasks, and OpenCode/Kilo child sessions (`session.parent_id`, recursively). In stats a run is never a session of its own (per-session token stats, project/global session counts, session comparison, usage breakdown); a run whose parent is missing stays a session of its own so its usage is not dropped (#577).
 - Include token components: input, output, cache_creation_input, cache_read_input.
 - Include entries from supported token locations with deterministic precedence:
 1. `message.usage`
