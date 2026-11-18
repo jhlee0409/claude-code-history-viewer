@@ -397,6 +397,8 @@ export interface AppStoreActions {
   ) => Promise<void>;
   setShowInlineTokenUsage: (show: boolean) => Promise<void>;
   toggleInlineTokenUsage: () => void;
+  /** A preference saved by another window (`settingsSync.ts`): applied in memory. */
+  applySharedSetting: (key: string, value: unknown) => void;
 
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
@@ -416,6 +418,8 @@ export interface AppStoreActions {
     update: Partial<ProjectMetadata>
   ) => Promise<void>;
   updateUserSettings: (update: Partial<UserSettings>) => Promise<void>;
+  /** User metadata as the backend last saved it (from any window, `settingsSync.ts`). */
+  applySharedMetadata: (metadata: UserMetadata) => void;
   getSessionDisplayName: (
     sessionId: string,
     fallbackSummary?: string

@@ -48,6 +48,7 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
+import { canOpenWindows, openInNewWindow, projectWindowTarget } from "@/navigation/windows";
 
 type ProviderTabId = "all" | ProviderId;
 
@@ -1061,6 +1062,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           isHidden={isProjectHidden(contextMenu.project.actual_path)}
           providerSiblings={contextMenu.providerSiblings}
           onSelectProject={handleProjectClick}
+          onOpenInNewWindow={
+            canOpenWindows() ? (project) => openInNewWindow(projectWindowTarget(project)) : undefined
+          }
         />
       )}
     </aside>

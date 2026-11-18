@@ -25,5 +25,5 @@ pub mod native;
 pub mod spec;
 
 pub use bridge::MenuBridge;
-pub use journal::MenuJournal;
-pub use native::{handle_menu_event, initial_menu};
+pub use journal::{MenuJournal, MenuJournals};
+pub use native::{handle_menu_event, initial_menu, window_closed, window_in_front};

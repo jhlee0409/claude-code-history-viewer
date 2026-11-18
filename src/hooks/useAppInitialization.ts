@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { listenForSettingChanges, listenForUserMetadataChanges } from "@/services/settingsSync";
 import { type SupportedLanguage } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useFileWatcher } from "./useFileWatcher";
@@ -12,6 +13,7 @@ import { useEffectiveHighContrast } from "./useHighContrast";
  * - Font scale CSS variable
  * - High contrast mode
  * - i18n language sync
+ * - Settings and user metadata changed in another window
  * - Message restoration on view switch
  */
 export function useAppInitialization(deps: {
@@ -97,6 +99,22 @@ export function useAppInitialization(deps: {
       i18nInstance.off("languageChanged", handleLanguageChange);
     };
   }, [language, i18nInstance]);
+
+  // Settings and user metadata saved in another window (issue #656). The
+  // theme is the ThemeProvider's own.
+  useEffect(() => {
+    const stopSettings = listenForSettingChanges((key, value) => {
+      if (key === "language") useLanguageStore.getState().applySharedLanguage(value);
+      else useAppStore.getState().applySharedSetting(key, value);
+    });
+    const stopMetadata = listenForUserMetadataChanges((metadata) =>
+      useAppStore.getState().applySharedMetadata(metadata)
+    );
+    return () => {
+      stopSettings();
+      stopMetadata();
+    };
+  }, []);
 
   // Restore messages when switching back to the conversation screen with
   // nothing loaded. A reload of the place, not a navigation.

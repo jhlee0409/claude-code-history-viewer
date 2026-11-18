@@ -97,6 +97,7 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    | `palette.open` | `app` - the window's palette | runs |
    | `app.preferences` | `app` - the toolbar's preferences menu | runs |
    | `app.checkForUpdates` | `app` - the app | runs |
+   | `window.new` | `app` - a new window of the app (#656) | runs |
    | `help.feedback` | `app` - the feedback dialog | runs |
    | `view.toggleInspector` | `app` - its open state is app-wide (`stateScope.ts`) | runs; `enabled` is re-checked on the tab in front |
    | `view.toggleMinimap` | `app` - its open state is app-wide | runs |

@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AppWindow,
   Pencil,
   RotateCcw,
   SquareTerminal,
@@ -48,6 +49,8 @@ interface SessionContextMenuProps {
   /** Starred (the sidebar's favourites). Omitted: no favourite item. */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /** Open the session in a new window (desktop). Omitted: no such item. */
+  onOpenInNewWindow?: () => void;
 }
 
 /**
@@ -89,6 +92,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   onDeleteSession,
   isFavorite = false,
   onToggleFavorite,
+  onOpenInNewWindow,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -273,6 +277,13 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         )}
 
         {!readOnly && <div className="my-1 border-t border-border/50" />}
+
+        {onOpenInNewWindow && (
+          <button type="button" role="menuitem" onClick={handleAction(onOpenInNewWindow)} className={menuItemClass}>
+            <AppWindow className="w-3.5 h-3.5" />
+            <span>{t("session.openInNewWindow")}</span>
+          </button>
+        )}
 
         <button type="button" role="menuitem" onClick={handleAction(onCopySessionId)} className={menuItemClass}>
           <Copy className="w-3.5 h-3.5" />
