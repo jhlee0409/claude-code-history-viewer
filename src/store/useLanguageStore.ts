@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import { storageAdapter } from "@/services/storage";
+import { saveSetting } from "@/services/settingsSync";
 import { isTauri } from "@/utils/platform";
 import i18n from "../i18n";
 import type { SupportedLanguage } from "../i18n";
@@ -11,6 +12,8 @@ interface LanguageStore {
   isLoading: boolean;
   setLanguage: (language: SupportedLanguage) => Promise<void>;
   loadLanguage: () => Promise<void>;
+  /** A language chosen in another window (issue #656): applied here, not saved again. */
+  applySharedLanguage: (language: unknown) => void;
 }
 
 const getCurrentLanguage = (): SupportedLanguage => {
@@ -30,12 +33,18 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
     set({ language });
 
     try {
-      const store = await storageAdapter.load("settings.json", { defaults: {}, autoSave: true });
-      await store.set("language", language);
-      await store.save();
+      await saveSetting("language", language);
     } catch {
       toast.error(i18n.t("common.settings.language.saveFailed"));
     }
+  },
+
+  applySharedLanguage: (language) => {
+    if (typeof language !== "string") return;
+    const next = getSupportedLanguage(language);
+    if (next === get().language) return;
+    set({ language: next });
+    void i18n.changeLanguage(next);
   },
 
   loadLanguage: async () => {

@@ -327,6 +327,7 @@ mod tests {
         assert_eq!(
             ids(win.submenu(MenuId::File).unwrap()),
             vec![
+                "window.new",
                 "tab.new",
                 "tab.close",
                 "-",
@@ -349,8 +350,27 @@ mod tests {
         let linux = spec(Os::Linux, "en");
         assert_eq!(
             ids(linux.submenu(MenuId::File).unwrap()),
-            vec!["tab.new", "tab.close", "-", "app.preferences"]
+            vec!["window.new", "tab.new", "tab.close", "-", "app.preferences"]
         );
+    }
+
+    /// Issue #656: New Window opens the File menu, ⌘N on the Mac (Ctrl+Shift+N
+    /// on Windows and Linux, whose items carry no accelerator).
+    #[test]
+    fn file_menu_starts_with_new_window() {
+        let mac = spec(Os::Mac, "en");
+        let file = &mac.submenu(MenuId::File).unwrap().items;
+        assert_eq!(
+            file.first(),
+            Some(&ItemSpec::Command {
+                id: "window.new".into(),
+                label: "New Window".into(),
+                accelerator: Some("Cmd+N".into()),
+                toggle: false,
+            })
+        );
+        let manifest = crate::menu::manifest::manifest();
+        assert!(manifest.is_menu_command("window.new"));
     }
 
     #[test]

@@ -16,6 +16,7 @@ import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
 import { useOpenSessionInNewTab } from "@/contexts/openInNewTab";
 import { isActionModifier } from "@/utils/platform";
+import { canOpenWindows, openInNewWindow, sessionWindowTarget } from "@/navigation/windows";
 import type { Boundary } from "@/utils/contextMenu";
 
 type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null; anchor?: HTMLElement | null };
@@ -141,6 +142,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           onDeleteSession={editing.handleDeleteSession}
           isFavorite={isFavorite}
           onToggleFavorite={() => void toggleSessionFavorite(session, project)}
+          onOpenInNewWindow={
+            canOpenWindows() ? () => openInNewWindow(sessionWindowTarget(session, project)) : undefined
+          }
         />
       )}
 

@@ -105,6 +105,7 @@ const actions: CommandActions = {
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
     checkForUpdates: vi.fn(),
+    newWindow: vi.fn(),
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),

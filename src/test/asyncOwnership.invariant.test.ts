@@ -86,6 +86,8 @@ const EXEMPT: Record<string, string> = {
   "store/useLanguageStore.ts#setLanguage:toast": "user action: a preference failed to save",
   "store/slices/metadataSlice.ts#toggleSessionFavorite:toast":
     "user action: starring or unstarring a session failed to save",
+  "navigation/windows.ts#openInNewWindow:toast":
+    "user action: a new window failed to open; this window's place is not touched",
   "store/slices/projectSlice.ts#reloadProjectSessions:place":
     "the open session's own record refreshed in place (same file_path, list counts): data, gated by ownsData - a reload must refresh it on any screen",
 };

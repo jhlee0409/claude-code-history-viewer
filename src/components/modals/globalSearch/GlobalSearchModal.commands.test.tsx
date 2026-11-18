@@ -112,6 +112,7 @@ function setUpPalette() {
         openArchive: vi.fn(),
         openFeedback: vi.fn(),
         checkForUpdates: vi.fn(),
+        newWindow: vi.fn(),
     };
     context = {
         place: {

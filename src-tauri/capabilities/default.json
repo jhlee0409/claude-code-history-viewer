@@ -3,11 +3,13 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "window-*"
   ],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:event:allow-emit",
     "core:app:allow-version",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",

@@ -31,6 +31,7 @@ export const COMMAND_IDS = [
   "go.archive",
   "help.feedback",
   "app.checkForUpdates",
+  "window.new",
   "tab.new",
   "tab.close",
   "tab.next",

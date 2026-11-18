@@ -200,6 +200,7 @@ function fakeActions(): CommandActions {
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
     checkForUpdates: vi.fn(),
+    newWindow: vi.fn(),
   };
 }
 

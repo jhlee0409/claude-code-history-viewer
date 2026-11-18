@@ -7,6 +7,7 @@ import i18n from "i18next";
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
+import { currentWindowLabel } from "@/utils/platform";
 import { MENU_CHECKS, MENU_COMMAND_EVENT, type MenuBridgeDeps, type MenuState } from "./nativeMenu";
 import { sessionCursorStore, type LiveMenuEvent, type MenuJournalSnapshot } from "./menuJournal";
 import type { CommandContext } from "./registry";
@@ -32,7 +33,11 @@ export function tauriMenuDeps(getContext: () => CommandContext): MenuBridgeDeps 
     onListenError: () => toast.error(i18n.t("common.menu.listenFailed")),
     listen: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
-      return listen<LiveMenuEvent>(MENU_COMMAND_EVENT, (event) => handler(event.payload));
+      // Menu events go to the window in front only (issue #656): listen for
+      // this window's, not every window's.
+      return listen<LiveMenuEvent>(MENU_COMMAND_EVENT, (event) => handler(event.payload), {
+        target: { kind: "WebviewWindow", label: currentWindowLabel() },
+      });
     },
     pullEvents: () => api<MenuJournalSnapshot>("menu_journal"),
     ackEvents: async (epoch, seq) => {

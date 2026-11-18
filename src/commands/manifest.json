@@ -79,6 +79,13 @@
       "separatorBefore": true
     },
     {
+      "id": "window.new",
+      "labelKey": "common.command.newWindow",
+      "shortcut": { "mac": "Cmd+N", "win": "Ctrl+Shift+N", "linux": "Ctrl+Shift+N", "web": "Alt+Shift+N" },
+      "source": "frontend",
+      "menu": "file"
+    },
+    {
       "id": "tab.new",
       "labelKey": "common.command.newTab",
       "shortcut": { "mac": "Cmd+T", "win": "Ctrl+T", "linux": "Ctrl+T", "web": "Alt+T" },

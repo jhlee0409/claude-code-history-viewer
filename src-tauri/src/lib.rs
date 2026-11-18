@@ -4,6 +4,7 @@ pub mod commands;
 pub mod export;
 pub mod menu;
 pub mod models;
+pub mod multi_window;
 pub mod providers;
 pub mod utils;
 pub mod window_state;
@@ -82,6 +83,7 @@ use crate::commands::{
     watcher::{start_file_watcher, stop_file_watcher},
     wsl::{detect_wsl_distros, is_wsl_available},
 };
+use crate::multi_window::{get_window_target, open_window};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -138,7 +140,7 @@ fn run_tauri() {
     }
 
     use std::sync::{Arc, Mutex};
-    use tauri::{Emitter, Manager};
+    use tauri::Emitter;
 
     // Parse CLI args for a session preload hint (e.g. `--session <uuid>`).
     // A missing or unrecognized value yields None; the GUI then runs as usual.
@@ -151,20 +153,19 @@ fn run_tauri() {
         // Single-instance plugin MUST be registered first so the second
         // invocation is intercepted before any other plugin does any work.
         // The callback receives the second process's argv; we re-parse it
-        // for a session hint and forward to the live window. Any panic in
+        // for a session hint and forward to the window in front (issue #656:
+        // a second launch still opens no window of its own). Any panic in
         // the callback is caught so a malformed argv cannot freeze the
         // already-running window.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // Re-focus the main window regardless of hint presence so users
-                // get visible feedback that the second launch was intercepted.
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
-                if let Some(hint) = cli::parse_session_hint(&argv) {
+                // Re-focus the window in front regardless of hint presence so
+                // users get visible feedback that the second launch was
+                // intercepted.
+                let front = multi_window::focus_front_window(app);
+                if let (Some(label), Some(hint)) = (front, cli::parse_session_hint(&argv)) {
                     // Frontend listens on this event (see App.tsx).
-                    let _ = app.emit("cli-session-hint", hint);
+                    let _ = app.emit_to(label.as_str(), "cli-session-hint", hint);
                 }
             }));
             if result.is_err() {
@@ -181,7 +182,8 @@ fn run_tauri() {
         // T11a). After the plugins: single-instance stays first. One
         // app-wide menu-event handler; a rebuilt menu adds no listener.
         .manage(menu::MenuBridge::new("en"))
-        .manage(menu::MenuJournal::for_this_run())
+        .manage(menu::MenuJournals::default())
+        .manage(multi_window::AppWindows::default())
         // One setup hook (a second one would replace the first):
         // 1. The menu, built here because the saved UI language is read from
         //    the app data folder, whose path resolver does not exist yet when
@@ -198,9 +200,13 @@ fn run_tauri() {
             {
                 log::error!("native menu not installed: {error}");
             }
+            multi_window::announce_metadata_saves(app.handle());
             window_state::restore_and_track(app.handle());
             Ok(())
         })
+        // Focus and close of every window: the window in front gets the menu
+        // events and shows its menu state (issue #656).
+        .on_window_event(multi_window::on_window_event)
         // Every menu event is journaled (numbered, kept until acknowledged):
         // a (re)loading page pulls what it has not run, so no page-load hook
         // or ready state is needed.
@@ -320,7 +326,10 @@ fn run_tauri() {
             // Native menu bridge (WebUI: no-op route)
             menu::native::sync_menu_state,
             menu::native::menu_journal,
-            menu::native::ack_menu_events
+            menu::native::ack_menu_events,
+            // Several windows (desktop only; issue #656)
+            open_window,
+            get_window_target
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -337,11 +346,9 @@ fn run_tauri() {
             if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
                     if let Some(hint) = cli::parse_session_hint_from_url(url) {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
+                        if let Some(label) = multi_window::focus_front_window(app) {
+                            let _ = app.emit_to(label.as_str(), "cli-session-hint", hint);
                         }
-                        let _ = app.emit("cli-session-hint", hint);
                         break;
                     }
                 }
