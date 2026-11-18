@@ -146,6 +146,8 @@
   "session.deleteTargetForgeCode": "ForgeCode conversation",
   "session.deleteTitle": "Delete Session",
   "session.subagentMessagesLoadError": "Failed to load subagent messages: {{error}}",
+  "session.subagentRunCount_one": "{{count}} subagent run",
+  "session.subagentRunCount_other": "{{count}} subagent runs",
   "session.subagentsLoadError": "Failed to load subagent sessions: {{error}}",
   "session.selection.enter": "Select sessions",
   "session.selection.exit": "Exit selection",

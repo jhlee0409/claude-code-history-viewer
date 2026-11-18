@@ -1,5 +1,5 @@
 // src/components/ProjectTree/components/SessionList.tsx
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
 import { Search, X, ArrowDownWideNarrow, ArrowUpNarrowWide, LoaderCircle, ListChecks } from "lucide-react";
@@ -18,6 +18,9 @@ import { COMPACT_SESSION_ROW_HEIGHT, sessionItemHeight } from "./sessionItemHeig
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
+import { indexSessionBranches, sessionBranchRows, type SessionBranchRow } from "@/utils/sessionBranches";
+
+const NO_EXPANDED_BRANCHES = new Set<string>();
 
 /**
  * The search / source / sort controls show from this many sessions on. The
@@ -32,7 +35,9 @@ const VIRTUALIZATION_THRESHOLD = 20;
 const MAX_LIST_HEIGHT = 400;
 
 interface SessionRowData {
-  sessions: ClaudeSession[];
+  rows: SessionBranchRow[];
+  ariaLevel: number;
+  onToggleBranch?: (sessionId: string) => void;
   selectedSession: ClaudeSession | null;
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
@@ -46,13 +51,15 @@ interface SessionRowData {
 
 interface SessionRowProps {
   index: number;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
   data: SessionRowData;
 }
 
 const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
   const {
-    sessions,
+    rows,
+    ariaLevel,
+    onToggleBranch,
     selectedSession,
     onSessionSelect,
     onSessionHover,
@@ -63,28 +70,33 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
     onSessionModifierSelect,
     compact,
   } = data;
-  const session = sessions[index];
+  const row = rows[index];
 
-  if (!session) {
+  if (!row) {
     return null;
   }
 
-  return (
-    <div style={style}>
-      <SessionItem
-        session={session}
-        isSelected={selectedSession?.session_id === session.session_id}
-        onSelect={() => onSessionSelect(session)}
-        onHover={() => onSessionHover?.(session)}
-        formatTimeAgo={formatTimeAgo}
-        isSelectionMode={isSelectionMode}
-        isChecked={selectedIds.has(session.session_id)}
-        onToggleSelect={(e) => onSessionCheck(session, e)}
-        onModifierSelect={(e) => onSessionModifierSelect(session, e)}
-        variant={compact ? "compact" : "default"}
-      />
-    </div>
+  const { session, depth, runCount, expanded } = row;
+  const item = (
+    <SessionItem
+      session={session}
+      isSelected={selectedSession?.session_id === session.session_id}
+      onSelect={() => onSessionSelect(session)}
+      onHover={() => onSessionHover?.(session)}
+      formatTimeAgo={formatTimeAgo}
+      isSelectionMode={isSelectionMode}
+      isChecked={selectedIds.has(session.session_id)}
+      onToggleSelect={(e) => onSessionCheck(session, e)}
+      onModifierSelect={(e) => onSessionModifierSelect(session, e)}
+      variant={compact ? "compact" : "default"}
+      ariaLevel={ariaLevel + depth}
+      branchDepth={depth}
+      subagentCount={runCount}
+      isBranchExpanded={expanded}
+      onToggleBranch={onToggleBranch && (() => onToggleBranch(session.session_id))}
+    />
   );
+  return style ? <div style={style}>{item}</div> : item;
 };
 
 interface SessionListControlsProps {
@@ -229,11 +241,17 @@ export const SessionList: React.FC<SessionListProps> = ({
   variant = "default",
   listHeight: paneListHeight,
   density = "default",
+  ariaLevel = 2,
+  expandedBranches = NO_EXPANDED_BRANCHES,
+  onToggleBranch,
+  matchingIds,
 }) => {
   const compact = density === "compact";
   const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const lastAutoLoadLengthRef = useRef(0);
+  const virtualList = useRef<List<SessionRowData>>(null);
+  const revealedSelection = useRef<string | undefined>(undefined);
   const {
     sessionSortOrder,
     setSessionSortOrder,
@@ -262,42 +280,31 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   const containerClass = compact ? "" : isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
 
-  // Filter and sort sessions
-  const filteredAndSortedSessions = useMemo(() => {
-    let result = [...sessions];
-
-    // Sort
-    result.sort((a, b) => {
-      const dateA = new Date(a.last_modified).getTime();
-      const dateB = new Date(b.last_modified).getTime();
-      return sessionSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+  const tree = useMemo(() => {
+    const sorted = [...sessions].sort((a, b) => {
+      const delta = Date.parse(b.last_modified) - Date.parse(a.last_modified);
+      return sessionSortOrder === "newest" ? delta : -delta;
     });
-
-    // Filter by source (entrypoint)
-    if (sessionEntrypointFilter !== 'all') {
-      result = result.filter((session) =>
-        matchesEntrypointFilter(session.entrypoint, sessionEntrypointFilter)
-      );
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(session => {
-        const displayName = getSessionDisplayName(session.session_id, session.summary);
-        return (
-          displayName?.toLowerCase().includes(query) ||
-          session.summary?.toLowerCase().includes(query) ||
-          session.session_id.toLowerCase().includes(query)
-        );
-      });
-    }
-
-    return result;
-  }, [sessions, sessionSortOrder, sessionEntrypointFilter, searchQuery, getSessionDisplayName]);
+    return indexSessionBranches(sorted);
+  }, [sessions, sessionSortOrder]);
+  const rows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const filtering = query || sessionEntrypointFilter !== "all";
+    const matched = filtering ? new Set(sessions.filter((session) => {
+      if (matchingIds && !matchingIds.has(session.session_id)) return false;
+      if (!matchesEntrypointFilter(session.entrypoint, sessionEntrypointFilter)) return false;
+      if (!query) return true;
+      const displayName = getSessionDisplayName(session.session_id, session.summary);
+      return displayName?.toLowerCase().includes(query) ||
+        session.summary?.toLowerCase().includes(query) ||
+        session.session_id.toLowerCase().includes(query);
+    }).map((session) => session.session_id)) : matchingIds;
+    return sessionBranchRows(tree, tree.roots, expandedBranches, matched);
+  }, [tree, sessions, expandedBranches, matchingIds, searchQuery, sessionEntrypointFilter, getSessionDisplayName]);
+  const filteredAndSortedSessions = useMemo(() => rows.map((row) => row.session), [rows]);
 
   // Show controls only if we have enough sessions
-  const showControls = sessions.length >= SESSION_CONTROLS_MIN || sessionsTotal >= SESSION_CONTROLS_MIN;
+  const showControls = tree.roots.length >= SESSION_CONTROLS_MIN || sessionsTotal >= SESSION_CONTROLS_MIN;
 
   // Ordered IDs of the currently visible (filtered + sorted) sessions — the
   // basis for Shift range selection and "Select all".
@@ -403,6 +410,10 @@ export const SessionList: React.FC<SessionListProps> = ({
     <SessionSelectionBar
       allSessions={sessions}
       visibleSessions={filteredAndSortedSessions}
+      loadedCount={tree.roots.length}
+      sessionsTotal={sessionsTotal}
+      hasMoreSessions={hasMoreSessions}
+      visibleRunCount={rows.reduce((count, row) => count + Number(row.depth > 0), 0)}
     />
   ) : null;
 
@@ -428,7 +439,7 @@ export const SessionList: React.FC<SessionListProps> = ({
               : t("session.loadMore", "Load more")}
           </span>
           <span className="text-muted-foreground/70">
-            {Math.min(sessions.length, sessionsTotal)} / {sessionsTotal}
+            {Math.min(tree.roots.length, sessionsTotal)} / {sessionsTotal}
           </span>
         </span>
       </button>
@@ -438,7 +449,9 @@ export const SessionList: React.FC<SessionListProps> = ({
   // Virtual list에 전달할 데이터 memoize
   const itemData = useMemo<SessionRowData>(
     () => ({
-      sessions: filteredAndSortedSessions,
+      rows,
+      ariaLevel,
+      onToggleBranch,
       selectedSession,
       onSessionSelect,
       onSessionHover,
@@ -450,7 +463,9 @@ export const SessionList: React.FC<SessionListProps> = ({
       compact,
     }),
     [
-      filteredAndSortedSessions,
+      rows,
+      ariaLevel,
+      onToggleBranch,
       selectedSession,
       onSessionSelect,
       onSessionHover,
@@ -471,6 +486,16 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
+  // Opening an off-page run via search inserts and expands its branch.
+  // Move the virtual window to it once, not on every disclosure or refresh.
+  useEffect(() => {
+    if (!onToggleBranch || !selectedSession || !useVirtualScroll) return;
+    if (revealedSelection.current === selectedSession.file_path) return;
+    const index = rows.findIndex(({ session }) => session.file_path === selectedSession.file_path);
+    if (index < 0) return;
+    virtualList.current?.scrollToItem(index, "smart");
+    revealedSelection.current = selectedSession.file_path;
+  }, [onToggleBranch, rows, selectedSession, useVirtualScroll]);
 
   if (isLoading && sessions.length === 0) {
     return (
@@ -510,20 +535,8 @@ export const SessionList: React.FC<SessionListProps> = ({
               {t("session.filter.noResults", "No matching sessions")}
             </div>
           ) : (
-            filteredAndSortedSessions.map((session) => (
-              <SessionItem
-                key={session.session_id}
-                session={session}
-                isSelected={selectedSession?.session_id === session.session_id}
-                onSelect={() => onSessionSelect(session)}
-                onHover={() => onSessionHover?.(session)}
-                formatTimeAgo={formatTimeAgo}
-                isSelectionMode={isSelectionMode}
-                isChecked={selectedIdSet.has(session.session_id)}
-                onToggleSelect={(e) => handleSessionCheck(session, e)}
-                onModifierSelect={(e) => handleModifierSelect(session, e)}
-                variant={compact ? "compact" : "default"}
-              />
+            rows.map((row, index) => (
+              <SessionRow key={row.session.session_id} index={index} data={itemData} />
             ))
           )}
         </div>
@@ -546,6 +559,8 @@ export const SessionList: React.FC<SessionListProps> = ({
           </div>
         ) : (
           <List
+            ref={virtualList}
+            itemKey={(index, data) => data.rows[index]!.session.session_id}
             height={listHeight}
             itemCount={filteredAndSortedSessions.length}
             itemSize={itemHeight}

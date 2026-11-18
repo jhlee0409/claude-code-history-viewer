@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Check, Ellipsis, RotateCcwClock, Star } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Ellipsis, RotateCcwClock, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Num } from "@/lib/format/Num";
@@ -49,6 +49,10 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   onModifierSelect,
   variant = "default",
   ariaLevel = 2,
+  branchDepth = 0,
+  subagentCount = 0,
+  isBranchExpanded = false,
+  onToggleBranch,
 }) => {
   const { t } = useTranslation();
   const editing = useSessionEditing(session, project);
@@ -200,17 +204,22 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   );
 
   if (variant === "compact") {
+    const disclose = subagentCount > 0 && onToggleBranch;
+    const branchLabel = disclose ? t("session.subagentRunCount", { count: subagentCount }) : undefined;
     return (
       <div
         role="treeitem"
         aria-level={ariaLevel}
         aria-selected={highlighted}
+        aria-expanded={disclose ? isBranchExpanded : undefined}
+        data-branch-depth={branchDepth || undefined}
         aria-checked={isSelectionMode ? isChecked : undefined}
         data-tree-node="session"
         data-row="session"
         data-session-path={session.file_path}
         tabIndex={-1}
         title={name}
+        style={branchDepth ? { paddingInlineStart: `${1.75 + Math.min(branchDepth, 8) * 0.75}rem` } : undefined}
         className={cn(
           "group w-full h-7 flex items-center gap-1.5 pl-7 pr-2 rounded-md text-list",
           "text-left outline-none cursor-pointer transition-colors",
@@ -220,12 +229,21 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             ? "bg-accent/15 text-foreground"
             : "text-sidebar-foreground/75 hover:bg-muted/60 hover:text-foreground"
         )}
-        onClick={activate}
+        onClick={(e) => {
+          if (disclose && (e.target as HTMLElement).closest("[data-session-disclosure]")) {
+            onToggleBranch();
+          } else {
+            activate(e);
+          }
+        }}
         onMouseDown={handleMouseDown}
         onContextMenu={handleContextMenu}
         onKeyDown={(e) => {
           if (editing.isEditing) return;
-          if (e.key === "Enter" || (e.key === " " && isSelectionMode)) {
+          if (disclose && ((e.key === "ArrowRight" && !isBranchExpanded) || (e.key === "ArrowLeft" && isBranchExpanded))) {
+            e.preventDefault();
+            onToggleBranch();
+          } else if (e.key === "Enter" || (e.key === " " && isSelectionMode)) {
             e.preventDefault();
             activate(e);
           } else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
@@ -295,6 +313,17 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         )}
         {promptHistoryMark}
         {favoriteMark}
+        {disclose && (
+          <span
+            data-session-disclosure
+            title={branchLabel}
+            className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded bg-muted/60 px-1 text-caption tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            {isBranchExpanded ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
+            <span aria-hidden="true">{subagentCount}</span>
+            <span className="sr-only">{branchLabel}</span>
+          </span>
+        )}
         <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
           <Num>{recordedTime(session.last_modified, formatTimeAgo, t("common.missingValue.notRecorded"))}</Num>
         </span>

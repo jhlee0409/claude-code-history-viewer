@@ -73,9 +73,11 @@ const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionPage {
-    pub sessions: Vec<ClaudeSession>,
+pub struct SessionPage<T = ClaudeSession> {
+    pub sessions: Vec<T>,
     pub total: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subagent_count: Option<usize>,
     pub offset: usize,
     pub limit: usize,
     pub next_offset: usize,
@@ -1426,6 +1428,7 @@ fn load_project_sessions_page_blocking(
     Ok(SessionPage {
         sessions,
         total,
+        subagent_count: None,
         offset,
         limit,
         next_offset,

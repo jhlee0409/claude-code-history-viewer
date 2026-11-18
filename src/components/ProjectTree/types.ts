@@ -117,6 +117,10 @@ export interface SessionListProps {
   listHeight?: number;
   /** `compact`: one-line tree rows (the sidebar, plan T7). */
   density?: "default" | "compact";
+  expandedBranches?: ReadonlySet<string>;
+  onToggleBranch?: (sessionId: string) => void;
+  matchingIds?: ReadonlySet<string>;
+  ariaLevel?: number;
 }
 
 export interface GroupHeaderProps {

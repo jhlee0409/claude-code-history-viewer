@@ -169,6 +169,29 @@ fn load_sessions_at_reporting(
         .map_err(rebrand_error)
 }
 
+pub(crate) fn load_listed_sessions(
+    project_path: &str,
+) -> Result<Vec<opencode::sidebar::ListedSession>, String> {
+    let base = get_base_path().ok_or_else(|| "Kilo not found".to_string())?;
+    load_listed_sessions_at(&base, project_path)
+}
+
+fn load_listed_sessions_at(
+    base: &str,
+    project_path: &str,
+) -> Result<Vec<opencode::sidebar::ListedSession>, String> {
+    let sessions =
+        opencode::sidebar::load_listed_sessions_at(base, DB_FILE, &to_store_scheme(project_path))
+            .map_err(rebrand_error)?;
+    Ok(sessions
+        .into_iter()
+        .map(|row| opencode::sidebar::ListedSession {
+            session: rebrand_session(row.session),
+            parent_session_id: row.parent_session_id.as_deref().map(to_kilo_scheme),
+        })
+        .collect())
+}
+
 /// Load messages for a Kilo session (`kilo://<project_id>/<session_id>` or
 /// `kilo://<session_id>`).
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
@@ -430,6 +453,38 @@ mod tests {
         assert_eq!(projects[0].provider.as_deref(), Some("kilo"));
         assert_eq!(projects[0].session_count, 1);
         assert_eq!(projects[0].name, "kilo-project");
+    }
+
+    #[test]
+    fn sidebar_groups_and_pages_kilo_runs_with_kilo_ids() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed(&conn);
+        super::test_support::seed_subagent_run(&conn, "ses_child", "ses_001", 100, 50);
+        super::test_support::seed_subagent_run(&conn, "ses_leaf", "ses_child", 30, 10);
+        let base = tmp.path().to_str().unwrap();
+        let projects = scan_projects_at(base).unwrap();
+        let projects = opencode::sidebar::group_projects(base, DB_FILE, projects);
+        assert_eq!(
+            (
+                projects[0].project.session_count,
+                projects[0].subagent_count
+            ),
+            (1, 2)
+        );
+        let sessions = load_listed_sessions_at(base, "kilo://proj1").unwrap();
+        let page = opencode::sidebar::page(sessions, 0, 1, Some("kilo://proj1/ses_leaf"));
+        assert_eq!((page.total, page.next_offset, page.has_more), (1, 1, false));
+        assert_eq!(page.sessions[1].file_path, "kilo://proj1/ses_child");
+        assert_eq!(
+            page.sessions[1].parent_session_id.as_deref(),
+            Some("kilo://ses_001")
+        );
+        assert_eq!(
+            page.sessions[2].parent_session_id.as_deref(),
+            Some("kilo://ses_child")
+        );
+        assert_eq!(page.sessions[2].provider.as_deref(), Some("kilo"));
     }
 
     #[test]

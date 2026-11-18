@@ -10,6 +10,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub(crate) mod sidebar;
+
 const OPENCODE_GLOBAL_PROJECT_ID: &str = "global";
 const OPENCODE_GLOBAL_DIRECTORY_PREFIX: &str = "global-dir-";
 
@@ -578,6 +580,9 @@ pub fn load_child_sessions_from_db(
     let Some(sessions) = schema.sessions_sql() else {
         return Vec::new();
     };
+    let Some(tree) = load_session_tree_with_conn(&conn, project_id) else {
+        return Vec::new();
+    };
     let message_count = schema.message_count_sql();
     let Ok(mut stmt) = conn.prepare(&format!(
         "SELECT s.id, s.title, s.time_created, s.time_updated,
@@ -601,7 +606,9 @@ pub fn load_child_sessions_from_db(
         return Vec::new();
     };
 
-    rows.filter_map(std::result::Result::ok).collect()
+    rows.filter_map(Result::ok)
+        .filter(|child| tree.parent(&child.id) == Some(session_id))
+        .collect()
 }
 
 /// Split an `opencode://<project_id>/<session_id>` virtual path.
@@ -685,6 +692,18 @@ impl SessionTree {
         self.parents.contains_key(session_id)
     }
 
+    fn parent(&self, session_id: &str) -> Option<&str> {
+        self.parents.get(session_id).map(String::as_str)
+    }
+
+    fn children(&self, session_id: &str) -> impl Iterator<Item = &str> {
+        self.children
+            .get(session_id)
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+    }
+
     /// Every session below `session_id` (children, grandchildren, ...),
     /// level by level, oldest first within a level. Never `session_id`
     /// itself.
@@ -708,26 +727,24 @@ pub fn load_session_tree_from_db(base_path: &str, db_file: &str, project_id: &st
     let Some(conn) = open_db(base_path, db_file) else {
         return SessionTree::default();
     };
-    let Some(sessions) = StoreSchema::read(&conn)
-        .ok()
-        .and_then(StoreSchema::sessions_sql)
-    else {
-        return SessionTree::default();
-    };
-    let Ok(mut stmt) = conn.prepare(&format!(
-        "SELECT s.id, s.parent_id FROM ({sessions}) s
-         WHERE s.project_id = ?1
-         ORDER BY s.time_created, s.id"
-    )) else {
-        return SessionTree::default();
-    };
-    let Ok(rows) = stmt.query_map([project_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-    }) else {
-        return SessionTree::default();
-    };
-    let links: Vec<(String, Option<String>)> = rows.filter_map(Result::ok).collect();
-    SessionTree::from_links(&links)
+    load_session_tree_with_conn(&conn, project_id).unwrap_or_default()
+}
+
+fn load_session_tree_with_conn(conn: &Connection, project_id: &str) -> Option<SessionTree> {
+    let sessions = StoreSchema::read(conn).ok()?.sessions_sql()?;
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT s.id, s.parent_id FROM ({sessions}) s
+             WHERE s.project_id = ?1
+             ORDER BY s.time_created, s.id"
+        ))
+        .ok()?;
+    let links: Vec<_> = stmt
+        .query_map([project_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .ok()?
+        .filter_map(Result::ok)
+        .collect();
+    Some(SessionTree::from_links(&links))
 }
 
 /// [`SessionTree`] of an `opencode://<project_id>` project (a virtual
@@ -2224,7 +2241,21 @@ fn session_project_paths(
         return std::collections::HashMap::new();
     };
     let mut paths = std::collections::HashMap::new();
+    // Split global projects are displayed by the spawning session's directory.
+    // Keep a hit's own session id while routing it to that sidebar project.
+    let global = std::cell::OnceCell::new();
     for (session_id, project_path) in rows.flatten() {
+        let project_path = if project_path.starts_with("opencode://global-dir-") {
+            global
+                .get_or_init(|| {
+                    sidebar::load_groups(conn, schema, Some(OPENCODE_GLOBAL_PROJECT_ID))
+                })
+                .get(OPENCODE_GLOBAL_PROJECT_ID)
+                .and_then(|group| group.directory_project(&session_id))
+                .map_or(project_path, project_path_for_id)
+        } else {
+            project_path
+        };
         paths.insert(session_id, project_path);
     }
     paths
@@ -3039,6 +3070,95 @@ mod tests {
         assert!(!foreign.is_subagent_run("ses_foreign"));
         let by_path = load_session_tree_at(&base, OPENCODE_DB_FILE, "opencode://proj2");
         assert!(!by_path.is_subagent_run("ses_foreign"));
+    }
+    #[test]
+    fn sqlite_sidebar_groups_runs_without_consuming_page_slots() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        conn.execute_batch(
+            "INSERT INTO project (id, worktree, name, time_created, time_updated)
+             VALUES ('p', '/work/project', 'Project', 1000, 2000);
+             INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+             VALUES ('ses_parent', 'p', 'Parent', 1000, 2000, NULL),
+                    ('ses_child', 'p', 'Child', 1000, 3000, 'ses_parent'),
+                    ('ses_leaf', 'p', 'Leaf', 1000, 9000, 'ses_child'),
+                    ('ses_other', 'p', 'Other', 1000, 8000, NULL),
+                    ('ses_orphan', 'p', 'Orphan', 1000, 7000, 'ses_missing'),
+                    ('ses_self', 'p', 'Self', 1000, 6000, 'ses_self'),
+                    ('ses_cycle_a', 'p', 'Cycle root', 1000, 5000, 'ses_cycle_b'),
+                    ('ses_cycle_b', 'p', 'Cycle child', 1000, 5000, 'ses_cycle_a'),
+                    ('ses_foreign', 'foreign', 'Foreign', 1000, 9900, 'ses_parent');",
+        )
+        .unwrap();
+        let base = tmp.path().to_str().unwrap();
+        let path = "opencode://p";
+        let load = || sidebar::load_listed_sessions_at(base, OPENCODE_DB_FILE, path).unwrap();
+        let all = load();
+        assert_eq!(all.len(), 8);
+        let row = |id: &str| all.iter().find(|row| row.actual_session_id == id).unwrap();
+        assert_eq!(
+            row("ses_parent").last_modified,
+            row("ses_leaf").last_message_time
+        );
+        assert_eq!(
+            row("ses_child").last_modified,
+            row("ses_leaf").last_message_time
+        );
+        assert_eq!(
+            row("ses_child").parent_session_id.as_deref(),
+            Some("opencode://ses_parent")
+        );
+        assert_eq!(
+            row("ses_leaf").parent_session_id.as_deref(),
+            Some("opencode://ses_child")
+        );
+        assert_eq!(
+            row("ses_cycle_b").parent_session_id.as_deref(),
+            Some("opencode://ses_cycle_a")
+        );
+        for id in ["ses_orphan", "ses_self", "ses_cycle_a"] {
+            assert!(row(id).parent_session_id.is_none(), "{id}");
+        }
+        assert!(load_child_sessions_from_db(base, OPENCODE_DB_FILE, "p", "ses_cycle_b").is_empty());
+
+        let projects = scan_projects_from_store(base, OPENCODE_DB_FILE).unwrap();
+        let projects = sidebar::group_projects(base, OPENCODE_DB_FILE, projects);
+        assert_eq!(
+            (
+                projects[0].project.session_count,
+                projects[0].subagent_count
+            ),
+            (5, 3)
+        );
+
+        let page = sidebar::page(load(), 0, 1, None);
+        assert_eq!(
+            (
+                page.total,
+                page.subagent_count,
+                page.next_offset,
+                page.has_more
+            ),
+            (5, Some(3), 1, true)
+        );
+        let ids: Vec<_> = page
+            .sessions
+            .iter()
+            .map(|row| row.actual_session_id.as_str())
+            .collect();
+        assert_eq!(ids, ["ses_parent", "ses_child", "ses_leaf"]);
+        let page = sidebar::page(load(), 1, 1, Some("opencode://p/ses_cycle_b"));
+        assert_eq!(page.next_offset, 2);
+        let ids: Vec<_> = page
+            .sessions
+            .iter()
+            .map(|row| row.actual_session_id.as_str())
+            .collect();
+        assert_eq!(ids, ["ses_other", "ses_cycle_a", "ses_cycle_b"]);
+        let page = sidebar::page(load(), 0, 0, Some("opencode://p/ses_leaf"));
+        assert_eq!(page.next_offset, 0);
+        assert_eq!(page.sessions.len(), 3);
+        assert_eq!(page.sessions[2].actual_session_id, "ses_leaf");
     }
 
     #[test]
@@ -4312,6 +4432,64 @@ mod v2_tests {
             vec!["ses_child", "ses_v1_grandchild"]
         );
         assert!(tree.is_subagent_run("ses_v1_grandchild"));
+    }
+    #[test]
+    fn v2_sidebar_groups_runs_in_the_root_directory_and_routes_search_hits_there() {
+        let store = store(true);
+        store.v2_session("ses_parent", Some("parent"), None, 5000);
+        store.v2_session("ses_child", Some("child"), Some("ses_parent"), 7000);
+        store.v2_message(
+            "ses_child",
+            "msg_child",
+            0,
+            "assistant",
+            json!({ "finish": "stop" }),
+        );
+        store.conn.execute_batch(
+            "UPDATE project SET id = 'global', worktree = '/';
+             UPDATE session_v2 SET project_id = 'global';
+             UPDATE session_v2 SET directory = '/work/elsewhere' WHERE id = 'ses_child';
+             INSERT INTO session (id, project_id, title, directory, time_created, time_updated, parent_id)
+             VALUES ('ses_leaf', 'global', 'leaf', '/work/third', 1000, 9000, 'ses_child');
+             INSERT INTO session_part (message_id, session_id, ordinal, type, time_created, time_updated, data)
+             VALUES ('msg_child', 'ses_child', 0, 'text', 1000, 1000, '{\"text\":\"cross directory run needle\"}');",
+        ).unwrap();
+        let path = project_path_for_id(&global_directory_project_id("/work/app"));
+        let projects = scan_projects_from_store(&store.base, OPENCODE_DB_FILE).unwrap();
+        let listed = sidebar::group_projects(&store.base, OPENCODE_DB_FILE, projects);
+        let project = listed.iter().find(|row| row.project.path == path).unwrap();
+        assert_eq!(
+            (project.project.session_count, project.subagent_count),
+            (1, 2)
+        );
+        assert_eq!(
+            listed
+                .iter()
+                .filter(|row| row.project.session_count > 0)
+                .count(),
+            1
+        );
+        let sessions =
+            sidebar::load_listed_sessions_at(&store.base, OPENCODE_DB_FILE, &path).unwrap();
+        let page = sidebar::page(sessions, 0, 1, None);
+        assert_eq!(
+            page.sessions[2].parent_session_id.as_deref(),
+            Some("opencode://ses_child")
+        );
+        assert_eq!(
+            page.sessions[0].last_modified,
+            page.sessions[2].last_message_time
+        );
+        let results = search_at(
+            &store.base,
+            OPENCODE_DB_FILE,
+            "cross directory run needle",
+            10,
+        )
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].session_id, "ses_child");
+        assert_eq!(results[0].project_path.as_deref(), Some(path.as_str()));
     }
 
     #[test]

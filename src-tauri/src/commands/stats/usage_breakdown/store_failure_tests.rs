@@ -364,10 +364,10 @@ fn answer<T>(result: &Result<T, String>, count: impl Fn(&T) -> usize) -> String 
 
 /// [`answer`] of a command that loads the session list: when that list is an
 /// error, so is the command — the same one (`E≠` marks another error).
-fn same_error<T>(
+fn same_error<T, S>(
     result: &Result<T, String>,
     count: impl Fn(&T) -> usize,
-    sessions: &Result<Vec<crate::models::ClaudeSession>, String>,
+    sessions: &Result<Vec<S>, String>,
 ) -> String {
     match (result, sessions) {
         (Err(error), Err(list_error)) if error != list_error => "E≠".to_string(),

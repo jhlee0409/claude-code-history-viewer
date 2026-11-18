@@ -52,6 +52,8 @@ export interface ClaudeProject {
   /** Decoded actual filesystem path (e.g., "/Users/jack/client/my-project") */
   actual_path: string;
   session_count: number;
+  /** Database-stored subagent runs excluded from session_count. */
+  subagent_count?: number;
   message_count: number;
   last_modified: string;
   /** Path-dependent actions are unavailable while the last-known path is missing. */
@@ -69,6 +71,8 @@ export interface ClaudeProject {
 export interface ClaudeSession {
   session_id: string; // Unique ID based on file path
   actual_session_id: string; // Actual session ID from the messages
+  /** Provider-qualified id of the session that spawned this database run. */
+  parent_session_id?: string;
   file_path: string; // JSONL file full path
   project_name: string;
   message_count: number;
@@ -141,6 +145,7 @@ export interface ClearedSession {
 export interface SessionPage {
   sessions: ClaudeSession[];
   total: number;
+  subagentCount?: number;
   offset: number;
   limit: number;
   nextOffset: number;

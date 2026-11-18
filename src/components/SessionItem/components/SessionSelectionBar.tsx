@@ -27,6 +27,11 @@ import { SessionMultiResumeDialog } from "./SessionMultiResumeDialog";
 interface SessionSelectionBarProps {
   /** All sessions loaded for the project (used to resolve selected IDs). */
   allSessions: ClaudeSession[];
+  /** Number of loaded page units (top-level sessions for a grouped list). */
+  loadedCount?: number;
+  sessionsTotal: number;
+  hasMoreSessions: boolean;
+  visibleRunCount: number;
   /** Sessions currently visible after search/filter (drives "Select all"). */
   visibleSessions: ClaudeSession[];
 }
@@ -38,6 +43,10 @@ const actionButtonClass = cn(
 
 export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   allSessions,
+  loadedCount = allSessions.length,
+  sessionsTotal,
+  hasMoreSessions,
+  visibleRunCount,
   visibleSessions,
 }) => {
   const { t } = useTranslation();
@@ -55,8 +64,6 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   // Session-list pagination state: the project may have more sessions on disk
   // than are loaded (250/page). "Select all" must not silently mean "select
   // the loaded page" when that's the case.
-  const sessionsTotal = useAppStore((s) => s.sessionsTotal);
-  const hasMoreSessions = useAppStore((s) => s.hasMoreSessions);
   const loadMoreSessions = useAppStore((s) => s.loadMoreSessions);
 
   const [isLoadingAll, setIsLoadingAll] = useState(false);
@@ -139,14 +146,14 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
     if (isLoadingAll) return;
     setIsLoadingAll(true);
     try {
-      let previousCount = -1;
+      let previousOffset = -1;
       while (
         useAppStore.getState().hasMoreSessions &&
         useAppStore.getState().isSessionSelectionMode
       ) {
-        const loaded = useAppStore.getState().sessions.length;
-        if (loaded === previousCount) break;
-        previousCount = loaded;
+        const offset = useAppStore.getState().sessionsOffset;
+        if (offset === previousOffset) break;
+        previousOffset = offset;
         await loadMoreSessions();
       }
       if (useAppStore.getState().isSessionSelectionMode) {
@@ -253,7 +260,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
         <div className="flex items-center gap-1 text-caption text-amber-600 dark:text-amber-400">
           <span>
             {t("session.selection.partialNotice", {
-              loaded: allSessions.length,
+              loaded: loadedCount,
               total: sessionsTotal,
               defaultValue:
                 "{{loaded}} of {{total}} sessions loaded — selection covers loaded sessions only",
@@ -294,12 +301,12 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
             <span>
               {isLoadingAll
                 ? t("session.selection.loadingAll", {
-                    loaded: allSessions.length,
+                    loaded: loadedCount,
                     total: sessionsTotal,
                     defaultValue: "Loading {{loaded}}/{{total}}...",
                   })
                 : t("session.selection.loadAllAndSelect", {
-                    count: sessionsTotal,
+                    count: sessionsTotal + visibleRunCount,
                     defaultValue: "Load & select all {{count}}",
                   })}
             </span>

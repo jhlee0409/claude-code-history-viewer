@@ -312,6 +312,7 @@ export interface AppStoreActions {
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   reloadProjectSessions: (project: ClaudeProject) => Promise<void>;
+  ensureSessionBranch: (session: ClaudeSession) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   clearProjectSelection: (
     options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,

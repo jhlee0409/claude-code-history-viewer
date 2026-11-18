@@ -360,6 +360,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         ? {
             projectPaths: [...sidebarMatches.projectPaths],
             sessionMatchesByProject: Object.fromEntries(sidebarMatches.sessionMatchesByProject),
+            sessionContextByProject: Object.fromEntries(sidebarMatches.sessionContextByProject),
             sessionIds: filterScope.matchSessions
               ? collectScopedSessionIds(sidebarMatches, sessionNameIndex.sessionsByProject)
               : null,
@@ -664,6 +665,30 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     const currentItem = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
     const currentIndex = currentItem ? treeItems.indexOf(currentItem) : -1;
     if (currentIndex < 0) {
+      return;
+    }
+
+    if (event.defaultPrevented) return;
+    if (currentItem?.dataset.treeNode === "session" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      const level = Number(currentItem.getAttribute("aria-level"));
+      let item: HTMLElement | undefined;
+      if (event.key === "ArrowRight" && currentItem.getAttribute("aria-expanded") === "true") {
+        const next = treeItems[currentIndex + 1];
+        if (next?.getAttribute("aria-level") === String(level + 1)) item = next;
+      } else if (event.key === "ArrowLeft" && currentItem.dataset.branchDepth) {
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          const previous = treeItems[i];
+          if (previous && Number(previous.getAttribute("aria-level")) < level) {
+            item = previous;
+            break;
+          }
+        }
+      }
+      if (item) {
+        event.preventDefault();
+        syncRovingTabIndex(item);
+        item.focus();
+      }
       return;
     }
 
